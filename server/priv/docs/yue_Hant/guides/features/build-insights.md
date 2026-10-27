@@ -1,236 +1,43 @@
 ---
 {
-  "title": "Insights",
+  "title": "Build Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Get insights into your projects to maintain a product developer environment."
+  "description": "Track build performance for Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist Build Insights."
 }
 ---
-# Insights {#insights}
+# 建構洞察 {#build-insights}
 
-> [!WARNING]
-> **Requirements**
->
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+使用 Build Insights 追蹤本地和 CI 建構效能。目前支援 Xcode、Gradle、Bazel、Elixir 和 Rust。
 
-
-Working on large projects shouldn't feel like a chore. In fact, it should be as
-enjoyable as working on a project you started just two weeks ago. One of the
-reasons it is not is because as the project grows, the developer experience
-suffers. The build times increase and tests become slow and flaky. It's often
-easy to overlook these issues until it gets to a point where they become
-unbearable – however, at that point, it's difficult to address them. Tuist
-Insights provides you with the tools to monitor the health of your project and
-maintain a productive developer environment as your project scales.
-
-In other words, Tuist Insights helps you to answer questions such as:
-- Has the build time significantly increased in the last week?
-- Have my tests become slower? Which ones?
-
-> [!NOTE]
-> Tuist Insights are in early development.
-
-
-## Builds {#builds}
-
-While you probably have some metrics for the performance of CI workflows, you
-might not have the same visibility into the local development environment.
-However, local build times are one of the most important factors that contribute
-to the developer experience.
-
-To start tracking local build times, you can leverage the `tuist inspect build`
-command by adding it to your scheme's post-action:
-
-![Post-action for inspecting
-builds](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
-
-> [!NOTE]
-> We recommend setting the "Provide build settings from" to the executable or your
-> main build target to enable Tuist to track the build configuration.
-
-
-> [!NOTE]
-> If you are not using <LocalizedLink href="/guides/features/projects">generated projects</LocalizedLink>, the post-scheme action is not executed in case the
-> build fails.
-
-> 
-> An undocumented feature in Xcode allows you to execute it even in this case.
-> Set the attribute `runPostActionsOnFailure` to `YES` in your scheme's
-> `BuildAction` in the relevant `project.pbxproj` file as follows:
-> 
-> ```diff
-> <BuildAction
->    buildImplicitDependencies="YES"
->    parallelizeBuildables="YES"
-> +  runPostActionsOnFailure="YES">
-> ```
-
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
-```sh
-# -C ensures that Mise loads the configuration from the Mise configuration
-# file in the project's root directory.
-$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
-```
-
-> [!TIP]
-> **Mise & Project Paths**
->
-> Your environment's `PATH` environment variable is not inherited by the scheme
-> post action, and therefore you have to use Mise's absolute path, which will
-> depend on how you installed Mise. Moreover, don't forget to inherit the build
-> settings from a target in your project such that you can run Mise from the
-> directory pointed to by $SRCROOT.
-
-
-Your local builds are now tracked as long as you are logged in to your Tuist
-account. You can now access your build times in the Tuist dashboard and see how
-they evolve over time:
-
-
-> [!TIP]
-> To quickly access the dashboard, run `tuist project show --web` from the CLI.
-
-
-![Dashboard with build
-insights](/images/guides/features/build-insights/builds-dashboard.png)
-
-## Tests {#tests}
-
-In addition to tracking builds, you can also monitor your tests. Test insights
-help you identify slow tests or quickly understand failed CI runs.
-
-To start tracking your tests, you can leverage the `tuist inspect test` command
-by adding it to your scheme's test post-action:
-
-![Post-action for inspecting
-tests](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
-
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
-```sh
-# -C ensures that Mise loads the configuration from the Mise configuration
-# file in the project's root directory.
-$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
-```
-
-> [!TIP]
-> **Mise & Project Paths**
->
-> Your environment's `PATH` environment variable is not inherited by the scheme
-> post action, and therefore you have to use Mise's absolute path, which will
-> depend on how you installed Mise. Moreover, don't forget to inherit the build
-> settings from a target in your project such that you can run Mise from the
-> directory pointed to by $SRCROOT.
-
-
-Your test runs are now tracked as long as you are logged in to your Tuist
-account. You can access your test insights in the Tuist dashboard and see how
-they evolve over time:
-
-![Dashboard with test
-insights](/images/guides/features/build-insights/tests-dashboard.png)
-
-Apart from overall trends, you can also dive deep into each individual test,
-such as when debugging failures or slow tests on the CI:
-
-![Test detail](/images/guides/features/build-insights/test-detail.png)
-
-## Generated projects {#generated-projects}
-
-> [!NOTE]
-> Auto-generated schemes automatically include both `tuist inspect build` and
-> `tuist inspect test` post-actions.
-
-> 
-> If you are not interested in tracking insights in your auto-generated schemes,
-> disable them using the
-> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
-> and
-> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">testInsightsDisabled</LocalizedLink>
-> generation options.
-
-If you are using generated projects with custom schemes, you can set up
-post-actions for both build and test insights:
-
-```swift
-let project = Project(
-    name: "MyProject",
-    targets: [
-        // Your targets
-    ],
-    schemes: [
-        .scheme(
-            name: "MyApp",
-            shared: true,
-            buildAction: .buildAction(
-                targets: ["MyApp"],
-                postActions: [
-                    // Build insights: Track build times and performance
-                    .executionAction(
-                        title: "Inspect Build",
-                        scriptText: """
-                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
-                        """,
-                        target: "MyApp"
-                    )
-                ],
-                // Run build post-actions even if the build fails
-                runPostActionsOnFailure: true
-            ),
-            testAction: .testAction(
-                targets: ["MyAppTests"],
-                postActions: [
-                    // Test insights: Track test duration and flakiness
-                    .executionAction(
-                        title: "Inspect Test",
-                        scriptText: """
-                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
-                        """,
-                        target: "MyAppTests"
-                    )
-                ]
-            ),
-            runAction: .runAction(configuration: "Debug")
-        )
-    ]
-)
-```
-
-If you're not using Mise, your scripts can be simplified to:
-
-```swift
-buildAction: .buildAction(
-    targets: ["MyApp"],
-    postActions: [
-        .executionAction(
-            title: "Inspect Build",
-            scriptText: "tuist inspect build",
-            target: "MyApp"
-        )
-    ],
-    runPostActionsOnFailure: true
-),
-testAction: .testAction(
-    targets: ["MyAppTests"],
-    postActions: [
-        .executionAction(
-            title: "Inspect Test",
-            scriptText: "tuist inspect test"
-        )
-    ]
-)
-```
-
-## Continuous integration {#continuous-integration}
-
-To track build and test insights on CI, you will need to ensure that your CI is
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
-
-Additionally, you will either need to:
-- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
-- Add `-resultBundlePath` to your `xcodebuild` invocation.
-
-When `xcodebuild` builds or tests your project without `-resultBundlePath`, the
-required activity log and result bundle files are not generated. Both `tuist
-inspect build` and `tuist inspect test` post-actions require these files to
-analyze your builds and tests.
+<.home_cards>
+  <.home_card
+    title="Xcode"
+    details="在 Tuist 儀表板中追蹤 Xcode scheme 後置動作耗時、建構設定和建構元數據。"
+    link="/guides/features/build-insights/xcode"
+/>
+  <.home_card
+    title="生成的專案"
+    details="在具有自訂 scheme 的 Tuist 生成專案中追蹤建構洞察。"
+    link="/guides/features/build-insights/generated-xcode-project"
+/>
+  <.home_card
+    title="Gradle"
+    details="使用 Tuist Gradle 外掛程式追蹤 Gradle 任務耗時和快取效率。"
+    link="/guides/features/build-insights/gradle"
+/>
+  <.home_card
+    title="Bazel"
+    details="透過 Build Event Protocol 追蹤 Bazel 指令持續時間、快取總量和關鍵路徑診斷。"
+    link="/guides/features/build-insights/bazel"
+/>
+  <.home_card
+    title="Elixir"
+    details="追蹤你的 Elixir 專案編譯所需時間、警告，以及拖慢建構的檔案。"
+    link="/guides/features/build-insights/elixir"
+/>
+  <.home_card
+    title="Rust"
+    details="使用 Tuist CLI 追蹤 Cargo 指令持續時間、觀察到的 rustc 呼叫和編譯器診斷。"
+    link="/guides/features/build-insights/rust"
+/>
+</.home_cards>

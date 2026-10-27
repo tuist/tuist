@@ -1,0 +1,122 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "bd960c7ee833de04589c79b6b45da889199e08dc432d6133560a0f8d045f46f6",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "hash": "a8686e2300e94d3df2ce161ededbe23d53238538d8681a46e19e14337b7b6875",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/features/build-insights/gradle.md",
+          "metadata": {
+            "content_hash": "6c709bf073298f1c6846bad7b40ab7fc07c6cc0ae9b555f3d31a870a0f626c6c"
+          }
+        },
+        {
+          "children": [],
+          "hash": "22cd7e3fb3c54e6b2e71ee7021ec4c3bf3b349eeaab1593ccb4d416fe8217862",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "preserve",
+            "language": "Spanish",
+            "locale": "es",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+              }
+            },
+            {
+              "children": [],
+              "hash": "971bd2e703d1808e563b5e080e6cc74676f8b07f109adfbddc4c3a51ba93297c",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "ab0896980525bb1cce34defdf4a74be1c02f8790addfd3363a65949f46eeccbb"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "hash": "3fecda6a7ac862b4314b2c9effe680ffda22ec113c48be0dcc732364a0a54802",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "hash": "bd960c7ee833de04589c79b6b45da889199e08dc432d6133560a0f8d045f46f6",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/features/build-insights/gradle.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "0f94c5fd3bd1ee139b12cc46903c74b0c189893f53edd210afc80252ba58435e",
+  "output_path": "server/priv/docs/es/guides/features/build-insights/gradle.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "a9ebff0c949b89ca00f2081a3ead2cb58e6b62ac",
+  "source_path": "server/priv/docs/en/guides/features/build-insights/gradle.md",
+  "translated_at": "2026-10-27T17:25:20.839426Z",
+  "translation_session_id": "01a17e64-0648-7ee3-8a99-912a58ebaa1d"
+}
