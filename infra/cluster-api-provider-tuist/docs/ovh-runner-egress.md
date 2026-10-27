@@ -148,12 +148,24 @@ The first compile-fixture recheck rejected the existing private-cache endpoint
 before compilation. Its guard now permits that exact endpoint alongside the
 regional names while retaining the staging-only URL restriction.
 
-Last verified state after rollback: provider `e8dcb75e`, egress disabled, empty
+State after that rollback: provider `e8dcb75e`, egress disabled, empty
 public reservations, egress conditions/annotations cleared, private networking
 intact, runner Ready and schedulable. Temporary diagnostics and qualification
 annotations were removed. The 2026-10-27 recheck used controller convergence and
 real jobs; the human Kubernetes identity could not read the cluster-scoped
 policy, so it did not repeat the earlier BPF-map/host inspection.
+
+Staging was subsequently left **enabled** on 2026-10-27. After a concurrent Kura
+deployment finished, provider `e8dcb75e` was restored without changing application
+or cache releases. Activation waited for zero nonterminal runner pods on the
+cordoned host, then verified egress/private-network/KVM readiness and resumed
+scheduling. [Activation acceptance](https://github.com/tuist/tuist/actions/runs/40498958116)
+passed with exact public IP `5.39.98.145` and both real Kotlin tasks restored from
+the private cache. The egress revision matched the current BootID; the temporary
+reconciliation annotation was removed. Canary's enabled values are desired state,
+not evidence of live qualification: its block move and drained enrollment remain
+deployment prerequisites. A deployment from a branch without this configuration
+can overwrite staging's provider/flag, so preserve them in subsequent deployments.
 
 **Remaining gates:** the earlier reboot took roughly ten minutes and triggered
 OVH server-down monitoring. Busy kubelet mounts appeared in shutdown logs, but
