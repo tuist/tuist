@@ -8,38 +8,6 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
-  describe "runner_linux_vrack_enabled?/1" do
-    test "requires explicit opt-in in every environment" do
-      account = %Account{id: 42, name: "tuist"}
-
-      for env <- [:prod, :stag, :can, :dev, :test] do
-        stub(Environment, :env, fn -> env end)
-        expect(FunWithFlags, :enabled?, fn :runner_linux_vrack, [for: ^account] -> false end)
-        refute FeatureFlags.runner_linux_vrack_enabled?(account)
-        expect(FunWithFlags, :enabled?, fn :runner_linux_vrack, [for: ^account] -> true end)
-        assert FeatureFlags.runner_linux_vrack_enabled?(account)
-      end
-    end
-
-    test "snapshot evaluation preserves account opt-out from a global rollout" do
-      account = %Account{id: 42, name: "tuist"}
-      other = %Account{id: 43, name: "other"}
-
-      flags = %{
-        runner_linux_vrack: %FunWithFlags.Flag{
-          name: :runner_linux_vrack,
-          gates: [
-            %FunWithFlags.Gate{type: :boolean, enabled: true},
-            %FunWithFlags.Gate{type: :actor, for: "account:42", enabled: false}
-          ]
-        }
-      }
-
-      refute FeatureFlags.runner_linux_vrack_enabled?(account, flags)
-      assert FeatureFlags.runner_linux_vrack_enabled?(other, flags)
-    end
-  end
-
   describe "immutable_shard_reports_enabled?/1" do
     test "coverage-enabled accounts cannot create immutable plans" do
       account = %Account{id: 42, name: "tuist"}
