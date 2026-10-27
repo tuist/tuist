@@ -72,7 +72,10 @@ export TUIST_SERVER_TEST_PORT=4187
 export TUIST_SERVER_TEST_POSTGRES_DB=tuist_amp_orbs_live
 export TUIST_SERVER_TEST_CLICKHOUSE_DB=tuist_amp_orbs_live
 export TUIST_ORB_WORKSPACE_GB=1 ORB_IMAGE=default
-(cd "$root/server"; exec env -u AMP_ORB_PROVIDER_TOKEN mix run --no-start --no-compile verification/amp_orbs.exs) > "$work/server.log" 2>&1 &
+(cd "$root/server"; exec mise exec -- env -u AMP_ORB_PROVIDER_TOKEN \
+  TUIST_SERVER_TEST_POSTGRES_DB=tuist_amp_orbs_live \
+  TUIST_SERVER_TEST_CLICKHOUSE_DB=tuist_amp_orbs_live TUIST_SERVER_TEST_PORT=4187 \
+  mix run --no-start --no-compile verification/amp_orbs.exs) > "$work/server.log" 2>&1 &
 server_pid=$!
 for _ in {1..120}; do
   [[ ! -f "$work/provider.env" ]] || break

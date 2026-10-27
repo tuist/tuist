@@ -135,19 +135,25 @@ jobs:
         with:
           mise-install-args: erlang elixir
           restore-mix-cache: 'false'
-      - name: Compile isolated control plane and migrate disposable databases
+      - name: Compile isolated control plane
         working-directory: server
-        run: |
-          export TUIST_SERVER_TEST_POSTGRES_DB=tuist_amp_orbs_live
-          export TUIST_SERVER_TEST_CLICKHOUSE_DB=tuist_amp_orbs_live
-          mix compile
-          bash mise/tasks/db/migrate.sh --create --no-compile
+        run: mise exec -- mix compile
       - uses: actions/cache/save@v4
         with:
           path: |
             server/deps
             server/_build
           key: ${{ steps.mix-cache.outputs.cache-primary-key }}
+      - name: Migrate disposable databases
+        working-directory: server
+        run: |
+          # Apply overrides after mise's checkout-local development defaults.
+          # ClickHouse reaches PostgreSQL through the service container network.
+          mise exec -- env \
+            TUIST_SERVER_TEST_POSTGRES_DB=tuist_amp_orbs_live \
+            TUIST_SERVER_TEST_CLICKHOUSE_DB=tuist_amp_orbs_live \
+            TUIST_IPV4_DATABASE_URL=postgres://postgres:postgres@postgres:5432/tuist_amp_orbs_live \
+            bash mise/tasks/db/migrate.sh --create --no-compile
       - name: Install isolated Kubernetes tools
         working-directory: infra
         run: |
