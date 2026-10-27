@@ -2343,6 +2343,26 @@ defmodule Tuist.AccountsTest do
       assert got
     end
 
+    test "returns nil for malformed UTF-8 without resolving a sanitized handle" do
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+
+      for bytes <- [<<0xC0>>, <<0x80>>, <<0xC3>>, <<0xED, 0xA0, 0x80>>],
+          handle <- [bytes, bytes <> account.name, account.name <> bytes] do
+        assert is_nil(Accounts.get_account_by_handle(handle))
+      end
+
+      assert Accounts.get_account_by_handle(account.name).id == account.id
+    end
+
+    test "preserves Unicode lookups" do
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+      handle = "équipe-#{account.name}"
+      account = Repo.update!(Ecto.Changeset.change(account, name: handle))
+
+      assert Accounts.get_account_by_handle(String.upcase(handle)).id == account.id
+      assert is_nil(Accounts.get_account_by_handle("未知"))
+    end
+
     test "returns nil when the handle is a percent wildcard" do
       # Given
       AccountsFixtures.user_fixture(preload: [:account])

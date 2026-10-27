@@ -166,7 +166,9 @@ defmodule Tuist.Accounts do
   end
 
   def get_account_by_handle(handle) do
-    Repo.one(from(a in Account, where: a.name == ^handle))
+    if String.valid?(handle) do
+      Repo.one(from(a in Account, where: a.name == ^handle))
+    end
   end
 
   @doc """
