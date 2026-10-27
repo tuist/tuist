@@ -65,14 +65,6 @@ jobs:
         with:
           # Staging validation builds the exact KVM PR source on hosted capacity.
           ref: 012488a57f120454ec8d3283c75c8d9b2909331c
-      - uses: tuist/cache-volume@v1
-        with:
-          key: ci-runners-controller-go-mod-v1
-          path: ${{ env.GOMODCACHE }}
-      - uses: tuist/cache-volume@v1
-        with:
-          key: ci-runners-controller-go-build-v1
-          path: ${{ env.GOCACHE }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/runners-controller/go.mod
