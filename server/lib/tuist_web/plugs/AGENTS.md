@@ -15,6 +15,9 @@ This area owns Plug middleware for request processing.
 - `SameOriginCSRFExemptionPlug` sets `:plug_skip_csrf_protection` when the browser proves the request is same-origin (`Sec-Fetch-Site: same-origin`, or `Origin` equal to `TuistWeb.RequestOrigin.from_conn/1`). It exists for POSTs submitted from CDN-cached marketing pages, whose embedded CSRF token belongs to another session. Pipe it ahead of `:protect_from_forgery` and only through scopes that contain nothing but the routes meant to be exempt; it does not filter by path.
 
 - `BrowserTelemetryPlug` owns the bounded same-origin `/-/faro/collect` gateway before the endpoint body parser. Validate signed sessions without refreshing cookies; never forward browser credentials to Alloy. Keep body/item/time limits, trusted Ray-ID handling and failure responses covered by tests.
+- Gateway LCP delivery uses shared replay receipts. A busy claim, unavailable
+  database or failed receiver returns 503; acknowledge 202 only after the receiver
+  succeeds and new receipts are completed. Event-only batches need no receipts.
 
 ## Boundaries
 - Observability and Sentry plugs share `Tuist.Observability` normalization and replacement semantics. Set selected resources only from authoritative loaded structs, retaining auth separately. Clear absent keys and old cohorts on context changes; never copy headers, credentials or arbitrary conn assigns. Project ownership wins over inconsistent selected-account assigns.

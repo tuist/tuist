@@ -20,7 +20,8 @@ defmodule TuistWeb.BrowserTelemetry.Enrichment do
         "rum_surface" => surface,
         "rum_authentication" => authentication,
         "rum_ray_id" => ray_id,
-        "rum_automation" => "unknown"
+        "rum_automation" => "unknown",
+        "rum_deduplication" => "untracked"
       }
 
       measurements =
@@ -101,7 +102,9 @@ defmodule TuistWeb.BrowserTelemetry.Enrichment do
     end
   end
 
-  defp present?(value), do: is_binary(value) and byte_size(value) in 1..256
+  defp present?(value),
+    do: is_binary(value) and byte_size(value) in 1..256 and String.trim(value) not in ["", "unknown"]
+
   defp map(value) when is_map(value), do: value
   defp map(_), do: %{}
 end

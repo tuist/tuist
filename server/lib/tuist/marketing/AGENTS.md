@@ -3,6 +3,10 @@
 This context owns marketing content aggregation (blog posts, case studies, changelogs).
 
 ## Responsibilities
+- `ReleaseMetadata` traces cached GitHub/App Store lookups and their fetches,
+  preserving/restoring OTel context across Cachex workers. Slow lookups (>=1s)
+  emit a bounded provider/duration log without URLs, credentials or response data.
+  Cache waits include coalesced work; only the first miss owns the fetch span.
 - Load and aggregate content entries, categories, and metadata.
 - Provide helpers for blog, case study, and changelog content rendering.
 - Provide reusable Open Graph image template components without mapping routes to templates or variables.

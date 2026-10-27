@@ -3,6 +3,9 @@
 This node covers Helm assets under `infra/helm/`.
 
 ## Scope
+- Browser RUM alert definitions and validation live in `k8s-monitoring/browser-rum.md`.
+  Keep unique-only rules paused until replay classification has a full 24-hour
+  baseline. The liveness zero fallback must share the sum's empty label set.
 - Umbrella and component charts for deploying Tuist services on Kubernetes
 - Values for embedded vs external infrastructure dependencies
 - Kubernetes manifests and helper templates for app services, data services, and observability
