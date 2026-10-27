@@ -74,3 +74,5 @@
   `tuist-runner-host` audience and derives the node from its ServiceAccount; it
   lists custom volume HEADs only. Workflow tokens and body-supplied node fields
   cannot authorize it.
+
+- Custom SSO callbacks must ignore the retired compatibility flag: membership alone cannot authorize linking by provider-reported email. Preserve linked identities, signed-in member confirmation, and the SCIM provenance exception; unverified providers cannot create accounts even through invitations.
