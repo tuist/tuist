@@ -383,6 +383,8 @@ defmodule AtlasWeb.Router do
       live "/outbound/email/inbox", EmailMailboxLive, :inbox
       live "/outbound/email/outbox", EmailMailboxLive, :outbox
       live "/outbound/email/outbox/:id", EmailMailboxLive, :sent_email
+      live "/library/moodboard", MoodboardLive, :index
+      live "/library/moodboard/:id", MoodboardShowLive, :show
       live "/library/notes", NotesLive, :index
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show

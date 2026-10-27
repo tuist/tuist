@@ -39,6 +39,7 @@ import "../css/routes/financings.css"
 import "../css/routes/data_centers.css"
 import "../css/routes/insurance.css"
 import "../css/routes/notes.css"
+import "../css/routes/moodboard.css"
 import "../css/routes/tasks.css"
 import "../css/routes/automation.css"
 import "../css/routes/llm_providers.css"
@@ -68,6 +69,8 @@ import MermaidDiagram from "./hooks/mermaid_diagram"
 import CodeEditor from "./hooks/code_editor"
 import dateOnlyDatePicker from "./hooks/date_only_date_picker"
 import Presence from "./hooks/presence"
+import MoodboardImage from "./hooks/moodboard_image"
+import MoodboardVideo from "./hooks/moodboard_video"
 
 window.nooraChartFormatters = {
   ...window.nooraChartFormatters,
@@ -79,7 +82,7 @@ window.nooraChartFormatters = {
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   params: () => ({_csrf_token: csrfToken, presence_visible: document.visibilityState === "visible"}),
-  hooks: {...colocatedHooks, ...Noora.Hooks, NooraDatePicker: dateOnlyDatePicker(Noora.Hooks.NooraDatePicker), IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard, MermaidDiagram, CodeEditor, Presence},
+  hooks: {...colocatedHooks, ...Noora.Hooks, NooraDatePicker: dateOnlyDatePicker(Noora.Hooks.NooraDatePicker), IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard, MermaidDiagram, CodeEditor, Presence, MoodboardImage, MoodboardVideo},
 })
 
 // Show progress bar on live navigation and form submits. Skipped when the page

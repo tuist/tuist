@@ -152,6 +152,10 @@ Do not add README entries for internal operational details such as env var names
   }
   ```
 
+## Moodboard
+
+- The shared reference grid at `/library/moodboard` lives under Library and accepts links, articles, images/videos and original text from the dashboard and MCP. It keeps contributor notes separate from fetched source text, supports author-owned discussion comments, and uses Atlas's hybrid search with deferred embeddings. Authentication/ownership, DNS-pinned background preview discovery (including public X posts), privacy boundaries and tests are documented in [the Moodboard intent](lib/atlas/moodboard/AGENTS.md).
+
 ## Markdown
 
 - Note previews and read-only notes use `AtlasWeb.Markdown.content/1` so they share MDEx sanitization, Noora typography, tables, and alerts. The editor uses Noora cards and a monospace source textarea; keep note-specific layout in `assets/css/routes/notes.css` rather than adding a separate Markdown renderer.
