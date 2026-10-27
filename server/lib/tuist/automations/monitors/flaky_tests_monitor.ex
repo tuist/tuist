@@ -172,7 +172,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # thing on both paths. A test case with runs but not enough of them is no more
   # recoverable than one with none.
   defp measured_in_calendar_window(alert, seconds, test_case_ids) do
-    cutoff = window_cutoff_date(seconds, alert)
+    cutoff = window_cutoff_date(seconds)
 
     ClickHouseRepo.all(
       from(daily in {@default_branch_daily_table, TestCaseRunDailyStatsPerCase},
@@ -220,7 +220,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           source
           |> flakiness_rate_last_days_query(
             project_id,
-            window_cutoff_date(seconds, alert),
+            window_cutoff_date(seconds),
             threshold,
             comparison
           )
@@ -249,7 +249,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           source
           |> flaky_run_count_last_days_query(
             project_id,
-            window_cutoff_date(seconds, alert),
+            window_cutoff_date(seconds),
             threshold,
             comparison
           )
@@ -286,7 +286,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           source
           |> reliability_rate_last_days_query(
             project_id,
-            window_cutoff_date(seconds, alert),
+            window_cutoff_date(seconds),
             threshold,
             comparison
           )
@@ -339,8 +339,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # cutoff to the start of the day. A 30-day window evaluated mid-day picks
   # up a few hours of additional data on day -30 — acceptable for
   # threshold-based alerts and well within the noise of test-run timing.
-  defp window_cutoff_date(window_seconds, alert) do
-    (Map.get(alert, :evaluation_at) || DateTime.utc_now())
+  defp window_cutoff_date(window_seconds) do
+    DateTime.utc_now()
     |> DateTime.add(-window_seconds, :second)
     |> DateTime.to_date()
   end

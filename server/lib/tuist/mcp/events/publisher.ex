@@ -19,17 +19,6 @@ defmodule Tuist.MCP.Events.Publisher do
     end
   end
 
-  @doc false
-  def publish!(name, data, source_id) do
-    if Catalog.supported?(name) and active_subscriptions?(name, data) do
-      args = data |> Map.put("event_name", name) |> Map.put("source_id", to_string(source_id))
-      key = Queue.key(["fanout", name, Map.take(data, ["project_id", "account_id"]), to_string(source_id)])
-      :ok = Queue.enqueue([{key, FanoutWorker.new(args)}])
-    end
-
-    :ok
-  end
-
   def publish_batch(_name, [], _target), do: :ok
 
   def publish_batch(name, entries, target) when is_list(entries) and is_map(target) do

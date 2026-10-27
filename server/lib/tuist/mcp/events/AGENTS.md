@@ -1,7 +1,5 @@
 # Model Context Protocol Events
 
-- Durable automation fan-out uses `Publisher.publish!/3` inside its PostgreSQL checkpoint transaction. Unlike best-effort publication, enqueue failures must propagate so the parent checkpoint cannot acknowledge missing work.
-
 - `Tuist.MCP.Events` is the protocol entry point. `Catalog` declares event contracts; `Subscriptions` persists them, `SubscriptionAuthorization` checks their targets and credentials, `Publisher` queues domain-supplied event data, and `Payload` builds delivery links. Project-filtered build/test subscriptions and account-filtered runner job subscriptions are supported. Subscribe only for a real user and a claimed account token, claimed auth.md registration, or scoped OAuth credential; check both the user and credential against the relevant project or account without Atlas operator-read elevation.
 - Store callback URLs and Standard Webhooks secrets encrypted. Verify callbacks before saving them, and pin public addresses again for every delivery. Do not follow redirects.
 - Domain writers enqueue fan-out jobs on the isolated `:mcp_events` queue. Batch producers and fan-out workers insert jobs in bounded groups. Delivery jobs recheck owner access, the exact OAuth grant lineage, claimed auth.md registration with a live credential, or claimed account token, and expiry. Event IDs remain stable across retries.

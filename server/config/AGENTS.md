@@ -1,7 +1,6 @@
 # Server Configuration
 
 ## Responsibilities
-- Durable automation mutations and notifications use `automation_transitions` and `automation_deliveries` queues on web replicas. Evaluation stays on `alert_evaluations`; destination throughput is coordinated in PostgreSQL across replicas, not by per-pod queue concurrency. The shared hourly execution-pruning job preserves unresolved work.
 - The test ingestion connection permits ordinary views inside the ClickHouse sandbox with `throw_on_unsupported_query_inside_transaction: 0`. Their MergeTree sources still participate in the transaction and roll back; do not treat ordinary views as transaction-owning storage engines or change production consistency settings to accommodate tests.
 - Boruta uses `Tuist.OAuth.AuthoritativeCache` with upstream Ecto adapters: authoritative database reads, ignored fills and no-op invalidations. Every OAuth consumer must first run the authoritative-reading compatibility release (#14040); ordinary overlap and rollback are supported only with authoritative-reading binaries. Follow the [upgrade and rollback sequence](../lib/tuist/oauth/AGENTS.md) and deploy/observe this removal before changing membership.
 - `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` enables reporting-only network trust for every supported project/account on a self-hosted instance. Parse only exact `true` into the startup application configuration; default false, keep hosted denial, and require replica restarts for changes. There is no dashboard/project policy or allowlist.
@@ -11,6 +10,8 @@
   so unused charting and form runtimes stay out of the marketing bundle.
 
 ## Observability and worker configuration
+
+- Automation planning uses `alert_evaluations`, test batches use `alert_evaluation_batches`, and Slack HTTP uses `automation_notifications`. Separate new queues keep old replicas from claiming unknown workers during rolling deploys. Slack 429 responses defer individual jobs using `Retry-After`.
 
 - Keep console and Loki structured-metadata allowlists aligned for auth/selected IDs, legacy handles and bounded feature decisions. These high-cardinality fields are structured metadata, never Loki stream labels. Customer billing IDs remain Sentry extras only, not log/trace attributes.
 

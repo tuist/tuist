@@ -5,6 +5,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.Automations.Workers.AlertEvaluationBatchWorker
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
@@ -16,6 +17,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup do
+    # Keep the existing monitor/transition assertions synchronous. The batch
+    # worker suite covers persisted dispatch and re-evaluation on retry.
+    stub(AlertEvaluationBatchWorker, :enqueue, &AlertEvaluationWorker.apply_evaluation/4)
     # By default, treat every triggered test case as validated on the default
     # branch so the existing transition/recovery assertions are unaffected.
     # Tests exercising the new-test exclusion override this stub.

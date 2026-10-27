@@ -1,4 +1,4 @@
-defmodule Tuist.Automations.Execution.SlackDeliveryTest do
+defmodule Tuist.Slack.DeliveryTest do
   use ExUnit.Case, async: true
   use Mimic
 

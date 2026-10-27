@@ -1,5 +1,7 @@
 # Slack OAuth: local end-to-end testing
 
+Automation notifications use `Client.deliver_once/2`: one bounded HTTP request without Req retries or redirects, returning snooze for rate limits, error for transient failures, and discard for permanent rejections. Oban owns retries; keep the existing reporting transports compatible.
+
 Slack's OAuth redirect URI must be HTTPS, and the URI Tuist sends to Slack is built by `Tuist.Environment.app_url/1` from `TUIST_SERVER_URL`. By default `mise/utilities/dev_instance_env.sh` exports `TUIST_SERVER_URL=http://localhost:<port>` per worktree, which Slack rejects. To exercise the real OAuth round-trip:
 
 1. `cloudflared tunnel --url http://localhost:<your-dev-port>` — gives you an HTTPS URL like `https://<random>.trycloudflare.com`. Find your port via `echo $TUIST_SERVER_PORT` inside `mise exec`.
@@ -28,7 +30,3 @@ mise exec -- mix run -e '
 ```
 
 The `<> secret_key_password` is required — `Tuist.Accounts.User.valid_password?/2` salts every comparison with it.
-
-## Durable automation delivery
-
-`Client.deliver_once/2` is the durable automation transport: explicit connect/pool/receive bounds, no Req retries or redirects, and distinct rate-limit, permanent-rejection and transient-failure results. The automation delivery worker persists progress and coordinates channel cooldowns across replicas. Keep legacy reporting transports compatible.

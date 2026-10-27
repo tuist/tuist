@@ -7,8 +7,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
-  alias Tuist.Automations.Execution
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.Automations.Workers.AlertEvaluationBatchWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.Projects
   alias Tuist.Tests.TestCaseRun
@@ -43,9 +43,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
           trigger_window_supported?(alert)
       end)
 
-    {durable, legacy} = Enum.split_with(alerts, & &1.durable_execution)
-    Enum.each(durable, &Execution.schedule(&1, job.args))
-    evaluate_recent_test_case_runs_and_execute(legacy, job)
+    evaluate_recent_test_case_runs_and_execute(alerts, job)
   end
 
   def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args} = job) do
@@ -58,9 +56,6 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
           not trigger_window_supported?(alert) ->
             :ok
 
-          alert.durable_execution ->
-            Execution.schedule(alert, args)
-
           evaluate_recent_test_case_runs?(args) ->
             evaluate_recent_test_case_runs_and_execute(alert, job)
 
@@ -71,41 +66,6 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       {:error, :not_found} ->
         :ok
     end
-  end
-
-  @doc false
-  def plan_transitions(alert, test_case_ids, active_events) do
-    %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
-    triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
-    active_ids = MapSet.new(active_events, & &1.test_case_id)
-
-    triggers =
-      triggered_ids
-      |> Enum.reject(&MapSet.member?(active_ids, &1))
-      |> filter_by_current_state(alert, alert.trigger_config)
-      |> Enum.map(&%{test_case_id: &1, status: "triggered", actions: alert.trigger_actions})
-
-    candidates =
-      active_events
-      |> Enum.reject(&(&1.test_case_id in triggered_ids))
-      |> reject_unevaluated_this_tick(test_case_ids)
-      |> reject_unmeasurable_test_cases(alert)
-
-    {recovered, actionable} =
-      if alert.recovery_enabled do
-        elapsed = filter_recovered_candidates(alert, candidates, alert.recovery_config || %{})
-        {elapsed, MapSet.new(filter_by_current_state(elapsed, alert, alert.recovery_config), & &1.test_case_id)}
-      else
-        {candidates, MapSet.new()}
-      end
-
-    recoveries =
-      Enum.map(recovered, fn event ->
-        actions = if MapSet.member?(actionable, event.test_case_id), do: alert.recovery_actions, else: []
-        %{test_case_id: event.test_case_id, status: "recovered", actions: actions}
-      end)
-
-    triggers ++ recoveries
   end
 
   defp trigger_window_supported?(alert) do
@@ -224,6 +184,17 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   end
 
   defp execute_evaluation(alert, triggered_ids, test_case_ids, active_events) do
+    AlertEvaluationBatchWorker.enqueue(alert, triggered_ids, test_case_ids, active_events)
+  end
+
+  @doc false
+  def evaluate_batch(alert, test_case_ids) do
+    %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
+    apply_evaluation(alert, triggered_ids, test_case_ids, nil)
+  end
+
+  @doc false
+  def apply_evaluation(alert, triggered_ids, test_case_ids, active_events) do
     triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
     run_transitions(alert, triggered_ids, test_case_ids, active_events)
   end
@@ -272,23 +243,25 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       |> Enum.reject(&MapSet.member?(already_triggered_ids, &1))
       |> filter_by_current_state(alert, alert.trigger_config)
 
-    Enum.each(newly_triggered, fn test_case_id ->
-      entity = %{type: :test_case, id: test_case_id}
+    trigger_results =
+      Enum.map(newly_triggered, fn test_case_id ->
+        entity = %{type: :test_case, id: test_case_id}
 
-      case ActionExecutor.execute_actions(alert.trigger_actions, alert, entity) do
-        :ok ->
-          Automations.create_alert_event(%{
-            alert_id: alert.id,
-            baseline_generation: Alert.event_generation(alert),
-            test_case_id: test_case_id,
-            status: "triggered",
-            triggered_at: NaiveDateTime.utc_now()
-          })
+        case ActionExecutor.execute_actions(alert.trigger_actions, alert, entity) do
+          :ok ->
+            Automations.create_alert_event(%{
+              alert_id: alert.id,
+              baseline_generation: Alert.event_generation(alert),
+              test_case_id: test_case_id,
+              status: "triggered",
+              triggered_at: NaiveDateTime.utc_now()
+            })
 
-        {:error, reason} ->
-          Logger.error("Alert #{alert.id} trigger actions failed for test_case #{test_case_id}: #{inspect(reason)}")
-      end
-    end)
+          {:error, reason} ->
+            Logger.error("Alert #{alert.id} trigger actions failed for test_case #{test_case_id}: #{inspect(reason)}")
+            {:error, reason}
+        end
+      end)
 
     # Only metric monitors use this worker's scheduled triggered/recovered
     # ledger. Event-driven (`test_updated`) monitors keep their own ledger via
@@ -296,9 +269,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     # dwell or recovery — and unknown/legacy monitor types have no evaluator
     # here, so neither participates in recovery. Gating positively also stops a
     # monitor-type change from running recovery over stale `triggered` events.
-    if Alert.recovery_ledger?(alert) do
-      handle_recovery(alert, triggered_ids, active_events, scoped_test_case_ids)
-    end
+    recovery_results =
+      if Alert.recovery_ledger?(alert) do
+        handle_recovery(alert, triggered_ids, active_events, scoped_test_case_ids)
+      else
+        []
+      end
+
+    if Enum.any?(trigger_results ++ recovery_results, &match?({:error, _}, &1)), do: {:error, :actions_failed}, else: :ok
   end
 
   defp active_alert_events(_alert, _scoped_test_case_ids, preread_active_events) when is_list(preread_active_events),
@@ -344,7 +322,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         {candidates, MapSet.new([])}
       end
 
-    Enum.each(to_rearm, fn event ->
+    Enum.map(to_rearm, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}
 
       actions =
@@ -352,10 +330,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
           do: alert.recovery_actions,
           else: []
 
-      # Run recovery actions BEFORE appending the "recovered" event. If we
-      # flipped the order, a failure in the Slack ping / label removal /
-      # state reset would leave the rule visually resolved while the user's
-      # intended side effects never happened.
+      # Apply state changes and enqueue notifications before recording recovery.
+      # An enqueue/state failure must remain retryable; Slack delivery itself
+      # is handled independently by the notification worker.
       case ActionExecutor.execute_actions(actions, alert, entity) do
         :ok ->
           now = NaiveDateTime.utc_now()
@@ -373,6 +350,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
           Logger.error(
             "Alert #{alert.id} recovery actions failed for test_case #{event.test_case_id}: #{inspect(reason)}"
           )
+
+          {:error, reason}
       end
     end)
   end
@@ -433,10 +412,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end)
   end
 
-  defp filter_recovered_candidates(alert, candidates, recovery_config) do
+  defp filter_recovered_candidates(_alert, candidates, recovery_config) do
     seconds = parse_window(recovery_config["window"] || "14d")
-    now = if alert.evaluation_at, do: DateTime.to_naive(alert.evaluation_at), else: NaiveDateTime.utc_now()
-    cutoff = NaiveDateTime.add(now, -seconds, :second)
+    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
 
     Enum.filter(candidates, fn event ->
       NaiveDateTime.before?(event.triggered_at, cutoff)

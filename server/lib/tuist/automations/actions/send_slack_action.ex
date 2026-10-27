@@ -1,46 +1,25 @@
 defmodule Tuist.Automations.Actions.SendSlackAction do
   @moduledoc false
+  alias Tuist.Automations.Workers.SlackNotificationWorker
   alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Repo
-  alias Tuist.Slack
-  alias Tuist.Slack.Client
-  alias Tuist.Slack.Installation
   alias Tuist.Tests
 
   require Logger
-
-  @doc false
-  def deliver_once(automation, snapshot, action) do
-    project = automation.project_id |> Projects.get_project_by_id() |> Repo.preload(account: :slack_installation)
-    blocks = build_blocks(automation, interpolate(action["message"], automation, project, snapshot))
-
-    case action do
-      %{"webhook_url_encrypted" => encrypted} when is_binary(encrypted) and encrypted != "" ->
-        case Slack.decrypt_webhook_url(encrypted) do
-          {:ok, url} -> Client.deliver_once({:webhook, url}, blocks)
-          _ -> {:discard, :invalid_webhook}
-        end
-
-      %{"channel" => channel} ->
-        case project.account.slack_installation do
-          %Installation{access_token: token} -> Client.deliver_once({:channel, token, channel}, blocks)
-          _ -> {:discard, :missing_credentials}
-        end
-
-      _ ->
-        {:discard, :missing_destination}
-    end
-  end
 
   def execute(automation, %{type: :test_case, id: test_case_id}, action) do
     with {:ok, test_case} <- Tests.get_test_case_by_id(test_case_id),
          project = Projects.get_project_by_id(automation.project_id),
          false <- is_nil(project) do
-      project = Repo.preload(project, account: :slack_installation)
+      project = Repo.preload(project, :account)
       message = interpolate(action["message"], automation, project, test_case)
       blocks = build_blocks(automation, message)
-      deliver(action, project, blocks, automation, test_case_id)
+
+      case Oban.insert(SlackNotificationWorker.new(%{alert_id: automation.id, action: action, blocks: blocks})) do
+        {:ok, _job} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
     else
       {:error, :not_found} ->
         Logger.warning("Automation #{automation.id} send_slack skipped: test case #{test_case_id} not found")
@@ -51,45 +30,6 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
 
         :ok
     end
-  end
-
-  # Prefer the action's encrypted webhook URL (captured the next time the
-  # user picks the channel). Fall back to the account-level bot token +
-  # channel id for actions configured before the webhook flow existed.
-  defp deliver(%{"webhook_url_encrypted" => encrypted}, _project, blocks, automation, _test_case_id)
-       when is_binary(encrypted) and encrypted != "" do
-    case Slack.decrypt_webhook_url(encrypted) do
-      {:ok, webhook_url} ->
-        Client.post_to_webhook(webhook_url, blocks)
-
-      {:error, _reason} ->
-        Logger.warning("Automation #{automation.id} send_slack skipped: webhook URL failed to decrypt")
-
-        :ok
-    end
-  end
-
-  defp deliver(%{"channel" => channel}, project, blocks, automation, _test_case_id)
-       when is_binary(channel) and channel != "" do
-    case project.account.slack_installation do
-      %Installation{access_token: token} ->
-        Client.post_message(token, channel, blocks)
-
-      _ ->
-        Logger.warning(
-          "Automation #{automation.id} send_slack skipped: missing Slack credentials for project #{project.id}"
-        )
-
-        :ok
-    end
-  end
-
-  defp deliver(_action, project, _blocks, automation, _test_case_id) do
-    Logger.warning(
-      "Automation #{automation.id} send_slack skipped: missing channel/webhook configuration for project #{project.id}"
-    )
-
-    :ok
   end
 
   defp interpolate(template, automation, project, test_case) do

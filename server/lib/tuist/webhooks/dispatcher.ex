@@ -46,15 +46,8 @@ defmodule Tuist.Webhooks.Dispatcher do
       }
 
       endpoints
-      |> Enum.map(&build_job(&1, "test_case.updated", body, opts))
-      |> then(fn jobs ->
-        if Keyword.get(opts, :strict, false) do
-          Oban.insert_all(jobs)
-          :ok
-        else
-          insert_jobs(jobs)
-        end
-      end)
+      |> Enum.map(&build_job(&1, "test_case.updated", body))
+      |> insert_jobs()
     else
       _ -> :ok
     end
@@ -133,20 +126,14 @@ defmodule Tuist.Webhooks.Dispatcher do
     }
   end
 
-  defp build_job(endpoint, event_type, body, opts \\ []) do
-    event_id = Keyword.get_lazy(opts, :event_id, &Ecto.UUID.generate/0)
-
-    created =
-      case Keyword.get(opts, :occurred_at) do
-        nil -> System.system_time(:second)
-        at -> DateTime.to_unix(at)
-      end
+  defp build_job(endpoint, event_type, body) do
+    event_id = Ecto.UUID.generate()
 
     payload =
       Map.merge(body, %{
         "id" => event_id,
         "type" => event_type,
-        "created" => created
+        "created" => System.system_time(:second)
       })
 
     DeliveryWorker.new(%{

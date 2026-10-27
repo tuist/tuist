@@ -9,7 +9,6 @@ defmodule Tuist.Automations do
   alias Tuist.Automations.Alerts.BaselineResult
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
   alias Tuist.Automations.Alerts.Revision
-  alias Tuist.Automations.Execution
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
@@ -192,13 +191,6 @@ defmodule Tuist.Automations do
       condition_changed? = condition_changed?(alert, attrs)
       attrs = maybe_reset_baseline(attrs, reset_baseline?)
       changeset = Alert.changeset(alert, attrs)
-
-      changeset =
-        if Enum.any?(@revision_fields, &Map.has_key?(changeset.changes, &1)) do
-          Ecto.Changeset.put_change(changeset, :execution_revision, alert.execution_revision + 1)
-        else
-          changeset
-        end
 
       changeset =
         if reset_baseline? do
@@ -731,7 +723,7 @@ defmodule Tuist.Automations do
   defp test_case_id(id), do: id
 
   @doc false
-  def list_alert_baseline_test_case_page(project_id, cursor, page_size \\ @baseline_evaluation_batch_size) do
+  def list_alert_baseline_test_case_page(project_id, cursor) do
     query =
       from(test_case in TestCase,
         where: test_case.project_id == ^project_id,
@@ -747,7 +739,7 @@ defmodule Tuist.Automations do
           asc: test_case.name,
           asc: test_case.id
         ],
-        limit: ^page_size,
+        limit: @baseline_evaluation_batch_size,
         select: %{
           id: test_case.id,
           module_name: test_case.module_name,
@@ -1290,24 +1282,6 @@ defmodule Tuist.Automations do
         )
 
         :ok
-    end
-  end
-
-  @doc false
-  def enqueue_test_case_event(event_type, test_case, source_id, depth) do
-    if depth < @max_dispatch_depth do
-      case event_to_subscription_key(event_type) do
-        nil ->
-          :ok
-
-        key ->
-          test_case
-          |> subscribed_alerts(key)
-          |> Enum.sort_by(& &1.id)
-          |> Enum.each(&Execution.enqueue_event(&1, test_case.id, source_id, depth + 1))
-      end
-    else
-      Logger.warning("Aborting durable automation chain at depth #{depth} for test case #{test_case.id}")
     end
   end
 
