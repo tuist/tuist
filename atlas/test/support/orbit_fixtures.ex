@@ -3,6 +3,7 @@ defmodule Atlas.OrbitFixtures do
 
   alias Atlas.Inference
   alias Atlas.LLMs.Runner
+  alias Atlas.Orbit.Attachments
   alias Atlas.Users.User
   alias AtlasWeb.ConnCase
 
@@ -24,6 +25,27 @@ defmodule Atlas.OrbitFixtures do
       "authorization",
       "Bearer #{ConnCase.oauth_access_token_fixture(user)}"
     )
+  end
+
+  def attachment_params(bytes \\ "Private attachment contents", attrs \\ %{}) do
+    Map.merge(
+      %{
+        "filename" => "notes.txt",
+        "content_type" => "text/plain",
+        "data" => Base.encode64(bytes),
+        "client_id" => Ecto.UUID.generate()
+      },
+      attrs
+    )
+  end
+
+  def attachment_fixture(user, thread, bytes \\ "Private attachment contents", attrs \\ %{}) do
+    {:ok, attachment} = Attachments.upload(user, thread, attachment_params(bytes, attrs))
+    attachment
+  end
+
+  def png_fixture do
+    Base.decode64!("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
   end
 
   @doc "An enabled profile bound to the Orbit role, with its role token."

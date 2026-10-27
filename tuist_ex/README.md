@@ -137,9 +137,26 @@ and Decimal are bootstrap dependencies, so they are not useful demonstration
 allowlist entries for snapshot restores; replace any restore demonstration with
 dependencies your project actually uses.
 A standalone `mix tuist.compile` may compile dependencies while discovering the
-task, before caching is available. It caches fetched, pure Elixir dependencies,
-not the project's own code. Native and custom compilers, local dependencies,
-and inputs it cannot model compile normally. Selected, supported dependencies
+task, before caching is available. It caches fetched Mix and ordinary rebar3
+dependencies using the standard Elixir, Erlang, yecc and leex compilers, not the
+project's own code. Rebar configuration, headers and the rebar executable enter
+the key. Passive Makefiles, packaged application metadata and rebar configuration
+scripts already evaluated by Mix do not by themselves reject a standard build.
+Application source scripts (`*.app.src.script`) still require an audited contract.
+Compiler-owned lexer/parser outputs are excluded only with locked-source provenance;
+shipped Erlang files remain inputs. Parsetools paths are restored after SDK bootstrap,
+and missing rebar launchers are installed before fingerprinting.
+Native/custom Mix, rebar3 and Make builders can opt in through an audited
+`builders:` contract with a compatible `platform`, required build `outputs`, and
+optional source-side `generated` paths, `env`, external `inputs` and `tools`.
+Native keys include resolved project configuration, standard native build environment
+and declared executable fingerprints under the dependency's effective environment. These
+snapshots materialize source-backed `ebin`/`priv`/`include`/`src` resources,
+including native libraries and executables; missing required outputs are repaired
+rather than reported as current. Native resource bytes invalidate downstream
+keys too. See [native and custom builders](https://tuist.dev/en/docs/guides/features/cache/elixir-advanced#native-and-custom-builders)
+for the contract and platform requirements. Unmodeled builders, local
+dependencies, and inputs it cannot model compile normally. Selected, supported dependencies
 that Mix considers up to date count as `local_hit` with reason `up_to_date` after
 validating their installed application metadata, declared BEAMs and SCM manifest.
 This observes Mix's reuse decision, not a snapshot restore or retrospective
@@ -152,7 +169,8 @@ preserving the rest of the build report. Upgrade the server to see these local h
 
 Declare extra compile-time file or directory inputs with `inputs: ["path"]`
 and environment-variable names with `env: ["NAME"]` in `cache`. Source contents,
-locked dependency identities, upstream sources and BEAMs, effective application
+locked dependency identities and runtime/optional/app flags, upstream sources,
+BEAMs and application resources, resolved application metadata, effective application
 configuration (explicit configured keys, with application defaults covered by
 dependency sources), dependency and VM-wide compiler options, dependency-specific
 `env:` and `system_env:`, Mix environment/target,
@@ -160,9 +178,14 @@ and the Elixir build, full OTP version (when available), ERTS, compiler bytecode
 OS version, architecture, word size and byte order enter the key. Standard
 compiler/runtime inputs (`ERL_COMPILER_OPTIONS`, `ELIXIR_ERL_OPTIONS`, `ERL_AFLAGS`,
 `ERL_FLAGS`, `ERL_ZFLAGS`, `SOURCE_DATE_EPOCH`, `ERL_LIBS`, `MIX_PATH`, and `MIX_ARCHIVES`) are included automatically;
-declare other compile-time environment variables explicitly. Inputs and effective
-configuration are captured before each dependency lookup and rechecked before
-publishing, so an earlier compilation cannot leave later lookups using stale inputs. Custom global tracers bypass
+declare other compile-time environment variables explicitly. The effective context
+is captured before each lookup. Lookup planning shares per-dependency input models
+within one preparation, clearing them after compilation and invalidating restored
+applications. Installation and publication always recheck fresh inputs without the
+lookup memo. A lookup miss also captures a fresh key before compiling, so speculative
+planning cannot install or publish artifacts for stale inputs. Keys use deterministic encoding, sorted source
+enumeration and normalized unordered declarations, without filesystem timestamps;
+ordered compiler settings retain their order. Custom global tracers bypass
 caching so their side effects are not skipped.
 
 Elixir macros can read arbitrary inputs. Declare additional inputs, exclude
@@ -170,10 +193,42 @@ non-deterministic dependencies with `exclude: [:dependency]`, or restrict select
 with `dependencies: [:dependency]` when you need an audited allowlist. This is not automatic hermetic
 input discovery; changing undeclared external inputs can still make a bundle stale.
 
+Deterministic key encoding does not make compiler output deterministic. On recent
+Elixir versions, consider reproducible compiler output when upstream BEAM bytes
+change between otherwise identical builds:
+
+```sh
+ERL_COMPILER_OPTIONS='[deterministic]' mix compile
+```
+
+Apply the same setting before SDK bootstrap and throughout cache seeding and
+consumption. Start with clean dependency build directories when changing compiler
+options; already-current outputs are not automatically rebuilt. If you already
+set `ERL_COMPILER_OPTIONS`, merge `deterministic` into your existing Erlang option
+list instead of replacing it. The SDK does not change this variable for you, and
+the exact value enters artifact keys. This stabilizes supported compiler metadata
+encoding; it does not guarantee byte-identical output for arbitrary generators,
+protocol consolidation, undeclared inputs or different checkout paths.
+`deterministic` also omits source/options from `module_info(:compile)`, so validate
+your coverage, debugging and source-discovery tooling before adopting it. Cache
+keys still include complete upstream BEAM bytes, without stripping metadata.
+
+Compiler flags cannot make unordered compile-time generators reproducible. The
+SDK requires Mint 1.10.2 or later (including its security backports) because
+versions before 1.10 generate functions by
+iterating atom-keyed maps, producing different BEAMs across fresh VMs. This
+minimum fixes that generator, not every dependency or compiler pass: even with
+`deterministic`, other bootstrap outputs can still vary and invalidate downstream
+keys. A high hit rate on a small fixture is not proof of full-graph reuse.
+
 Verified local snapshots are tried before the remote cache. Idle builds and
 builds fully served locally do not contact cache endpoints or resolve credentials.
 A compile lazily opens one remote session, closes it even on compiler failure,
 and enforces a 30-second client RPC deadline independently of the server.
+Independent dependency misses fetch concurrently in bounded windows of four;
+key planning, compilation and installation remain serialized because Mix's
+project and compiler state is VM-global. Prefetched artifacts are installed only
+if their key still matches the current inputs.
 
 Remote caching uses the existing account endpoint discovery and project-scoped
 cache-token exchange. Kura reports signed action-cache and CAS analytics with

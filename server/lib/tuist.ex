@@ -46,6 +46,8 @@ defmodule Tuist do
       Ops.ClickHouse,
       # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,
+      Ops.FeatureFlags,
+      Observability,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -310,6 +312,7 @@ defmodule Tuist do
       Runners.CacheVolumes,
       Runners.CacheVolumes.Query,
       Runners.CacheVolumes.Schemas,
+      Runners.DockerCache,
       Runners.Analytics,
       Runners.Billing,
       Runners.Catalog,

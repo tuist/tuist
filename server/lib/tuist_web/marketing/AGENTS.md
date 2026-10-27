@@ -1,9 +1,8 @@
-# Marketing (Web Layer)
-
-This area owns marketing controllers and components for the public site.
+# Marketing Web Layer
 
 ## Responsibilities
 - Keep individual changelog entries, including their localized URLs, in the marketing sitemap. Shared canonical URLs must not retain tracking or filtering parameters.
+- Only `GET`/`HEAD /` negotiates marketing language: an explicit `tuist_locale` cookie wins over weighted `Accept-Language`, with English as the fallback. Use temporary redirects and mark both redirected and English root responses `private, no-store`; deep links keep their URL's language and existing caching. Footer switcher links use `set_locale` to remember explicit choices (including English), then redirect to the clean URL; exclude those links from speculative prefetch. Do not infer an explicit preference from merely visiting a localized page. Emit BCP 47 language tags (hyphens, not Gettext underscores), query-free reciprocal HTML language alternates and an English `x-default`. Markdown representation links are separate from language alternates.
 - Browser newsletter issue documents include the shared analytics component; their email versions must omit scripts.
 - Render marketing pages and UI components.
 - Problem and comparison guides are Markdown-only at `/marketing-markdown/solutions/<slug>` and `/marketing-markdown/compare[/<provider>]`. Do not add standalone browser routes, footer links, or sitemap entries for them. Their discovery belongs in the Markdown homepage and `/llms.txt`; keep existing browser pages and legacy redirects intact.
@@ -18,8 +17,6 @@ This area owns marketing controllers and components for the public site.
 - `/globe` is the public cache activity display. It follows the marketing page frame (the cache hero skeleton, hairline rows, Noora tokens) but stands alone: no shared navbar, footer or CTA, only the wordmark linking home. The globe is the cache page's `DitherGlobe` hook. `?demo=true` explicitly selects illustrative data, and the page links to it only in local development; live mode must never fall back to fabricated counts. Reported arcs use backend-estimated country-level origins only for frozen cells first released with at least three contributing accounts and no account supplying more than half the volume, and replay complete reporting windows at least five minutes behind real time. The page also opts into a separate illustrative animation baseline for recently serving regions, independent of measured request volume and backend country-cell publication. Use neutral public copy describing cache activity and measured metrics, never claiming decorative arcs are individual transfers, verified request locations or reported playback. Keep all arc arrivals separate from daily counters. Counter copy discloses per-second estimates between batched reports using recent measured rates; bytes display complete localized integers, and regional requests use their own recent rates. Hide live regional cells with zero daily downloads or unavailable totals on the initial server render and subsequent hook updates, and hide the strip when all cells lack data. Keep cells mounted so data can reveal them later; demo regions remain visible. The canvas draws origins that fall in the sea on its land map at the nearest drawn land within three degrees, a rendering nudge of area-level coordinates rather than a location claim. Country anchors on small islands the 110m map omits are drawn as islands of their own (see `SMALL_ISLANDS` in `dither-globe.js`). Illustrative arcs dispatch no arrivals; only explicit demo arrivals advance illustrative totals. Hit-rate rows consume the snapshot breakdown, preserving dashes for caches without reported opportunities.
 
 ## Boundaries
-- Domain logic belongs in `server/lib/tuist` contexts.
-- Frontend assets are in `server/assets`.
 - The shared `header_background` uses compact derivatives of the original
   soft artwork (960px desktop, 480px mobile). Avoid high-density variants for
   this decorative image: they add transfer and decode cost without useful
@@ -27,7 +24,3 @@ This area owns marketing controllers and components for the public site.
 - Post components must follow the marketing page's color scheme, including
   interactive states. The new Tuist post's Slack card uses `light-dark()` to
   preserve its light palette and adapt to the reader's selected or system theme.
-
-## Related Context
-- Web layer overview: `server/lib/tuist_web/AGENTS.md`
-- Business logic: `server/lib/tuist/AGENTS.md`

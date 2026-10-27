@@ -38,6 +38,7 @@ defmodule Tuist.Tests do
   alias Tuist.Shards.TestReport
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CrashReport
+  alias Tuist.Tests.FlakinessEvidence
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
@@ -517,7 +518,7 @@ defmodule Tuist.Tests do
   end
 
   def create_test(attrs) do
-    attrs = attrs |> normalize_string_keys() |> Coverage.normalize_attrs()
+    attrs = attrs |> normalize_string_keys() |> Coverage.normalize_attrs() |> FlakinessEvidence.annotate()
     # Unsigned clients cannot manufacture future/ancient storage partitions or
     # recency evidence; their completed reports use the server receipt time.
     attrs =
@@ -1208,10 +1209,9 @@ defmodule Tuist.Tests do
     ])
   end
 
-  # A client that reports when its run started sends a timestamp with a zone;
-  # the column holds a naive one.
-  defp shard_run_ran_at(%DateTime{} = ran_at), do: DateTime.to_naive(ran_at)
-  defp shard_run_ran_at(ran_at), do: ran_at
+  # ClickHouse requires six fractional digits even when the client sends seconds.
+  defp shard_run_ran_at(%DateTime{} = ran_at), do: ran_at |> DateTime.to_naive() |> shard_run_ran_at()
+  defp shard_run_ran_at(ran_at), do: NaiveDateTime.add(ran_at, 0, :microsecond)
 
   defp flaky_run?(%{is_ci: true}, test_case_runs), do: Enum.any?(test_case_runs, & &1.is_flaky)
   defp flaky_run?(_test, _test_case_runs), do: false
@@ -1230,6 +1230,8 @@ defmodule Tuist.Tests do
     |> Enum.flat_map(&Map.get(&1, :test_cases, []))
     |> Enum.any?(&test_case_is_flaky?/1)
   end
+
+  defp test_case_is_flaky?(%{is_flakiness_excluded: true}), do: false
 
   defp test_case_is_flaky?(case_attrs) do
     repetitions = Map.get(case_attrs, :repetitions, [])
@@ -2306,6 +2308,7 @@ defmodule Tuist.Tests do
           identity_key: {case_name, module_name, suite_name},
           test_case_id: test_case_id,
           status: Map.get(case_attrs, :status),
+          is_flakiness_excluded: Map.get(case_attrs, :is_flakiness_excluded, false),
           is_flaky: test_case_is_flaky?(case_attrs)
         }
       end)
@@ -2318,7 +2321,7 @@ defmodule Tuist.Tests do
     test_case_data = check_new_test_cases(test_case_data, project)
 
     Map.new(test_case_data, fn data ->
-      {data.identity_key, %{status: data.status, is_flaky: data.is_flaky, is_new: data.is_new}}
+      {data.identity_key, Map.take(data, [:status, :is_flaky, :is_new, :is_flakiness_excluded])}
     end)
   end
 
@@ -2333,7 +2336,12 @@ defmodule Tuist.Tests do
     scheme = test.scheme || ""
 
     existing_runs =
-      get_existing_ci_runs_for_commit(test_case_data, test.git_commit_sha, test.project_id, scheme)
+      get_existing_ci_runs_for_commit(
+        Enum.reject(test_case_data, & &1.is_flakiness_excluded),
+        test.git_commit_sha,
+        test.project_id,
+        scheme
+      )
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
       {data, flaky_failures} = resolve_cross_run_flaky_failures(data, existing_runs)
@@ -2346,6 +2354,8 @@ defmodule Tuist.Tests do
   # passing runs that prove the test can succeed on the commit are left clean, so
   # flaky-run counts and rates reflect the spurious failures rather than every
   # execution of the commit.
+  defp resolve_cross_run_flaky_failures(%{is_flakiness_excluded: true} = data, _existing_runs), do: {data, []}
+
   defp resolve_cross_run_flaky_failures(%{status: status} = data, _existing_runs)
        when status not in ["success", "failure"] do
     {data, []}
@@ -2683,7 +2693,7 @@ defmodule Tuist.Tests do
         identity_key = {case_name, module_name, suite_name}
         test_case_id = Map.get(test_case_id_map, identity_key)
 
-        %{status: status, is_flaky: is_flaky, is_new: is_new} =
+        %{status: status, is_flaky: is_flaky, is_new: is_new, is_flakiness_excluded: is_flakiness_excluded} =
           Map.get(test_case_run_data, identity_key)
 
         test_case_run = %{
@@ -2707,6 +2717,7 @@ defmodule Tuist.Tests do
           status: if(test.reporting_version == 1, do: Map.get(case_attrs, :status) || status, else: status),
           is_flaky: is_flaky,
           is_new: is_new,
+          is_flakiness_excluded: is_flakiness_excluded,
           is_quarantined: Map.get(case_attrs, :is_quarantined, false),
           coverage_evidence: Map.get(evidence_states, identity_key, "none"),
           duration: Map.get(case_attrs, :duration, 0),
@@ -4363,6 +4374,7 @@ defmodule Tuist.Tests do
       git_commit_sha,
       status,
       is_flaky,
+      is_flakiness_excluded,
       is_new,
       is_quarantined,
       duration,
@@ -4393,6 +4405,7 @@ defmodule Tuist.Tests do
       git_commit_sha,
       status,
       true,
+      is_flakiness_excluded,
       is_new,
       is_quarantined,
       duration,
@@ -4412,7 +4425,7 @@ defmodule Tuist.Tests do
       ORDER BY id, inserted_at DESC
       LIMIT 1 BY id
     )
-    WHERE is_flaky = false
+    WHERE is_flaky = false AND is_flakiness_excluded = false
     ORDER BY ALL
     """
 

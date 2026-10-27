@@ -6,10 +6,12 @@ cd "$(dirname "$0")/../.."
 source ios/distribution/keychain.sh
 source ios/distribution/associated-domains.sh
 source ios/distribution/push.sh
+source ios/distribution/live-activity.sh
 app_source="$PWD/.once/out/AtlasIOSDevice/Atlas.app"
 plist=/usr/libexec/PlistBuddy
 fail() { echo "$*" >&2; exit 1; }
 test -d "$app_source" || fail "Run mise run build:ios-device first"
+validate_live_activity_bundle "$app_source"
 
 # Sign a copy, keeping credentials outside Once's cache and the login keychain.
 tmp=$(mktemp -d)
@@ -37,6 +39,11 @@ plutil -replace keychain-access-groups -json "[\"$application_id\"]" "$tmp/entit
 configure_associated_domains "$tmp/profile.plist" "$tmp/entitlements.plist"
 configure_push_notifications "$tmp/profile.plist" "$tmp/entitlements.plist"
 
+identity=$(plutil -extract DeveloperCertificates.0 raw "$tmp/profile.plist" | base64 -D | shasum -a 1 | awk '{print toupper($1)}')
+op read "op://tuist/Atlas Live Activity Ad Hoc/Atlas_Live_Activity_Ad_Hoc.mobileprovision" --out-file "$tmp/activity.mobileprovision"
+security cms -D -i "$tmp/activity.mobileprovision" > "$tmp/activity-profile.plist"
+validate_live_activity_profile "$tmp/activity-profile.plist" "$tmp/profile.plist" "$identity"
+
 op read "op://tuist/Distribution Certificate/distribution.p12" --out-file "$tmp/certificate.p12"
 certificate_password=$(op read "op://tuist/Distribution Certificate/password")
 keychain_password=$(uuidgen)
@@ -44,7 +51,6 @@ create_signing_keychain "$keychain" "$keychain_password"
 security import "$tmp/certificate.p12" -k "$keychain" -P "$certificate_password" -T /usr/bin/codesign >/dev/null
 unset certificate_password
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
-identity=$(plutil -extract DeveloperCertificates.0 raw "$tmp/profile.plist" | base64 -D | shasum -a 1 | awk '{print toupper($1)}')
 security find-identity -v -p codesigning "$keychain" | grep -F "$identity" >/dev/null || fail "No valid signing identity matches the provisioning profile"
 
 mkdir -p "$tmp/Payload"
@@ -57,14 +63,8 @@ cp "$tmp/profile.mobileprovision" "$app/embedded.mobileprovision"
 # Keep nightly versions increasing without putting delivery metadata in cached outputs.
 "$plist" -c "Set :CFBundleVersion $(date +%s)" "$app/Info.plist"
 
-mkdir -p "$app/Frameworks"
-xcrun swift-stdlib-tool --copy --scan-executable "$app/Atlas" --platform iphoneos --destination "$app/Frameworks"
-while IFS= read -r -d '' library; do
-    codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none "$library"
-done < <(find "$app/Frameworks" -name '*.dylib' -print0)
-codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none \
-    --generate-entitlement-der --entitlements "$tmp/entitlements.plist" "$app"
-codesign --verify --deep --strict "$app"
+prepare_live_activity_distribution "$app" "$tmp/activity.mobileprovision" "$tmp/activity-entitlements.plist"
+sign_live_activity_distribution "$app" "$identity" "$keychain" "$tmp/entitlements.plist" "$tmp/activity-entitlements.plist"
 mkdir -p delivery/ios-device
 rm -f delivery/ios-device/Atlas.ipa
 ditto -c -k --keepParent "$tmp/Payload" delivery/ios-device/Atlas.ipa

@@ -2,7 +2,7 @@ defmodule Atlas.Orbit do
   @moduledoc """
   Orbit: persistent private and shared threads with the Atlas assistant.
 
-  Every person has one pinned private thread with the assistant. Shared
+  Every person can have multiple private conversations with the assistant. Shared
   threads have an owner and participants, and may be opened by a person or
   by a monitored signal (`open_for_signal/1`). The thread is the agentic
   session: messages, tool calls, and assistant replies form one ordered log.
@@ -15,14 +15,20 @@ defmodule Atlas.Orbit do
 
   alias Atlas.Audit
   alias Atlas.Authorization
+  alias Atlas.Authorization.Role
+  alias Atlas.Authorization.UserRole
   alias Atlas.Inference
+  alias Atlas.LLMs.Runner
   alias Atlas.Orbit.Access
+  alias Atlas.Orbit.Attachments
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Participant
   alias Atlas.Orbit.Rendering
   alias Atlas.Orbit.Run
+  alias Atlas.Orbit.Runs
   alias Atlas.Orbit.Thread
   alias Atlas.Orbit.Workers.RunThread
+  alias Atlas.Push
   alias Atlas.RateLimit
   alias Atlas.Repo
   alias Atlas.Users.User
@@ -33,7 +39,7 @@ defmodule Atlas.Orbit do
   @max_body_bytes 16_000
   @message_rate_limit 30
   @message_rate_window :timer.minutes(1)
-  @private_title "Private thread"
+  @private_title "New conversation"
   @notification_channel :atlas_orbit
 
   ## Assistant
@@ -41,6 +47,8 @@ defmodule Atlas.Orbit do
   def agent_name, do: "Pip"
 
   def agent_configured?, do: Inference.atlas_role_configured?(:orbit)
+
+  def agent_configured?(%User{} = user), do: Runner.orbit_configured?(user)
 
   def message_page_size, do: @message_page_size
 
@@ -69,7 +77,7 @@ defmodule Atlas.Orbit do
 
   ## Reads
 
-  def list_for_user(%User{} = user, page \\ 1) do
+  def list_for_user(%User{} = user, page \\ 1, kind \\ nil, status \\ nil) do
     scopes = Atlas.Users.scopes_for(user)
 
     query =
@@ -83,17 +91,25 @@ defmodule Atlas.Orbit do
             type(^scopes, {:array, :string})
           )
 
+    query = if kind in ["private", "shared"], do: where(query, [thread], thread.kind == ^kind), else: query
+    query = if status in ["active", "archived"], do: where(query, [thread], thread.status == ^status), else: query
     total_count = Repo.aggregate(query, :count)
     total_pages = max(1, ceil(total_count / @thread_page_size))
     page = page |> max(1) |> min(total_pages)
 
+    query =
+      if status in ["active", "archived"] do
+        order_by(query, [thread], desc: thread.updated_at, desc: thread.id)
+      else
+        order_by(query, [thread],
+          asc: fragment("CASE WHEN ? = 'private' THEN 0 ELSE 1 END", thread.kind),
+          desc: thread.updated_at,
+          desc: thread.id
+        )
+      end
+
     items =
       query
-      |> order_by([thread],
-        asc: fragment("CASE WHEN ? = 'private' THEN 0 ELSE 1 END", thread.kind),
-        desc: thread.updated_at,
-        desc: thread.id
-      )
       |> limit(^@thread_page_size)
       |> offset(^((page - 1) * @thread_page_size))
       |> preload_participants()
@@ -134,6 +150,113 @@ defmodule Atlas.Orbit do
 
   def fetch(_user, _id), do: {:error, :not_found}
 
+  @doc "Owners may archive or restore readable threads. Archiving cancels active runs; restoring starts no run."
+  def set_status(%User{} = user, %Thread{id: id}, status) when status in ["active", "archived"] do
+    Repo.transaction(fn ->
+      thread = Repo.one(from thread in Thread, where: thread.id == ^id, lock: "FOR UPDATE")
+
+      if not Access.can_read?(thread, user), do: Repo.rollback(:not_found)
+      if thread.owner_id != user.id, do: Repo.rollback(:forbidden)
+
+      if thread.status == status do
+        preload_thread(thread)
+      else
+        changeset =
+          thread
+          |> Ecto.Changeset.change(status: status, last_seq: thread.last_seq + 1)
+          |> Ecto.Changeset.unique_constraint([:source_type, :source_id],
+            name: :orbit_threads_active_signal_source_index
+          )
+
+        thread =
+          case Repo.update(changeset) do
+            {:ok, thread} -> thread
+            {:error, reason} -> Repo.rollback(reason)
+          end
+
+        if status == "archived", do: Runs.archive!(thread)
+        Audit.record("thread.status_changed", thread_audit(thread, user, %{"status" => status}))
+        thread |> Repo.reload!() |> preload_thread()
+      end
+    end)
+    |> case do
+      {:ok, thread} ->
+        notify_changed(thread.id)
+        {:ok, thread}
+
+      error ->
+        error
+    end
+  end
+
+  def set_status(_user, _thread, _status), do: {:error, {:invalid_field, :status}}
+
+  @doc "Name-only mention choices; only owners may discover people outside the current audience."
+  def mention_people(%User{} = user, %Thread{id: id}, query \\ "") do
+    with true <-
+           is_binary(query) and byte_size(query) <= 100 and String.valid?(query) and not String.contains?(query, <<0>>),
+         {:ok, thread} <- fetch(user, id),
+         :ok <- if(thread.status == "active", do: :ok, else: {:error, :archived}) do
+      pattern =
+        "%" <>
+          (query
+           |> String.trim()
+           |> String.replace("\\", "\\\\")
+           |> String.replace("%", "\\%")
+           |> String.replace("_", "\\_")) <> "%"
+
+      candidates =
+        from person in User,
+          as: :person,
+          where: person.id != ^user.id and ilike(person.name, ^pattern),
+          order_by: [asc: fragment("lower(?)", person.name), asc: person.id]
+
+      candidates =
+        if thread.owner_id == user.id do
+          candidates
+        else
+          where(
+            candidates,
+            [person],
+            person.id in subquery(from p in Participant, where: p.thread_id == ^thread.id, select: p.user_id)
+          )
+        end
+
+      candidates =
+        Enum.reduce(thread.required_scopes, candidates, fn scope, candidates ->
+          grants =
+            if String.ends_with?(scope, ":read"),
+              do: [scope, String.replace_suffix(scope, ":read", ":write")],
+              else: [scope]
+
+          where(
+            candidates,
+            exists(
+              from role in Role,
+                join: assignment in UserRole,
+                on: assignment.role_id == role.id,
+                where: assignment.user_id == parent_as(:person).id,
+                where: fragment("?::text[] && ?::text[]", role.scopes, ^grants),
+                select: 1
+            )
+          )
+        end)
+
+      people =
+        candidates
+        |> limit(20)
+        |> select([person], struct(person, [:id, :name]))
+        |> Repo.all()
+        |> Enum.filter(&Access.holds_all?(&1, thread.required_scopes))
+        |> Enum.map(&%{id: &1.id, name: &1.name})
+
+      {:ok, people}
+    else
+      false -> {:error, {:invalid_field, :query}}
+      error -> error
+    end
+  end
+
   def list_messages(%Thread{id: thread_id}, page \\ 1) do
     query = from(message in Message, where: message.thread_id == ^thread_id)
     total_count = Repo.aggregate(query, :count)
@@ -145,7 +268,7 @@ defmodule Atlas.Orbit do
       |> order_by(desc: :position)
       |> limit(^@message_page_size)
       |> offset(^((page - 1) * @message_page_size))
-      |> preload(:author)
+      |> preload([:author, :attachments])
       |> Repo.all()
       |> Enum.reverse()
 
@@ -162,42 +285,70 @@ defmodule Atlas.Orbit do
 
   ## Creation
 
-  @doc "Returns the caller's pinned private thread, creating it on first use."
+  @doc "Returns the caller's latest private thread, creating it only on first use."
   def ensure_private(%User{} = user) do
-    case private_for(user) do
-      %Thread{} = thread ->
-        {:ok, thread, :existing}
+    private_transaction(user, fn ->
+      case private_for(user) do
+        %Thread{} = thread -> {thread, :existing}
+        nil -> {insert_private!(user, nil), :created}
+      end
+    end)
+  end
 
-      nil ->
-        Repo.transaction(fn ->
-          with {:ok, thread} <-
-                 %{kind: "private", title: @private_title, owner_id: user.id}
-                 |> Thread.create_changeset()
-                 |> Repo.insert(),
-               {:ok, _participant} <- insert_participant(thread, user.id, "owner") do
-            thread
-          else
-            {:error, reason} -> Repo.rollback(reason)
+  @doc "Creates a distinct owner-only conversation; a request UUID replays the same creation."
+  def create_private(%User{} = user, attrs) when is_map(attrs) do
+    case cast_uuid(attrs["request_id"]) do
+      {:ok, request_id} ->
+        private_transaction(user, fn ->
+          case Repo.get_by(Thread, owner_id: user.id, request_id: request_id) do
+            %Thread{kind: "private"} = thread -> {thread, :existing}
+            %Thread{} -> Repo.rollback(:thread_promoted)
+            nil -> {insert_private!(user, request_id), :created}
           end
         end)
-        |> case do
-          {:ok, thread} ->
-            Audit.record("thread.created", thread_audit(thread, user))
-            {:ok, preload_thread(thread), :created}
 
-          {:error, %Ecto.Changeset{}} ->
-            # A concurrent request created it first.
-            case private_for(user) do
-              %Thread{} = thread -> {:ok, thread, :existing}
-              nil -> {:error, :conflict}
-            end
+      :error ->
+        {:error, {:invalid_field, :request_id}}
+    end
+  end
+
+  defp private_transaction(user, action) do
+    Repo.transaction(fn ->
+      # Also serialize legacy first-use requests now that private threads are not unique per owner.
+      Repo.one!(from owner in User, where: owner.id == ^user.id, lock: "FOR UPDATE")
+      action.()
+    end)
+    |> case do
+      {:ok, {thread, disposition}} ->
+        if disposition == :created do
+          Audit.record("thread.created", thread_audit(thread, user))
+          notify_changed(thread.id)
         end
+
+        {:ok, preload_thread(thread), disposition}
+
+      error ->
+        error
+    end
+  end
+
+  defp insert_private!(user, request_id) do
+    with {:ok, thread} <-
+           %{kind: "private", title: @private_title, owner_id: user.id, request_id: request_id}
+           |> Thread.create_changeset()
+           |> Repo.insert(),
+         {:ok, _participant} <- insert_participant(thread, user.id, "owner") do
+      thread
+    else
+      {:error, reason} -> Repo.rollback(reason)
     end
   end
 
   defp private_for(%User{id: user_id}) do
     Thread
     |> where([thread], thread.kind == "private" and thread.owner_id == ^user_id)
+    |> order_by([thread], desc: thread.updated_at, desc: thread.id)
+    |> limit(1)
     |> Repo.one()
     |> case do
       nil -> nil
@@ -275,6 +426,7 @@ defmodule Atlas.Orbit do
          %User{} = user <- Repo.get(User, user_id) do
       Repo.transaction(fn ->
         thread = lock!(thread.id)
+        ensure_active_reader!(thread, actor)
 
         cond do
           thread.kind != "shared" or thread.owner_id != actor.id ->
@@ -290,6 +442,7 @@ defmodule Atlas.Orbit do
             {:ok, _participant} = insert_participant(thread, user.id, "member")
             cancel_active_runs(thread, "participants_changed")
             append!(thread, %{kind: "system", body: "#{display_name(actor)} added #{display_name(user)}."})
+            append_handoff!(thread)
             :added
         end
       end)
@@ -359,20 +512,19 @@ defmodule Atlas.Orbit do
   that is already in progress picks them up in a follow-up when it finishes.
   """
   def post_message(%User{} = user, %Thread{} = thread, attrs) when is_map(attrs) do
-    with {:ok, body} <- message_body(attrs),
+    with {:ok, attachment_ids} <- Attachments.ids(attrs),
+         {:ok, body} <- message_body(attrs, attachment_ids),
          {:ok, client_id} <- client_id(attrs),
          :ok <- rate_limit(user) do
-      address_agent? = thread.kind == "private" or Map.get(attrs, "address_agent", true) != false
-
-      fn -> post_locked(user, thread.id, body, client_id, address_agent?) end
+      fn -> post_locked(user, thread.id, body, client_id, attrs, attachment_ids) end
       |> Repo.transaction()
       |> case do
         {:ok, {message, :created}} ->
           notify_changed(thread.id)
-          {:ok, Repo.preload(message, :author), :created}
+          {:ok, Repo.preload(message, [:author, :attachments]), :created}
 
         {:ok, {message, :existing}} ->
-          {:ok, Repo.preload(message, :author), :existing}
+          {:ok, Repo.preload(message, [:author, :attachments]), :existing}
 
         error ->
           error
@@ -380,41 +532,170 @@ defmodule Atlas.Orbit do
     end
   end
 
-  defp post_locked(user, thread_id, body, client_id, address_agent?) do
+  defp post_locked(user, thread_id, body, client_id, attrs, attachment_ids) do
     thread = lock!(thread_id)
+    ensure_active_reader!(thread, user)
 
-    cond do
-      thread.status != "active" ->
-        Repo.rollback(:archived)
+    if existing = existing_message(thread, user, client_id) do
+      {existing, :existing}
+    else
+      {thread, newcomers} = apply_mentions!(thread, user, attrs)
+      maybe_title_private(thread, body)
+      address_agent? = thread.kind == "private" or Map.get(attrs, "address_agent", true) != false
 
-      not Access.can_read?(thread, user) ->
-        Repo.rollback(:not_found)
+      message =
+        append!(thread, %{
+          kind: "human",
+          body: body,
+          author_id: user.id,
+          author_name: display_name(user),
+          client_id: client_id,
+          mentioned_user_ids: mention_ids!(attrs),
+          address_agent: address_agent?
+        })
 
-      existing = existing_message(thread, user, client_id) ->
-        {existing, :existing}
-
-      true ->
-        message =
-          append!(thread, %{
-            kind: "human",
-            body: body,
-            author_id: user.id,
-            author_name: display_name(user),
-            client_id: client_id,
-            address_agent: address_agent?
-          })
-
-        if address_agent?, do: request_run!(thread, message, user, user)
-        {message, :created}
+      Attachments.claim!(attachment_ids, user, message)
+      if newcomers != [], do: append_handoff!(thread)
+      queue_mentions!(thread, message, user)
+      if address_agent?, do: request_run!(thread, message, user, user)
+      {message, :created}
     end
   end
 
-  defp message_body(attrs) do
-    case Map.get(attrs, "body") do
+  defp ensure_active_reader!(thread, user) do
+    cond do
+      thread.status != "active" -> Repo.rollback(:archived)
+      not Access.can_read?(thread, user) -> Repo.rollback(:not_found)
+      true -> :ok
+    end
+  end
+
+  defp mention_ids!(attrs) do
+    with ids when is_list(ids) and length(ids) <= 10 <- Map.get(attrs, "mention_ids", []),
+         casted = Enum.map(ids, &cast_uuid/1),
+         true <- Enum.all?(casted, &match?({:ok, _}, &1)) do
+      casted |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
+    else
+      _ -> Repo.rollback({:invalid_field, :mention_ids})
+    end
+  end
+
+  defp apply_mentions!(thread, actor, attrs) do
+    ids = mention_ids!(attrs)
+    users = Repo.all(from user in User, where: user.id in ^ids)
+
+    if length(users) != length(ids) or not Enum.all?(users, &Access.holds_all?(&1, thread.required_scopes)),
+      do: Repo.rollback({:invalid_field, :mention_ids})
+
+    newcomers = Enum.reject(users, &Access.participant?(thread, &1))
+
+    if newcomers == [] do
+      {thread, []}
+    else
+      if thread.owner_id != actor.id, do: Repo.rollback(:forbidden)
+      count = Repo.aggregate(from(p in Participant, where: p.thread_id == ^thread.id), :count)
+      if count + length(newcomers) > @max_participants + 1, do: Repo.rollback({:invalid_field, :mention_ids})
+
+      promoted? = thread.kind == "private"
+
+      thread =
+        thread |> Ecto.Changeset.change(kind: "shared", title: promotion_title(thread, attrs["body"])) |> Repo.update!()
+
+      :ok = insert_members(thread, newcomers)
+      cancel_active_runs(thread, "participants_changed")
+
+      if promoted?, do: Audit.record("thread.promoted", thread_audit(thread, actor))
+
+      Enum.each(newcomers, fn person ->
+        Audit.record("thread.participant_added", thread_audit(thread, actor, %{"user_id" => person.id}))
+      end)
+
+      {thread, newcomers}
+    end
+  end
+
+  defp promotion_title(thread, body) do
+    if String.trim(thread.title) in ["", "Pip", @private_title] do
+      prompt = first_prompt(thread) || body || ""
+
+      title =
+        prompt |> String.replace(~r/\s+/u, " ") |> String.trim() |> String.codepoints() |> Enum.take(200) |> Enum.join()
+
+      if title == "", do: @private_title, else: title
+    else
+      thread.title
+    end
+  end
+
+  defp first_prompt(thread) do
+    Repo.one(
+      from message in Message,
+        where:
+          message.thread_id == ^thread.id and message.kind == "human" and fragment("? ~ '[^[:space:]]'", message.body),
+        order_by: [asc: message.position],
+        limit: 1,
+        select: message.body
+    )
+  end
+
+  defp append_handoff!(thread) do
+    reply =
+      Repo.one(
+        from message in Message,
+          where:
+            message.thread_id == ^thread.id and message.kind == "agent" and fragment("? ~ '[^[:space:]]'", message.body),
+          order_by: [desc: message.position],
+          limit: 1,
+          select: message.body
+      )
+
+    body =
+      "Conversation so far — excerpts for new participants (not an AI-generated summary).\n\n" <>
+        "Initial request (excerpt):\n" <>
+        handoff_excerpt(first_prompt(thread)) <>
+        "\n\nLatest Pip reply (excerpt):\n" <> handoff_excerpt(reply)
+
+    append!(thread, %{kind: "system", notice_kind: "handoff", body: body})
+  end
+
+  defp handoff_excerpt(nil), do: "> No text yet."
+
+  defp handoff_excerpt(text) do
+    text
+    |> String.codepoints()
+    |> Enum.take(800)
+    |> Enum.join()
+    |> String.split("\n")
+    |> Enum.map_join("\n", &("> " <> &1))
+  end
+
+  defp queue_mentions!(thread, message, actor) do
+    for id <- message.mentioned_user_ids, id != actor.id do
+      {:ok, _count} = Push.notify_user(id, "orbit_mentioned", {"orbit", thread.id}, message_id: message.id)
+    end
+  end
+
+  defp maybe_title_private(%Thread{kind: "private"} = thread, body) when body != "" do
+    previous_prompt? =
+      Repo.exists?(
+        from message in Message,
+          where: message.thread_id == ^thread.id and message.kind == "human" and message.body != ""
+      )
+
+    if !previous_prompt? do
+      title = body |> String.replace(~r/\s+/u, " ") |> String.codepoints() |> Enum.take(200) |> Enum.join()
+      thread |> Ecto.Changeset.change(title: title) |> Repo.update!()
+    end
+  end
+
+  defp maybe_title_private(_thread, _body), do: :ok
+
+  defp message_body(attrs, attachment_ids) do
+    case Map.get(attrs, "body", "") do
       body when is_binary(body) ->
         trimmed = String.trim(body)
 
-        if trimmed != "" and byte_size(body) <= @max_body_bytes,
+        if (trimmed != "" or attachment_ids != []) and byte_size(body) <= @max_body_bytes,
           do: {:ok, trimmed},
           else: {:error, {:invalid_field, :body}}
 
@@ -473,11 +754,10 @@ defmodule Atlas.Orbit do
       active_run(thread) ->
         :pending
 
-      not agent_configured?() ->
+      not agent_configured?(acting_user) ->
         append!(thread, %{
           kind: "system",
-          body:
-            "The assistant is not configured on this Atlas server. An administrator can assign an inference profile to Orbit."
+          body: "Connect an AI account in Settings, or ask an administrator to assign an inference profile to Orbit."
         })
 
         :unconfigured

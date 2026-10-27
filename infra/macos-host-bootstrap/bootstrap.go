@@ -884,6 +884,7 @@ func hostConfigMaterial(cfg Config) string {
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"host-sensors", renderHostSensorsScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
+		{"tart-kubelet-probe", renderTartKubeletProbeScript(tartKubeletPath, "")},
 		{"tart-install", renderTartInstallScript(hostTartLayout, cfg.TartVersion)},
 		{"tart-prune", renderTartPruneScript(hostTartLayout)},
 		{"ssh-reachability", renderSSHReachabilityScript()},
@@ -945,44 +946,6 @@ sudo tee /etc/tart-kubelet/kubeconfig >/dev/null
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 `
 	return RunCommandWithStdin(ctx, client, script, strings.NewReader(kubeconfig))
-}
-
-// installTartKubelet uploads the operator-baked tart-kubelet binary
-// to /usr/local/bin/tart-kubelet on the Mac mini and marks it
-// executable. We pipe the bytes via stdin into `sudo tee` rather than
-// downloading from an external URL — the operator's image is the
-// single source of truth for the kubelet version, so deploying a new
-// operator image rolls a new kubelet across the fleet.
-//
-// Always overwrites. The reconciler's drift detection prevents
-// unnecessary calls (it compares the operator's binary SHA to the
-// last-applied SHA in the CR's status).
-func installTartKubelet(ctx context.Context, client *ssh.Client, binary []byte) error {
-	if len(binary) == 0 {
-		return fmt.Errorf("tart-kubelet binary is empty")
-	}
-	return RunCommandWithStdin(ctx, client, renderTartKubeletInstallScript(), bytes.NewReader(binary))
-}
-
-// renderTartKubeletInstallScript is the static SSH script that lands the
-// uploaded tart-kubelet binary. The binary bytes themselves ride stdin;
-// their drift is tracked by the binary SHA, so this script carries no
-// host- or binary-specific input and is included verbatim in the host
-// config hash.
-func renderTartKubeletInstallScript() string {
-	return `set -euo pipefail
-sudo mkdir -p /usr/local/bin
-sudo tee /usr/local/bin/tart-kubelet >/dev/null
-sudo chmod 0755 /usr/local/bin/tart-kubelet
-# Re-sign in place. The binary already carries a valid Go linker ad-hoc
-# signature, but overwriting /usr/local/bin/tart-kubelet at the same inode
-# leaves macOS's AMFI validating the new pages against the previous
-# binary's cached cdhash — a mismatch the kernel kills as
-# OS_REASON_CODESIGNING on the next launch, stranding the Node NotReady.
-# A forced ad-hoc re-sign refreshes the signature and invalidates that
-# stale cache so the rolled binary actually runs.
-sudo codesign --force --sign - /usr/local/bin/tart-kubelet
-`
 }
 
 // loadTartKubeletLaunchd writes /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
@@ -3321,7 +3284,7 @@ func renderLogShipperInstallScript(cfg Config) string {
 sudo mkdir -p /usr/local/bin /var/lib/tuist-log-shipper
 sudo tee /usr/local/bin/tuist-log-shipper >/dev/null
 sudo chmod 0755 /usr/local/bin/tuist-log-shipper
-# Re-sign in place for the same reason renderTartKubeletInstallScript does:
+# Re-sign in place because
 # overwriting the binary at the same inode leaves AMFI validating the new pages
 # against the old cdhash, and the kernel kills the next launch as
 # OS_REASON_CODESIGNING.

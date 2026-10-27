@@ -20,11 +20,17 @@ defmodule Atlas.Push.Workers.Deliver do
     max_attempts: 5,
     unique: [keys: [:registration_id, :notification_id], period: 86_400]
 
+  alias Atlas.Orbit.Access
+  alias Atlas.Orbit.Message, as: OrbitMessage
+  alias Atlas.Orbit.Run
+  alias Atlas.Orbit.Thread
   alias Atlas.Push
   alias Atlas.Push.APNs
   alias Atlas.Push.FCM
   alias Atlas.Push.Installation
   alias Atlas.Push.Message
+  alias Atlas.Repo
+  alias Atlas.Users.User
 
   @max_retry_after_seconds 3600
 
@@ -34,7 +40,8 @@ defmodule Atlas.Push.Workers.Deliver do
          true <- Push.valid_notification?(args["kind"], {args["screen"], args["record_id"]}),
          {:ok, notification_id} <- Ecto.UUID.cast(args["notification_id"]),
          :ok <- ensure_unexpired(expires_at),
-         %Installation{} = installation <- Push.deliverable(args["registration_id"], args["user_id"]) do
+         %Installation{} = installation <- Push.deliverable(args["registration_id"], args["user_id"]),
+         {:ok, alert} <- notification_alert(args, installation) do
       opts = [expires_at: expires_at, collapse_id: notification_id]
 
       message = %{
@@ -45,10 +52,11 @@ defmodule Atlas.Push.Workers.Deliver do
       }
 
       installation
-      |> send_message(message, opts)
+      |> send_message(message, alert, opts)
       |> handle_result(installation, args, expires_at, attempt >= max_attempts)
     else
       :expired -> {:cancel, :expired}
+      :destination_unavailable -> {:cancel, :destination_unavailable}
       nil -> {:cancel, :registration_unavailable}
       _ -> {:cancel, :invalid_arguments}
     end
@@ -57,11 +65,47 @@ defmodule Atlas.Push.Workers.Deliver do
   @impl Oban.Worker
   def backoff(%Oban.Job{attempt: attempt}), do: min(trunc(:math.pow(2, attempt) * 5), 600)
 
-  defp send_message(%Installation{platform: "ios"} = installation, message, opts),
-    do: APNs.deliver(installation, Message.apns_payload(message), opts)
+  defp notification_alert(%{"kind" => "orbit_completed", "record_id" => thread_id} = args, installation) do
+    user_id = installation.user_id
 
-  defp send_message(%Installation{platform: "android"} = installation, message, opts),
-    do: FCM.deliver(installation, Message.fcm_data(message), opts)
+    with {:ok, message_id} <- Ecto.UUID.cast(args["message_id"]),
+         %Thread{status: "active"} = thread <- Repo.get(Thread, thread_id),
+         %User{} = user <- Repo.get(User, installation.user_id),
+         true <- Access.can_read?(thread, user),
+         %OrbitMessage{thread_id: ^thread_id, kind: "agent", run_id: run_id, body: body}
+         when is_binary(run_id) and is_binary(body) and body != "" <- Repo.get(OrbitMessage, message_id),
+         %Run{thread_id: ^thread_id, status: "succeeded", acting_user_id: ^user_id} <- Repo.get(Run, run_id) do
+      {:ok, Message.orbit_completed(thread.title, body)}
+    else
+      _ ->
+        Push.audit_delivery(installation, args, "cancelled", :destination_unavailable)
+        :destination_unavailable
+    end
+  end
+
+  defp notification_alert(%{"kind" => "orbit_mentioned", "record_id" => thread_id} = args, installation) do
+    with {:ok, message_id} <- Ecto.UUID.cast(args["message_id"]),
+         %Thread{status: "active", kind: "shared"} = thread <- Repo.get(Thread, thread_id),
+         %User{} = user <- Repo.get(User, installation.user_id),
+         true <- Access.can_read?(thread, user),
+         %OrbitMessage{thread_id: ^thread_id, kind: "human", mentioned_user_ids: ids} <-
+           Repo.get(OrbitMessage, message_id),
+         true <- user.id in ids do
+      {:ok, %{title: "Atlas", body: "You were mentioned in an Orbit conversation"}}
+    else
+      _ ->
+        Push.audit_delivery(installation, args, "cancelled", :destination_unavailable)
+        :destination_unavailable
+    end
+  end
+
+  defp notification_alert(_args, _installation), do: {:ok, %{title: Message.title(), body: Message.body()}}
+
+  defp send_message(%Installation{platform: "ios"} = installation, message, alert, opts),
+    do: APNs.deliver(installation, Message.apns_payload(message, alert), opts)
+
+  defp send_message(%Installation{platform: "android"} = installation, message, alert, opts),
+    do: FCM.deliver(installation, Message.fcm_data(message, alert), opts)
 
   defp handle_result(:ok, installation, args, _expires_at, _last?) do
     Push.audit_delivery(installation, args, "delivered")

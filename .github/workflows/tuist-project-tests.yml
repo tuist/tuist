@@ -13,8 +13,8 @@ name: tuist/tuist Tests
 # - Pull requests: unit and app tests run selectively, acceptance as before,
 #   and once the unit and app tests have finished, whatever their result,
 #   `tuist coverage complete` marks the run's commit complete. The server
-#   carries what selective testing skipped from main's full runs and the pull
-#   request's earlier runs (both record coverage evidence). A new push cancels
+#   carries the targets selective testing skipped from main's full runs and the
+#   pull request's earlier runs (both record per-target coverage evidence). A new push cancels
 #   the run in progress, so a superseded commit is never signalled.
 # - Pushes to main: `tuist cache` warms the coverage variant first, then the unit
 #   and app tests run in full (`--no-selective-testing`) against that warm, and
@@ -137,6 +137,18 @@ jobs:
       # mise.toml's TUIST_COVERAGE_ENABLED selects.
       - name: Cache
         run: tuist cache
+      # A crashed build service prints neither the compilation-cache plugin's
+      # errors (cas.log) nor the CLI's session log.
+      - name: Upload Tuist logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-tuist-logs-${{ github.run_attempt }}
+          path: |
+            ~/.local/state/tuist/cas.log
+            ~/.local/state/tuist/sessions/*/logs.txt
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Selective on pull requests; in full on main, after the warm. A failed warm
   # doesn't stop the full run: it builds what the cache lacks from source.

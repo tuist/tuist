@@ -48,6 +48,13 @@ type agent struct {
 	grants                                 checkoutGrants
 	exports                                chan struct{}
 	checkoutRequests                       chan struct{}
+	dockerRequests                         chan struct{}
+	// dockerMerges bounds concurrent offers of a saved head to finished jobs;
+	// dockerHeads and exposeDockerHead read the lineage's head and clone it.
+	dockerMerges     chan struct{}
+	dockerHeads      func(cachevolumes.Slot) (cachevolumes.Identity, error)
+	exposeDockerHead func(context.Context, cachevolumes.Slot, string, cachevolumes.Identity) error
+	executionWaits   cachevolumes.ExecutionWaits
 	// maxVolumeBytes is the largest volume this host accepts.
 	maxVolumeBytes int64
 	// log receives server request retries; nil is slog.Default.
@@ -70,6 +77,15 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	case r.Method == "POST" && r.URL.Path == "/checkout-export":
 		a.serveCheckoutExport(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/docker":
+		a.serveDocker(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/docker-seen":
+		a.serveDockerSeen(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/docker-merge":
+		a.serveDockerMerge(w, r)
 		return
 	case r.Method != "POST" || r.URL.Path != "/acquire":
 		http.NotFound(w, r)
@@ -110,7 +126,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	body, _ := json.Marshal(fields)
 	authorizing := time.Now()
-	identity, err := a.authorize(ctx, body)
+	identity, err := a.authorize(ctx, input.PodUID, start, body)
 	identity.ManagedKey = cachevolumes.ManagedKey(input.Key)
 	if err == nil {
 		subject = cachevolumes.SubjectOf(cachevolumes.Slot{Identity: identity, PodName: input.PodName})
@@ -248,7 +264,7 @@ func main() {
 		log.Fatal(err)
 	}
 	// The timeout bounds metadata requests; archive transfers drop it and end on a stall instead.
-	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := cachevolumes.NewServerClient(6 * time.Minute)
 	metrics := newVolumeMetrics(slog.New(slog.NewJSONHandler(os.Stderr, nil)), uint64(*minFreeGB)*1_000_000_000)
 	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: maxBytes, Log: metrics.logger}
 	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Log: metrics.logger, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
@@ -267,6 +283,7 @@ func main() {
 		log.Fatal(err)
 	}
 	checkouts.InUse, backend.InUse = store.InUse, store.InUse
+	store.Observe = metrics.observe
 	defer store.Close()
 	// Lock survives requests and prevents an overlapping/restarted DaemonSet from
 	// allocating the same directory. Kubernetes rollout uses maxSurge=0 as well.
@@ -283,7 +300,7 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	store.MaxVolumeBytes = maxBytes
-	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -338,7 +355,14 @@ func dedicatedFilesystem(root string, references ...string) error {
 
 func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 	state := slot.State
-	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS, "mounted_generation": mountedGeneration(slot)})
+	fields := map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS, "mounted_generation": mountedGeneration(slot)}
+	// A finished data root's inventory, for the dashboard; it decides nothing.
+	if slot.Kind == cachevolumes.KindDocker && gone && state == "active" {
+		if inventory := a.dockerInventory(slot); inventory != nil {
+			fields["docker"] = inventory
+		}
+	}
+	body, _ := json.Marshal(fields)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimSuffix(a.authorizeURL, "/authorize")+"/report", bytes.NewReader(body))

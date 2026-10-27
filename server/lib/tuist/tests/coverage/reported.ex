@@ -251,6 +251,10 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp missing_evidence_reasons(%{repository_id: repository_id}, _tests) when repository_id in [nil, 0],
     do: [:no_ancestor]
 
+  # Mix collects no per-test evidence, whatever its ancestors ran, and its
+  # runs usually have no scheme to find a baseline by.
+  defp missing_evidence_reasons(%{project: %{build_system: :mix}}, _tests), do: [:collection_off]
+
   defp missing_evidence_reasons(context, tests) do
     source_runs = context.baseline
     collected = Enum.filter(source_runs, &(&1.coverage_evidence_status == "collected"))
@@ -269,14 +273,16 @@ defmodule Tuist.Tests.Coverage.Reported do
 
       true ->
         project_id = context.project.id
-        observed = observed_targets(project_id, tests |> Enum.map(& &1.module_name) |> Enum.uniq(), live)
+        linked = linked_targets(project_id, tests |> Enum.map(& &1.module_name) |> Enum.uniq(), live)
         overlapped = overlapped_tests(project_id, Enum.map(tests, & &1.test_case_id), live)
 
+        # A target whose tests all overlapped records no test evidence either,
+        # so the overlap is told first.
         tests
         |> Enum.map(fn test ->
           cond do
-            not MapSet.member?(observed, test.module_name) -> :not_linked
             MapSet.member?(overlapped, test.test_case_id) -> :overlapped
+            not MapSet.member?(linked, test.module_name) -> :not_linked
             true -> :no_evidence
           end
         end)
@@ -305,19 +311,21 @@ defmodule Tuist.Tests.Coverage.Reported do
         do: id
   end
 
-  # The targets some of the runs recorded evidence for: a target that links
-  # TestCoverageAttribution always records its process's.
-  defp observed_targets(project_id, modules, run_ids) do
+  # The targets some of the runs recorded test-level evidence for. Only
+  # TestCoverageAttribution records `test` and `suite` scopes; every target has
+  # a `target` scope, which the client reads from Xcode's raw profiles. Their
+  # `scope_id` starts with the module (`Evidence.test_scope_id/3`).
+  defp linked_targets(project_id, modules, run_ids) do
     run_ids
     |> Enum.chunk_every(@run_id_chunk)
     |> Enum.flat_map(fn runs ->
       ClickHouseRepo.all(
         from(f in CoverageFile,
           where:
-            f.project_id == ^project_id and f.scope_kind == "target" and f.scope_id in ^modules and
-              f.test_run_id in ^runs,
+            f.project_id == ^project_id and f.test_run_id in ^runs and f.scope_kind in ["test", "suite"] and
+              fragment("splitByChar('\\x1F', ?)[1]", f.scope_id) in ^modules,
           distinct: true,
-          select: f.scope_id
+          select: fragment("splitByChar('\\x1F', ?)[1]", f.scope_id)
         )
       )
     end)
@@ -649,13 +657,21 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Enum.filter(fn test -> Enum.any?(identifiers, &(hd(&1) == test.module_name and named?(test, &1))) end)
   end
 
-  # The runs' skip identifiers, split into their target, suite and test.
+  # The runs' skip identifiers, split into their target, suite and test. A
+  # suite or test name that holds a `/` (an ExUnit describe such as
+  # `create_order/2`) arrives percent-encoded, as does a `%`.
   defp skip_identifiers(runs) do
     runs
     |> Enum.flat_map(&Map.get(&1, :skip_test_identifiers, []))
     |> Enum.uniq()
-    |> Enum.map(&String.split(&1, "/", parts: 3))
+    |> Enum.map(fn identifier -> identifier |> String.split("/", parts: 3) |> Enum.map(&decode_part/1) end)
     |> Enum.reject(&(hd(&1) == ""))
+  end
+
+  defp decode_part(part) do
+    if String.contains?(part, "%"), do: URI.decode(part), else: part
+  rescue
+    ArgumentError -> part
   end
 
   # What a run that measured the commit executed is in the commit's figure,

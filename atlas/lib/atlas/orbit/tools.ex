@@ -21,6 +21,7 @@ defmodule Atlas.Orbit.Tools do
   alias Atlas.Orbit.Rendering
   alias Atlas.Orbit.Run
   alias Atlas.Orbit.Runs
+  alias Atlas.Orbit.Subagents
   alias Atlas.Orbit.Thread
   alias Atlas.Orbit.ToolPolicy
   alias Atlas.Repo
@@ -31,10 +32,16 @@ defmodule Atlas.Orbit.Tools do
   @superseded "This run was resumed elsewhere; the result was discarded."
 
   @doc "Condukt tools offered to this attempt, filtered by the current audience floor."
-  def build(%Run{id: run_id, resume_count: attempt}) do
-    case Runs.with_attempt(run_id, attempt, fn thread, run -> tool_audience(thread, run) end) do
-      {:ok, scopes} -> scopes |> ToolPolicy.available() |> Enum.map(&inline_tool(run_id, attempt, &1))
-      {:error, _reason} -> []
+  def build(%Run{id: run_id, resume_count: attempt}, parent_message_id \\ nil) do
+    case Runs.with_attempt(run_id, attempt, fn thread, run ->
+           Subagents.authorize_parent!(thread, run, parent_message_id)
+           tool_audience(thread, run)
+         end) do
+      {:ok, scopes} ->
+        scopes |> ToolPolicy.available() |> Enum.map(&inline_tool(run_id, attempt, &1, parent_message_id))
+
+      {:error, _reason} ->
+        []
     end
   end
 
@@ -47,42 +54,75 @@ defmodule Atlas.Orbit.Tools do
       else: MapSet.new()
   end
 
-  defp inline_tool(run_id, attempt, descriptor) do
+  defp inline_tool(run_id, attempt, descriptor, parent_message_id) do
     name = descriptor["name"]
 
     Condukt.tool(
       name: name,
       description: descriptor["description"] || "",
       parameters: descriptor["inputSchema"] || %{"type" => "object", "properties" => %{}},
-      call: fn args, _context -> call(run_id, attempt, name, args || %{}) end
+      call: fn args, context -> call(run_id, attempt, name, args || %{}, parent_message_id, context) end
     )
   end
 
   @doc false
-  def call(run_id, attempt, name, args) do
-    with {:ok, scopes} <- ToolPolicy.required_scopes(name),
-         {:ok, {:execute, message, acting_user}} <-
-           Runs.with_attempt(run_id, attempt, &begin!(&1, &2, scopes, name, args)) do
-      Orbit.notify_changed(message.thread_id)
+  def call(run_id, attempt, name, args, parent_message_id \\ nil, context \\ %{}) do
+    case ToolPolicy.required_scopes(name) do
+      {:ok, scopes} ->
+        perform(run_id, attempt, name, args, parent_message_id, scopes, fn message, acting_user ->
+          execute(acting_user, run_id, message.thread_id, name, args, context)
+        end)
 
-      acting_user
-      |> execute(run_id, message.thread_id, name, args)
-      |> case do
-        {:ok, result} -> settle(run_id, attempt, message, scopes, {:ok, result})
-        {:error, reason} -> settle(run_id, attempt, message, scopes, {:error, Rendering.error(reason)})
-      end
+      _ ->
+        {:error, @unavailable}
+    end
+  end
+
+  @doc false
+  def task(%Run{} = run, args, context) do
+    if Subagents.valid_args?(args) do
+      perform(run.id, run.resume_count, "task", args, nil, [], fn message, _acting_user ->
+        Subagents.execute(run, message, args, context)
+      end)
     else
-      {:ok, {:replay, result}} -> {:ok, result}
-      :error -> {:error, @unavailable}
-      {:error, :stale} -> {:error, @superseded}
-      {:error, :cancelled} -> {:error, "The run was cancelled."}
-      {:error, _reason} -> {:error, @unavailable}
+      {:error, "Provide one nonempty research task of at most 4,000 characters."}
+    end
+  end
+
+  defp perform(run_id, attempt, name, args, parent_message_id, scopes, execute) do
+    case Runs.with_attempt(run_id, attempt, &begin!(&1, &2, scopes, name, args, parent_message_id)) do
+      {:ok, {:execute, message, acting_user}} ->
+        Orbit.notify_changed(message.thread_id)
+
+        execute.(message, acting_user)
+        |> case do
+          {:ok, result} ->
+            settle(run_id, attempt, message, scopes, {:ok, result})
+
+          {:error, reason} ->
+            settle(run_id, attempt, message, scopes, {:error, Rendering.error(reason)})
+        end
+
+      {:ok, {:replay, result}} ->
+        {:ok, result}
+
+      {:ok, {:replay_error, reason}} ->
+        {:error, reason}
+
+      {:error, :stale} ->
+        {:error, @superseded}
+
+      {:error, :cancelled} ->
+        {:error, "The run was cancelled."}
+
+      {:error, _reason} ->
+        {:error, @unavailable}
     end
   end
 
   # Runs the MCP tool in its own process so a tool that raises or hangs settles
   # its card as failed instead of leaving it running.
-  defp execute(acting_user, run_id, thread_id, name, args) do
+  defp execute(acting_user, run_id, thread_id, name, args, context) do
     request = %{
       "jsonrpc" => "2.0",
       "id" => System.unique_integer([:positive]),
@@ -92,7 +132,11 @@ defmodule Atlas.Orbit.Tools do
 
     task =
       Task.Supervisor.async_nolink(Atlas.TaskSupervisor, fn ->
-        acting_user |> conn(run_id, thread_id) |> Server.handle_message(request) |> normalize()
+        if Subagents.register_tool(context) == :ok do
+          acting_user |> conn(run_id, thread_id) |> Server.handle_message(request) |> normalize()
+        else
+          {:error, "The research task was stopped."}
+        end
       end)
 
     case Task.yield(task, @tool_timeout) || Task.shutdown(task, :brutal_kill) do
@@ -102,7 +146,8 @@ defmodule Atlas.Orbit.Tools do
     end
   end
 
-  defp begin!(thread, run, scopes, name, args) do
+  defp begin!(thread, run, scopes, name, args, parent_message_id) do
+    Subagents.authorize_parent!(thread, run, parent_message_id)
     acting_user = run.acting_user_id && Repo.get(User, run.acting_user_id)
 
     cond do
@@ -113,28 +158,36 @@ defmodule Atlas.Orbit.Tools do
         Repo.rollback(:unavailable)
 
       match?({:ok, _}, Access.authorize_tool(thread, acting_user, scopes)) ->
-        open_call!(thread, run, acting_user, name, args)
+        open_call!(thread, run, acting_user, name, args, parent_message_id)
 
       true ->
         Repo.rollback(:unavailable)
     end
   end
 
-  defp open_call!(thread, run, acting_user, name, args) do
-    key = call_key(name, args)
+  defp open_call!(thread, run, acting_user, name, args, parent_message_id) do
+    key = call_key(name, args, parent_message_id)
 
     case recorded_call(run, key) do
       %Message{tool_status: "succeeded", tool_result: result} when is_binary(result) ->
         {:replay, result}
 
+      %Message{} = recorded when name == "task" ->
+        # Never launch a second child for an in-flight or interrupted task.
+        # A checkpoint can replay completed children, but not restart them.
+        {:replay_error, Subagents.recorded_error(recorded)}
+
       %Message{} = interrupted ->
         {:execute, Orbit.touch!(interrupted, %{tool_status: "running", tool_output: ""}), acting_user}
 
       nil ->
+        if name == "task", do: Subagents.reserve!(run)
+
         message =
           Orbit.append!(thread, %{
             kind: "tool",
             run_id: run.id,
+            parent_message_id: parent_message_id,
             tool_name: name,
             tool_status: "running",
             tool_input: Rendering.input(args),
@@ -149,16 +202,21 @@ defmodule Atlas.Orbit.Tools do
   # completed call is answered from its recorded result instead of executing
   # again, which is how a resumed attempt continues without duplicate tool
   # events or repeated side effects. Access is re-authorized first either way.
-  defp call_key(name, args) do
-    :crypto.hash(:sha256, :erlang.term_to_binary({name, args}, [:deterministic])) |> Base.encode16(case: :lower)
+  defp call_key(name, args, parent_message_id) do
+    # Preserve existing root replay keys across deployment and resumption.
+    term = if is_nil(parent_message_id), do: {name, args}, else: {parent_message_id, name, args}
+
+    :crypto.hash(:sha256, :erlang.term_to_binary(term, [:deterministic]))
+    |> Base.encode16(case: :lower)
   end
 
   defp recorded_call(run, key) do
     Repo.one(
-      from message in Message,
+      from(message in Message,
         where: message.run_id == ^run.id and message.tool_call_key == ^key,
         order_by: [desc: message.position],
         limit: 1
+      )
     )
   end
 
@@ -181,14 +239,15 @@ defmodule Atlas.Orbit.Tools do
   defp settle_locked(thread, run, message, scopes, outcome) do
     message = Repo.reload!(message)
 
-    case {outcome, authorized?(thread, run, scopes)} do
+    case {outcome,
+          authorized?(thread, run, scopes) and Subagents.parent_active?(thread, run, message.parent_message_id)} do
       {{:ok, result}, true} ->
         ratchet!(thread, scopes)
         model_result = Rendering.for_model(result)
 
         Orbit.touch!(message, %{
           tool_status: "succeeded",
-          tool_output: Rendering.output(result),
+          tool_output: Rendering.output(result, message.tool_name),
           tool_result: model_result
         })
 
@@ -218,7 +277,9 @@ defmodule Atlas.Orbit.Tools do
     required = Enum.sort(Enum.uniq(thread.required_scopes ++ scopes))
 
     if required != Enum.sort(thread.required_scopes) do
-      Repo.update_all(from(c in Thread, where: c.id == ^thread.id), set: [required_scopes: required])
+      Repo.update_all(from(c in Thread, where: c.id == ^thread.id),
+        set: [required_scopes: required]
+      )
     end
   end
 
@@ -237,9 +298,13 @@ defmodule Atlas.Orbit.Tools do
   end
 
   defp normalize(%{"result" => %{"isError" => true} = result}), do: {:error, text(result)}
+
   defp normalize(%{"result" => %{"structuredContent" => content}}) when is_map(content), do: {:ok, content}
+
   defp normalize(%{"result" => result}), do: {:ok, text(result)}
+
   defp normalize(%{"error" => %{"message" => message}}) when is_binary(message), do: {:error, message}
+
   defp normalize(_response), do: {:error, "The tool call failed."}
 
   defp text(%{"content" => parts}) when is_list(parts) do

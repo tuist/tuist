@@ -89,7 +89,11 @@ const (
 // never more than the volume. The image keeps its full capacity, so a job can
 // write past this into space nothing reserved. The server's placement
 // (`Tuist.Runners.CacheVolumes`, `reserved_bytes`) mirrors this; keep them in step.
+// A Docker data root reserves its saved bytes plus DockerGrowthBytes.
 func (i Identity) ExpectedBytes(defaultBytes int64) int64 {
+	if i.Kind == KindDocker {
+		return min(i.VolumeSize(defaultBytes), i.HeadSizeBytes+DockerGrowthBytes)
+	}
 	expected := int64(UnmeasuredVolumeBytes)
 	if i.HeadSizeBytes > 0 {
 		expected = i.HeadSizeBytes + max(GrowthBytes, i.HeadSizeBytes/2)
@@ -154,6 +158,9 @@ type Store struct {
 	MaxSlots int
 	// MaxVolumeBytes is the largest volume this host accepts.
 	MaxVolumeBytes int64
+	// Observe reports every branch deletion as a "delete" phase whose source
+	// is why the branch was discarded.
+	Observe Observer
 }
 
 func Open(path string, backend Backend) (*Store, error) {
@@ -219,7 +226,7 @@ func (s *Store) slots() ([]Slot, error) {
 	return slots, nil
 }
 func valid(identity Identity, pod, uid string, maxVolumeBytes int64) bool {
-	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= maxVolumeBytes && identity.HeadSizeBytes >= 0 && validHead(identity) && validKind(identity)
+	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= kindMaxVolumeBytes(identity, maxVolumeBytes) && identity.HeadSizeBytes >= 0 && validHead(identity) && validKind(identity)
 }
 func validKind(identity Identity) bool {
 	switch identity.Kind {
@@ -227,6 +234,8 @@ func validKind(identity Identity) bool {
 		return identity.Generation == 0
 	case KindCheckout:
 		return identity.Generation >= 0 && identity.BaseGeneration == 0 && !identity.CanPublish
+	case KindDocker:
+		return identity.Generation == 0
 	default:
 		return false
 	}
@@ -431,7 +440,7 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 	}
 	// An incomplete allocation can never become a published snapshot.
 	if slot.State == "allocated" && done {
-		if err = s.discard(&slot); err != nil {
+		if err = s.discard(&slot, DiscardAbandoned); err != nil {
 			return err
 		}
 		if err = s.save(slot); err != nil || slot.State != "deleted" {
@@ -461,7 +470,11 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 		sealed := slot
 		sealed.PublishCold = action == "publish"
 		if err = s.backend.Seal(sealed, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
-			if err = s.discard(&slot); err != nil {
+			reason := DiscardWithheld
+			if errors.Is(err, ErrPoisoned) {
+				reason = DiscardPoisoned
+			}
+			if err = s.discard(&slot, reason); err != nil {
 				return err
 			}
 		} else if errors.Is(err, ErrReleasePending) {
@@ -472,7 +485,7 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 			slot.State = "sealed"
 		}
 	case "delete":
-		if err = s.discard(&slot); err != nil {
+		if err = s.discard(&slot, DiscardServer); err != nil {
 			return err
 		}
 	case "forget":
@@ -495,11 +508,30 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 	return s.save(slot)
 }
 
+// Discard reasons, the source of a "delete" observation.
+const (
+	// DiscardServer is the server's delete decision: the job did not succeed,
+	// its use was discarded, or its volume was cleared.
+	DiscardServer = "server"
+	// DiscardAbandoned is an allocation whose Pod ended before it attached.
+	DiscardAbandoned = "abandoned"
+	DiscardPoisoned  = "poisoned"
+	DiscardWithheld  = "withheld"
+	// DiscardPending retries a deletion that waited for its loop device.
+	DiscardPending = "pending"
+)
+
 // discard deletes the slot's branch. While another mount still holds its loop
 // device the slot keeps its state, marked for a later pass to delete.
-func (s *Store) discard(slot *Slot) error {
+func (s *Store) discard(slot *Slot, reason string) error {
+	if slot.Discard {
+		reason = DiscardPending
+	}
 	slot.Discard = true
-	if err := s.backend.Delete(*slot, s.activePath(*slot)); errors.Is(err, ErrReleasePending) {
+	done := s.Observe.For(*slot).Start("delete", reason)
+	err := s.backend.Delete(*slot, s.activePath(*slot))
+	done(err)
+	if errors.Is(err, ErrReleasePending) {
 		return nil
 	} else if err != nil {
 		return err
@@ -579,4 +611,14 @@ func (s *Store) InUse(scope string) bool {
 		}
 	}
 	return false
+}
+
+// kindMaxVolumeBytes is the largest volume the host accepts for the identity:
+// a Docker data root always has DockerVolumeBytes, whatever the host's maximum
+// for other volumes.
+func kindMaxVolumeBytes(identity Identity, maxVolumeBytes int64) int64 {
+	if identity.Kind == KindDocker {
+		return max(maxVolumeBytes, DockerVolumeBytes)
+	}
+	return maxVolumeBytes
 }

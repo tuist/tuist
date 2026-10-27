@@ -250,7 +250,7 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
     plug :google_one_tap_content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
-    plug Localization, :redirect_to_localized_route
+    plug Localization, :negotiate_locale
     plug Localization, :put_locale
     plug TuistWeb.Marketing.Preferences
   end
@@ -266,11 +266,12 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Docs.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
-    plug SentryContextPlug
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :put_locale
     plug :fetch_current_user
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
   end
 
   pipeline :marketing_markdown do
@@ -317,6 +318,8 @@ defmodule TuistWeb.Router do
     # authentication because the elevation belongs to the operator behind the
     # token.
     plug :accept_atlas_identity_header
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
@@ -1102,6 +1105,8 @@ defmodule TuistWeb.Router do
     post "/runners/dispatch", RunnersController, :dispatch
     post "/runners/cache-volumes/authorize", RunnerCacheVolumesController, :authorize
     post "/runners/cache-volumes/checkout", RunnerCacheVolumesController, :checkout
+    post "/runners/cache-volumes/docker", RunnerCacheVolumesController, :docker
+    post "/runners/cache-volumes/docker-seen", RunnerCacheVolumesController, :docker_seen
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     get "/runners/cache-masters", RunnerCacheMastersController, :index
@@ -1121,6 +1126,11 @@ defmodule TuistWeb.Router do
 
   scope "/api/internal", TuistWeb.Internal do
     pipe_through [:atlas_internal_api]
+
+    get "/atlas/flags", AtlasFeatureFlagsController, :index
+    get "/atlas/flags/evaluate", AtlasFeatureFlagsController, :evaluate
+    get "/atlas/flags/:name", AtlasFeatureFlagsController, :show
+    put "/atlas/flags/:name", AtlasFeatureFlagsController, :update
 
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables

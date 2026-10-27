@@ -1,122 +1,44 @@
 # Tuist CLI (Swift)
 
-This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subsystem boundaries.
+## Boundaries
+- The executable and runtime setup live in `Sources/tuist`. Add new commands and generation logic to feature-specific modules, not the legacy `TuistKit` and `TuistGenerator` monoliths.
+- `ProjectDescription` is the public manifest DSL; `TuistLoader` evaluates it. `ProjectAutomation` is the serialized generated-project output, not the manifest DSL. Graph models are embedded under `Sources/XcodeGraph`.
+- `TuistCacheEE` is a git submodule; keep its guidance inside the submodule.
+- Preserve Noora logger setup for post-command completion/error output so verbose logs capture it.
 
-## Key Boundaries
-- Entry point lives in `cli/Sources/tuist`.
-- Core domain models and shared abstractions live in `cli/Sources/TuistCore`.
-- Common utilities and infra (logging, file system helpers, etc.) live in `cli/Sources/TuistSupport`.
-- Tuist Server client: `cli/Sources/TuistServer`
-- Rosalind app bundle analysis: `cli/Sources/Rosalind/AGENTS.md`
-- Bazel integration and test execution: `cli/Sources/TuistBazelCommand/AGENTS.md`
-- Cargo decoration, compiler observation, and nextest test/shard integration: `cli/Sources/TuistCargoCommand/AGENTS.md`
-- Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`
-- Real stable Cargo/libtest and doctest reporting: `cli/Tests/Fixtures/CargoTestReporting/AGENTS.md`
-- Real Cargo archive/shard/reporting pipeline: `cli/Tests/Fixtures/CargoSharding/AGENTS.md`
-- Swift compiler-cache cold/warm/corrupt-entry smoke: `cli/Tests/Fixtures/CargoCache/AGENTS.md`
-- Per-test coverage evidence is recorded by the TestCoverageAttribution package test targets link (https://github.com/tuist/TestCoverageAttribution); the CLI only tells the test processes where to write and reduces it: `cli/Sources/TuistXCResultService/AGENTS.md`. Tuist's own unit test targets and the app's tests link it too (0.1.x from GitHub, as dynamic frameworks in `Package.swift`'s `PackageSettings` so the observer loads in bundles that reference nothing in it), for `.github/workflows/tuist-project-tests.yml`, whose unit and app test runs record it (pull requests and main) and whose main runs end with a guarded `tuist coverage complete` (`.github/workflows/tuist-project-coverage-backfill.yml` collects an earlier commit on main with main's tools)
-- When a run uploads coverage, `tuist test`, `tuist xcodebuild test` and `tuist xcodebuild build-for-testing` add build settings that make coverage counters atomic (`AtomicCoverageCounters`). The settings resolve to nothing unless Xcode builds with coverage (`CLANG_COVERAGE_MAPPING`), so builds without coverage keep their compiler arguments and cache keys. Without atomic counters, tests running in parallel lose increments and the coverage (`llvm-cov`, and xccov alike) reports wrong, sometimes wrapped, counts.
-- A `tuist test` run that uploads coverage tells, per binary-cache hit, whether the cached binary was built with coverage (`CoverageInstrumentation` reads the xcframework slices after generation and sets `CacheItem.instrumented`, sent as `binary_cache_metadata.instrumented`; `CoverageMapping.isInstrumented` reads Mach-O images, `ar` archives and universal files whose slices are archives, which is how Xcode packs a multi-architecture static framework, and takes a binary as built with coverage when it carries `__llvm_covmap` or, for a module with no code to map, references the profile runtime, `___llvm_profile_runtime`). A fetched binary the cache did not use (its target stays source because a direct dependency is a miss, so the graph links no slice of it) is left unflagged; the server leaves such hits out by applying `CacheGraphMutator`'s replacement rule to the run's reported targets and their `dependencies` (`Tuist.Tests.Coverage.Xcode`). The server judges the run's coverage per target from it: a plain hit is a gap, an instrumented one is measured.
-- The coverage export (`CoverageExportService`) reads each target's product by name from the products directory the run built into, or from an app's `PlugIns` for a test bundle hosted in it, and reads a bundle's `<executable>.debug.dylib` when Xcode built the code into one (the executable is then a stub with no coverage mapping). Remote-mode uploads create the run with the scheme they were asked for, since the coverage is published with the run before the processor reads the bundle.
-- A `tuist test` run that collects the coverage Tuist uploads reads repository-owned targets (those without a `Project.externalHash`: the workspace's projects and packages referenced by path, the same rule as the server's empty `external_hash`) from the binary cache under a coverage dimension of the key (`CacheGraphContentHasher.coverageDimension`; the variant is `BinaryCacheCoverage`, resolved per command from `TUIST_COVERAGE_ENABLED` and `Tuist.swift`'s `coverage: .coverage(enabled:)`, never from `-enableCodeCoverage` or the scheme, which only decide collection). With the option on every command reads the instrumented variant, so one warm serves CI and local machines; a run that collects coverage on plain cached binaries gets a warning. Packages from source control or a registry, and Release configurations, keep the plain key. A warm with coverage on fills the coverage variant: it marks the repository's frameworks and libraries (`InstrumentedBinaryCacheWarmGraphMapper`) and passes command-line settings that resolve through the marker (`InstrumentedBinaryCacheWarm`: `CLANG_COVERAGE_MAPPING`, atomic counters, and `-coverage-prefix-map <root>=/TUIST_SOURCE_ROOT` for every spelling of the checkout root, so the recorded paths tie to the repository on any machine), warms release configurations plain, and leaves the plain variant to a warm with coverage off; `tuist hash cache` prints the keys of the resolved variant. Without such a warm, a coverage run builds repository targets from source.
-- Cache client: `cli/Sources/TuistCache`
-- Bazel Remote Execution API (REAPI) client: `cli/Sources/TuistREAPI` (see `cli/Sources/TuistREAPI/AGENTS.md`)
-- Dependencies tooling: `cli/Sources/TuistDependencies`
-- Manifest loading: `cli/Sources/TuistLoader`
-- Embedded graph packages: `cli/Sources/XcodeGraph`
+## Build and test
+Run from the repository root. Generate only the targets needed for the change:
+```bash
+tuist generate tuist ProjectDescription --no-open
+xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+```
 
-- Runner shells and volume management: `cli/Sources/TuistRunnerCommand/AGENTS.md`
+If a production or test target is missing, regenerate with it explicitly rather than falling back to SwiftPM:
+```bash
+tuist generate tuist <ProductionTarget> <TestTarget> ProjectDescription --no-open
+xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace \
+    -only-testing <TestTarget>/<SuiteName> \
+    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+```
+- `xcsiftbuild test` is also supported. Prefer suites or individual tests over whole targets; a single Swift Testing filter is `ModuleTests/SuiteName/function_name`.
+- Do not use `swift build` or `swift test` for CLI validation. SwiftPM is allowed only when explicitly requested or when changing package-resolution behavior; always include `--replace-scm-with-registry` in those cases.
+- Lint with `mise run cli:lint`; use `mise run cli:lint --fix` for automatic fixes.
+- Every root `Package.swift` edit, including target-only changes and merge resolutions, changes `Package.resolved`'s `originHash`. Run `tuist install` and commit the refreshed lockfile; `cli.yml` checks it.
+- Linux releases are static musl binaries. `mise run cli:bundle-linux --linux-vm --arch x86_64` uses the Swift container; `--arch x86_64|aarch64` (or `TUIST_LINUX_ARCH`) selects native/cross-compilation through the static SDK. Setup is shared with PR Linux builds in `mise/utilities/install_static_linux_sdk.sh`.
+- Guard libc imports with `canImport(Darwin)`, `canImport(Glibc)`, and `canImport(Musl)`; Linux does not imply Glibc.
 
-## Legacy Modules (avoid adding new code)
-- `cli/Sources/TuistKit` - Monolithic command wiring; new commands should be added to feature-specific modules.
-- `cli/Sources/TuistGenerator` - Monolithic generation pipeline; new generation logic should be added to smaller, focused modules.
+## Test conventions
+- Use Swift Testing. For temporary directories, import `FileSystemTesting`, annotate with `@Test(.inTemporaryDirectory)`, and obtain the path with `try #require(FileSystem.temporaryTestDirectory)`.
+- Test helpers must not mutate the global process environment.
+- Avoid one-line comments unless they add useful context.
+- Send user-facing warnings through `AlertController.current.warning(.alert("..."))` so completion collects them; reserve `Logger` for debug/trace output.
 
-## Building
-- To generate the Xcode project for a faster build, run `tuist generate tuist ProjectDescription --no-open` (generates only the required targets instead of the full workspace). If the target you need is not in the current generated workspace, regenerate with that specific target instead of falling back to SwiftPM.
-- To compile, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""`. Do not use `swift build` for CLI validation unless the user explicitly asks for SwiftPM.
-- Prefer the `tuist` scheme over `Tuist-Workspace` for faster iteration.
-- Any edit to the root `Package.swift`, including target-only changes, changes the `originHash` in `Package.resolved` (the SHA-256 of `Package.swift`). Run `tuist install` and commit `Package.resolved` with it, and again after resolving a `Package.swift` merge conflict. The `Package.resolved` job in `cli.yml` fails otherwise.
-- The Linux release is a static musl binary built by `mise/tasks/cli/bundle-linux.sh`. Pass `--arch x86_64|aarch64` (or `TUIST_LINUX_ARCH`) to choose the target; an architecture other than the host's is cross-compiled through the Swift static Linux SDK. `mise run cli:bundle-linux --linux-vm --arch x86_64` builds the same binary in a `swift:6.2` container. The SDK setup lives in `mise/utilities/install_static_linux_sdk.sh`, shared with the PR `Linux Build` job.
-- The Linux release is a static musl binary, where libc is `Musl`, not `Glibc`. Guard platform imports with `#if canImport(Darwin)` / `#elseif canImport(Glibc)` / `#elseif canImport(Musl)` instead of assuming Linux means `Glibc`.
+## Scoped contracts
 
-## Code Style
-- Do not add one-line comments unless they are truly useful.
-- Report user-facing warnings through `AlertController.current.warning(.alert("..."))` (from `TuistAlert`) so they are collected and presented at the end of the command. Do not use `Logger.current.warning` for this; reserve `Logger` for debug/trace output.
-
-## Testing
-- Use Swift Testing framework with custom traits for tests that need temporary directories.
-- For temporary directories, use `@Test(.inTemporaryDirectory)` and access it via `FileSystem.temporaryTestDirectory`.
-- Import `FileSystemTesting` when using `.inTemporaryDirectory`.
-- Example:
-  ```swift
-  import FileSystemTesting
-  import Testing
-
-  @Test(.inTemporaryDirectory) func test_example() async throws {
-      let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-      // Test implementation
-  }
-  ```
-
-### Running tests
-- Use `tuist generate` + `xcodebuild`/`xcsiftbuild test` instead of `swift test`. `swift test` is significantly slower because it rebuilds the full SPM dependency graph, bypasses Tuist caching, and some test targets (e.g. `TuistGeneratorTests`, `TuistLoaderTests`) aren't even registered in `Package.swift` — they only exist in the Tuist-generated workspace.
-- If the generated scheme does not include the test target, run `tuist generate tuist <ProductionTarget> <TestTarget> ProjectDescription --no-open` with the narrowest target list that covers the change, then rerun the focused `xcodebuild`/`xcsiftbuild test`.
-- Fast iteration loop for a specific test suite:
-  ```bash
-  tuist generate tuist TuistGenerator TuistGeneratorTests ProjectDescription --no-open
-  xcsiftbuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace \
-      -only-testing TuistGeneratorTests/SomeSuite \
-      CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-      COMPILATION_CACHE_ENABLE_CACHING=NO
-  ```
-- Swift Testing filters use the pattern `ModuleTests/SuiteName` (the type name without the `struct` keyword). For a single `@Test` function: `ModuleTests/SuiteName/function_name`.
-
-## Linting
-- Before committing changes, run `mise run cli:lint --fix` to ensure code is properly formatted.
-
-## Related Context (Downlinks)
-- CLI entry point: `cli/Sources/tuist/AGENTS.md`
-- Command definitions and wiring: `cli/Sources/TuistKit/AGENTS.md`
-- Core domain models: `cli/Sources/TuistCore/AGENTS.md`
-- Shared utilities: `cli/Sources/TuistSupport/AGENTS.md`
-- Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
-- Dependency management: `cli/Sources/TuistDependencies/AGENTS.md`
-- Manifest loading: `cli/Sources/TuistLoader/AGENTS.md`
-- Server integration: `cli/Sources/TuistServer/AGENTS.md`
-- Cache integration: `cli/Sources/TuistCache/AGENTS.md`
-- Private binary cache storage and compatibility lookup: `cli/TuistCacheEE/AGENTS.md`
-- Project description models: `cli/Sources/ProjectDescription/AGENTS.md`
-- Project automation: `cli/Sources/ProjectAutomation/AGENTS.md`
-- Tuist automation: `cli/Sources/TuistAutomation/AGENTS.md`
-- Acceptance testing support: `cli/Sources/TuistAcceptanceTesting/AGENTS.md`
-- CAS support: `cli/Sources/TuistCAS/AGENTS.md`
-- CAS analytics: `cli/Sources/TuistCASAnalytics/AGENTS.md`
-- CI integration: `cli/Sources/TuistCI/AGENTS.md`
-- Environment management: `cli/Sources/TuistEnvKit/AGENTS.md`
-- Git integration: `cli/Sources/TuistGit/AGENTS.md`
-- HTTP client: `cli/Sources/TuistHTTP/AGENTS.md`
-- Hashing utilities: `cli/Sources/TuistHasher/AGENTS.md`
-- Launchd integration: `cli/Sources/TuistLaunchctl/AGENTS.md`
-- Migration utilities: `cli/Sources/TuistMigration/AGENTS.md`
-- OIDC integration: `cli/Sources/TuistOIDC/AGENTS.md`
-- Plugin system: `cli/Sources/TuistPlugin/AGENTS.md`
-- Process execution: `cli/Sources/TuistProcess/AGENTS.md`
-- Root directory resolution: `cli/Sources/TuistRootDirectoryLocator/AGENTS.md`
-- Scaffold generation: `cli/Sources/TuistScaffold/AGENTS.md`
-- Simulator integration: `cli/Sources/TuistSimulator/AGENTS.md`
-- Checkout paths and snapshots: `cli/Sources/TuistTestSupport/AGENTS.md`
-- Test helpers: `cli/Sources/TuistTesting/AGENTS.md`
-- XCActivityLog parsing: `cli/Sources/TuistXCActivityLog/AGENTS.md`
-- XCResult handling: `cli/Sources/TuistXCResultService/AGENTS.md`
-- Xcode project/workspace path resolution: `cli/Sources/TuistXcodeProjectOrWorkspacePathLocator/AGENTS.md`
-- Benchmark tooling: `cli/Sources/tuistbenchmark/AGENTS.md`
-- Fixture generation tooling: `cli/Sources/tuistfixturegenerator/AGENTS.md`
-- Embedded graph package: `cli/Sources/XcodeGraph/AGENTS.md`
-
-Note: `cli/TuistCacheEE` is a git submodule; keep any intent nodes for that package within the submodule itself.
-
-- Bazel setup enables JSON trace profiles without event merging, includes target and primary output identifiers, and selects the remote BEP artifact uploader. Keep explicit user profiling preferences when refreshing managed configuration. Do not use `experimental_stream_log_file_uploads`: the standard Bazel remote artifact uploader does not implement that streaming path.
-
-- Bazel setup records the local active logical processor count as `TUIST_CPU_COUNT` build metadata in the machine-specific `.bazelrc.tuist`. Endpoint refresh preserves this value; rerun setup when moving environments or changing CPU allocations. Build environments that override JVM processor availability must supply the matching count through build metadata. Never substitute Bazel job concurrency for CPU capacity.
-
-- Bazelrc credential-helper upgrades add CPU-capacity metadata when missing in both existing insights and cache-only configurations, preserving explicit metadata and option preferences.
+- Read the relevant feature guide for [Bazel](Sources/TuistBazelCommand/AGENTS.md), [Cargo](Sources/TuistCargoCommand/AGENTS.md), [runner commands](Sources/TuistRunnerCommand/AGENTS.md), and [bundle analysis](Sources/Rosalind/AGENTS.md). Cargo and shared report identities have additional guides under `Tests/Fixtures/`.
+- Coverage collection and evidence contracts live in [TuistXCResultService](Sources/TuistXCResultService/AGENTS.md); variant selection, warming, and export orchestration live in [TuistCache](Sources/TuistCache/AGENTS.md) and [TuistKit](Sources/TuistKit/AGENTS.md). TestCoverageAttribution is linked by test targets, never injected; per-target evidence comes from raw process profiles without it.
+- Test/build-for-testing paths uploading coverage use `AtomicCoverageCounters`; settings must resolve to nothing without `CLANG_COVERAGE_MAPPING`, preserving noncoverage compiler arguments and cache keys.
+- Tuist's own tests do not link TestCoverageAttribution: CI records target-only evidence, skipped tests carry only with their whole target, and remaining gaps stay gaps. Main runs use guarded `tuist coverage complete`; earlier-main backfills use `.github/workflows/tuist-project-coverage-backfill.yml` and main's tools.
+- Coverage exports resolve products by name from build products or an app's `PlugIns`, and use `<executable>.debug.dylib` when the executable is a stub. Remote-mode runs publish the requested scheme before processor parsing. Preserve binary-cache instrumentation checks for actually linked slices and leave fetched-but-unused binaries unflagged.
+- Bazel setup enables unmerged JSON trace profiles with target/primary-output identifiers and the remote BEP artifact uploader. Preserve explicit profiling preferences; do not enable `experimental_stream_log_file_uploads`.
+- Bazel setup records active logical processors as `TUIST_CPU_COUNT` in machine-local `.bazelrc.tuist`. Refreshes preserve it, upgrades backfill it in existing insights/cache-only configurations, and setup must be rerun after CPU/location changes. JVM overrides must supply matching build metadata; job concurrency is not CPU capacity.

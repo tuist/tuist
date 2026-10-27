@@ -10,7 +10,9 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
@@ -27,13 +29,17 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.VCS
 
   @retention_seconds 7 * 24 * 60 * 60
+  @unreported_retirement_seconds 24 * 60 * 60
   @checkout_key "checkout"
+  @docker_key "docker"
+  @reserved_keys [@checkout_key, @docker_key]
   # A host uploads a master as one PUT (`upload`) or in parts (`upload` with
   # `multipart`, `upload_parts`, `complete`), then fast-forwards the HEAD to it.
   @publication_operations ["upload", "upload_parts", "complete", "publish"]
   @max_parts 10_000
   @max_part_links 64
   @checkout_reserved_bytes 8_000_000_000
+  @docker_growth_reserved_bytes 20_000_000_000
   @unmeasured_reserved_bytes 5_000_000_000
   @growth_reserved_bytes 2_000_000_000
 
@@ -48,7 +54,12 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @volume_bytes 20_000_000_000
   # The capacity Tuist's managed volumes start at when no size is requested.
-  @managed_volume_bytes %{"tuist-xcode" => 30_000_000_000, "tuist-module" => 20_000_000_000}
+  @managed_volume_bytes %{
+    "tuist-xcode" => 30_000_000_000,
+    "tuist-module" => 20_000_000_000,
+    # The room a job had on the ephemeral Docker data root a docker volume replaces.
+    "docker" => 100_000_000_000
+  }
   # The largest volume a host that does not advertise its maximum accepts.
   @legacy_max_volume_bytes 32_000_000_000
 
@@ -62,7 +73,7 @@ defmodule Tuist.Runners.CacheVolumes do
           "uid" => user_id
         } = params
       ) do
-    with true <- valid_key?(key) and key != @checkout_key,
+    with true <- valid_key?(key) and key not in @reserved_keys,
          true <- arch in ["amd64", "arm64"],
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
@@ -156,6 +167,103 @@ defmodule Tuist.Runners.CacheVolumes do
   defp cached_checkouts?(%Profile{cached_checkouts: enabled}), do: enabled
   defp cached_checkouts?(nil), do: true
 
+  @doc "The reserved name of a repository's Docker data root, which no job can request."
+  def docker_key, do: @docker_key
+
+  @doc """
+  Allocates the Docker data root of the GitHub repository a Linux pod is running a
+  job for. The guest mounts it as dockerd's data root, so it holds every image the
+  repository's jobs pulled: a fork's job never gets one, and a repository gets one
+  only once a job was seen using Docker (`mark_docker_seen/1`), so jobs that never
+  use Docker never restart their daemon. Publication follows the job's runner
+  profile like any volume. Returns `{:error, :unseen}` for a repository not yet
+  seen using Docker.
+  """
+  def allocate_docker(%{"pod_name" => pod, "pod_uid" => uid, "node_name" => node} = params) do
+    with {:ok, job, attrs} <- docker_job(params, &executing_job/2),
+         {:ok, identity} <- docker_identity(job) do
+      if docker_seen?(job, identity, attrs) do
+        allocate_for_job(
+          job,
+          identity,
+          Map.merge(attrs, %{pod_name: pod, pod_uid: uid, node_name: node, max_volume_bytes: params["max_volume_bytes"]})
+        )
+      else
+        {:error, :unseen}
+      end
+    else
+      {:error, :pending} -> {:error, :pending}
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  def allocate_docker(_), do: {:error, :unavailable}
+
+  @doc """
+  Records that a job without a Docker data root used Docker, so the repository's
+  next jobs get one. The job may have finished by then; its runner session, which
+  stays open until the pod stops, still binds the pod to it.
+  """
+  def mark_docker_seen(params) do
+    with {:ok, job, attrs} <- docker_job(params, &executed_job/2),
+         {:ok, identity} <- docker_identity(job) do
+      insert_volume!(job, Identity.storage_scope(identity), attrs)
+      :ok
+    else
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  defp docker_job(
+         %{"pod_name" => pod, "pod_uid" => uid, "node_name" => node, "architecture" => arch, "uid" => user_id},
+         job
+       ) do
+    with true <- arch in ["amd64", "arm64"],
+         true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
+         true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
+         {:ok, %WorkflowJob{provider: "github"} = job, :linux} <- job.(pod, node),
+         true <- docker_cache?(job) do
+      {:ok, job, %{key: @docker_key, architecture: arch, platform: "linux", uid: user_id}}
+    else
+      {:error, :pending} -> {:error, :pending}
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  defp docker_job(_params, _job), do: {:error, :unavailable}
+
+  defp docker_identity(job) do
+    case Identity.resolve(job) do
+      {:ok, %{same_repository: true} = identity} -> {:ok, identity}
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  # The account's rollout flag and the job's runner profile; a job on a legacy
+  # label follows the account.
+  defp docker_cache?(job) do
+    FeatureFlags.runner_docker_cache_enabled?(%Account{id: job.account_id}) and
+      case Profiles.get_for_dispatch_label(job.account_id, job.requested_dispatch_label) do
+        %Profile{docker_cache: enabled} -> enabled
+        nil -> true
+      end
+  end
+
+  defp docker_seen?(job, identity, attrs) do
+    Repo.exists?(volume_query(job, Identity.storage_scope(identity), attrs))
+  end
+
+  # The pod's job whatever its status: a job reported after it finished.
+  defp executed_job(pod, node) do
+    case execution_binding(pod, node) do
+      {%WorkflowJob{} = job, %RunnerSession{platform: platform}} ->
+        if Environment.runner_cache_volumes_enabled?(platform), do: {:ok, job, platform}, else: {:error, :unavailable}
+
+      _ ->
+        {:error, :unavailable}
+    end
+  end
+
   # A job may start a repository's first checkout master when its profile would let
   # it save a custom volume: the master's tree is handed to every later job, so
   # forks and pull_request_target, which have no writer branch, never qualify.
@@ -238,26 +346,7 @@ defmodule Tuist.Runners.CacheVolumes do
       ensure_job_capacity!(job, identity, attrs)
       now = DateTime.utc_now()
       timestamp = DateTime.truncate(now, :second)
-      fields = Map.take(attrs, [:key, :platform, :architecture, :uid])
-
-      row =
-        Map.merge(fields, %{
-          id: Ecto.UUID.generate(),
-          account_id: job.account_id,
-          repository_id: identity.repository_id,
-          provider: identity.provider,
-          provider_instance: identity.provider_instance,
-          scope_id: identity.scope_id,
-          repository: job.repository,
-          default_branch: Map.get(identity, :default_branch),
-          inserted_at: timestamp,
-          updated_at: timestamp
-        })
-
-      Repo.insert_all(Volume, [row],
-        on_conflict: :nothing,
-        conflict_target: [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :architecture, :uid]
-      )
+      insert_volume!(job, identity, attrs)
 
       volume =
         Repo.one!(from(v in volume_query(job, identity, attrs), lock: "FOR UPDATE"))
@@ -320,6 +409,32 @@ defmodule Tuist.Runners.CacheVolumes do
         head_size_bytes: saved_head && saved_head.size_bytes
       }
     end)
+  end
+
+  # The volume row of the job's identity, created on first use.
+  defp insert_volume!(job, identity, attrs) do
+    timestamp = DateTime.truncate(DateTime.utc_now(), :second)
+
+    row =
+      attrs
+      |> Map.take([:key, :platform, :architecture, :uid])
+      |> Map.merge(%{
+        id: Ecto.UUID.generate(),
+        account_id: job.account_id,
+        repository_id: identity.repository_id,
+        provider: identity.provider,
+        provider_instance: identity.provider_instance,
+        scope_id: identity.scope_id,
+        repository: job.repository,
+        default_branch: Map.get(identity, :default_branch),
+        inserted_at: timestamp,
+        updated_at: timestamp
+      })
+
+    Repo.insert_all(Volume, [row],
+      on_conflict: :nothing,
+      conflict_target: [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :architecture, :uid]
+    )
   end
 
   # Picks the capacity of the job's copy. It grows within a lineage and shrinks
@@ -544,6 +659,33 @@ defmodule Tuist.Runners.CacheVolumes do
     end)
   end
 
+  # Cross-account maintenance. A host reports every copy it holds while it holds
+  # it, so a copy no host has reported for a day is no longer stored anywhere the
+  # volume can use, and stops counting as stored. The saved head is kept: jobs
+  # restore it from the volume's master, not from the copy.
+  def retire_unreported(now \\ DateTime.utc_now()) do
+    threshold = DateTime.add(now, -@unreported_retirement_seconds)
+
+    Repo.transaction(fn ->
+      usages =
+        Repo.all(
+          from(u in Usage,
+            join: v in Volume,
+            on: v.id == u.volume_id,
+            where:
+              is_nil(u.deleted_at) and (is_nil(v.head_id) or v.head_id != u.id) and
+                coalesce(u.last_reported_at, type(u.inserted_at, :utc_datetime_usec)) <= ^threshold,
+            order_by: [asc: u.id],
+            limit: 500,
+            lock: "FOR UPDATE SKIP LOCKED"
+          )
+        )
+
+      Enum.each(usages, &mark_deleted!(&1, now, []))
+      length(usages)
+    end)
+  end
+
   defp expire_locked(volume, now) do
     if is_nil(volume.deleted_at) and not is_nil(volume.last_used_at) and
          DateTime.compare(volume.last_used_at, DateTime.add(now, -@retention_seconds)) != :gt do
@@ -588,6 +730,13 @@ defmodule Tuist.Runners.CacheVolumes do
   def older_copy?(%Usage{mounted_generation: mounted, base_generation: base}),
     do: is_integer(mounted) and is_integer(base) and mounted < base
 
+  @doc """
+  Whether a Docker use's guest could not mount the saved data root and started
+  an empty one instead, which makes the job a miss however warm its host was.
+  """
+  def reset?(%Usage{docker_images: %{"reset" => true}}), do: true
+  def reset?(_usage), do: false
+
   def scope(volume) do
     :sha256 |> :crypto.hash("#{volume.id}:#{volume.generation}") |> Base.encode16(case: :lower)
   end
@@ -611,28 +760,17 @@ defmodule Tuist.Runners.CacheVolumes do
 
   defp report_locked(volume, usage, %{"state" => "deleted"}) do
     now = DateTime.utc_now()
-
-    if is_nil(usage.deleted_at), do: record_measurement(usage, %{size_bytes: 0, capacity_bytes: 0}, now, true)
-
-    Repo.update!(
-      Ecto.Changeset.change(usage,
-        last_reported_at: now,
-        deleted_at: usage.deleted_at || now,
-        finished_at: usage.finished_at || now,
-        status: if(usage.status == "published", do: "published", else: "discarded")
-      )
-    )
-
+    mark_deleted!(usage, now, last_reported_at: now)
     if volume.head_id == usage.id, do: Repo.update!(Ecto.Changeset.change(volume, head_id: nil))
     %{action: "forget"}
   end
 
+  # A copy the sweep retired (retire_unreported/1) that its host still holds.
+  defp report_locked(_volume, %Usage{deleted_at: %DateTime{}}, _params), do: %{action: "delete"}
+
   defp report_locked(volume, usage, params) do
     now = DateTime.utc_now()
     metrics = report_metrics!(params)
-
-    if usage.deleted_at, do: Repo.rollback(:deleted)
-
     volume = expire_locked(volume, now)
     valid = volume.generation == usage.generation and is_nil(volume.deleted_at)
 
@@ -640,7 +778,7 @@ defmodule Tuist.Runners.CacheVolumes do
       Repo.update!(Ecto.Changeset.change(volume, last_used_at: now))
     end
 
-    usage = update_reported_usage(usage, params, metrics, now)
+    usage = update_reported_usage(usage, params, metrics, now, docker_images(volume, params))
     report_action(volume, usage, params, valid, now)
   end
 
@@ -665,7 +803,46 @@ defmodule Tuist.Runners.CacheVolumes do
   defp valid_metric?(nil), do: true
   defp valid_metric?(value), do: is_integer(value) and value >= 0 and value <= 9_000_000_000_000_000
 
-  defp update_reported_usage(usage, params, metrics, now) do
+  # What a Docker data root kept, as its guest reported it after the job: guest
+  # written, so only well-formed inventories within the host's bounds are kept,
+  # and they only describe the volume, never decide anything.
+  defp docker_images(%Volume{key: @docker_key}, %{"docker" => %{"images" => images} = docker})
+       when is_list(images) and length(images) <= 500 do
+    images = Enum.map(images, &docker_image/1)
+    build_cache = docker["build_cache_bytes"]
+
+    if Enum.all?(images) and valid_metric?(build_cache) do
+      %{"images" => images, "build_cache_bytes" => build_cache, "reset" => docker["reset"] == true}
+    end
+  end
+
+  defp docker_images(_volume, _params), do: nil
+
+  defp docker_image(%{"id" => id, "references" => references, "size_bytes" => size} = image)
+       when is_binary(id) and is_list(references) and length(references) <= 16 and is_integer(size) and size >= 0 do
+    if Regex.match?(~r/^sha256:[a-f0-9]{64}$/, id) and Enum.all?(references, &docker_reference?/1) do
+      %{
+        "id" => id,
+        "references" => references,
+        "size_bytes" => size,
+        "last_used_at" => reported_time(image["last_used_at"])
+      }
+    end
+  end
+
+  defp docker_image(_image), do: nil
+
+  defp docker_reference?(reference),
+    do: is_binary(reference) and Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9._\/:@-]{0,254}$/, reference)
+
+  defp reported_time(value) do
+    case DateTime.from_iso8601(to_string(value)) do
+      {:ok, at, _} -> DateTime.to_iso8601(DateTime.truncate(at, :second))
+      _ -> nil
+    end
+  end
+
+  defp update_reported_usage(usage, params, metrics, now, docker_images) do
     if is_nil(usage.last_reported_at) or usage.size_bytes != metrics.size_bytes or
          usage.capacity_bytes != metrics.capacity_bytes do
       record_measurement(usage, metrics, now, false)
@@ -679,7 +856,8 @@ defmodule Tuist.Runners.CacheVolumes do
           warm: params["warm"],
           mounted_generation: usage.mounted_generation || mounted_generation(usage, params),
           attached_at: usage.attached_at || now,
-          status: if(usage.status == "allocated", do: "attached", else: usage.status)
+          status: if(usage.status == "allocated", do: "attached", else: usage.status),
+          docker_images: docker_images || usage.docker_images
         })
       )
     )
@@ -861,6 +1039,11 @@ defmodule Tuist.Runners.CacheVolumes do
   # growth (CheckoutGrowthBytes).
   defp reserved_bytes(@checkout_key, _volume_bytes, _head_size_bytes), do: @checkout_reserved_bytes
 
+  # A Docker data root reserves its saved bytes plus the job's pulls and container
+  # layers (runner-cache's DockerGrowthBytes).
+  defp reserved_bytes(@docker_key, volume_bytes, head_size_bytes),
+    do: min(volume_bytes, (head_size_bytes || 0) + @docker_growth_reserved_bytes)
+
   defp reserved_bytes(_key, volume_bytes, head_size_bytes) when is_integer(head_size_bytes) and head_size_bytes > 0,
     do: min(volume_bytes, head_size_bytes + max(@growth_reserved_bytes, div(head_size_bytes, 2)))
 
@@ -999,6 +1182,31 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  # A finished Docker job's guest merged its data root with the head another job
+  # saved since it was mounted, so the use takes that head as its base and its
+  # publication fast-forwards it. Only a successful job's use that may still
+  # publish moves, and only onto the lineage's current head.
+  defp image_action(%Volume{key: @docker_key} = volume, usage, %{
+         "operation" => "rebase",
+         "generation" => generation,
+         "image_digest" => digest,
+         "content_digest" => content
+       })
+       when is_integer(generation) and generation > 0 do
+    if not valid_image_digests?(digest, content), do: Repo.rollback(:invalid_digest)
+
+    if not rebase_viable?(volume, usage, generation), do: Repo.rollback(:conflict)
+
+    case VolumeHeads.get_head(volume.account_id, storage_name(volume)) do
+      %{generation: ^generation, content_digest: ^content} ->
+        Repo.update!(Ecto.Changeset.change(usage, base_generation: generation, parent_id: volume.head_id))
+        %{generation: generation}
+
+      _ ->
+        Repo.rollback(:conflict)
+    end
+  end
+
   # A host that gives up on a multipart upload discards its parts. Nothing about
   # the use matters: the upload names an object only this use could publish.
   defp image_action(volume, _usage, %{
@@ -1056,6 +1264,13 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   defp image_action(_, _, _), do: Repo.rollback(:invalid_request)
+
+  defp rebase_viable?(volume, usage, generation) do
+    completion = Repo.get_by(JobCompletion, workflow_job_id: usage.workflow_job_id, account_id: volume.account_id)
+
+    not retired_image?(volume, usage) and usage.can_publish and usage.status not in ["published", "discarded"] and
+      generation > usage.base_generation and not is_nil(completion) and completion.conclusion == "success"
+  end
 
   # The host builds a checkout master from exports it verified itself, so the job's
   # outcome and the use's state after the job do not matter: the use only names
@@ -1255,6 +1470,24 @@ defmodule Tuist.Runners.CacheVolumes do
   defp discard(usage, now) do
     Repo.update!(Ecto.Changeset.change(usage, status: "discarded", finished_at: usage.finished_at || now))
     %{action: "delete"}
+  end
+
+  defp mark_deleted!(usage, now, changes) do
+    if is_nil(usage.deleted_at), do: record_measurement(usage, %{size_bytes: 0, capacity_bytes: 0}, now, true)
+
+    Repo.update!(
+      Ecto.Changeset.change(
+        usage,
+        Keyword.merge(
+          [
+            deleted_at: usage.deleted_at || now,
+            finished_at: usage.finished_at || now,
+            status: if(usage.status == "published", do: "published", else: "discarded")
+          ],
+          changes
+        )
+      )
+    )
   end
 
   defp record_measurement(usage, metrics, now, deleted) do
@@ -1530,6 +1763,11 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def usage_analytics(account_id, period), do: usage_analytics(account_id, nil, period)
 
+  @doc """
+  Mounts in `period` per hour or day, and how many reused saved data: the
+  account's or one volume's. A Docker data root its guest formatted empty
+  because it could not mount the saved one counts as a miss.
+  """
   def usage_analytics(account_id, volume_id, {start, finish}) do
     {bucket, seconds} = if DateTime.diff(finish, start) <= 2 * 86_400, do: {"hour", 3600}, else: {"day", 86_400}
 
@@ -1541,7 +1779,8 @@ defmodule Tuist.Runners.CacheVolumes do
         where: u.attached_at >= ^start and u.attached_at <= ^finish,
         select: %{
           at: type(fragment("date_trunc(?, ? AT TIME ZONE 'UTC')", ^bucket, u.attached_at), :utc_datetime),
-          warm: u.warm
+          warm: u.warm,
+          reset: fragment("coalesce((?->>'reset')::boolean, false)", u.docker_images)
         }
       )
 
@@ -1554,7 +1793,7 @@ defmodule Tuist.Runners.CacheVolumes do
           select: %{
             at: u.at,
             uses: count(),
-            hits: filter(count(), u.warm == true),
+            hits: filter(count(), u.warm == true and not u.reset),
             known: count(u.warm)
           }
         )

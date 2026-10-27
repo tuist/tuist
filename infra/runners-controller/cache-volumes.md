@@ -174,8 +174,13 @@ for kubelet's directory to disappear. No runtime socket enters a workflow pod.
 
 GitHub's execution webhook can arrive after the first workflow step. An open
 Linux session without that verified binding returns an explicit pending response;
-the agent waits up to 30 seconds, retrying once per second. A denied identity is
-not retried, and no volume is allocated before verified attribution arrives.
+the agent retries once per second. A Pod waits for the binding once: its first
+pending response starts one 25-second wait that its checkout (still capped at
+15 seconds) and every later volume share, and a request after that wait asks the
+server once. During GitHub incidents the binding can arrive minutes after the job
+started, so a wait per request only delays a job that runs cold anyway. A denied
+identity is not retried, and no volume is allocated before verified attribution
+arrives.
 Every agent request to the server is idempotent and is sent again, within the
 same budget, when a server rollout closes its connection or the server answers
 502, 503 or 504 (`DoServer` in `../runner-cache`).
@@ -225,6 +230,15 @@ Volume details warn when the saved snapshot uses 80% or more of its capacity;
 job details warn when a failed job's copy reached 99% of its volume.
 Readers need `runners_read`; clearing requires `account_update`
 and a confirmation. Every browser query and mutation is account-scoped.
+
+Operators clear a volume from a server Pod with the same semantics:
+
+```bash
+kubectl exec deploy/tuist-tuist-server -- bin/tuist eval 'Tuist.Release.clear_runner_cache_volume(<account id>, "<volume id>")'
+```
+
+It starts the repository and an insert-only Oban instance, so the prune of the
+saved master is still scheduled, and raises when the account has no such volume.
 
 Clearing invalidates immediately. Physical removal waits for running jobs,
 responding storage agents and eviction of local master replicas. History remains available.
@@ -468,3 +482,38 @@ filesystem rather than the pod's work volume. A clone is therefore admitted only
 while free space covers the whole checkout image (60 GB), as the reserve covers
 one custom volume. It never evicts anything for that room: without it the job
 checks out as usual.
+
+## Docker cache volumes
+
+Each repository whose Linux jobs use Docker gets a volume with the reserved key
+`docker` holding its jobs' Docker data root, on pools whose RunnerPool sets
+`dockerCache`. Overlay2 cannot use virtio-fs as an upper layer, so the guest
+loop-mounts the branch image itself, exactly as the sidecar loop-mounts its
+ephemeral `disk.img`; the host never mounts it (`../runner-cache`, `KindDocker`).
+The agent:
+
+- answers `POST /docker` (15 s, its own four request slots) for the live runner
+  pod at the caller's address: it allocates through the server's `/docker` with UID
+  0 and a 100 GB capacity, then clones the master, or formats an empty image, and
+  links it into `pods/<uid>/<scope>/docker.img`. It answers `unseen` when the
+  server has no Docker volume for the repository yet (404), so the runner reports
+  later whether the job used Docker, and `timeout`, `capacity`, `denied` or
+  `error` otherwise. A host without the master prefetches it after the job, like a
+  custom volume.
+- forwards `POST /docker-seen` from the live runner pod to the server.
+- reports a finished Docker use with the inventory from the guest's `docker.json`,
+  including whether the guest formatted it empty because the saved data root
+  would not mount; the server counts such a use as a miss.
+  Publication follows the custom-volume rules; before it the host requires the
+  guest's clean-unmount report, the same inode at the pod's link and an ext4
+  superblock with no journal to recover and no errors, and withholds an unchanged
+  data root or one above 30 GB.
+- answers `POST /docker-merge` from the live runner pod after its job: when the
+  lineage's HEAD moved past the job's base it offers that HEAD's clone as
+  `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
+  at a time), so the guest merges the job's images with it before publishing;
+  otherwise it answers no merge.
+
+Staging enables it on every Linux pool (`values-managed-staging.yaml`). The
+server gates it per account with `:runner_docker_cache` on canary and
+production, and each runner profile can turn it off.

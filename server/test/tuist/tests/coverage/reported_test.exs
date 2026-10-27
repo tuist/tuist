@@ -159,16 +159,19 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
               %{
                 paths: ["Sources/Math.swift", "Sources/Text.swift"],
                 scopes:
-                  [
-                    %{
-                      kind: "test",
-                      module: "AppTests",
-                      suite: "MathTests",
-                      name: "testAdd()",
-                      files: [0],
-                      lines: [[1, 2]]
-                    }
-                  ] ++
+                  if(Keyword.get(opts, :test_scope, true),
+                    do: [
+                      %{
+                        kind: "test",
+                        module: "AppTests",
+                        suite: "MathTests",
+                        name: "testAdd()",
+                        files: [0],
+                        lines: [[1, 2]]
+                      }
+                    ],
+                    else: []
+                  ) ++
                     if(target_scope?, do: [target], else: []),
                 overlapped_tests: Keyword.get(opts, :overlapped_tests, [])
               },
@@ -192,8 +195,23 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     project: project,
     account: account
   } do
-    assert reasons(missing_evidence_runs(project, account, "collected", false)) == [:not_linked]
+    assert reasons(missing_evidence_runs(project, account, "collected", false, test_scope: false)) == [:not_linked]
     assert [%{coverage_evidence_status: "collected"}] = Commits.runs(project.id, "base")
+  end
+
+  test "a target with only its process's evidence doesn't link the package", %{project: project, account: account} do
+    assert reasons(missing_evidence_runs(project, account, "collected", true, test_scope: false)) == [:not_linked]
+  end
+
+  test "a test whose target recorded only overlapping tests has no attribution because of the overlap", %{
+    project: project,
+    account: account
+  } do
+    overlapped = [%{module: "AppTests", suite: "TextTests", name: "testTrim()"}]
+
+    assert reasons(
+             missing_evidence_runs(project, account, "collected", true, test_scope: false, overlapped_tests: overlapped)
+           ) == [:overlapped]
   end
 
   test "a test of a target that recorded evidence has no attribution of its own", %{project: project, account: account} do
@@ -1671,6 +1689,49 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   test "carries every test of a target a skip identifier names", %{project: project, account: account} do
     assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} =
              skipping(project, account, ["AppTests"])
+  end
+
+  test "a percent-encoded skip identifier names a test whose suite holds a slash", %{project: project, account: account} do
+    project = project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
+
+    CoverageFixtures.run_with_coverage(project, account, [file("lib/cart.ex", [1, 1])], %{
+      git_commit_sha: "base",
+      build_system: "mix",
+      scheme: nil,
+      test_modules: [
+        %{
+          name: "CartTest",
+          status: "success",
+          duration: 2,
+          test_cases: [
+            %{name: "rejects nil", test_suite_name: "add/2", status: "success", duration: 1},
+            %{name: "totals", test_suite_name: "", status: "success", duration: 1}
+          ]
+        }
+      ]
+    })
+
+    CoverageFixtures.run_with_coverage(project, account, [file("lib/cart.ex", [1, 0])], %{
+      git_commit_sha: "head",
+      build_system: "mix",
+      scheme: nil,
+      partial: true,
+      test_modules: [
+        %{
+          name: "CartTest",
+          status: "success",
+          duration: 1,
+          test_cases: [%{name: "totals", test_suite_name: "", status: "success", duration: 1}]
+        }
+      ],
+      skip_test_identifiers: ["CartTest/add%2F2/rejects nil"]
+    })
+
+    # Mix records no per-test evidence, so the skipped test is a gap.
+    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == [:collection_off]
   end
 
   test "carries nothing for a skip identifier that names a test no ancestor ran", %{project: project, account: account} do

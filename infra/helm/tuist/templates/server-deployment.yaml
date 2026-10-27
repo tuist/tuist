@@ -302,6 +302,16 @@ spec:
             # Pod actually polls, regardless of the helm release name.
             - name: TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX
               value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") | quote }}
+            {{- if .Values.runnersFleetLinux.vrack.enabled }}
+            {{- $vrackPools := dict }}
+            {{- $linuxPrefix := include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") }}
+            {{- range .Values.runnersFleetLinux.shapes }}
+            {{- $shapeKey := printf "%dvcpu-%dgb" (int .vcpus) (int .memoryGb) }}
+            {{- $_ := set $vrackPools (printf "%s-%s" $linuxPrefix $shapeKey) (printf "%s-vrack-%s" $linuxPrefix $shapeKey) }}
+            {{- end }}
+            - name: TUIST_RUNNERS_LINUX_VRACK_POOLS
+              value: {{ $vrackPools | toJson | quote }}
+            {{- end }}
             {{- with .Values.runnersFleetLinux.pools }}
             # Operator-defined pools predate persisted runner resources.
             # Inject their pod sizing so new replicas can account for queued
@@ -566,9 +576,9 @@ spec:
           lifecycle:
             preStop:
               exec:
-                # Give the ingress time to stop routing new traffic before the
-                # release shuts down — avoids 502s during a rolling deploy.
-                command: ["sh", "-c", "sleep 10"]
+                # Drain while endpoints stop routing here: the release answers with
+                # `Connection: close` once the file exists (TuistWeb.Draining).
+                command: ["sh", "-c", "touch /tmp/tuist-server-draining; sleep 15"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
       {{- with .Values.server.seedAccountCredentials.secretName }}

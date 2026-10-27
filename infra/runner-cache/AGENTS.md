@@ -45,6 +45,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
   save and restore cost scales with data, not the logical image size. Restore
   must keep accepting legacy full-image gzip masters until they age out.
+- Archive downloads, compression and both restoration formats flush every 16 MiB
+  written, in addition to their final sync. Dirty filesystem pages count toward
+  the Linux agent's 512 MiB memory limit: a production merge download was OOM-killed
+  with about 439 MiB dirty or in writeback and only 55 MiB anonymous memory.
+  Preserve this per-stream writeback bound, including across sparse extents;
+  never let `io.Copy` use a file's `ReadFrom` to bypass it. A resumed download
+  syncs its existing prefix before adding bytes. Write or sync errors stop the
+  stream and must prevent publication; this does not bound other processes' I/O.
 - Reconcile generation/digest master sidecars against HEAD and evict stale or
   idle masters. Preserve os.Root cleanup and no-follow Linux mount operations.
 
@@ -52,6 +60,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   30-second client timeout. Propagate cancellation through downloads, expansion,
   commands and shared-master/admission waits. Incomplete restores cannot publish;
   reclaim their journals only after the existing writer fences pass.
+- `ExecutionWaits` gives each runner Pod one 25-second wait (`ExecutionWait`) for
+  GitHub to report its job, shared by its checkout and every volume; both the
+  Linux and macOS agents use it.
 - Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
   goes through `DoServer`: up to four attempts on a connection failure or a
   502/503/504, jittered backoff from 250 ms to 2 s, never past the request
@@ -61,6 +72,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   use already published. A new endpoint must stay idempotent before it uses
   `DoServer`. Never retry the object-storage PUT this way; the Store retries
   publication. Retries log `cache server request retried` and `recovered`.
+  Agents build their server clients with `NewServerClient`, which closes a
+  connection idle for `ServerIdleTimeout` (10 s), below Bandit's 15 s keep-alive
+  timeout, so a request never goes out on a connection the server is closing.
 - Emit bounded operation/source/result metrics without keys, paths or signed URLs.
   Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
   The Linux agent's phase log line carries a failure's `error` text, URLs replaced.
@@ -73,6 +87,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   account or repository names or a customer-chosen key: `Identity.ManagedKey`
   is set by the agent from the request through `ManagedKey`, which keeps only
   Tuist's managed keys.
+- Every branch deletion is one `delete` observation from the Store (`Store.Observe`,
+  which each agent wires to its phase log and metrics) with the slot's subject.
+  Its source is why: `server` (the report answered `delete`: the job did not
+  succeed, the use was discarded or the volume cleared), `poisoned` or
+  `withheld` (from `Seal`), `abandoned` (an allocation whose Pod ended before
+  attaching) or `pending` (a deletion that waited for its loop device; the
+  earlier pass reports `release_pending`). Attach never reports a delete.
 - Every master removal logs `cache master evicted` (`LocalImages.Log`) or
   `checkout master evicted` (`Checkouts.Log`) with `scope`, `generation` or
   `checkout_generation`, `bytes` (allocated; blocks shared with clones stay in
@@ -194,6 +215,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `prefetch` and refreshes download into
   `staging/<scope>-<generation>-<content digest>.img` and take the scope lock only
   to install (`fetchMaster`), one download per staging name at a time;
+  background callers leave an active fetch alone. A Docker merge sets `wait`
+  to await its installation result or its own context ending. Canceling a
+  waiter does not cancel the download it joined. Only the installing caller
+  runs its installation callback.
   `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
   across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
   used in the last day while its successor is queued, instead of removing it.
@@ -280,3 +305,33 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   CheckoutMasterEndToEnd .`; on Linux it runs as root with
   `TUIST_CHECKOUT_E2E_ROOT` on a reflink filesystem (`scripts/test-cache-filesystem.sh`
   in runners-controller provides one).
+- `KindDocker` (`docker.go`) is a repository's Docker data root. Overlay2 needs a
+  filesystem native to the guest kernel, so the guest loop-mounts the branch
+  image itself: `Attach` links the image into the pod's directory as
+  `docker.img` (`exposeDocker`) and never runs losetup or mount; `detach` is a
+  no-op. Never mount a Docker image on the host and never run a filesystem
+  parser on it: a privileged guest writes it at the block level. `Seal`
+  (`sealDocker`) requires the guest's `docker.json` (`ReadDockerReport`, read
+  without following links, bounded and validated) to say it unmounted cleanly,
+  the pod's link to still be the branch (`sameFile`), and the superblock's fixed
+  fields to show no journal to recover and no errors (`ext4Clean`); a report
+  saying unchanged is `ErrUnchanged` (it can only withhold), and a branch whose
+  blocks exceed `DockerPublishBytes` is `ErrFull`. Measurements are the image's
+  allocated bytes and logical size. `Delete` and `Keep` remove the pod directory
+  (guest-written files only) and the image. A Docker identity always has
+  `DockerVolumeBytes`, above the host maximum for other volumes
+  (`kindMaxVolumeBytes`, `HTTPTransfer.maxBytes`), and admission expects its saved
+  bytes plus `DockerGrowthBytes`. Empty images are formatted with
+  `dockerFormatArgs` so the guest's kernel has no background zeroing to do.
+- A Docker branch whose lineage another job saved since it was mounted is merged,
+  not lost: `ExposeDockerHead` clones that head (downloading it when this host
+  lacks it) next to the branch as `.merge`, records it in `.merge.json` and links
+  it into the pod's directory as `head.img`. If a prefetch or refresh is already
+  downloading the head, the offer waits for installation before cloning; it
+  must not treat an in-flight download as an available master. The guest loads
+  the images only one side keeps into the other. A report naming `merged_generation` and
+  `merged_into` (`sealDockerMerge`) must name the head this host offered; a
+  merge into `head` renames the clone over the branch after the same inode and
+  superblock checks, then the use is rebased on the server (`Rebaser`, the
+  `rebase` image operation; a conflict is `ErrSuperseded`) and published as any
+  branch. Without a merge a branch whose HEAD moved stays `ErrSuperseded`.

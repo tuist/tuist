@@ -59,9 +59,54 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 - You want to acknowledge a known flaky test while working on a fix
 - A test was incorrectly flagged due to infrastructure issues
 
-## Quarantining and stress-testing {#quarantining}
+## Quarantining flaky tests {#quarantining}
 
-The Hex package does not apply quarantine yet: a test you mute or skip from the dashboard still runs with `mix test`, and its failure still fails the run. It does not stress-test new tests either. To keep a flaky test from blocking CI while you fix it, enable [test retries](#test-retries).
+Quarantining keeps a flaky test from blocking CI while you fix it. On a test's page in the dashboard, change its state to **Muted** or **Skipped**, or configure an automation under **Settings → Automations** that mutes or skips a test when it becomes flaky and enables it again once it recovers. Before it runs the tests, `mix test` reads every quarantined test of the project and applies them:
+
+- **Muted**: the test runs and its failure is still reported, but a run whose only failures are muted tests passes. Retries still rerun a failing muted test, so a flaky one can pass and be reported as flaky.
+- **Skipped**: the test does not run. `mix test` lists the skipped tests before the run starts.
+
+```text
+Tuist: skipping 1 quarantined test:
+  MyApp.CheckoutTest: create_order/2 times out
+Tuist: 1 muted test run, and their failures do not fail the run.
+```
+
+The run fails as usual when any test that isn't muted fails, or when ExUnit stops early because of `--max-failures`.
+
+> [!WARNING]
+> **Limitations**
+>
+> - Only recent versions of the Hex package apply quarantine. Earlier versions run muted and skipped tests like any other, so a muted test's failure still fails the run. Update `tuist_ex` before you rely on it.
+> - Muted tests are not applied with `--warnings-as-errors`, or from the root of an umbrella project. Their failures then fail the run. Run the tests inside each application of an umbrella instead.
+> - Skipping matches a test by its describe block and name, not its module. A test with the same describe block and name in another module is skipped too. See [how skipping selects tests](#how-skipping-selects-tests).
+> - A skipped test still runs when you select it with `--only`, `--include`, or `path:line`, or when it isn't declared with `test`, such as a StreamData `property`.
+> - If `mix test` cannot read the quarantined tests, it runs every test and counts every failure.
+> - Reading the quarantined tests requires credentials, even for a public project. A run without a `TUIST_TOKEN`, a `mix tuist.login` session, or a continuous integration identity token applies no quarantine. That includes pull requests from forks, which usually run without secrets.
+> - With `--cover`, a skipped test counts as removed: lines only it covered are reported as uncovered.
+>
+> `mix test` names the tests a skip left out by mistake, and the skipped tests that ran anyway, after its summary.
+
+### How skipping selects tests {#how-skipping-selects-tests}
+
+A skipped test is left out with an ExUnit filter on its full name, such as `--exclude "test:test create_order/2 times out"`. ExUnit filters cannot also match the module, so:
+
+- A test with the same describe block and name in another module is left out too. `mix test` names those tests after the run.
+- A test you select with `--only`, `--include`, or `path:line` runs even when it is skipped, because ExUnit applies include filters after exclude filters. So does a test that isn't declared with `test`, such as a StreamData `property`. `mix test` names those tests after the run.
+
+### Running quarantined tests again {#running-quarantined-tests-again}
+
+Pass `--no-quarantine` to run every test and count every failure, for example to check a fix:
+
+```bash
+mix test --no-quarantine
+```
+
+Return the test to **Enabled** on its page to include it in later runs. A skipped test produces no new results until it runs again.
+
+If `mix test` cannot read the quarantined tests, it prints a warning and runs every test without them. Without credentials or a configured project, it runs every test without a warning.
+
+The Hex package does not stress-test new tests yet.
 
 ## Slack notifications {#slack-notifications}
 

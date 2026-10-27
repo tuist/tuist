@@ -1,15 +1,16 @@
 # TuistWeb (Controllers, LiveView, API)
 
-This directory contains the web interface: Phoenix controllers, LiveView, and API endpoints.
+- Keep request handling, rendering, and UI state here; delegate domain operations to `server/lib/tuist` contexts. JS/CSS belongs in `server/assets`.
+- Authorize channel access via `Tuist.Authorization`.
 
-## Responsibilities
-- HTTP routing, controllers, and API surface.
+## Public representations
+
 - Marketing landing-page URLs negotiate authored English decision guides with `Accept: text/markdown`; `/marketing-markdown[/<page>]` offers discoverable, header-free access. Legal wording is preserved and `/marketing-markdown/source/<page>` exposes original statements where guides replace company-page copy. Keep these routes ahead of dynamic account/project scopes, with marketing robots metadata and on-premise forwarding. Public project Markdown requires a separate authorized data-snapshot design, not static marketing overrides.
-- LiveView components for the UI and marketing site.
 - Controllers and LiveViews choose their Open Graph image template and variables. The shared image route only verifies
   the signed variables, renders on a cache miss, and serves the content-addressed object.
 
-## Route Metadata
+## Route metadata
+
 - `server/lib/tuist_web/router.ex` route metadata feeds the runtime `robots.txt` Content-Usage and Disallow entries.
 - When adding or changing public marketing/docs routes, keep `metadata: %{type: :marketing}` or `:docs` accurate.
 - For public `GET` routes that should appear in `robots.txt` Content-Usage, define that configuration in the router with `metadata: %{robots_txt: [train_ai: true, search: true]}`.
@@ -18,6 +19,7 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 
 ## Search Indexing
 - Only public-project overview roots opt in with `public_project: true, robots_txt: false` metadata. Visibility and authorization still decide whether a response can be indexed. Deeper dashboards, analytics, previews, settings and downloads remain noindex and retain their challenge gates; the project sitemap lists overview roots only.
+- Public HTML `lang`, `hreflang` and structured-data language values use `Locale.language_tag/1`, keeping Gettext locale names and existing URLs unchanged. Documentation article alternates must come from exact available slugs, not English fallback lookups; only emit English `x-default` when that article exists. `DocsLive` redirects untranslated article requests to their English source while preserving the query, rather than indexing English under another language's URL. Documentation overview alternates remain independent of article availability.
 
 ## Request Privacy
 - `Endpoint.scrub_sentry_headers/1` excludes credentials, operator grants, and `x-tuist-actor-id` from Sentry request contexts. Actor labels are unverified, potentially personal metadata and must not enter error-tracker request headers.
@@ -40,25 +42,14 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
   `TuistWeb.Components.ErrorCardSection` and which reaches the error tracker.
   Returning an empty result instead renders an empty page that no alert sees.
 
-## Boundaries
-- Business logic should remain in `server/lib/tuist`.
-- Frontend assets (JS/CSS) are in `server/assets`.
+## OpenAPI generation
 
-## Related Context (Downlinks)
-- Browser telemetry: `server/lib/tuist_web/browser_telemetry/AGENTS.md`
-- Api: `server/lib/tuist_web/api/AGENTS.md`
-- Channels: `server/lib/tuist_web/channels/AGENTS.md`
-- Components: `server/lib/tuist_web/components/AGENTS.md`
-- Controllers: `server/lib/tuist_web/controllers/AGENTS.md`
-- Errors: `server/lib/tuist_web/errors/AGENTS.md`
-- Helpers: `server/lib/tuist_web/helpers/AGENTS.md`
-- Live: `server/lib/tuist_web/live/AGENTS.md`
-- Marketing: `server/lib/tuist_web/marketing/AGENTS.md`
-- Plugs: `server/lib/tuist_web/plugs/AGENTS.md`
-- Rate Limit: `server/lib/tuist_web/rate_limit/AGENTS.md`
-- Utilities: `server/lib/tuist_web/utilities/AGENTS.md`
-- Websocks: `server/lib/tuist_web/websocks/AGENTS.md`
+- Update controller schemas, then run `mise run generate-api-cli-code` from `server/` to export the spec and regenerate the Swift client.
+- Do not hand-edit `cli/Sources/TuistServer/OpenAPI/server.yml` or the generated `Types.swift` / `Client.swift`.
 
-## Related Context
-- Business logic: `server/lib/tuist/AGENTS.md`
-- Assets pipeline: `server/assets/AGENTS.md`
+## Focused guidance
+
+- Public schema compatibility: [api/AGENTS.md](api/AGENTS.md).
+- Request/authentication boundaries: [controllers/AGENTS.md](controllers/AGENTS.md), [plugs/AGENTS.md](plugs/AGENTS.md), [rate_limit/AGENTS.md](rate_limit/AGENTS.md).
+- UI behavior: [components/AGENTS.md](components/AGENTS.md), [live/AGENTS.md](live/AGENTS.md), [marketing/AGENTS.md](marketing/AGENTS.md).
+- Browser telemetry: [browser_telemetry/AGENTS.md](browser_telemetry/AGENTS.md).

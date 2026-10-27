@@ -99,27 +99,37 @@ jobs:
           echo "environments=$environments" >> "$GITHUB_OUTPUT"
 
       # The committed configs are the reviewed artefact. If they no longer match
-      # what the site definition renders, the diff a reviewer read is not the
+      # what the site definitions render, the diff a reviewer read is not the
       # one that would be applied.
-      - name: The rendered configs match the site definition
-        run: mise run rack:fleet render --check
+      - name: The rendered configs match the site definitions
+        run: |
+          set -euo pipefail
+          for site in infra/rack-switch-fleet/sites/*.json; do
+            echo "::group::$(basename "$site" .json)"
+            mise run rack:fleet --site "$(basename "$site" .json)" render --check
+            echo "::endgroup::"
+          done
 
       - name: Test the fleet configuration
         run: mise run rack:fleet-test
 
       # A BIRD configuration that does not parse would leave the edges'
       # BGP container restarting, with the site's prefixes unannounced. Parsed
-      # by the BIRD the edge image installs, on the image's Alpine, pulled from
-      # the ECR copy of Docker's official images: anonymous Docker Hub pulls
-      # from shared runners are intermittently refused.
+      # by the runner's own BIRD 2 from the Ubuntu archive, not in a container:
+      # anonymous pulls from both Docker Hub and public ECR get refused on
+      # shared runners, and a refused pull here skips the objects job on main.
+      # Ubuntu's BIRD can be a few minor releases behind the edge image's
+      # Alpine one; a configuration that relies on something newer fails here,
+      # loudly, rather than passing.
       - name: The edges' BIRD configurations parse
         run: |
           set -euo pipefail
-          alpine="$(sed -n 's/^ARG ALPINE_VERSION=//p' infra/rack-switch-fleet/edge/Dockerfile)"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends bird2
+          bird --version
           for conf in infra/helm/rack-edge/sites/*/bird.conf; do
             [ -e "$conf" ] || continue
-            docker run --rm -v "$PWD/$conf:/bird.conf:ro" "public.ecr.aws/docker/library/alpine:$alpine" \
-              sh -ec 'apk add --no-cache -q bird2 && bird -p -c /bird.conf'
+            bird -p -c "$conf"
             echo "parses: $conf"
           done
 

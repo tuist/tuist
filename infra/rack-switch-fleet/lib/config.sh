@@ -61,19 +61,38 @@ fleet_rack_values() {
   echo "$FLEET_ROOT/../helm/tuist/values-managed-$env.yaml"
 }
 
-# Helm values for infra/helm/rack-switch-controller, from the site definition:
-# the namespace whose RackSwitch objects it reconciles, the Omada site, the
-# address the controller tells switches to connect back to, and the 1Password
-# items its ExternalSecrets read. JSON, which Helm reads as YAML.
+# Helm values for infra/helm/rack-switch-controller. One controller reconciles
+# every RackSwitch in its env's namespace, so its values come from every site
+# in the env of the one given: the namespace they share; from the one site
+# with an Omada controller, the Omada site, the address the controller tells
+# switches to connect back to and the items its ExternalSecrets read; and from
+# the sites with PicOS switches, the 1Password items of the controller's SSH
+# key and of the password admin gets, which they all name alike, since one
+# controller has one key. JSON, which Helm reads as YAML.
 fleet_controller_values() {
-  jq -e '{
-    watchNamespace: .kubernetes.namespace,
-    omada: {site: .management.controller.site, controllerAddress: (.management.controller.address // "")},
-    credentials: {
-      omadaApiItem: .management.controller.credential_item,
-      deviceAccountItem: .management.controller.device_account_item
-    }
-  }' "$1"
+  local site_file="$1" env other
+  local -a sites=()
+  env="$(fleet_site_env "$site_file")" || return 1
+  for other in "$(dirname "$site_file")"/*.json; do
+    [ "$(fleet_site_env "$other" 2>/dev/null)" = "$env" ] && sites+=("$other")
+  done
+  jq -e -s --arg env "$env" '
+    ([.[].kubernetes.namespace] | unique) as $namespaces |
+    [.[] | select(.management.controller != null)] as $omada |
+    ([.[] | select(.management.picos.ssh_key_item != null) | .management.picos |
+      {sshKeyItem: .ssh_key_item, adminPasswordItem: .admin_password_item}] | unique) as $picos |
+    if ($namespaces | length) != 1 then error("the sites in \($env) name namespaces \($namespaces | join(", ")); one controller watches one")
+    elif ($omada | length) > 1 then error("\($omada | map(.site) | join(" and ")) both have an Omada controller in \($env); a switch can be adopted by only one")
+    elif ($picos | length) > 1 then error("the PicOS sites in \($env) name different controller items; one controller has one key")
+    else
+      {watchNamespace: $namespaces[0]} +
+      (if ($omada | length) == 1 then $omada[0].management.controller | {
+        omada: {site, controllerAddress: (.address // "")},
+        credentials: {omadaApiItem: .credential_item, deviceAccountItem: .device_account_item}
+      } else {} end) +
+      (if ($picos | length) == 1 then {picos: $picos[0]} else {} end)
+    end
+  ' "${sites[@]}"
 }
 
 # Helm values for infra/helm/rack-edge: the site whose rendered files it runs.
@@ -118,9 +137,11 @@ fleet_check_env() {
   for other in "$helm"/tuist/values-managed-*.yaml; do
     [ "$other" = "$values" ] && continue
     [ "$(basename "$other")" = values-managed-common.yaml ] && continue
+    # shellcheck disable=SC2016  # $default is yq's
     if [ "$(SITE="$site" yq '
         ([.rackFleet | select(.enabled == true and .site == strenv(SITE))] | length) +
         ([.rackLinuxFleet | select(.enabled == true and .site == strenv(SITE))] | length) +
+        ([.rackLinuxFleet | select(.enabled == true) | .site as $default | .hosts[]? | select((.site // $default) == strenv(SITE))] | length) +
         ([.runnersFleet.pools[]? | select(.site == strenv(SITE))] | length)' "$other")" != 0 ]; then
       bad+="$(basename "$other") declares $site's hosts or runner pools, but the rack is in $env"$'\n'
     fi
@@ -153,6 +174,17 @@ fleet_model() {
     return 1
   fi
   echo "$spec"
+}
+
+# The operating system a switch model runs: omada (TP-Link, written through the
+# Omada controller or over SSH by rack:fleet) unless models.json says picos
+# (written by the rack switch controller over SSH and NETCONF).
+fleet_model_os() { jq -r --arg m "$1" '.[$m].os // "omada"' "$FLEET_MODELS"; }
+
+# A device's switch operating system.
+fleet_device_os() {
+  local site_file="$1" name="$2"
+  fleet_model_os "$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .model' "$site_file")"
 }
 
 fleet_normalize() { tr -d '\000' | awk -v mode=normalize -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_AWK"; }
@@ -243,11 +275,40 @@ fleet_check_node_interfaces() {
 # wheeled to the box. Requiring a management link of one would be wrong, and
 # allowing one would record a cable that cannot exist. The minis are the bulk of
 # this rack, so this is the common case rather than the exception.
+#
+# A site with no management switch, like rack 2, has each side's management
+# ports cabled into the opposite ToR, so a dead ToR's side stays reachable
+# through the other one. There a management link has to land on a ToR other
+# than the one the node depends on: the one its data link is on, the one an
+# edge provisions, or, for power gear, the one its chain's minis are on (a PDU
+# through the nodes it powers, a transfer switch through its PDUs, a KVM
+# through the PDU it is powered from). A node none of those name yet is held
+# to landing on a ToR at all.
 fleet_check_management_links() {
   local site_file="$1" management_switch bad
   management_switch="$(jq -r '.devices[] | select(.role == "mgmt") | .name' "$site_file")"
-  bad="$(jq -r --slurpfile hardware "$FLEET_NODE_MODELS" --arg mgmt "$management_switch" '
+  # A mini's PDU is its RackHost's outlet, in the cluster inventory.
+  local values outlets='{}'
+  values="$(fleet_rack_values "$site_file" 2>/dev/null)" || values=""
+  if [ -f "$values" ]; then
+    outlets="$(yq -o=json '[.rackFleet.hosts[]? | {"key": .name, "value": (.power.pdu // "")}] | from_entries' "$values" 2>/dev/null)" || outlets=""
+    [ -n "$outlets" ] || outlets='{}'
+  fi
+  bad="$(jq -r --slurpfile hardware "$FLEET_NODE_MODELS" --arg mgmt "$management_switch" --argjson outlets "$outlets" '
     $hardware[0] as $hw |
+    ([.devices[] | select(.role == "tor") | .name]) as $tors |
+    . as $site |
+    def data_tors($n): [$n.links[] | select(.purpose == "data" and .switch != null) | .switch] | unique;
+    def own_tor($n): data_tors($n) as $d |
+      if ($d | length) == 1 then $d
+      elif $n.tor_management != null then [$n.tor_management.switch]
+      else [] end;
+    def pdu_tors($p): [$site.nodes[]? | select((.pdu // $outlets[.rack_host // ""] // null) == $p) | data_tors(.)[]] | unique;
+    def home($n):
+      if $n.hardware == "evmafc20a" then pdu_tors($n.name)
+      elif $n.hardware == "eats16n" then [$site.nodes[]? | select(.ats == $n.name) | pdu_tors(.name)[]] | unique
+      elif $n.pdu != null and (data_tors($n) | length) == 0 then pdu_tors($n.pdu)
+      else own_tor($n) end;
     .nodes[]? |
     ([($hw[.hardware // ""].interfaces // {}) | to_entries[] |
       select(.value.out_of_band != null)] | length > 0) as $has_oob |
@@ -257,7 +318,11 @@ fleet_check_management_links() {
       then "\(.name): a \($hw[.hardware].product) has no out-of-band interface, so it cannot have a management link"
       else empty end
     elif ($m | length) != 1 then "\(.name): \($m | length) management links, expected exactly 1"
-    elif $m[0].switch != $mgmt then "\(.name): management link goes to \($m[0].switch), not \($mgmt)"
+    elif $mgmt != "" then
+      if $m[0].switch != $mgmt then "\(.name): management link goes to \($m[0].switch), not \($mgmt)" else empty end
+    elif ($tors | index($m[0].switch)) == null then "\(.name): management link goes to \($m[0].switch), which is not one of the ToRs"
+    elif (home(.) | index($m[0].switch)) != null
+    then "\(.name): management link goes to \($m[0].switch), the ToR it depends on; it belongs on the opposite one"
     else empty end
   ' "$site_file")"
   if [ -n "$bad" ]; then
@@ -313,10 +378,17 @@ fleet_check_power() {
     ([.nodes[]? | select(.hardware == "eats16n") | .name]) as $atses |
     ([.nodes[]? | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
     [.nodes[]?, .devices[]] as $all |
+    ([(.feeds // [])[].name]) as $feed_names |
     def feeder: if .ats != null then .ats elif .pdu != null then $pdus[.pdu] else null end;
     [
       $all[] | select(.ats != null and .pdu != null) |
         "\(.name): names both ats and pdu; a cord goes into one of them"
+    ] + [
+      # Dual-PSU gear takes the facility feeds directly, one cord per PSU.
+      $all[] | select(.feeds != null) |
+        if .ats != null or .pdu != null then "\(.name): names feeds and an ats or pdu; its cords go into one or the other"
+        elif (.feeds | length) == 0 or (.feeds | unique | length) != (.feeds | length) then "\(.name): feeds \(.feeds | tojson) are not distinct feeds, one per PSU"
+        else (.feeds[] | select(. as $f | $feed_names | index($f) | not)) as $f | "\(.name): feed \($f) is not one of the site'"'"'s feeds" end
     ] + [
       $all[] | select(.ats != null and (.ats as $a | $atses | index($a) | not)) |
         "\(.name): ats \(.ats) is not a transfer switch in this site"
@@ -342,8 +414,8 @@ fleet_check_power() {
       select(length == 2 and .[0].ats == .[1].ats) |
         "\(.[0].name) and \(.[1].name) both resolve to \(.[0].ats), so one transfer switch takes the pair"
     ] + [
-      $all[] | select(.role == "edge" or .role == "storage" or .role == "tor") | select(feeder == null) |
-        "\(.name): one of the \(.role) pair, but names no ats or pdu, so which transfer switch it shares cannot be checked"
+      $all[] | select(.role == "edge" or .role == "storage" or .role == "tor") | select(feeder == null and .feeds == null) |
+        "\(.name): one of the \(.role) pair, but names no ats, pdu or feeds, so which transfer switch it shares cannot be checked"
     ] + [
       # The feed cords into a transfer switch are cables like any other, so
       # each source names the feed behind it, once.
@@ -499,11 +571,20 @@ fleet_prefix_mask() {
 # site's WAN VLAN untagged and nothing else once the site has one, so the
 # upstream sees the edges and nothing of the rack; without one it stays on the
 # management VLAN, the way a router uplink into it is cabled.
+#
+# At a site with no management switch the management VLAN is one the edges
+# carry, and a port carries it untagged only when a management link lands on
+# it. Every other port's untagged VLAN is 1, which reaches nothing: a mini
+# racked before its node is recorded sits on no segment rather than on the
+# management one, and a port facing an edge or the other ToR carries the
+# management VLAN tagged with the rest.
 fleet_port_settings() {
   local site_file="$1" device="$2" spec="$3"
   jq -r --argjson d "$device" --argjson spec "$spec" '
     ([.vlans[]? | select(.carried_by == null) | .id]) as $site_vlans |
     ([.vlans[]? | select(.carried_by == "edges") | .id]) as $edge_vlans |
+    (.management.vlan as $v | $edge_vlans | index($v) != null) as $management_on_uplinks |
+    ([.nodes[]? | .links[] | select(.purpose == "management" and .switch == $d.name and .port != null) | .port]) as $management_ports |
     (.management.edge.wan.vlan // null) as $wan_vlan |
     ([.nodes[]? | select(.role == "edge") | .links[] |
       select(.purpose == "data" and .switch == $d.name and .port != null) | .port]) as $edge_ports |
@@ -529,7 +610,9 @@ fleet_port_settings() {
         elif $machine_facing then ((if $lag then $lag.vlans else $p.vlans end) // [])
         else (if $lag then ($lag.vlans // $site_vlans) else ($p.vlans // $site_vlans) end) +
           (if $edge_facing then $edge_vlans else [] end) end) | unique | map(tostring) | join(",")),
-      (if $wan_facing then ($wan_vlan | tostring) elif $machine_facing then ($machines_vlan | tostring) else "" end)
+      (if $wan_facing then ($wan_vlan | tostring) elif $machine_facing then ($machines_vlan | tostring)
+       elif $management_on_uplinks and ($members | any(. as $m | $management_ports | index($m)) | not) then "1"
+       else "" end)
     ] | join("\u001f")
   ' "$site_file"
 }
@@ -546,6 +629,36 @@ fleet_check_site() {
   fleet_check_power "$site_file" || return 1
   fleet_check_lags "$site_file" || return 1
   fleet_check_contracted_power "$site_file" || return 1
+  fleet_check_power_budget "$site_file" || return 1
+}
+
+# The draw at which the site's Mac minis take no new runner VMs: a chain
+# (a transfer switch and its PDUs) at chain_amps, or all the switches together
+# at the contracted power in effect less other_watts, the gear that draws
+# outside them. Optional: a site without it holds nothing back. other_watts
+# below every contracted step, so each step leaves the chains a budget.
+fleet_check_power_budget() {
+  local site_file="$1" bad
+  bad="$(jq -r '
+    if .power_budget == null then empty else
+      .power_budget as $b |
+      [
+        ($b.chain_amps | select(type != "number" or . <= 0) |
+          "chain_amps \(tojson) is not a current in amperes above 0")
+      ] + [
+        ($b.other_watts // 0) | select(type != "number" or . < 0 or . != floor) |
+          "other_watts \(tojson) is not a whole number of watts, 0 or more"
+      ] + [
+        (.contracted_power // [])[] | select((($b.other_watts // 0) | type) == "number" and .watts <= ($b.other_watts // 0)) |
+          "other_watts \($b.other_watts) leaves the chains nothing of the \(.watts) W contracted from \(.from)"
+      ] | .[]
+    end
+  ' "$site_file")" || return 1
+  if [ -n "$bad" ]; then
+    echo "error: power_budget is wrong:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
 }
 
 # The colocation contract's power, as steps that each apply from a day (UTC)
@@ -571,6 +684,20 @@ fleet_check_contracted_power() {
     printf '  %s\n' "$bad" >&2
     return 1
   fi
+}
+
+# A PicOS switch has no configuration text to render, so its ports and the
+# site around it are checked here instead, the way fleet_render checks an
+# Omada switch's. Skips the site-wide checks under the same FLEET_SITE_CHECKED.
+fleet_check_picos() {
+  local site_file="$1" name="$2" device spec
+  device="$(fleet_device "$site_file" "$name")" || return 1
+  spec="$(fleet_model "$(jq -r '.model' <<<"$device")")" || return 1
+  fleet_check_ports "$device" "$spec" || return 1
+  if [ "${FLEET_SITE_CHECKED:-}" != "$site_file" ]; then
+    fleet_check_site "$site_file" || return 1
+  fi
+  fleet_check_port_map "$site_file" "$name" "$spec"
 }
 
 # A device's whole desired configuration, as configuration-file text.
@@ -904,10 +1031,13 @@ fleet_config_revision() {
 fleet_render_k8s() {
   local site_file="$1" name="$2" rendered="${3:-}" device revision
   device="$(fleet_device "$site_file" "$name")" || return 1
-  if [ -n "$rendered" ]; then
-    revision="$(shasum -a 256 < "$rendered" | cut -c1-16)"
-  else
-    revision="$(fleet_config_revision "$site_file" "$name")"
+  # A PicOS switch has no configuration text; its revision is set below.
+  if [ "$(fleet_model_os "$(jq -r '.model' <<<"$device")")" != picos ]; then
+    if [ -n "$rendered" ]; then
+      revision="$(shasum -a 256 < "$rendered" | cut -c1-16)"
+    else
+      revision="$(fleet_config_revision "$site_file" "$name")"
+    fi
   fi
   # The desired configuration, for the reconciler that writes it through the
   # controller: the same site data the configuration text is rendered from, so
@@ -937,9 +1067,17 @@ fleet_render_k8s() {
       lags: [$d.lags[]? | {id, name: (.name // "lag\(.id)"), ports}],
       ports: $ports
     }')"
+  # A PicOS switch has no configuration text: the rack switch controller writes
+  # it from this object alone, so its revision is the digest of what it asks.
+  local os
+  os="$(jq -r '.os // "omada"' <<<"$spec")"
+  if [ "$os" = picos ]; then
+    revision="$(jq -cS . <<<"$config" | shasum -a 256 | cut -c1-16)"
+  fi
   jq -n --argjson d "$device" \
         --arg site "$(jq -r '.site' "$site_file")" \
         --arg revision "$revision" \
+        --arg os "$os" \
         --argjson config "$config" \
         --argjson ports "$(fleet_port_map "$site_file" "$name" | jq -R -s '
             split("\n") | map(select(length > 0) | split("\t")) |
@@ -952,7 +1090,7 @@ fleet_render_k8s() {
         site: $site,
         role: $d.role,
         model: $d.model,
-        mac: ($d.mac // ""),
+        mac: $d.mac,
         managedBy: (if $d.adopted then "controller" else "standalone" end),
         managementAddress: $d.mgmt_address,
         applyOrder: $d.apply_order,
@@ -960,8 +1098,9 @@ fleet_render_k8s() {
         credentialItem: $d.credential_item,
         configRevision: $revision,
         config: $config
-      } + (if ($ports | length) > 0 then { ports: $ports } else {} end))
-    }' | yq -P -
+      } + (if ($ports | length) > 0 then { ports: $ports } else {} end)
+        + (if $os == "picos" then { driver: "picos" } else {} end))
+    } | if .spec.mac == null then del(.spec.mac) else . end' | yq -P -
 }
 
 # The site's switched PDUs that have a management address, one name per line.
@@ -1010,18 +1149,23 @@ fleet_render_power() {
 }
 
 # The site as a RackSite object, whose controller exports the contracted power
-# in effect as capt_racksite_contracted_power_watts.
+# in effect as capt_racksite_contracted_power_watts and holds the site's minis
+# to its power budget.
 fleet_render_site() {
   local site_file="$1"
   fleet_check_contracted_power "$site_file" || return 1
+  fleet_check_power_budget "$site_file" || return 1
   jq -r '
     {
       apiVersion: "infrastructure.cluster.x-k8s.io/v1alpha1",
       kind: "RackSite",
       metadata: { name: .site, labels: { "tuist.dev/site": .site } },
-      spec: (if .contracted_power then { contractedPower: [.contracted_power[] | { from, watts }] } else {} end)
+      spec: ((if .contracted_power then { contractedPower: [.contracted_power[] | { from, watts }] } else {} end)
+        + (if .power_budget then { powerBudget: ({ chainAmps: (.power_budget.chain_amps | tostring) }
+            + (if (.power_budget.other_watts // 0) > 0 then { otherWatts: .power_budget.other_watts } else {} end)) } else {} end))
     }
-  ' "$site_file" | yq -P -p=json '(select(.spec | has("contractedPower")) | .spec.contractedPower[].from) style="double"' -
+  ' "$site_file" | yq -P -p=json '(select(.spec | has("contractedPower")) | .spec.contractedPower[].from) style="double" |
+    (select(.spec | has("powerBudget")) | .spec.powerBudget.chainAmps) style="double"' -
 }
 
 # Which terminal line is this connection, from `show users` output. The firmware
@@ -1124,7 +1268,10 @@ HEADER
          status: (if $status[$from] == "planned" or .status == "planned" then "planned" else .status end)}),
       ((.feeds // []) as $feeds | .nodes[]? | select(.hardware == "eats16n") | . as $ats | $feeds[] |
         {from: .name, port: null, to: $ats.name, nic: "source-\(.source)", media: "power", purpose: "feed",
-         status: ($ats.status // "")})
+         status: ($ats.status // "")}),
+      ((.nodes[]?, (.devices[] | .status = "installed")) | select(.feeds != null) | . as $d | .feeds | to_entries[] |
+        {from: .value, port: null, to: $d.name, nic: "psu-\(.key + 1)", media: "power", purpose: "feed",
+         status: ($d.status // "")})
     ] |
     sort_by(.from, (.port == null), .port, .to) | .[] |
     "| \(.from) | \(.port // "") | \(.to) | \(.nic) | \(.media) | \(.purpose) | \(.status) |"

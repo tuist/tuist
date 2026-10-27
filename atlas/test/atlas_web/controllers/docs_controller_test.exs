@@ -125,7 +125,9 @@ defmodule AtlasWeb.DocsControllerTest do
     assert content =~ "Connect account"
     assert content =~ "claude setup-token"
     assert content =~ "sessions you start will use your connected account for inference"
-    assert content =~ "User-started sessions are not available yet"
+    assert content =~ "use your connected ChatGPT account first, then Claude"
+    assert content =~ "including a fallback after an unsuccessful attempt"
+    assert content =~ "Other people's credentials are never used for your messages"
 
     assert document
            |> LazyHTML.query("#docs-sidebar [data-part=nav-link][href='/docs/ai-accounts']")

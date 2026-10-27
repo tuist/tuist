@@ -11,6 +11,9 @@ a box with an empty disk boots it on its own, and a running one is reinstalled
 by raising its `reinstallGeneration`. The edges run the boot server, each serving the other, so
 only the first edge of a site is installed from a stick of its own.
 
+Bringing up a whole new site, from boxes to taking jobs, follows
+[`site-bring-up.md`](site-bring-up.md).
+
 ## The pieces
 
 - **Inventory** is `rackLinuxFleet.hosts` in the env's tuist chart values,
@@ -18,8 +21,8 @@ only the first edge of a site is installed from a stick of its own.
   its hostname (the node, OS and tailnet name), role, site, and optionally its
   `bootMAC`, the MAC of the NIC it netboots from (the MS-01's i226-LM, on the
   management switch), which otherwise comes from the machine's announcement.
-  Its role's `rackLinuxFleet.roles.<role>` gives its tailnet tags, labels and
-  taints. The operator keeps a CAPI Machine for each host, which makes it a
+  Its role's `rackLinuxFleet.sites.<site>.roles.<role>`, else
+  `rackLinuxFleet.roles.<role>`, gives its tailnet tags, labels and taints. The operator keeps a CAPI Machine for each host, which makes it a
   node.
 - **The operator** (`infra/cluster-api-provider-tuist`, `controllers/linux`)
   publishes each host's install, finds the host on the tailnet and joins it.
@@ -92,7 +95,8 @@ only route out, its provisioning lease.
 
 - A box with an empty disk boots the stick on its own, with the firmware's
   defaults: Secure Boot on and the network stack off.
-- To reinstall a running host, the operator looks for a USB disk whose ISO
+- To reinstall a running host, the operator boots the installer partition of a
+  preinstalled host (below), else looks for a USB disk whose ISO
   carries `nocloud/tuist-install-stick`, gives its EFI partition a boot entry of
   its own (`tuist install stick`, left out of `BootOrder`), sets `BootNext` to
   it and reboots. A host without one netboots instead.
@@ -362,7 +366,11 @@ carries the same guard.
   `vrrp0-<n>` on the n-th uplink with its VRRP address and a default route
   through the other edge at metric 200, built the way the rack-edge pod
   builds it, plus global resolvers in
-  `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`. Nothing serves DHCP on
+  `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`. Once the site's WAN
+  address is known, an edge also gets a first-boot WAN service. The first
+  edge of a site has no other edge to go out through, so it takes the site's
+  static WAN itself until its rack-edge pod runs ("The first edge of a site" in
+  `infra/cluster-api-provider-tuist/AGENTS.md`). Nothing serves DHCP on
   the management VLAN at the colo, so that is how a reinstalled edge reaches
   the tailnet and gets converged. It needs the other edge up as master, so the
   edges are reinstalled one at a time. A per-host stick (`--host`) renders no
@@ -417,6 +425,179 @@ ssh tuist@<LAN address> sudo tailscale up --hostname=<host> --advertise-tags=<ta
 ```
 
 A tailnet admin opens the login URL it prints.
+
+## The preinstall image
+
+A box a vendor ships straight to a site arrives with its installer on its own
+boot drive, so it needs no stick, the first edge of a site included. The
+vendor boots the preinstall image once on the box:
+
+```
+mise run rack:write-install-usb --preinstall --output tuist_preinstall_<date>.iso [--internet-server https://<host>]
+```
+
+It writes `tuist_preinstall_<date>.iso` and its `.sha256`. The image is
+Ubuntu's live server ISO with Ubuntu's signed boot chain, so it boots with
+Secure Boot on, and carries no credential. Booted once (PXE, HTTP boot,
+virtual media or a stick), its deploy seed:
+
+1. picks the smallest internal disk of at least 100 GB, the M.2 boot drive,
+   never a storage node's data drive, and refuses one that holds anything but
+   an installer partition;
+2. writes partition 1 (4 GiB, ESP type, FAT label `TUISTINST`, GPT name
+   `tuist-installer`) with the ISO's tree, checked against its `md5sum.txt`,
+   and the resident seed in place of its own;
+3. adds a UEFI boot entry `tuist installer`, first in `BootOrder`, with the
+   efibootmgr from the ISO's pool (the live system has its libraries but not
+   the binary), after deleting any entry of that name: the ASUS firmware keeps
+   an entry whose partition is gone, turned into a group of its network
+   entries (`VenHw(99e275e7-…)`). Without the entry the firmware lists no disk
+   option and boots the partition only after every network entry failed;
+4. prints the unit sheet on the screen and the serial console, and to
+   `TUISTINST:/tuist/unit-sheet.txt`: product, serial, SMBIOS UUID, each NIC's
+   MAC, driver and name, the TPM endorsement key's SHA-256, and its check
+   code, the first 16 hex digits in four groups, for the vendor's acceptance
+   report;
+5. powers the box off.
+
+From then on the box boots the resident installer: the `--any-host` stick's
+installer, which casper boots from `TUISTINST` alone
+(`live-media=/dev/disk/by-label/TUISTINST`) with persistence off
+(`nopersistent`: casper otherwise turns the drive's free space into a
+`writable` partition). It asks the env's boot server and then
+`--internet-server` for the install published for one of its NICs. With no
+default route from DHCP, it tries each site's static WAN
+(`management.edge.wan` of `infra/rack-switch-fleet/sites/*.json`) on each
+port with a link, untagged and on the site's VLAN, and keeps the one whose
+address nobody answers for and whose gateway does (`busybox arping`).
+
+**A preinstalled box earns its install with its TPM.** The vendor's acceptance
+report carries the box's SMBIOS UUID and its TPM check code from the unit
+sheet. Declaring the box takes both:
+
+```yaml
+- uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
+  hostname: larch-edge-b
+  role: edge
+  tpmCheckCode: 1a2b-3c4d-5e6f-7a8b
+```
+
+The operator then pins the host's TPM only from an announcement whose key has
+that code (`TPMCheckCodeMismatch` on `HardwarePinned` otherwise), and the
+internet boot server (`rackLinuxFleet.boot.internet`, `rack-boot --internet`
+on cloud nodes behind the ingress) takes announcements only from hosts
+declared with one. Anyone on the internet reaches that server, so it hands out
+nothing but seeds sealed to a pinned TPM, which only that TPM can open, and
+serves nothing to netboot. With it configured, the operator publishes the
+install of an edge whose TPM is pinned even with no other edge of its site to
+serve it: the first edge of a site asks the internet boot server for it.
+Production runs it at `rack-boot.tuist.dev` and lists the RS501A in
+`rackLinuxFleet.preinstall.products`, so a vendor's image for production is
+written with `--internet-server https://rack-boot.tuist.dev`.
+
+casper takes the first live medium it finds. Booting the image on a drive that
+already holds an installer partition can boot that partition's tree instead,
+whose seed is the resident one; the deploy seed refuses to run from it. Wipe
+the drive to deploy again.
+
+## The ASUS RS501A and its BMC
+
+From rack 2 on, edges and storage nodes are ASUS RS501A-E12-RS12U/1G servers
+with an ASMB11-iKVM BMC (AMI MegaRAC on an AST2600), driven over Redfish by
+`rack-bmc` (`infra/cluster-api-provider-tuist/cmd/rack-bmc`, client in
+`internal/redfish`). The BMC's dedicated port is the leftmost of the three
+RJ45 ports at the back, LAN port 1 the middle one, LAN port 2 the right one.
+
+```
+go build -o rack-bmc ./cmd/rack-bmc        # in infra/cluster-api-provider-tuist
+export RACK_BMC_PASSWORD=...               # the BMC's admin password
+./rack-bmc -bmc https://<bmc> inventory    # serial, SMBIOS UUID, MACs, versions, TPM, Secure Boot
+./rack-bmc -bmc https://<bmc> check        # the BIOS, BMC and IPMI against the baseline; exits 3 on drift
+./rack-bmc -bmc https://<bmc> power off && ./rack-bmc -bmc https://<bmc> apply && ./rack-bmc -bmc https://<bmc> power on
+./rack-bmc -bmc https://<bmc> rotate Administrator <new-password-file
+```
+
+The baseline (`redfish.Baseline`): Restore AC Power Loss Power On
+(`AridApmLastState`), Network Stack, IPv4 PXE and IPv4 HTTP boot on
+(`NWSK000`, `NWSK001`, `NWSK006`), TPM on (`TCG001`), console redirection on
+COM2 for serial-over-LAN (`TER002`), and Secure Boot on with the factory keys,
+whose db holds Microsoft's UEFI CA 2011 and 2023, so Ubuntu's shim boots.
+
+The BMC's own baseline (`redfish.BMCBaseline`, and IPMI in `cmd/rack-bmc`):
+- **SSDP off.**
+- **The NC-SI sideband off** (`eth1`, which takes a DHCP lease of its own
+  through the host's LAN port 2), so the BMC is reachable only on its
+  management port.
+- **IPMI over LAN on cipher suite 17 alone** (HMAC-SHA256, AES-128); the BMC
+  ships taking the SHA-1, MD5 and unencrypted suites too.
+- **Serial-over-LAN forcing encryption and authentication.**
+
+The BMC and IPMI settings apply at once, with the host running. Redfish has
+no setting for the IPMI ones, so `rack-bmc` sets them through `ipmitool`
+(`-I lanplus -C 17`), which has to be installed. A BMC firmware update
+resets them, and the rotated logins and the network, unless the
+UpdateService's `PreserveConfiguration` flags, all off as shipped, are set
+first, so `check` again after one. SNMP is not in the baseline: this BMC keeps it on,
+and its version switches are read-only over Redfish, but with no community
+and no account enabled for SNMP, v1 and v2c answer nothing. IPMI 1.5
+(`-I lan`, MD5) cannot log in with a password longer than 16 bytes, which a
+rotated one is.
+
+What the BMC does differently from the standard:
+
+- BIOS settings go to `Systems/Self/Bios/SD` and the BIOS applies them at its
+  next POST, which takes about three minutes. The BMC answers 503 to a BIOS
+  write, and to a one-time boot, while the host is running or in POST
+  (`ServiceTemporarilyUnavailableDueToHostBooting`): write them with it off.
+- The BIOS lists in its `MAPIDS` attribute which attributes Redfish may set.
+  Secure Boot (`SECB001`) is not one of them, and the BIOS drops it at POST;
+  `rack-bmc` enables it through `Systems/Self/SecureBoot` instead.
+- The attribute registry (`/redfish/v1/Registries/BiosAttributeRegistryS0310.en-US.13.1.0.json`)
+  is served gzip-compressed.
+- Reset takes On, ForceOff, ForceRestart and GracefulShutdown; a power cycle
+  is ForceOff, then On.
+- A one-time boot is `Systems/Self/SD` with `Boot.BootSourceOverrideEnabled: Once` and mode UEFI.
+  A CD boot needs the virtual CD attached for some seconds before power-on,
+  or POST finds no USB CD and falls through to network boot. The BMC accepts
+  `Boot.HttpBootUri` but the firmware ignores it: HTTP boot takes its URL from
+  DHCP alone.
+- With no UEFI entry for a disk, the firmware lists no disk boot option: it
+  tries every network entry (about eight minutes with no DHCP on LAN port 1),
+  then falls back to the first disk's `\EFI\BOOT\BOOTX64.EFI`.
+- Virtual media needs the OEM actions `AMIVirtualMedia.EnableRMedia` and
+  `AMIVirtualMedia.ConfigureCDInstance` before `VirtualMedia/CD1` exists. It
+  reads an HTTPS image only from port 443, with a file name of letters, digits
+  and underscores, and refuses one without a user name and password for the
+  server. It takes a self-signed certificate, but only one that names the
+  server's address: with another name it hangs up after the handshake without
+  a request. It offers `h2` in ALPN, and a server that negotiated HTTP/2 got
+  no HTTP/2 preface from it; one that offers only HTTP/1.1 works. A failed
+  open leaves `CD1` at `Stopped - Unable to Open`, and the BMC makes no
+  further attempt until it restarts.
+- `CertificateService.ReplaceCertificate` on
+  `Managers/Self/NetworkProtocol/HTTPS/Certificates/1` takes the certificate
+  followed by its private key (PKCS#1) in `CertificateString`; the web server
+  serves it within seconds and keeps it across a BMC restart. A certificate
+  alone, even one issued for the BMC's own `GenerateCSR`, answers 204 and
+  shows in the collection, but the web server never serves it and a restart
+  reverts it. `GenerateCSR` also puts the IP addresses in `AlternativeNames`
+  as DNS names. A BMC restart (`Manager.Reset` takes `ForceRestart` only)
+  takes about two and a half minutes and leaves the host running.
+- A PSU that loses AC keeps `Status.State: Present` in `Chassis/Self/Power`,
+  and its `Status.Health` becomes a raw hex code (`0x2849`) rather than
+  Warning or Critical. The SEL records `Power Supply PSUn AC lost`
+  asserted and deasserted, and the PSU's `PowerInputWatts` and
+  `LineInputVoltage` drop to about zero. `PowerControl` `PowerConsumedWatts`
+  lags and reads low; the PSU inputs are the chassis's draw.
+- The BMC's clock follows NTP (`pool.ntp.org`), but `DateTimeLocalOffset`
+  is a fixed offset, `+02:00` from the factory, which DST does not move, and
+  the SEL is stamped in local time. Set it to `+00:00` (PATCH
+  `Managers/Self`).
+- Serial-over-LAN is IPMI over LAN with the same accounts
+  (`ipmitool -I lanplus -H <bmc> -U admin -E sol activate`).
+- Besides `admin` and the factory `Administrator`, the BMC carries a
+  `HostInterfaceAdministrator` account for the in-band Redfish host
+  interface (`usb0`, 169.254.0.17 on the BMC side).
 
 ## Roles
 
@@ -982,6 +1163,41 @@ hands a queued job to any idle runner of the org that carries its labels, and
 a rack runner carries the same label as a rented one, so keeping rented
 runners from being minted is what keeps the jobs on the rack.
 
+### Several sites
+
+A job is bound to its Xcode and shape, not to a site. The rack's pools are
+rendered once, named after `rackFleet.site` (`…-ber1-<xcode>`), and select the
+rack fleet. A second site (`rackFleet.sites.<site>`, e.g. `larch`) joins that
+fleet when its `runners.enabled` is true: its minis' Nodes then carry the rack
+fleet's `tuist.dev/fleet` instead of their own `<rack fleet>-<site>`, so every
+rack pool spans both sites and the runners-controller apportions all their
+guest slots together. Until then the site's minis get no runners.
+
+- **Where a job runs.** Whichever site's runner claims it first. The claim
+  reads the claiming Node's `node.cluster.x-k8s.io/rack-site` label and hands
+  out that site's Kura runner cache (`server/lib/tuist/runners/AGENTS.md`). A
+  runner passes over a job whose account's runner cache is warm at the other
+  site for the job's first 60 seconds, so the warm site gets it first while it
+  has an idle runner.
+- **A dark site.** Its minis go NotReady, drop out of the autoscaler's budget,
+  and the runners-controller retires their idle runners after two minutes
+  (`infra/runners-controller/AGENTS.md`), so the pools' queued jobs run at the
+  sites still up. Nothing moves jobs between sites. Jobs already running there
+  are lost with the site.
+- **One guest per pool.** A RunnerPool has one guest size, so a site whose
+  runners are on runs `rackFleet.runners` as is. The render fails when
+  `rackFleet.sites.<site>.runners` sets `guestShapes`, `shapes`,
+  `stackedImages`, `autoscaling`, `rollout` or `xcodeOverrides` differently,
+  when `rackFleet.runners` is off, or when the site names its own `nodeFleet`.
+  Different hardware at a site needs a different design, not a per-site
+  override.
+- **Pinned pools.** An explicit `runnersFleet.pools` entry with a `site` runs
+  only on that site's minis (`spec.site`), which is how the `ber1` smoke pool
+  keeps testing ber1.
+- **Pool names.** They keep ber1 in them. Renaming them is part of turning a
+  second site's runners on, with the queued jobs on the old names moved in the
+  same deploy.
+
 Staging and canary rent no macOS runner hosts: their only macOS runners are
 the rack hosts production lends them (b01 and b02, "Lending a host to
 another env" below), and `runner_site` is on for every account there
@@ -1021,8 +1237,8 @@ Xcode and shape, and `SiteSpilloverWorker` moves its queued ones there every
 minute. A cluster the server cannot read leaves the rack up. An env that
 rents no macOS fleet (staging, canary) has no backup, so neither happens there.
 
-The flag also gives the account a node in `ber1-runners`, as
-`runner_site_cache` does. With the
+The flag also gives the account a node in the site's runner-cache region
+(`ber1-runners`, `larch-runners`), as `runner_site_cache` does. With the
 flag off for everyone, the rack's pools idle at their floors and nothing a
 customer runs lands on them.
 
@@ -1036,6 +1252,39 @@ fixed count would hold slots it believes free.
 A Tart guest cannot be newer than its host. Every catalog image is a macOS 26
 guest and the rack's hosts run macOS 27, so every Xcode runs there; a catalog
 entry on a newer guest needs the hosts updated first.
+
+### More than one site
+
+One rack fleet holds every site's minis: one operator, one set of credentials
+and one CAPI fleet, whose Machines are `<rackFleet.name>-<host>` at every site.
+`rackFleet.site` (ber1) is the default site, and every other site is a key of
+`rackFleet.sites` (larch). A host at such a site sets `site: <site>` and takes
+that site's block:
+
+- **Its Node's fleet.** The host's Node carries `tuist.dev/fleet:
+  <rackFleet.name>-<site>` (`RackHost.spec.nodeFleet`, overridable as the
+  site's `nodeFleet`), not the default site's fleet. Runner pools select Nodes
+  by that label alone, so without it ber1's pools would place runners on larch
+  minis. The Machine keeps the operator's fleet, its name and its credentials,
+  as for any `nodeFleet`. A lent host (`lendTo`) keeps the borrower's fleet.
+- **Its SSH ingress** is the site's `sshIngressAllowCIDRs`, the site's own
+  edges. It never falls back to the default site's, and the chart refuses a
+  host at a site whose block has none.
+- **Its pools.** The site's `runners` is a runner catalog of its own, with the
+  same keys as `rackFleet.runners`. It renders
+  `<release>-runner-pool-macos-<site>-<xcode>` pools that select the site's
+  fleet, so each site's pools share only that site's guest slots, and
+  `TUIST_RUNNERS_SITE_POOLS` lists them as `<pool>=<site>:macos` after the
+  default site's.
+- **Its VMs' cache gateways** (`vmCacheGatewayCIDRs`) join the operator's
+  fleet-wide `--rackhost-vm-cache-gateway-cidrs`: the pf pass is the same on
+  every rack host, and a host has no route to another site's gateway.
+
+A host naming a site that is neither `rackFleet.site` nor a key of
+`rackFleet.sites` fails the render. Keep a site's `runners` disabled until
+its minis are declared and its uplink is up. The rack fleet's
+MachineHealthCheck still spans every site, so while one site is dark its
+`unhealthyRange` also holds back remediation of a single mini at the other.
 
 ### Lending a host to another env
 

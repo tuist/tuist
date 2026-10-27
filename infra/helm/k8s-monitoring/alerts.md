@@ -1477,7 +1477,7 @@ ring evicts down inside it.
 
 **This row is not the admission check, and the region fills up before it
 fires.** `Tuist.Kura.Admission` refuses a new instance, a cold return or a
-claim growth once the region's reservations reach 85% of its allocatable disk
+claim growth once the region's reservations reach 90% of its allocatable disk
 (`Tuist.Kura.Capacity` `@pressure_fraction`), summed over the region rather
 than per node, and it counts rows the cluster has not scheduled yet. A region
 therefore stops admitting while this row still reads one or more. That case is
@@ -1537,7 +1537,7 @@ max by (cluster, region) (
 )
 or
 (
-  floor(0.85 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
+  floor(0.90 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
   - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
 )
 ```
@@ -1555,7 +1555,7 @@ or
   {{ $values.A.Value | printf "%.0f" }} GiB more in {{ $labels.cluster }},
   less than one enterprise instance; free reservations or add a node`
 - Description: `Tuist.Kura.Admission refuses any instance whose reservation
-  (claim x 2 replicas) does not fit under 85% of the region's allocatable disk,
+  (claim x 2 replicas) does not fit under 90% of the region's allocatable disk,
   less what its instances reserve, each at the larger of what its pods request
   and what its kura_servers row reserves. Below 32 GiB it refuses a new enterprise instance (16Gi x 2) and
   every enterprise claim growth; below 16 GiB, every new or returning instance
@@ -1570,7 +1570,7 @@ The admission check, as opposed to the scheduler check in **Kura region cannot
 place another instance**. `Tuist.Kura.Admission.admit?/2` places an instance
 only if `reserved + candidate <= pressure_line`:
 
-- `pressure_line` is `trunc(0.85 x allocatable)`, over the Ready nodes of the
+- `pressure_line` is `trunc(0.90 x allocatable)`, over the Ready nodes of the
   region's pool (`Tuist.Kura.Capacity.pressure_line_gib/1`),
 - `reserved` sums every instance in the region once, at the larger of its
   `observed` and `desired` reservation, matched by instance name
@@ -1599,6 +1599,18 @@ from. It overstates headroom only while rows are waiting for pods.
 
 32 GiB is one enterprise instance at its starting claim. Change it with
 `@enterprise_storage_claim` in `Tuist.Kura.Regions`.
+
+**Admission buffer rollout (2026-10-27):** the code reduces the additional
+reserve from 15% to 10% of allocatable. On managed hosts, Kubernetes already
+excludes approximately 10% of filesystem capacity, so the combined reserve is
+about 19%, still above the configured 15% imagefs eviction threshold. This is
+not permission to overcommit claims. Singapore's 745 GiB allocatable yields a
+670 GiB line instead of 633 GiB. The exported admission gauge follows the
+deployed server automatically. After server rollout, update the live fallback
+queries in this rule and the headroom forecast rule to the 0.90 expressions
+documented here, and update this rule's description. These documentation edits
+do not publish Grafana changes. During a mixed server rollout, `max` can report
+the new line while an old replica still refuses under the old one.
 
 The private runner-cache regions (`scw-fr-par-runners`, `ber1-runners`) report
 the gauge too. Before they did, the plugin polled it over the same public-only
@@ -4128,7 +4140,30 @@ rule moves. The paired controller error lines are
 `upstream sent no valid HTTP/1.0 header` and
 `no connection data found for keepalive http2 connection`. Gateway gRPC now
 reaches Kura on a dedicated port (PR #13227), so the two lanes no longer share a
-pool.
+pool; a firing on a `-grpc` upstream has one of the causes below.
+
+A burst of 502s on the `-grpc` upstream whose request times all sit just above
+one second, paired with
+`recv() failed (104: Connection reset by peer) while reading response header from upstream`
+(upstream `grpc://<pod ip>:4001`), is the pod's listen queue overflowing rather
+than Kura answering. It shows up as `ByteStream/Write` uploads from one Bazel
+client that hang for about a second and then fail together across dozens of
+connections, while requests a millisecond later succeed. nginx opens one
+upstream connection per concurrent gRPC call, so a Bazel upload burst arrives as
+hundreds of simultaneous handshakes. Past the listen backlog the kernel drops
+SYNs (the one-second retry), then switches the port to SYN cookies and resets
+connections whose request bytes arrive before Kura accepts them. The node
+journal shows `Possible SYN flooding on port 0.0.0.0:4001. Sending cookies.`
+in the same second. Kura bound its public, HTTPS and gateway gRPC listeners
+with tokio's default backlog of 128, which a single burst exceeds, until it
+moved them to 1024. A burst of more than about a thousand new upstream
+connections can still overflow 1024: that shows as nginx upstream connect times
+of about one second with no 502s, so this rule stays quiet, and the journal
+line above only returns if the overflow reaches SYN cookies again. Kura never
+accepts these connections, so they are absent from its warn-level
+`public HTTP connection failed` log; that log covers resets on connections Kura
+did accept:
+`{cluster="tuist-production", namespace="kura", service_name="kura"} |= "public HTTP connection failed"`.
 
 A 502 on an upload (`POST` or `PUT`) with upstream status 502 and 0 upstream
 bytes is a connection Kura closed with request bytes still unread. The paired
@@ -4139,17 +4174,6 @@ never show it. Kura answers an upload of a blob it already stores after reading
 the body. Releases older than that answer first, which turns a steady fraction of
 an account's duplicate uploads into 502s while Kura's own request metrics count
 them as successes.
-
-A 502 on a `-grpc` upstream whose controller error line is
-`recv() failed (104: Connection reset by peer) while reading response header from upstream`
-(upstream `grpc://<pod ip>:4001`) is Kura resetting the gateway gRPC
-connections the controller had open. It shows up as `ByteStream/Write` uploads
-from one Bazel client that hang for about a second and then fail together
-across dozens of connections, while requests a millisecond later succeed. The
-cause is not yet known. Kura logs each failed connection on the gateway gRPC
-listener at warn as `public HTTP connection failed`, with the HTTP/2 cause, the
-peer and the connection age:
-`{cluster="tuist-production", namespace="kura", service_name="kura"} |= "public HTTP connection failed"`.
 
 `upstream` is the instance's backend, which identifies the account:
 `kura-kura-<instance>-http` for the HTTP lane (pod port 4000) and
@@ -5001,7 +5025,7 @@ not ride along with the rule: the region reads differently the moment it is
 enforced (one of the two us-east boxes is already over the line, so us-east
 would immediately stop accepting placements there), and per-box headroom is a
 stronger statement than the region-level pressure fraction
-(`@pressure_fraction 0.85`, currently applied to disk), so the two need to agree
+(`@pressure_fraction 0.90`, currently applied to disk), so the two need to agree
 on which is authoritative.
 
 ### Kura instance provisioned but not serving
@@ -5212,7 +5236,7 @@ with the pod and volume events in the `kura` namespace.
     )
     or
     (
-      floor(0.85 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
+      floor(0.90 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
       - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
     )
   )
@@ -6825,7 +6849,9 @@ label_replace(label_replace(
 
 While an ATS is not observed its redundancy and active-source series are
 absent, so the two power rules above cannot fire for it. The RackATS or
-RackPDU `Ready` reason says why.
+RackPDU `Ready` reason says why. A standalone RackATS or RackPDU, as a planned
+one at a site that is not racked yet, exports no series, so this rule does not
+fire for it.
 
 `capt_rackats_ready` has no rule of its own: `capt_rackats_observed` is 1 only
 while the RackATS is Ready, so the two go to 0 together.
@@ -7068,6 +7094,14 @@ site definition changes. If the draw goes over the contracted power by up to
 10%, the facility sends a written notice and gives 7 working days to fix it.
 Above 10%, it may switch off the feeders. Firing at 80% leaves room to move
 load or order more power before either happens.
+
+The alert warns before the RackSite's power budget acts. That budget holds
+every Mac mini at the site against new runner VMs once the transfer switches
+together reach the contracted power less `power_budget.other_watts`, and holds
+a chain's minis at `power_budget.chain_amps`. It is in "Power-aware admission"
+in `infra/cluster-api-provider-tuist/AGENTS.md`. While the alert fires,
+`capt_racksite_site_held` and `capt_racksite_chain_held` say whether admission
+is already holding work back.
 
 The draw is every PDU outlet's active power, plus the output of each transfer
 switch that feeds no reporting PDU. At BER1 that switch is `ber1-ats-1`, which

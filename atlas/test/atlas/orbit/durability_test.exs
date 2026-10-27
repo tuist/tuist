@@ -350,6 +350,46 @@ defmodule Atlas.Orbit.DurabilityTest do
   end
 
   describe "model fence" do
+    test "current access and archive are rechecked before dispatch, including resumed attachment context" do
+      for boundary <- [:membership, :scopes, :archive] do
+        owner = user_fixture(["accounts:read"])
+        member = user_fixture(["accounts:read"])
+        {:ok, thread} = Orbit.create_shared(owner, %{"title" => "Private files", "participant_ids" => [member.id]})
+        attachment = attachment_fixture(member, thread)
+
+        {:ok, _, :created} =
+          Orbit.post_message(member, thread, %{
+            "attachment_ids" => [attachment.id],
+            "client_id" => Ecto.UUID.generate()
+          })
+
+        run = Repo.one!(from r in Run, where: r.thread_id == ^thread.id)
+        running!(run, attempt: 0)
+
+        fence =
+          ModelFence.init(
+            run_id: run.id,
+            attempt: 0,
+            worker: self(),
+            inner: fn _ -> flunk("dispatched after revocation") end
+          )
+
+        case boundary do
+          :membership ->
+            Orbit.remove_participant(owner, thread, member.id)
+
+          :scopes ->
+            Repo.update!(Ecto.Changeset.change(thread, required_scopes: ["accounts:read"]))
+            Roles.update_role(Roles.get_role_by_slug("test-#{member.id}"), %{scopes: []})
+
+          :archive ->
+            Repo.update!(Ecto.Changeset.change(thread, status: "archived"))
+        end
+
+        assert ModelFence.call(Plug.Test.conn(:post, "/chat/completions", "{}"), fence).status == 409
+      end
+    end
+
     test "a superseded or cancelled attempt cannot make another model call", %{
       run: run,
       user: user,

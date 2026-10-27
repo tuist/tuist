@@ -7,8 +7,10 @@ defmodule AtlasWeb.NativeOrbitController do
 
   alias Atlas.Audit
   alias Atlas.Orbit
+  alias Atlas.Orbit.Attachments
   alias Atlas.Orbit.Components
   alias Atlas.Orbit.Message
+  alias Atlas.Orbit.Progress
   alias Atlas.Orbit.Thread
   alias Atlas.Users.User
 
@@ -23,13 +25,13 @@ defmodule AtlasWeb.NativeOrbitController do
   end
 
   def index(conn, params) do
-    case page(params) do
-      {:ok, page} ->
+    case {page(params), Map.get(params, "kind"), Map.get(params, "status", "active")} do
+      {{:ok, page}, kind, status} when kind in [nil, "private", "shared"] and status in ["active", "archived"] ->
         user = conn.assigns.current_user
-        {items, meta} = Orbit.list_for_user(user, page)
+        {items, meta} = Orbit.list_for_user(user, page, kind, status)
 
         json(conn, %{
-          assistant: %{name: Orbit.agent_name(), configured: Orbit.agent_configured?()},
+          assistant: %{name: Orbit.agent_name(), configured: Orbit.agent_configured?(user), can_create_private: true},
           threads: Map.put(meta, :items, Enum.map(items, &thread/1))
         })
 
@@ -46,9 +48,32 @@ defmodule AtlasWeb.NativeOrbitController do
     end
   end
 
+  def create(conn, %{"kind" => "private"} = params) do
+    case Orbit.create_private(conn.assigns.current_user, Map.take(params, ["request_id"])) do
+      {:ok, thread, :created} -> conn |> put_status(:created) |> json(%{thread: thread(thread)})
+      {:ok, thread, :existing} -> json(conn, %{thread: thread(thread)})
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def create(conn, %{"kind" => kind}) when kind != "shared" do
+    error(conn, :unprocessable_entity, "invalid_params")
+  end
+
   def create(conn, params) do
     case Orbit.create_shared(conn.assigns.current_user, Map.take(params, ["title", "participant_ids"])) do
       {:ok, thread} -> conn |> put_status(:created) |> json(%{thread: thread(thread)})
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def update(conn, %{"id" => id} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, thread} <- Orbit.fetch(user, id),
+         {:ok, thread} <- Orbit.set_status(user, thread, Map.get(params, "status")) do
+      json(conn, %{thread: thread(thread)})
+    else
       {:error, reason} -> respond_error(conn, reason)
     end
   end
@@ -75,10 +100,54 @@ defmodule AtlasWeb.NativeOrbitController do
            Orbit.post_message(
              conn.assigns.current_user,
              thread,
-             Map.take(params, ["body", "client_id", "address_agent"])
+             Map.take(params, ["body", "client_id", "address_agent", "attachment_ids", "mention_ids"])
            ) do
       status = if created == :created, do: :created, else: :ok
       conn |> put_status(status) |> json(%{message: message(message)})
+    else
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def people(conn, %{"id" => id} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, thread} <- Orbit.fetch(user, id),
+         {:ok, people} <- Orbit.mention_people(user, thread, Map.get(params, "query", "")) do
+      json(conn, %{people: people})
+    else
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def upload_attachment(conn, %{"id" => id} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, thread} <- Orbit.fetch(user, id),
+         {:ok, attachment} <-
+           Attachments.upload(user, thread, Map.take(params, ["filename", "content_type", "data", "client_id"])) do
+      conn |> put_status(:created) |> json(%{attachment: Attachments.metadata(attachment)})
+    else
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def download_attachment(conn, %{"id" => id, "attachment_id" => attachment_id}) do
+    case Attachments.read(conn.assigns.current_user, id, attachment_id) do
+      {:ok, attachment, bytes} ->
+        json(conn, %{attachment: Map.put(Attachments.metadata(attachment), :data, Base.encode64(bytes))})
+
+      {:error, reason} ->
+        respond_error(conn, reason)
+    end
+  end
+
+  def delete_attachment(conn, %{"id" => id, "attachment_id" => attachment_id}) do
+    user = conn.assigns.current_user
+
+    with {:ok, thread} <- Orbit.fetch(user, id),
+         :ok <- Attachments.discard(user, thread, attachment_id) do
+      json(conn, %{deleted: true})
     else
       {:error, reason} -> respond_error(conn, reason)
     end
@@ -123,7 +192,7 @@ defmodule AtlasWeb.NativeOrbitController do
 
     %{
       id: thread.id,
-      title: if(thread.kind == "private", do: Orbit.agent_name(), else: thread.title),
+      title: thread.title,
       kind: thread.kind,
       status: thread.status,
       summary: thread.summary || "",
@@ -139,11 +208,9 @@ defmodule AtlasWeb.NativeOrbitController do
     }
   end
 
-  defp agent_status(nil) do
-    if Orbit.agent_configured?(), do: "idle", else: "unconfigured"
-  end
+  defp agent_status(nil), do: "idle"
 
-  defp agent_status(run), do: run.status
+  defp agent_status(run), do: Progress.status(run)
 
   @doc false
   def message(%Message{} = message) do
@@ -151,14 +218,18 @@ defmodule AtlasWeb.NativeOrbitController do
       id: message.id,
       kind: message.kind,
       body: message.body,
+      notice_kind: message.notice_kind,
+      mentioned_user_ids: message.mentioned_user_ids,
       author_id: if(message.kind == "human", do: message.author_id),
       author_name: author_name(message),
       inserted_at: DateTime.to_iso8601(message.inserted_at),
       tool_name: message.tool_name,
       tool_status: message.tool_status,
+      parent_message_id: message.parent_message_id,
       tool_input: message.tool_input || "",
       tool_output: message.tool_output || "",
       component: Components.for_message(message),
+      attachments: Enum.map(message.attachments, &Attachments.metadata/1),
       # Stable creation order; clients sort by it. Status changes to a tool
       # message move the thread's revision, not this value.
       seq: message.position
@@ -201,7 +272,9 @@ defmodule AtlasWeb.NativeOrbitController do
   defp respond_error(conn, :not_found), do: error(conn, :not_found, "not_found")
   defp respond_error(conn, :forbidden), do: error(conn, :forbidden, "forbidden")
   defp respond_error(conn, :archived), do: error(conn, :conflict, "archived")
+  defp respond_error(conn, :thread_promoted), do: error(conn, :conflict, "thread_promoted")
   defp respond_error(conn, :rate_limited), do: error(conn, :too_many_requests, "rate_limited")
+  defp respond_error(conn, :storage_unavailable), do: error(conn, :service_unavailable, "storage_unavailable")
   defp respond_error(conn, _reason), do: error(conn, :conflict, "conflict")
 
   defp error(conn, status, message), do: conn |> put_status(status) |> json(%{error: message})

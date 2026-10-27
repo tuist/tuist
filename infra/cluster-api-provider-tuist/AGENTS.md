@@ -1,7 +1,7 @@
-# cluster-api-provider-tuist
+# Cluster API Provider
 
 - OVH cache vRack reconciliation is additive on the Ready path, scoped by the
-  environment ConfigMap and cache taint. Persist address reservations across
+  environment ConfigMap and cache taint, or explicit `spec.vRackID` on Kata runners. Persist address reservations across
   Machine deletion, preserve main-table unreachable guards for existing Machines,
   retire owned guards only after authoritative Machine removal, and advertise
   private topology only after every participant installs the same membership.
@@ -76,7 +76,7 @@ private-network guide above.
 | `RackHostLease` | A rack host another env lends this cluster, in the borrowing cluster and named after the host. The lending operator writes the spec (the phase it asks for, the host's address, pinned host key and sizing, the key it authorized, its answer to a site request); this cluster's operator writes the status (its key, its Node, the drift bookkeeping for the runtime it pushes, the power cycle or macOS update it asks the lender for). See "A host lent to another env". |
 | `RackPDU` | One switched PDU in a rack we operate, rendered from the site definition in `infra/rack-switch-fleet`: model, the MAC its address is reserved against, address, chain, `managedBy`, the outlets' startup state. Its controller adopts the card and owns its credentials, certificate pin and egress Service. Status carries every outlet's state and meter reading. See "RackPDU" below. |
 | `RackATS` | One automatic transfer switch (EATS16N) in a rack we operate, rendered from the site definition: model, MAC, address, `managedBy`, `preferredSource`. Its controller adopts the card like a RackPDU's, keeps the preferred source, and every minute records which source powers the load and each source's state in status, metrics and events. See "RackATS" below. |
-| `RackSite` | A rack site as a whole, rendered from its site definition and named after the site: its contracted power as dated steps. Its controller keeps the step in effect in status and in `capt_racksite_contracted_power_watts`. See "RackSite" below. |
+| `RackSite` | A rack site as a whole, rendered from its site definition and named after the site: its contracted power as dated steps and its power budget. Its controller keeps the step in effect in status and in `capt_racksite_contracted_power_watts`, and taints the Mac minis of a chain or site over budget so they start no new runner VM. See "RackSite" below. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`), its AMT and, for an edge, its way out on its first boot (`edge`). Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
@@ -641,7 +641,8 @@ mode behind it:
   the standard device, is what reaches a box that was off for longer.
 - **Its VMs reach the rack's cache gateways.** The VM egress firewall drops
   every private destination (see "VM egress guard"), and a rack's Kura
-  gateway sits on the machines segment. `rackFleet.vmCacheGatewayCIDRs` renders
+  gateway sits on the machines segment. `rackFleet.vmCacheGatewayCIDRs`, with
+  each `rackFleet.sites.<site>.vmCacheGatewayCIDRs` after it, renders
   `--rackhost-vm-cache-gateway-cidrs`, which `rackFleetConfig` overlays as
   `VMCacheGatewayCIDRs`: a pf pass to each CIDR on TCP 443 ahead of the drop.
   The traffic leaves on the host's default route, so the VM NAT's general leg
@@ -707,7 +708,8 @@ load-bearing in the grant as well as in `RackHost.spec.address`, from which the
 edges render the host's DHCP reservation and its route.
 
 **Put each edge's own address on the machines segment in
-`rackFleet.sshIngressAllowCIDRs`** (a host can override it with its own). An edge
+`rackFleet.sshIngressAllowCIDRs`** (`rackFleet.sites.<site>.sshIngressAllowCIDRs`
+for a host at another site; a host can override either with its own). An edge
 forwards with SNAT from its own address there, so those are the sources every
 dial through this path arrives from, and the host's SSH ingress guard drops
 anything else. Both, because the tailnet can route a dial through either. The
@@ -913,7 +915,9 @@ adopting it reads the RackPDU past the manager's cache, whose copy can lag
 the status the last pass wrote. A RackPDU switched to `managedBy: standalone`
 is `Ready=False`, reason `Standalone`, and the controller logs its session out
 of the card (so a person can log in with the account, and the card's one
-session for it is free) and stops contacting it. A logout that cannot reach the card is a
+session for it is free) and stops contacting it. Like a standalone RackATS, it
+exports no metrics, so a planned PDU at a site that is not racked yet does not
+read as one that cannot be observed. A logout that cannot reach the card is a
 `LogoutFailed` event; the card then ends the session at its idle timeout.
 
 **Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
@@ -1258,10 +1262,11 @@ web UI, a zero-touch gap.
 
 A `RackSite` is what belongs to a rack site rather than to one device in it.
 `infra/rack-switch-fleet` renders one per site into `k8s/<site>/<site>.yaml`,
-named after the site. Today it carries only `spec.contractedPower`: the power
+named after the site. It carries `spec.contractedPower`: the power
 the colocation contract allows, as `{from, watts}` steps from the site
 definition's `contracted_power`. Each step applies from its day, 00:00 UTC,
-until the next step's. The last step stays in effect.
+until the next step's. The last step stays in effect. It also carries
+`spec.powerBudget` from `power_budget` (below).
 
 The controller (`controllers/macos/racksite_controller.go`) sets
 `status.contractedPowerWatts`, `contractedPowerSince` and
@@ -1272,6 +1277,68 @@ steps, or when a step cannot be read (`status.message` says why; the CRD
 already refuses a `from` that is not a date and `watts` below 1).
 "Rack power draw near its contracted limit" in
 `infra/helm/k8s-monitoring/alerts.md` divides each site's PDU draw by it.
+
+#### Power-aware admission
+
+A transfer switch puts its whole chain on one feed, so a chain that overloads
+feed A's breaker moves to feed B in 8 ms and trips that one too. The chain,
+its ToR and its side's internet port then stay dark until the colocation
+resets both breakers. Sizing every chain for every mini at Apple's maximum
+would cost half the rack's minis. Instead `spec.powerBudget` keeps the draw
+under the breaker by holding back new work: a Mac mini whose chain, or whose
+whole site, is over budget starts no new runner VM. Running jobs finish, so
+the cost is some queueing at the margin.
+
+- **`chainAmps`** is the output current at which a chain stops taking work:
+  13 A at BER1, under its 16 A breaker, with room for the dual-PSU gear a feed
+  loss moves onto the same circuit. A chain is a transfer switch with the PDUs
+  whose `spec.chain` names it, or a PDU that hangs off none. Its minis are the
+  RackHosts whose `spec.power.pdu` is one of those PDUs.
+- **`otherWatts`** is what the site draws outside its transfer switches, which
+  nothing meters, such as dual-PSU gear on the colocation's own strips. The
+  switches together may draw the contracted step in effect less it:
+  `status.powerBudgetWatts`. It is derived rather than stated per step, so a
+  contract change is one edit to `contracted_power`. BER1's is 0, because
+  everything there hangs off a switch, including the critical gear on
+  `ber1-ats-1`. A site whose dual-PSU gear sits on the colocation's strips sets
+  that gear's peak draw here.
+
+Every minute, the reconciler reads each chain's draw from its switch's output
+(`status.outputs`, which covers everything the switch powers), observed within
+the last five minutes. If the switch has no reading, it falls back to the sum
+of its PDUs' outlet meters, read within the last 30. A chain at or over
+`chainAmps` is held, and so is the whole site at or over its budget. A hold is
+released once the draw is under 95% of the limit, and no sooner than ten
+minutes after it began. Without that margin and minimum hold, retiring a held
+mini's idle runners would lower the draw just enough to release it and start
+them again.
+
+A held mini's Node carries the NoSchedule taint `tuist.dev/power-budget`, with
+the value `chain` or `site`. Runner Pods don't tolerate it, so no new VM lands
+there. The runners-controller treats such a Node like a cordoned one: it counts
+no capacity there (`nodeFilterReason`), and it retires the idle runners already
+on it (`reapIdlePodsOnCordonedNodes`). A warm runner would otherwise take the
+next job and draw more, and nothing would ever start a VM, since pools keep
+warm runners up. The autoscaler replaces them on Nodes that are not held. A
+taint rather than a cordon, because a cordon means someone is about to take the
+box away: `nodeIsServing` treats a cordoned host as one power actions need no
+force for, and a lease's cordon is the lease's own.
+
+Admission fails open. A chain with minis but no recent reading holds nothing
+and lifts a hold it had, and so does the site while any switch has no reading.
+`PowerAdmission` is then `Unknown` (`ReadingsStale`). A meter that stops
+answering must not take capacity away; "Rack power draw near its contracted
+limit" still alerts on the draw. Removing `powerBudget`, or the RackSite,
+lifts every hold. A host lent to another env registers its Node in that env's
+cluster, so it is counted on its chain and never tainted.
+
+The status carries `powerBudgetWatts`, `meteredWatts`, `siteHeld` and its
+`siteHeldSince`, `chains[]` (`currentAmps`, `watts`, `hosts`, `held`,
+`heldSince`) and the `PowerAdmission` condition: `True`, `False` with
+`ChainOverBudget` or `SiteOverBudget`, or `Unknown`. The metrics are
+`capt_racksite_power_budget_watts`, `capt_racksite_metered_power_watts`,
+`capt_racksite_chain_current_amps`, `capt_racksite_chain_held` and
+`capt_racksite_site_held`.
 
 ### Rack card passwords
 
@@ -1702,7 +1769,11 @@ belongs to the box, whose AMT keeps the password.
 (`rack_linux_converge.go`, `internal/racknode`, `cmd/rack-node`). The machine
 reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
 configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
-the management port's networkd file, `/etc/tuist/kubernetes-api`, the
+the management port's networkd file (on a host with AMT only: one that names
+its AMT, is a model in `--rack-linux-amt-products`, or whose AMT the operator
+has read; it keeps the boot NIC AMT shares up with `ARP=no` and no address, and
+a host with a BMC of its own, whose boot NIC is the host's, gets none),
+`/etc/tuist/kubernetes-api`, the
 translation of the kubernetes Service to the API server in
 `/etc/tuist/kubernetes-service.nft`, an edge's host networking below), the
 directories it needs, the exact kubelet release the control plane runs and the
@@ -1798,6 +1869,36 @@ and a simulated reboot networkd rebuilt the bond, which it did not without the
 per-uplink files. Not yet run: an install of a real edge at the colo.
 
 This needs the other edge up as master: reinstall the edges one at a time.
+
+**The first edge of a site** has no other edge up. With the WAN's address in
+the site, `spec.edge.wan` carries the site's static WAN (VLAN, address,
+gateway), and the install adds a first-boot WAN service
+(`rackinstall.EdgeFirstWANPath`, `tuist-edge-first-wan.service`) beside the
+netplan, never in it, since netplan would keep the address on the standby
+too. Until a rack-edge static pod's manifest is on the node, every 20 seconds
+it either:
+- checks the gateway on what it holds, and lets go after three missed answers;
+- or takes the WAN: tagged on `wan0`, built the way the pod's `edge_vlan_bond`
+  builds it, then untagged on each uplink with link through a macvlan
+  (`fwan<n>`), which networkd leaves alone. It takes it only when nobody
+  answers for the address (`arping -D`) and the gateway answers, as the
+  resident installer's `static_wan` does, with a default route at metric 50.
+
+A factory ToR passes the carrier untagged, so the edge starts on the untagged
+path. Once zero-touch provisioning puts the WAN on its VLAN (the PicOS
+bootstrap's WAN path), the untagged path stops answering and it moves to
+`wan0`. It records what it holds in `/run/rack-edge/first-wan`, and the pod's
+path script gives that up before keepalived starts. On 2026-10-26 the rendered
+script ran in an Ubuntu 24.04 container against a namespace standing in for
+the ToR:
+- with the carrier untagged, it took the WAN on `fwan1`;
+- with the carrier moved onto VLAN 4001, it gave that up and took it on `wan0`;
+- once a manifest appeared, it exited, and the path script's release left no
+  address;
+- with another host already answering for the address, it took nothing.
+
+Not yet run on a real edge.
+
 Without `spec.edge`, as at a site with no WAN, an edge's install takes DHCP on
 its uplinks. A per-host stick (`cmd/rack-seed`) renders no edge network; an
 edge at the colo is installed from the operator's install, netbooted or
@@ -1990,6 +2091,12 @@ kubectl get node <host> -o jsonpath='{.status.addresses}'
 ```
 
 ## Host macOS updates
+
+The [macOS TCP clock runbook](macos-tcp-clock.md) records the October 26, 2026
+long-uptime Tahoe incident, the safe binary installer, and the required drained
+OS maintenance wave. Releasing an operator fixes the installer; it does not
+upgrade the host kernel. Fleet provisioning OS families do not enforce a minimum
+point release on already-adopted machines.
 
 Host macOS updates are operator-run waves, one drained host at a time. They are
 never automatic and not driven by MDM: NanoMDM cannot enforce update policy.
@@ -2223,6 +2330,7 @@ infra/cluster-api-provider-tuist/
 │   │   ├── rackats_card.go          # the atsCard seam and its Eaton (Network-M2/M3 REST) implementation
 │   │   ├── rackats_metrics.go       # capt_rackats_* series
 │   │   ├── racksite_controller.go   # RackSite: the contracted power step in effect
+│   │   ├── racksite_power.go        # power-aware admission: chain and site budgets, the tuist.dev/power-budget taint
 │   │   ├── rackhost_machine.go      # each host's Machine: create, adopt, park, remediate
 │   │   ├── rack_lend.go             # lending a host (RackHost lendTo): offer, drain, hand over, return
 │   │   ├── rackhostlease_controller.go  # borrowing a host: accept, take over, drift, release
@@ -2249,19 +2357,21 @@ infra/cluster-api-provider-tuist/
 │       └── kata_virtiofs.go         # virtiofsd file budget (fs.nr_open + Kata config.d drop-in)
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
+│   ├── redfish/      # a rack x86 server's BMC over Redfish (AMI MegaRAC on the ASUS RS501A): inventory, BIOS baseline, accounts, virtual CD, boot override, power; redfishtest fakes that BMC
 │   ├── rackcard/     # a rack power card's passwords, derived from the root key
 │   ├── scaleway/     # Scaleway SDK wrapper
-│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
-│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements
+│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script, install stick, and the preinstall image's deploy and resident seeds
+│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements; with Internet, only sealed seeds and declared hosts' announcements
 │   ├── racknode/     # makes a rack Linux host the node its RackNodeConfig describes
 │   ├── rackseed/     # a rack host's seed, sealed to its pinned TPM; rackseedtest is a TPM in software
 │   ├── tailnet/      # Tailscale API: devices and join keys
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
-├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes
+├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes; --internet runs it on the cloud for preinstalled boxes
+├── cmd/rack-bmc/   # adopts and drives a rack x86 server through its BMC (inventory, check/apply the BIOS, BMC and IPMI baseline, rotate, cd, boot-once, power)
 ├── cmd/rack-node/  # applies a rack node's configuration, reads its TPM, asks for its seed
-├── cmd/rack-seed/  # renders a seed for rack:write-install-usb
+├── cmd/rack-seed/  # renders a seed for rack:write-install-usb, or with -preinstall the preinstall image's
 ├── cmd/rack-card-password/  # derives a rack power card's password for rack:card-password
 ├── config/
 │   └── rbac/       # ClusterRole for the manager
@@ -2714,10 +2824,9 @@ fleet size from there. No `kubectl create secret` calls.
 
 ## Build
 
+Run `go test ./...` and `go build ./...` here. For image changes, the Docker build context is the repository root:
+
 ```bash
-cd infra/cluster-api-provider-tuist
-go test ./...
-go build ./...
 docker build -f Dockerfile -t ghcr.io/tuist/capi-provider-scaleway-applesilicon:dev ../..
 ```
 
@@ -2766,9 +2875,9 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
 
 1. **Pre-order the box** in the provider console (out of band; the controllers
    never order). OVH ADVANCE-1 for EU-West and the US cache regions, ADVANCE-2 for
-   ap-southeast, RISE-L (production) or RISE-S (staging, canary) in Gravelines
+   ap-southeast, RISE-L (production) or RISE-M (staging, canary) in Gravelines
    for the Linux runner pool. The RISE range's
-   EU-datacenter plan codes (`25risel01-v1-eu`, `25rises01-v1-eu`) are orderable
+   EU-datacenter plan codes (for example `25risel01-v1-eu`) are orderable
    on OVHcloud US, so a Gravelines box stays on the one `ovh-us` endpoint every
    OVH fleet shares. Stock per plan and datacenter is public and needs no token:
    `GET https://api.us.ovhcloud.com/1.0/dedicated/server/datacenter/availabilities`.

@@ -1,6 +1,4 @@
-# Plugs (Web Layer)
-
-This area owns Plug middleware for request processing.
+# Plugs
 
 ## Responsibilities
 - `ReportActorPlug` derives verified account/provenance from server authentication and accepts one bounded opaque actor header. Never resolve a claim to a user. `ReportPublishingAuthPlug` permits missing credentials only in the dedicated report-creation pipeline for structured Xcode, Gradle, Mix and test reports plus Bazel publishing sessions; invalid, blank, padded or duplicate supplied credentials fail, and supplied credentials discard stale authentication assignments before authentication. Browser cookies do not authenticate this pipeline. `ReportPublishingPlug` checks the default-off self-hosted instance startup setting and project/build-system compatibility with uncached project reads, then recursively bounds structure and schema-derived allowed keys, accepts the declared bounded Mix formatter runtime metadata for older SDKs without allowing arbitrary future request keys, rejects processing/artifact/history/shard references, and applies project quotas before anonymous schema validation. Repeat the protected-field and policy/allowlist checks after casting, treating cast date/time structs safely. `GradleReportPublishingPlug` is only an adapter to this shared policy. Fresh server-generated IDs must not mutate existing reports. Preserve normal authenticated authorization; never broaden archive, attachment, cache, read or admin permissions. Missing/wrong-system projects receive the same denial; authenticated lookup caching remains unchanged. Invalid optional actor headers are discarded with a generic warning, never allowed to suppress otherwise valid reports. Configured shared-quota failures fail closed; no broad build authorization exception is allowed.
@@ -17,12 +15,7 @@ This area owns Plug middleware for request processing.
 - `BrowserTelemetryPlug` owns the bounded same-origin `/-/faro/collect` gateway before the endpoint body parser. Validate signed sessions without refreshing cookies; never forward browser credentials to Alloy. Keep body/item/time limits, trusted Ray-ID handling and failure responses covered by tests.
 
 ## Boundaries
-- Domain logic belongs in `server/lib/tuist` contexts.
-- Frontend assets are in `server/assets`.
-
-## Related Context
-- Web layer overview: `server/lib/tuist_web/AGENTS.md`
-- Business logic: `server/lib/tuist/AGENTS.md`
+- Observability and Sentry plugs share `Tuist.Observability` normalization and replacement semantics. Set selected resources only from authoritative loaded structs, retaining auth separately. Clear absent keys and old cohorts on context changes; never copy headers, credentials or arbitrary conn assigns. Project ownership wins over inconsistent selected-account assigns.
 
 ## Authentication freshness
 

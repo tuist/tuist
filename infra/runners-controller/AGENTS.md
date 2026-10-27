@@ -1,11 +1,8 @@
-# runners-controller
+# Runners Controller
 
-Kubernetes controller for `RunnerPool` CRDs. Runs in the workload
-cluster, reconciles Pods + per-Pod `ServiceAccount`s that the Tuist
-server's dispatch endpoint authenticates via the TokenReview API.
+Reconciles `RunnerPool` Pods/per-Pod SAs and desired replicas. Run `go test ./...` here; keep API changes aligned with [chart CRDs](../helm/tuist/crds/).
 
-Two reconcilers, both on the same `RunnerPool` resource but with
-independent workqueues:
+## Lifecycle and capacity
 
 - **`RunnerPoolReconciler`** — converges Pods + SAs to match
   `spec.replicas`. Idle Pods (those without the
@@ -21,6 +18,26 @@ independent workqueues:
   fingerprint for a runner that "lost communication" (0 = clean,
   137+OOMKilled = host OOM, 137+Error = guest OOM / in-VM kill, signal
   15 = SIGTERM, other = crash), captured before the Pod is gone.
+  A rack Mac mini whose power chain or site is over budget carries the
+  `tuist.dev/power-budget` NoSchedule taint (set by the CAPI provider's
+  RackSite controller, "Power-aware admission" in its AGENTS.md). Such a
+  Node counts as no capacity (`nodeFilterReason`: `power_budget`), and its
+  idle Pods are retired like a cordoned Node's
+  (`reapIdlePodsOnCordonedNodes`), so only the jobs already running there
+  keep drawing.
+  A Node NotReady for two minutes (`nodeUnreachableRetireAfter`), such as
+  every mini of a rack site that went dark, has its idle Pods retired the
+  same way. It is already no capacity (`not_ready`), but its warm Pods would
+  otherwise count toward `spec.replicas` until taint-based eviction about
+  five minutes in, and the autoscaler would create no replacements at the
+  sites still up. Pods that claimed a job are left alone.
+
+  `spec.site` pins a pool to one rack site within its fleet (nodeSelector
+  `node.cluster.x-k8s.io/rack-site`, also applied to the Node set the
+  reservation, preemption and shape caps reason about, `fleetNodeSelector`).
+  A rack fleet spans every site whose runners are on
+  (`infra/rack-nodes/AGENTS.md`, "Several sites"); empty `site` places the
+  pool anywhere in it, exactly as before the field existed.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and
@@ -81,9 +98,10 @@ independent workqueues:
     dispatchable `queued` jobs its own idle bound Pods cannot absorb:
     `min(rejected, queued - idleBound)`. `withheld` work (accounts at
     their concurrency limit) never preempts. Entitlement is not checked
-    here: a job is only queued on a site pool when dispatch routed it
+    here: a job is only queued on a rack pool when dispatch routed it
     there (`runner_site` accounts, or the pool's own dispatch label), and
-    the site spillover worker moves queued jobs off a site that is down.
+    a rack pool spans every site whose runners are on, so its queue is
+    served by whichever site has room.
   - Demand is counted in the allocator's per-Pod cost, minus seats
     already on their way back, so consecutive ticks do not over-preempt
     while a Tart VM tears down. A pool returns the seats it holds above
@@ -248,16 +266,20 @@ independent workqueues:
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), or past `idleHostReservationGrace` (30s) when the best
-    candidate holds only idle runners and no seat in flight (draining it
-    waits on no job, and with a warm runner per rack image every host of a
-    quiet fleet can hold one), the RunnerPool reconciler taints one eligible host
-    `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring the host with
-    the fewest running jobs and, among those, one already holding the
-    pool's golden image. Every runner Pod
+    candidate clears at once (draining it waits on no job): it holds only
+    idle runners and no seat in flight, or, on Linux, the starved Pod's
+    request plus RuntimeClass overhead fits beside the host's jobs, seats in
+    flight and non-runner Pods once its idle runners are retired. Pods
+    outside the runners namespace are not counted. The RunnerPool reconciler
+    then taints one eligible host
+    `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring a host that
+    clears at once, then the fewest running jobs and, among those, one
+    already holding the pool's golden image. Every runner Pod
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
-    waited out, never evicted; only idle Pods of other pools are
-    retired, and only once their seat is no longer in flight
+    waited out, never evicted; only idle runner Pods of other pools are
+    retired (never the cache-volume agent DaemonSet that shares the
+    namespace), and only once their seat is no longer in flight
     (`seatInFlight`). A Pod that bound within `seatGrace` (2m) is the
     seat some other reservation just produced, and dispatch has not yet
     reached it. A macOS Pod is in flight while it is bound and Pending,
@@ -1301,6 +1323,17 @@ ordinary Docker jobs, Buildkite native commands, and GitLab shell jobs. Keep
 the remaining operational validation limits explicit in the rollout guide.
 Mount revision changes use the existing bounded idle rollout. No account-wide
 cache root or infrastructure credential crosses into workflow containers.
+
+RunnerPool `dockerCache` (chart `runnersFleetLinux.cacheVolumes.dockerCache`, with
+`pools` limiting it to named pools during a rollout) moves each job's dockerd onto
+its repository's Docker cache volume: the dind sidecar runs dockerd under the
+`tuist-cache-volume dind` supervisor with `--max-concurrent-downloads=8`, and the
+runner gets `TUIST_DOCKER_CACHE=1`. It needs cache volumes. With the field off the
+sidecar's command is byte for byte what it was (`TestDockerCacheOffKeepsTheSidecarCommand`):
+any change to it replaces every Pod of the pools it covers. Staging and production
+enable it on every Linux pool and keep it as the off switch, while the per-account
+`:runner_docker_cache` flag decides who gets a cache (canary has no cache volumes).
+The agent serves `/docker`, `/docker-seen` and `/docker-merge`; see [Docker cache volumes](cache-volumes.md#docker-cache-volumes).
 
 Managed production enables custom volumes on normal deployment. The agent image
 ships the bounded filesystem provisioning script, invoked by an opt-in privileged

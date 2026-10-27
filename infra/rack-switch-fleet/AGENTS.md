@@ -576,7 +576,7 @@ A power node may carry `mac`, its management card's MAC in lower case, like a
 switch. The edge's DHCP reserves the node's `mgmt_address` against it, so a
 factory card, which asks for DHCP, lands on its address with the edge as its
 router and nobody at it; an unknown MAC still gets the provisioning range. A
-node without one (today `ber1-pdu-a`, whose label shows only its serial) is
+node without one is
 rendered all the same, gets no reservation, and its RackPDU reports
 `AddressReserved=False`.
 
@@ -1168,6 +1168,16 @@ addresses and the gateways.
   WAN lists no edges there, and its edges' installs keep DHCP on their
   uplinks. It needs the other edge up as master: reinstall one edge at a
   time.
+- **The first edge of a site goes out on its own.** With no other edge to go
+  out through, it takes the site's static WAN itself: once the WAN's address
+  is in the site, each edge in `rack-sites/<site>.yaml` also carries `wan`
+  (VLAN, address, gateway), which the install turns into a first-boot WAN
+  service ("The first edge of a site" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
+  It holds the WAN only while no rack-edge pod runs on the node and nobody
+  else answers for the address, and records what it holds in
+  `/run/rack-edge/first-wan`. `mgmt-path.sh` gives that up before keepalived
+  starts, so from the pod's first start the WAN is keepalived's alone.
 - **Closed from outside.** `tuist_rack_wan` lets in replies to what the rack
   started, ICMP and ICMPv6 (neighbour discovery included) and tailscaled's UDP
   41641 for direct tailnet paths, and drops everything else arriving on
@@ -1193,7 +1203,8 @@ addresses and the gateways.
   moves machines onto the prefix is the egress below. Of what the upstream sends, only
   a default route is kept. `birdc -s /run/bird/bird.ctl show protocols` in
   the pod's `bgp` container shows the sessions. CI parses every site's
-  `bird.conf` with the BIRD the edge image installs.
+  `bird.conf` with the runner's BIRD 2 from the Ubuntu archive, installed
+  with apt rather than pulled as an image.
 - **Egress from the site's own prefix.** `management.edge.wan.egress.prefix`
   is an IPv4 block inside a prefix `bgp` announces (`95.130.119.16/28`), and
   the Mac minis on the machines segment go out to the WAN translated into it
@@ -1202,9 +1213,9 @@ addresses and the gateways.
   address of the block across its connections. The upstream routes the
   announced prefix to the WAN address, and the replies are untranslated by
   conntrack before routing, so the edges hold no address of the block.
-  `egress.nodes` limits it to the named minis, for moving them over one env
-  at a time: `ber1-runner-b01` (staging's lent mini) first, then
-  `ber1-runner-b02` (canary's), then the key dropped so every mini moves.
+  BER1 sets no `egress.nodes`, so every mini moves. The key limits it to the
+  named minis, for moving a site over one env at a time (staging's lent
+  mini, then canary's, then all).
   The storage nodes never move: their cluster addresses are the WAN address,
   forwarded to them by the edges, and their egress has to match. `render`
   refuses a block outside the announced prefixes and a node that is not a
@@ -1743,3 +1754,205 @@ verifier.
 What adoption does to a configured switch is now measured, on `ber1-mgmt`; see
 "Adoption, measured on ber1-mgmt" in the assessment and "Switches the
 controller has adopted" above.
+
+## PicOS switches
+
+Rack 2's ToRs are FS S5860-24XMG on PicOS (`s5860-24xmg` in `models.json`,
+`"os": "picos"`). The rack switch controller writes them over SSH and NETCONF
+(`driver: picos`, see
+[`rack-switch-controller`](../rack-switch-controller/AGENTS.md)), so the render
+gives a PicOS switch a RackSwitch object and no configuration text: no
+`configs/<site>/<switch>.cfg`, and a `configRevision` that is the digest of the
+object's `config`. Ports are `te-1/1/1` to `te-1/1/32`: 1 to 24 copper (100M to
+10G), 25 to 28 SFP+, 29 to 32 SFP28.
+
+### Port speeds
+
+Every port runs at its default, and nothing sets another: auto on copper and
+SFP+ (a 1G copper SFP module links at 1G there with nothing set), 25G on SFP28,
+which rack 2's edge and storage DACs run at. Ports 29 to 32 are one speed
+group: PicOS commits them all at 25G (or unset) or all at 10G or 1G, and
+refuses a mix (measured 2026-10-26), so a 25G leg and a 1G module never share
+the SFP28 ports; 1G modules go in 25 to 28. Neither ZTP nor the controller
+writes a speed, so a 10G DAC in an SFP28 port, as on the bench, needs one set by
+hand on all four.
+
+### Zero touch, served by the edge
+
+A PicOS switch provisions itself only over its management port, eth0, and
+rack 2 has no management switch, so each ToR's eth0 is cabled straight to an
+edge's first onboard port. The edge node says so:
+
+```json
+{"name": "larch-edge-a", "role": "edge", "hardware": "rs501a-e12",
+ "tor_management": {"switch": "larch-tor-a", "nic": "lan1", "address": "192.168.61.1/30"}}
+```
+
+The ToR's `mgmt_address` is the other host on that /30, and its `mac` is the
+one on its label, which is eth0's. `management.picos` holds what the bootstrap
+needs, all of it public: `authorized_keys` (the rack switch controller's public
+key) and `ntp` (servers' addresses). `rack:fleet render` then writes, for the
+rack-edge chart:
+
+- `picos-bootstrap.sh`, from `picos/bootstrap.sh.tmpl`: what a factory switch
+  runs from ZTP. It adds `credentials.username` as a super-user with the
+  controller's key, gives admin and that user random passwords generated on
+  the switch, sets NTP, enables NETCONF, turns ZTP off, and logs `rack-ztp`
+  lines that `show log` lists. It carries no secret; the controller sets
+  admin's real password when it adopts the switch. For a ToR whose MAC the site
+  records with a live WAN port, a third commit sets up its WAN path
+  (`fleet_picos_wan_paths`): the carrier's port untagged on the WAN VLAN and
+  every port an edge's data link lands on tagged with it, as the controller
+  configures them. A factory switch passes the carrier untagged, and the
+  controller reaches the switch over that same WAN, so without it the first
+  edge of a site would lose its way out the moment its rack-edge pod moved the
+  WAN onto the VLAN. The switch matches itself by its management port's MAC,
+  the one the edge's DHCP answered, not ZTP's `switch_mac`, which is the system
+  MAC one above it; a failure of that commit is only logged. On 2026-10-26 the
+  bench unit (larch-tor-a) fetched larch's bootstrap from a factory reset
+  and logged `WAN path: te-1/1/27 untagged and te-1/1/{29,30} tagged on VLAN
+  4001` three minutes later, with VLAN 4001 named `wan`, te-1/1/27 on
+  `native-vlan-id 4001`, 29 and 30 trunks with `members 4001`, and NETCONF on
+  and ZTP off as before.
+- `ztp-<edge>.conf`: dnsmasq on that edge's link, answering DHCP for the ToR's
+  MAC alone, with options 66 (the edge), 67 (`picos-bootstrap.sh`) and 7 (the
+  edge, for ZTP's syslog), and serving the chart's site files over TFTP.
+- `ztp.sh`, which the static pod's `ztp` container runs: the edge's address on
+  the link, an nftables table that forwards the ToR's NTP and nothing else it
+  starts (and clamps its MSS into the tailnet), then that dnsmasq.
+- In `tailnet-routes.sh`, the ToR's address, advertised by the edge holding
+  its end of the link.
+- A `tor-console` container (`ztp.sh console`), which reboots the ToR when
+  ZTP missed it; below.
+
+### Rebooting a ToR that ZTP missed
+
+`rack-tor-console` (`edge/tor-console`, in the rack-edge image) runs on the edge
+that holds the ToR's serial console (the FS USB-to-RJ45 cable, found as
+`/dev/serial/by-id/usb-FTDI_*`, 115200 8N1). It checks the ToR's NETCONF port
+every 30 seconds; provisioning opens it within about four minutes of power-on.
+Once it has stayed closed for eight minutes, it logs in on the console with the
+factory login, `admin`/`pica8`, and goes by what the switch says:
+
+- **The login is refused:** the bootstrap replaced admin's password, so the
+  switch was provisioned and only its NETCONF is off. It is left alone.
+- **The login is taken:** ZTP never ran. The forced change of the factory
+  password is answered with a random password only the watcher keeps (the next
+  ZTP run replaces it), and the switch is rebooted, so ZTP runs again with the
+  edge serving. PicOS ends the session after the change, so the watcher logs
+  in again; admin's shell is the CLI, so it runs `start shell sh` and then
+  `sudo -n /pica/bin/reboot.sh`. An attempt that fails after the change
+  leaves the switch on that password, which the next attempt tries after the
+  factory one.
+
+The dialog counts a prompt only once the console has been quiet for 1.5 s:
+the CLI prints a prompt-like line and then drops what is typed while it
+starts. It tries at most once every twenty minutes. The factory login is the guard: a
+provisioned switch cannot be rebooted by it, whatever its ports say.
+
+### What the bench showed
+
+On 26 Oct the cold path ran on the bench with the first ASUS as the edge: a
+factory switch whose ZTP had missed, the watcher with a one-minute grace
+logging in on the console and rebooting it (10:32), the bootstrap fetched
+from the edge over TFTP (10:34) and NETCONF open (10:37), then the PicOS
+engine converging and cleaning up a ToR-like configuration through the edge
+with zero drift. NTP reached its servers through the edge.
+
+Measured on an S5860-24XMG with PicOS 4.7.1M-EC1, 22 to 25 October 2026:
+
+- ZTP is on from the factory and runs once per boot, about 93 seconds after
+  power-on, from the eth0 lease alone: no lease with options 66 and 67 (or 67 as
+  an `http://` URL) at that moment, no ZTP until the next boot. An edge cannot
+  be up that fast after a site power cut, so a ToR that boots unprovisioned has
+  to be rebooted once its edge serves: see "Rebooting a ToR that ZTP missed".
+- Its DHCP vendor class (option 60) is `S5860-24XMG`, not the `pica8-p<model>`
+  the documentation gives, and it asks for options 66, 67, 7, 43 and 42.
+- ZTP fetches the script into `/cftmp/provision.sh` and runs it as root before
+  PicOS's CLI exists; the CLI is reached from a `/cftmp/auto/post-xorplus` hook,
+  which runs as the CLI starts. `/cftmp/auto` is in the config backup, so a hook
+  deletes itself.
+- `set system login user <u> authentication public-key` is not valid on
+  4.7.1M-EC1; keys go in as `~<u>/.ssh/authorized_keys`, and survive a reboot
+  only when listed in `/etc/picos/user_backup_files.lst` before a commit saves.
+- ZTP stays on until something turns it off: `ztp_disable` from
+  `/usr/bin/ztp-functions.sh` and `set system ztp enable false`.
+- The factory reset is `save_config factory-default` (root), which keeps the
+  licence. It restores the original `/etc/shadow`, so the reset and the reboot
+  go in one `sudo sh -c '/usr/sbin/save_config factory-default &&
+  /pica/bin/reboot.sh'`, and nobody may log in between them:
+  `/etc/profile.d/picos.sh` saves the running configuration over the reset on
+  any login. A reset gives the switch new SSH host keys.
+- The RTC is set eight hours fast from the factory; NTP corrects the clock and,
+  after about eleven minutes, the RTC.
+- The controller's `tuist` user can `sudo` without a password.
+
+### Bringing up a new S5860
+
+Unit 2, a replacement, or unit 1 after its bench time. The aim is that the
+hands on site only unbox, rack and cable.
+
+1. **Before it ships to the rack:** put its label MAC (eth0's, the `MAC:` on the
+   bottom label) in its `devices[]` entry as `mac`, render, and merge. Nothing
+   else about the unit needs knowing in advance. Do not power it on to read
+   anything: a box that never booted is the state ZTP is proven from.
+2. **On site:** rack it; PSU 1 to an A strip, PSU 2 to a B strip; its **MGMT**
+   port (not CONSOLE, not a numbered port: they sit together and look alike) to
+   its edge's `lan1`, the middle of the edge's three RJ45 ports; its
+   **CONSOLE** port to its edge with the USB-to-RJ45 console cable; data cables
+   per the cable schedule. No chassis ground at home; to the rack's earth point
+   in the data centre.
+3. **Power on, in any order with its edge.** About 90 s after power-on the
+   switch asks its edge for DHCP and runs the bootstrap; about 4 minutes after
+   power-on the controller can log in. Its RackSwitch goes
+   `Adopted=False/NotProvisioned`, then `Adopted=True` with `status.hostKey`
+   pinned, then `Converged`.
+4. **If it stays `NotProvisioned`:** it booted before its edge served (ZTP
+   runs once per boot). The edge's `tor-console` container reboots it about
+   eight minutes after the edge is up; its log says what it found. If the
+   console cable is not in, power-cycle the switch once its edge is up.
+5. **Checks** from anywhere with the controller's key and a tailnet path, as
+   `tuist@<mgmt_address>`: `cli -c "show version"` (model, serial, PicOS
+   release, licence), `cli -c "show system rpsu;show system fan;show system temperature"`,
+   `cli -c "show system ntp-status"`, and `grep ztp_disable /etc/picos/picos_start.conf`
+   (`true`). `cli -c "show log last-rows 100"` shows the bootstrap's `rack-ztp` lines.
+
+To provision a switch again, as after a bench or an RMA: from the controller's
+user, `sudo sh -c '/usr/sbin/save_config factory-default && /pica/bin/reboot.sh'`,
+then clear its RackSwitch's `status.hostKey`, since the reset gives it new host
+keys. A switch on the bench at the edge's address has its NTP pointed elsewhere
+and the bench key installed; the reset removes both.
+
+## A site with no management switch
+
+Rack 2 (`sites/larch.json`) has none. Its management ports (BMCs and the PDU and
+transfer-switch cards) are cabled into the ToRs on a management VLAN
+of its own, and each ToR's own management port goes to an edge
+(`tor_management`). The render follows from the site data:
+
+- **The management VLAN is one the edges carry** (`carried_by: "edges"`), and
+  the edges reach it over their uplinks as `mgmt0`, a bond like `machines0`;
+  `management.edge.interface` has to be `mgmt0`. Its address, DHCP and the
+  power devices' routes sit on `mgmt0` the way BER1's sit on the edge's port
+  into its management switch.
+- **Only a port with a management link is untagged on that VLAN.** Every other
+  port is untagged on VLAN 1, which reaches nothing, so a mini racked before
+  it is recorded lands on no segment rather than on the management one. Ports
+  facing an edge and the ISL carry it tagged with the other edge VLANs.
+- **A management link lands on the opposite ToR**, so a dead ToR's side stays
+  reachable through the other one: not the ToR a node's data link is on, the
+  one an edge provisions, or, for power gear, the one its chain's minis are on
+  (a PDU through the minis on its outlets, a transfer switch through its PDUs).
+  `fleet_check_management_links` refuses
+  the rest, so nobody tidies the cross-cabling onto one ToR.
+- **Dual-PSU gear names `feeds`** (`["feed-a", "feed-b"]`) instead of an `ats`
+  or `pdu`: one cord per PSU straight into the facility's rails, which the cable
+  schedule lists.
+- **A PicOS ToR's management address is not routed over the uplinks**: it is
+  the far end of its own link to an edge.
+
+The env's one rack switch controller reconciles every site's switches, so
+`helm-values rack-switch-controller` merges the env's sites: BER1's Omada
+settings and the PicOS sites' 1Password items, which all name the same items.
+Each site with edges gets its own rack-edge release (`rack-edge-<site>`; BER1's
+is `rack-edge`, from before there was a second).

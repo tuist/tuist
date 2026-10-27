@@ -2014,6 +2014,19 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX", "tuist-runner-pool-linux")
   end
 
+  @doc "Standard Linux pool to isolated vRack pool mapping, rendered by Helm. Missing or malformed config disables routing."
+  def runners_linux_vrack_pools(environment \\ System.get_env()) do
+    case JSON.decode(Map.get(environment, "TUIST_RUNNERS_LINUX_VRACK_POOLS", "{}")) do
+      {:ok, pools} when is_map(pools) ->
+        Map.filter(pools, fn {source, target} ->
+          is_binary(source) and source != "" and is_binary(target) and target != "" and source != target
+        end)
+
+      _ ->
+        %{}
+    end
+  end
+
   @doc """
   Same role as `runners_linux_pool_name_prefix/0`, for the macOS fleet.
   Helm renders the prefix into the `RunnerPool` CR names and injects it

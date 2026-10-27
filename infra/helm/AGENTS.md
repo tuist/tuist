@@ -1,20 +1,26 @@
 # Helm Charts
 
-This node covers Helm assets under `infra/helm/`.
-
-## Scope
-- Umbrella and component charts for deploying Tuist services on Kubernetes
-- Values for embedded vs external infrastructure dependencies
-- Kubernetes manifests and helper templates for app services, data services, and observability
-- Atlas standalone and managed deployment: see `atlas/AGENTS.md`.
-- Standalone app charts with their own release boundary, such as Noora Storybook and Slack
+- Model dependencies by capability (`objectStorage`), not implementation brand (`minio`); support embedded and external modes where practical.
+- Keep independently released workloads in standalone charts rather than growing the main umbrella chart. Atlas deployment has [its own guidance](atlas/AGENTS.md).
+- Validate with `helm lint` and `helm template` using the chart's CI placeholder values, then production overlays. Cluster installs are not local validation; follow [infra access rules](../AGENTS.md#cluster-access-for-agents).
+- Main chart usage and dependency modes: [Tuist chart README](tuist/README.md).
 
 Monitoring cost controls must preserve metric identity and operator audit records.
 See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
 Helm CI starts the production Alloy log pipeline to compile LogQL selectors and
 runs the mixed-version latency expression through promtool.
+Runner macOS host-health rules are in `k8s-monitoring/runner-macos-host-alert-rules.json`;
+`test-runner-macos-host-alerts.sh` tests their risk, socket-count and collector
+freshness expressions with promtool. Keep the four `macos_host_*` metric families
+in the Mac scrape allow-list. Rule JSON is a Grafana provisioning payload, not a
+Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
+
+- Canary's Linux runner fleet selects one RISE-M in Gravelines. Prepare its OS
+  and fleet SSH key before adoption. The fleet uses OnDelete, so deploying the
+  offer change preserves the old RISE-S until an explicit drained replacement.
+  Do not enroll the ordinary runner template into vRack as part of this swap.
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
   and a published versioned runner image containing stable. Keep 26.6 as the
@@ -35,6 +41,16 @@ runs the mixed-version latency expression through promtool.
   26.6 and 27.1, and canary keeps its slots free for the runners acceptance
   probe. How warm runners give way to queued jobs is in
   `../runners-controller/AGENTS.md` ("Fleet-capacity awareness").
+
+- RunnerPool names (`<release>-runner-pool-macos-[<site>-]<xcode-dashes>[-<shape>]`)
+  are identifiers: they are `fleet_name` in Postgres and ClickHouse, the
+  dispatch key, and what alerts and dashboards select on. Customers see the
+  GitHub runner name instead, which the server mints per job as
+  `tuist-macos-<guest macOS>-xcode-<xcode>-<shape>-<hex>` from the pool's
+  `tuist.dev/xcode-version` label and the version the guest reports. Change
+  that name in `server/lib/tuist/runners.ex`, not by renaming pools, and keep
+  the label on every catalog pool. Pools without it (the explicit `pools`
+  entries) keep their Pod name as the runner name.
 
 - `server.config.originAppKey.enabled` adds the registered Origin App ID and Ed25519 private PEM to the managed server-config ExternalSecret. Trim only the App ID, never the private PEM or log key material. It defaults off and is enabled in production, canary, and staging after each environment's own `ORIGIN_APP/app_id` and `ORIGIN_APP/private_key` fields exist in its `tuist-k8s-<env>` vault. The App ID field is configurable with `appIdField`. Each environment uses an independent app and signing key.
 
@@ -62,6 +78,10 @@ runs the mixed-version latency expression through promtool.
   Managed staging, canary and production enable both settings for their own
   provisioned OVH vRack. Runtime publication still waits for matching host route
   attestations; this does not enable topology for other providers.
+  OVH Kata runner hosts participate only with an explicit matching
+  `ovhFleets.<fleet>.machine.vRackID`; legacy hosts without private NICs must
+  remain unenrolled. See `../kura-controller/linux-runner-private-cache.md`
+  for regional-cache reuse, the required staging migration, and rollback.
 
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
   Dedibox support is removed after all Machine release finalizers completed
@@ -71,7 +91,10 @@ runs the mixed-version latency expression through promtool.
   explicit post-deployment cleanup. Follow [the cleanup runbook](../kura-controller/eu-west-ovh-migration.md#post-retirement-cleanup).
   Production EU-West ingress discovers OVH gateway Node addresses automatically.
   Preserve the `kura-dedibox` selector and `scw-local-nvme` StorageClass because
-  OVH uses both. Public staging/canary validation uses OVH `ca-east`; retain the
+  OVH uses both. Staging reuses its prepared Gravelines host as ordinary EU-West
+  capacity after retiring the private Linux experiment; its platform overlay
+  enables the same public EU-West gateway as production. Staging also retains
+  OVH `ca-east` for remote comparisons; canary uses `ca-east`. Retain the
   separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
@@ -97,13 +120,7 @@ runs the mixed-version latency expression through promtool.
   the tuist release) as the `tuist-xcresult-processor` release, installed with
   `--wait=hookOnly` and reported by a non-gating `kubectl rollout status`.
   A new template the processor needs has to be symlinked into that chart too.
-- Prefer one umbrella chart that models deployable capabilities, not implementation brands.
-- When a workload needs an independent workflow and release cadence, give it its own chart
-  rather than adding it to `helm/tuist/`.
-- Model infrastructure dependencies with capability names such as `objectStorage`, not provider names such as `minio`.
-- Support both `embedded` and `external` dependency modes when practical.
 - Embedded object storage uses the same digest-pinned `ghcr.io/coollabsio/minio` community image for the server and bundled `mc` initializer because the upstream Quay images no longer allow anonymous pulls. Keep both image pins aligned and validate changes with `helm:k3s-smoke`; managed environments use external storage.
-- Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
 - The K3s smoke task builds its MinIO/mc image from checksum-pinned upstream
   release binaries and imports it into the disposable cluster. Existing-context
   runs must preload that image; the smoke values never pull it from a registry.
@@ -111,6 +128,9 @@ runs the mixed-version latency expression through promtool.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
+  The Kura admission buffer reduction to 10% requires the two live headroom
+  fallback queries and the admission annotation to follow the server rollout;
+  the exported headroom gauge already follows the deployed policy.
   ClickHouse read-failure and latency rules aggregate Cloud and shadow physical
   repos; expanding telemetry coverage can surface previously invisible failures
   without any threshold change.
@@ -152,12 +172,6 @@ runs the mixed-version latency expression through promtool.
   per-instance ConfigMap-read role, sticky runtime/controller rollback floor and
   quarantined-volume reaper exclusion belong together; see
   [`../kura-controller/serving-authority.md`](../kura-controller/serving-authority.md).
-- Parent infra context: `infra/AGENTS.md`
-- Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`
-- Slack chart: `infra/helm/slack/AGENTS.md`
-- Server runtime dependencies: `server/AGENTS.md`
-- Cache runtime dependencies: `cache/AGENTS.md`
-- Processor runtime dependencies: `processor/AGENTS.md`
 
 - Runner Kura uses `platform`'s `kura-runners` ingress-nginx DaemonSet with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. `kuraFleet.replicas` counts hosts; the catalog configures two process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
 
@@ -207,3 +221,22 @@ runs the mixed-version latency expression through promtool.
 Keep the chart-facing [server scaling guide](tuist/README.md#scaling-the-server) aligned with the cookie, private networking and membership-verification contracts below.
 
 Cluster formation requires a stable shared cookie Secret, a fixed distribution listener, allowed EPMD/distribution ingress, and a headless service. More than one server replica requires clustering. Managed canary runs two replicas so actual membership is exercised before production promotion. Do not promote until the proof-cache and authoritative authentication rollouts are stable and OAuth entity operations no longer depend on replicated invalidations. Boruta's cache and membership supervision still starts; the entity callbacks, not that lifecycle, are disabled. The stable private cookie connects different image versions during rolling upgrades; the first migration from image-baked cookies still creates old/new islands. Qualify PubSub, Oban PG notifications and peer replacement across the actual versions. Offline/GitOps renderers without live Secret lookup must use a separately managed `cookieExistingSecret`; a missing key in an existing generated Secret fails rather than silently rotating it. Managed staging/canary/production configure `server.cluster.externalSecret` with `cookieExistingSecret: tuist-server-cluster-cookie`: the dedicated ESO resource reads `SERVER_CLUSTER_COOKIE/password` from each environment's own 1Password vault, never the shared server-config Secret. It renders only when clustering is enabled, uses `refreshPolicy: OnChange` so source edits alone do not propagate on a timer, and requires an explicit sync during coordinated rotation; self-host defaults require no ESO. Missing/empty source data must not trigger cookie generation. `test-cluster-cookie.py` checks ownership, all three environment overlays, web-only references and invalid configurations in Helm CI. Bootstrap, rebuild and coordinated rotation are documented in [onboarding](../k8s/onboarding.md#5e-durable-server-distribution-cookies). Cookie rotation requires coordinated process replacement. The chart guard rejects previously accepted unclustered multi-web configurations because live PubSub/PG notifications must cross replicas; it is not a runtime replica-count detector. See the [self-host clustering upgrade guidance](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).
+
+- Linux vRack rollout uses default-off account flag `runner_linux_vrack` to select
+  shape-equivalent isolated pools. `runnersFleetLinux.vrack.enabled` only renders
+  pools/mappings with zero warm floors and a disjoint host `fleetSelector`.
+  Shared managed values prepare them in all three environments; self-hosted
+  defaults stay off. Canary's RISE-M replacement passed ordinary-runner
+  acceptance on 2026-10-26 but remains unenrolled in vRack, so prepared pools
+  alone do not qualify it for account enrollment. The preparation switch
+  must never set vRack on ordinary fleet templates. Keep resource sizing and the
+  cache-volume DaemonSet's coverage of both cohorts aligned. Validate with
+  `infra/mise/tasks/helm/linux-vrack.sh`. Host cohort membership must persist
+  through CAPI reconciliation before actor enrollment; a Node-only relabel is
+  insufficient. Flag withdrawal preserves recorded jobs, mappings and routes
+  until those jobs finish.
+  Staging and canary target one RISE-M each. Their ordinary/vRack qualification
+  therefore runs sequentially across drained host transitions; excluded jobs
+  queue while ordinary capacity is absent. A RISE-S-to-RISE-M template update
+  under OnDelete does not replace the live host: prepare the new box first,
+  then explicitly drain and retire the old Machine.

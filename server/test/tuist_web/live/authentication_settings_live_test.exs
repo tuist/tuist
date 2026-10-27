@@ -87,7 +87,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
     assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
-    render_hook(lv, "toggle_oidc_configuration", %{"checked" => true})
+    lv |> element("#oidc-configuration-toggle") |> render_click()
     refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
     refute has_element?(lv, "#sso-form")
     refute has_element?(lv, "[data-part=scim-card]")

@@ -42,14 +42,17 @@ type RackSiteReconciler struct {
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racksites,verbs=get;list;watch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racksites/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackatses;rackpdus;rackhosts,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;patch
 
 func (r *RackSiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	site := &infrav1.RackSite{}
 	if getErr := r.Get(ctx, req.NamespacedName, site); getErr != nil {
 		if client.IgnoreNotFound(getErr) == nil {
 			rackSiteContractedPowerGauge.DeleteLabelValues(req.Name)
+			return ctrl.Result{}, r.liftSiteHolds(ctx, req.Namespace, req.Name)
 		}
-		return ctrl.Result{}, client.IgnoreNotFound(getErr)
+		return ctrl.Result{}, getErr
 	}
 	helper, helperErr := patch.NewHelper(site, r.Client)
 	if helperErr != nil {
@@ -65,26 +68,35 @@ func (r *RackSiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	if r.Now != nil {
 		now = r.Now
 	}
-	current, next, readErr := contractedPowerAt(site.Spec.ContractedPower, now().UTC())
-	site.Status = infrav1.RackSiteStatus{}
-	if readErr != nil {
+	at := now().UTC()
+	current, next, readErr := contractedPowerAt(site.Spec.ContractedPower, at)
+	previous := site.Status.DeepCopy()
+	site.Status = infrav1.RackSiteStatus{Conditions: previous.Conditions}
+	var wait time.Duration
+	switch {
+	case readErr != nil:
 		site.Status.Message = readErr.Error()
 		rackSiteContractedPowerGauge.DeleteLabelValues(site.Name)
-		return ctrl.Result{}, nil
+		current = nil
+	default:
+		if current != nil {
+			site.Status.ContractedPowerWatts = current.Watts
+			site.Status.ContractedPowerSince = current.From
+			rackSiteContractedPowerGauge.WithLabelValues(site.Name).Set(float64(current.Watts))
+		} else {
+			rackSiteContractedPowerGauge.DeleteLabelValues(site.Name)
+		}
+		if next != nil {
+			site.Status.NextContractedPowerChange = next.From
+			from, _ := time.Parse(rackSiteDateLayout, next.From)
+			wait = from.Sub(at)
+		}
 	}
-	if current != nil {
-		site.Status.ContractedPowerWatts = current.Watts
-		site.Status.ContractedPowerSince = current.From
-		rackSiteContractedPowerGauge.WithLabelValues(site.Name).Set(float64(current.Watts))
-	} else {
-		rackSiteContractedPowerGauge.DeleteLabelValues(site.Name)
+	err = r.admitPower(ctx, site, previous, current, at)
+	if site.Spec.PowerBudget != nil && (wait == 0 || wait > rackSitePowerInterval) {
+		wait = rackSitePowerInterval
 	}
-	if next == nil {
-		return ctrl.Result{}, nil
-	}
-	site.Status.NextContractedPowerChange = next.From
-	from, _ := time.Parse(rackSiteDateLayout, next.From)
-	return ctrl.Result{RequeueAfter: from.Sub(now())}, nil
+	return ctrl.Result{RequeueAfter: wait}, err
 }
 
 // contractedPowerAt is the step in effect at now, nil before the first one,

@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -74,6 +75,18 @@ type RackAMT struct {
 	// AMT gets carries. A host's spec.amt.address takes precedence.
 	AddressRange string
 	Gateway      string
+}
+
+// sharesBootNICWithAMT reports whether the host's boot NIC is the port Intel
+// AMT shares, which the converge keeps up with nothing of the host's on it: the
+// host names what to do with its AMT, it is a model the fleet activates AMT
+// on, or the operator has read AMT on it. A host without AMT, such as one with
+// a BMC of its own, boots from a NIC that is the host's.
+func sharesBootNICWithAMT(host *infrav1.RackLinuxHost, products []string) bool {
+	if host.Spec.AMT.Activate != nil || host.Status.AMT != nil {
+		return true
+	}
+	return host.Status.Hardware != nil && host.Status.Hardware.Product != "" && slices.Contains(products, host.Status.Hardware.Product)
 }
 
 // amtWanted reports whether the operator activates the host's AMT:

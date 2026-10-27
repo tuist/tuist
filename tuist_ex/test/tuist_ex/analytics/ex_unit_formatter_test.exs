@@ -209,6 +209,38 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
            ] = ExUnitFormatter.take_deferred()
   end
 
+  test "notes a module that failed outside its tests in defer mode, but not one whose tests carry the failure" do
+    failure = {:failed, [{:error, %RuntimeError{message: "cleanup failed"}, []}]}
+    passed = new_test(module: GammaTest)
+    invalid = new_test(module: DeltaTest, state: {:invalid, %ExUnit.TestModule{name: DeltaTest}})
+
+    for {test, module} <- [
+          {passed, %ExUnit.TestModule{name: GammaTest, state: failure, tests: [passed]}},
+          {invalid, %ExUnit.TestModule{name: DeltaTest, state: failure, tests: [invalid]}}
+        ] do
+      {:ok, pid} =
+        GenServer.start_link(ExUnitFormatter,
+          environment: &environment/1,
+          submit: fn _payload, _opts -> :ok end,
+          mode: {:defer, self()}
+        )
+
+      send_lifecycle(pid, [
+        {:suite_started, []},
+        {:test_finished, test},
+        {:module_finished, module},
+        {:suite_finished, %{run: 1_000}}
+      ])
+
+      :ok = GenServer.stop(pid)
+    end
+
+    assert [
+             {%{test_modules: [%{name: "GammaTest", status: "success"}]}, _, true},
+             {%{test_modules: [%{name: "DeltaTest", status: "failure"}]}, _, false}
+           ] = ExUnitFormatter.take_deferred()
+  end
+
   test "reports the execution variant as the run scheme" do
     {:ok, pid} =
       GenServer.start_link(ExUnitFormatter,
@@ -366,6 +398,105 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     assert record.duration_ms == 1
     assert record.failures == []
     :ok = GenServer.stop(pid)
+  end
+
+  test "marks quarantined tests and names the tests the quarantine filter got wrong" do
+    parent = self()
+
+    quarantine = %TuistEx.Analytics.Quarantine{
+      muted: MapSet.new([{"SomeModuleTest", "", "flakes"}]),
+      skipped: MapSet.new([{"SomeModuleTest", "", "hangs"}, {"SomeModuleTest", "", "selected"}])
+    }
+
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        notify: &send(parent, {:notified, &1}),
+        quarantine: quarantine
+      )
+
+    send_lifecycle(pid, [
+      {:suite_started, []},
+      {:test_finished, new_test(name: :"test flakes", state: {:failed, []})},
+      {:test_finished, new_test(name: :"test passes")},
+      {:test_finished, new_test(name: :"test hangs", state: {:excluded, "due to test filter"})},
+      {:test_finished, new_test(name: :"test selected")},
+      {:test_finished,
+       new_test(name: :"test hangs", module: OtherTest, state: {:excluded, "due to test filter"})},
+      {:suite_finished, %{run: 1_000}}
+    ])
+
+    :ok = GenServer.stop(pid)
+
+    assert_received {:submitted, %{test_modules: [module]}}
+    quarantined = Map.new(module.test_cases, &{&1.name, &1.is_quarantined})
+    assert quarantined == %{"flakes" => true, "passes" => false, "selected" => true}
+
+    assert_received {:notified, ran}
+    assert ran =~ "they ran"
+    assert ran =~ "  SomeModuleTest: selected"
+
+    assert_received {:notified, also_excluded}
+    assert also_excluded =~ "same name in another module"
+    assert also_excluded =~ "  OtherTest: hangs"
+    refute also_excluded =~ "SomeModuleTest"
+  end
+
+  test "a coverage run names what it left out, except the tests quarantine skips" do
+    quarantine = %TuistEx.Analytics.Quarantine{
+      skipped: MapSet.new([{"SomeModuleTest", "", "hangs"}])
+    }
+
+    excluded = {:excluded, "due to integration filter"}
+
+    events = [
+      {:suite_started, []},
+      {:test_finished, new_test(name: :"test passes")},
+      {:test_finished, new_test(name: :"test hangs", state: {:excluded, "due to test filter"})},
+      {:test_finished,
+       new_test(
+         name: :"test add/2 100% rejects nil",
+         state: excluded,
+         tags: %{describe: "add/2", file: "test/some_test.exs", line: 3}
+       )},
+      {:suite_finished, %{run: 1_000}}
+    ]
+
+    run = fn opts ->
+      {:ok, pid} =
+        GenServer.start_link(
+          ExUnitFormatter,
+          [
+            environment: &environment/1,
+            submit: fn _payload, _opts -> :ok end,
+            notify: fn _ -> :ok end,
+            mode: {:defer, self()},
+            quarantine: quarantine
+          ] ++ opts
+        )
+
+      send_lifecycle(pid, events)
+      :ok = GenServer.stop(pid)
+      [{payload, _opts, false}] = ExUnitFormatter.take_deferred()
+      payload
+    end
+
+    caller = [coverage: true, coverage_excluded_tags: ["integration"]]
+
+    assert run.(caller).skip_test_identifiers == ["SomeModuleTest/add%2F2/100%25 rejects nil"]
+    refute Map.has_key?(run.(caller), :only_test_identifiers)
+
+    # The test helper's own exclusions define the suite: nothing is missing.
+    refute Map.has_key?(run.(coverage: true), :skip_test_identifiers)
+
+    assert run.(coverage: true, coverage_narrowed: true).only_test_identifiers == [
+             "SomeModuleTest//passes"
+           ]
+
+    payload = run.([])
+    refute Map.has_key?(payload, :skip_test_identifiers)
+    refute Map.has_key?(payload, :only_test_identifiers)
   end
 
   test "maps ExUnit outcomes onto success/failure/skipped" do
