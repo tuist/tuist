@@ -79,6 +79,11 @@ env -i PATH="$PATH" TUIST_RUNNER_JOB_ENV="${fixtures}/missing-env" TUIST_RUNNER_
   bash -ec 'source buildkite-hooks/environment; test "$NODE_OPTIONS" = "--max-old-space-size=512 --use-openssl-ca"; test "$SSL_CERT_FILE" = /etc/ssl/certs/ca-certificates.crt; test "$PIP_CERT" = "$SSL_CERT_FILE"; test "$REQUESTS_CA_BUNDLE" = "$SSL_CERT_FILE"'
 echo "ok: Buildkite jobs restore image trust settings without losing Node options"
 
+env -i PATH="$PATH" TUIST_RUNNER_JOB_ENV="${fixtures}/missing-env" TUIST_RUNNER_STATE_DIR="${fixtures}/state" \
+  NODE_OPTIONS=--max-old-space-size=512 \
+  bash -ec 'source ../runner-image/buildkite-hooks/environment; test "$NODE_OPTIONS" = "--max-old-space-size=512 --use-openssl-ca"; test "$SSL_CERT_FILE" = /etc/ssl/cert.pem; test "$SSL_CERT_DIR" = /var/empty; test "$PIP_CERT" = "$SSL_CERT_FILE"; test "$REQUESTS_CA_BUNDLE" = "$SSL_CERT_FILE"'
+echo "ok: macOS Buildkite jobs restore the guest PEM store and disable fallback CA directories"
+
 # Run the production launch command with an agent stub. The standalone binary
 # has no packaged config to supply a plugin checkout directory.
 awk '/^  exec \/usr\/local\/bin\/buildkite-agent start/ {
