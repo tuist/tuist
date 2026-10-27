@@ -27,6 +27,11 @@ raise 'invalid reserve/slot profile' unless options[:reserve_mib].between?(64, d
 # 64 KiB chunks, 128 bytes/chunk, 1 MiB/device, plus the explicit reserve.
 minimum_metadata = (data * 16 * 128 + (2**20 - 1)) / 2**20 + options[:max_volumes] + options[:metadata_reserve_mib]
 raise "metadata must be at least #{minimum_metadata} MiB" if metadata < minimum_metadata
+targets, error, status = Open3.capture3('dmsetup', 'targets')
+raise "cannot inspect kernel device-mapper targets: #{error}" unless status.success?
+unless targets.lines.any? { |line| line.match?(/\Athin-pool\s/) }
+  raise 'host prerequisite missing: load dm_thin_pool and configure its availability after reboot before preparing thin storage'
+end
 config = 'devices { use_devicesfile = 0 obtain_device_list_from_udev = 0 } activation { udev_sync = 0 udev_rules = 0 } backup { backup = 0 archive = 0 }'
 run = lambda do |command, *args|
   output, error, status = Open3.capture3(command, '--config', config, *args)

@@ -18,4 +18,5 @@ reusable local Linux qualification harness, not a deployed allocator.
   throughput, regional capacity gains, memory costs, or CSI lifecycle safety.
 
 - `prepare_pool.rb` only creates a new pool from free VG extents and writes per-node opt-in configuration. Never use it to convert populated thick storage.
+- Host preparation must make `dm_thin_pool` available before creation and after reboot. The script checks loaded device-mapper targets and fails before mutation if support is absent; loading modules belongs to authorized host preparation.
 - The real CSI Linux test is `../internal/driver/thin_integration_test.go`; compile it for the disposable VM and opt in explicitly. Its failure cleanup retains backing files if detachment cannot be verified.

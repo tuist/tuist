@@ -134,7 +134,12 @@ remain trusted; project quotas are not a boundary against either.
 1. Deploy the new CSI and controller binaries with thin configuration absent.
    Old file/thick volumes keep their existing behavior. The new immutable class
    is `kura-thin-encrypted-nvme`; its allowed topology excludes legacy nodes.
-2. Prepare landing capacity. On a node with sufficiently free VG extents, run
+2. Prepare landing capacity. The host must provide the `dm_thin_pool` kernel
+   module before pool creation and after reboot. Confirm `dmsetup targets`
+   lists `thin-pool`; arrange module loading through the host's normal bootstrap
+   configuration. The CSI container does not mount host kernel modules or load
+   them itself. `prepare_pool.rb` checks this prerequisite before any mutation.
+   On a node with sufficiently free VG extents, run
    `prepare_pool.rb` with explicit VG, new pool name, data/metadata sizes, reserves,
    maximum volume count and canonical existing state directory. It creates only
    a new pool and writes private `thin-pool.json`. It never converts/shrinks an

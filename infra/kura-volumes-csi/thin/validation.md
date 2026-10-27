@@ -83,6 +83,38 @@ do not establish safe shared overcommit or recovery from actual pool metadata
 exhaustion. The old shared-XFS capacity gains, regional memory measurements and
 final runtime filesystem-overhead profile remain unvalidated for thin storage.
 
+## Staging deployment and remaining gate
+
+On 2026-10-27, the scoped staging deployment
+[40541097983](https://github.com/tuist/tuist/actions/runs/40541097983) successfully
+rolled out CSI and the Kura controller at **`sha-3711f4bf393d`**. Thin configuration
+was absent. Comparing workload images before and after found only these two
+intended changes; all eight existing Kura runtime pods retained their UIDs and
+remained Ready. Server, runners and unrelated staging experiments were preserved.
+The branch build also preserves the controller's `latest` tag for main builds.
+
+**The live thin-stack rehearsal has not passed.** Paris staging's Linux
+`6.8.0-146-generic` kernel did not have the `thin-pool` device-mapper target
+loaded. The bounded pool creation failed before creating any LV or configuration.
+The original 128 GiB `data` LV retained its UUID, and no thin-ready label or
+migration-source annotation was applied. Loading `dm_thin_pool` requires approved
+host preparation; that approval is pending. `prepare_pool.rb` now explicitly
+checks this prerequisite before mutation. Its negative test in the disposable
+Linux VM passed, leaving the state directory empty; Ruby syntax and diff checks
+also passed. Host reboot availability must be configured and validated separately.
+
+An isolated legacy two-replica fixture reached Ready, but its initial 1 GiB
+filesystem was too small for Kura's segment-rotation free-space margin: the first
+cache PUT returned HTTP 503. This is not a successful traffic or migration test.
+The runtime reserves at least twice its 512 MiB segment size before rotation;
+the next legacy source fixture must be larger than that plus filesystem overhead.
+The fixture, claims, encrypted backing files/mappings, account and wrapped-key
+records were removed and physical cleanup was verified.
+
+Staging quota/reclaim, pod restart, replica catch-up and endpoint handoff remain
+outstanding. No production enrollment has occurred. Keep the PR draft and do not
+promote the older thick/OpenBao rehearsal as thin-stack evidence.
+
 ## Original mechanism experiment
 
 ## Reproduction and isolation
