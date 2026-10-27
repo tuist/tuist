@@ -1,331 +1,170 @@
 # OVH Linux runner egress
 
-`capi.ovhRunnerEgress` routes runner jobs through one OVH Additional IP block
-per environment. All three blocks are delivered and attached to the vRacks
-below. Staging's move to its existing cache vRack was confirmed through the OVH
-API on 2026-10-26; canary and production were confirmed in OVH Manager screenshots.
-Checked-in activation remains **disabled in every environment**. Staging's
-bounded qualification exercised activation, rollback, repair and reboot together
-with real private-cache transfers; evidence and remaining rollout limits are
-below. No public allowlist documentation changes until production has passed
-the checks below.
+`capi.ovhRunnerEgress` gives Linux runner jobs one OVH Additional IP block per
+environment while preserving each host's primary management IP and private-cache
+connection. Activation is **disabled in all checked-in environments**. The
+provider configures existing blocks; it does not order them or move a NIC between
+vRacks. Public egress alone does not enroll a runner into private-cache routing:
+that still requires explicit Machine `spec.vRackID` enrollment.
 
-| Environment | Attached vRack | Delivered block | Usable addresses | Gateway |
+## Block inventory
+
+Recorded attachments from 2026-10-26; recheck before activation:
+
+| Environment | Attached vRack | Block | Usable host addresses | Gateway |
 | --- | --- | --- | --- | --- |
-| staging | pn-2023588 | 5.39.98.144/29 | 5.39.98.145–5.39.98.149 (5) | 5.39.98.150 |
-| canary | pn-2025491 | 5.196.103.232/29 | 5.196.103.233–5.196.103.237 (5) | 5.196.103.238 |
-| production | pn-2025483 | 5.135.7.160/27 | 5.135.7.161–5.135.7.189 (29) | 5.135.7.190 |
+| staging | pn-2023588 | 5.39.98.144/29 | 5.39.98.145–5.39.98.149 | 5.39.98.150 |
+| canary | pn-2025491 | 5.196.103.232/29 | 5.196.103.233–5.196.103.237 | 5.196.103.238 |
+| production | pn-2025483 | 5.135.7.160/27 | 5.135.7.161–5.135.7.189 | 5.135.7.190 |
 
-OVH reserves the first, penultimate and last addresses for network, gateway and
-broadcast. A block has a 5 Gbps limit; each RISE private NIC has its own limit.
-See [OVH's Additional IP guide](https://support.us.ovhcloud.com/hc/en-us/articles/4403594838803-Configuring-an-Additional-IP-block-in-a-vRack).
-The controller accepts canonical public IPv4 /24 through /29 blocks. It does
-not order addresses or attach the block itself; those are prerequisites.
+Staging's block was moved onto its existing cache vRack, preserving the runner's
+private NIC and reservation. Canary and production still need their public-block
+attachments aligned with their intended private-cache networks before activation.
+Never move an enrolled runner's NIC to resolve this mismatch.
 
-## Controller lifecycle
+The controller accepts canonical public IPv4 /24 through /29 blocks. OVH reserves
+the first, penultimate and last addresses for network, gateway and broadcast.
+Allow capacity for host replacement surge and reservations retained after failed
+cleanup. See [OVH's Additional IP guide](https://support.us.ovhcloud.com/hc/en-us/articles/4403594838803-Configuring-an-Additional-IP-block-in-a-vRack).
 
-The provider receives `--ovh-runner-egress-config` and reads the ConfigMap in
-its secrets namespace. Disabled configurations without reservations make no
-OVH, SSH or Cilium API calls. Cache Machines are excluded from enrollment.
+## Controller contract
 
-For a Ready Kata Machine, the controller:
+The provider reads the namespaced ConfigMap selected by
+`--ovh-runner-egress-config`. With egress disabled and no reservations, its egress
+reconciler makes no OVH, SSH or Cilium calls. Cache Machines are excluded.
+Activation applies to eligible Ready Kata Machines across the environment;
+there is no per-host activation switch.
 
-1. Validates the block, existing private-network annotation, Machine vRack and
-   Node identity. Allocates one address by Machine UID and OVH service in a
-   separate, controller-owned `-reservations` ConfigMap. Resource-version
-   conflicts stop the operation before any host configuration.
-2. Calls `EnsureVRack`, which refuses to move a NIC from another vRack. Waits
-   for a read confirming attachment. Persists the private NIC MAC before SSH,
-   so an interrupted configuration still has durable cleanup intent.
-3. Installs the address as a /32 on the MAC-selected private NIC, source rule
-   priority 10430 and routing table 243. Only traffic sourced from that address
-   uses the block's gateway. The primary public IP and main default route stay
-   in place. Foreign routes, a conflicting rule, a changed address or the
-   primary default-route NIC cause an error rather than being overwritten.
-4. Installs `tuist-runner-egress.service` before kubelet and a 60-second repair
-   timer. The host uses loose reverse-path filtering on the private NIC.
-   Script hash plus Node BootID triggers the controller's SSH repair after an
-   update or reboot. The existing pinned SSH fingerprint is mandatory.
-5. Creates `ovh-runner-<machine UID>`, a cluster-scoped
-   `CiliumEgressGatewayPolicy`. It selects only `tuist.dev/runner=true` pods in
-   `tuist-runners` on that host and uses the same host as gateway. RFC1918,
-   CGNAT and IPv4 link-local ranges are excluded. The existing runner
-   NetworkPolicy still owns access restrictions; gateway exclusions do not
-   grant access to private destinations.
-6. Records the address and revision on the Node and marks
-   `RunnerEgressReady=True`. This means configuration was applied, **not** that
-   a real job has passed the public egress probe. The provider refreshes the
-   policy annotation after reboot so Cilium reselects the configured interface.
+For each runner, it reserves an address by Machine UID and OVH service in a
+controller-owned `-reservations` ConfigMap. It validates the Machine's vRack and
+existing private-network annotation, confirms NIC attachment, and persists the
+NIC MAC before SSH so interrupted configuration retains cleanup intent.
 
-The policy uses explicit ownership annotations rather than an invalid
-namespaced-Machine owner reference on a cluster-scoped resource. Every
-reconcile repairs missing or altered policy specs and refuses unowned objects.
-Cilium 1.18.7 supports the paired pod/node selectors, local gateways and a
-source-address FIB lookup without `BPF_FIB_LOOKUP_DIRECT`; see its
-[policy API](https://github.com/cilium/cilium/blob/v1.18.7/pkg/k8s/apis/cilium.io/v2/cegp_types.go),
-[egress datapath](https://github.com/cilium/cilium/blob/v1.18.7/bpf/lib/egress_gateway.h)
-and [FIB helper](https://github.com/cilium/cilium/blob/v1.18.7/bpf/lib/fib.h).
-Physical routing and device selection were qualified on the staging host below;
-each additional target host still requires validation.
+The host script selects the private NIC by MAC and installs a public /32,
+source rule 10430 and routing table 243 through the block gateway. The primary
+IP and main default route remain in place. Foreign routes/rules, unowned
+addresses and selection of the primary default-route NIC are rejected.
+`tuist-runner-egress.service` runs before kubelet; a 60-second timer repairs
+host drift. Pinned SSH reconciliation is keyed by script hash and Node BootID.
 
-## Staging findings on 2026-10-26
+An owned `CiliumEgressGatewayPolicy` selects only `tuist.dev/runner=true` pods
+in `tuist-runners` on that host, using the same host as gateway and the allocated
+IP explicitly. RFC1918, CGNAT and link-local destinations are excluded from
+translation; NetworkPolicy still controls private access. Reconciliation repairs
+policy drift and refreshes its revision after reboot. `RunnerEgressReady=True`
+means configuration was applied; a real job must prove the resulting public IP.
 
-The remaining staging runner is
-`tuist-tuist-ovh-fleet-runners-linux-h72m4-llfpg`, service
-`ns3066567.ip-193-70-46.eu`, kernel 6.8.0-139. Its Machine and Node use cache
-vRack `pn-2023588`, with retained private reservation `172.30.241.4`. This is
-an intentional private cache connection. The separate private-cache rollout
-retired the legacy RISE-S host after preserving its fixtures.
+## Deployment and qualification
 
-The runner's Cilium 1.18.7 reports both `enp6s0` (public) and `enp7s0`
-(private, `172.30.241.4`) as managed devices. BPF masquerading and egress
-Gateway are enabled cluster-wide. This is evidence about that host only.
-
-**The staging attachment conflict is resolved by sharing the cache vRack.**
-The operator moved the unused `5.39.98.144/29` block from `pn-2025489` to
-`pn-2023588`. A subsequent API read confirms its gateway `5.39.98.150/32`,
-region `eu-west-gra`, and `PUBLIC-ROUTING-1-AZ` routing type on the destination;
-the source vRack has no IP blocks. OVH still lists the runner on `pn-2023588`.
-The block move did not change the runner NIC, private reservation or host route.
-The original separate-vRack plan is superseded for staging only.
-
-The private-cache provider changes are integrated: explicit Kata `vRackID`
-enrollment participates in private address allocation and reciprocal peer-route
-reconciliation. Egress rollback preserves that enrollment and its reservation.
-This does not include the separate application-side cache cohort migration.
-
-Staging's provider-only deployment preserves its concurrent Kura LVM changes.
-The integration branch `codex/ovh-runner-egress-staging` combines the live
-provider baseline with this PR; image `7f4abb31` was deployed by
-[run 40410535415](https://github.com/tuist/tuist/actions/runs/40410535415).
-The guarded workflow requires the exact previous live image, applies only the
-egress ConfigMap/RBAC and updates the provider image/argument. It shares the
-normal staging deployment concurrency lane and does not upgrade the application
-or cache releases. Do not deploy an older provider over the retained changes.
-
-Canary and production still need their intended private-cache enrollment
-reconciled with the recorded public block attachments before enabling either
-environment.
-
-### Qualification evidence
-
-- Baseline [run 40408723993](https://github.com/tuist/tuist/actions/runs/40408723993)
-  verified primary egress `193.70.46.18` and a real remote Gradle cache round trip.
-- Enabled [run 40411992271](https://github.com/tuist/tuist/actions/runs/40411992271)
-  verified `5.39.98.145` inside the job container, compiled the real Gradle plugin
-  and test sources, then restored both tasks `FROM-CACHE` with matching class
-  checksums. The dispatched cache endpoint was
-  `http://kura-tuist-ovh-gra-runners.kura.svc.cluster.local:4000`.
-- The live Cilium BPF map selected `5.39.98.145` and the local gateway for runner
-  source IPs, with the intended private-range exclusions. Probes from a Kata
-  runner timed out against the cluster API and private-host SSH address.
-- Host source routing used table 243 through `5.39.98.150` on `enp7s0`, while
-  ordinary host traffic retained `193.70.46.18` and the cache route retained
-  `via 172.30.241.2`. Removing only the owned table-243 default on a drained
-  host at 22:25:16 UTC was repaired automatically at 22:25:53 UTC; a subsequent
-  public-IP probe passed.
-
-The first disable drill found a systemd cleanup bug: explicitly stopping the
-egress oneshot propagated through kubelet's loaded `Requires` dependency and
-stopped kubelet, even though the oneshot was inactive. The host was drained;
-no runner jobs were interrupted. Public state was removed and its reservation
-released, and private state remained intact. Kubelet was restored through
-host-key-pinned SSH. Cleanup now removes the kubelet drop-in and reloads systemd
-**before** stopping the egress service. The host-script regression models the
-loaded dependency and fails with the original order, including the failed
-cleanup path that retains address ownership.
-
-The corrected provider image is `40304e0d`, built and tested by
-[run 40412827850](https://github.com/tuist/tuist/actions/runs/40412827850).
-That run's deployment guard stopped after a concurrent staging release restored
-the prior `3e8f2a29` provider. Once that release finished, the corrected image
-was applied through a resource-version-guarded Deployment patch after verifying
-that `3e8f2a29` is an ancestor of the integration build and that egress remained
-disabled with no reservations. All existing arguments were preserved.
-
-The repeated enable/disable drill on `40304e0d` removed the public address,
-routes, condition and reservation while kubelet retained PID `538232` and the
-private address/route/timer remained intact. Disabled
-[run 40412838281](https://github.com/tuist/tuist/actions/runs/40412838281)
-also verified primary-IP egress and a private-cache upload followed by a remote
-`cacheProbe FROM-CACHE` result (after restoring kubelet from the first drill).
-
-The approved drained reboot changed BootID from
-`f75e2b9b-1ae5-422f-8362-c18f9884ee35` to
-`c1f02a5d-b3b1-47ab-8ac0-8a3b64fabaf3`. On the new boot, egress configuration
-finished at monotonic 17.904 seconds and kubelet started at 18.293 seconds.
-Both addresses, table 243, the source rule and the private-cache route returned.
-[Post-reboot run 40415653210](https://github.com/tuist/tuist/actions/runs/40415653210)
-verified `5.39.98.145` and repeated the real Kotlin compilation/remote restore
-with matching class checksums. Cilium's post-boot map again selected the public
-address for runner sources.
-
-**Recovery-time limitation:** the reboot window lasted roughly ten minutes
-(22:40–22:50 UTC), and OVH recorded a server-down monitoring intervention.
-The previous shutdown log contains busy kubelet mounts before journald stops;
-it does not establish the cause of the remaining delay. The host returned with
-kernel `6.8.0-147` instead of `6.8.0-139`; this task did not install that upgrade.
-No second reboot, boot-mode change or reinstall was issued. Persistence passed,
-but this is not evidence of fast host recovery. Investigate the delay before
-treating host replacement/recovery time as qualified.
-
-Machine deletion/reinstall and address reuse by a replacement were not tested
-on the sole staging runner. Bandwidth alerts remain definitions only. These
-gates, plus canary/production private-vRack alignment, remain before promotion.
-
-### Staging state after qualification on 2026-10-26
-
-The final combined provider is `c1e502d4`, published by
-[run 40415854542](https://github.com/tuist/tuist/actions/runs/40415854542).
-It also preserves the rack-install fixes from the concurrent `ae6b8b3d` release,
-which replaced the provider during the reboot window. After that rollout
-finished, a resource-version-guarded patch restored the integrated controller;
-both private and public network revision annotations converged on the new BootID.
-
-Egress was then disabled to match the checked-in configuration. Its reservation
-map is empty; the public /32, table 243, rule 10430, egress timer and kubelet
-dependency were removed while kubelet retained post-boot PID `1487`. The private
-reservation `172.30.241.4`, route through `172.30.241.2` and private repair timer
-remain. The temporary privileged pod and qualification annotation were removed,
-and the node was uncordoned. Keep the provider's cleanup capability installed
-through any future activation; do not let an older parallel deployment replace
-it while an allocation exists.
-
-[Final disabled-state run 40416946444](https://github.com/tuist/tuist/actions/runs/40416946444)
-passed the exact primary-IP assertion and another real private-cache upload and
-remote hit after cleanup on the final combined provider.
-
-### PR deployment recheck on 2026-10-27
-
-Staging had advanced to provider `a59b98c6`, including Kura storage and nested-KVM
-rehearsals. The provider-only integration build `e8dcb75e` preserves that baseline
-and contains the PR's identical egress implementation and regression tests.
-It is not a full deployment of the PR checkout. The guarded
-[build and deployment](https://github.com/tuist/tuist/actions/runs/40492616173)
-passed all CI gates and replaced only the provider and egress configuration/RBAC,
-with egress initially disabled. Application and cache releases were not upgraded.
-
-The first baseline job stopped before compilation because the fixture accepted
-only regional EU-West cache names, while staging still dispatches its existing
-`kura-tuist-ovh-gra-runners` endpoint. The PR now accepts that exact endpoint in
-addition to the regional names, retains the staging URL guard, and reports an
-explicit scope error. Shellcheck and accepted/rejected endpoint checks passed.
-
-- [Corrected baseline](https://github.com/tuist/tuist/actions/runs/40493029798)
-  passed exact primary IP `193.70.46.18`, fresh production/test Kotlin compilation,
-  uploads and remote restores with matching class checksums.
-- [Enabled job](https://github.com/tuist/tuist/actions/runs/40493880351)
-  passed exact public IP `5.39.98.145` and the same real private-cache checks.
-  Both network conditions were True, their revisions matched the current BootID,
-  and the existing KVM readiness condition remained True.
-- [Final disabled-state job](https://github.com/tuist/tuist/actions/runs/40494320217)
-  passed exact primary IP `193.70.46.18` and both Kotlin remote restores with
-  matching checksums after cleanup on provider `e8dcb75e`.
-
-Activation and rollback waited for zero nonterminal runner pods on the cordoned
-host. Cleanup emptied the public reservation map and removed the egress condition
-and Node annotations while private-network readiness and Node readiness remained
-True. The temporary qualification annotation was removed and scheduling resumed.
-No host reboot, Machine replacement or direct host diagnostics were repeated.
-The human Kubernetes identity could not read the cluster-scoped Cilium policy;
-this recheck uses controller convergence and real job results, not a fresh BPF
-map inspection. The earlier recovery-time and promotion limitations still apply.
-
-## Qualification and rollout
-
-1. Recheck the recorded block/vRack associations before activation; delivery
-   and attachment are confirmed above. Preserve staging's shared cache vRack.
-   Confirm enough
-   usable addresses for hosts plus replacement surge; retained failed-cleanup
-   reservations consume capacity.
-2. Deploy the provider and charts with egress disabled and the recorded CIDRs.
-   After integrating the private-cache provider changes, enable only staging. Read
-   `RunnerEgressReady` and both Node
-   annotations. A partial fleet rollout leaves unconfigured hosts on their
-   primary public IP; do not promise the new allowlist yet.
-   The chart adds an operator flag, so use the matching provider release. For
-   pre-release staging checks, prefer the guarded provider-image workflow's
-   `deploy_staging` option with `expected_staging_image`; it requires disabled
-   egress and empty reservations. Only use a full application deployment from
-   a branch that contains the current staging changes, with its matching
-   `capi_image_tag`. An older image will reject the egress flag or stop owning
-   existing state if the flag is removed with it.
-3. For **each** staging host, verify the private NIC appears in `cilium-dbg
-   status --verbose`, including masquerading devices. A newly addressed NIC
-   should be auto-detected; if it is not, qualify an explicit Cilium device
-   configuration before promotion. Do not change devices cluster-wide on an
-   assumption. Inspect `cilium-dbg bpf egress list` for the runner source IP,
-   matching host gateway and allocated egress address.
-4. On the host, inspect `ip -4 rule show priority 10430`, `ip -4 route show
-   table 243`, and `ip -4 route get 1.1.1.1 from <allocated-address>`. Confirm
-   the existing primary route still serves host traffic.
-5. Run real Kata jobs on every staging host that print
-   `curl -fsS https://api.ipify.org`; require the exact reserved address.
-   Exercise DNS, image pulls and both job/dind traffic. Confirm private-range
-   access remains denied except for the existing explicit NetworkPolicy
-   allowances. Confirm cache/private paths and ordinary host connectivity.
-6. Remove an owned route to exercise the repair timer, then reboot a drained
-   staging host. Verify the address is restored before kubelet, the revision
-   includes the new BootID, and a fresh job still uses the block. Exercise
-   disable/re-enable and a drained Machine deletion. Confirm policy, host
-   state and reservation cleanup, then safe reuse by a replacement.
-7. Provision and verify the bandwidth alerts below. Roll out canary, run the
-   runner acceptance gate, then production. Canary/production writes require
-   the normal human elevation or deployment workflow.
-8. Only after production jobs pass, replace the Linux /32 table and maintainer
-   comment in `server/priv/docs/en/guides/server/network.md` with the delivered
-   production /27. Keep the macOS range `95.130.119.0/24`.
+1. Recheck block attachment, private-vRack alignment and address capacity. Keep
+   staging's shared cache vRack. Build the provider with the existing provider
+   image workflow, then use the normal deployment workflow with a matching
+   `capi_image_tag`; the chart adds a manager flag older images do not understand.
+   Preserve any newer staging changes in the deployment baseline.
+2. Deploy with egress disabled, then qualify staging first. Cordon hosts and wait
+   for running jobs to finish before changing their egress identity. Keep the
+   provider, ConfigMap and cleanup RBAC installed throughout activation/rollback.
+   Avoid concurrent deployments that could replace the provider or its arguments.
+3. Enable staging and verify every participating host's `RunnerEgressReady`,
+   `tuist.dev/runner-egress-ip` and `tuist.dev/runner-egress-revision`. Confirm the
+   revision includes its current BootID and private-network readiness remains
+   True. Partially configured fleets still have jobs using primary IPs.
+4. Confirm the private NIC is in Cilium's managed/masquerading devices and its
+   BPF egress map selects the allocated IP and local gateway for runner sources.
+   Inspect `ip -4 rule show priority 10430`, `ip -4 route show table 243`, and
+   `ip -4 route get 1.1.1.1 from <allocated-address>`. Verify ordinary host traffic
+   retains the primary route. Qualify any required Cilium device change before
+   applying it across a cluster.
+5. Resume scheduling and dispatch `linux-runners-staging-smoke.yml` with
+   `gradle_cache=true`, `compile_project=true` and `expected_public_ip` set to the
+   allocated address. Require real compilation, upload and remote restores with
+   matching checksums. The fixture accepts staging's existing private runner
+   cache and EU-West regional endpoints. Also verify DNS, image pulls, job/dind
+   traffic, and denied access to private destinations outside existing allowances.
+6. On drained staging hosts, qualify owned-route repair, reboot persistence
+   before kubelet, disable/re-enable, and Machine deletion/replacement with safe
+   address reuse. Repeat real-job checks after transitions. Provision and verify
+   monitoring before promotion.
+7. Align and qualify canary, run runner acceptance, then qualify production on
+   every host. Use the normal deployment workflow or human elevation for writes.
+   Only then replace the Linux /32 table in
+   `server/priv/docs/en/guides/server/network.md` with `5.135.7.160/27`; keep the
+   macOS range `95.130.119.0/24`.
 
 ## Rollback and deletion
 
-Set `capi.ovhRunnerEgress.enabled=false` while keeping the provider, ConfigMap
-and RBAC deployed. Wait until all runner `RunnerEgressReady` conditions, Node
-annotations and owned Cilium policies are gone and the reservation map is
-empty. Then an older provider image or chart may be deployed. Changing the
-allocated CIDR or vRack while reservations exist is rejected.
+Set `capi.ovhRunnerEgress.enabled=false` while retaining the provider, ConfigMap
+and RBAC. Wait for the egress conditions, Node annotations and owned policies to
+disappear and the reservation map to become empty before downgrading the provider.
+Rollback returns jobs to primary IPs, so coordinate allowlist changes.
+Changing the configured CIDR or vRack while reservations exist is rejected.
 
-Machine deletion first uses the existing running-job drain barrier. Cleanup
-withdraws the Cilium policy and confirms it is absent on a subsequent read,
-then stops the host repair timer/service and removes its rule, routes, address
-and kubelet dependency. Only successful host cleanup frees the reservation;
-only afterwards does deletion drop SSH credentials and request the normal
-asynchronous OS reinstall. Disabling the feature follows the same cleanup.
-It returns job egress to the primary IPs, so coordinate allowlist changes.
+Machine deletion first waits for running jobs. Cleanup withdraws the Cilium
+policy and confirms its absence on a subsequent read, then removes host state
+before freeing the address, deleting SSH credentials or requesting reinstall.
+It removes kubelet's egress dependency and reloads systemd **before** stopping
+the egress service: reversing this order stopped kubelet during the first live
+rollback drill because `Requires` propagates an explicit stop, even for an
+inactive oneshot. A regression test covers this ordering and failed cleanup.
+Private-cache identity, routes, reservations and repair timer remain intact.
 
 An unreachable host retains its address and blocks the Machine finalizer.
-Never delete its reservation just because the Machine is absent or reinstall
-was accepted: the old OS may still own the IP. Restore access, or obtain
-independent proof of wipe/network isolation before a reviewed manual recovery.
-Forced finalizer removal leaves retained reservations intentionally.
+Neither Machine absence nor acceptance of an asynchronous reinstall proves the
+old OS no longer owns the IP. Restore access or obtain independent proof of
+wipe/network isolation before reviewed manual recovery. Forced finalizer removal
+deliberately leaves the reservation retained.
 
-## Bandwidth monitoring
+## Staging evidence and limits
 
-The provider exports `capt_runner_egress_info{node,mac,vrack,cidr}` after
-configuration, refreshes it after restart and removes it after cleanup.
-The monitoring chart retains `node_network_info`, allowing a MAC join with
-per-device transmit/receive byte counters. This avoids assuming NIC names or
-counting primary-public traffic toward the private block limit.
+Qualification used `ns3066567.ip-193-70-46.eu` on `pn-2023588`, private address
+`172.30.241.4` and cache route via `172.30.241.2`. On 2026-10-27, integration
+provider `e8dcb75e` preserved staging's Kura storage/nested-KVM baseline and
+contained the PR's identical egress implementation. The
+[build and provider-only deployment](https://github.com/tuist/tuist/actions/runs/40492616173)
+passed without upgrading application/cache releases. This was an integration
+image, not an image of the entire PR checkout.
 
-`infra/helm/k8s-monitoring/ovh-runner-egress-alert-rules.json` contains two
-Grafana provisioning API rules for sustained transmit and receive traffic
-above 80% of 5 Gbps for ten minutes. They are **definitions, not live alerts**.
-Provision them into the existing Alerts folder's `Runner networking` group
-with a one-minute interval, preserving the notification routing tree. Confirm
-`affected_service=Runners` reaches the intended existing receiver. No-data is
-normal while disabled; verify data is present on every configured host before
-calling monitoring operational. Evaluate per-host NIC saturation separately
-against its contracted rate, typically 1 Gbps for the RISE private NIC.
+| Check | Result |
+| --- | --- |
+| [Baseline](https://github.com/tuist/tuist/actions/runs/40493029798) | Exact `193.70.46.18`; both real Kotlin tasks uploaded and restored remotely with matching checksums. |
+| [Enabled](https://github.com/tuist/tuist/actions/runs/40493880351) | Exact `5.39.98.145`; same private-cache compilation/restore checks passed. |
+| [Rollback](https://github.com/tuist/tuist/actions/runs/40494320217) | Exact `193.70.46.18`; both remote restores passed after cleanup. |
+| Repair timer, 2026-10-26 | Removing the owned table-243 default was repaired in 37 seconds; subsequent public-IP probe passed. |
+| [Post-reboot](https://github.com/tuist/tuist/actions/runs/40415653210) | Egress restored before kubelet; exact allocated IP and both real Kotlin remote restores passed. |
 
-Run `bash infra/helm/k8s-monitoring/test-ovh-runner-egress-alert.sh` with jq and
-promtool. It checks the real shipped expressions with multiple hosts,
-public-interface exclusion, environment isolation and the pending period.
+The first compile-fixture recheck rejected the existing private-cache endpoint
+before compilation. Its guard now permits that exact endpoint alongside the
+regional names while retaining the staging-only URL restriction.
 
-## Local validation
+Last verified state after rollback: provider `e8dcb75e`, egress disabled, empty
+public reservations, egress conditions/annotations cleared, private networking
+intact, runner Ready and schedulable. Temporary diagnostics and qualification
+annotations were removed. The 2026-10-27 recheck used controller convergence and
+real jobs; the human Kubernetes identity could not read the cluster-scoped
+policy, so it did not repeat the earlier BPF-map/host inspection.
 
-Run the provider's Go tests with Bash 4+ on PATH and
-`TUIST_TEST_HELM` pointing at Helm. The runner tests cover address bounds and
-exhaustion, idempotence, rejected network/service changes, disabled/cache
-isolation, attachment and SSH failure, ownership, reboot refresh, reservation
-write failure, rollback retention and managed chart rendering. Shellcheck the
-host script and alert test. These checks do not replace the live staging
-qualification above.
+**Remaining gates:** the earlier reboot took roughly ten minutes and triggered
+OVH server-down monitoring. Busy kubelet mounts appeared in shutdown logs, but
+the full delay's cause is unknown; the host booted an already-installed newer
+kernel. Persistence passed, fast recovery did not. Machine replacement/address
+reuse remains untested on the sole staging runner. Alerts are definitions only.
+These limits and canary/production vRack alignment remain before promotion.
+
+## Monitoring and local checks
+
+`capt_runner_egress_info{node,mac,vrack,cidr}` joins `node_network_info` to private
+NIC counters without relying on interface names. The Grafana definitions in
+`infra/helm/k8s-monitoring/ovh-runner-egress-alert-rules.json` alert on sustained
+transmit or receive above 80% of the 5 Gbps block limit for ten minutes. Provision
+them separately into `Runner networking` with a one-minute evaluation interval;
+preserve notification routing and verify `affected_service=Runners` reaches its
+receiver. No-data is normal while disabled. Check every configured host has data
+and evaluate each NIC's contracted bandwidth separately.
+
+Run provider `go test ./...` with Bash 4+ on PATH and `TUIST_TEST_HELM` pointing
+to Helm. Coverage includes allocation/exhaustion, ownership, failures, repair,
+reboot revisions, cleanup/finalizer ordering, host-script simulation and managed
+chart rendering. Shellcheck the host script and smoke fixture. Run
+`infra/helm/k8s-monitoring/test-ovh-runner-egress-alert.sh` with jq and promtool for
+the shipped alert expressions, multi-host aggregation, public-interface exclusion,
+environment isolation and pending period. Local checks do not replace live jobs.

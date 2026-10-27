@@ -23,11 +23,9 @@ Helm-installed resource; publishing it is a separate rollout step.
 
 - `capi.ovhRunnerEgress` keeps its disabled ConfigMap and cleanup RBAC present
   while the provider withdraws runner policies and host addresses. Reservations
-  belong to the controller, never Helm. Managed blocks are delivered and attached;
-  staging's public block shares cache vRack `pn-2023588`, preserving its private
-  cache connection. Checked-in activation remains disabled after bounded staging
-  qualification; preserve its recorded reboot and promotion limitations.
-  Preserve `node_network_info` for the MAC-based
+  belong to the controller, never Helm. Keep activation disabled until each
+  environment passes the runbook's qualification gates. Preserve
+  `node_network_info` for the MAC-based
   bandwidth alerts. See [OVH runner egress](../cluster-api-provider-tuist/docs/ovh-runner-egress.md).
 
 - Canary's Linux runner fleet selects one RISE-M in Gravelines. Prepare its OS

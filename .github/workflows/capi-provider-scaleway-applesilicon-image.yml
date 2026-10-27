@@ -30,16 +30,7 @@ on:
       - infra/rack-switch-fleet/k8s/**
       - mise/tasks/capi-scaleway-applesilicon/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
-  workflow_dispatch:
-    inputs:
-      deploy_staging:
-        description: Roll out only this provider and disabled runner-egress resources to staging
-        type: boolean
-        default: false
-      expected_staging_image:
-        description: Exact current staging provider image; refuse to overwrite a concurrent rollout
-        type: string
-        default: ""
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -252,34 +243,3 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=capi-scaleway-applesilicon
           cache-to: type=gha,mode=max,scope=capi-scaleway-applesilicon
-
-  deploy-staging:
-    needs: build
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy_staging
-    runs-on: tuist-linux
-    environment: server-k8s-staging
-    concurrency:
-      group: server-deploy-staging-deploy
-      cancel-in-progress: false
-    timeout-minutes: 15
-    env:
-      KUBECONFIG: ${{ github.workspace }}/.kube/config
-      EXPECTED_STAGING_IMAGE: ${{ inputs.expected_staging_image }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "--locked helm kubectl jq"
-          cache: "false"
-      - uses: 1password/install-cli-action@v4
-        with:
-          version: 2.31.1
-      - name: Load staging deployment credential
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          mkdir -p "$(dirname "$KUBECONFIG")"
-          op document get 'kubeconfig: tuist-staging' --vault tuist-k8s-staging --output "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
-      - name: Deploy provider without changing application or cache releases
-        run: bash .github/scripts/capi-staging-provider-rollout.sh

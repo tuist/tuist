@@ -5,19 +5,16 @@
   cleanup, before deleting SSH credentials or requesting reinstall. Remove and
   reload kubelet's egress dependency before stopping the egress service; an
   explicit stop otherwise propagates through `Requires` and stops kubelet.
-  Never move
-  an existing cache vRack NIC automatically. All checked-in environments remain
-  disabled pending rollout. Staging's bounded public/private qualification passed
-  with a slow-reboot limitation recorded in the runbook. It shares cache vRack `pn-2023588` with
-  its public block, preserving the runner's private cache enrollment. The
-  confirmed block attachments, deployment prerequisites and rollback steps are in
+  Never move an existing cache vRack NIC automatically. Activation defaults off;
+  preserve private-cache enrollment during public-egress cleanup. Block inventory,
+  staging qualification limits and rollout/rollback steps are in
   [OVH runner egress](docs/ovh-runner-egress.md).
 
 - OVH private vRack reconciliation is additive on the Ready path, scoped by the
   environment ConfigMap and cache taint or explicit Kata Machine `spec.vRackID`.
   Public egress enrollment alone does not opt a runner into private peer routes.
-  Persist address reservations across
-  Machine deletion, preserve main-table unreachable guards for existing Machines,
+  Persist address reservations across Machine deletion, preserve main-table
+  unreachable guards for existing Machines,
   retire owned guards only after authoritative Machine removal, and advertise
   private topology only after every participant installs the same membership.
   See [managed private networking](../kura-controller/private-network-provisioning.md).
