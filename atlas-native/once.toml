@@ -60,7 +60,7 @@ resolver_inputs = ["Cargo.toml", "Cargo.lock", ".cargo/config.toml", "auth/Cargo
 [[target]]
 name = "AtlasAuthIOS"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs", "auth/src/cache.rs", "auth/src/cache_migrations/*.sql", "auth/src/environments.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/certificate_trust.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs", "auth/src/cache.rs", "auth/src/cache_migrations/*.sql", "auth/src/environments.rs"]
 deps = ["./AtlasAuthIOSDependencies"]
 
 [target.attrs]
@@ -74,7 +74,7 @@ crate_type = "staticlib"
 [[target]]
 name = "AtlasAuthIOSDevice"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs", "auth/src/cache.rs", "auth/src/cache_migrations/*.sql", "auth/src/environments.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/certificate_trust.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs", "auth/src/cache.rs", "auth/src/cache_migrations/*.sql", "auth/src/environments.rs"]
 deps = ["./AtlasAuthIOSDeviceDependencies"]
 
 [target.attrs]
@@ -88,7 +88,7 @@ crate_type = "staticlib"
 [[target]]
 name = "AtlasAuthAndroid"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs", "auth/src/cache.rs", "auth/src/cache_migrations/*.sql", "auth/src/environments.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/certificate_trust.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs", "auth/src/cache.rs", "auth/src/cache_migrations/*.sql", "auth/src/environments.rs"]
 deps = ["./AtlasAuthAndroidDependencies"]
 
 [target.attrs]
@@ -113,7 +113,7 @@ header_dirs = ["auth/include"]
 [[target]]
 name = "AtlasAuthTests"
 kind = "rust_test"
-srcs = ["auth/src/**/*.rs", "auth/src/cache_migrations/*.sql"]
+srcs = ["auth/src/**/*.rs", "auth/src/cache_migrations/*.sql", "auth/tests/fixtures/**/*.pem"]
 deps = ["./AtlasAuthDependencies"]
 
 [target.attrs]
