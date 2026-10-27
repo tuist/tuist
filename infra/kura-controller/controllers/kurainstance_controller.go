@@ -3664,7 +3664,7 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 			return true, err
 		}
 		request := kuraDiskRequest(sts.Spec.Template.Spec, kuraDiskResource)
-		if request.Cmp(desired) != 0 {
+		if request.Cmp(diskReservation(instance)) != 0 {
 			return true, r.applyStatefulSet(ctx, instance, true)
 		}
 	}

@@ -25,8 +25,11 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 		skipMark, uncordoned, multiple, noLanding bool
 		sourceOrdinal                             int
 		otherLegacy, colocated                    bool
+		thin                                      bool
 	}{
 		{name: "same class legacy file rebuilds one replica", colocated: true, backing: "file", cycle: backfillCycleComplete, wantDelete: true},
+		{name: "thin migration advances with overhead backed reservation", thin: true, colocated: true, backing: "file", cycle: backfillCycleComplete, wantDelete: true},
+		{name: "thick to thin migration advances with overhead backed reservation", thin: true, colocated: true, backing: "lvm", cycle: backfillCycleComplete, wantDelete: true},
 		{name: "old driver without backing is migrated", cycle: backfillCycleComplete, wantDelete: true},
 		{name: "verified LVM is preserved", backing: "lvm", cycle: backfillCycleComplete},
 		{name: "backfill in progress holds both copies", backing: "file", cycle: "running"},
@@ -45,6 +48,9 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 			_ = kurav1.AddToScheme(scheme)
 			f := newResizeHoldFixture(100)
 			f.instance.Spec.StorageClassName = encryptedLocalStorageClass
+			if tc.thin {
+				f.instance.Spec.StorageClassName = thinLocalStorageClass
+			}
 			f.instance.Spec.DiskResource = string(kuraDiskResource)
 			if tc.single {
 				f.instance.Spec.Replicas = ptr(int32(1))
@@ -53,8 +59,8 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 			if tc.paused {
 				sts.Spec.UpdateStrategy = onDelete()
 			}
-			sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = ptr(encryptedLocalStorageClass)
-			sts.Spec.Template.Spec.Containers[0].Resources.Requests[kuraDiskResource] = resource.MustParse("32Gi")
+			sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = ptr(f.instance.Spec.StorageClassName)
+			sts.Spec.Template.Spec.Containers[0].Resources.Requests[kuraDiskResource] = diskReservation(f.instance)
 			templateHeld := tc.skipMark || tc.noLanding || tc.uncordoned || tc.multiple || tc.otherLegacy
 			if templateHeld {
 				delete(sts.Spec.Template.Spec.Containers[0].Resources.Requests, kuraDiskResource)
@@ -62,7 +68,7 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 			}
 			objects := []client.Object{f.instance, sts}
 			if !tc.noLanding {
-				objects = append(objects, &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "prepared-spare"}, Status: corev1.NodeStatus{Allocatable: corev1.ResourceList{kuraDiskResource: resource.MustParse("64Gi")}, Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}}})
+				objects = append(objects, &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "prepared-spare", Labels: map[string]string{"tuist.dev/kura-thin-ready": "true", "node.cluster.x-k8s.io/pool": "kura"}}, Status: corev1.NodeStatus{Allocatable: corev1.ResourceList{kuraDiskResource: resource.MustParse("64Gi")}, Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}}})
 			}
 			statuses := map[string]runtimeStatus{}
 			for i := 0; i < int(replicas(f.instance)); i++ {
