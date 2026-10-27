@@ -255,3 +255,7 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   Claim writes/events are a `kura` Role. Run the disposable real-API admission
   test and Helm tests in `../kura-volumes-csi/security/` when changing these
   rules. Do not install the test's intentionally broad role in hosted clusters.
+
+- This staging-only integration adds temporary OpenBao TokenReview RBAC in
+  `tuist-staging`. Remove it through the deployment workflow after validation.
+  It grants no operator privileges or application/Secret access.
