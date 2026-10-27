@@ -300,6 +300,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   even with no dirty archive pages. These bound Git's tunable working sets, not
   all allocations for arbitrary object counts or incoming delta chains; retain
   strict pack validation and synchronous GC, and validate with real Git.
+  The inheritance test accepts Trace2 config events without `scope` on older
+  Git (including the runner's 2.34), retaining the last value per process/key
+  so repository settings cannot hide missing command overrides.
 - `Checkouts.InUse` (each host passes `Store.InUse`) keeps pressure eviction
   off masters a job holds or is attaching: their blocks are shared, so evicting
   them frees nothing and the attaching job loses its seed.
@@ -350,3 +353,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   superblock checks, then the use is rebased on the server (`Rebaser`, the
   `rebase` image operation; a conflict is `ErrSuperseded`) and published as any
   branch. Without a merge a branch whose HEAD moved stays `ErrSuperseded`.
+
+- Replacement-image tests must keep the original inode allocated (rename it
+  aside before creating the replacement). Unlinking and immediately recreating
+  a file can reuse its inode on Linux, so it does not reliably exercise the
+  different-inode guard.

@@ -606,3 +606,10 @@ runnersFleet:
     - xcodeVersion: "26.3"
     - xcodeVersion: "26.1.1"
     - xcodeVersion: "26.0.1"
+
+# KVM is a standard managed Linux runner capability. Disable defaultEnabled
+# to roll pools back to the stock kernel while leaving host preparation intact.
+runnersFleetLinux:
+  nestedVirtualization:
+    enabled: true
+    defaultEnabled: true

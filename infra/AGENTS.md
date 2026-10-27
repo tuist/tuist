@@ -339,6 +339,8 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 
 - Shared runner-cache lifecycle: [`runner-cache/AGENTS.md`](runner-cache/AGENTS.md).
 
+- Linux runner pools with `nestedVirtualization` give the runner container `/dev/kvm` for Android emulators: a KVM-enabled Kata guest kernel ([`kata-kvm-kernel/AGENTS.md`](kata-kvm-kernel/AGENTS.md)), installed and proven per boot by the CAPI provider, plus a CDI-backed device plugin. Enabled on managed Linux pools with an internal rollback switch; self-hosted defaults stay off. See "Nested virtualization" in [`runners-controller/AGENTS.md`](runners-controller/AGENTS.md).
+
 ## Validation and operations references
 
 - Render Helm changes locally with `helm template` before any explicitly approved cluster validation; use leaf instructions for chart-specific placeholder values.
