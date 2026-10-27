@@ -43,7 +43,7 @@ env:
 jobs:
   test:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -67,7 +67,7 @@ jobs:
 
   test-macos-host-bootstrap:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -91,7 +91,7 @@ jobs:
 
   test-tart-kubelet:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -115,7 +115,7 @@ jobs:
 
   test-macos-log-shipper:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -151,7 +151,7 @@ jobs:
 
   test-macos-host-sensors:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -187,7 +187,7 @@ jobs:
     # edit to its regenerated manifest, and nothing else catches a manifest
     # edited by hand.
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -217,7 +217,7 @@ jobs:
   build:
     needs: [test, test-macos-host-bootstrap, test-macos-log-shipper, test-macos-host-sensors, test-tart-kubelet, generated]
     if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
