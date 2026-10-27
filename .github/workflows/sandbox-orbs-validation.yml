@@ -12,6 +12,10 @@ on:
       - .github/workflows/sandbox-orbs-validation.yml
   workflow_dispatch: {}
 
+concurrency:
+  group: sandbox-orbs-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -42,7 +46,9 @@ jobs:
           load: true
           push: false
           tags: sandbox-orbs-template:validation
-          cache-from: type=gha,scope=sandbox-image
+          cache-from: |
+            type=gha,scope=sandbox-orbs-validation
+            type=gha,scope=sandbox-image
           cache-to: type=gha,mode=max,scope=sandbox-orbs-validation
       - name: Build sandboxd
         uses: docker/build-push-action@v6

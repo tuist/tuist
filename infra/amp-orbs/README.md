@@ -59,7 +59,16 @@ Before enabling a real workspace, use staging to run a thread that writes a file
 
 Rollback: stop the provider, explicitly pause active Orbs, and retain their rows and jail directories. **Do not roll back to a server without the Amp retention exemption while Orbs exist**, because its sweeper would delete old Orbs. Keep the additive column/index until all Orbs are explicitly removed. No cluster overlay enables this provider automatically.
 
+## Isolated KVM validation
+
+`Sandbox Orbs Isolated Validation` runs on a disposable GitHub-hosted Ubuntu VM with `/dev/kvm`, independently of staging and the managed runner fleet. It builds the guest and daemon without publishing either, installs the guest on a private XFS reflink filesystem, and exercises the real jailer, Firecracker, guest agent and bootstrap helper. It checks duplicate bootstrap, file and process preservation across memory snapshots, fresh-token bootstrap replacement, a clean daemon restart, and repeated deletion. Logs and lifecycle responses are uploaded as a seven-day artifact; the containers, guests and loop filesystem are removed on exit.
+
+The checked-in driver is deliberately restricted to GitHub-hosted disposable runners because it needs privileged Docker, a loop device and mounts. GitHub Actions is a convenient isolated host, not a requirement of Amp or Tuist. A dedicated x86 Linux KVM host can run the same setup after adapting that environment guard and temporary-directory settings; do not point this test at a shared sandbox daemon.
+
+This credential-free check substitutes only the Amp bootstrap process inside its disposable guest. It proves real VM lifecycle behavior, not an authenticated Amp connection, the Tuist HTTP/database path, fleet admission or Kubernetes rollout. A complete live test additionally needs an isolated Tuist control plane and a dedicated Amp provider. Register it in workspace Settings → Orbs, retain its provider token privately, and choose it explicitly in a new test thread. An Amp API key is only needed to automate sending messages; a human can send them through the UI. The PR validation job never receives Amp credentials.
+
 ## Local validation
+
 
 ```sh
 node --test infra/amp-orbs/dispatch.test.mjs
