@@ -10,6 +10,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +19,115 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"golang.org/x/sys/unix"
 )
+
+func TestImageArchiveWritebackRoundTripAndResume(t *testing.T) {
+	for _, format := range []string{"sparse", "gzip"} {
+		t.Run(format, func(t *testing.T) {
+			dir := t.TempDir()
+			src, archive, dst := filepath.Join(dir, "image"), filepath.Join(dir, "archive"), filepath.Join(dir, "restored")
+			data := make([]byte, archiveWritebackBytes/2+(1<<20))
+			if _, err := rand.Read(data); err != nil {
+				t.Fatal(err)
+			}
+			file, err := os.Create(src)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, offset := range []int64{0, int64(len(data) + (4 << 20))} {
+				if _, err := file.WriteAt(data, offset); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := file.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if format == "sparse" {
+				if _, _, err := CompressImage(src, archive); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				in, err := os.Open(src)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer in.Close()
+				out, err := os.Create(archive)
+				if err != nil {
+					t.Fatal(err)
+				}
+				gz := gzip.NewWriter(out)
+				if _, err := io.Copy(gz, in); err != nil {
+					t.Fatal(err)
+				}
+				if err := errors.Join(gz.Close(), out.Close()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			info, err := os.Stat(archive)
+			if err != nil || info.Size() <= archiveWritebackBytes {
+				t.Fatal("fixture must cross the compressed writeback boundary", err)
+			}
+			// Resume an existing prefix, then restore non-zero extents on both sides
+			// of a hole. Download, zstd compression and both decoders cross the bound.
+			in, err := os.Open(archive)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer in.Close()
+			partial, err := os.Create(dst + ".part")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := io.CopyN(partial, in, 1<<20); err != nil {
+				t.Fatal(err)
+			}
+			if err := partial.Close(); err != nil {
+				t.Fatal(err)
+			}
+			requested := make(chan string, 1)
+			var server *httptest.Server
+			server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost {
+					w.Header().Set("Content-Type", "application/json")
+					io.WriteString(w, `{"generation":1,"download_url":"`+server.URL+`/object"}`)
+					return
+				}
+				requested <- r.Header.Get("Range")
+				http.ServeFile(w, r, archive)
+			}))
+			defer server.Close()
+			transfer := &HTTPTransfer{URL: server.URL, Client: server.Client(), MaxBytes: int64(2*len(data) + (4 << 20)), Token: func(context.Context) (string, error) { return "test", nil }}
+			slot := Slot{Identity: identity(first)}
+			slot.BaseGeneration, slot.ContentDigest = 1, archiveFileHash(t, archive)
+			if err := transfer.Download(context.Background(), slot, dst); err != nil {
+				t.Fatal(err)
+			}
+			if got := <-requested; got != "bytes=1048576-" {
+				t.Fatal("did not resume the prefix", got)
+			}
+			if archiveFileHash(t, src) != archiveFileHash(t, dst) {
+				t.Fatal("restoration changed bytes or sparse offsets")
+			}
+			if _, err := os.Stat(dst + ".part"); !os.IsNotExist(err) {
+				t.Fatal("kept completed archive", err)
+			}
+		})
+	}
+}
+
+func archiveFileHash(t *testing.T, path string) string {
+	t.Helper()
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		t.Fatal(err)
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
 
 func TestImageArchiveRestoresIncompressibleImageAtCapacity(t *testing.T) {
 	dir := t.TempDir()
