@@ -32,6 +32,10 @@ raise "cannot inspect kernel device-mapper targets: #{error}" unless status.succ
 unless targets.lines.any? { |line| line.match?(/\Athin-pool\s/) }
   raise 'host prerequisite missing: load dm_thin_pool and configure its availability after reboot before preparing thin storage'
 end
+checker = '/usr/sbin/thin_check'
+raise 'host prerequisite missing: install thin-provisioning-tools before preparing thin storage' unless File.executable?(checker)
+_, error, status = Open3.capture3(checker, '--version')
+raise "thin metadata checker unavailable: #{error}" unless status.success?
 config = 'devices { use_devicesfile = 0 obtain_device_list_from_udev = 0 } activation { udev_sync = 0 udev_rules = 0 } backup { backup = 0 archive = 0 }'
 run = lambda do |command, *args|
   output, error, status = Open3.capture3(command, '--config', config, *args)

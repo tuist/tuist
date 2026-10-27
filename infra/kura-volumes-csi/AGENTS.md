@@ -183,3 +183,9 @@ Thin mappings additionally enable discard and `--perf-submit_from_crypt_cpus`;
 legacy mappings keep their existing settings. Fresh thin pools use 512 KiB
 chunks. These are measured candidates, not permission to enable overcommit;
 retain the physical allocation and safety gates in `thin/validation.md`.
+
+The runtime image must include `thin-provisioning-tools`; LVM otherwise warns
+and skips `thin_check` on activation. The Docker build verifies the installed
+checker and pool preparation refuses to mutate a VG without it. Do not treat VM
+qualification with host-installed tooling as proof that the packaged image has
+those tools. Never run offline metadata checks against a live metadata device.

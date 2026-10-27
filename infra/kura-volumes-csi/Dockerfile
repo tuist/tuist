@@ -28,10 +28,13 @@ FROM ubuntu:${UBUNTU_VERSION}
 
 # ca-certificates: the key fetch verifies the server's public TLS certificate.
 # lvm2: volumes live in the node's volume group when it has one.
+# thin-provisioning-tools: LVM must check thin metadata during activation.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates cryptsetup-bin lvm2 xfsprogs util-linux mount \
+    && apt-get install -y --no-install-recommends ca-certificates cryptsetup-bin lvm2 thin-provisioning-tools xfsprogs util-linux mount \
     && rm -rf /var/lib/apt/lists/* \
-    && test -s /etc/ssl/certs/ca-certificates.crt
+    && test -s /etc/ssl/certs/ca-certificates.crt \
+    && test -x /usr/sbin/thin_check \
+    && /usr/sbin/thin_check --version
 
 COPY --from=builder /out/kura-volumes-csi /usr/local/bin/kura-volumes-csi
 
