@@ -3462,3 +3462,13 @@ scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
 
 - macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+### Scaleway processor maintenance
+
+`ScalewayAppleSiliconMachine` accepts explicit `tuist.dev/os-update` requests for
+the xcresult fleet. See [serialized maintenance](scaleway-os-maintenance.md) for
+requirements, the plan-first task, status phases, the persistent fleet lock and
+canary/rollback checks. The controller pauses only its configured Deployment,
+evicts through namespace-scoped RBAC, and waits for the guest drain before an
+install. Failures retain owned holds; never clear a fleet Lease just to advance
+another host. No release-triggered or scheduled OS policy is enabled.
