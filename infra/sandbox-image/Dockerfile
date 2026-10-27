@@ -18,6 +18,7 @@ ARG KERNEL_URL=https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.15/x86_6
 ARG KERNEL_SHA256=
 ARG NODE_MAJOR=22
 ARG ANT_VERSION=1.30.0
+ARG AMP_VERSION=0.0.1793104576-gc52692
 ARG ROOTFS_SIZE=8G
 ARG VERSION=dev
 
@@ -75,6 +76,19 @@ if [ -x /usr/local/bin/mise ]; then
     esac
 fi
 EOF
+
+# Amp's custom-image contract requires a glibc Linux binary and a `user`
+# account with passwordless sudo. Pin the CLI and verify its published hash.
+ARG AMP_VERSION
+RUN curl -fsSL --retry 3 "https://static.ampcode.com/cli/${AMP_VERSION}/amp-linux-x64" -o /usr/local/bin/amp \
+    && curl -fsSL --retry 3 "https://static.ampcode.com/cli/${AMP_VERSION}/linux-x64-amp.sha256" -o /tmp/amp.sha256 \
+    && echo "$(cat /tmp/amp.sha256)  /usr/local/bin/amp" | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/amp && rm /tmp/amp.sha256 \
+    && groupadd user && useradd --create-home --gid user --shell /bin/bash user \
+    && echo 'user ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/amp-user \
+    && chmod 0440 /etc/sudoers.d/amp-user \
+    && visudo -cf /etc/sudoers.d/amp-user
+COPY --chmod=0755 orb-bootstrap.sh /usr/local/bin/sbx-orb-bootstrap
 
 RUN locale-gen en_US.UTF-8 && update-locale LANG=C.UTF-8 \
     && git lfs install --system --skip-repo \

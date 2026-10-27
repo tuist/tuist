@@ -27,6 +27,7 @@ defmodule Tuist.Sandboxes.Sandbox do
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "sandboxes" do
     field :anthropic_session_id, :string
+    field :amp_orb_id, :string
     field :template, :string
     field :template_tag, :string
     field :vcpus, :integer
@@ -77,6 +78,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :account_id,
       :agent_environment_id,
       :anthropic_session_id,
+      :amp_orb_id,
       :template,
       :vcpus,
       :memory_mb,
@@ -86,6 +88,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     |> validate_format(:template, ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
     |> validate_shape()
     |> unique_constraint([:agent_environment_id, :anthropic_session_id])
+    |> unique_constraint([:account_id, :amp_orb_id])
   end
 
   def update_changeset(sandbox, attrs) do

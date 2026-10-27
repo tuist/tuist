@@ -104,6 +104,7 @@ defmodule TuistWeb.API.SandboxesController do
       node_name: %Schema{type: :string, nullable: true},
       hostname: %Schema{type: :string, nullable: true},
       agent_environment_id: %Schema{type: :integer, nullable: true},
+      amp_orb_id: %Schema{type: :string, nullable: true},
       anthropic_session_id: %Schema{type: :string, nullable: true},
       residency_work_id: %Schema{type: :string, nullable: true},
       last_active_at: %Schema{type: :string, format: "date-time", nullable: true},
@@ -151,6 +152,62 @@ defmodule TuistWeb.API.SandboxesController do
     service_unavailable: {"No sandbox node is available", "application/json", Error},
     gateway_timeout: {"The sandbox node did not answer in time", "application/json", Error}
   }
+
+  operation(:dispatch_amp_orb,
+    summary: "Dispatch a self-hosted Amp Orb lifecycle job.",
+    description:
+      "Idempotently spawns, pauses or deletes an account's Orb. Uses the installed Firecracker template; project snapshots and arbitrary OCI images are not imported.",
+    operation_id: "dispatchAmpOrb",
+    parameters:
+      @account_parameters ++
+        [
+          orb_id: [
+            in: :path,
+            required: true,
+            schema: %Schema{type: :string, minLength: 1, maxLength: 255, pattern: "^[a-zA-Z0-9_-]+$"}
+          ]
+        ],
+    request_body:
+      {"Orb job", "application/json",
+       %Schema{
+         title: "DispatchAmpOrb",
+         type: :object,
+         properties:
+           Map.merge(@shape_properties, %{
+             operation: %Schema{type: :string, enum: ["spawn", "pause", "delete"]},
+             orb_token: %Schema{type: :string, minLength: 1, maxLength: 16_384, writeOnly: true},
+             amp_url: %Schema{type: :string, format: :uri, pattern: "^https://", maxLength: 2048}
+           }),
+         required: [:operation]
+       }},
+    responses:
+      @error_responses
+      |> Map.merge(@node_error_responses)
+      |> Map.merge(%{
+        no_content: "The Orb operation completed",
+        bad_request: {"Invalid job", "application/json", Error}
+      })
+  )
+
+  def dispatch_amp_orb(
+        %{assigns: %{selected_account: account}, params: %{orb_id: orb_id}, body_params: params} = conn,
+        _params
+      ) do
+    if params.operation == "spawn" and is_nil(Map.get(params, :orb_token)) do
+      conn |> put_status(:bad_request) |> json(%{message: "orb_token is required for spawn."})
+    else
+      case Sandboxes.dispatch_amp_orb(account, orb_id, params) do
+        {:ok, _sandbox} ->
+          send_resp(conn, :no_content, "")
+
+        {:error, :orb_bootstrap_failed} ->
+          conn |> put_status(:bad_gateway) |> json(%{message: "Orb bootstrap failed. Check the sandbox image."})
+
+        {:error, reason} ->
+          sandbox_error(conn, reason)
+      end
+    end
+  end
 
   operation(:create_agent_environment,
     summary: "Connect an Anthropic self-hosted environment to the account.",
@@ -579,6 +636,7 @@ defmodule TuistWeb.API.SandboxesController do
       :hostname,
       :agent_environment_id,
       :anthropic_session_id,
+      :amp_orb_id,
       :residency_work_id,
       :last_active_at,
       :paused_at,
