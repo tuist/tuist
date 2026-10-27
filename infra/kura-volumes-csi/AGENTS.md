@@ -123,8 +123,9 @@ The driver advertises `tuist.dev/kura-disk` as VG size minus non-Kura LVs,
 including the 128 GiB `data` LV. It advertises total reservable capacity, not
 free extents: kube-scheduler subtracts pod reservations. The server additionally
 accounts for retained volumes. The driver removes capacity on nodes without the
-VG and does not silently use files for plain volumes. First-boot conversion,
-regional opt-in and rollback sequencing are in [LVM rollout](lvm-rollout.md).
+VG and does not silently use files for plain volumes. Prepare replacement LVM
+capacity before regional enrollment. Retain CSI and LVM-aware admission across
+rollback; disabling enrollment is not a safe rollback onto the smaller `/data`.
 
 ## Staged encrypted migration and racks
 
@@ -141,8 +142,6 @@ rented plugin. `go test ./...` requires Helm for this check. LVM-enrolled region
 now encrypt by default; plain CSI remains available for diagnostics. Rack fresh
 installation uses curtin LVM; old hosts need a planned migration/reinstall.
 
-The [staged rollout report](staged-rollout-report.md) records the live migration,
-release isolation and recovery evidence, with a pinned link to historical results.
 Keep the reusable [rollout probe](cmd/rollout-probe/AGENTS.md) under `cmd/`;
 generated run output belongs outside the source tree.
 

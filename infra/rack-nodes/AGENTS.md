@@ -1444,4 +1444,3 @@ complete backfill before its original claim is replaced. Both replicas need
 prepared capacity; an in-place reinstall of the only storage host is an outage.
 Reserve the 128 GiB data LV for images/system/auxiliary volumes (including any
 image cache); grow it before enabling auxiliary claims that exceed that budget.
-See [the migration runbook](../kura-volumes-csi/lvm-rollout.md).

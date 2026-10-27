@@ -3469,5 +3469,5 @@ successful Vultr conversion records are not invalidated by this change.
 Rack storage installs create the same VG and 128 GiB data LV directly through
 curtin in `internal/rackinstall/seed.go`, for both USB and resident-installer
 layouts. Existing rack disks are never converted by bootstrap or drift. Machine deletion also reaps claims pinned
-by `topology.kura-volumes.tuist.dev/node`. See
-[LVM rollout](../kura-volumes-csi/lvm-rollout.md) for sequencing and rollback.
+by `topology.kura-volumes.tuist.dev/node`. Evacuate workloads and retained claims
+before deleting an outgoing Machine; prepare replacement capacity first.

@@ -255,7 +255,7 @@ The controller image also packages the stateless `cmd/cache-activation` gateway,
   `ephemeral-storage`. Legacy regions keep request-only ephemeral admission.
   Pending-pod shrink recovery and resize holds must compare the selected disk
   resource and preserve operator pauses. `kura-lvm-nvme` is node-local just
-  like the encrypted class. See [LVM rollout](../kura-volumes-csi/lvm-rollout.md).
+  like the encrypted class.
 
 LVM enrollment treats a PVC without CSI `backing: lvm` evidence as a storage
 migration even when its class is unchanged. Hold the template before changing

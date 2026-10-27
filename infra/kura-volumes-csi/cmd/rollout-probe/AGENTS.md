@@ -1,6 +1,6 @@
 # Kura rollout probe
 
-`main.go` is the bounded HTTP probe used by the [staged rollout report](../../staged-rollout-report.md).
+`main.go` is a bounded HTTP probe for checking cache traffic during staged rollouts.
 It seeds random 16 KiB objects, verifies the saved corpus byte-for-byte, or runs
 concurrent reads/writes against an explicitly supplied URL. Tokens are read from
 a file and never logged. Corpus and token files must not be committed. It has no

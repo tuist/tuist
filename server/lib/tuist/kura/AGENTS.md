@@ -62,7 +62,7 @@
   revision includes this choice in both the desired revision and manifest.
   Capacity totals, reservations, retained volumes and placement simulation all
   use the region's disk resource; they must never substitute `/data` free space
-  for missing LVM capacity. See `infra/kura-volumes-csi/lvm-rollout.md`.
+  for missing LVM capacity.
 
 - [Volume-key providers](volume_keys/AGENTS.md) support `aws_kms` with explicit
   full key ARNs and a dedicated projected STS identity. Partial KMS configuration

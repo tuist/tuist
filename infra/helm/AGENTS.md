@@ -255,7 +255,7 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
 - `kuraVolumesCSI.lvmRegions` renders `TUIST_KURA_LVM_REGIONS` on the server.
   It defaults empty and must be enabled per environment only with the matching
   node-layout rollout. Both `kura-lvm-nvme` and `kura-encrypted-nvme` need the CSI
-  driver retained across rollback. See `../kura-volumes-csi/lvm-rollout.md`.
+  driver retained across rollback.
 
 - `server.config.kuraVolumeKMS` adds only a dedicated projected STS token to the
   web server, plus explicit wrapping/decrypt ARNs and role. Legacy root sync
