@@ -8,6 +8,60 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  describe "runner_linux_vrack_enabled?/1" do
+    test "requires explicit opt-in in every environment" do
+      account = %Account{id: 42, name: "tuist"}
+
+      for env <- [:prod, :stag, :can, :dev, :test] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :runner_linux_vrack, [for: ^account] -> false end)
+        refute FeatureFlags.runner_linux_vrack_enabled?(account)
+        expect(FunWithFlags, :enabled?, fn :runner_linux_vrack, [for: ^account] -> true end)
+        assert FeatureFlags.runner_linux_vrack_enabled?(account)
+      end
+    end
+
+    test "snapshot evaluation preserves account opt-out from a global rollout" do
+      account = %Account{id: 42, name: "tuist"}
+      other = %Account{id: 43, name: "other"}
+
+      flags = %{
+        runner_linux_vrack: %FunWithFlags.Flag{
+          name: :runner_linux_vrack,
+          gates: [
+            %FunWithFlags.Gate{type: :boolean, enabled: true},
+            %FunWithFlags.Gate{type: :actor, for: "account:42", enabled: false}
+          ]
+        }
+      }
+
+      refute FeatureFlags.runner_linux_vrack_enabled?(account, flags)
+      assert FeatureFlags.runner_linux_vrack_enabled?(other, flags)
+    end
+  end
+
+  describe "immutable_shard_reports_enabled?/1" do
+    test "coverage-enabled accounts cannot create immutable plans" do
+      account = %Account{id: 42, name: "tuist"}
+      stub(Environment, :env, fn -> :prod end)
+
+      for coverage? <- [true, false] do
+        stub(FunWithFlags, :enabled?, fn
+          :immutable_shard_reports, [for: ^account] -> true
+          :xcode_coverage, [for: ^account] -> coverage?
+        end)
+
+        assert FeatureFlags.immutable_shard_reports_enabled?(account) == not coverage?
+      end
+    end
+
+    test "environments with coverage enabled by default remain on legacy plans" do
+      stub(Environment, :env, fn -> :stag end)
+      expect(FunWithFlags, :enabled?, fn :immutable_shard_reports, _ -> true end)
+      refute FeatureFlags.immutable_shard_reports_enabled?(%Account{id: 42, name: "tuist"})
+    end
+  end
+
   describe "kura_stable_hostname_enabled?/1" do
     test "staging and production require an explicit account or global flag" do
       account = %Account{id: 42, name: "tuist"}
@@ -112,31 +166,6 @@ defmodule Tuist.FeatureFlagsTest do
 
         refute FeatureFlags.runner_site_enabled?(account)
       end
-    end
-  end
-
-  describe "runner_cache_volumes_per_repository_enabled?/0" do
-    test "requires the flag in canary and production" do
-      for env <- [:can, :prod] do
-        stub(Environment, :env, fn -> env end)
-        expect(FunWithFlags, :enabled?, fn :runner_cache_volumes_per_repository -> false end)
-
-        refute FeatureFlags.runner_cache_volumes_per_repository_enabled?()
-      end
-    end
-
-    test "is on once the flag is enabled" do
-      stub(Environment, :env, fn -> :prod end)
-      expect(FunWithFlags, :enabled?, fn :runner_cache_volumes_per_repository -> true end)
-
-      assert FeatureFlags.runner_cache_volumes_per_repository_enabled?()
-    end
-
-    test "is on elsewhere without consulting the flag" do
-      stub(Environment, :env, fn -> :stag end)
-      reject(FunWithFlags, :enabled?, 1)
-
-      assert FeatureFlags.runner_cache_volumes_per_repository_enabled?()
     end
   end
 

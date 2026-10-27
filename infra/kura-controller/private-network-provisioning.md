@@ -3,7 +3,8 @@
 The environment's `capi.ovhPrivateNetwork` configuration names an already
 provisioned vRack and a reserved private IPv4 CIDR. The CAPI provider reconciles
 cache-tainted OVH machines in its own namespace, including existing Ready
-machines. Runner machines are excluded. MachineDeployment `OnDelete` does not
+machines. Kata runner machines participate only when `spec.vRackID` explicitly
+matches that environment’s vRack; legacy runners without a private NIC stay excluded. MachineDeployment `OnDelete` does not
 prevent this additive repair; no machine replacement or OS reinstall is used.
 
 Address reservations live in a separate controller-owned ConfigMap and survive
@@ -43,7 +44,10 @@ The script probes private next hops before attesting route installation. The
 controller publishes a common membership digest only after the script succeeds,
 and publishes the scheduling label after every participating host has installed
 that same membership. This prevents a new host from advertising a private path
-before its existing peers have installed routes to it.
+before its existing peers have installed routes to it. While a host waits,
+its `PrivateNetworkReady` condition is False with reason `WaitingForPeerRoutes`
+and names every lagging peer. The lagging peer's own condition carries the
+failure that keeps it behind, with reason `ConfigurationFailed`.
 
 `kuraController.privateReplication.enabled` derives runtime topology from the
 actual provider IDs and matching route attestations of all candidate Nodes.

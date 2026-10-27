@@ -15,10 +15,18 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     project: project
   } do
     # When
-    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
 
     # Then
     assert html =~ "Settings"
+    assert html =~ "Default branch"
+    assert html =~ "Project logo"
+    refute has_element?(lv, "#oidc-trust-policies")
+
+    refute has_element?(
+             lv,
+             ~s(a[href="/#{organization.account.name}/#{project.name}/settings/authentication"])
+           )
   end
 
   test "report publishing has no dashboard control even when enabled for the instance", %{
@@ -32,6 +40,23 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
       {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
       refute html =~ "Network-trusted"
       refute has_element?(lv, "button[phx-click=toggle_network_trusted_builds]")
+    end
+  end
+
+  test "shows automations only for build systems that apply quarantine", %{
+    conn: conn,
+    organization: organization
+  } do
+    for {system, shown?} <- [xcode: true, bazel: true, mix: true, gradle: false, cargo: false] do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: system)
+      base = "/#{organization.account.name}/#{project.name}"
+
+      for page <- ["/settings", "/settings/automations"] do
+        {:ok, lv, _html} = live(conn, base <> page)
+
+        assert has_element?(lv, "a[href='#{base}/settings/automations']", "Automations") == shown?,
+               "#{system} #{page}"
+      end
     end
   end
 

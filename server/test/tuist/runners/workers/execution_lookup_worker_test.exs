@@ -1,6 +1,7 @@
 defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import ExUnit.CaptureLog
   import Mimic
 
   alias Tuist.GitHub.Client
@@ -103,7 +104,31 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
     assert Repo.reload!(session).executed_workflow_job_id == executed.workflow_job_id
   end
 
+  test "binds a job GitHub placed on the runner while it still reports the job queued", %{account: account} do
+    Logger.put_module_level(ExecutionLookupWorker, :info)
+    on_exit(fn -> Logger.delete_module_level(ExecutionLookupWorker) end)
+    minted = workflow_job(account, %{})
+    executed = workflow_job(account, %{repository: "org/other", status: "queued"})
+    session = session(account, minted)
+
+    expect(Client, :list_workflow_run_jobs, 2, fn
+      _installation, "org/repo", _run_id ->
+        {:ok, [%{id: minted.workflow_job_id, status: "queued", runner_name: nil}]}
+
+      _installation, "org/other", _run_id ->
+        {:ok, [%{id: executed.workflow_job_id, status: "queued", runner_name: "pod-runner"}]}
+    end)
+
+    log = capture_log([level: :info], fn -> assert :ok = perform(session) end)
+
+    assert Repo.reload!(session).executed_workflow_job_id == executed.workflow_job_id
+    assert log =~ "recorded execution from GitHub API"
+    assert log =~ "GitHub status queued"
+  end
+
   test "leaves the session unbound when no run has a job running on its runner", %{account: account} do
+    Logger.put_module_level(ExecutionLookupWorker, :info)
+    on_exit(fn -> Logger.delete_module_level(ExecutionLookupWorker) end)
     minted = workflow_job(account, %{})
     session = session(account, minted)
 
@@ -111,7 +136,9 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
       {:ok, [%{id: minted.workflow_job_id, status: "completed", runner_name: "pod-runner"}]}
     end)
 
-    assert :ok = perform(session)
+    log = capture_log([level: :info], fn -> assert :ok = perform(session) end)
+
+    assert log =~ "execution lookup found no job GitHub reports running on this runner"
     assert is_nil(Repo.reload!(session).executed_workflow_job_id)
   end
 

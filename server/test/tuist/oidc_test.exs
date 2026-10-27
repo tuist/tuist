@@ -84,7 +84,7 @@ defmodule Tuist.OIDCTest do
     test "returns error for unsupported CI provider" do
       {token, _jwks} = generate_test_token_and_jwks(issuer: "https://gitlab.com")
 
-      assert {:error, :unsupported_provider, "https://gitlab.com"} = OIDC.claims(token)
+      assert {:error, :oidc_account_required} = OIDC.claims(token)
     end
 
     test "successfully verifies a valid CircleCI OIDC token" do

@@ -17,6 +17,19 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
+    test "workload authentication documents account-wide access and shared-provider trust boundaries" do
+      guide = Docs.get_page("/en/guides/server/authentication").markdown
+      assert guide =~ "only the `ci` scope group and covers all current and future projects"
+      assert guide =~ "without granting project creation, project administration, runner administration"
+      assert guide =~ "bind the policy to your organization or tenant"
+      assert guide =~ "not only `ref`"
+      assert guide =~ "cache poisoning"
+      assert guide =~ "upgrade every serving Tuist server replica before configuring workload identities"
+      assert guide =~ "Deleting a policy does not immediately revoke those tokens"
+      assert guide =~ "access tokens that were already issued remain valid until they expire"
+      refute guide =~ "projects explicitly selected"
+    end
+
     test "cache documentation exposes Rust with its experimental qualification" do
       index = Docs.get_page("/en/index").markdown
       assert index =~ "supported_for=\"apple,gradle,bazel,rust\""
@@ -25,7 +38,11 @@ defmodule Tuist.DocsTest do
       cache = Docs.get_page("/en/guides/features/cache").markdown
       assert cache =~ "Rust cache (experimental)"
       assert cache =~ "supported_for=\"rust\""
-      assert cache =~ "/guides/features/build-insights/rust#cache-measurements"
+      assert cache =~ "/guides/features/cache/rust"
+
+      assert Docs.get_page("/en/guides/features/cache/rust").markdown =~
+               "/guides/features/build-insights/rust#cache-measurements"
+
       guide = Docs.get_page("/en/guides/features/build-insights/rust").markdown
       assert guide =~ "{#cache-measurements}"
       assert guide =~ "registry leaf libraries"
@@ -161,10 +178,16 @@ defmodule Tuist.DocsTest do
       assert migration_page.body =~ "localized_link"
     end
 
-    test "self-hosting documents the instance-wide reporting configuration and separate client opt-in" do
+    test "self-hosting documents instance-wide reporting configuration and automatic client discovery" do
       page = Docs.get_page("/en/guides/server/self-host/server")
       assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true"
-      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
+      assert page.markdown =~ "No client-side opt-in is required"
+      assert page.markdown =~ "GET /.well-known/tuist.json"
+      assert page.markdown =~ "does not follow redirects"
+      assert page.markdown =~ "Upgrade the server before credential-free clients"
+      assert page.markdown =~ "tools sharing a credential directory"
+      assert page.markdown =~ "discovery manifest does not probe"
+      refute page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
       assert page.markdown =~ "all existing and newly created"
       assert page.markdown =~ "across every account on the instance"
       assert page.markdown =~ "reads the variable at startup"

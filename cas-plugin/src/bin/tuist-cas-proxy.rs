@@ -32,6 +32,23 @@ use tuist_cas_plugin::token::TokenProvider;
 // token::TokenProvider::refresh_if_expiring).
 const TOKEN_REFRESH_LEAD: std::time::Duration = std::time::Duration::from_secs(25);
 
+/// The Tuist release this binary ships in, stamped by `cli:bundle`. Builds
+/// outside a release report the crate version.
+const VERSION: &str = match option_env!("TUIST_CAS_RELEASE_VERSION") {
+    Some(version) => version,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
+const USAGE: &str = "\
+usage: tuist-cas-proxy
+       tuist-cas-proxy --drain <cas-path> [--socket <path>] [--timeout-ms <n>]
+       tuist-cas-proxy --prune <cas-path> [--socket <path>] [--limit-bytes <n>]
+       tuist-cas-proxy --version
+       tuist-cas-proxy --help
+
+Without arguments, serves the machine's compilation cache on
+TUIST_CAS_PROXY_SOCKET. `tuist setup cache` runs it for you.
+";
 
 /// `--drain <cas-path> [--timeout-ms <n>]`: ask the RUNNING proxy whether every
 /// publication it holds for that CAS path has reached the remote, and wait for
@@ -166,6 +183,24 @@ fn main() {
     if arguments.iter().any(|argument| argument == "--prune") {
         std::process::exit(prune(&arguments));
     }
+    // Serving takes over the machine's socket, so only a bare invocation may
+    // reach it.
+    match arguments.as_slice() {
+        [] => {}
+        [command] if matches!(command.as_str(), "version" | "--version" | "-V") => {
+            println!("{VERSION}");
+            return;
+        }
+        [command] if matches!(command.as_str(), "help" | "--help" | "-h") => {
+            print!("{USAGE}");
+            return;
+        }
+        _ => {
+            eprintln!("tuist-cas-proxy: unrecognized arguments: {}", arguments.join(" "));
+            eprint!("{USAGE}");
+            std::process::exit(64);
+        }
+    }
 
     let socket_path = std::env::var("TUIST_CAS_PROXY_SOCKET")
         .ok()
@@ -189,6 +224,13 @@ fn main() {
         // Owner-only: the socket carries this user's cache token, so no other
         // user on the machine may reach it.
         let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700));
+    }
+    // A proxy still listening keeps serving builds; unlinking its socket would
+    // leave it running unreachable. A socket left by a proxy that exited
+    // refuses the connection and is replaced.
+    if std::os::unix::net::UnixStream::connect(&socket_path).is_ok() {
+        eprintln!("another tuist-cas-proxy is already listening on {socket_path}");
+        std::process::exit(2);
     }
     let _ = std::fs::remove_file(&socket_path);
     let listener = match UnixListener::bind(&socket_path) {

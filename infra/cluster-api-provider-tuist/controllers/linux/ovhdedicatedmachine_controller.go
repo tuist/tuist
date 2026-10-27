@@ -353,7 +353,10 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		machine.Status.Phase = "Ready"
 		conditions.MarkTrue(machine, NodeReadyCondition)
 		networkErr := r.reconcilePrivateNetwork(ctx, machine, node)
-		if networkErr != nil {
+		var pending *privateNetworkPending
+		if errors.As(networkErr, &pending) {
+			logger.V(1).Info("private network waiting for peer routes", "peers", pending.peers)
+		} else if networkErr != nil {
 			logger.Error(networkErr, "private network repair failed; will retry")
 		}
 		if machine.Status.FailureReason == nil {

@@ -196,9 +196,7 @@ type Config struct {
 	// TakeOver marks the push that takes a rack host's runtime over from
 	// another env. Tailscale logs in afresh (`--force-reauth`), so the device
 	// joins with this config's credential and tags rather than keeping the
-	// ones it has, and what the previous owner's server alone can answer is
-	// dropped: tart-kubelet's queued cache-volume usage reports (see
-	// dropPreviousOwnerState). Per host, set only on that one push.
+	// ones it has. Per host, set only on that one push.
 	TakeOver bool
 
 	// RuntimeOwner is the env whose operator pushes this config, checked
@@ -435,37 +433,22 @@ type Config struct {
 
 	// RunnerCacheVolumeGiB, when > 0, provisions a dedicated quota-bounded
 	// APFS volume (mounted at /Volumes/tuist-runner-cache) that holds the
-	// per-account cache-volume images, and passes
-	// `--runner-cache-root` to tart-kubelet so the feature turns on. The
-	// quota is the aggregate ceiling for ALL cache volumes on the host: it
-	// is the filesystem-enforced bound that statically encodes the priority
-	// that cache volumes always lose to the VM image path — even a buggy
-	// reconciler can only ENOSPC the cache volume itself, never the disk the
-	// golden clones need. Sized at provisioning as what the disk leaves
-	// after golden images, the max concurrent pod clones, and OS headroom.
-	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
+	// runner cache volumes, and passes `--runner-cache-root` and
+	// `--runner-cache-budget-gib` to tart-kubelet so the feature turns on.
+	// It is the budget: the space ALL cache volumes on the host may take
+	// together, which admission and eviction enforce. The volume's quota is
+	// fixed when the volume is created: half the disk, or the budget when that
+	// is larger, on a disk of 1 TiB or more, and the budget on a smaller one.
+	// It is the filesystem-enforced bound that keeps even a buggy reconciler
+	// from taking the disk the golden clones need. The gap between the quota
+	// and the budget is what absorbs custom cache volume jobs that write more
+	// than admission reserved for them. A budget within an
+	// existing volume's quota applies with the next host-config push.
+	// 0 (default) leaves cache volumes off.
 	RunnerCacheVolumeGiB      int
 	CustomCacheURL            string
 	CustomCacheNamespace      string
 	CustomCacheServiceAccount string
-
-	// CacheVolumeMasterCapGiB is the provisioned cap of each per-account
-	// master image, passed to tart-kubelet's --cache-volume-cap-gib. The
-	// image is sparse so this is a ceiling, not an allocation; the
-	// RunnerCacheVolumeGiB quota above is the real aggregate bound. 0
-	// defaults to tart-kubelet's own default (20 GiB). Only meaningful when
-	// RunnerCacheVolumeGiB > 0.
-	CacheVolumeMasterCapGiB int
-
-	// CacheVolumeCASGiB is the Xcode compilation cache's FOOTPRINT allowance
-	// WITHIN each per-account cache image (folded in as a subdir), passed to
-	// tart-kubelet's --cache-volume-cas-gib. It is the CAS's share of
-	// CacheVolumeMasterCapGiB; the binary cache gets the rest minus a reserve.
-	// The compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE, which
-	// bounds one generation of a store that keeps two — so this is what the
-	// store should OCCUPY. 0 (default) leaves the compilation cache VM-local.
-	// Only meaningful when RunnerCacheVolumeGiB > 0.
-	CacheVolumeCASGiB int
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -506,9 +489,6 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	// After passwordless sudo, which the claim needs; before anything of the
 	// runtime.
 	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
-		return hk.Observed(), err
-	}
-	if err := dropPreviousOwnerState(ctx, client, cfg); err != nil {
 		return hk.Observed(), err
 	}
 	if err := EnableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
@@ -604,6 +584,11 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installHostSensors(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
 	}
+	// Last and best-effort: the tools only enable cached checkouts, so a slow
+	// or failed install must never cost the host anything else.
+	if err := installCommandLineTools(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install command line tools: %w", err)
+	}
 	return hk.Observed(), nil
 }
 
@@ -671,9 +656,6 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (fingerprint string, err
 	defer stop()
 
 	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
-		return hk.Observed(), err
-	}
-	if err := dropPreviousOwnerState(ctx, client, cfg); err != nil {
 		return hk.Observed(), err
 	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
@@ -753,6 +735,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (fingerprint string, err
 	}
 	if err := installHostSensors(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
+	}
+	if err := installCommandLineTools(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install command line tools: %w", err)
 	}
 	return hk.Observed(), nil
 }
@@ -894,10 +879,12 @@ func hostConfigMaterial(cfg Config) string {
 		{"tailnet-resolver", renderTailnetResolverScript()},
 		{"local-network-allowlist", renderLocalNetworkAllowlistScript()},
 		{"software-update-policy", renderSoftwareUpdatePolicyScript()},
+		{"command-line-tools", renderCommandLineToolsScript()},
 		{"setup-assistant", renderSetupAssistantScript(cfg)},
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"host-sensors", renderHostSensorsScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
+		{"tart-kubelet-probe", renderTartKubeletProbeScript(tartKubeletPath, "")},
 		{"tart-install", renderTartInstallScript(hostTartLayout, cfg.TartVersion)},
 		{"tart-prune", renderTartPruneScript(hostTartLayout)},
 		{"ssh-reachability", renderSSHReachabilityScript()},
@@ -959,44 +946,6 @@ sudo tee /etc/tart-kubelet/kubeconfig >/dev/null
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 `
 	return RunCommandWithStdin(ctx, client, script, strings.NewReader(kubeconfig))
-}
-
-// installTartKubelet uploads the operator-baked tart-kubelet binary
-// to /usr/local/bin/tart-kubelet on the Mac mini and marks it
-// executable. We pipe the bytes via stdin into `sudo tee` rather than
-// downloading from an external URL — the operator's image is the
-// single source of truth for the kubelet version, so deploying a new
-// operator image rolls a new kubelet across the fleet.
-//
-// Always overwrites. The reconciler's drift detection prevents
-// unnecessary calls (it compares the operator's binary SHA to the
-// last-applied SHA in the CR's status).
-func installTartKubelet(ctx context.Context, client *ssh.Client, binary []byte) error {
-	if len(binary) == 0 {
-		return fmt.Errorf("tart-kubelet binary is empty")
-	}
-	return RunCommandWithStdin(ctx, client, renderTartKubeletInstallScript(), bytes.NewReader(binary))
-}
-
-// renderTartKubeletInstallScript is the static SSH script that lands the
-// uploaded tart-kubelet binary. The binary bytes themselves ride stdin;
-// their drift is tracked by the binary SHA, so this script carries no
-// host- or binary-specific input and is included verbatim in the host
-// config hash.
-func renderTartKubeletInstallScript() string {
-	return `set -euo pipefail
-sudo mkdir -p /usr/local/bin
-sudo tee /usr/local/bin/tart-kubelet >/dev/null
-sudo chmod 0755 /usr/local/bin/tart-kubelet
-# Re-sign in place. The binary already carries a valid Go linker ad-hoc
-# signature, but overwriting /usr/local/bin/tart-kubelet at the same inode
-# leaves macOS's AMFI validating the new pages against the previous
-# binary's cached cdhash — a mismatch the kernel kills as
-# OS_REASON_CODESIGNING on the next launch, stranding the Node NotReady.
-# A forced ad-hoc re-sign refreshes the signature and invalidates that
-# stale cache so the rolled binary actually runs.
-sudo codesign --force --sign - /usr/local/bin/tart-kubelet
-`
 }
 
 // loadTartKubeletLaunchd writes /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
@@ -1213,22 +1162,14 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.MinGoldensKept > defaultMinGoldensKept {
 		minGoldensKeptArg = fmt.Sprintf("\n    <string>--min-goldens-kept=%d</string>", cfg.MinGoldensKept)
 	}
-	// Turn on per-account cache volumes when the fleet provisioned
-	// a runner-cache volume. --runner-cache-root points at the auto-mounted
-	// quota volume; --cache-volume-cap-gib carries the per-master cap and
-	// --cache-volume-cas-gib the folded compilation-cache budget when the
-	// fleet overrides tart-kubelet's defaults.
+	// Turn on cache volumes when the fleet provisioned a runner-cache volume.
+	// --runner-cache-root points at the auto-mounted quota volume.
 	runnerCacheArg := ""
 	if cfg.RunnerCacheVolumeGiB > 0 {
 		runnerCacheArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", runnerCacheMountPoint)
+		runnerCacheArg += fmt.Sprintf("\n    <string>--runner-cache-budget-gib=%d</string>", cfg.RunnerCacheVolumeGiB)
 		if cfg.CustomCacheURL != "" {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--custom-cache-url=%s</string>\n    <string>--custom-cache-namespace=%s</string>\n    <string>--custom-cache-service-account=%s</string>", xmlEscape(cfg.CustomCacheURL), xmlEscape(cfg.CustomCacheNamespace), xmlEscape(cfg.CustomCacheServiceAccount))
-		}
-		if cfg.CacheVolumeMasterCapGiB > 0 {
-			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cap-gib=%d</string>", cfg.CacheVolumeMasterCapGiB)
-		}
-		if cfg.CacheVolumeCASGiB > 0 {
-			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cas-gib=%d</string>", cfg.CacheVolumeCASGiB)
 		}
 	}
 	imageMirrorArgs := ""
@@ -1605,6 +1546,35 @@ sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -i
 sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0
 `
 	return RunCommand(ctx, client, script)
+}
+
+func installCommandLineTools(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderCommandLineToolsScript())
+}
+
+// renderCommandLineToolsScript installs Apple's Command Line Tools when the host
+// has no working git. A rack host has none: /usr/bin/git is only a shim there.
+// tart-kubelet builds cached checkouts with it and keeps them off without it.
+// softwareupdate offers the tools only while the install-on-demand marker
+// exists. The step never fails the bootstrap; a host without the tools runs
+// jobs exactly as before.
+func renderCommandLineToolsScript() string {
+	return `set -uo pipefail
+# Without the tools, /usr/bin/git is a stub that asks a GUI to install them.
+if xcode-select -p >/dev/null 2>&1 && /usr/bin/git --version >/dev/null 2>&1; then
+  exit 0
+fi
+marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+sudo touch "$marker"
+label="$(softwareupdate --list 2>/dev/null | sed -n 's/^\* Label: \(Command Line Tools.*\)$/\1/p' | tail -n 1)"
+if [ -n "$label" ]; then
+  sudo softwareupdate --install "$label" --agree-to-license >/dev/null 2>&1 || echo "command line tools install failed" >&2
+else
+  echo "command line tools not offered by softwareupdate" >&2
+fi
+sudo rm -f "$marker"
+exit 0
+`
 }
 
 func installSoftwareUpdatePolicy(ctx context.Context, client *ssh.Client) error {
@@ -2297,7 +2267,7 @@ const runnerCacheVolumeName = "tuist-runner-cache"
 const runnerCacheMountPoint = "/Volumes/" + runnerCacheVolumeName
 
 // installRunnerCacheVolume provisions the quota-bounded APFS volume that holds
-// per-account cache-volume images. No-op when the fleet hasn't
+// the runner cache volumes. No-op when the fleet hasn't
 // opted in (RunnerCacheVolumeGiB == 0). Idempotent: it skips when the volume
 // is already mounted, so re-provisioning never grows/shrinks a live volume.
 //
@@ -2305,8 +2275,8 @@ const runnerCacheMountPoint = "/Volumes/" + runnerCacheVolumeName
 // paths so a fleet that opts into cache volumes after its minis are already
 // bootstrapped gets the volume on the next drift roll rather than only via
 // host replacement. The mounted-check keeps it a one-time host-shaping step:
-// an existing volume is never resized under live jobs (a cap change ships
-// via host replacement).
+// APFS cannot change a volume's quota, so a budget above an existing
+// volume's quota ships via host replacement or reinstall.
 func installRunnerCacheVolume(ctx context.Context, client *ssh.Client, cfg Config) error {
 	if cfg.RunnerCacheVolumeGiB <= 0 {
 		return nil
@@ -2323,12 +2293,20 @@ func renderRunnerCacheVolumeScript(cfg Config) string {
 	return fmt.Sprintf(`set -euo pipefail
 VOL=%[1]s
 MOUNT=%[2]s
-QUOTA_GIB=%[3]d
+BUDGET_GIB=%[3]d
 OWNER=%[4]s
-# Provision the volume only if it isn't already mounted. Idempotent: a
-# provisioned volume is never resized under live jobs (a cap change ships via
-# host replacement).
+# Provision the volume only if it isn't already mounted. APFS fixes a volume's
+# quota when it is created, so on a disk of 1 TiB or more the quota is half the
+# disk, or the budget when that is larger, and tart-kubelet's
+# --runner-cache-budget-gib bounds the caches below it: a budget change within
+# the quota needs no new volume. On a smaller disk the other half does not hold
+# the goldens and job VMs, so the quota is the budget.
 if ! /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
+  DISK_GIB=$(/bin/df -P -k /System/Volumes/Data | /usr/bin/awk 'NR==2 {print int($2 / 1048576)}')
+  QUOTA_GIB=$BUDGET_GIB
+  if [ "$DISK_GIB" -ge 1024 ] && [ $((DISK_GIB / 2)) -gt "$BUDGET_GIB" ]; then
+    QUOTA_GIB=$((DISK_GIB / 2))
+  fi
   # Resolve the APFS container backing the boot volume; the cache volume shares
   # that container's free space but is capped by its own quota. On modern macOS
   # "/" is a sealed snapshot whose diskutil info labels the container "APFS
@@ -2350,7 +2328,7 @@ if ! /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
   echo "provisioned runner-cache volume $VOL (${QUOTA_GIB} GiB quota) at $MOUNT"
 fi
 # The volume is created and auto-mounted by root, but tart-kubelet runs as
-# $OWNER and must create per-account and per-branch directories under the root.
+# $OWNER and must create the cache volume directories under the root.
 # Without a runner-owned root, the very first branch allocation fails and every
 # job silently falls back to a cold cache. Enforce ownership on EVERY run — not
 # only at first provision — so a volume left root-owned by an earlier bootstrap
@@ -3306,7 +3284,7 @@ func renderLogShipperInstallScript(cfg Config) string {
 sudo mkdir -p /usr/local/bin /var/lib/tuist-log-shipper
 sudo tee /usr/local/bin/tuist-log-shipper >/dev/null
 sudo chmod 0755 /usr/local/bin/tuist-log-shipper
-# Re-sign in place for the same reason renderTartKubeletInstallScript does:
+# Re-sign in place because
 # overwriting the binary at the same inode leaves AMFI validating the new pages
 # against the old cdhash, and the kernel kills the next launch as
 # OS_REASON_CODESIGNING.

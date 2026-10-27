@@ -64,6 +64,7 @@ defmodule Tuist.Tests.TestCaseRun do
     field :git_commit_sha, Ch, type: "String"
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :is_flaky, :boolean, default: false
+    field :is_flakiness_excluded, :boolean, default: false
     field :is_new, :boolean, default: false
     field :is_quarantined, :boolean, default: false
     field :coverage_evidence, Ch, type: "Enum8('none' = 0, 'own' = 1, 'overlapped' = 2)", default: "none"
@@ -78,11 +79,20 @@ defmodule Tuist.Tests.TestCaseRun do
     belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
 
     has_one :crash_report, Tuist.Tests.CrashReport, foreign_key: :test_case_run_id
-    has_many :attachments, Tuist.Tests.TestCaseRunAttachment, foreign_key: :test_case_run_id
-    has_many :arguments, Tuist.Tests.TestCaseRunArgument, foreign_key: :test_case_run_id
-    has_many :failures, Tuist.Tests.TestCaseFailure, foreign_key: :test_case_run_id
-    has_many :repetitions, Tuist.Tests.TestCaseRunRepetition, foreign_key: :test_case_run_id
+
+    has_many :attachments, {"reported_test_case_run_attachments", Tuist.Tests.TestCaseRunAttachment},
+      foreign_key: :test_case_run_id
+
+    has_many :arguments, {"reported_test_case_run_arguments", Tuist.Tests.TestCaseRunArgument},
+      foreign_key: :test_case_run_id
+
+    has_many :failures, {"reported_test_case_failures", Tuist.Tests.TestCaseFailure}, foreign_key: :test_case_run_id
+
+    has_many :repetitions, {"reported_test_case_run_repetitions", Tuist.Tests.TestCaseRunRepetition},
+      foreign_key: :test_case_run_id
   end
+
+  def query, do: Ecto.Queryable.to_query({"reported_test_case_runs", __MODULE__})
 
   def create_changeset(test_case_run, attrs) do
     test_case_run
@@ -108,6 +118,7 @@ defmodule Tuist.Tests.TestCaseRun do
       :is_flaky,
       :is_new,
       :is_quarantined,
+      :is_flakiness_excluded,
       :coverage_evidence,
       :duration,
       :inserted_at,

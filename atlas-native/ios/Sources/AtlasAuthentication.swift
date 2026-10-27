@@ -9,6 +9,10 @@ struct AtlasAuthenticationError: LocalizedError {
     var errorDescription: String? { message }
 }
 
+enum AtlasLoginProvider: String {
+    case google
+}
+
 enum AtlasAuthBridge {
     static func execute(_ input: String) async throws -> String {
         try await Task.detached(priority: .userInitiated) {
@@ -33,7 +37,25 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     private var browser: ASWebAuthenticationSession?
     private var apiWaiters: [CheckedContinuation<Void, Never>] = []
     private var accountModel: AtlasAIAccounts?
+    private var presenceModel: AtlasPresence?
     private var sessionIdentity = UUID()
+    let pushNotifications = AtlasPushNotifications()
+    let liveActivity = AtlasOrbitLiveActivity()
+
+    var pushRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "push")
+    }
+
+    var liveActivityRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "orbit_activity")
+    }
+
+    var presence: AtlasPresence {
+        if let presenceModel { return presenceModel }
+        let model = AtlasPresence(request: liveRequest(operation: "presence"))
+        presenceModel = model
+        return model
+    }
 
     var accountSettings: AtlasAIAccounts {
         if let accountModel { return accountModel }
@@ -66,14 +88,16 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         }
     }
 
-    func signIn(selfHosted: Bool = false) async {
+    func signIn(selfHosted: Bool = false, provider: AtlasLoginProvider? = nil) async {
         guard !busy, server == nil else { return }
         busy = true
         errorMessage = nil
         defer { busy = false; browser = nil }
         do {
+            try AtlasSecureStorage.delete("automation.admission")
             let address = selfHosted ? selfHostedAddress : "https://atlas.tuist.dev"
             var request: [String: Any] = ["operation": "begin", "server": address]
+            if let provider { request["provider"] = provider.rawValue }
             if let saved = try AtlasSecureStorage.load("registration") { request["registration"] = try object(saved) }
             let login = try await command(request)
             guard let authorizationURL = login["authorization_url"] as? String,
@@ -94,7 +118,10 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
 
     func signOut() {
         Task {
+            await presenceModel?.stop()
             await accountModel?.cancelLogin()
+            await pushNotifications.signOut()
+            await liveActivity.signOut()
             await acquireAPI()
             defer { releaseAPI() }
             do {
@@ -105,7 +132,16 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     }
 
     private func discardSession(removeRegistration: Bool = false) throws {
+        var origin = server?.absoluteString
+        if let saved = try? AtlasSecureStorage.load("session"), let session = try? object(saved) {
+            origin = (session["registration"] as? [String: Any])?["server"] as? String ?? origin
+        }
+        pushNotifications.prepareForSessionEnd(origin: origin)
+        liveActivity.invalidate()
+        try AtlasSecureStorage.delete("automation.admission")
         try AtlasSecureStorage.delete("session")
+        presenceModel?.setActive(false)
+        presenceModel = nil
         server = nil
         accountModel = nil
         sessionIdentity = UUID()
@@ -149,24 +185,63 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     }
 
     var holidayRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "time_off")
+    }
+
+    var businessRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "business")
+    }
+
+    var orbitRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "orbit_session")
+    }
+
+    var orbitLocalRequest: ([String: Any]) async throws -> Data {
+        liveRequest(operation: "orbit_session")
+    }
+
+    private func liveRequest(operation: String) -> ([String: Any]) async throws -> Data {
+        let open = authenticatedRequest(operation: operation)
+        return { action in
+            if action["action"] as? String == "open" { return try await open(action) }
+            var request = action
+            request["operation"] = operation
+            guard let input = String(bytes: try JSONSerialization.data(withJSONObject: request), encoding: .utf8) else {
+                throw AtlasAuthenticationError(kind: "invalid_request", message: "Could not encode live request.")
+            }
+            let response = try await AtlasAuthBridge.execute(input)
+            let envelope = try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any]
+            guard let result = envelope?["ok"] else {
+                throw AtlasAuthenticationError(kind: "closed", message: "Live updates are disconnected.")
+            }
+            return try JSONSerialization.data(withJSONObject: result)
+        }
+    }
+
+    private func authenticatedRequest(operation: String) -> ([String: Any]) async throws -> Data {
         let identity = sessionIdentity
         return { [weak self] action in
             guard let self, self.server != nil, self.sessionIdentity == identity else {
                 throw AtlasAuthenticationError(kind: "sign_in_required", message: "Sign in to Atlas again.")
             }
-            let session = try await self.holidaySession(identity: identity)
+            let session = try await self.apiSession(identity: identity)
             try Task.checkCancellation()
             guard self.sessionIdentity == identity else { throw CancellationError() }
             var request = action
-            request["operation"] = "time_off"
+            request["operation"] = operation
             request["session"] = session
             let response = try await self.command(request)
-            guard self.sessionIdentity == identity else { throw CancellationError() }
+            guard self.sessionIdentity == identity else {
+                if ["presence", "orbit_session"].contains(operation), let connection = response["connection"] as? String {
+                    _ = try? await self.command(["operation": operation, "action": "close", "connection": connection])
+                }
+                throw CancellationError()
+            }
             return try JSONSerialization.data(withJSONObject: response)
         }
     }
 
-    private func holidaySession(identity: UUID) async throws -> [String: Any] {
+    private func apiSession(identity: UUID) async throws -> [String: Any] {
         await acquireAPI()
         defer { releaseAPI() }
         try Task.checkCancellation()
@@ -189,6 +264,53 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         destination.host = origin.host
         destination.port = origin.port
         return destination.url ?? url
+    }
+
+}
+
+extension AtlasAuthentication {
+    func native(_ request: [String: Any]) async throws -> [String: Any] {
+        let identity = sessionIdentity
+        let session = try await apiSession(identity: identity)
+        try checkSession(identity)
+        do {
+            let response = try await command(["operation": "native", "session": session, "request": request])
+            try checkSession(identity)
+            return response
+        } catch {
+            try checkSession(identity)
+            throw error
+        }
+    }
+
+    func pendingLaunch() throws -> [String: Any]? {
+        try AtlasSecureStorage.load("automation.admission").map { try object($0) }
+    }
+
+    func launch(_ request: [String: Any]) async throws -> [String: Any] {
+        if let pending = try pendingLaunch() {
+            guard NSDictionary(dictionary: pending).isEqual(to: request) else {
+                throw AtlasAuthenticationError(kind: "pending_launch",
+                                               message: "Retry your pending launch before starting another workflow.")
+            }
+        } else {
+            try AtlasSecureStorage.save("automation.admission", value: try json(request))
+        }
+        let response: [String: Any]
+        do { response = try await native(request) } catch {
+            if let failure = error as? AtlasAuthenticationError,
+               ["revision_changed", "invalid_input"].contains(failure.kind) {
+                try AtlasSecureStorage.delete("automation.admission")
+            }
+            throw error
+        }
+        try AtlasSecureStorage.delete("automation.admission")
+        return response
+    }
+
+    private func checkSession(_ identity: UUID) throws {
+        try Task.checkCancellation()
+        guard sessionIdentity == identity, server != nil else { throw CancellationError() }
     }
 
     func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {

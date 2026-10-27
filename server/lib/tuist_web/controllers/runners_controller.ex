@@ -6,7 +6,7 @@ defmodule TuistWeb.RunnersController do
   Authentication: the Pod presents its projected ServiceAccount
   token as a `Bearer` token. The endpoint validates the token via
   the Kubernetes TokenReview API, recovers the SA's namespace +
-  name, then asks `Tuist.Runners.dispatch_for_sa/2` to claim a
+  name, then asks `Tuist.Runners.dispatch_for_sa/3` to claim a
   pending Burst and mint a JIT.
 
   Trust chain: the runners-controller is the only writer of SAs
@@ -19,13 +19,12 @@ defmodule TuistWeb.RunnersController do
 
   use TuistWeb, :controller
 
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
 
   require Logger
 
-  def dispatch(conn, _params) do
+  def dispatch(conn, params) do
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok,
@@ -36,7 +35,7 @@ defmodule TuistWeb.RunnersController do
             fleet_on_cluster_network: on_cluster_network,
             fleet_platform: fleet_platform
           } = dispatched} <-
-           Runners.dispatch_for_sa(ns, sa_name) do
+           Runners.dispatch_for_sa(ns, sa_name, guest(params)) do
       response =
         credential
         |> dispatch_response(
@@ -45,8 +44,7 @@ defmodule TuistWeb.RunnersController do
           on_cluster_network,
           fleet_platform,
           Map.get(dispatched, :fleet_site),
-          Map.get(dispatched, :cache_signing_grant),
-          Map.get(dispatched, :volume_head)
+          Map.get(dispatched, :cache_signing_grant)
         )
         |> Map.merge(setup_info_fields(credential, account, Map.get(dispatched, :runner_name)))
 
@@ -69,7 +67,7 @@ defmodule TuistWeb.RunnersController do
         # account label) but is polling again, so its dispatch response was lost
         # and the runner never started. Same clean-exit signal as a drain — the
         # VM halts and the reconciler replaces the Pod — so it can't serve a
-        # second account on the cache materialized for the first.
+        # second job.
         conn |> put_status(:gone) |> json(%{error: "drain", reason: "pod already committed"})
 
       {:error, :missing_bearer} ->
@@ -102,174 +100,6 @@ defmodule TuistWeb.RunnersController do
       {:error, reason} ->
         Logger.error("runners: dispatch failed", reason: inspect(reason))
         conn |> put_status(:internal_server_error) |> json(%{error: "dispatch failed"})
-    end
-  end
-
-  # A runner reports the cache-volume it just promoted: it uploaded its branch
-  # to the volume's master archive and now bumps the volume's HEAD to that
-  # inventory digest. The account and volume are resolved from the Pod's
-  # server-stamped labels, not the body, so a runner can only advance the HEAD
-  # of the volume it actually ran.
-  def report_volume_head(conn, params) do
-    digest = Map.get(params, "tree_digest", "")
-    node = node_name(params)
-    base_generation = parse_base_generation(Map.get(params, "base_generation"))
-
-    with {:ok, token} <- bearer_token(conn),
-         {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
-         {:ok, %{account_id: account_id, volume_name: volume_name}} <- Runners.volume_owner_for_sa(ns, sa_name) do
-      case Runners.report_volume_head(
-             account_id,
-             volume_name,
-             node,
-             digest,
-             base_generation,
-             unverifiable_digest(params),
-             content_digest(params)
-           ) do
-        {:ok, generation} ->
-          json(conn, %{generation: generation})
-
-        :conflict ->
-          # The job built on a stale base — another host advanced the HEAD first.
-          # The runner discards its branch rather than moving its master off the
-          # accepted lineage; the next job re-converges and rebuilds.
-          conn |> put_status(:conflict) |> json(%{error: "stale base generation"})
-
-        :error ->
-          conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
-      end
-    else
-      {:error, :missing_bearer} ->
-        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
-
-      _ ->
-        conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
-    end
-  end
-
-  # The generation the promoting job's branch was cloned from, parsed defensively
-  # from the request body: a missing or non-numeric value is treated as 0 (a cold
-  # job), which the fast-forward accepts only when the account has no HEAD yet.
-  defp parse_base_generation(value) when is_integer(value) and value >= 0, do: value
-
-  defp parse_base_generation(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {n, ""} when n >= 0 -> n
-      _ -> 0
-    end
-  end
-
-  defp parse_base_generation(_), do: 0
-
-  # The HEAD digest the runner's host downloaded during this job and found the
-  # stored object does not reproduce, when it reported one. Whatever the body
-  # carries is passed through as-is for `Runners` to validate against the digest
-  # format; a non-binary reads as no report.
-  defp unverifiable_digest(params) do
-    case Map.get(params, "unverifiable_digest") do
-      digest when is_binary(digest) -> digest
-      _ -> nil
-    end
-  end
-
-  # The SHA-256 the runner computed over the settled image bytes it uploaded,
-  # when it reported one. Passed through as-is for `Runners` to validate against
-  # the digest format; a non-binary reads as no report — promotes from runner
-  # images that predate the content hash carry none.
-  defp content_digest(params) do
-    case Map.get(params, "content_digest") do
-      digest when is_binary(digest) -> digest
-      _ -> nil
-    end
-  end
-
-  # The Node name of the host that published this HEAD, for attribution only —
-  # nothing in the fast-forward reads it, so a name that does not check out is
-  # dropped rather than failing the promote.
-  #
-  # Checked against the shape a Kubernetes Node name can have rather than
-  # truncated: the column is a varchar(255) and the body comes from a VM running
-  # customer job code, so an over-long value would otherwise raise on insert and
-  # lose an otherwise valid promote. Missing, malformed or non-binary all read as
-  # unreported, which is what every row held before the guest began sending it.
-  defp node_name(params) do
-    case Map.get(params, "node_name") do
-      name when is_binary(name) ->
-        if Regex.match?(~r/\A[A-Za-z0-9.-]{1,253}\z/, name), do: name, else: ""
-
-      _ ->
-        ""
-    end
-  end
-
-  # A runner requests the presigned PUT URL for the master object keyed by the
-  # inventory digest it is about to promote, then PUTs its image there and calls
-  # report_volume_head to bump the HEAD. Content-addressed: each distinct digest
-  # is a distinct object, so concurrent promotes never clobber the object the
-  # current HEAD points at. Same SA-token + server-stamped label binding as
-  # report_volume_head, so a runner can only mint an upload URL under the account
-  # and volume it actually ran.
-  #
-  # Minting also PRE-FLIGHTS the fast-forward the upload leads to: a runner that
-  # sends the base generation it built on gets a 409 here, before transferring
-  # the image, when that base has already been advanced past. The upload blocks
-  # the VM halt and the host slot's reclaim, so a promote that is certain to lose
-  # is worth not paying for.
-  def volume_head_upload_url(conn, params) do
-    digest = Map.get(params, "tree_digest", "")
-
-    with {:ok, token} <- bearer_token(conn),
-         {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
-         {:ok, %{account_id: account_id, volume_name: volume_name}} <- Runners.volume_owner_for_sa(ns, sa_name) do
-      if doomed_fast_forward?(account_id, volume_name, params) do
-        conn |> put_status(:conflict) |> json(%{error: "stale base generation"})
-      else
-        case Runners.volume_master_upload_url(account_id, volume_name, digest, content_digest(params)) do
-          {:ok, upload_url, nil} ->
-            json(conn, %{upload_url: upload_url})
-
-          {:ok, upload_url, checksum} ->
-            # The URL's signature covers the x-amz-checksum-sha256 header, so
-            # the guest MUST send exactly this value with its PUT — echoed back
-            # rather than recomputed guest-side so the two cannot drift.
-            json(conn, %{upload_url: upload_url, checksum_sha256: checksum})
-
-          :error ->
-            conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
-        end
-      end
-    else
-      {:error, :missing_bearer} ->
-        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
-
-      _ ->
-        conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
-    end
-  end
-
-  # True when the promote this mint would serve is already certain to be rejected
-  # because its base generation has been advanced past. Advisory: it may only
-  # skip doomed uploads, never authorize a promote — report_volume_head's
-  # compare-and-swap is what decides the HEAD, and another host can still win
-  # between this check and that bump.
-  #
-  # An absent base_generation disables the pre-check rather than defaulting to 0
-  # the way the bump does: a runner image predating this pre-flight sends no base
-  # here, and must keep its upload-then-arbitrate path instead of being told its
-  # cold-job promote is stale.
-  defp doomed_fast_forward?(account_id, volume_name, params) do
-    case Map.fetch(params, "base_generation") do
-      {:ok, value} ->
-        not Runners.fast_forward_viable?(
-          account_id,
-          volume_name,
-          parse_base_generation(value),
-          unverifiable_digest(params)
-        )
-
-      :error ->
-        false
     end
   end
 
@@ -342,10 +172,11 @@ defmodule TuistWeb.RunnersController do
   #     in by `serve_claim`: can this fleet's runtime resolve and route
   #     `*.svc.cluster.local` at all (Linux kata Pods always; macOS
   #     Tart VMs only in environments that wired the tailnet route).
-  #   * locality — the fleet's platform and site, which
+  #   * locality — the fleet's platform and the site the claiming runner's
+  #     Node is at (`Tuist.Runners.Sites.claim_site/2`), which
   #     `runner_cache_endpoint_url/3` matches against the private
   #     region's `runner_platforms` and `site`, so a node co-located with
-  #     one fleet never serves a fleet on the wrong side of a WAN.
+  #     one site never serves a runner on the wrong side of a WAN.
   defp dispatch_response(
          credential,
          account,
@@ -353,8 +184,7 @@ defmodule TuistWeb.RunnersController do
          fleet_on_cluster_network,
          fleet_platform,
          fleet_site,
-         cache_signing_grant,
-         volume_head
+         cache_signing_grant
        ) do
     base =
       Map.merge(
@@ -368,14 +198,6 @@ defmodule TuistWeb.RunnersController do
         _ -> base
       end
 
-    base =
-      case volume_head do
-        %{} = head -> Map.put(base, :volume_head, head)
-        _ -> base
-      end
-
-    base = Map.merge(base, opt_in_cache_fields(fleet_platform, account))
-
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],
          url when is_binary(url) and url != "" <-
@@ -385,12 +207,6 @@ defmodule TuistWeb.RunnersController do
       _ -> base
     end
   end
-
-  defp opt_in_cache_fields(:macos, account) do
-    if FeatureFlags.runner_opt_in_caches_enabled?(account), do: %{automatic_caches: false}, else: %{}
-  end
-
-  defp opt_in_cache_fields(_fleet_platform, _account), do: %{}
 
   # The VM branches on which of these two key sets it receives, so the
   # response stays a single shape per provider rather than a discriminator
@@ -437,4 +253,13 @@ defmodule TuistWeb.RunnersController do
       _ -> {:error, :missing_bearer}
     end
   end
+
+  # The guest's `sw_vers -productVersion`, which the macOS poll script sends
+  # so the runner can be named after it. Anything that is not a dotted
+  # version is dropped rather than put in a name customers read.
+  defp guest(%{"os_version" => os_version}) when is_binary(os_version) do
+    if os_version =~ ~r/\A\d{1,3}(\.\d{1,3}){0,2}\z/, do: %{os_version: os_version}, else: %{}
+  end
+
+  defp guest(_params), do: %{}
 end

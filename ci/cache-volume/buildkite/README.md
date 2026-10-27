@@ -17,7 +17,8 @@ steps:
     command: ./gradlew test
 ```
 
-Set `path` to a list to keep several directories in the same volume:
+Set `path` to a list to keep several directories in the same volume, and
+`size` to set its capacity:
 
 ```yaml
 steps:
@@ -28,21 +29,35 @@ steps:
       - tuist/cache-volume#v1:
           volumes:
             - key: python-tools
+              size: 5gb
               path:
                 - ~/.cache/pip
                 - ~/.cache/pre-commit
     command: pre-commit run --all-files
 ```
 
-- All paths share the volume's 20 GB capacity and are restored and saved together.
-- Group small, related directories. Give a large or fast-changing directory its
-  own volume.
+| Field | Contract |
+| --- | --- |
+| `key` | Required stable volume name. Keys starting with `tuist-` are reserved. |
+| `path` | Required. One absent or empty directory, or a list of up to 16. |
+| `size` | Optional capacity, a whole number of GB from `1gb` to `100gb`, such as `50gb`. New volumes start at `20gb` without it. |
+
+- All paths share the volume's capacity and are restored and saved together.
 - Paths in one volume must not contain each other.
-- Each path is stored in its own directory inside the volume, identified by how
-  the path is written. Switching between one path and several, or adding,
-  removing or rewriting a path, changes that layout: the first job after the
-  change starts cold for the affected paths. Content of paths that are no
-  longer listed stays in the volume until you clear it.
+- A single path keeps the volume's contents when it changes. With several
+  paths, each has its own directory inside the volume, identified by how the
+  path is written: adding a path, removing one or reordering the list keeps the
+  contents of the paths you keep, and a new path, or one written differently
+  (`~/.npm` instead of `/home/runner/.npm`), starts empty.
+- Contents of paths that are no longer listed stay in the volume and count
+  toward its capacity. Clear the volume after removing a path.
+- Each saved copy replaces the whole volume, so the last saved copy wins. Give
+  pipelines that save at the same time separate keys.
+- A larger `size` grows the volume, keeping its contents, from its next job. A
+  smaller one applies after the volume is next cleared or expires. When steps
+  ask for different sizes of one key, the largest applies.
+- Sizes above `20gb` may not be enabled for every account yet. Runner images
+  without size support attach the volume at its current size and warn.
 
 This plugin's distribution repository is `tuist/cache-volume-buildkite-plugin`.
 Relevant changes merged to the monorepo’s `main` automatically publish it
@@ -60,16 +75,17 @@ tool-version or commit hashes. Each job starts from the latest saved contents
 and your tools update them; a new key starts empty.
 The installed client reports warm/cold reuse in the job log and Tuist dashboard.
 
-Each volume starts at 20 GB. It is scoped to your Tuist account, immutable
-Buildkite organization and pipeline, repository URL, architecture and execution
-UID. Renaming a pipeline preserves its data; changing its repository URL starts
+Each volume starts at `20gb` unless `size` sets another capacity. It is scoped
+to your Tuist account, immutable Buildkite organization and pipeline, repository
+URL, architecture and execution UID. Renaming a pipeline preserves its data; changing its repository URL starts
 a separate cache. Concurrent jobs receive private copies. Idle data expires
 after seven days without a mount. When saved contents reach 80% of capacity
 and a job runs out of space on them, the next job starts empty.
 
-Only successful default-branch webhook or scheduled builds without a pull
-request or tag save their changes. API, manually triggered, PR and other branch
-builds can read but cannot save. Eligibility comes from Buildkite's server API,
+Successful webhook or scheduled builds on any branch save their changes,
+including pull requests whose head is the pipeline's repository, narrowed by the
+runner profile's **Save cache from** setting. Fork pull requests, tags and API
+or manually triggered builds can read but cannot save. Eligibility comes from Buildkite's server API,
 not plugin options or shell variables. Saving happens after the job and its
 writers have been torn down, not in a post-command hook.
 

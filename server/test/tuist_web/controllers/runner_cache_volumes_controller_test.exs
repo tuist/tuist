@@ -49,6 +49,19 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     assert result.status == 403
   end
 
+  test "storage that is unavailable is a 503, which agents retry, and a conflict a 409" do
+    namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+    name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+    stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+    params = %{"node_name" => "node", "id" => Ecto.UUID.generate(), "operation" => "complete"}
+
+    expect(CacheVolumes, :image, fn "node", _, _ -> {:error, :unavailable} end)
+    assert Controller.image(conn(), params).status == 503
+
+    expect(CacheVolumes, :image, fn "node", _, _ -> {:error, :conflict} end)
+    assert Controller.image(conn(), params).status == 409
+  end
+
   test "missing token cannot instruct orphan deletion" do
     result = Controller.report(Plug.Test.conn(:post, "/report"), %{"node_name" => "node", "id" => Ecto.UUID.generate()})
     assert result.status == 403
@@ -78,6 +91,109 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
       assert result.status == 200
       assert JSON.decode!(result.resp_body) == %{"action" => if(state == "deleted", do: "forget", else: "delete")}
       assert get_resp_header(result, "cache-control") == ["no-store"]
+    end
+  end
+
+  test "a capacity above the host maximum answers 507 without allocating" do
+    namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+    name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+    stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+    params = %{"key" => "cache", "requested_volume_bytes" => 50_000_000_000, "max_volume_bytes" => 20_000_000_000}
+
+    expect(CacheVolumes, :allocate, fn ^params -> {:error, :capacity} end)
+    result = Controller.authorize(conn(), params)
+    assert result.status == 507
+    assert JSON.decode!(result.resp_body) == %{"error" => "capacity"}
+
+    expect(CacheVolumes, :allocate, fn ^params -> {:error, :volume_limit} end)
+    assert Controller.authorize(conn(), params).status == 403
+  end
+
+  test "allocations carry the chosen capacity and the saved head's size" do
+    namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+    name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+    stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+
+    expect(CacheVolumes, :allocate, fn _ ->
+      {:ok, %{id: "use", volume_bytes: 50_000_000_000, head_size_bytes: nil}}
+    end)
+
+    result = Controller.authorize(conn(), %{})
+    assert result.status == 200
+    assert JSON.decode!(result.resp_body) == %{"id" => "use", "volume_bytes" => 50_000_000_000, "head_size_bytes" => nil}
+  end
+
+  test "only the storage agent can request a checkout" do
+    assert %{plug: Controller, plug_opts: :checkout} =
+             Phoenix.Router.route_info(
+               TuistWeb.Router,
+               "POST",
+               "/api/internal/runners/cache-volumes/checkout",
+               "localhost"
+             )
+
+    expect(K8sClient, :create_controller_token_review, fn "agent-token" ->
+      {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}
+    end)
+
+    result = Controller.checkout(conn(), %{"pod_name" => "pod", "node_name" => "node"})
+    assert result.status == 403
+  end
+
+  test "an unknown checkout request is refused without allocating anything" do
+    namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+    name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+    expect(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+
+    result = Controller.checkout(conn(), %{"node_name" => "node"})
+    assert result.status == 403
+    assert CacheVolumes.checkout_key() == "checkout"
+  end
+
+  describe "Docker data roots" do
+    setup do
+      namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+      name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+      stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+      :ok
+    end
+
+    test "are served only to the storage agent" do
+      for {path, action} <- [{"/docker", :docker}, {"/docker-seen", :docker_seen}] do
+        assert %{plug: Controller, plug_opts: ^action} =
+                 Phoenix.Router.route_info(
+                   TuistWeb.Router,
+                   "POST",
+                   "/api/internal/runners/cache-volumes" <> path,
+                   "localhost"
+                 )
+      end
+
+      expect(K8sClient, :create_controller_token_review, fn "agent-token" ->
+        {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}
+      end)
+
+      assert Controller.docker(conn(), %{}).status == 403
+    end
+
+    test "answer 404 for a repository not yet seen using Docker" do
+      expect(CacheVolumes, :allocate_docker, fn _ -> {:error, :unseen} end)
+      result = Controller.docker(conn(), %{})
+      assert result.status == 404
+      assert JSON.decode!(result.resp_body) == %{"error" => "unseen"}
+    end
+
+    test "answer 425 while the executed job is pending" do
+      expect(CacheVolumes, :allocate_docker, fn _ -> {:error, :pending} end)
+      assert Controller.docker(conn(), %{}).status == 425
+    end
+
+    test "acknowledge a recorded use of Docker with no content" do
+      expect(CacheVolumes, :mark_docker_seen, fn _ -> :ok end)
+      assert Controller.docker_seen(conn(), %{}).status == 204
+
+      expect(CacheVolumes, :mark_docker_seen, fn _ -> {:error, :unavailable} end)
+      assert Controller.docker_seen(conn(), %{}).status == 403
     end
   end
 end

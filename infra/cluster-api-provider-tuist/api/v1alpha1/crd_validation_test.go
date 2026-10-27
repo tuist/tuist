@@ -174,6 +174,21 @@ func TestRackSiteAdmission(t *testing.T) {
 			t.Errorf("%s was admitted", name)
 		}
 	}
+	for name, c := range map[string]struct {
+		budget map[string]any
+		ok     bool
+	}{
+		"a chain current and other watts": {map[string]any{"chainAmps": "11.5", "otherWatts": int64(600)}, true},
+		"a chain current alone":           {map[string]any{"chainAmps": "13"}, true},
+		"no chain current":                {map[string]any{"otherWatts": int64(600)}, false},
+		"negative other watts":            {map[string]any{"chainAmps": "13", "otherWatts": int64(-1)}, false},
+	} {
+		obj := site(map[string]any{"from": "2026-10-05", "watts": int64(3000)})
+		obj["spec"].(map[string]any)["powerBudget"] = c.budget
+		if errs := admits(t, structural, validator, obj); (len(errs) == 0) != c.ok {
+			t.Errorf("power budget %s: errors %v, want admitted=%t", name, errs, c.ok)
+		}
+	}
 }
 
 func TestRackLinuxHostEdgeAdmission(t *testing.T) {

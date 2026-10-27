@@ -45,7 +45,7 @@ defmodule TuistWeb.GradleBuildLive do
     build = Repo.preload(build, :built_by_account)
 
     test_run =
-      case Tests.get_latest_test_by_gradle_build_id(build.id) do
+      case Tests.get_latest_test_by_gradle_build_id(build.id, build.project_id) do
         {:ok, test} -> test
         {:error, :not_found} -> nil
       end
@@ -858,13 +858,4 @@ defmodule TuistWeb.GradleBuildLive do
 
     Enum.join(parts, " ")
   end
-
-  defp url?(value) when is_binary(value) do
-    case URI.parse(value) do
-      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
-      _ -> false
-    end
-  end
-
-  defp url?(_), do: false
 end

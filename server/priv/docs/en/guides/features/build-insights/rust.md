@@ -42,7 +42,7 @@ Tuist doesn't measure build scripts separately or show a build Timeline. A large
 
 ## Read cache measurements {#cache-measurements}
 
-`tuist cargo` includes an experimental compilation cache implemented in the Tuist CLI. There is no separate tool to install; project and server settings come from `tuist.toml`. Unsupported compilations run normally.
+`tuist cargo` includes an experimental compilation cache implemented in the Tuist CLI. Follow the <.localized_link href="/guides/features/cache/rust">Rust cache guide</.localized_link> for setup, remote reads and writes through Kura, supported compilations, and troubleshooting.
 
 Open **Cargo Cache** in the project sidebar to track cache hit rates and recorded transfer, latency, and throughput measurements across builds. Filter by date or environment, switch between daily trends and individual-build hit rates, or open a recent build to inspect its cache activity. Builds without cache measurements remain unavailable rather than counting as zero.
 

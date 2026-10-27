@@ -550,11 +550,11 @@ func TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad(t *testing.T) {
 	gotIdle := &tuistv1.RunnerPool{}
 	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "idle", Namespace: "tuist-runners"}, gotIdle)
 
-	// busy keeps its real load (6). Its per-pool target would be 7
-	// (load 6 + floor 1) — the +1 speculative slot is squeezed because
-	// the fleet is tight, but real work is intact.
-	if gotBusy.Spec.Replicas != 6 {
-		t.Errorf("busy Replicas = %d, want 6 (real load protected)", gotBusy.Spec.Replicas)
+	// busy keeps its real load (6) and takes the one slot left after
+	// idle's floor: both ask for headroom (busy 1, idle 5), the slot
+	// cannot be split, and busy has the larger target.
+	if gotBusy.Spec.Replicas != 7 {
+		t.Errorf("busy Replicas = %d, want 7 (real load plus the last free slot)", gotBusy.Spec.Replicas)
 	}
 	// idle is held at floor 1. Per-pool it would scale to 6 (p95 5 +
 	// floor 1); the fleet allocator denies the speculative warm buffer.

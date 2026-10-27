@@ -277,7 +277,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             guard let token = try await authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL,
                 forceRefresh: false,
-                inBackground: ServerReportPublishingMode.enabled ? false : ServerAuthenticationConfig.current.backgroundRefresh,
+                inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
                 locking: true
             ) else {
                 // An absent result is not memoized, so a fresh login is picked up
@@ -363,7 +363,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         try await authenticationTokenRefreshingIfNeeded(
             serverURL: serverURL,
             forceRefresh: true,
-            inBackground: ServerReportPublishingMode.enabled ? false : ServerAuthenticationConfig.current.backgroundRefresh,
+            inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
             locking: true
         )
     }
@@ -792,6 +792,21 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 try await refreshAuthTokenService.refreshTokens(
                     serverURL: serverURL,
                     refreshToken: refreshToken.token
+                )
+            }
+            // The server answers a refresh token spent within the last minute with the pair that first
+            // exchange minted, which a peer process may have rotated since. Storing it would replace the
+            // peer's live pair with a revoked one, so the stored pair wins once it no longer holds the
+            // refresh token this exchange spent.
+            if let storedCredentials = try await ServerCredentialsStore.current.read(serverURL: serverURL),
+               let storedRefreshToken = storedCredentials.refreshToken,
+               storedRefreshToken != refreshToken.token,
+               storedCredentials.rejected != true
+            {
+                Logger.current.debug("Refresh token for \(serverURL) was rotated by another process; keeping its credentials")
+                return ServerAuthenticationTokens(
+                    accessToken: storedCredentials.accessToken,
+                    refreshToken: storedRefreshToken
                 )
             }
             try await ServerCredentialsStore.current

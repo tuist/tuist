@@ -31,6 +31,10 @@ on:
       runner_version:
         description: "Override the actions/runner version baked into the image. Leave empty to use `runner_version`'s default in runner.pkr.hcl, which is the Renovate-tracked pin."
         required: false
+      stacked:
+        description: "Build the runner layer as a stacked image on the macOS 27 builder (`macos-27` label) and push it as `:macos-<dashes>-<git-sha>-stacked`. Only macOS 27 hosts with Tart 2.36 or newer can run it."
+        type: boolean
+        default: false
 
 concurrency:
   group: runner-image
@@ -42,7 +46,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    runs-on: ${{ inputs.stacked && fromJSON('["self-hosted", "macos", "bare-metal", "macos-27"]') || fromJSON('["self-hosted", "macos", "bare-metal", "vm-image-builder"]') }}
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +78,7 @@ jobs:
         env:
           XCODE: ${{ inputs.xcode_version }}
           RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
+          STACKED: ${{ inputs.stacked }}
         run: |
           set -euo pipefail
           BASE_TAG="${XCODE//./-}"
@@ -82,6 +87,9 @@ jobs:
           echo "Xcode:      ${XCODE}"
           echo "Base image: ${BASE_IMAGE}"
           echo "Profile:    ${PROFILE}"
+          if [ "$STACKED" = "true" ]; then
+            export PATH="$PWD/stacked-tart:$PATH"
+          fi
           # `runner_version` is passed only when the dispatch input is
           # non-empty; otherwise packer falls back to the Renovate-tracked
           # default in runner.pkr.hcl. Duplicating that default here is how
@@ -89,6 +97,7 @@ jobs:
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-runner" \
+            -var "stacked=${STACKED}" \
             ${RUNNER_VERSION_OVERRIDE:+-var runner_version=$RUNNER_VERSION_OVERRIDE} \
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
@@ -121,9 +130,13 @@ jobs:
 
       - name: Resolve image tag
         id: image-tag
+        env:
+          STACKED: ${{ inputs.stacked }}
         run: |
           set -euo pipefail
-          echo "value=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+          suffix=""
+          if [ "$STACKED" = "true" ]; then suffix="-stacked"; fi
+          echo "value=${GITHUB_SHA::8}${suffix}" >> "$GITHUB_OUTPUT"
 
       - name: Push image to GHCR
         timeout-minutes: 90

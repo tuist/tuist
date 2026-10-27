@@ -18,6 +18,7 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 
 ## Search Indexing
 - Only public-project overview roots opt in with `public_project: true, robots_txt: false` metadata. Visibility and authorization still decide whether a response can be indexed. Deeper dashboards, analytics, previews, settings and downloads remain noindex and retain their challenge gates; the project sitemap lists overview roots only.
+- Public HTML `lang`, `hreflang` and structured-data language values use `Locale.language_tag/1`, keeping Gettext locale names and existing URLs unchanged. Documentation article alternates must come from exact available slugs, not English fallback lookups; only emit English `x-default` when that article exists. `DocsLive` redirects untranslated article requests to their English source while preserving the query, rather than indexing English under another language's URL. Documentation overview alternates remain independent of article availability.
 
 ## Request Privacy
 - `Endpoint.scrub_sentry_headers/1` excludes credentials, operator grants, and `x-tuist-actor-id` from Sentry request contexts. Actor labels are unverified, potentially personal metadata and must not enter error-tracker request headers.

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -39,7 +40,7 @@ func newObjectServer(t *testing.T) *objectServer {
 	if err := os.WriteFile(filepath.Join(dir, "image"), image, 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, digest, err := compressImage(filepath.Join(dir, "image"), filepath.Join(dir, "image.zst"))
+	_, digest, err := CompressImage(filepath.Join(dir, "image"), filepath.Join(dir, "image.zst"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +73,7 @@ func newObjectServer(t *testing.T) *objectServer {
 
 func (s *objectServer) transfer() *HTTPTransfer {
 	return &HTTPTransfer{
-		URL: s.URL, Node: "node", Client: s.Client(), DownloadClient: s.Client(), MaxBytes: 8 << 20,
+		URL: s.URL, Node: "node", Client: s.Client(), ObjectClient: s.Client(), MaxBytes: 8 << 20,
 		Token:        func(context.Context) (string, error) { return "token", nil },
 		stallTimeout: 200 * time.Millisecond, retryBackoff: time.Millisecond,
 	}
@@ -294,4 +295,52 @@ func TestDownloadReportsProgressWhenItsBudgetEnds(t *testing.T) {
 	if info, statErr := os.Stat(path + ".part"); statErr != nil || info.Size() != int64(len(s.archive)/2) {
 		t.Fatal("did not keep the bytes it received:", statErr)
 	}
+}
+
+func TestDownloadThatKeepsReceivingOutlastsTheRequestTimeout(t *testing.T) {
+	s := newObjectServer(t)
+	s.misbehave = func(_ int, w http.ResponseWriter, _ *http.Request) bool {
+		w.Header().Set("Content-Length", strconv.Itoa(len(s.archive)))
+		w.WriteHeader(http.StatusOK)
+		for chunk := range slices.Chunk(s.archive, len(s.archive)/8+1) {
+			w.Write(chunk)
+			w.(http.Flusher).Flush()
+			time.Sleep(50 * time.Millisecond)
+		}
+		return true
+	}
+	transfer := s.transfer()
+	// Metadata requests are bounded as a whole; downloads only by a stall.
+	transfer.Client = &http.Client{Transport: s.Client().Transport, Timeout: 150 * time.Millisecond}
+	transfer.ObjectClient = nil
+	path := filepath.Join(t.TempDir(), "image")
+
+	if err := transfer.Download(context.Background(), s.slot, path); err != nil {
+		t.Fatal("a download still receiving bytes was cut off:", err)
+	}
+
+	restored(t, path)
+	if ranges := s.requestedRanges(); len(ranges) != 1 {
+		t.Fatalf("requested ranges %q", ranges)
+	}
+}
+
+func TestDownloadAbandonsAServerThatNeverAnswers(t *testing.T) {
+	s := newObjectServer(t)
+	s.misbehave = func(attempt int, _ http.ResponseWriter, r *http.Request) bool {
+		if attempt == 1 {
+			<-r.Context().Done()
+			return true
+		}
+		return false
+	}
+	path := filepath.Join(t.TempDir(), "image")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.transfer().Download(ctx, s.slot, path); err != nil {
+		t.Fatal("a request without a response was not abandoned:", err)
+	}
+
+	restored(t, path)
 }

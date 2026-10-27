@@ -19,6 +19,20 @@ steps:
   - run: ./gradlew test
 ```
 
+The cache volume starts at `20gb`. Set `size` to give it another capacity, a
+whole number of GB from `1gb` to `100gb`:
+
+```yaml
+  - uses: tuist/gradle-cache@v1
+    with:
+      size: 50gb
+```
+
+A larger size grows the cache, keeping its contents, from its next job. A
+smaller one applies after the volume is next cleared or expires. Sizes above
+`20gb` may not be enabled for every account yet. Runner images without size
+support keep the current size and warn.
+
 Set `GRADLE_USER_HOME` before this step if you use one. Turn off other caches
 of the same directories, such as `cache: gradle` on `actions/setup-java` or the
 caching of `gradle/actions/setup-gradle`: the directories must be empty when

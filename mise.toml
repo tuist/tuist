@@ -4,7 +4,7 @@
     # config and devDependencies live here rather than in a package.
     node = "24.11.0"
     # Auto-bumped to the latest Tuist CLI release (incl. canary) by the update-tuist-cli workflow.
-    tuist = "4.214.0-canary.44"
+    tuist = "4.215.0-canary.28"
     swiftlint = "0.59.1"
     "elixir" = "1.20.2"
     "erlang" = "29.0.3"
@@ -25,6 +25,8 @@
     caddy = "2.11.4"
     kubectl = "1.36.1"
     helm = "4.2.0"
+    # Management cluster Hetzner resources (infra/k8s/mgmt/talos/hetzner.yaml).
+    hcloud = "1.70.1"
     # pomerium-cli is the kubeconfig exec credential plugin that does
     # the Google OIDC dance + caches the session for kubectl calls
     # against the kube-<env>.tuist.dev Pomerium gateway. See
@@ -40,6 +42,14 @@
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
     TUIST_FILESYSTEM_BACKEND = "swift-file-system"
     TUIST_INSPECT_TEST_MODE = "remote"
+    # Xcode code coverage, for every job and developer alike. They stand in for
+    # Tuist.swift's `coverage: .coverage(enabled: true, prefixMapping: true)`
+    # until the backward-compatibility gate's CLI knows the option. Prefix
+    # mapping is hashed into cache keys, so it must match wherever the cache is
+    # shared.
+    TUIST_FEATURE_FLAG_COVERAGE = "1"
+    TUIST_COVERAGE_ENABLED = "1"
+    TUIST_COVERAGE_PREFIX_MAPPING = "1"
     TUIST_HOSTED = "1"
     TUIST_S3_VIRTUAL_HOST = "1"
     TUIST_S3_BUCKET_AS_HOST = "1"

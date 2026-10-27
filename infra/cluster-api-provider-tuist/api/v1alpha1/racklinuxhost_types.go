@@ -59,6 +59,15 @@ type RackLinuxHostSpec struct {
 	// +optional
 	Node RackLinuxHostNode `json:"node,omitempty"`
 
+	// TPMCheckCode is the check code of the machine's TPM endorsement key from
+	// the vendor's acceptance report, which the preinstall image's unit sheet
+	// shows: the first 64 bits of the key's SHA-256 in hex. Set, the host's TPM
+	// is pinned only to a key that has it, and the internet boot server takes
+	// the machine's announcements.
+	// +kubebuilder:validation:Pattern=`^[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}$`
+	// +optional
+	TPMCheckCode string `json:"tpmCheckCode,omitempty"`
+
 	// Online is whether the host should be powered on. The operator powers it
 	// on or off through AMT to match.
 	// +kubebuilder:default=true
@@ -125,6 +134,31 @@ type RackLinuxHostEdge struct {
 
 	// VRRP is the edge's address on the site's VRRP VLAN, and its way out.
 	VRRP RackLinuxHostEdgeVRRP `json:"vrrp"`
+
+	// WAN is the site's static uplink, which the edge takes on its own while
+	// no rack-edge pod runs on it and nobody else answers for the address:
+	// the first edge of a site has no other edge to go out through. Its
+	// rack-edge pod gives it up before keepalived takes the WAN.
+	// +optional
+	WAN *RackLinuxHostEdgeWAN `json:"wan,omitempty"`
+}
+
+// RackLinuxHostEdgeWAN is a site's static uplink, as the site definition's
+// management.edge.wan names it.
+type RackLinuxHostEdgeWAN struct {
+	// VLAN is the VLAN the WAN rides once the site's ToRs carry it. A factory
+	// ToR passes the carrier untagged.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=4094
+	VLAN int32 `json:"vlan"`
+
+	// Address is the site's WAN address, with the prefix length.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$`
+	Address string `json:"address"`
+
+	// Gateway is the carrier's end of the WAN.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
+	Gateway string `json:"gateway"`
 }
 
 // RackLinuxHostEdgeVRRP is an edge's address on the site's VRRP VLAN.

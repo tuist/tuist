@@ -5,6 +5,7 @@
   font: var(--noora-font-body-small);
 
   & svg {
+    flex-shrink: 0;
     width: var(--noora-icon-size-medium);
     height: var(--noora-icon-size-medium);
   }

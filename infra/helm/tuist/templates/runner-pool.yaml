@@ -79,6 +79,11 @@ spec:
   failing loudly.
   */}}
   fleetSelector: {{ $pool.fleetSelector | default $hostFleetName | quote }}
+  {{- /* A pool racked at a site runs only on that site's minis, even once the
+  rack fleet spans several sites: the `ber1` smoke pool tests that rack. */}}
+  {{- with $pool.site }}
+  site: {{ . | quote }}
+  {{- end }}
   dispatchLabel: {{ $dispatchLabel | quote }}
   runnerLabels:
     {{- range $runnerLabels }}
@@ -132,21 +137,24 @@ rebuilt. An xcodeVersion entry can override `imageTag` to pin a specific tag
 dispatch with a `:<profile>-<git-sha>` tag).
 
 The catalog renders once per placement: the rented fleet, and, with
-`rackFleet.runners.enabled`, the rack fleet at its site. A rack placement's
-pools are named `<release>-runner-pool-macos-<site>-<xcode-dashes>[-<shape>]`
-(the site before the Xcode, so the shape suffix `Catalog` matches on stays
-last), select the rack fleet, and carry `tuist.dev/site`. Selecting their own
-fleet is what keeps the autoscaling arithmetic right: the runners-controller
-apportions a capacity domain across the pools sharing an OS and
-`fleetSelector`, so the rack's pools split the rack's guest slots and the
-rented fleet's split the rented fleet's, and neither counts the other's
-memory. The image and runner labels are the Xcode's, the same on every
+`rackFleet.runners.enabled`, the rack fleet. The rack placement's pools are
+named `<release>-runner-pool-macos-<site>-<xcode-dashes>[-<shape>]` after
+`rackFleet.site` (the site before the Xcode, so the shape suffix `Catalog`
+matches on stays last), select the rack fleet, and carry `tuist.dev/site`.
+The rack fleet spans every site whose runners are on (`tuist.rackSiteFleetName`),
+so one pool per Xcode and shape serves them all: a queued job is bound to its
+Xcode and shape, and the site whose runner claims it runs it. Selecting their
+own fleet is what keeps the autoscaling arithmetic right: the
+runners-controller apportions a capacity domain across the pools sharing an OS
+and `fleetSelector`, so the rack's pools split the rack's guest slots at every
+site and the rented fleet's split the rented fleet's, and neither counts the
+other's memory. The image and runner labels are the Xcode's, the same on every
 placement; pod sizing is the shape's unless the rack gives that shape a bigger
 guest (`rackFleet.runners.guestShapes`); replicas, autoscaling and rollout are
 the placement's own (`runnersFleet.xcodeOverrides` for the rented fleet,
 `rackFleet.runners` for the rack). The server routes an account's profile to
-a site's pool only when the account is enabled on the `runner_site` flag and
-the site has that pool (`tuist.rackCatalogPools`, TUIST_RUNNERS_SITE_POOLS).
+the rack's pool only when the account is enabled on the `runner_site` flag and
+the rack has that pool (`tuist.rackCatalogPools`, TUIST_RUNNERS_SITE_POOLS).
 */}}
 {{- /*
 Per-env tuning (replicas, pod sizing, autoscaling, runtime class)
@@ -219,7 +227,14 @@ the catalog at a site instead (`tuist.runnersFleetRentsMacOS`).
 {{- end }}
 {{- $rackPools := include "tuist.rackCatalogPools" . | fromJsonArray }}
 {{- if $rackPools }}
-{{- $rackRunners := .Values.rackFleet.runners }}
+{{- /*
+One rack placement: its pools select the rack fleet, which every site whose
+runners are on joins (`tuist.rackSiteFleetName`), so each pool spans those
+sites and the runners-controller apportions all of their guest slots among the
+rack's pools. A dark site's Nodes drop out of that budget, and the pools'
+queued jobs run at the sites still up. Named after `rackFleet.site`.
+*/}}
+{{- $rackRunners := .Values.rackFleet.runners | default dict }}
 {{- $rackShapeOverrides := $rackRunners.shapes | default dict }}
 {{- /*
 A non-default shape runs on the rack only where `rackFleet.runners.shapes`
@@ -241,7 +256,7 @@ recorded, billed and counted against concurrency limits at the shape the
 profile names, while its Pods are sized to the guest. A guest smaller than its
 shape fails the render, since a job would get less than its profile names.
 */}}
-{{- $placements = append $placements (dict "fleet" (include "tuist.rackFleetName" .) "site" .Values.rackFleet.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes "guestShapes" ($rackRunners.guestShapes | default dict)) }}
+{{- $placements = append $placements (dict "fleet" (include "tuist.rackFleetName" .) "site" .Values.rackFleet.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes "guestShapes" ($rackRunners.guestShapes | default dict) "stacked" ($rackRunners.stackedImages | default false)) }}
 {{- end }}
 {{- range $xcode := $xcodeVersions }}
 {{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
@@ -252,6 +267,23 @@ shape fails the render, since a job would get less than its profile names.
 {{- $podCPU := dig "pod" "cpuMilli" $defaultCPU $imageOverride }}
 {{- $podMem := dig "pod" "memoryMB" $defaultMem $imageOverride }}
 {{- range $placement := $placements }}
+{{- $poolImage := $image }}
+{{- if $placement.stacked }}
+{{- with include "tuist.macosRunnerStackedImage" (dict "root" $ "xcodeVersion" $xcodeVersion) }}
+{{- $poolImage = . }}
+{{- end }}
+{{- end }}
+{{- /*
+Which of the Xcode's catalog images the pool runs, `standalone` or `stacked`,
+so tart-kubelet can find the image a release moves the pool to next in the
+upcoming runner images ConfigMap (`.github/workflows/runner-image-release.yml`)
+and pull it before the deploy that moves the pool. A pool whose Xcode pins an
+`imageTag` follows no release and has none.
+*/}}
+{{- $imageVariant := ternary "standalone" "stacked" (eq $poolImage $image) }}
+{{- if dig "imageTag" "" $imageOverride }}
+{{- $imageVariant = "" }}
+{{- end }}
 {{- $override := dig $xcodeVersion (dict) $placement.overrides }}
 {{- $site := $placement.site }}
 {{- $sitePart := ternary "" (printf "%s-" $site) (eq $site "") }}
@@ -281,6 +313,9 @@ metadata:
     tuist.dev/runner-pool: {{ $poolName | quote }}
     tuist.dev/managed-by: helm
     tuist.dev/xcode-version: {{ $xcodeVersion | quote }}
+    {{- with $imageVariant }}
+    tuist.dev/runner-image-variant: {{ . | quote }}
+    {{- end }}
     tuist.dev/shape: {{ printf "%dvcpu-%dgb" (div $defaultCPU 1000) (div $defaultMem 1024) | quote }}
     tuist.dev/shape-vcpus: {{ div $defaultCPU 1000 | quote }}
     tuist.dev/shape-memory-gb: {{ div $defaultMem 1024 | quote }}
@@ -297,7 +332,7 @@ metadata:
 spec:
   labels: []
   replicas: {{ $replicas }}
-  image: {{ $image | quote }}
+  image: {{ $poolImage | quote }}
   os: darwin
   fleetSelector: {{ $placement.fleet | quote }}
   dispatchLabel: {{ printf "shape-macos-%s%s" $sitePart $xcodeTag | quote }}
@@ -364,6 +399,9 @@ metadata:
     tuist.dev/runner-pool: {{ $shapePoolName | quote }}
     tuist.dev/managed-by: helm
     tuist.dev/xcode-version: {{ $xcodeVersion | quote }}
+    {{- with $imageVariant }}
+    tuist.dev/runner-image-variant: {{ . | quote }}
+    {{- end }}
     tuist.dev/shape: {{ $shapeKey | quote }}
     tuist.dev/shape-vcpus: {{ $vcpus | quote }}
     tuist.dev/shape-memory-gb: {{ $memoryGb | quote }}
@@ -379,7 +417,7 @@ metadata:
 spec:
   labels: []
   replicas: {{ dig "minWarmPoolFloor" 0 (default dict $shapeAutoscaling) }}
-  image: {{ $image | quote }}
+  image: {{ $poolImage | quote }}
   os: darwin
   fleetSelector: {{ $placement.fleet | quote }}
   dispatchLabel: {{ printf "shape-macos-%s%s-%s" $sitePart $xcodeTag $shapeKey | quote }}
@@ -456,6 +494,10 @@ spec:
   {{- if $.Values.runnersFleetLinux.cacheVolumes.enabled }}
   cacheVolumeRoot: {{ $.Values.runnersFleetLinux.cacheVolumes.hostPath | quote }}
   cacheVolumeURL: {{ printf "http://%s.%s.svc.cluster.local:8090" (include "tuist.componentName" (dict "root" $ "component" "runner-cache-volumes")) $namespace | quote }}
+  {{- $dockerCache := $.Values.runnersFleetLinux.cacheVolumes.dockerCache }}
+  {{- if and $dockerCache.enabled (or (empty $dockerCache.pools) (has $poolName $dockerCache.pools)) }}
+  dockerCache: true
+  {{- end }}
   {{- end }}
   replicas: {{ $replicas }}
   image: {{ $image | quote }}
@@ -519,19 +561,35 @@ autoscaling per-shape (a popular shape may want a higher floor).
 {{- $shapeImage := .Values.runnersFleetLinux.shapeRunnerImage | default "" }}
 {{- $shapeRuntimeClass := .Values.runnersFleetLinux.shapeRuntimeClass | default "" }}
 {{- $shapeAutoscalingDefaults := .Values.runnersFleetLinux.shapeAutoscaling | default dict }}
+{{- $cohorts := list (dict "suffix" "" "fleet" $hostFleetName) }}
+{{- if .Values.runnersFleetLinux.vrack.enabled }}
+{{- $vrackFleet := required "runnersFleetLinux.vrack.nodePool is required" .Values.runnersFleetLinux.vrack.nodePool }}
+{{- if eq $vrackFleet $hostFleetName }}
+  {{- fail "vRack runner node pool must differ from the ordinary node pool" }}
+{{- end }}
+{{- $cohorts = append $cohorts (dict "suffix" "-vrack" "fleet" $vrackFleet) }}
+{{- end }}
+
 {{- range $shape := $shapes }}
+{{- range $cohort := $cohorts }}
 {{- $vcpus := required "runnersFleetLinux.shapes[].vcpus required" $shape.vcpus | int }}
 {{- $memoryGb := required "runnersFleetLinux.shapes[].memoryGb required" $shape.memoryGb | int }}
 {{- if not $shapeImage }}
   {{- fail "runnersFleetLinux.shapeRunnerImage required when runnersFleetLinux.shapes is non-empty" }}
 {{- end }}
 {{- $shapeKey := printf "%dvcpu-%dgb" $vcpus $memoryGb }}
-{{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-linux")) $shapeKey }}
-{{- $dispatchLabel := printf "shape-linux-%s" $shapeKey }}
+{{- $poolName := printf "%s%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-linux")) $cohort.suffix $shapeKey }}
+{{- $dispatchLabel := printf "shape-linux%s-%s" $cohort.suffix $shapeKey }}
 {{- $podCPU := mul $vcpus 1000 }}
 {{- $podMem := mul $memoryGb 1024 }}
 {{- $isDefault := dig "default" false $shape }}
 {{- $autoscaling := mergeOverwrite (deepCopy $shapeAutoscalingDefaults) (default dict $shape.autoscaling) }}
+{{- if $cohort.suffix }}
+{{- if not (dig "enabled" true $autoscaling) }}
+  {{- fail "vRack runner pools require autoscaling because their warm floor is zero" }}
+{{- end }}
+{{- $_ := set $autoscaling "minWarmPoolFloor" 0 }}
+{{- end }}
 {{- $provisioning := mergeOverwrite (deepCopy ($.Values.runnersFleetLinux.provisioning | default dict)) (default dict $shape.provisioning) }}
 ---
 apiVersion: tuist.dev/v1alpha1
@@ -548,6 +606,9 @@ metadata:
     app.kubernetes.io/component: runners-controller
     tuist.dev/runner-pool: {{ $poolName | quote }}
     tuist.dev/managed-by: helm
+    {{- if $cohort.suffix }}
+    tuist.dev/network-cohort: vrack
+    {{- end }}
     tuist.dev/shape: {{ $shapeKey | quote }}
     tuist.dev/shape-vcpus: {{ $vcpus | quote }}
     tuist.dev/shape-memory-gb: {{ $memoryGb | quote }}
@@ -559,11 +620,15 @@ spec:
   {{- if $.Values.runnersFleetLinux.cacheVolumes.enabled }}
   cacheVolumeRoot: {{ $.Values.runnersFleetLinux.cacheVolumes.hostPath | quote }}
   cacheVolumeURL: {{ printf "http://%s.%s.svc.cluster.local:8090" (include "tuist.componentName" (dict "root" $ "component" "runner-cache-volumes")) $namespace | quote }}
+  {{- $dockerCache := $.Values.runnersFleetLinux.cacheVolumes.dockerCache }}
+  {{- if and $dockerCache.enabled (or (empty $dockerCache.pools) (has $poolName $dockerCache.pools)) }}
+  dockerCache: true
+  {{- end }}
   {{- end }}
   replicas: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
   image: {{ $shapeImage | quote }}
   os: linux
-  fleetSelector: {{ $hostFleetName | quote }}
+  fleetSelector: {{ $cohort.fleet | quote }}
   dispatchLabel: {{ $dispatchLabel | quote }}
   runnerLabels:
     {{- range $defaultRunnerLabels }}
@@ -590,5 +655,6 @@ spec:
   rollout:
     maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
   {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

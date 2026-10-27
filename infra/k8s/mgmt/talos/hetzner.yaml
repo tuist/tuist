@@ -1,0 +1,48 @@
+# Hetzner Cloud resources around the management cluster, in project
+# `tuist-mgmt`. Reconciled on merge to main by the `hetzner` job in
+# .github/workflows/mgmt-cluster-apply.yml (infra/mise/tasks/mgmt/reconcile-hetzner.sh).
+# Not a Talos patch and not a Kubernetes manifest.
+# Location of the load balancer, its primary IP, and every node without its
+# own `location`. All locations must be in the network's zone (eu-central).
+location: fsn1
+network:
+  name: tuist-mgmt
+  ipRange: 10.0.0.0/16
+  subnet: 10.0.1.0/24
+loadBalancer:
+  # Also the name of the primary IPv4 the load balancer is created with.
+  name: tuist-mgmt-api
+  type: lb11
+  # Kubernetes API, TCP passthrough with a TCP health check.
+  ports: [6443]
+  # Reached over the private network after the Flannel migration. The
+  # reconciler checks sibling health before removal and waits after each
+  # switch. Retain public TCP 6443 until every private target is healthy.
+  usePrivateIP: true
+# How a node listed below is created when its server does not exist yet.
+# The server boots the Talos snapshot without user data, so it waits in
+# Talos maintenance mode until the `talos` job applies the control-plane
+# machine config over the private network. Existing servers keep their
+# settings.
+server:
+  type: ccx13
+  # Description of the Talos snapshot, uploaded with hcloud-upload-image.
+  image: talos-v1.13.0
+  # Allows only the Kubernetes API from the internet.
+  firewall: tuist-mgmt
+  # Spread placement group new servers are created in: Hetzner runs them on
+  # different hosts, which matters for nodes sharing a location.
+  placementGroup: tuist-mgmt
+# Control-plane servers: attached to the network at privateIP (fixed once
+# attached) and targeted by the load balancer. The load balancer holds
+# 10.0.1.1. `location` overrides the top-level one and is fixed once created.
+nodes:
+  - name: tuist-mgmt
+    privateIP: 10.0.1.11
+  # fsn1 had no server types available when these were added (2026-10-26).
+  - name: tuist-mgmt-2
+    privateIP: 10.0.1.12
+    location: nbg1
+  - name: tuist-mgmt-3
+    privateIP: 10.0.1.13
+    location: nbg1

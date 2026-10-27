@@ -20,6 +20,18 @@ defmodule TuistWeb.WellKnownControllerTest do
     :ok
   end
 
+  describe "GET /.well-known/tuist.json" do
+    test "advertises the current instance policy without authentication or caching", %{conn: conn} do
+      for enabled <- [false, true, false] do
+        stub(Environment, :network_trusted_report_publishing_enabled?, fn -> enabled end)
+        response = get(conn, "/.well-known/tuist.json")
+        assert json_response(response, 200) == %{"network_trusted_report_publishing" => enabled}
+        assert get_resp_header(response, "cache-control") == ["no-store"]
+        assert get_resp_header(response, "set-cookie") == []
+      end
+    end
+  end
+
   describe "GET /.well-known/api-catalog" do
     test "returns a linkset API catalog", %{conn: conn} do
       conn =
@@ -249,7 +261,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["protocolVersion"] == "2026-07-28"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
-      assert response["serverInfo"]["version"] == "1.39.0"
+      assert response["serverInfo"]["version"] == "1.42.0"
       assert response["serverInfo"]["title"] == "Tuist"
       assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"

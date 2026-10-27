@@ -3,9 +3,12 @@ defmodule TuistWeb.RunsControllerTest do
   use Mimic
 
   alias Tuist.Storage
+  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
 
   describe "download/2" do
     test "redirects to the result bundle download url when user has permission", %{conn: conn} do
@@ -24,6 +27,50 @@ defmodule TuistWeb.RunsControllerTest do
 
       # Then
       assert redirected_to(conn) == "https://tuist.io"
+    end
+
+    test "canonical immutable routes download the original case-sensitive shard bundle", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      conn = log_in_user(conn, user)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 1, reporting_version: 1)
+      source_id = String.upcase(UUIDv7.generate())
+      stub(Tuist.Tasks, :run_async, fn _ -> :ok end)
+
+      assert {:ok, _} =
+               Tests.create_test(%{
+                 id: plan.id,
+                 source_test_run_id: source_id,
+                 project_id: project.id,
+                 account_id: user.account.id,
+                 shard_plan_id: plan.id,
+                 shard_index: 0,
+                 status: "success",
+                 duration: 1,
+                 is_ci: true,
+                 test_modules: []
+               })
+
+      key = "#{user.account.name}/#{project.name}/runs/#{source_id}/result_bundle.zip"
+      stub(Storage, :object_exists?, fn object_key, _ -> object_key == key end)
+      stub(Storage, :get_object_range, fn ^key, 0..1, _ -> {:ok, "PK"} end)
+      expect(Storage, :generate_download_url, fn ^key, _, _ -> "https://tuist.io/shard-bundle" end)
+      conn = get(conn, ~p"/#{user.account.name}/#{project.name}/runs/#{plan.id}/download")
+      assert redirected_to(conn) == "https://tuist.io/shard-bundle"
+    end
+
+    test "legacy downloads preserve uppercase IDs supplied in the route", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      conn = log_in_user(conn, user)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      source_id = String.upcase(UUIDv7.generate())
+      {:ok, _} = RunsFixtures.test_fixture(id: source_id, project_id: project.id)
+      key = "#{user.account.name}/#{project.name}/runs/#{source_id}/result_bundle.zip"
+      stub(Storage, :object_exists?, fn object_key, _ -> object_key == key end)
+      stub(Storage, :get_object_range, fn ^key, 0..1, _ -> {:ok, "PK"} end)
+      expect(Storage, :generate_download_url, fn ^key, _, _ -> "https://tuist.io/legacy-bundle" end)
+      conn = get(conn, ~p"/#{user.account.name}/#{project.name}/runs/#{source_id}/download")
+      assert redirected_to(conn) == "https://tuist.io/legacy-bundle"
     end
 
     test "returns 404 when command event does not exist", %{conn: conn} do

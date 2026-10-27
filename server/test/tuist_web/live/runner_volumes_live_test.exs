@@ -10,7 +10,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
-  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerVolumesLive
 
   defp assigns(can_manage) do
@@ -54,6 +53,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       selected_tab: "overview",
       storage_metric: "used_bytes",
       detail_metric: "used_bytes",
+      initialize_percentile: "avg",
       analytics_preset: "last-7-days",
       analytics_period: {~U[2026-09-15 10:00:00Z], ~U[2026-09-22 10:00:00Z]},
       params: %{},
@@ -92,38 +92,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute html =~ "Average attach · 30 days"
     assert html =~ "not unique physical bytes"
     assert html =~ "request_delete"
-  end
-
-  test "built-in volumes are named after the caches they hold" do
-    assigns = assigns(true)
-
-    volume = %{
-      assigns.selected
-      | builtin_name: "tuist-cache",
-        key: "tuist-cache",
-        platform: "macos",
-        architecture: "arm64"
-    }
-
-    data = assigns.data.result
-    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :retained_capacity_bytes, 20_000_000_000))
-    data = %{data | volumes: [volume], stats: stats}
-    assigns = %{assigns | selected: volume, data: AsyncResult.ok(data)}
-    detail = render_component(&RunnerVolumesLive.render/1, assigns)
-    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Xcode and module caches"
-    assert detail =~ "macOS"
-    assert detail =~ "20.0 GB"
-    refute detail =~ "Automatic"
-    badges = detail |> Floki.parse_document!() |> Floki.find(".noora-badge") |> Floki.text()
-    assert badges =~ "macOS"
-    refute badges =~ "Custom"
-    refute detail =~ "phx-click=\"request_delete\""
-    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil})
-    cell = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child")
-    assert Floki.text(cell) =~ "Xcode and module caches"
-    refute inventory =~ "tuist-cache"
-    assert inventory =~ "20.0 GB"
-    assert inventory =~ "/runners/volumes/#{volume.id}"
   end
 
   test "the managed Gradle cache is named after its tool, and other keys stay as they are" do
@@ -446,8 +414,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute jobs =~ ~s(id="volume-size-history")
     assert jobs =~ "Volume details"
     assert :binary.match(jobs, "Volume details") < :binary.match(jobs, "noora-tab-menu-horizontal")
-    assert RunnerVolumesLive.selected_tab("size-history") == "overview"
-    assert RunnerVolumesLive.selected_tab("invalid") == "overview"
+    assert RunnerVolumesLive.selected_tab("size-history", nil) == "overview"
+    assert RunnerVolumesLive.selected_tab("invalid", nil) == "overview"
   end
 
   test "detail widgets compare with the previous period" do
@@ -506,18 +474,79 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(3, nil)
   end
 
-  test "detail warns when the saved snapshot is too full to reuse" do
+  test "detail warns when the saved snapshot is too full for the capacity the next job gets" do
     assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate()}
     data = assigns.data.result
-    full = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1700, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: full})})
+    saved = %{saved_bytes: 17_000_000_000, saved_capacity_bytes: 20_000_000_000, head_volume_bytes: 20_000_000_000}
+    full = Map.update!(data.stats, volume.id, &Map.merge(&1, saved))
+    full_data = %{data | stats: full, volumes: [volume]}
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: volume, data: AsyncResult.ok(full_data)})
 
     assert html =~ ~s(id="volume-full-alert")
     assert html =~ "This volume is almost full"
+    assert html =~ "17.0 GB of 20.0 GB"
 
-    roomy = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1024, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: roomy})})
+    grown = %{volume | requested_volume_bytes: 50_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: grown,
+          data: AsyncResult.ok(%{full_data | volumes: [grown]})
+      })
+
     refute html =~ ~s(id="volume-full-alert")
+
+    roomy = Map.update!(data.stats, volume.id, &Map.merge(&1, %{saved | saved_bytes: 10_000_000_000}))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: roomy, volumes: [volume]})
+      })
+
+    refute html =~ ~s(id="volume-full-alert")
+  end
+
+  test "detail shows the volume's capacity and a smaller size pending until the next clear" do
+    assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate(), requested_volume_bytes: 5_000_000_000}
+    data = assigns.data.result
+    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :head_volume_bytes, 50_000_000_000))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    capacity = html |> Floki.parse_document!() |> Floki.find("#volume-capacity") |> Floki.text()
+    assert capacity =~ "50.0 GB"
+    assert html =~ ~s(id="volume-pending-size-alert")
+    assert html =~ "Saved at 50.0 GB. New contents will use 5.0 GB after the next clear."
+
+    larger = %{volume | requested_volume_bytes: 100_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: larger,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [larger]})
+      })
+
+    refute html =~ ~s(id="volume-pending-size-alert")
+
+    inventory =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: nil,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    assert inventory =~ "50.0 GB"
   end
 
   test "reader sees metrics but no mutation controls" do
@@ -549,18 +578,80 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("confirm", %{}, socket)
   end
 
-  test "the built-in volume page is not found for accounts that still get it automatically" do
-    id = Ecto.UUID.generate()
-    expect(CacheVolumes, :get, fn 1, ^id -> %Volume{id: id, key: "tuist-cache", builtin_name: "tuist-cache"} end)
-    socket = %Socket{assigns: %{__changed__: %{}, selected_account: %{id: 1}, include_builtin: false}}
-
-    assert_raise NotFoundError, fn -> RunnerVolumesLive.handle_params(%{"id" => id}, "", socket) end
-  end
-
   test "requesting another account's volume never opens confirmation" do
     id = Ecto.UUID.generate()
     expect(CacheVolumes, :get, fn 1, ^id -> nil end)
     socket = %Socket{assigns: %{__changed__: %{}, selected_account: %{id: 1}, can_manage: true}}
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("request_delete", %{"id" => id}, socket)
+  end
+
+  test "names the managed cache volumes" do
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-xcode"}) == "Xcode cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-module"}) == "Module cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-gradle"}) == "Gradle cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "npm"}) == "npm"
+  end
+
+  test "an image cache volume shows how its jobs started containers and the images it keeps" do
+    assigns = assigns(true)
+    volume = %{assigns.selected | key: "docker"}
+
+    steps = %{
+      reused: %{avg: 3_200, p50: 3_100, p90: 4_400, p99: 6_100},
+      cold: %{avg: 47_000, p50: 46_000, p90: 52_000, p99: 58_000},
+      points: []
+    }
+
+    data = %{assigns.data.result | volumes: [volume]}
+    analytics = Map.merge(data.analytics, %{steps: steps, previous_steps: steps})
+
+    overview =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | analytics: analytics})
+      })
+
+    assert overview =~ "Avg. Initialize containers"
+    assert overview =~ "tab=images"
+
+    images =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          selected_tab: "images",
+          data:
+            AsyncResult.ok(Map.put(data, :images, [%{name: "postgres:16", size_bytes: 451_000_000, last_used_at: nil}]))
+      })
+
+    assert images =~ "postgres:16"
+  end
+
+  test "other volumes have no images tab or container start widget" do
+    html = render_component(&RunnerVolumesLive.render/1, assigns(true))
+
+    refute html =~ "tab=images"
+    refute html =~ "Initialize containers"
+    assert RunnerVolumesLive.selected_tab("images", %{key: "gradle"}) == "overview"
+  end
+
+  test "a job whose saved image cache could not be mounted is a miss" do
+    assigns = assigns(true)
+
+    usage = %Usage{
+      id: Ecto.UUID.generate(),
+      workflow_job_id: 1024,
+      workflow_run_id: 1000,
+      job_name: "Build and test",
+      status: "published",
+      warm: true,
+      docker_images: %{"images" => [], "build_cache_bytes" => 0, "reset" => true}
+    }
+
+    data = %{assigns.data.result | history: [usage]}
+    jobs = render_component(&RunnerVolumesLive.render/1, %{assigns | selected_tab: "jobs", data: AsyncResult.ok(data)})
+
+    assert jobs =~ "Miss"
+    refute jobs =~ "Hit"
   end
 end

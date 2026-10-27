@@ -358,14 +358,6 @@ defmodule TuistWeb.OnceRunLive do
                   <div data-part="title">{dgettext("dashboard_projects", "Commit")}</div>
                   <span data-part="label"><.git_commit />{git_short_sha(@run.git_rev)}</span>
                 </div>
-                <div :if={host_class_present?(@run)} data-part="metadata">
-                  <div data-part="title">{dgettext("dashboard_projects", "Host")}</div>
-                  <span data-part="label">{@run.host_class}</span>
-                </div>
-                <div :if={once_version_present?(@run)} data-part="metadata">
-                  <div data-part="title">{dgettext("dashboard_projects", "Once version")}</div>
-                  <span data-part="label">{@run.once_version}</span>
-                </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_projects", "Run identifier")}</div>
                   <span data-part="label">{@run.run_id}</span>
@@ -375,6 +367,10 @@ defmodule TuistWeb.OnceRunLive do
             <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
           </.card_section>
         </.card>
+        <TuistWeb.Components.BuildMetadata.environment_metadata fields={[
+          {dgettext("dashboard_projects", "Once version"), @run.once_version},
+          {dgettext("dashboard_projects", "Host"), @run.host_class}
+        ]} />
 
         <.card
           title={dgettext("dashboard_projects", "Actions")}
@@ -1263,10 +1259,6 @@ defmodule TuistWeb.OnceRunLive do
 
   defp git_rev_present?(%{git_rev: rev}) when is_binary(rev) and rev != "", do: true
   defp git_rev_present?(_), do: false
-  defp host_class_present?(%{host_class: host}) when is_binary(host) and host != "", do: true
-  defp host_class_present?(_), do: false
-  defp once_version_present?(%{once_version: v}) when is_binary(v) and v != "", do: true
-  defp once_version_present?(_), do: false
 
   defp git_short_sha(rev) when is_binary(rev), do: String.slice(rev, 0, 12)
 

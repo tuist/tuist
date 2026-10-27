@@ -55,6 +55,13 @@ private func initEnv() throws {
     }
 }
 
+func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
+    try initEnv()
+    try await Environment.$current.withValue(Environment()) {
+        try await withDependencies(action)
+    }
+}
+
 struct IgnoreOutputPipeline: StandardPipelining {
     func write(content _: String) {}
 }
@@ -77,8 +84,7 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
 }
 
 #if os(macOS)
-    func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
-        try initEnv()
+    private func withDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
         ThreadDumpSignalHandler.installIfEnabled()
 
         let sessionController = SessionController()
@@ -159,9 +165,7 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
     }
 #else
     /// Linux-specific initialization - simpler setup without macOS-specific features
-    func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
-        try initEnv()
-
+    private func withDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
         let stateDirectory = Environment.current.stateDirectory
         let sessionId = UUID().uuidString
         let sessionDirectory = stateDirectory.appending(components: ["sessions", sessionId])

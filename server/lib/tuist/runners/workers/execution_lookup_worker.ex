@@ -13,8 +13,11 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorker do
   executes is often not the one its Pod was minted for, nor in the same
   workflow run. The lookup lists the jobs of the minted job's run first,
   then of the account's other active runs in the same fleet, most recently
-  queued first, and binds the first job GitHub reports `in_progress` on
-  this runner. A later `in_progress` delivery for the same pair is a no-op.
+  queued first, and binds the first job GitHub names this runner on. GitHub
+  names the runner when it assigns the job, and its job status can still read
+  `queued` for minutes after the job started, so a `queued` job carrying this
+  runner's name binds as well as an `in_progress` one. A later `in_progress`
+  delivery for the same pair is a no-op.
   """
   use Oban.Worker,
     queue: :webhooks,
@@ -80,7 +83,7 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorker do
     case Client.list_workflow_run_jobs(installation, repository, run_id) do
       {:ok, jobs} ->
         Enum.find_value(jobs, fn
-          %{id: id, status: "in_progress", runner_name: ^runner_name} -> id
+          %{id: id, status: status, runner_name: ^runner_name} when status in ["in_progress", "queued"] -> {id, status}
           _ -> nil
         end)
 
@@ -94,12 +97,20 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorker do
     end
   end
 
-  defp record(nil, _session), do: :ok
+  # GitHub reports the job a runner picked up late, by webhook and API alike, so
+  # a miss here means the host may give up before the binding arrives. The job
+  # logged is the one the runner was minted for.
+  defp record(nil, %RunnerSession{} = session) do
+    Logger.info("runners: execution lookup found no job GitHub reports running on this runner",
+      runner_name: session.runner_name,
+      workflow_job_id: session.workflow_job_id
+    )
+  end
 
-  defp record(executed_workflow_job_id, %RunnerSession{} = session) do
+  defp record({executed_workflow_job_id, github_status}, %RunnerSession{} = session) do
     outcome = Dispatch.record_execution(session.runner_name, executed_workflow_job_id, session.account_id)
 
-    Logger.info("runners: recorded execution from GitHub API (#{inspect(outcome)})",
+    Logger.info("runners: recorded execution from GitHub API (#{inspect(outcome)}, GitHub status #{github_status})",
       runner_name: session.runner_name,
       workflow_job_id: executed_workflow_job_id
     )

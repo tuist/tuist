@@ -3,7 +3,9 @@ name: Mgmt Cluster Apply
 # Auto-applies CAPI manifests (ClusterClass + per-env Cluster CRs) and
 # mgmt-cluster workloads (etcd-snapshot CronJob, Tailscale daemon) to
 # our self-hosted CAPI mgmt cluster on push to main when the relevant
-# paths change.
+# paths change. The `hetzner` and `talos` jobs also reconcile the mgmt
+# control-plane nodes: their Hetzner servers and resources, joining new
+# nodes, and Talos machine config patches (infra/k8s/mgmt/talos/README.md).
 #
 # Why a workflow instead of Argo CD / Flux: the mgmt cluster has a tiny
 # manifest surface (one ClusterClass, four Cluster CRs, and a few mgmt-side
@@ -32,6 +34,17 @@ name: Mgmt Cluster Apply
 #     tuist-k8s-mgmt vault, where the mgmt cluster's kubeconfig is
 #     stored as `kubeconfig: tuist-mgmt` and the Grafana Cloud metrics
 #     token is stored as `PROMETHEUS_TOKEN`.
+#
+# Required secrets (on the mgmt-hetzner GitHub Environment, used by the
+# `hetzner` job only):
+#   OP_SERVICE_ACCOUNT_TOKEN - 1Password SA scoped read-only to the
+#     tuist-k8s-mgmt-hetzner vault, which holds `hetzner-tuist-mgmt`, the
+#     Hetzner Cloud API token for project tuist-mgmt. Nothing else reads
+#     that vault, including External Secrets on the mgmt cluster.
+#
+# Both environments should allow only the main branch; the jobs also
+# check `github.ref`, so a workflow_dispatch from another branch applies
+# nothing.
 
 on:
   push:
@@ -46,6 +59,13 @@ on:
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - 'infra/k8s/mgmt/observability-namespace.yaml'
+      - 'infra/k8s/mgmt/controller-replicas.yaml'
+      - 'infra/k8s/mgmt/controller-pdbs.yaml'
+      - 'infra/k8s/mgmt/external-secrets-values.yaml'
+      - 'infra/k8s/mgmt/talos/hetzner.yaml'
+      - 'infra/k8s/mgmt/talos/patches/**'
+      - 'infra/k8s/mgmt/talos-patcher.yaml'
+      - 'infra/mise/tasks/mgmt/**'
       - 'infra/helm/k8s-monitoring/**'
       - '.github/workflows/mgmt-cluster-apply.yml'
   # Manual re-runs only apply the declarative state, e.g. to force a
@@ -61,9 +81,79 @@ concurrency:
 permissions: {}
 
 jobs:
+  hetzner:
+    name: Hetzner resources
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # A separate environment and vault from the kubectl job: the Hetzner
+    # token can snapshot, rescue or rebuild the mgmt server outside
+    # Kubernetes, so only this job may read it. `op run` hands it to the
+    # one command that needs it instead of exporting it to the job.
+    environment:
+      name: mgmt-hetzner
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked hcloud jq yq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Planned changes
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          HCLOUD_TOKEN: op://tuist-k8s-mgmt-hetzner/hetzner-tuist-mgmt/credential
+        run: op run -- infra/mise/tasks/mgmt/reconcile-hetzner.sh
+      - name: Apply
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          HCLOUD_TOKEN: op://tuist-k8s-mgmt-hetzner/hetzner-tuist-mgmt/credential
+        run: op run -- infra/mise/tasks/mgmt/reconcile-hetzner.sh --apply
+
+  talos:
+    name: Talos patches
+    # Joining needs the servers the Hetzner job creates, and patches can
+    # depend on Hetzner resources (a node's private network interface), so
+    # this job runs only after that one succeeded.
+    needs: hetzner
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    # Joins the control-plane nodes in infra/k8s/mgmt/talos/hetzner.yaml
+    # that are not in the cluster yet, then applies
+    # infra/k8s/mgmt/talos/patches/ to every control-plane node, through
+    # Jobs inside the mgmt cluster that call the Talos API with a credential
+    # Talos mints for namespace mgmt-talos. The Talos API itself stays
+    # tailnet-only. A patch that changes the API server restarts it, so the
+    # kubectl job waits for this one.
+    runs-on: ubuntu-latest
+    environment:
+      name: mgmt-cluster-apply
+    timeout-minutes: 90
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked kubectl jq yq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load mgmt kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Planned changes
+        run: infra/mise/tasks/mgmt/reconcile-talos.sh
+      - name: Apply
+        run: infra/mise/tasks/mgmt/reconcile-talos.sh --apply
+
   apply:
     name: kubectl apply
-    if: github.repository == 'tuist/tuist'
+    needs: talos
+    # Runs after the Talos job whatever its result, never alongside it.
+    if: ${{ !cancelled() && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' }}
     # The self-hosted tuist-linux runners are customer runner Pods
     # governed by a NetworkPolicy that only allows public egress on
     # ports 80/443. The mgmt apiserver is reached on 6443, so this
@@ -80,7 +170,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "--locked helm kubectl jq"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load mgmt kubeconfig from 1Password
@@ -256,14 +346,35 @@ jobs:
           kubectl apply -f infra/k8s/mgmt/cluster-autoscaler.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/capi-webhook-cert-reloader.yaml
+          # Moves tailscaled from the old single-node Deployment to the
+          # per-node DaemonSet, keeping tuist-mgmt's tailnet identity.
+          # A no-op once done.
+          infra/mise/tasks/mgmt/migrate-tailscale.sh
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml
+          # Owns only replicas and pod anti-affinity on Deployments that
+          # clusterctl installed; see the file header.
+          kubectl apply --server-side --field-manager=mgmt-cluster-apply \
+            --force-conflicts -f infra/k8s/mgmt/controller-replicas.yaml
 
-          # These regional clusters were retired, but kubectl apply does not
-          # remove resources that disappear from a manifest.
+          # Retired autoscalers: the regional clusters are gone and staging has
+          # no autoscaled node group. kubectl apply does not remove resources
+          # that disappear from a manifest.
           kubectl -n org-tuist delete deployment \
             cluster-autoscaler-tuist-kura-us-east \
             cluster-autoscaler-tuist-kura-us-west \
+            cluster-autoscaler-tuist-staging \
             --ignore-not-found
+      - name: Install External Secrets
+        run: |
+          set -euo pipefail
+          helm upgrade --install external-secrets external-secrets \
+            --repo https://charts.external-secrets.io --version 2.3.0 \
+            --namespace external-secrets \
+            -f infra/k8s/mgmt/external-secrets-values.yaml \
+            --atomic --cleanup-on-fail --wait --timeout 10m
+      - name: Protect admission webhooks during node maintenance
+        run: |
+          kubectl apply -f infra/k8s/mgmt/controller-pdbs.yaml
       - name: Install management-cluster monitoring
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -362,9 +473,10 @@ jobs:
 
           for deployment in \
             cluster-autoscaler-tuist-kura-us-east \
-            cluster-autoscaler-tuist-kura-us-west; do
+            cluster-autoscaler-tuist-kura-us-west \
+            cluster-autoscaler-tuist-staging; do
             if kubectl -n org-tuist get deployment "$deployment" >/dev/null 2>&1; then
-              echo "::error::Retired regional cluster autoscaler $deployment still exists"
+              echo "::error::Retired cluster autoscaler $deployment still exists"
               exit 1
             fi
           done

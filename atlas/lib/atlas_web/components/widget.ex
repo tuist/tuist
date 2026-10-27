@@ -7,6 +7,8 @@ defmodule AtlasWeb.Widget do
   use Phoenix.Component
   use Noora
 
+  import AtlasWeb.Components.EmptyStateBackground
+
   attr :id, :string, required: true
   attr :title, :string, required: true
 
@@ -58,31 +60,51 @@ defmodule AtlasWeb.Widget do
     default: false,
     doc: "Marks the widget as the currently selected option (used with phx_click)."
 
+  attr :variant, :string, default: "default", values: ~w(default analytics)
+
   attr :rest, :global
 
   def widget(assigns) do
     ~H"""
-    <%= if @phx_click do %>
-      <div
-        role="button"
-        tabindex="0"
-        phx-click={@phx_click}
-        phx-value-widget={@phx_value_widget}
-        phx-key="Enter"
-        data-selected={@selected}
-        data-part="widget-link"
-      >
-        <.static_widget {assigns} />
-      </div>
+    <%= if @empty && @variant == "analytics" do %>
+      <.card_section id={@id} data-part="widget" data-variant="analytics" data-empty="true" {@rest}>
+        <div data-part="background" aria-hidden="true"><.empty_state_background /></div>
+        <div data-part="header"><span data-part="title">{@title}</span></div>
+        <span data-part="empty-label">{@empty_label || "No data yet"}</span>
+      </.card_section>
     <% else %>
-      <.static_widget {assigns} />
+      <%= if @phx_click do %>
+        <div
+          role="button"
+          tabindex="0"
+          phx-click={@phx_click}
+          phx-value-widget={@phx_value_widget}
+          phx-keydown={@phx_click}
+          phx-key="Enter"
+          aria-pressed={to_string(@selected)}
+          data-selected={@selected}
+          data-part="widget-link"
+          data-variant={@variant}
+        >
+          <.static_widget {assigns} />
+        </div>
+      <% else %>
+        <.static_widget {assigns} />
+      <% end %>
     <% end %>
     """
   end
 
   defp static_widget(assigns) do
     ~H"""
-    <.card_section id={@id} data-empty={@empty} data-loading={@loading} data-part="widget" {@rest}>
+    <.card_section
+      id={@id}
+      data-empty={@empty}
+      data-loading={@loading}
+      data-part="widget"
+      data-variant={@variant}
+      {@rest}
+    >
       <div data-part="header">
         <div :if={@legend_color} data-color={@legend_color} data-part="legend"></div>
         <div data-part="title">

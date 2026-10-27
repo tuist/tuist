@@ -25,7 +25,35 @@ defmodule TuistEx.Analytics.Coverage do
                      --max-requires --partitions --formatter --slowest --slowest-modules
                      --name-pattern --export-coverage --exit-status --repeat-until-failure)
 
+  # The native counters of the modules Mimic copied, from before the copy.
+  @before_swap {__MODULE__, :before_swap}
+
+  # What limits a run to the tests it names, rather than leaving some out.
+  @selectors ~w(--only --failed --stale --name-pattern)
+
   def requested?(test_args), do: "--cover" in test_args
+
+  @doc """
+  Whether the run's own arguments limit it to the tests they select:
+  `--only`, `--failed`, `--stale`, `--name-pattern`, or explicit test files or
+  lines. Such a run names the tests it ran; any other partial run names the
+  tests it left out.
+  """
+  def narrowed?(test_args) do
+    files?(test_args) or
+      Enum.any?(test_args, fn arg ->
+        Enum.any?(@selectors, &(arg == &1 or String.starts_with?(arg, &1 <> "=")))
+      end)
+  end
+
+  @doc """
+  The tags the run's own `--exclude` options filter on, as ExUnit names
+  them in an exclusion's reason (`"due to <tag> filter"`).
+  """
+  def excluded_tags(test_args) do
+    {options, _rest, _invalid} = OptionParser.parse(test_args, switches: [exclude: :keep])
+    for {:exclude, filter} <- options, do: filter |> String.split(":", parts: 2) |> hd()
+  end
 
   @doc """
   Whether the run's own arguments left tests out on purpose: a filter, or
@@ -154,12 +182,25 @@ defmodule TuistEx.Analytics.Coverage do
     Enum.each(project, &Code.ensure_loaded/1)
     project = MapSet.new(project)
 
-    for {module, _path} <- :code.all_loaded(),
-        source = original(module),
-        MapSet.member?(project, source) and not MapSet.member?(compiled, source),
-        :code.get_coverage_mode(module) != :none,
-        {line, count} <- :code.get_coverage(:line, module),
-        do: {{module, line}, count}
+    # Mimic's proxies count lines of Mimic's own source.
+    counted =
+      for {module, _path} <- :code.all_loaded(),
+          source = original(module),
+          MapSet.member?(project, source) and not MapSet.member?(compiled, source),
+          not function_exported?(module, :__mimic_info__, 0),
+          :code.get_coverage_mode(module) != :none,
+          {line, count} <- :code.get_coverage(:line, module),
+          do: {{source, line}, count}
+
+    before_swap =
+      for {{module, _line}, _count} = entry <- :persistent_term.get(@before_swap, []),
+          MapSet.member?(project, module) and not MapSet.member?(compiled, module),
+          do: entry
+
+    # A copied module's lines add up its calls from before and after the swap.
+    (counted ++ before_swap)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Enum.map(fn {key, counts} -> {key, Enum.sum(counts)} end)
   end
 
   defp build_modules(ebin) do
@@ -257,11 +298,13 @@ defmodule TuistEx.Analytics.Coverage do
 
   @doc """
   Readies a run of an instrumented build once the test helper has run and
-  before any test does: the modules Mimic will copy are cover compiled and
-  swapped for Mimic's copies, as they are when Mix's coverage tool compiled
-  them before the test helper ran. Mimic swaps a module back after the suite,
-  and reloading a module resets its native counters; for a cover compiled one
-  it carries the counts across the swaps itself.
+  before any test does: the modules Mimic will copy are swapped for Mimic's
+  copies now, and not at their first stub, so no test runs before a swap.
+  Mimic compiles each module's original under another name with the
+  module's own options, which carry the native counters, so the calls the
+  tests make count without `cover`. The calls made before the swap, while
+  the application started, are in the counters of the code the swap
+  replaces, so they are read first and added to the copy's.
   """
   def prepare_native(config \\ Mix.Project.config()) do
     case mimic_modules(config) do
@@ -269,20 +312,26 @@ defmodule TuistEx.Analytics.Coverage do
         :ok
 
       modules ->
-        Mix.ensure_application!(:tools)
+        # Each module's counters are read right before its own swap: the
+        # application's processes keep calling it while the others swap.
+        before =
+          Enum.flat_map(modules, fn module ->
+            counts = called_lines(module)
+            Mimic.calls(module, :module_info, 0)
+            counts
+          end)
 
-        case :cover.start() do
-          {:ok, _pid} -> :ok
-          {:error, {:already_started, _pid}} -> :ok
-        end
+        :persistent_term.put(@before_swap, before)
+    end
+  end
 
-        Enum.each(modules, fn {module, beam} ->
-          :cover.compile_beam(beam)
-          # Swapped now, as `Mimic.copy` does for a cover compiled module, and
-          # not at the first stub, which would export the calls made before
-          # it and only bring them back after the suite.
-          Mimic.calls(module, :module_info, 0)
-        end)
+  defp called_lines(module) do
+    if :code.is_loaded(module) != false and :code.get_coverage_mode(module) != :none do
+      for {line, count} <- :code.get_coverage(:line, module),
+          count > 0,
+          do: {{module, line}, count}
+    else
+      []
     end
   end
 
@@ -295,7 +344,7 @@ defmodule TuistEx.Analytics.Coverage do
         for beam <- config |> Mix.Project.compile_path() |> Path.join("*.beam") |> Path.wildcard(),
             module = beam |> Path.basename(".beam") |> String.to_atom(),
             coordinator.marked_to_copy?(module),
-            do: {module, String.to_charlist(beam)}
+            do: module
     end
   end
 
@@ -350,8 +399,8 @@ defmodule TuistEx.Analytics.Coverage do
 
   # Mimic, the mocking library most suites use, swaps a copied module for a
   # proxy and keeps the original's code under another name, cover-compiled
-  # from its binary, so the counters a test moves in it are the original
-  # module's lines.
+  # from its binary when `cover` compiled the original, so the counters a
+  # test moves in it are the original module's lines.
   @mimic_original ".Mimic.Original.Module"
 
   defp original(module) do

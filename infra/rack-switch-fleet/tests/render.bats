@@ -380,7 +380,7 @@ load helpers
     [[ "$output" == *"| feed-b |  | ber1-ats-3 | source-2 | power | feed | installed |"* ]]
     [[ "$output" == *"| feed-a |  | ber1-ats-1 | source-1 | power | feed | installed |"* ]]
     [[ "$output" == *"| feed-b |  | ber1-ats-1 | source-2 | power | feed | installed |"* ]]
-    [[ "$output" == *"| feed-a |  | ber1-ats-2 | source-1 | power | feed | planned |"* ]]
+    [[ "$output" == *"| feed-a |  | ber1-ats-2 | source-1 | power | feed | installed |"* ]]
     [ "$(grep -c '| feed |' <<<"$output")" -eq 6 ]
 }
 
@@ -425,11 +425,11 @@ load helpers
     jq '(.nodes[] | select(.name == "ber1-edge-b")) |= del(.pdu)' "$SITE_FILE" > "$site"
     run fleet_check_power "$site"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ber1-edge-b: one of the edge pair, but names no ats or pdu"* ]]
+    [[ "$output" == *"ber1-edge-b: one of the edge pair, but names no ats, pdu or feeds"* ]]
     jq '(.nodes[] | select(.name == "ber1-store-b")) |= del(.pdu)' "$SITE_FILE" > "$site"
     run fleet_check_power "$site"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ber1-store-b: one of the storage pair, but names no ats or pdu"* ]]
+    [[ "$output" == *"ber1-store-b: one of the storage pair, but names no ats, pdu or feeds"* ]]
 }
 
 @test "a cord goes into one power device, and a PDU hangs off a transfer switch" {
@@ -454,7 +454,7 @@ load helpers
 
 @test "two power appliances cannot share a management address" {
     local site="$BATS_TEST_TMPDIR/address.json"
-    jq '(.nodes[] | select(.name == "ber1-pdu-a")).mgmt_address = "192.168.0.16"' "$SITE_FILE" > "$site"
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")).mgmt_address = "192.168.0.16"' "$SITE_FILE" > "$site"
     run fleet_check_power "$site"
     [ "$status" -eq 1 ]
     [[ "$output" == *"ber1-pdu-a and ber1-pdu-b share management address 192.168.0.16"* ]]
@@ -575,13 +575,13 @@ mini_site() {
 
 # --- the power appliances ----------------------------------------------------
 
-@test "the power gear is Eaton, three transfer switches and two PDUs, of which the prep bay runs two and one" {
+@test "the power gear is Eaton, three transfer switches and two PDUs, all installed" {
     run jq -r '[.nodes[] | select(.hardware == "eats16n")] | length' "$SITE_FILE"
     [ "$output" = "3" ]
     run jq -r '[.nodes[] | select(.hardware == "evmafc20a")] | length' "$SITE_FILE"
     [ "$output" = "2" ]
     run jq -r '[.nodes[] | select(.role == "power" and .status == "installed") | .name] | join(" ")' "$SITE_FILE"
-    [ "$output" = "ber1-ats-1 ber1-ats-3 ber1-pdu-b" ]
+    [ "$output" = "ber1-ats-1 ber1-ats-2 ber1-ats-3 ber1-pdu-a ber1-pdu-b" ]
 }
 
 @test "the PDU records the protocol a power driver should target" {
@@ -638,7 +638,7 @@ mini_referencing() {
 
 @test "the site's mini references its RackHost, and that validates" {
     run jq -r '[.nodes[] | select(.rack_host != null) | .rack_host] | join(" ")' "$SITE_FILE"
-    [ "$output" = "ber1-runner-b01 ber1-runner-b02 ber1-runner-b03 ber1-runner-b04 ber1-runner-b05 ber1-runner-b06 ber1-runner-b07 ber1-runner-b08 ber1-runner-b09" ]
+    [ "$output" = "ber1-runner-b01 ber1-runner-b02 ber1-runner-b03 ber1-runner-b04 ber1-runner-b05 ber1-runner-b06 ber1-runner-b07 ber1-runner-b08 ber1-runner-b09 ber1-runner-b10 ber1-runner-b11 ber1-runner-b12 ber1-runner-b13 ber1-runner-b14 ber1-runner-b15 ber1-runner-b16" ]
     run fleet_check_rack_hosts "$SITE_FILE"
     [ "$status" -eq 0 ]
 }
@@ -648,15 +648,25 @@ mini_referencing() {
     # join sees both. Crossed, one ATS failure takes the whole fleet: half the
     # minis lose power and the other half their switch.
     site="$BATS_TEST_TMPDIR/crossed.json"
-    mini_referencing "$site" ber1-runner-b01 ber1-tor-a
+    mini_referencing "$site" ber1-runner-b07 ber1-tor-b
     run fleet_check_rack_hosts "$site"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"ber1-runner-x01: its outlet on ber1-pdu-b resolves to ber1-ats-3 but its ToR ber1-tor-a to ber1-ats-1"* ]]
+    [[ "$output" == *"ber1-runner-x01: its outlet on ber1-pdu-a resolves to ber1-ats-2 but its ToR ber1-tor-b to ber1-ats-3, another chain"* ]]
     values="$BATS_TEST_TMPDIR/values.yaml"
     yq '(.rackFleet.hosts[] | select(.name == "ber1-runner-b02")).power.pdu = "ber1-pdu-a"' "$FLEET_RACK_VALUES" > "$values"
     run fleet_check_rack_hosts "$SITE_FILE" "$values"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"ber1-runner-b02: its outlet on ber1-pdu-a resolves to ber1-ats-2 but its ToR ber1-tor-b to ber1-ats-3"* ]]
+    [[ "$output" == *"ber1-runner-b02: its outlet on ber1-pdu-a resolves to ber1-ats-2 but its ToR ber1-tor-b to ber1-ats-3, another chain"* ]]
+}
+
+@test "a chain A mini on ToR A passes, ToR A being on the critical layer" {
+    # ber1-tor-a is on ber1-ats-1, which feeds no PDU. It carries the WAN and
+    # management for every mini already, so a chain A mini behind it gains no
+    # transfer switch whose failure takes the whole fleet.
+    site="$BATS_TEST_TMPDIR/chain-a.json"
+    mini_referencing "$site" ber1-runner-b07 ber1-tor-a
+    run fleet_check_rack_hosts "$site"
+    [ "$status" -eq 0 ]
 }
 
 @test "a RackHost on a PDU the site does not have is rejected" {
@@ -806,6 +816,9 @@ mini_referencing() {
 }
 
 @test "the rack switch controller and the edge take the rack from the site definition" {
+    # The env's other sites are larch alone: not the copies of ber1 other tests
+    # run against, each with an Omada controller of its own.
+    rm -f "$FLEET_ROOT/sites/ber1-standalone.json"
     run "$FLEET_ROOT/fleet.sh" --site ber1 helm-values rack-switch-controller
     [ "$status" -eq 0 ]
     [ "$(jq -r '.watchNamespace' <<<"$output")" = "$(jq -r '.kubernetes.namespace' "$SITE_FILE")" ]
@@ -859,11 +872,11 @@ mini_referencing() {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [[ "$output" == *$'\ndhcp-host=00:20:85:b8:0e:3e,192.168.0.16,ber1-pdu-b,infinite\n'* ]]
-    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= del(.mac)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomac.json"
+    [[ "$output" == *$'\ndhcp-host=00:20:85:b8:0e:3e,192.168.0.16,ber1-pdu-a,infinite\n'* ]]
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= del(.mac)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomac.json"
     run fleet_edge_dhcp "$BATS_TEST_TMPDIR/nomac.json"
     [ "$status" -eq 0 ]
-    [[ "$output" != *"ber1-pdu-b"* ]]
+    [[ "$output" != *"ber1-pdu-a"* ]]
     # the switch behind the edge keeps its reservation, and an unknown MAC
     # still gets the provisioning pool
     [[ "$output" == *"dhcp-host=a8:29:48:fe:b4:be,192.168.0.13,ber1-mgmt,infinite"* ]]
@@ -876,11 +889,11 @@ mini_referencing() {
 
 @test "each PDU with a management address is a RackPDU, adopted by the controller once installed" {
     run fleet_pdus "$SITE_FILE"
-    [ "$output" = "ber1-pdu-b" ]
-    run fleet_render_pdu "$SITE_FILE" ber1-pdu-b
+    [ "$output" = $'ber1-pdu-a\nber1-pdu-b' ]
+    run fleet_render_pdu "$SITE_FILE" ber1-pdu-a
     [ "$status" -eq 0 ]
-    [ "$(yq 'select(.kind == "RackPDU") | .metadata.name' <<<"$output")" = "ber1-pdu-b" ]
-    [ "$(yq 'select(.kind == "RackPDU") | .spec | [.site, .model, .address, .chain, .managedBy] | join(" ")' <<<"$output")" = "ber1 evmafc20a 192.168.0.16 ber1-ats-3 controller" ]
+    [ "$(yq 'select(.kind == "RackPDU") | .metadata.name' <<<"$output")" = "ber1-pdu-a" ]
+    [ "$(yq 'select(.kind == "RackPDU") | .spec | [.site, .model, .address, .chain, .managedBy] | join(" ")' <<<"$output")" = "ber1 evmafc20a 192.168.0.16 ber1-ats-2 controller" ]
     [ "$(yq 'select(.kind == "RackPDU") | .spec.mac' <<<"$output")" = "00:20:85:b8:0e:3e" ]
     # quoted, or YAML 1.1 reads it as a boolean and the CRD refuses it
     [[ "$output" == *'outletStateOnStartup: "on"'* ]]
@@ -890,12 +903,12 @@ mini_referencing() {
     [[ "$output" != *"PushSecret"* ]]
 
     # without a recorded MAC the object says nothing about one
-    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= del(.mac)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomac.json"
-    run fleet_render_pdu "$BATS_TEST_TMPDIR/nomac.json" ber1-pdu-b
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= del(.mac)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomac.json"
+    run fleet_render_pdu "$BATS_TEST_TMPDIR/nomac.json" ber1-pdu-a
     [ "$(yq 'select(.kind == "RackPDU") | .spec | has("mac")' <<<"$output")" = "false" ]
 
     # a PDU not installed yet is standalone
-    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.mgmt_address = "192.168.0.17")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.status = "planned")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
     run fleet_pdus "$BATS_TEST_TMPDIR/planned.json"
     [ "$output" = $'ber1-pdu-a\nber1-pdu-b' ]
     run fleet_render_pdu "$BATS_TEST_TMPDIR/planned.json" ber1-pdu-a
@@ -948,7 +961,7 @@ mini_referencing() {
 
 @test "each transfer switch with a management address is a RackATS, adopted by the controller once installed" {
     run fleet_atses "$SITE_FILE"
-    [ "$output" = $'ber1-ats-1\nber1-ats-3' ]
+    [ "$output" = $'ber1-ats-1\nber1-ats-2\nber1-ats-3' ]
     run fleet_render_ats "$SITE_FILE" ber1-ats-3
     [ "$status" -eq 0 ]
     [ "$(yq 'select(.kind == "RackATS") | .metadata.name' <<<"$output")" = "ber1-ats-3" ]
@@ -968,7 +981,7 @@ mini_referencing() {
     [ "$(yq 'select(.kind == "RackATS") | .spec | has("mac")' <<<"$output")" = "false" ]
 
     # a transfer switch not installed yet is standalone
-    jq '(.nodes[] | select(.name == "ber1-ats-2")) |= (.mgmt_address = "192.168.0.19")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    jq '(.nodes[] | select(.name == "ber1-ats-2")) |= (.status = "planned")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
     run fleet_atses "$BATS_TEST_TMPDIR/planned.json"
     [ "$output" = $'ber1-ats-1\nber1-ats-2\nber1-ats-3' ]
     run fleet_render_ats "$BATS_TEST_TMPDIR/planned.json" ber1-ats-2
@@ -1056,6 +1069,45 @@ mini_referencing() {
     run fleet_check_contracted_power "$site"
     [ "$status" -ne 0 ]
     [[ "$output" == *"2026-10-05 has more than one step"* ]]
+}
+
+@test "the RackSite carries the site's power budget" {
+    run fleet_render_site "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [ "$(yq '.spec.powerBudget.chainAmps' <<<"$output")" = "13" ]
+    # a string, which the CRD's quantity takes for 11.5 as well as 13
+    [[ "$output" == *'chainAmps: "13"'* ]]
+    [ "$(yq '.spec.powerBudget | has("otherWatts")' <<<"$output")" = "false" ]
+
+    jq '.power_budget = {chain_amps: 11.5, other_watts: 600}' "$SITE_FILE" > "$BATS_TEST_TMPDIR/budget.json"
+    run fleet_render_site "$BATS_TEST_TMPDIR/budget.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'chainAmps: "11.5"'* ]]
+    [ "$(yq '.spec.powerBudget.otherWatts' <<<"$output")" = "600" ]
+
+    jq 'del(.power_budget)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nobudget.json"
+    run fleet_render_site "$BATS_TEST_TMPDIR/nobudget.json"
+    [ "$status" -eq 0 ]
+    [ "$(yq '.spec | has("powerBudget")' <<<"$output")" = "false" ]
+}
+
+@test "a power budget without a current, or one that leaves a step nothing, is rejected" {
+    local site="$BATS_TEST_TMPDIR/budget.json"
+    jq '.power_budget = {other_watts: 600}' "$SITE_FILE" > "$site"
+    run fleet_render_site "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'chain_amps null is not a current in amperes above 0'* ]]
+    jq '.power_budget = {chain_amps: "13"}' "$SITE_FILE" > "$site"
+    run fleet_check_power_budget "$site"
+    [ "$status" -ne 0 ]
+    jq '.power_budget = {chain_amps: 13, other_watts: 0.5}' "$SITE_FILE" > "$site"
+    run fleet_check_power_budget "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'other_watts 0.5 is not a whole number of watts, 0 or more'* ]]
+    jq '.power_budget = {chain_amps: 13, other_watts: 3000}' "$SITE_FILE" > "$site"
+    run fleet_check_power_budget "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'other_watts 3000 leaves the chains nothing of the 3000 W contracted from 2026-10-05'* ]]
 }
 
 @test "render --check notices a RackSite object that no longer matches the site" {

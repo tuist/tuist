@@ -296,11 +296,15 @@ struct LoginCommandServiceTests {
     }
 
     #if os(macOS)
-        @Test(.withMockedEnvironment(), .withMockedDependencies())
-        func authenticate_with_oidc_in_ci_environment() async throws {
+        @Test(
+            .withMockedEnvironment(),
+            .withMockedDependencies(),
+            arguments: [["CI": "1"], ["TUIST_OIDC_TOKEN": "fly-identity-token"]]
+        )
+        func authenticate_with_oidc_in_ci_or_with_supplied_workload_token(variables: [String: String]) async throws {
             // Given
             let environment = try #require(Environment.mocked)
-            environment.variables["CI"] = "1"
+            environment.variables = variables
 
             given(ciOIDCAuthenticator)
                 .fetchOIDCToken()

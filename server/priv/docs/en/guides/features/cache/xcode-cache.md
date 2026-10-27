@@ -151,24 +151,28 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ### Coverage with prefix mapping {#coverage-with-prefix-mapping}
 
-By default, generated projects disable prefix mapping for coverage builds to keep Xcode's coverage reports and `xccov` working. If your team reads coverage with `llvm-cov` and remaps source paths itself, you can keep coverage compilations shareable across checkouts:
+By default, generated projects disable prefix mapping for coverage builds to keep Xcode's coverage reports and `xccov` working. You can turn it on to keep coverage compilations shareable across checkouts:
 
 ```swift
 let tuist = Tuist(
     project: .tuist(
         generationOptions: .options(
             enableCaching: true,
-            enableCoveragePrefixMapping: true
+            coverage: .coverage(prefixMapping: true)
         )
     )
 )
 ```
 
-This option applies on Xcode 27 and later and requires `enableCaching`. It does not add an `llvm-cov` reader or fix `xccov`: Xcode's coverage report can still omit sources with mapped paths. Tuist's coverage upload also reads the Xcode result bundle, so this opt-in is not compatible with that coverage pipeline. Use it only when processing coverage independently. Mapped `#filePath` values can also affect tests that locate fixtures relative to source files; resolve fixtures through explicit runtime checkout paths instead. Pair each instrumented binary with its target's `$(TARGET_TEMP_DIR)/compilation-prefix-map.json`, which maps virtual prefixes back to local directories. Do not reuse one target's map for every binary when per-project mapping is enabled.
+The `TUIST_COVERAGE_PREFIX_MAPPING` environment variable (`1` or `0`) takes precedence over `prefixMapping`. This option applies on Xcode 27 and later and requires `enableCaching`. The coverage `tuist test` uploads supports it: Tuist measures the run with `llvm-cov`, which reads the sources with mapped paths, and ties them back to your repository's files. Xcode's own coverage report and `xccov` can still omit those sources, and so can an upload that falls back to the result bundle's `xccov` report because the `llvm-cov` export failed. Mapped `#filePath` values can also affect tests that locate fixtures relative to source files; resolve fixtures through explicit runtime checkout paths instead. If you process coverage yourself, pair each instrumented binary with its target's `$(TARGET_TEMP_DIR)/compilation-prefix-map.json`, which maps virtual prefixes back to local directories. Do not reuse one target's map for every binary when per-project mapping is enabled.
 
-The coverage-prefix settings participate in binary-cache and selective-testing hashes because they control paths written into coverage artifacts. Changing this option invalidates those hashes even for ordinary builds. Keep the value consistent between developers and CI jobs if they should share binary caches and selective-testing results.
+The coverage-prefix settings participate in binary-cache and selective-testing hashes because they control paths written into coverage artifacts. Changing this option, or setting `TUIST_COVERAGE_PREFIX_MAPPING` differently, invalidates those hashes even for ordinary builds. Keep the value consistent between developers and CI jobs if they should share binary caches and selective-testing results.
 
 ### Debugging generated projects {#debugging-generated-projects}
+
+Restored native modules need linked debug information as well as access to the compilation cache. Tuist warms Debug and Release modules with dSYMs and per-slice source-identity metadata, then verifies the metadata against the consumer's declared sources before replacing a target. Missing or incompatible metadata keeps that target's sources. Script-generated `.generated(...)` sources have declaration fingerprints rather than verifiable content checksums, so those targets stay source-built and are not published to the native module cache. Generated resource accessors with actual content checksums remain eligible. Unsupported debug information skips publication of the affected target without blocking unrelated products; source mutation and cancellation still fail the warm. The cache format changes, so artifacts warmed by older versions need rewarming.
+
+For verified replacements, Tuist prepares source relocations in consumer-owned dSYM UUID plists and links debug-only companions for static cached code. It does not rewrite cached binaries or install producer-source paths in LLDB's persistent global source map. Explicit debugger initializers and module-loader settings remain authoritative. Debug symbols and source relocation do not repair source-relative runtime file access or native Xcode coverage reports; coverage variant selection and LLVM export remain separate features.
 
 With `enableCaching: true`, Tuist configures LLDB source maps for Run and Test actions. When an action has a custom LLDB initializer, Tuist writes its resolved source map first, then sources the custom initializer so it can extend or override the map. Otherwise it loads `~/.lldbinit-Xcode` if the file exists, falling back to `~/.lldbinit`, before replacing the source map. It loads only one home file, restoring per-user debugger setup without double sourcing. The replacement removes stale mappings from previous runs and takes precedence over home-file source maps; put source-map entries that should survive in the action's custom initializer. Other home settings are preserved. Tuist's cache-specific module search paths, loader settings, and Clang flags are applied afterwards and take precedence over user values for those settings. Home-file errors remain visible without stopping later commands from loading, and commands are not echoed. This initializer preservation also applies when Tuist configures debugging for binaries restored from the module cache, even without `enableCaching` and on earlier Xcode versions.
 

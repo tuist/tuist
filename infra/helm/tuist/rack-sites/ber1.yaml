@@ -6,9 +6,17 @@ edges:
       vlan: 4000
       address: 10.255.255.1/29
       peer: 10.255.255.2
+    wan:
+      vlan: 4001
+      address: 149.6.170.31/31
+      gateway: 149.6.170.30
   ber1-edge-b:
     uplinks: [enp2s0f1np1, enp2s0f0np0]
     vrrp:
       vlan: 4000
       address: 10.255.255.2/29
       peer: 10.255.255.1
+    wan:
+      vlan: 4001
+      address: 149.6.170.31/31
+      gateway: 149.6.170.30

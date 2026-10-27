@@ -1056,3 +1056,100 @@ func TestCacheReadinessIsPreferredRatherThanRequired(t *testing.T) {
 		t.Fatal("changed scheduling for disabled cache fleet")
 	}
 }
+
+func TestPreferCacheVolumeNode(t *testing.T) {
+	p := basePool("")
+	pod := build(t, p)
+
+	PreferCacheVolumeNode(pod, "b03")
+
+	terms := pod.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+	if len(terms) != 2 {
+		t.Fatalf("terms = %+v, want the golden and one volume preference", terms)
+	}
+	if terms[0].Preference.MatchExpressions[0].Key != GoldenNodeAffinityKey(p.Spec.Image) {
+		t.Fatal("the golden preference must stay first")
+	}
+	field := terms[1].Preference.MatchFields[0]
+	if field.Key != "metadata.name" || field.Operator != corev1.NodeSelectorOpIn || strings.Join(field.Values, ",") != "b03" {
+		t.Fatalf("volume preference = %+v, want metadata.name In [b03]", field)
+	}
+	// A host without the golden pulls the image for minutes; one without a
+	// volume only starts that volume cold.
+	if terms[1].Weight >= terms[0].Weight {
+		t.Fatalf("volume preference weighs %d, want less than the golden %d", terms[1].Weight, terms[0].Weight)
+	}
+}
+
+func TestPreferCacheVolumeNodeLeavesThePodAloneWithoutANode(t *testing.T) {
+	pod := build(t, basePool("linux"))
+	PreferCacheVolumeNode(pod, "")
+	if pod.Spec.Affinity != nil {
+		t.Fatalf("affinity = %+v, want none", pod.Spec.Affinity)
+	}
+}
+
+// A rack fleet spans every site whose runners are on. A pool with no site
+// places its Pods anywhere in it, exactly as before sites were selectable; a
+// pool that names one pins them to that site's Nodes.
+func TestBuild_MacOSSitePin(t *testing.T) {
+	unpinned := build(t, basePool(""))
+	if _, ok := unpinned.Spec.NodeSelector[RackSiteNodeLabel]; ok {
+		t.Errorf("a pool without a site selects %s: %v", RackSiteNodeLabel, unpinned.Spec.NodeSelector)
+	}
+	if got, want := len(unpinned.Spec.NodeSelector), 3; got != want {
+		t.Errorf("nodeSelector has %d entries, want %d: %v", got, want, unpinned.Spec.NodeSelector)
+	}
+
+	pool := basePool("")
+	pool.Spec.Site = "ber1"
+	pinned := build(t, pool)
+	if got, want := pinned.Spec.NodeSelector[RackSiteNodeLabel], "ber1"; got != want {
+		t.Errorf("nodeSelector %s = %q, want %q", RackSiteNodeLabel, got, want)
+	}
+	if got, want := pinned.Spec.NodeSelector["tuist.dev/fleet"], "fleet-x"; got != want {
+		t.Errorf("nodeSelector fleet = %q, want %q", got, want)
+	}
+}
+
+// Without the Docker cache the sidecar's command must stay byte for byte what
+// pools run today: any change replaces every Pod of every pool.
+func TestDockerCacheOffKeepsTheSidecarCommand(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	dind := initContainer(t, build(t, pool), "dind")
+	want := "set -e && ulimit -n 1048576 && apk add --no-cache e2fsprogs >/dev/null && mkdir -p /mnt/dind-disk && truncate -s 100G /mnt/dind-disk/disk.img && mkfs.ext4 -q -F /mnt/dind-disk/disk.img && mkdir -p /var/lib/docker && mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
+		"rm -f " + workPath + "/.tuist-cache-mount.sock && (/home/runner/actions-runner/externals/tuist-cache-volume mount-server " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache &); " +
+		"exec dockerd --host=unix:///var/run/docker.sock --group=123 --default-ulimit nofile=1048576:1048576"
+	if got := dind.Args[0]; got != want {
+		t.Fatalf("sidecar command changed:\n got %s\nwant %s", got, want)
+	}
+}
+
+func TestDockerCacheRunsDockerdUnderTheSupervisor(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	pool.Spec.DockerCache = true
+	dind := initContainer(t, build(t, pool), "dind")
+	command := dind.Args[0]
+	want := "exec /home/runner/actions-runner/externals/tuist-cache-volume dind " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache /mnt/dind-disk/disk.img -- dockerd --host=unix:///var/run/docker.sock --group=123 --default-ulimit nofile=1048576:1048576 --max-concurrent-downloads=8"
+	if !strings.HasSuffix(command, want) {
+		t.Fatalf("sidecar command %s", command)
+	}
+	if strings.Contains(command, "mount-server") {
+		t.Fatal("a second mount broker would race the supervisor's socket")
+	}
+	if !strings.Contains(strings.Join(dind.StartupProbe.Exec.Command, " "), "test -S "+workPath+"/.tuist-cache-mount.sock") {
+		t.Fatal("runner can start before the supervisor's socket")
+	}
+}
+
+func TestDockerCacheNeedsCacheVolumes(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.DockerCache = true
+	if _, err := Build(pool, "pod", "sa", "http://dispatch", "http://dispatch-internal", "docker:dind", "", "10.0.0.10", "cluster.local"); err == nil {
+		t.Fatal("built a Docker cache pool without cache volumes")
+	}
+}

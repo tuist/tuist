@@ -13,7 +13,7 @@ import (
 func kvmReadyHarness(t *testing.T) *kataHarness {
 	t.Helper()
 	h := newKataHarness(t, true, map[string]string{KataRuntimeSelectorLabel: "true"})
-	h.node.Annotations[kataSharedMemoryAnnotation] = kataSharedMemoryRevision(h.node)
+	h.node.Annotations[kataHostConfigAnnotation] = kataHostConfigRevision(h.node)
 	if err := h.client.Update(context.Background(), h.node); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestKataKVMWaitsForTheVerifiedRuntime(t *testing.T) {
 	h := newKataHarness(t, true, map[string]string{KataRuntimeSelectorLabel: "true"})
 	requeue, err := h.reconcileKVM(t)
 	if err != nil || requeue {
-		t.Fatalf("reconcile = (%v, %v), want a no-op until shared memory is verified", requeue, err)
+		t.Fatalf("reconcile = (%v, %v), want a no-op until the Kata host configuration is verified", requeue, err)
 	}
 	if conditions.Get(h.machine, KataKVMReadyCondition) != nil {
 		t.Fatal("KataKVMReady set before the runtime it installs into was verified")

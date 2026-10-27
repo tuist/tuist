@@ -914,6 +914,65 @@ defmodule Tuist.Runners.DispatchTest do
     end
   end
 
+  describe "account-gated Linux vRack dispatch" do
+    setup do
+      account = enabled_account()
+      other = enabled_account()
+      {:ok, profile} = Profiles.create(account, %{name: "vrack-test", platform: :linux, vcpus: 2, memory_gb: 8})
+      {:ok, _} = Profiles.create(other, %{name: "vrack-test", platform: :linux, vcpus: 2, memory_gb: 8})
+      standard = Catalog.pool_name(profile)
+      isolated = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-vrack-2vcpu-8gb"
+      stub(Tuist.Environment, :runners_linux_vrack_pools, fn -> %{standard => isolated} end)
+      %{account: account, other: other, standard: standard, isolated: isolated}
+    end
+
+    test "only the enrolled account changes pools; disable restores normal dispatch", ctx do
+      for account <- [ctx.account, ctx.other] do
+        assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(account, ["tuist-vrack-test"])
+        assert name == ctx.standard
+      end
+
+      FunWithFlags.enable(:runner_linux_vrack, for_actor: ctx.account)
+
+      assert {:ok, %{pool_name: name, vcpus: 2, memory_gb: 8}} =
+               Dispatch.resolve_dispatch_target(ctx.account, ["tuist-vrack-test"])
+
+      assert name == ctx.isolated
+      assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(ctx.other, ["tuist-vrack-test"])
+      assert name == ctx.standard
+
+      FunWithFlags.disable(:runner_linux_vrack, for_actor: ctx.account)
+      assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(ctx.account, ["tuist-vrack-test"])
+      assert name == ctx.standard
+    end
+
+    test "enabled account stays on normal fleet if isolated pools are not deployed", ctx do
+      FunWithFlags.enable(:runner_linux_vrack, for_actor: ctx.account)
+      stub(Tuist.Environment, :runners_linux_vrack_pools, fn -> %{} end)
+      assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(ctx.account, ["tuist-vrack-test"])
+      assert name == ctx.standard
+    end
+
+    test "legacy labels use the same account gate and cannot target isolated pools directly", ctx do
+      normal = pool_cr(name: ctx.standard, label: "linux-legacy")
+
+      isolated = %{
+        "metadata" => %{"name" => ctx.isolated, "labels" => %{"tuist.dev/network-cohort" => "vrack"}},
+        "spec" => %{"dispatchLabel" => "linux-internal-vrack", "os" => "linux"}
+      }
+
+      normal = put_in(normal, ["spec", "os"], "linux")
+      stub(Client, :list_runner_pools, fn _ -> {:ok, [normal, isolated]} end)
+
+      FunWithFlags.enable(:runner_linux_vrack, for_actor: ctx.account)
+      assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(ctx.account, ["linux-legacy"])
+      assert name == ctx.isolated
+      assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(ctx.other, ["linux-legacy"])
+      assert name == ctx.standard
+      assert {:error, :no_matching_pool} = Dispatch.resolve_dispatch_target(ctx.other, ["linux-internal-vrack"])
+    end
+  end
+
   describe "resolve_dispatch_target/2 — site routing" do
     setup do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
@@ -1105,6 +1164,23 @@ defmodule Tuist.Runners.DispatchTest do
       end)
 
       assert {:ok, %{runner_labels: []}} = Dispatch.pool_summary_by_name("macos-pool")
+    end
+
+    test "returns the catalog Xcode version the pool is labelled with, or nil without one" do
+      stub(Client, :get_runner_pool, fn
+        _ns, "catalog-pool" ->
+          {:ok,
+           %{
+             "metadata" => %{"name" => "catalog-pool", "labels" => %{"tuist.dev/xcode-version" => "27.2-beta"}},
+             "spec" => %{"dispatchLabel" => "shape-macos-27-2-beta"}
+           }}
+
+        _ns, "explicit-pool" ->
+          {:ok, %{"metadata" => %{"name" => "explicit-pool"}, "spec" => %{"dispatchLabel" => "tuist-ber1-smoke"}}}
+      end)
+
+      assert {:ok, %{xcode_version: "27.2-beta"}} = Dispatch.pool_summary_by_name("catalog-pool")
+      assert {:ok, %{xcode_version: nil}} = Dispatch.pool_summary_by_name("explicit-pool")
     end
 
     test "returns [] when runnerLabels is empty" do

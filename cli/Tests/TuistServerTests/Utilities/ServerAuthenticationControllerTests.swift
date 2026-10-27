@@ -1054,6 +1054,59 @@ struct ServerAuthenticationControllerTests {
         #expect(credentialsBox.value == rotatedCredentials)
     }
 
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) mutating func refresh_keeps_credentials_a_peer_rotated_while_the_exchange_was_in_flight() async throws {
+        let date = Date()
+        subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            cachedValueStore: CachedValueStore()
+        )
+        let serverCredentialsStore = MockServerCredentialsStoring()
+        let serverURL: URL = .test()
+
+        let spentAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access")
+        let spentRefreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+60), typ: "refresh")
+        let replayedTokens = try Self.makeTokens(date: date)
+        let rotatedAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(+900), typ: "access")
+        let rotatedRefreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+9000), typ: "refresh")
+        let rotatedCredentials: ServerCredentials = .test(
+            accessToken: rotatedAccessToken.token,
+            refreshToken: rotatedRefreshToken.token
+        )
+
+        let credentialsBox = TestStore<ServerCredentials?>(.test(
+            accessToken: spentAccessToken.token,
+            refreshToken: spentRefreshToken.token
+        ))
+        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willProduce { _ in
+            credentialsBox.value
+        }
+        given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willProduce { credentials, _ in
+            credentialsBox.value = credentials
+        }
+        given(refreshAuthTokenService)
+            .refreshTokens(serverURL: .value(serverURL), refreshToken: .value(spentRefreshToken.token))
+            .willProduce { _, _ in
+                credentialsBox.value = rotatedCredentials
+                return replayedTokens
+            }
+
+        let got = try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
+            try await Date.$now.withValue({ date }) {
+                try await subject.executeRefresh(serverURL: serverURL, forceRefresh: true)
+            }
+        }
+
+        #expect(credentialsBox.value == rotatedCredentials)
+        #expect(got?.value == .user(
+            accessToken: try JWT.parse(rotatedAccessToken.token),
+            refreshToken: try JWT.parse(rotatedRefreshToken.token)
+        ))
+        verify(serverCredentialsStore).store(credentials: .any, serverURL: .any).called(0)
+    }
+
     private static func makeTokens(date: Date) throws -> ServerAuthenticationTokens {
         let newAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(+600), typ: "access")
         let newRefreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+7200), typ: "refresh")

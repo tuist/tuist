@@ -54,6 +54,9 @@ spec:
                   type: string
                 cacheVolumeURL:
                   type: string
+                dockerCache:
+                  type: boolean
+                  description: Moves each job's dockerd onto its repository's Docker cache volume. Requires cacheVolumeRoot and cacheVolumeURL.
                 labels:
                   type: array
                   items:
@@ -70,6 +73,9 @@ spec:
                 fleetSelector:
                   type: string
                   description: Value of `tuist.dev/fleet=<name>` Pods in this pool pin to via nodeSelector.
+                site:
+                  type: string
+                  description: Rack site whose Nodes (`node.cluster.x-k8s.io/rack-site=<site>`) the pool's Pods pin to within its fleet. Empty places them anywhere in the fleet.
                 dispatchLabel:
                   type: string
                   description: GitHub Actions runner label customers put in `runs-on` to target this fleet. Webhook handler matches against `workflow_job.labels`; dispatch endpoint includes it in the JIT mint.
@@ -270,6 +276,9 @@ spec:
                 observedImage:
                   type: string
                   description: spec.image value the controller last recorded an imageRolledAt for. Bumped together on every image change.
+                previousImage:
+                  type: string
+                  description: spec.image value the pool ran before observedImage. tart-kubelet pulls the current image on hosts that hold this one before its garbage collector reaps it, so a release costs those hosts only what changed.
                 imageRolledAt:
                   type: string
                   format: date-time

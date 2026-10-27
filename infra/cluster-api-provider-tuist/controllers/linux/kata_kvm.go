@@ -164,7 +164,7 @@ func reconcileLinuxKataKVM(
 		}
 		return false, nil
 	}
-	if node.Labels[KataRuntimeSelectorLabel] != "true" || node.Annotations[kataSharedMemoryAnnotation] != kataSharedMemoryRevision(node) {
+	if node.Labels[KataRuntimeSelectorLabel] != "true" || node.Annotations[kataHostConfigAnnotation] != kataHostConfigRevision(node) {
 		return false, nil
 	}
 
