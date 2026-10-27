@@ -246,3 +246,7 @@ counts connections accepted before retirement, including TLS handshakes; newer
 health probes cannot keep that cohort alive. HTTP/2 retains its existing bounded
 connection aging. Retirement is not draining or serving-authority permission.
 Never substitute a timer or Kubernetes readiness for an empty cohort receipt.
+An empty cohort is also not a data-transfer receipt: staging still observed
+fresh-write GET misses at handoff. Zero-error migration needs destination-bound
+write completion and serving coordination; do not claim asynchronous replication
+is synchronized by closing the donor's connections.

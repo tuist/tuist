@@ -1,5 +1,206 @@
 # Thin stack qualification
 
+## Follow-up: tuning and live migration fixes — 2026-10-27
+
+**The PR remains draft. Sequential-read and random-write regressions were
+recovered, and the premature donor restart was corrected. The no-regression and
+uninterrupted live-write migration gates still fail.** This section supersedes
+the current-state conclusions in the original rehearsal below, whose failed
+results remain part of the evidence. Production was not changed.
+
+### Changes and reproducible validation
+
+- `172ffef18648` retains the resize rollout hold until every LVM replacement has
+  a fresh, valid runtime observation with initial backfill complete and no
+  exhausted real-peer catch-up budget. Kubernetes Ready alone is insufficient.
+- `532db7a28be5` adds process-incarnation-bound retirement of existing public
+  connections. The controller waits for endpoint/peer handoff and an empty
+  original connection cohort before deleting a thin migration donor. HTTP/1
+  finishes responses with `Connection: close`; HTTP/2 retains its bounded
+  connection aging. New probes do not prolong the original cohort. A queued
+  template change rolls through this same path while the StatefulSet remains
+  OnDelete, preserving the new PVCs.
+- `695bbe1f8d2d` carries the retirement request through the existing authenticated
+  kubelet port-forward with end-to-end peer mTLS. Direct Pod IP connectivity was
+  not available on every controller-to-node path. No NetworkPolicy or RBAC
+  widening was needed. Tests cover mTLS, malformed/incarnation-mismatched
+  receipts, remaining connections and cancellation of stalled TLS.
+- `76d90eeb549c` uses **512 KiB chunks for new pools** and
+  `--perf-submit_from_crypt_cpus` for newly opened thin encryption mappings,
+  retaining encryption workqueues and discard. Existing pool geometry is not
+  changed in place, and already-open mappings do not silently adopt new flags.
+  Larger chunks retain more physical allocation around small live extents.
+- The benchmark now supports a bounded 1 GiB shuffled-read working set and a
+  persisted hash/size manifest for independent post-migration verification.
+
+Controller and CSI Go tests/vet passed. The
+[runtime qualification](https://github.com/tuist/tuist/actions/runs/40565922912)
+passed formatting, Clippy and 1,252 Rust tests (49 ignored), plus the cached
+binary test. The
+[controller build](https://github.com/tuist/tuist/actions/runs/40567053272)
+passed before deployment. The
+[CSI image workflow](https://github.com/tuist/tuist/actions/runs/40566471144)
+ran both the actual-driver suite and mechanism harness at **64 and 512 KiB**
+before publishing. The 512 KiB actual-driver suite completed in 28.25 seconds:
+A released **805,830,656 bytes**, and B consumed exactly that amount according
+to the pool counters. Open-deleted files, failed/ignored discard, quota refusal,
+restart, stale pod/generation rejection, concurrent operations and data/metadata
+reserve refusal passed. These disposable Ubuntu VMs ran kernel 7.0.0-1017-azure;
+they do not substitute for the staging host's 6.8 kernel or NVMe measurements.
+
+The 512 KiB fragmentation counterexample still retained **more than 1 GiB mapped under a
+256 MiB project quota**, after working discard. Physical overcommit remains
+blocked. Only `ceiling-backed-v1` is implemented, and grant reductions/trim
+release no backing commitment. Actual exhausted-metadata recovery is not
+qualified by tests that refuse admission before reserves are consumed.
+
+### Updated Paris performance
+
+Same Samsung NVMe host, kernel 6.8.0-146-generic, equal approximately 6.5 GiB
+virtual thick/thin volumes, LUKS2, one runtime CPU and 768 MiB memory. Thick
+retained its existing mapping and filesystem defaults. Thin had project quotas,
+discard, 512 KiB chunks and the write-submission flag. No global cache dropping
+or production traffic was used. Short paired ranges below are observations,
+not statistical confidence intervals or fleet capacity estimates.
+
+| Direct I/O measurement | Thick | Tuned thin | Interpretation |
+| --- | ---: | ---: | --- |
+| 1 MiB sequential read, QD32 | 3,707–3,914 MiB/s | 3,734–3,938 MiB/s | Original roughly 32% regression recovered |
+| 1 MiB sequential write, QD32 | 2,182–2,203 MiB/s | 2,199–2,201 MiB/s | Comparable in this run |
+| 4 KiB random write, QD32 | 62.06–62.08k IOPS | 61.35–62.61k IOPS | Original roughly 26% regression recovered |
+| 4 KiB random read, final QD32 repeat | 66.38–66.94k IOPS | 49.46–49.69k IOPS | **25.6% lower mean IOPS remains** |
+| 4 KiB random read, final QD1 repeat | 7.75–7.79k IOPS | 7.48–7.50k IOPS | Mean latency 127.2–127.8 vs 132.2–132.5 µs |
+
+Final random-read p99 completion latency at QD32 was 0.839–0.913 ms thick versus
+1.138–1.220 ms thin. fio 3.36 used direct libaio on a 512 MiB file; tuning trials
+ran 10 seconds plus two seconds ramp, and the final QD1/QD32 comparison ran
+12 seconds plus two seconds ramp in thick/thin/thin/thick order. No errors
+occurred. Crypto-workqueue bypass and same-CPU variants did not recover random
+reads; write-workqueue bypass reduced sequential writes to about 557 MiB/s,
+and same-CPU variants reduced sequential reads to about 2.3 GiB/s. Those
+alternatives were rejected. The cipher and 512-byte encryption sector size
+were not weakened or changed to obtain the selected result.
+
+With the final runtime (`532db7a28be5`) on both layouts, four authenticated HTTP
+runs completed **10,112 requests with zero errors**, each including six GiB of
+eviction writes. Bulk churn was 153.81–156.30 MiB/s thick versus
+152.94–156.44 MiB/s thin. Four MiB GET p95 was 94.23–95.36 ms versus
+93.73–99.09 ms. **Small requests were slower in this pair:** 16 KiB GET p95
+was 2.45–2.65 ms versus 3.56–4.95 ms; PUT p95 was 25.71–28.78 ms versus
+32.88–35.32 ms. First-run 4 MiB PUT outliers were 634 ms thick and 414 ms thin,
+with subsequent runs at 251 and 262 ms. The one-CPU fixtures throttled in both
+layouts. Bulk similarity does not erase the small-request or direct-read cost.
+
+A second four-run workload seeded 256 four-MiB objects in bounded batches, then
+shuffled and checksummed the complete **1 GiB** corpus, larger than the runtime's
+768 MiB memory limit. Its 2,048 PUT/GET requests had zero errors. Read throughput
+was 399.50–441.26 MiB/s thick versus 456.14–459.04 MiB/s thin; p95 was
+112.77–116.18 ms versus 113.86–116.40 ms. This exceeds the memory working set,
+but does not establish that every read was cold. The direct-I/O results remain
+the evidence for disk-bound random reads.
+
+### Isolating the runtime change from storage
+
+The original `6e7fbe5cf700` runtime also predates unrelated main changes. A
+separate main/candidate/candidate/main comparison therefore used the **same
+tuned thin volume**, identical pod resources and isolated peers, recreating the
+runtime pod between trials. The
+[baseline image](https://github.com/tuist/tuist/actions/runs/40569920292)
+was built at `172ffef18648`, whose entire `kura/` tree exactly matches main merge
+base `9e577621d4713ff3103c055e2d341e32dfd07d90`. Candidate was `532db7a28be5`.
+This isolates the retirement instrumentation from the storage layout; it is not
+a recreation of the current production shared-XFS deployment.
+
+All **10,112 requests passed**. Mean cgroup CPU was 43.5768 seconds baseline
+versus 43.5944 seconds candidate (about +0.04%). Peak anonymous memory was
+44.77–58.73 MiB versus 46.88–51.88 MiB, settled anonymous memory
+18.79–20.99 MiB versus 18.97–20.13 MiB. Both remained at pressure tier zero,
+with a 64 MiB transient-memory peak and no OOM. Client response bytes were
+543,424,512 in every run. Retained bytes varied from approximately 2.2 to
+2.48 GB in both as segment rotation progressed. Churn throughput was
+154.00–157.26 MiB/s versus 155.31–156.52 MiB/s. Four MiB GET p95 ranges were
+91.27–94.61 ms versus 93.45–98.09 ms; two samples do not establish exact latency
+equivalence. Peer-traffic resource cost was not stress-qualified by this
+isolated benchmark. These are bounded measurements, not regional memory gains.
+
+### Repeated actual migration
+
+Staging deployed CSI `76d90eeb549c`, controller `695bbe1f8d2d` and fixture
+runtime `532db7a28be5`. A new 16 GiB/512 MiB metadata pool used 512 KiB chunks,
+1 GiB data and 64 MiB metadata reserves, and four slots. Only the disposable
+account/instance was enrolled. Its automated server provisioning was held for
+the fixture alone after a preflight detected that test traffic could reactivate
+its archived server record and overwrite the test spec. That earlier reset
+occurred before node selection and is not counted as a migration attempt.
+
+The Canada source had two 4 GiB encrypted file-backed replicas. Both were
+verified caught up, with the 1 GiB manifest independently checksummed through
+each source, before selection. Thin was already desired, but repeated preflight
+observations confirmed that both source pod UIDs remained unchanged while the
+source was unselected. The Paris pool backed both replacement ceilings before
+the Canada node was cordoned and selected. The different host taints were
+handled only in the fixture's tolerations; optional memory-ceiling bin packing
+was disabled for this fixture because Paris does not advertise that resource.
+
+After the first thin replacement appeared, a harmless pod-template annotation
+was deliberately queued during catch-up. Both volumes migrated, the annotation
+rolled through a further restart of replica zero, and the hold released only
+after complete runtime catch-up: **441 seconds from node selection**. Replica
+zero retained the same thin PVC and PV across that queued restart. Both final
+replicas were Ready on the desired revision. Final commitments were
+13,958,643,712 bytes. This demonstrates storage migration, queued-update
+serialization and stable volume identity across a pod replacement.
+
+**The continuity gate still failed: 2 failures in 10,788 no-retry requests over
+579 seconds.** Both were 404 GETs at 19:51:14 UTC immediately after successful
+PUTs, at the Canada donor's serving handoff. Neither key belonged to the seeded
+corpus. There were no EOFs, failed PUTs or checksum mismatches. All 128 seeded
+small objects and all 256 four-MiB objects then verified through the Service
+and independently through each final replica: **1,152 successful final reads**.
+The final checks do not prove the two just-written objects survived and do not
+erase their transient misses.
+
+This narrows the remaining defect: connection retirement prevents abrupt
+transport termination, and initial catch-up prevents promotion of an empty
+replacement, but neither proves the destination received the final writes on
+old connections. Closing a PUT response can send its following GET to the new
+replica ahead of asynchronous replication. A correct live-write handoff needs
+an explicit destination-bound completion barrier coordinated with write
+admission/serving ownership, not a longer sleep or client retry. Existing
+positive-fence handover is a separate protocol and was not activated by this
+legacy migration fixture. Do not claim that the connection-cohort receipt is a
+data-transfer receipt or that this rehearsal qualifies zero-error migration.
+
+The live key path used **`tuist_root`**, with projected-token/node/account
+ownership checks and sealed transport. It does not requalify OpenBao custody.
+Actual thick-to-thin physical migration, single-copy standby, host reboot,
+public ingress/HTTP2/gRPC continuity and real pool metadata exhaustion remain
+outside this rehearsal. Thick-to-thin controller unit tests are separate from
+physical migration evidence.
+
+### Cleanup and release decision
+
+The source annotation and cordon were removed. Fixture workloads, claims,
+account/lifecycle hold and wrapped keys were removed after confirmed physical
+volume deletion. The pool and its metadata spare were removed only after UUID
+checks and an empty CSI ledger. VG free space returned to **812,541,542,400
+bytes** and the original 128 GiB data LV retained UUID
+`qf316g-aMzF-KlpS-5jsX-yqKl-25BI-OhgZ5U`. Thin configuration and the opt-in node
+label were removed. The temporary module remains loaded; no boot configuration
+was changed. All eight pre-existing Kura runtime pods retained their UIDs and
+were Ready, and the CSI DaemonSet completed its cleanup restart. The candidate
+CSI/controller images remain on staging.
+
+**Keep production enrollment disabled and the PR draft.** Further work must
+resolve and repeat the live-write handoff test and either eliminate the remaining
+performance cost or explicitly change the acceptance criterion. Successful
+safety tests, eventual data verification and warm/bulk throughput do not satisfy
+the requested no-regression/no-interruption gate. #14825 must use the final
+layout to remeasure regional capacity and memory; earlier shared-XFS gains are
+not transferable results.
+
+## Original 64 KiB rehearsal — retained historical evidence
+
 Date: 2026-10-27. The actual conservative CSI implementation has completed the
 local and hosted staging qualification below. The hosted performance gate failed. The original
 mechanism experiment remains evidence against physical overcommit.

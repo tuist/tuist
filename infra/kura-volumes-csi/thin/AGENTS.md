@@ -31,3 +31,9 @@ reusable local Linux qualification harness, not a deployed allocator.
   harness in disposable hosted Linux VMs before publishing. Larger chunks reduce
   mapping overhead but can retain more allocation around small live extents.
   Never change the geometry of a populated pool as a tuning operation.
+
+- The latest staging run recovered sequential-read/random-write throughput but
+  retained a QD32 random-read regression and two fresh-write handoff misses.
+  Connection retirement is a transport receipt, not proof of destination data.
+  Keep the PR draft and production thin enrollment disabled until those gates
+  pass; preserve the failed evidence in `validation.md`.

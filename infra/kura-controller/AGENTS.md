@@ -274,3 +274,10 @@ Connection retirement uses the controller's existing kubelet port-forward path
 with peer mTLS inside the tunnel, including on cluster-network pods. It must not
 rely on direct reachability of node-local PodIPs or broader peer NetworkPolicy
 permissions. The process incarnation binds a receipt across pod/process races.
+
+The retirement receipt proves transport completion only. The repeated staging
+rehearsal still saw immediate GET misses after successful PUTs at handoff;
+initial catch-up and an empty connection cohort do not prove final writes have
+reached the destination. Zero-error live-write migration remains blocked pending
+a destination-bound completion barrier coordinated with write admission and
+serving ownership. Keep the failed evidence in the CSI thin validation report.

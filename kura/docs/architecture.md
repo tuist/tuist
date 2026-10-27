@@ -464,3 +464,9 @@ connection lifetime. Only a matching incarnation with zero old connections lets
 the controller delete the thin-migration donor. An old runtime, failed call, or
 process restart holds the move. This complements catch-up and endpoint checks;
 it neither fences serving authority nor adds synchronous replication guarantees.
+The repeated staging rehearsal still observed immediate GET misses after
+successful PUTs at handoff. Closing the PUT response can send its following GET
+to the replacement before asynchronous replication arrives. An empty cohort is
+therefore not a data-transfer receipt; zero-error live-write migration remains
+unqualified until destination-bound write completion and serving ownership are
+coordinated. See the [thin qualification report](../../infra/kura-volumes-csi/thin/validation.md).
