@@ -608,6 +608,17 @@ The archive contains everything needed to understand the account's complete data
   visibility; they are not a billing ledger or measurements of unique physical
   allocation. Observation time is report receipt time, not the exact time data
   was written, and changes before reporting cannot be reconstructed.
+- **Saved cache size history** (`runner_cache_volume_saved_sizes`, PostgreSQL):
+  volume foreign key, nullable saved-head size in bytes and observation timestamp.
+  Publication, changed head measurements, clear, expiry and head deletion record
+  changes atomically with the volume lifecycle. No saved head is zero; an
+  unmeasured head is null. Identical sizes are deduplicated. Existing volumes are
+  seeded with their current size at migration time; earlier history is unknown.
+  Hourly dashboard samples carry the last observation forward, independently of
+  retained job copies. Cleanup retains 90 days plus the last earlier observation
+  for each volume as a baseline, and rows cascade with volume/account deletion.
+  Export by joining `volume_id` to `runner_cache_volumes.id` and filtering its
+  `account_id`. These are logical saved-cache sizes, not physical disk usage.
 - **Removed built-in volume records**: records of the former built-in macOS cache
   volume (`tuist-cache` and `repo-<16 hex>`), with their uses and measurements,
   HEAD and orphan rows, and the `runner_volume_affinities` table were deleted when
