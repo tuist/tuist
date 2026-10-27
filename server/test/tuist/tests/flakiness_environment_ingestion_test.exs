@@ -118,12 +118,13 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
     end
   end
 
-  test "matching multi-destination reports do not establish cross-run flakiness" do
+  test "multi-destination reports use the unattributed comparison group" do
     project = ProjectsFixtures.project_fixture()
     ingest(project, "success", [@ios26, @ios27])
     failing = ingest(project, "failure", [@ios27, @ios26])
 
-    refute case_run(failing).is_flaky
+    assert case_run(failing).is_flaky
+    assert is_nil(case_run(failing).test_run_destination_id)
   end
 
   test "reports without destinations retain legacy cross-run detection" do
@@ -138,22 +139,33 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
         {"multiple", [@ios26, @ios27]},
         {"incomplete", [%{@ios26 | os_version: nil}]}
       ],
-      statuses <- [["success", "failure"], ["failure", "success"]] do
+      statuses <- [["success", "failure"], ["failure", "success"]],
+      unattributed_first <- [true, false] do
     @destinations destinations
     @statuses statuses
-    test "#{label} destinations never supply missing-metadata evidence with #{hd(statuses)} first" do
+    @unattributed_first unattributed_first
+    test "#{label} and missing: #{hd(statuses)} first, unattributed first #{unattributed_first}" do
       project = ProjectsFixtures.project_fixture()
       [first_status, second_status] = @statuses
-      ambiguous = ingest(project, first_status, @destinations)
-      missing = ingest(project, second_status, [])
+      first_destinations = if @unattributed_first, do: @destinations, else: []
+      second_destinations = if @unattributed_first, do: [], else: @destinations
+      first = ingest(project, first_status, first_destinations)
+      second = ingest(project, second_status, second_destinations)
 
-      refute case_run(ambiguous).is_flaky
-      refute case_run(missing).is_flaky
-      assert case_run(ambiguous).is_destination_ambiguous
-      assert is_nil(case_run(ambiguous).test_run_destination_id)
-      refute case_run(missing).is_destination_ambiguous
-      assert is_nil(case_run(missing).test_run_destination_id)
-      assert Repo.aggregate(TestCaseRunFlakyCorrection, :count) == 0
+      assert is_nil(case_run(first).test_run_destination_id)
+      assert is_nil(case_run(second).test_run_destination_id)
+
+      if first_status == "failure" do
+        assert [%{test_case_run_id: id}] = Repo.all(TestCaseRunFlakyCorrection)
+        assert id == case_run(first).id
+        Tests.apply_test_case_run_flaky_corrections([id])
+        assert case_run(first).is_flaky
+        refute case_run(second).is_flaky
+      else
+        refute case_run(first).is_flaky
+        assert case_run(second).is_flaky
+        assert Repo.aggregate(TestCaseRunFlakyCorrection, :count) == 0
+      end
     end
   end
 
@@ -195,7 +207,7 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
              )
   end
 
-  test "corrections preserve ambiguous destination attribution" do
+  test "corrections preserve a null destination reference" do
     project = ProjectsFixtures.project_fixture()
     failing = ingest(project, "failure", [@ios26, @ios27])
     run = case_run(failing)
@@ -211,7 +223,6 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
 
     corrected = case_run(failing)
     assert corrected.is_flaky
-    assert corrected.is_destination_ambiguous
     assert is_nil(corrected.test_run_destination_id)
   end
 
@@ -235,12 +246,13 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
     assert [%{platform: "ios_simulator", os_version: "26.0", id: ^destination_id}] = loaded.run_destinations
   end
 
-  test "incomplete destinations cannot supply evidence to another incomplete report" do
+  test "incomplete destinations use the unattributed comparison group" do
     project = ProjectsFixtures.project_fixture()
     ingest(project, "success", [%{@ios26 | os_version: ""}])
     failing = ingest(project, "failure", [%{@ios26 | os_version: ""}])
 
-    refute case_run(failing).is_flaky
+    assert case_run(failing).is_flaky
+    assert is_nil(case_run(failing).test_run_destination_id)
   end
 
   test "multi-destination reports retain retry-based flaky evidence" do

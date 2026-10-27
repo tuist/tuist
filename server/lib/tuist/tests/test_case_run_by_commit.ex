@@ -19,7 +19,8 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
   `test_run_destination_id` references the destination that produced the result.
   `test_run_id` bounds destination reads using their existing sort key. Both are
   filtered through the same project, commit, scheme and CI scope. Null destination
-  references retain legacy behavior unless `is_destination_ambiguous` is true.
+  references share an unattributed comparison group for missing, incomplete or
+  multiple destinations, including historical rows without a reference.
 
   Used by `Tuist.Tests.get_existing_ci_runs_for_commit/5` to identify
   historical CI runs for a given commit, scheme and destination; the main table is then
@@ -35,7 +36,6 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
     field :scheme, Ch, type: "String"
     field :test_run_id, Ecto.UUID
     field :test_run_destination_id, Ch, type: "Nullable(UUID)"
-    field :is_destination_ambiguous, :boolean, default: false
     field :is_ci, :boolean, default: false
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :test_case_id, Ch, type: "Nullable(UUID)"

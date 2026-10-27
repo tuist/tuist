@@ -270,7 +270,6 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_run_id: Keyword.get_lazy(attrs, :test_run_id, fn -> UUIDv7.generate() end),
       test_run_destination_id: Keyword.get(attrs, :test_run_destination_id),
-      is_destination_ambiguous: Keyword.get(attrs, :is_destination_ambiguous, false),
       test_module_run_id: Keyword.get_lazy(attrs, :test_module_run_id, fn -> UUIDv7.generate() end),
       test_case_id: Keyword.get_lazy(attrs, :test_case_id, fn -> UUIDv7.generate() end),
       project_id: project_id,

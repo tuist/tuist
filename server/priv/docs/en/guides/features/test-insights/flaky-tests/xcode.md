@@ -41,7 +41,7 @@ Even without test retries, Tuist can detect flaky tests by comparing results acr
 
 The same test can behave consistently differently across schemes or destinations. For example, passing on iOS 26 and failing on iOS 27 does not establish flakiness. Results from different schemes, devices, platforms, or OS versions do not flag each other as flaky.
 
-Reports without destination metadata are compared only with other reports without that metadata. Reports containing multiple distinct destinations or incomplete destination metadata are excluded from cross-run detection because individual test outcomes cannot yet be attributed to a destination. Retry-based detection still applies. Existing historical flaky classifications are unchanged.
+Results without an attributable destination are compared with other unattributed results, separately from results with a known destination. This includes reports with missing or incomplete destination metadata and reports containing multiple distinct destinations, because individual test outcomes cannot yet be attributed to a destination. Differences between environments in this group can still produce false flaky classifications. Retry-based detection still applies. Existing historical flaky classifications are unchanged.
 
 This is particularly useful for catching flaky tests that don't fail consistently enough to be caught by retries, but still cause intermittent CI failures.
 

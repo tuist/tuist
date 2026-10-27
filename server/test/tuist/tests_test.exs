@@ -9028,7 +9028,6 @@ defmodule Tuist.TestsTest do
             is_flaky: true,
             is_flakiness_excluded: false,
             test_run_destination_id: nil,
-            is_destination_ambiguous: false,
             is_new: false,
             is_quarantined: false,
             coverage_evidence: "none",

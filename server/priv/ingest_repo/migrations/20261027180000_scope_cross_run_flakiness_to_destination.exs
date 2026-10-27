@@ -18,8 +18,7 @@ defmodule Tuist.IngestRepo.Migrations.ScopeCrossRunFlakinessToDestination do
       # excellent_migrations:safety-assured-for-next-line raw_sql_executed
       execute("""
       ALTER TABLE #{table}
-        ADD COLUMN IF NOT EXISTS test_run_destination_id Nullable(UUID),
-        ADD COLUMN IF NOT EXISTS is_destination_ambiguous Bool DEFAULT false
+        ADD COLUMN IF NOT EXISTS test_run_destination_id Nullable(UUID)
       """)
     end
 
@@ -28,21 +27,20 @@ defmodule Tuist.IngestRepo.Migrations.ScopeCrossRunFlakinessToDestination do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute("ALTER TABLE test_case_runs_by_commit ADD COLUMN IF NOT EXISTS test_run_id UUID")
 
-    update_commit_lookup(", test_run_id, test_run_destination_id, is_destination_ambiguous")
+    update_commit_lookup(", test_run_id, test_run_destination_id")
     update_reported_runs("shard_report_id")
   end
 
   def down do
     update_commit_lookup("")
-    update_reported_runs("shard_report_id, test_run_destination_id, is_destination_ambiguous")
+    update_reported_runs("shard_report_id, test_run_destination_id")
 
     for table <- ["test_case_runs_by_commit", "test_case_runs"] do
       # Writers must be rolled back first; existing outcomes/destinations remain.
       # excellent_migrations:safety-assured-for-next-line raw_sql_executed
       execute("""
       ALTER TABLE #{table}
-        DROP COLUMN IF EXISTS test_run_destination_id,
-        DROP COLUMN IF EXISTS is_destination_ambiguous
+        DROP COLUMN IF EXISTS test_run_destination_id
       """)
     end
 

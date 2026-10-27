@@ -2162,7 +2162,7 @@ defmodule Tuist.Tests do
   defp create_test_modules(test, test_modules, shard_index, shard_plan, evidence_states, destinations) do
     destinations = normalize_run_destinations(destinations)
     destination_rows = create_run_destinations(test, destinations)
-    {destination_status, destination} = report_destination(destinations, destination_rows)
+    destination = report_destination(destinations, destination_rows)
 
     # Resolved once per run and threaded down rather than looked up where each
     # row is built: it decides `is_new` for every test case and
@@ -2174,7 +2174,7 @@ defmodule Tuist.Tests do
 
     test_case_run_data =
       OpenTelemetry.Tracer.with_span "tests.get_test_case_run_data" do
-        get_test_case_run_data(test, test_modules, project, destination_status, destination)
+        get_test_case_run_data(test, test_modules, project, destination)
       end
 
     test_case_ids = collect_test_case_ids(test.project_id, test_modules)
@@ -2305,17 +2305,14 @@ defmodule Tuist.Tests do
 
   defp normalize_run_destinations(_destinations), do: [%{platform: nil, os_version: nil, name: nil}]
 
-  defp report_destination([], _rows), do: {:missing, nil}
-
   defp report_destination([destination], [row]) do
     if Enum.all?(Map.values(destination), &(is_binary(&1) and &1 != "")),
-      do: {:single, row},
-      else: {:ambiguous, nil}
+      do: row
   end
 
-  defp report_destination(_destinations, _rows), do: {:ambiguous, nil}
+  defp report_destination(_destinations, _rows), do: nil
 
-  defp get_test_case_run_data(test, test_modules, project, destination_status, destination) do
+  defp get_test_case_run_data(test, test_modules, project, destination) do
     all_test_cases =
       Enum.flat_map(test_modules, fn module_attrs ->
         module_name = Map.get(module_attrs, :name)
@@ -2343,7 +2340,7 @@ defmodule Tuist.Tests do
       end)
 
     {test_case_data, historical_flaky_runs} =
-      check_cross_run_flakiness(test, test_case_data, destination_status, destination)
+      check_cross_run_flakiness(test, test_case_data, destination)
 
     mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
@@ -2353,21 +2350,18 @@ defmodule Tuist.Tests do
       {data.identity_key,
        data
        |> Map.take([:status, :is_flaky, :is_new, :is_flakiness_excluded])
-       |> Map.put(:test_run_destination_id, destination && destination.id)
-       |> Map.put(:is_destination_ambiguous, destination_status == :ambiguous)}
+       |> Map.put(:test_run_destination_id, destination && destination.id)}
     end)
   end
 
-  defp check_cross_run_flakiness(_test, data, :ambiguous, _destination), do: {data, []}
+  defp check_cross_run_flakiness(%{submission_auth: "network_trusted"}, data, _destination), do: {data, []}
 
-  defp check_cross_run_flakiness(%{submission_auth: "network_trusted"}, data, _status, _destination), do: {data, []}
+  defp check_cross_run_flakiness(%{is_ci: false}, test_case_data, _destination), do: {test_case_data, []}
 
-  defp check_cross_run_flakiness(%{is_ci: false}, test_case_data, _status, _destination), do: {test_case_data, []}
+  defp check_cross_run_flakiness(%{git_commit_sha: commit}, test_case_data, _destination) when commit in [nil, ""],
+    do: {test_case_data, []}
 
-  defp check_cross_run_flakiness(%{git_commit_sha: commit}, test_case_data, _status, _destination)
-       when commit in [nil, ""], do: {test_case_data, []}
-
-  defp check_cross_run_flakiness(test, test_case_data, _status, destination) do
+  defp check_cross_run_flakiness(test, test_case_data, destination) do
     scheme = test.scheme || ""
 
     existing_runs =
@@ -2437,13 +2431,13 @@ defmodule Tuist.Tests do
   end
 
   defp filter_run_destination(runs, nil) do
-    # Missing metadata retains legacy behavior. Ambiguous reports and non-null
-    # references whose destination is temporarily unavailable must not join it.
-    from(r in runs, where: is_nil(r.test_run_destination_id) and not r.is_destination_ambiguous)
+    # Missing, incomplete and multi-destination reports share one unattributed
+    # group. A non-null reference with temporarily unavailable metadata stays out.
+    from(r in runs, where: is_nil(r.test_run_destination_id))
   end
 
   defp filter_run_destination(runs, destination) do
-    attributable = from(r in runs, where: not r.is_destination_ambiguous and not is_nil(r.test_run_destination_id))
+    attributable = from(r in runs, where: not is_nil(r.test_run_destination_id))
     destination_ids = from(r in attributable, select: r.test_run_destination_id)
     run_ids = from(r in attributable, select: r.test_run_id)
 
@@ -2760,8 +2754,7 @@ defmodule Tuist.Tests do
           is_flaky: is_flaky,
           is_new: is_new,
           is_flakiness_excluded: is_flakiness_excluded,
-          test_run_destination_id: destination_id,
-          is_destination_ambiguous: is_destination_ambiguous
+          test_run_destination_id: destination_id
         } =
           Map.get(test_case_run_data, identity_key)
 
@@ -2788,7 +2781,6 @@ defmodule Tuist.Tests do
           is_new: is_new,
           is_flakiness_excluded: is_flakiness_excluded,
           test_run_destination_id: destination_id,
-          is_destination_ambiguous: is_destination_ambiguous,
           is_quarantined: Map.get(case_attrs, :is_quarantined, false),
           coverage_evidence: Map.get(evidence_states, identity_key, "none"),
           duration: Map.get(case_attrs, :duration, 0),
@@ -4452,7 +4444,6 @@ defmodule Tuist.Tests do
       is_flaky,
       is_flakiness_excluded,
       test_run_destination_id,
-      is_destination_ambiguous,
       is_new,
       is_quarantined,
       duration,
@@ -4485,7 +4476,6 @@ defmodule Tuist.Tests do
       true,
       is_flakiness_excluded,
       test_run_destination_id,
-      is_destination_ambiguous,
       is_new,
       is_quarantined,
       duration,
