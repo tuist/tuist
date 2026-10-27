@@ -1,13 +1,9 @@
 # Helm Charts
 
-This node covers Helm assets under `infra/helm/`.
-
-## Scope
-- Umbrella and component charts for deploying Tuist services on Kubernetes
-- Values for embedded vs external infrastructure dependencies
-- Kubernetes manifests and helper templates for app services, data services, and observability
-- Atlas standalone and managed deployment: see `atlas/AGENTS.md`.
-- Standalone app charts with their own release boundary, such as Noora Storybook and Slack
+- Model dependencies by capability (`objectStorage`), not implementation brand (`minio`); support embedded and external modes where practical.
+- Keep independently released workloads in standalone charts rather than growing the main umbrella chart. Atlas deployment has [its own guidance](atlas/AGENTS.md).
+- Validate with `helm lint` and `helm template` using the chart's CI placeholder values, then production overlays. Cluster installs are not local validation; follow [infra access rules](../AGENTS.md#cluster-access-for-agents).
+- Main chart usage and dependency modes: [Tuist chart README](tuist/README.md).
 
 Monitoring cost controls must preserve metric identity and operator audit records.
 See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
@@ -21,10 +17,10 @@ Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
 
-- Canary's Linux runner fleet selects one RISE-M in Gravelines. Prepare its OS
-  and fleet SSH key before adoption. The fleet uses OnDelete, so deploying the
-  offer change preserves the old RISE-S until an explicit drained replacement.
-  Do not enroll the ordinary runner template into vRack as part of this swap.
+- Canary keeps one RISE-M in Gravelines on the shared `runners-linux` pool.
+  Preserve its Machine identity and OnDelete strategy. Qualify the ordinary
+  WAN relay before explicitly enrolling the existing Machine in vRack; a
+  template update does not backfill that live field.
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
   and a published versioned runner image containing stable. Keep 26.6 as the
@@ -125,13 +121,7 @@ Helm-installed resource; publishing it is a separate rollout step.
   the tuist release) as the `tuist-xcresult-processor` release, installed with
   `--wait=hookOnly` and reported by a non-gating `kubectl rollout status`.
   A new template the processor needs has to be symlinked into that chart too.
-- Prefer one umbrella chart that models deployable capabilities, not implementation brands.
-- When a workload needs an independent workflow and release cadence, give it its own chart
-  rather than adding it to `helm/tuist/`.
-- Model infrastructure dependencies with capability names such as `objectStorage`, not provider names such as `minio`.
-- Support both `embedded` and `external` dependency modes when practical.
 - Embedded object storage uses the same digest-pinned `ghcr.io/coollabsio/minio` community image for the server and bundled `mc` initializer because the upstream Quay images no longer allow anonymous pulls. Keep both image pins aligned and validate changes with `helm:k3s-smoke`; managed environments use external storage.
-- Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
 - The K3s smoke task builds its MinIO/mc image from checksum-pinned upstream
   release binaries and imports it into the disposable cluster. Existing-context
   runs must preload that image; the smoke values never pull it from a registry.
@@ -139,6 +129,9 @@ Helm-installed resource; publishing it is a separate rollout step.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
+  The Kura admission buffer reduction to 10% requires the two live headroom
+  fallback queries and the admission annotation to follow the server rollout;
+  the exported headroom gauge already follows the deployed policy.
   ClickHouse read-failure and latency rules aggregate Cloud and shadow physical
   repos; expanding telemetry coverage can surface previously invisible failures
   without any threshold change.
@@ -180,12 +173,6 @@ Helm-installed resource; publishing it is a separate rollout step.
   per-instance ConfigMap-read role, sticky runtime/controller rollback floor and
   quarantined-volume reaper exclusion belong together; see
   [`../kura-controller/serving-authority.md`](../kura-controller/serving-authority.md).
-- Parent infra context: `infra/AGENTS.md`
-- Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`
-- Slack chart: `infra/helm/slack/AGENTS.md`
-- Server runtime dependencies: `server/AGENTS.md`
-- Cache runtime dependencies: `cache/AGENTS.md`
-- Processor runtime dependencies: `processor/AGENTS.md`
 
 - Runner Kura uses `platform`'s `kura-runners` ingress-nginx DaemonSet with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. `kuraFleet.replicas` counts hosts; the catalog configures two process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
 

@@ -1,61 +1,55 @@
-# Noora Web (Elixir/Phoenix Component Library)
+# Noora
 
-## Overview
+Phoenix LiveView and Lit web component library published to Hex and npm
+(`@tuist/noora`). The server uses a local path
+dependency, so changes here affect `server/` directly. Component code lives in
+`lib/`, hooks in `js/`, styles in `css/`, and built assets in `priv/static/`.
 
-Noora is a Phoenix LiveView component library published to hex.pm. It provides reusable UI components (buttons, modals, tables, forms, etc.) for Phoenix applications.
+- Build: `mise run noora:build` (JS dependencies, assets, and Elixir compilation).
+- JS tests: `mise run noora:test`.
+- Formatting: `mise run noora:lint` or `mise run noora:lint --fix`.
+- Preview components in `storybook/`. Its independent deployment is defined by
+  `infra/helm/noora-storybook/` and `.github/workflows/noora-storybook-deployment.yml`.
+- Shared versions live in `mix.exs` and `package.json`; `.github/workflows/noora-release.yml`
+  validates on `tuist-linux` and publishes on a GitHub-hosted runner for npm provenance.
+  Releases use `cliff.toml` for changelogs. Never bootstrap npm publication locally;
+  initial scoped-token publication and the transition to trusted publishing belong
+  to that workflow. Verify trusted publication before revoking/removing its token.
+- `components/*.json` owns shared contracts; `aube run generate:web-components`
+  updates metadata, docs, declarations, and `js/web-components/icons.json`.
+  Run `aube run check:generated` after contract changes and regenerate after icon changes.
 
-## Structure
+## Component contracts
 
-- `lib/` - Elixir component modules
-- `js/` - JavaScript hooks and behaviors. `ScrollIndicator.js` provides shared thumb sizing and dragging for table and chart scrollbars, styled by `css/scroll_indicator.css`. Tables drive indicator updates explicitly so hidden overlays do not measure on scroll.
-- `js/web-components/` - Lit-based custom elements
-- `css/` - Component stylesheets
-- `components/` - Shared component contracts consumed by Elixir and JavaScript
-- `docs/` - Generated web component guides and references
-- `scripts/` - Web component artifact generation
-- `types/` - Generated TypeScript declarations
-- `priv/static/` - Built assets (noora.js, noora.css)
-- `storybook/` - Phoenix Storybook app for component previews, deployed to the production cluster at storybook.noora.tuist.dev via `infra/helm/noora-storybook` and `.github/workflows/noora-storybook-deployment.yml`
-
-## Development Commands
-
-- `mise run noora:build` - Install JS dependencies, build JS/CSS assets, and compile Elixir
-- `mise run noora:test` - Run vitest JS tests
-- `mise run noora:lint` - Check formatting (Elixir + Prettier)
-- `mise run noora:lint --fix` - Auto-fix formatting
-
-## Publishing
-
-Noora is published to [Hex](https://hex.pm/) for Phoenix LiveView consumers and to the [npm package registry](https://www.npmjs.com/) as `@tuist/noora` for JavaScript consumers. The shared version is tracked in `mix.exs` and `package.json`. Releases are automated by `.github/workflows/noora-release.yml` using `noora/cliff.toml` for changelog generation. The workflow validates Noora on `tuist-linux`, then builds and publishes both registry artifacts on a GitHub-hosted runner so the npm package includes provenance.
-
-Web component metadata and documentation are generated from `components/*.json` with `aube run generate:web-components`. Run `aube run check:generated` when changing a component contract.
-
-Do not bootstrap the npm package from a local machine. The first automated release reads a granular access token with permission to publish under the `@tuist` scope from `op://tuist/NPM_TOKEN/password` using `OP_SERVICE_ACCOUNT_TOKEN`. After the package exists, configure its trusted publisher for the `tuist/tuist` repository and `noora-release.yml` workflow, allow `npm publish`, verify a release, revoke the long-lived token, and remove its 1Password item.
-
-## Conventions
-- Phoenix sidebars persist vertical scroll per sidebar ID in tab-scoped session storage by default (`persist_scroll={false}` opts out). `NooraScrollArea` uses `data-scroll-persist-key` to opt in; ordinary scroll areas remain unpersisted. Restore again as child collapsibles hydrate, stop pending restoration on user input, and never overwrite desktop positions while the sidebar is hidden on mobile. Storage failures must not break scrolling, and teardown must remove persistence listeners.
-- Phoenix selects initialize Zag with the server's selected value and synchronize explicit server value changes (such as cancelling a form). Do not reset a newer client selection from an unchanged server echo. Keep the native hidden select and visible trigger label in sync so untouched preselected values are submitted.
-- Phoenix textareas forward native `autocomplete` and `autocorrect` attributes so code and other structured fields can disable browser text assistance without changing ordinary textareas.
-- Phoenix toggles render their ignored root label with Zag's `switch:<id>` ID from the start. If mounting the hook changes that ID, LiveView can replace the label/input on the next patch and lose keyboard focus.
-- Phoenix textareas accept an optional decorative `overlay` slot. It starts hidden and is inert/aria-hidden; consumers own its styling and enhancement hook. Keep native textarea behavior unchanged when no overlay is supplied.
-- Phoenix text inputs forward the native `readonly` attribute so canonical values can remain selectable without being editable. Their suffix-help tooltip triggers are keyboard-focusable and use `bottom-end` placement to open inward from the field's right edge. Keep tooltip content in normal flow inside its positioner so Zag can measure its full size for viewport collision handling.
-- Icon transition hooks restore their visual state after LiveView patches, including patches that leave the watched ancestor's state unchanged.
-- Phoenix table disclosure buttons support an optional `row_toggle` JS callback for server-managed lazy loading. Callers then own `expanded_rows`; tables without a callback retain client-side expansion.
-
-- `Noora.Icon` tracks each SVG as an `@external_resource` and recompiles on added or removed icons through `__mix_recompile__?/0`. Don't declare the `icons` directory itself as an external resource: Mix can't digest a directory, so every fresh checkout would recompile `Noora.Icon` and everything that depends on Noora.
-- Brand icons use monochrome filled `currentColor` SVGs in `lib/noora/icons/` (for example `brand-gitlab.svg`, `brand-docker.svg`, `brand-gradle.svg`, `brand-rust.svg`), exposed as `brand_<name>/1`. Regenerate `js/web-components/icons.json` with `aube run generate:web-components` after adding or replacing one.
-
-- Use `noora` as the conventional commit scope for changes in this directory
-- The Tuist server depends on noora via a local path dependency (`{:noora, path: "../noora"}`)
-- Delegate date-picker month navigation from the hook root so LiveView can replace
-  calendar controls without losing their click handlers.
-- The LiveView chart hook supports opt-in `data-lazy="true"` initialization near
-  the viewport. Keep offscreen updates and destruction safe, and register resize
-  listeners once per hook lifetime rather than once per render.
-
-- Chart tooltips take `dateFormat: "day" | "week" | "month"` to title a point by the calendar period it stands for (its date is the period's start, formatted in UTC; a week reads as a range), besides `"minute"` and `"hour"`.
-- Charts humanize plain numeric tooltip values and value-axis labels from 10,000 upward using `formatNumber` (K/M/B/T, up to one decimal). Percentage tooltip templates round to at most one decimal in both series rows and scatter titles without rounding the underlying data. Explicit unit formatters and category/time axes retain their formats; series values remain numeric.
-
-## Filters
-
-- Text-filter update forms set `autocomplete="off"` so browser form-history suggestions do not overlap the filter's own popover. Cover the rendered form in `test/noora/filter_test.exs` without depending on HTML attribute order.
+- Share table/chart thumb sizing and dragging through `ScrollIndicator.js` and
+  `css/scroll_indicator.css`; tables trigger updates explicitly so hidden overlays
+  do not measure on scroll.
+- Sidebars persist vertical scroll per ID in tab-scoped session storage unless
+  `persist_scroll={false}`. Ordinary scroll areas persist only with
+  `data-scroll-persist-key`. Restore through child hydration, cancel on user input,
+  keep hidden mobile sidebars from overwriting desktop positions, tolerate storage
+  failures, and remove listeners on teardown.
+- Initialize selects with server values and sync explicit changes, not unchanged
+  echoes that would overwrite newer client choices. Keep hidden select and label
+  synchronized so untouched defaults submit.
+- Forward textarea `autocomplete`/`autocorrect` and text-input `readonly`. Textarea
+  overlays start hidden, inert, and aria-hidden; no overlay leaves behavior unchanged.
+- Toggle root labels render Zag's `switch:<id>` from the start to preserve focus
+  across patches. Icon transitions restore state even after unchanged-state patches.
+- Input suffix-help triggers stay keyboard-focusable at `bottom-end`; keep tooltip
+  content in normal positioner flow so collision measurement includes its full size.
+- Table `row_toggle` callbacks enable server-owned lazy `expanded_rows`; tables
+  without callbacks retain client-side expansion.
+- `Noora.Icon` uses per-SVG `@external_resource` and `__mix_recompile__?/0` for
+  additions/removals, never the directory itself (Mix cannot digest directories).
+  Brand SVGs use monochrome filled `currentColor` and `brand_<name>/1` helpers.
+- Delegate date-picker navigation from the hook root so patched controls still work.
+- Charts initialize near the viewport only when `data-lazy="true"`; offscreen
+  updates/destruction remain safe and resize listeners register once per lifetime.
+- Calendar tooltips use UTC period starts with `dateFormat: "day" | "week" | "month"`
+  (weeks show ranges), alongside minute/hour modes. Plain numeric tooltips/value
+  axes humanize from 10,000 with K/M/B/T (up to one decimal); percentage templates
+  round to at most one decimal without changing data. Preserve explicit unit
+  formats, category/time axes, and numeric series values.
+- Text-filter update forms set `autocomplete="off"` to keep browser history out of
+  their popover; rendered-form tests must not depend on attribute order.

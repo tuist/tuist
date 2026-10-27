@@ -1,7 +1,5 @@
 # Server Assets (JS/CSS)
 
-This directory contains frontend assets for the Phoenix app (LiveView, marketing, apidocs).
-
 ## Responsibilities
 
 - Build environment uses a compact semantic definition list (`#build-environment-grid`) with labels above values, matching Build Details typography across Xcode, Gradle, Bazel, Mix, Cargo and Once. `components/build_metadata.css` shares the responsive 4/2/1-column grid between both cards and keeps environment values wrapping within their columns. Build Details row wrappers use `display: contents` so present fields fill left to right, then top to bottom without gaps when optional fields are missing; only `data-field="command"` spans the full row. Do not restore per-row flex/grid sizing or a property/value table for environment fields. Keep the separate Build environment Noora card compact and initially collapsed, hide its content before JavaScript mounts, and preserve a single-row header on narrow screens. Custom metadata remains a table inside Build Details, with its existing link treatment and 35% key column.
@@ -22,7 +20,6 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - `BuildTimelineMetrics.mjs` renders CPU, memory, network and disk tracks using the same time range as build steps; each plot has its own time ruler, synchronized cursor and range-selection overlay, with coordinates scaled to its own width. Noora-styled chart cards use taller line plots, horizontal gridlines, and purple/blue series. Metric hover values appear only in each chart’s top-right readout, including both network/disk directions; floating tooltips are reserved for build steps. The initial and maximum zoom-out both show the entire build. Failed hook initialization cleans up listeners and indicators and hides partially mounted content. Samples are loaded once, culled by binary search, and keep stable scales across zooms; missing samples and collection gaps are not shown as zero readings.
 
 - Bundle threshold modals keep controls aligned in a shared desktop grid, stack labels above controls on narrow screens, and stay within the viewport with vertical scrolling. Decimal MB help belongs below the input, not in its label; keep these styles scoped to threshold modals.
-- JS/CSS sources built by esbuild.
 - `app/css/pages/mix_cache.css` is shared by `#mix-cache` and `#cargo-cache` through `ToolchainCacheLive` and matches Xcode cache spacing, four equal-width dropdown widgets, responsive stacking, shared `cache` analytics frame, and padded 200px Noora plot. Xcode and Mix opt into this frame, whose minimum is the plot plus card padding, rather than the unrelated standard 320px minimum; toggle rows add their natural height. Apply the same frame to loading, ready, and failed states without changing other dashboards. Recent Builds sits directly underneath, using the same inset section, 148px hit-rate bar chart, and Noora table-owned scrolling. Mix's recorded-cache-result coverage belongs in the recent chart's hover title, not a visible paragraph or an extra chart-height/style rule. Cargo does not gain a coverage caption or hover title. Hit-rate lines show average and percentile series with a legend and reuse the shared line/scatter controls. Transport selections chart reported client CAS transfer/local fallback copy bytes, latency, and throughput with provenance retained in analytics records using shared unit formatters and three combined/read/write series; legacy unreported data shows honest empty states, not fabricated zeroes. Keep shared Mix/Cargo styling scoped so other dashboards are unchanged.
 - Mix build Mix cache tabs reuse the exact Xcode five-widget flex summary and cache-card/breakdown/latency/table styling in `build_run.css`, not a separate grid. Expanded task rows contain only CAS output rows using Xcode's shared `cas-outputs-list` / `cas-output-item` / `cas-output-text` selectors for spacing and typography. Do not add a Mix-only expanded metadata grid. Task/key columns share Xcode's widths. Keep entry-table scrolling owned by Noora; do not change the Xcode page's geometry when adapting the shared selectors.
 - The docs table of contents keeps its actions and heading visible while its link list scrolls within the viewport. Include its padding in the sticky panel's height limit so the last links remain reachable.
@@ -39,7 +36,6 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   which brings ECharts into pages without charts. Noora CSS remains shared.
   The Docker asset builder must copy Noora's node_modules from the npm stage
   alongside its built assets so those source imports resolve their dependencies.
-- Asset builds for development and production.
 - Step details show project and target separately, use Noora badges for type and outcome, and pair duration with the dashboard’s standard 16px history icon. The inspector has a small horizontal inset so its scroll boundary does not clip badge borders and shadows.
 - Crosshair styling and synchronized hover time cursors activate only on plot canvases, not metric headings, rulers, controls or surrounding card space.
 - Timeline logs preserve source lines and scroll horizontally; their full height participates in the inspector's vertical scrolling.
@@ -60,9 +56,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 - Test-run and test-case-run detail metadata keeps the same four-column grid between rows, falling back to two or one columns on narrow screens. Value-only test summary widgets do not reserve the trend widgets' minimum height; analytics widgets keep their shared loading and ready geometry.
 
-## Related Context
-
-- Web layer: `server/lib/tuist_web/AGENTS.md`
+## Shared timeline and dashboard contracts
 
 - Xcode, Gradle and Bazel share the same abortable HTTP step download and separate metric bootstrap reply. No full step payload travels over LiveView. Opaque string operation IDs sort deterministically; Gradle/Bazel navigate filtered metadata locally. Apply log availability from the completed metadata response, since Bazel action enrichment happens there. Gradle categories and outcomes retain their source meaning; Bazel unknown outcomes must not appear as successful.
 

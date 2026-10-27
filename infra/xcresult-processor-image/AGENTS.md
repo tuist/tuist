@@ -1,8 +1,6 @@
-# Xcresult Processor Tart Image
+# Xcresult Processor Image
 
-The Tart VM image that hosts the Tuist xcresult processor on macOS.
-
-## Architecture
+Tart Layer 2 for the macOS xcresult processor. Xcode and boot scripts live in the image; each deploy pins the server release and NIFs fetched at boot.
 
 Every Pod the tart-cri runtime (`infra/tart-cri/`) schedules onto the
 macOS fleet boots a copy of this image as a Tart VM. The VM runs the
@@ -28,7 +26,7 @@ waiting on it.
 | `/opt/tuist/release/` | Server release, installed at boot by `fetch-release.sh` |
 | `/opt/tuist/inject-env.sh` | Reads the kubelet env mount into `/etc/tuist.env` at boot |
 | `/opt/tuist/fetch-release.sh` | Downloads and installs the pinned server release |
-| `/etc/tuist.env` | Sourced env vars (MASTER_KEY, DATABASE_URL, TUIST_DEPLOY_ENV) |
+| `/etc/tuist.env` | Runtime configuration imported from the Pod's read-only env share |
 | `/Library/LaunchDaemons/dev.tuist.xcresult-processor.plist` | Boots `tuist start` |
 | `/var/log/xcresult-processor/{stdout,stderr}.log` | Captured output |
 
@@ -68,14 +66,16 @@ action. Its bounded concurrency, chunking, retry, and route diagnostics are
 part of the builder-fleet reliability contract; keep the on-demand and
 production release workflows on that shared path.
 
-Locally:
+Local build from repository root, using an already-published base version:
 
 ```bash
-mise run xcresult-processor:build-image
+mise run xcresult-processor:build-image <xcode_version>
 ```
 
-The local build calls Packer against the base image and bakes the result
-into a Tart image named `tuist-xcresult-processor`.
+The [local build task](../../mise/tasks/xcresult-processor/build-image.sh)
+requires `TUIST_OCI_REGISTRY_HOST`, tailnet access and a registry credential
+in `~/.docker/config.json`. It calls Packer against the published base and
+bakes a Tart image named `tuist-xcresult-processor`; publishing is separate.
 
 ## Layer 1 dependency
 
@@ -118,40 +118,21 @@ To rebuild against a different Xcode without bumping `xcode-version`
 
 tart-kubelet stages the Pod's env vars as a `KEY=value` file under
 `--dir env:<host-path>:ro`, which the guest sees at
-`/Volumes/My Shared Files/env/tuist.env`. The keys the launchd unit
-expects:
+`/Volumes/My Shared Files/env/tuist.env`. Keep the image environment-neutral:
+`inject-env.sh` materialises that as `/etc/tuist.env` on first boot, and
+launchd sources it before fetching and starting the release.
 
-| Env var | Source | Notes |
-|---|---|---|
-| `MASTER_KEY` | k8s Secret (`server-master-key`) | Unlocks the encrypted `priv/secrets/<env>.yml.enc` baked into the release |
-| `DATABASE_URL` | k8s Secret (`processor-database-url`) | The `tuist_processor` Postgres role URL — same role the in-cluster build processor uses |
-| `TUIST_DEPLOY_ENV` | Pod env (chart) | `prod` / `can` / `stag` — picks which encrypted bundle to decrypt |
-| `TUIST_XCRESULT_PROCESSOR_MODE` | Pod env (chart) | `1` — narrows Oban to `:process_xcresult` only |
-| `TUIST_WEB` | Pod env (chart) | `0` — skips Phoenix endpoint |
-| `TUIST_DATABASE_POOLED` | Pod env (chart) | `1` — transaction-mode pooler compatibility |
-| `TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY` | Pod env (chart) | per-pod Oban concurrency |
-| `TAILSCALE_AUTH_KEY` | k8s Secret (macOS-fleet ESO Secret) | Tailnet join credential: an OAuth client secret, see below |
-| `TAILSCALE_HOSTNAME` | Pod env (Downward API) | Pod name; the device name this VM registers under |
-| `TAILSCALE_TAGS` | Pod env (chart, from `macosFleet.tailscale.tags`) | ACL tag the join applies; required with an OAuth credential |
+The [chart runtime wiring](../helm/tuist/templates/xcresult-processor-deployment.yaml)
+is authoritative: `TUIST_MODE=xcresult_processor`, processor-role database
+access through the transaction-mode pooler, license, object-storage and
+ClickHouse configuration, queue concurrency, per-Pod identity, and the
+digest-pinned release. Do not restore obsolete `MASTER_KEY`, encrypted
+bundles, `TUIST_DEPLOY_ENV` or legacy mode flags.
 
-`inject-env.sh` materialises that as `/etc/tuist.env` on first boot; the
-launchd unit sources it before exec'ing `tuist start`. This means the
-image itself ships **no environment-specific state** — staging, canary,
-and production all run the same image, distinguished only by the env the
-Pod spec injects.
-
-## Why a single image, not per-env
-
-Same logic as the Tuist server's `priv/secrets/<env>.yml.enc` design:
-one artifact, runtime selection. `TUIST_DEPLOY_ENV` picks which encrypted
-secrets bundle to decrypt with `MASTER_KEY`; everything else is
-configuration the Pod spec injects. A new env requires zero image
-changes — only a new Pod with new env vars.
-
-> **Note:** the env table and the `MASTER_KEY` / encrypted-blob description
-> above predate the #11460 secrets migration, which removed the blob and moved
-> the processor onto the ESO config Secret. They need a separate accurate
-> update — left out of this change to keep it a clean rebuild trigger.
+`TAILSCALE_AUTH_KEY` comes from the macOS-fleet ESO Secret and holds an OAuth
+client secret, not an expiring pre-auth key. `TAILSCALE_HOSTNAME` comes from
+the Pod name and `TAILSCALE_TAGS` from `macosFleet.tailscale.tags`; tags are
+required with an OAuth credential. Preserve the join properties below.
 
 ## Boot chain and how it fails silently
 
