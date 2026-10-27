@@ -42,32 +42,6 @@ jobs:
       - run: ./gradlew test
 ```
 
-## Android emulators {#android-emulators}
-
-Forward `/dev/kvm` explicitly when running a hardware-accelerated Android emulator inside Docker:
-
-```sh
-docker run --rm --device /dev/kvm ghcr.io/my-org/android-ci:latest ./gradlew :app:pixel6DebugAndroidTest
-```
-
-For a GitHub Actions job-level container, add the device to `options`:
-
-```yaml
-jobs:
-  android-test:
-    runs-on: tuist-linux
-    container:
-      image: ghcr.io/my-org/android-ci:latest
-      options: --device /dev/kvm
-    steps:
-      - uses: actions/checkout@v4
-      - run: ./gradlew :app:pixel6DebugAndroidTest
-```
-
-Use an image with your Android SDK, emulator, Java runtime, and emulator libraries. Replace the test command with your project's Gradle Managed Device task; it starts the configured device for you. The `docker run` example assumes the image also contains your project. Device forwarding does not install the Android tools. You don't need `--privileged`, `sudo`, or a permission-changing setup step to access KVM, including when the container runs as a non-root user.
-
-For setup in a native job, see <.localized_link href="/guides/features/runners#android-emulators">Android emulators on Linux</.localized_link>.
-
 ## Service containers {#service-containers}
 
 `services` works the same way it does on GitHub-hosted runners. Services are reachable on `localhost` at their mapped ports:
