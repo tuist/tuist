@@ -509,10 +509,33 @@ The agent:
   superblock with no journal to recover and no errors, and withholds an unchanged
   data root or one above 30 GB.
 - answers `POST /docker-merge` from the live runner pod after its job: when the
-  lineage's HEAD moved past the job's base it offers that HEAD's clone as
+  lineage's HEAD is newer than the copy actually mounted (including an older
+  local clone of the head assigned at allocation), it offers that HEAD's clone as
   `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
   at a time), so the guest merges the job's images with it before publishing;
   otherwise it answers no merge.
+
+An older local clone cannot publish without merging its assigned head: comparing
+only the allocation's base would allow a successful CAS to erase content absent
+from that clone. The host checks its durable mounted-generation marker before
+publication. Background prefetch uses one worker and a 64-lineage FIFO, keeping
+the newest queued generation per scope. Downloads still do not delay attach;
+an immediate job on another host may use an older copy until refresh completes.
+
+Guest teardown enforces a 26 decimal GB aggregate filesystem-use target before
+publication and again after merging. It evicts least-recently-used registry
+images and whole opted-in BuildKit volumes, preserving database consistency;
+embedded build cache remains subject to Docker's 10 GB GC target. Builder use
+timestamps live in `tuist/builders.json` inside the image and travel with copied
+builder state. Missing history is treated as oldest. A single oversized builder
+can be evicted in full. These are disposable caches, not durable job output.
+
+After stopping dockerd, the guest runs `fstrim` before unmounting so deleted ext4
+blocks release the sparse image's backing extents. Cache-enabled DinD installs
+`util-linux` for this command. Usage, eviction, GC or trim errors withhold the
+snapshot. The host still enforces the 30 GB allocated-byte limit, leaving 4 GB
+above the guest target for metadata/shutdown writes; it never mounts or parses
+the guest filesystem. Roll out the controller/agent and runner images together.
 
 Staging enables it on every Linux pool (`values-managed-staging.yaml`). The
 server gates it per account with `:runner_docker_cache` on canary and

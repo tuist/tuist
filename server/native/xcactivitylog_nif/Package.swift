@@ -19,12 +19,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        // Preserve product lookup when registry replacement changes this revision's package identity.
-        .package(
-            name: "XCLogParser",
-            url: "https://github.com/MobileNativeFoundation/XCLogParser.git",
-            revision: "d0c3c685d3e32606ef04a21cacf7ab0dfbe19362" // 0.2.50
-        ),
+        .package(id: "MobileNativeFoundation.XCLogParser", from: "0.2.50"),
         .package(id: "tuist.Path", from: "0.3.8"),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
@@ -40,7 +35,7 @@ let package = Package(
             name: "XCActivityLogParser",
             dependencies: [
                 "CASAnalyticsDatabase",
-                .product(name: "XCLogParser", package: "XCLogParser"),
+                .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
                 .product(name: "Path", package: "tuist.Path"),
                 .product(name: "FileSystem", package: "tuist.FileSystem"),
             ]

@@ -688,7 +688,14 @@ The archive contains everything needed to understand the account's complete data
   `volumes/<name>/_data` inside the same data-root image, are scoped to the repository,
   and are included when exporting that detached image. The action configures BuildKit
   garbage collection near 10 GB per builder by default; users may override it. Builder
-  volumes otherwise follow the whole Docker volume's retention, clearing and account
+  volumes and registry images are also subject to a 26 decimal GB aggregate guest
+  filesystem-use target before publication and after merging, below the host's
+  30 GB allocated-byte limit. Least-recently-used images or whole builder volumes
+  are evicted when necessary. `tuist/builders.json` inside the same image records
+  hashed builder-volume names and last-use timestamps for this policy; it is
+  included in detached-image exports and has no separate database table. Deleted
+  filesystem blocks are discarded before upload. Builder volumes otherwise follow
+  the whole Docker volume's retention, clearing and account
   deletion, with no separate bucket or metadata table. Saved data roots are
   published to `runner-volume-masters/{account_id}/{storage_name}/` like other volumes and
   follow the same retention, clearing and account deletion. After each job the VM writes
