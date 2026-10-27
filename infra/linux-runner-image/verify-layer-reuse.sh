@@ -4,6 +4,8 @@
 set -euo pipefail
 baseline="${1:?baseline OCI archive required}"
 cache="${2:?exported BuildKit cache directory required}"
+build_args=()
+if [[ -n "${3:-}" ]]; then build_args+=(--build-arg "RUNNER_VERSION=$3"); fi
 source_dir="$(cd "$(dirname "$0")" && pwd)"
 work="$(mktemp -d)"
 builder="linux-layer-check-$$-$RANDOM"
@@ -17,6 +19,7 @@ cp -R "$source_dir" "$work/context"
 printf '\n# Layer-reuse regression probe.\n' >> "$work/context/dispatch-poll.sh"
 docker buildx create --name "$builder" --driver docker-container
 docker buildx build --builder "$builder" --platform linux/amd64 --progress plain \
+  "${build_args[@]}" \
   --cache-from "type=local,src=$cache" \
   --output "type=oci,dest=$work/after.tar" "$work/context"
 tar -xf "$baseline" -C "$work/before"

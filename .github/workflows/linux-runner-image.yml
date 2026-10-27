@@ -173,7 +173,7 @@ jobs:
           # can land as an additive `platforms:` entry.
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
-          outputs: ${{ github.event_name == 'pull_request' && format('type=oci,dest={0}/linux-runner-baseline.tar', runner.temp) || '' }}
+          outputs: type=oci,dest=${{ runner.temp }}/linux-runner-baseline.tar
           tags: ${{ steps.tags.outputs.tags }}
           # Only forwarded when explicitly set via workflow_dispatch
           # input; empty leaves the Dockerfile's `ARG RUNNER_VERSION`
@@ -186,11 +186,11 @@ jobs:
             type=gha,scope=linux-runner-image
           cache-to: |
             type=gha,mode=max,scope=linux-runner-image
-            ${{ github.event_name == 'pull_request' && format('type=local,dest={0}/linux-runner-cache,mode=max', runner.temp) || '' }}
+            type=local,dest=${{ runner.temp }}/linux-runner-cache,mode=max
 
       - name: Verify a script-only release adds at most 10 MiB
-        if: github.event_name == 'pull_request'
         env:
           BASELINE: ${{ runner.temp }}/linux-runner-baseline.tar
           BUILD_CACHE: ${{ runner.temp }}/linux-runner-cache
-        run: bash infra/linux-runner-image/verify-layer-reuse.sh "$BASELINE" "$BUILD_CACHE"
+          RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
+        run: bash infra/linux-runner-image/verify-layer-reuse.sh "$BASELINE" "$BUILD_CACHE" "$RUNNER_VERSION_OVERRIDE"
