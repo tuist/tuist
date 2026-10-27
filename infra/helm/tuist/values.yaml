@@ -3114,6 +3114,10 @@ runnersFleetLinux:
   # shape can override autoscaling via its own `autoscaling:` block;
   # otherwise `shapeAutoscaling` defaults apply.
   shapeRunnerImage: ""
+  # Deployment-only map: full RunnerPool name -> current image while the
+  # desired image prepares in the background. Recomputed on every deploy;
+  # empty in source values so holds do not become permanent image pins.
+  imageHolds: {}
   shapeRuntimeClass: "kata-qemu"
   shapeAutoscaling:
     enabled: true

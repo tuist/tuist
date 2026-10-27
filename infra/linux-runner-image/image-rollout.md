@@ -35,8 +35,8 @@ The deploy resolves the selected semver or explicit `linux_runner_image_tag`
 through `ghcr-manifest-digest.sh`, and passes the digest reference to
 `runnersFleetLinux.shapeRunnerImage`. Explicit pools inherit it unless they have
 their own image pin. Re-tagging the identical manifest leaves the pool image
-unchanged. Pin explicit pool images by digest as well; the preparation gate
-rejects mutable references.
+unchanged. Pin explicit pool images by digest as well; readiness checks require
+immutable references.
 
 After Helm preflight and KVM preparation, `linux-runner-image-prepare.sh` reads
 the same rendered pools that Helm will install. That render is the desired-image
@@ -58,26 +58,38 @@ temporary pool-reservation taints. It uses the default priority, with no priorit
 elevation over runner jobs. A completely full host can still wait for its small
 CPU and memory request to fit.
 
-The gate re-reads nodes and pods until every Ready, schedulable host has a
-running container for the exact image, runtime and DaemonSet UID. New hosts
-appearing during the wait join the gate. An existing fleet with no usable hosts
-fails; a fleet with no nodes yet follows the normal first-install path. Unready
-and cordoned nodes do not hold a deployment indefinitely. They, and nodes added
-after the gate, can still need a pull when they return to service.
+The gate checks readiness once, without waiting or polling. It requires a
+running container for the exact image, runtime and DaemonSet UID on every Ready,
+schedulable host. Pools whose target is still preparing retain their own current
+image through a deployment-only `runnersFleetLinux.imageHolds` values overlay.
+Other pool settings and the rest of the deployment proceed normally. A later
+deployment recomputes the holds and promotes ready targets; the background
+DaemonSet never patches pools itself. First installations and fleets with no
+Ready, schedulable hosts proceed without a hold. Returning or newly added nodes
+can still require a pull.
 
-The default deadline is ten minutes across all targets. A timeout or Kubernetes
-read/write error fails before Helm switches pools. KVM preparation may already
-have applied additive prerequisites. DaemonSets are deleted on success, failure,
-and ordinary cancellation; no idle VM remains per host. A hard kill can leave a
-`tuist-linux-prepull-*` DaemonSet behind: inspect its image and owner before
-deleting that specific object. The images remain in kubelet's ordinary cache;
-this is a preparation barrier, not a permanent pin against future image GC.
+Like macOS, a target staged for an hour proceeds even if preparation is incomplete.
+The allowance starts at the helper DaemonSet's creation timestamp; repeated
+deployments do not reset it. Kubernetes read/write errors produce a warning and
+proceed with the requested images. These fallbacks can cause cold pulls, but
+image preparation cannot delay the deployment with its own waiting loop. The
+existing 125-minute job and 70-minute Helm-step ceilings remain unchanged.
 
-Retry after correcting registry, runtime or capacity problems. Rollback uses
-the same digest resolution and gate and generally reuses the old cached image.
-There is no fail-open timeout that silently switches pools onto a cold image.
-To revert the feature, revert the deployment gate and digest wiring together;
-no schema or stored-data migration is involved. The registry cache can remain.
+Helpers survive deployment completion and cancellation so pulls continue in
+the background. They are scoped by a hash of the Helm release namespace/name
+in `tuist.dev/linux-image-staging-owner`. A subsequent deployment removes that
+release's obsolete helpers once pools have moved or a target is superseded.
+Keeping the active helper through Helm completion also preserves the staging
+timestamp and readiness evidence if Helm fails or rolls back. Cleanup failures
+warn without discarding the readiness decision. Uninstalling the release does
+not delete these out-of-Helm helpers: inspect the owner label and remove only
+that release's `tuist-linux-prepull-*` DaemonSets. After cleanup the images remain
+in kubelet's ordinary cache and are eligible for normal image garbage collection.
+
+Rollback uses the same digest resolution and readiness policy and generally
+reuses the old cached image. To revert the feature, remove the preparation call
+and image-hold overlay and clean up its scoped helpers; digest pinning and the
+registry cache can remain. No schema or stored-data migration is involved.
 
 ## Validation
 
@@ -91,11 +103,16 @@ checkout, the forwarded cache endpoint, and environment-file round trips.
 The gate rejects missing, skipped, or failed Linux probes, and the dispatch
 watchdog bounds pickup for both jobs. The hourly production run uses the same
 coverage. The existing hotfix path bypasses this normal acceptance gate.
+Acceptance exercises the image actually selected for the pool; if staging holds
+the previous image, that run does not validate the pending image. Validate it
+after a later deployment promotes it or use the candidate staging smoke workflow.
 
 `bash .github/scripts/linux-runner-image-prepare.test.sh` exercises readiness,
-failure, cleanup, duplicate pools, runtime selection, and first installation
-using a fake kubectl. The Helm CI suite also renders all managed environments
-and tests the adjacent KVM gate.
+immediate holds, later promotion, one-hour expiry, failure, release-scoped cleanup,
+duplicate pools, runtime selection, and first installation using a fake kubectl.
+`bash infra/mise/tasks/helm/linux-image-staging.sh` verifies independent image
+holds for explicit and shape pools in all managed environments, preserving every
+other pool field and macOS images. Helm CI also tests the adjacent KVM gate.
 
 Linux image PR and manual validation builds export a baseline OCI image and `mode=max` cache. Then
 `verify-layer-reuse.sh` changes only `dispatch-poll.sh`, creates a fresh BuildKit
@@ -109,8 +126,10 @@ with unchanged size. Run it locally after equivalent exports:
 bash infra/linux-runner-image/verify-layer-reuse.sh /tmp/baseline.tar /tmp/build-cache
 ```
 
-Before production promotion, exercise the gate in staging with a real image and
-confirm temporary pods disappear. The first release changes layer boundaries
+Before production promotion, exercise the gate in staging with a real image:
+confirm an immediate hold, a retained background helper, promotion on a later
+check, and scoped cleanup after pools no longer need that target.
+The first release changes layer boundaries
 and base pins and can be a large pull. Measure subsequent script-only releases;
 the optimization does not promise small pulls for deliberate toolchain updates.
 

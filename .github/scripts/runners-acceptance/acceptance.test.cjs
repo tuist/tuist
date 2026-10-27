@@ -9,6 +9,18 @@ const yaml = require('js-yaml');
 const root = path.resolve(__dirname, '../../..');
 const workflow = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/runners-acceptance.yml'), 'utf8'));
 const cascade = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/server-production-deployment.yml'), 'utf8'));
+const deployment = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/server-deployment.yml'), 'utf8'));
+
+test('Linux staging is warning-only and supplies per-pool holds without extending deploy timeouts', () => {
+  const deploy = deployment.jobs.deploy;
+  const helm = deploy.steps.find(step => step.name === 'helm upgrade --install');
+  assert.equal(deploy['timeout-minutes'], 125);
+  assert.equal(helm['timeout-minutes'], 70);
+  assert.match(helm.run, /if ! bash \.github\/scripts\/linux-runner-image-prepare\.sh "\$kvm_render" "\$HELM_RELEASE_NAME" "\$NAMESPACE"/);
+  assert.match(helm.run, /::warning::Could not check Linux image staging/);
+  assert.match(helm.run, /echo '\{"runnersFleetLinux":\{"imageHolds":\{\}\}\}' > "\$linux_staging_values"/);
+  assert.match(helm.run, /helm_values_args\+=\(-f "\$linux_staging_values"\)/);
+});
 
 for (const [environment, label, count] of [['canary', 'tuist-canary-linux', 4], ['production', 'tuist-linux', 3]]) {
   test(`${environment} plans native and container Linux probes in the watchdog count`, () => {

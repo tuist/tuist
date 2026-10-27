@@ -6,12 +6,14 @@ on:
       - .github/scripts/runners-acceptance/**
       - .github/workflows/runners-acceptance*.yml
       - .github/workflows/server-production-deployment.yml
+      - .github/workflows/server-deployment.yml
   push:
     branches: [main]
     paths:
       - .github/scripts/runners-acceptance/**
       - .github/workflows/runners-acceptance*.yml
       - .github/workflows/server-production-deployment.yml
+      - .github/workflows/server-deployment.yml
 
 permissions:
   contents: read

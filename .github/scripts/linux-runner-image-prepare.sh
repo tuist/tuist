@@ -1,112 +1,92 @@
 #!/usr/bin/env bash
-# Pull each desired Linux pool image before Helm changes any pool.
-# Usage: linux-runner-image-prepare.sh <rendered-json-array>
-# The render is the announcement: use exactly the images/fleets/runtime classes
-# the impending deploy will install, including manual pins and explicit pools.
+# Start background preparation and check readiness once, like the macOS gate.
+# Usage: linux-runner-image-prepare.sh <rendered-json-array> <release> <namespace>
+# stdout is a Helm values object holding unprepared pools on their current image;
+# diagnostics go to stderr. The caller warns and uses no holds on API errors.
 set -euo pipefail
 render="${1:?rendered JSON array required}"
+release="${2:?Helm release required}"
+release_namespace="${3:?Helm namespace required}"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
 work="$(mktemp -d)"
-cleanup() {
-  local manifest
-  for manifest in "$work"/daemonset-*.json; do
-    [[ -f "$manifest" ]] || continue
-    kubectl --request-timeout=30s delete -f "$manifest" --ignore-not-found --wait=false >&2 || true
-  done
-  rm -rf "$work"
+trap 'rm -rf "$work"' EXIT
+now="${NOW:-$(date -u +%s)}"
+timeout="${LINUX_IMAGE_STAGING_TIMEOUT_SECONDS:-3600}"
+hash() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi
 }
-trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+owner="$(printf '%s/%s' "$release_namespace" "$release" | hash)"
+owner="${owner:0:20}"
+selector="tuist.dev/linux-image-staging-owner=$owner"
+kubectl --request-timeout=30s get runnerpools.tuist.dev --all-namespaces -o json > "$work/current.json"
+jq -c --slurpfile current "$work/current.json" '[.[]
+  | select(.kind == "RunnerPool" and .spec.os == "linux")
+  | . as $desired
+  | ($current[0].items | map(select(.metadata.namespace == $desired.metadata.namespace and .metadata.name == $desired.metadata.name)) | first) as $old
+  | select($old != null and $old.spec.image != .spec.image)
+  | {namespace: .metadata.namespace, fleet: .spec.fleetSelector, image: .spec.image,
+     # Managed Kata shares containerd overlayfs with native pods. Avoid its
+     # 2560 MiB VM overhead; retain unknown handlers and their snapshotters.
+     runtime: (if .spec.runtimeClass == "kata-qemu" then "" else (.spec.runtimeClass // "") end),
+     pool: .metadata.name, current: $old.spec.image}]
+  | group_by([.namespace,.fleet,.image,.runtime])[]
+  | {target: (.[0] | {namespace,fleet,image,runtime}), pools: map({pool,current})}' "$render" > "$work/targets"
+echo '{}' > "$work/holds.json"
+echo '[]' > "$work/keep.json"
 
-jq -c '[.[] | select(.kind == "RunnerPool" and .spec.os == "linux") | {
-  namespace: .metadata.namespace, fleet: .spec.fleetSelector,
-  image: .spec.image,
-  # Managed kata-qemu uses the host default overlayfs snapshotter (see
-  # helm/tuist/templates/kata-qemu.yaml). A native pull populates that store
-  # without reserving a 2560 MiB VM on every host. Unknown runtimes retain
-  # their own handler because they may use a different snapshotter.
-  runtime: (if .spec.runtimeClass == "kata-qemu" then "" else (.spec.runtimeClass // "") end)
-}] | unique[]' "$render" > "$work/targets"
-[[ -s "$work/targets" ]] || exit 0
-deadline=$((SECONDS + ${LINUX_IMAGE_PREPARE_TIMEOUT_SECONDS:-600}))
-
-# Apply every image first so different fleets/images pull concurrently. A
-# distinct name per target prevents readiness of an old rollout passing a new
-# one. No dispatch command, service-account token, or host mounts are needed.
-while IFS= read -r target; do
+while IFS= read -r group; do
+  target="$(jq -c .target <<< "$group")"
   namespace="$(jq -er '.namespace' <<< "$target")"
   fleet="$(jq -er '.fleet | select(length > 0)' <<< "$target")"
-  if ! image="$(jq -er '.image | select(test("@sha256:[a-f0-9]{64}$"))' <<< "$target")"; then
-    echo "::error::Linux image preparation requires a digest-pinned image: $target" >&2
-    exit 1
-  fi
-  nodes="$(kubectl --request-timeout=30s get nodes -l "kubernetes.io/os=linux,kubernetes.io/arch=amd64,node.cluster.x-k8s.io/pool=$fleet" -o json)"
-  if [[ "$(jq '.items | length' <<< "$nodes")" == 0 ]]; then
-    echo "No Linux hosts in $fleet yet; first installation will pull $image normally."
+  image="$(jq -er '.image | select(test("@sha256:[a-f0-9]{64}$"))' <<< "$target")"
+  kubectl --request-timeout=30s get nodes -l "kubernetes.io/os=linux,kubernetes.io/arch=amd64,node.cluster.x-k8s.io/pool=$fleet" -o json > "$work/nodes.json"
+  # Like macOS, no Ready/schedulable serving hosts means there is no hold.
+  if ! jq -e 'any(.items[]; .metadata.deletionTimestamp == null and .spec.unschedulable != true and any(.status.conditions[]?; .type == "Ready" and .status == "True"))' "$work/nodes.json" >/dev/null; then
+    echo "Linux $fleet: no Ready, schedulable hosts; moving to $image." >&2
     continue
   fi
-  if command -v sha256sum >/dev/null 2>&1; then
-    sum="$(printf '%s' "$target" | sha256sum)"
-  else
-    sum="$(printf '%s' "$target" | shasum -a 256)"
-  fi
+  sum="$(printf '%s/%s' "$owner" "$target" | hash)"
   name="tuist-linux-prepull-${sum:0:20}"
-  jq -n --argjson target "$target" --arg name "$name" '{
-    apiVersion: "apps/v1", kind: "DaemonSet",
-    metadata: {name: $name, namespace: $target.namespace},
-    spec: {
-      selector: {matchLabels: {"tuist.dev/linux-image-prepull": $name}},
-      template: {
-        metadata: {labels: {"tuist.dev/linux-image-prepull": $name}},
-        spec: ({
-          automountServiceAccountToken: false,
-          terminationGracePeriodSeconds: 0,
-          nodeSelector: {
-            "kubernetes.io/os": "linux", "kubernetes.io/arch": "amd64",
-            "node.cluster.x-k8s.io/pool": $target.fleet
-          },
-          tolerations: [
-            {key: "tuist.dev/runner-tier", operator: "Equal", value: "bare-metal", effect: "NoSchedule"},
-            {key: "tuist.dev/reserved-for", operator: "Exists", effect: "NoSchedule"}
-          ],
-          securityContext: {runAsNonRoot: true, runAsUser: 1000, seccompProfile: {type: "RuntimeDefault"}},
-          containers: [{
-            name: "pull", image: $target.image, imagePullPolicy: "IfNotPresent",
-            command: ["/bin/sleep", "infinity"],
-            resources: {requests: {cpu: "1m", memory: "16Mi"}, limits: {memory: "64Mi"}},
-            securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
-          }]
-        } + if $target.runtime == "" then {} else {runtimeClassName: $target.runtime} end)
-      }
-    }
-  }' > "$work/daemonset-$name.json"
-  kubectl --request-timeout=30s apply -f "$work/daemonset-$name.json"
-  echo "Pre-pulling $image on $fleet (${namespace}/${name})."
+  jq -n --argjson target "$target" --arg name "$name" --arg owner "$owner" \
+    -f "$script_dir/linux-runner-image-daemonset.jq" > "$work/daemonset.json"
+  # apply preserves creationTimestamp: later deployments must not restart the
+  # one-hour staging allowance for the same target.
+  kubectl --request-timeout=30s apply -f "$work/daemonset.json" >&2
+  jq --arg key "$namespace/$name" '. + [$key]' "$work/keep.json" > "$work/next.json"
+  mv "$work/next.json" "$work/keep.json"
+  kubectl --request-timeout=30s -n "$namespace" get daemonset "$name" -o json > "$work/live.json"
+  uid="$(jq -er .metadata.uid "$work/live.json")"
+  announced_at="$(jq -r '.metadata.creationTimestamp | fromdateiso8601' "$work/live.json")"
+  if (( now - announced_at >= timeout )); then
+    echo "Linux $fleet: staged for at least ${timeout}s; moving without waiting for hosts." >&2
+    continue
+  fi
+  kubectl --request-timeout=30s -n "$namespace" get pods -l "tuist.dev/linux-image-prepull=$name" -o json > "$work/pods.json"
+  if jq -e --arg uid "$uid" --slurpfile manifest "$work/daemonset.json" --slurpfile pods "$work/pods.json" \
+    -f "$script_dir/linux-runner-image-ready.jq" "$work/nodes.json" >/dev/null; then
+    echo "Linux $fleet: every Ready, schedulable host holds $image; moving." >&2
+    continue
+  fi
+  echo "Linux $fleet: preparing $image in the background; keeping existing pool images for this deployment." >&2
+  jq --argjson pools "$(jq .pools <<< "$group")" '. + ($pools | map({key:.pool,value:.current}) | from_entries)' "$work/holds.json" > "$work/next.json"
+  mv "$work/next.json" "$work/holds.json"
 done < "$work/targets"
 
-while true; do
-  pending=false
-  for manifest in "$work"/daemonset-*.json; do
-    [[ -f "$manifest" ]] || continue
-    namespace="$(jq -r '.metadata.namespace' "$manifest")"
-    name="$(jq -r '.metadata.name' "$manifest")"
-    fleet="$(jq -r '.spec.template.spec.nodeSelector["node.cluster.x-k8s.io/pool"]' "$manifest")"
-    kubectl --request-timeout=30s get nodes -l "kubernetes.io/os=linux,kubernetes.io/arch=amd64,node.cluster.x-k8s.io/pool=$fleet" -o json > "$work/nodes.json"
-    kubectl --request-timeout=30s -n "$namespace" get pods -l "tuist.dev/linux-image-prepull=$name" -o json > "$work/pods.json"
-    uid="$(kubectl --request-timeout=30s -n "$namespace" get daemonset "$name" -o jsonpath='{.metadata.uid}')"
-    if ! jq -e --arg uid "$uid" --slurpfile manifest "$manifest" --slurpfile pods "$work/pods.json" \
-      -f "$(dirname "$0")/linux-runner-image-ready.jq" "$work/nodes.json" >/dev/null; then
-      pending=true
-      echo "Waiting for $namespace/$name on Ready, schedulable hosts in $fleet."
-    fi
-  done
-  if [[ "$pending" == false ]]; then
-    echo 'Linux runner images are staged on every Ready, schedulable host.'
-    exit 0
-  fi
-  if (( SECONDS >= deadline )); then
-    echo '::error::Linux image preparation timed out; runner pools have not been switched.' >&2
-    exit 1
-  fi
-  sleep 10
-done
+# Only this release owns these helpers. Keep pending pulls across deployments;
+# remove targets once pools have actually moved or a deployment supersedes
+# them. Retain their timestamps/proof if Helm later fails or rolls back.
+# A cleanup failure must not discard the readiness decision.
+if kubectl --request-timeout=30s get daemonsets --all-namespaces -l "$selector" -o json > "$work/daemonsets.json"; then
+  jq -r --arg owner "$owner" --slurpfile keep "$work/keep.json" '.items[]
+    | select(.metadata.labels["tuist.dev/linux-image-staging-owner"] == $owner)
+    | (.metadata.namespace + "/" + .metadata.name) as $key
+    | select($keep[0] | index($key) | not)
+    | [.metadata.namespace,.metadata.name] | @tsv' "$work/daemonsets.json" |
+    while IFS=$'\t' read -r namespace name; do
+      kubectl --request-timeout=30s -n "$namespace" delete daemonset "$name" --ignore-not-found --wait=false >&2 ||
+        echo "::warning::Could not remove Linux staging helper $namespace/$name." >&2
+    done
+else
+  echo '::warning::Could not list obsolete Linux staging helpers for cleanup.' >&2
+fi
+jq '{runnersFleetLinux:{imageHolds:.}}' "$work/holds.json"

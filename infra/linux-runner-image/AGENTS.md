@@ -189,7 +189,9 @@ needed). Steady-state: `feat(linux-runner-image)` /
 a `release-linux-runner-image` job that builds, pushes
 `ghcr.io/tuist/tuist-linux-runner:<semver>` + `:latest`. Deploy resolves
 the selected tag to a digest for `runnersFleetLinux.shapeRunnerImage`
-and pre-pulls it before switching pools. The release job alone writes
+and stages it in the background. Deployment checks readiness once and holds
+unprepared pools on their current image, with the same one-hour/error fallback
+policy as macOS; later deployments reevaluate those holds. The release job alone writes
 the registry build cache; PR/manual builds may read it. Preserve the
 large dependency layers before release-specific inputs and keep the
 script-only layer-delta CI check. See [image rollout](image-rollout.md)
