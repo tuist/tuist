@@ -25,3 +25,7 @@ checks and the migration/recovery runbook. Parent: `../AGENTS.md`.
   deployed. OpenBao has no automatic HSM boundary: document the seal and backup
   custody. Never store unseal shares alongside the application or claim hosted
   recovery/audit verification from local tests.
+- The disposable staging proof in `key-management.md` loaded production source
+  in an isolated release process and manually reopened a LUKS file on a
+  diagnostic CSI LV. It is not a full server-image/CSI key-endpoint cutover,
+  persistent tenant-key migration, or durable OpenBao deployment.

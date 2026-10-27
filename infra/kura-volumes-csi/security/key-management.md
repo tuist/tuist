@@ -12,8 +12,9 @@ The October 27, 2026 access review used only metadata. No root key, volume
 passphrase, Secret value or backup object was retrieved. No production mutation
 was performed. The staging identity could not create ValidatingAdmissionPolicies
 or update ClusterRoles. Those objects required the normal deployment workflow.
-No existing OpenBao service is configured in this repository; its deployment,
-operator custody and hosted recovery validation remain prerequisites.
+No durable OpenBao service is configured in this repository. The disposable
+staging validation below passed; permanent deployment, operator custody and
+matching database recovery validation remain prerequisites.
 
 ## Staging admission rollout
 
@@ -40,8 +41,69 @@ was installed on staging.
 The source-code rewrap fixes and KMS provider were tested locally; this
 chart-only rollout intentionally kept the server on `sha-ef07ca13e38d` and did
 not activate those modules. That rollout is historical admission evidence, not
-validation of the subsequent OpenBao provider. Hosted OpenBao migration, token
-refresh, durable audit delivery and actual backup restore gates remain pending.
+validation of the subsequent OpenBao provider. Its separate staging proof is
+recorded below. Persisted account-key migration, durable audit delivery and a
+matching database/volume restore remain pending.
+
+## OpenBao staging validation (October 27)
+
+A disposable OpenBao 2.7.1 service was exercised on the actual staging cluster.
+The [identity deployment](https://github.com/tuist/tuist/actions/runs/40495934313)
+added only a temporary ServiceAccount and narrowly scoped TokenReview
+ClusterRole/Binding through the normal deployment identity. It preserved the
+deployed chart's KVM/LVM configuration and existing component image pins.
+The initial two attempts stopped before applying resources: checkout rejected
+an abbreviated SHA, then the staging guard rejected the workflow's
+namespace-less Helm preflight. Full-SHA dispatch and a staging-values guard
+fixed those fixture issues; production/canary rendering remains refused.
+
+The client used the current staging server runtime (`sha-ef07ca13e38d`) in a
+separate Pod with an empty release configuration. It loaded the PR's exact
+provider/transport/passphrase source and the production OpenBao configuration
+function from commit `fd66359899f6d2723354266106b6e696b1f40352` in a fresh process.
+It did not start the web application, connect to the database, mount application
+Secrets or change existing tenant keys. This tests the production cryptographic
+code in staging, not deployment of a newly built full server image.
+
+The real checks passed:
+
+- Verified TLS over the in-cluster Service, Kubernetes TokenReview login from
+  the `tuist-server` identity, and Transit wrap/unwrap. Tenant, version and share
+  position substitutions were rejected. Wrong audience and ServiceAccount
+  tokens were rejected. The workload could not rotate/reconfigure/export/back
+  up keys or encrypt with an unapproved key.
+- Transit key rotation selected version 2 for new envelopes while retaining
+  decryption of version 1. Sealing OpenBao prevented key derivation; unsealing
+  recovered it. Audit records HMAC-protected JWTs and plaintext shares.
+- An encrypted Raft snapshot survived deletion of the original OpenBao Pod and
+  its entire ephemeral data directory. Restoration into a freshly initialized
+  replacement recovered the original key, with the pre-rotation version
+  explicitly verified, and decrypted the saved shares.
+- The real CSI provisioner allocated a disposable 1 GiB plain LVM claim on
+  Paris. Inside it, a 512 MiB LUKS2/XFS file used a passphrase derived by
+  `VolumeKeys.volume_passphrase/3` from OpenBao-wrapped fixture shares. A 1 MiB
+  random object retained its SHA-256 checksum and the LUKS UUID across manual
+  close/reopen, wrapping-key rotation and OpenBao pod-loss recovery.
+- Kubelet replaced the actual projected ten-minute token. A fresh in-cluster
+  login, saved-share decrypt and LUKS reopen passed after that replacement.
+  This sampled refresh check is not a continuous availability measurement.
+
+All fixture Pods, the Service, TLS Secret, source/config ConfigMaps, extra
+ServiceAccount and diagnostic PVC were removed. CSI reclaimed the PV. All
+**12 existing Kura pods** kept their UIDs and readiness; CSI remained **3/3
+Ready**. The [cleanup deployment](https://github.com/tuist/tuist/actions/runs/40497935403)
+removed the temporary reviewer ServiceAccount and TokenReview ClusterRole/Binding.
+Their absence was verified against the live API. The chart returned to its
+pre-fixture tree with the existing image pins preserved.
+
+This was a single-member, disposable service with test-only one-share unseal
+custody and a local audit file. It does not establish hosted HA, durable audit
+delivery, production operator/unseal custody, or a matching database restore.
+The LUKS file was mounted manually on a CSI-provisioned diagnostic LV; the test
+did not switch the live CSI key URL or exercise the full encrypted CSI
+`NodeStageVolume`/issuance endpoint with OpenBao. Persisted account-key migration
+and that full release/CSI cutover remain explicit gates. No production mutation
+was performed, and normal staging storage retains its existing roots.
 
 ## Custody and dedicated deployment
 
