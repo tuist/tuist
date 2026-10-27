@@ -17,3 +17,5 @@
   endpoints only after stable hand-out succeeds, so absent managed instances
   still trigger provisioning and the existing client-specific fallback.
 - Account handles are reserved for the account lifetime, including retired names. The database initializes and protects `kura_tenant_id`; do not cast or update it from account attributes. `Accounts.update_account/2` gates Kura account renames until compatible runtimes are deployed. See `../kura/AGENTS.md`.
+
+- Okta/custom SSO requires a verified login email domain for discovery of nonmembers, automatic enrollment, and new-account creation. Never restore provider-identifier guessing or membership-only email linking. Existing linked members retain access and enforcement through stored roles; unlinked members confirm linking after signing in, with the existing SCIM-created-account exception. Preserve already-enabled settings while unverified, but require verification to turn policies on.
