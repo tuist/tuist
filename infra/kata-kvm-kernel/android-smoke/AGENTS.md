@@ -3,8 +3,9 @@
 The `nested_kvm` mode of `.github/workflows/linux-runners-staging-smoke.yml`
 runs this project directly as the unprivileged runner user on
 the `runner_label` input (default `tuist-staging-linux`; use `tuist-linux`
-for production). No special KVM profile is needed. Keep it on a native job: a Docker job container
-would need its own explicit device forwarding and test a different path.
+for production). No special KVM profile is needed. Keep it on a native job:
+the Docker daemon currently has no `/dev/kvm`, so a Docker job container
+cannot use hardware acceleration through `--device /dev/kvm`.
 The fixture installs emulator userspace libraries inside the job's container;
 the base runner image includes the SDK but not the emulator's X11/audio libraries.
 Keep SDK installation and test execution non-root; sudo is only for apt setup.

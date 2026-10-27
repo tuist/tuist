@@ -42,6 +42,12 @@ jobs:
       - run: ./gradlew test
 ```
 
+## Android emulators {#android-emulators}
+
+Hardware-accelerated Android emulators currently work directly in a Linux job, but not inside Docker or a job-level `container`. The Docker daemon does not have access to `/dev/kvm`, so adding `--device /dev/kvm` fails with a missing-device error.
+
+Run the emulator in a native job without a `container` setting. See <.localized_link href="/guides/features/runners#android-emulators">Android emulators on Linux</.localized_link> for setup.
+
 ## Service containers {#service-containers}
 
 `services` works the same way it does on GitHub-hosted runners. Services are reachable on `localhost` at their mapped ports:
