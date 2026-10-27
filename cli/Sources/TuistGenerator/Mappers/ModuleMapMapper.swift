@@ -54,8 +54,9 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
             )
 
+        let (sourceGraph, headerSideEffects) = SwiftPackageHeaderNamespaceMapper().map(graph: graph)
         var targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>] = [:]
-        let graphTraverser = GraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: sourceGraph)
         for target in graphTraverser.allTargets() {
             try Self.dependenciesModuleMaps(
                 graphTraverser: graphTraverser,
@@ -64,8 +65,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             )
         }
 
-        var graph = graph
-        var generatedFileSideEffects: [SideEffectDescriptor] = []
+        var graph = sourceGraph
+        var generatedFileSideEffects: [SideEffectDescriptor] = headerSideEffects
         var generatedModuleMapDirectories: Set<AbsolutePath> = []
         var activeFilesByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
 

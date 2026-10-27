@@ -209,7 +209,7 @@ class ProjectFileElements {
         files.formUnion(target.coreDataModels.map(\.path))
         files.formUnion(target.coreDataModels.flatMap(\.versions))
 
-        if let headers = target.headers {
+        if let headers = target.headers, headers.sourceLayout == nil {
             files.formUnion(headers.public)
             files.formUnion(headers.private)
             files.formUnion(headers.project)
@@ -239,6 +239,9 @@ class ProjectFileElements {
 
         // Elements
         var elements = Set<GroupFileElement>()
+        if let layout = target.headers?.sourceLayout {
+            elements.insert(.folder(path: layout.root, group: target.filesGroup))
+        }
         elements.formUnion(files.map { GroupFileElement.file(path: $0, group: target.filesGroup) })
         elements.formUnion(
             target.resources.resources.map {

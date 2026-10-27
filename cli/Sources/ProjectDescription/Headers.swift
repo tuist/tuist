@@ -1,5 +1,24 @@
 /// A group of public, private and project headers.
 public struct Headers: Codable, Equatable, Sendable {
+    /// Source-backed headers of a Swift package. These are compiler and hashing inputs, not
+    /// individual Xcode header build commands. Ordinary manifest headers keep their existing behavior.
+    public struct SourceLayout: Codable, Equatable, Sendable {
+        public var root: Path
+        public var publicHeaders: Path
+        public var moduleMap: Path
+        public var moduleName: String
+        public var usesDirectoryModuleMap: Bool
+
+        public init(root: Path, publicHeaders: Path, moduleMap: Path, moduleName: String, usesDirectoryModuleMap: Bool) {
+            self.root = root
+            self.publicHeaders = publicHeaders
+            self.moduleMap = moduleMap
+            self.moduleName = moduleName
+            self.usesDirectoryModuleMap = usesDirectoryModuleMap
+        }
+    }
+
+    public var sourceLayout: SourceLayout?
     /// Determine how to resolve cases, when the same files found in different header scopes
     public enum AutomaticExclusionRule: Int, Codable, Sendable {
         /// Project headers = all found - private headers - public headers
@@ -45,26 +64,30 @@ public struct Headers: Codable, Equatable, Sendable {
         umbrellaHeader: Path? = nil,
         private privateHeaders: FileList? = nil,
         project: FileList? = nil,
-        exclusionRule: AutomaticExclusionRule
+        exclusionRule: AutomaticExclusionRule,
+        sourceLayout: SourceLayout? = nil
     ) {
         self.public = publicHeaders
         self.umbrellaHeader = umbrellaHeader
         self.private = privateHeaders
         self.project = project
         self.exclusionRule = exclusionRule
+        self.sourceLayout = sourceLayout
     }
 
     public static func headers(
         public: FileList? = nil,
         private: FileList? = nil,
         project: FileList? = nil,
-        exclusionRule: AutomaticExclusionRule = .projectExcludesPrivateAndPublic
+        exclusionRule: AutomaticExclusionRule = .projectExcludesPrivateAndPublic,
+        sourceLayout: SourceLayout? = nil
     ) -> Headers {
         .init(
             public: `public`,
             private: `private`,
             project: project,
-            exclusionRule: exclusionRule
+            exclusionRule: exclusionRule,
+            sourceLayout: sourceLayout
         )
     }
 

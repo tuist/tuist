@@ -88,6 +88,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
         mappers.append(TreeShakePrunedTargetsGraphMapper())
         mappers.append(ForeignBuildSideEffectGraphMapper())
         mappers.append(StaticXCFrameworkModuleMapGraphMapper())
+        mappers.append(SwiftPackageCachedHeadersMapper())
         mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
         mappers.append(FrameworkSearchPathsGraphMapper())
         mappers.append(AutogenerateTuistGenerateSchemeMapper(
@@ -141,6 +142,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             }
 
             mappers.append(StaticXCFrameworkModuleMapGraphMapper())
+            mappers.append(SwiftPackageCachedHeadersMapper())
             mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
 
             mappers.append(
@@ -192,6 +194,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
                 mappers.append(StaticXCFrameworkModuleMapGraphMapper())
+                mappers.append(SwiftPackageCachedHeadersMapper())
                 mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
             }
 
@@ -233,6 +236,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
                 mappers.append(StaticXCFrameworkModuleMapGraphMapper())
+                mappers.append(SwiftPackageCachedHeadersMapper())
                 mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
             }
 
@@ -287,6 +291,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
                 mappers.append(StaticXCFrameworkModuleMapGraphMapper())
+                mappers.append(SwiftPackageCachedHeadersMapper())
                 mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
             }
 
@@ -338,6 +343,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             // Runs after the cache replacement so the schemes also build the cache hits kept as source.
             mappers.append(GenerateCacheableSchemesGraphMapper(targets: targets))
             mappers.append(StaticXCFrameworkModuleMapGraphMapper())
+            mappers.append(SwiftPackageCachedHeadersMapper())
             mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
 
             mappers.append(FrameworkSearchPathsGraphMapper())
@@ -421,6 +427,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             }
 
             mappers.append(StaticXCFrameworkModuleMapGraphMapper())
+            mappers.append(SwiftPackageCachedHeadersMapper())
             mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
 
             if preserveGraphBeforeFocus, shouldFocus {
