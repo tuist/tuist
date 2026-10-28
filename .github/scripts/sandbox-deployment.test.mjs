@@ -135,7 +135,8 @@ test('template-only changes enter the same deployable-path gate as server change
   assert.ok(filter, 'production deployment path filter exists');
   for (const path of ['infra/sandbox-image/Dockerfile', 'infra/sandbox-image/orb-bootstrap.sh', 'infra/amp-orbs/Dockerfile',
     '.github/workflows/sandbox-image.yml', '.github/scripts/sandbox-image-version.sh',
-    '.github/scripts/sandbox-template-tag.sh', '.github/scripts/sandbox-image-exists.sh', 'server/app.ex']) {
+    '.github/scripts/sandbox-template-tag.sh', '.github/scripts/sandbox-image-exists.sh', 'server/app.ex',
+    'infra/certificate-trust/policy.json', 'infra/certificate-trust/pem-store.sh']) {
     const result = spawnSync('grep', ['-E', filter], { input: `${path}\n`, encoding: 'utf8' });
     assert.equal(result.status, 0, `${path} must trigger deployment`);
   }

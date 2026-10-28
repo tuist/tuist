@@ -11,8 +11,13 @@ ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
 ARG DEBIAN_RUNNER_VERSION=bookworm-slim
 ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
 ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:${DEBIAN_RUNNER_VERSION}"
-ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.2-bookworm"
+# Swift 6.4 includes the FoundationNetworking fix for concurrent registry
+# redirects on Bookworm (swiftlang/swift-corelibs-foundation#5448).
+ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.4.1-bookworm"
 ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
+
+FROM scratch AS certificate-trust
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /
 
 # ========================================
 # Stage: Swift parser builder
@@ -23,8 +28,11 @@ ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
 # ========================================
 FROM ${SWIFT_IMAGE} AS swift-builder
 
-RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
+RUN apt-get update -qq && apt-get install -y -qq unzip ca-certificates > /dev/null 2>&1 \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 WORKDIR /nif
 
@@ -76,8 +84,13 @@ RUN mkdir /_build
 FROM ${BUILDER_IMAGE} AS deps-builder
 
 RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential ca-certificates curl git \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
+ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
+ENV REBAR_OFFLINE=1
 WORKDIR /app
 
 RUN mix local.hex --force && \
@@ -225,7 +238,10 @@ RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get upgrade -y && \
   apt-get install -y curl build-essential chromium fonts-noto-cjk fonts-noto-core gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 

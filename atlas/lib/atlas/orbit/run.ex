@@ -22,6 +22,8 @@ defmodule Atlas.Orbit.Run do
     field :started_at, :utc_datetime_usec
     field :heartbeat_at, :utc_datetime_usec
     field :finished_at, :utc_datetime_usec
+    field :environment_id, Ecto.UUID
+    field :project_id, Ecto.UUID
 
     belongs_to :thread, Thread
     belongs_to :initiator, User

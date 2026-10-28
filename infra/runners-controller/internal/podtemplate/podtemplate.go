@@ -370,6 +370,14 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 					start = "exec " + externalsPath + "/tuist-cache-volume dind " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache /mnt/dind-disk/disk.img -- " + dockerd + " --max-concurrent-downloads=8"
 				}
 			}
+			if pool.Spec.NestedVirtualization {
+				// CDI supplies /dev/kvm to the runner, not this sidecar's /dev.
+				// Both containers use the same Kata guest kernel, so create its
+				// KVM device here before dockerd resolves --device /dev/kvm.
+				// Keep one allocation per Pod: a second sidecar allocation would
+				// halve the fleet's effective KVM capacity. Build requires Kata.
+				start = "(test -c /dev/kvm || mknod /dev/kvm c 10 232) && chmod 0666 /dev/kvm && { " + start + "; }"
+			}
 			volumes = append(volumes,
 				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 				// Staging area for the runner image's externals
@@ -434,6 +442,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				// our copy, never customer code.
 				SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
 			})
+			dindPackages := "e2fsprogs"
+			if pool.Spec.DockerCache {
+				dindPackages += " coreutils"
+			}
 			initContainers = append(initContainers, corev1.Container{
 				Name:  "dind",
 				Image: dindImage,
@@ -467,7 +479,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				Args: []string{
 					"set -e && " +
 						"ulimit -n 1048576 && " +
-						"apk add --no-cache e2fsprogs >/dev/null && " +
+						"apk add --no-cache " + dindPackages + " >/dev/null && " +
 						"mkdir -p /mnt/dind-disk && " +
 						"truncate -s 100G /mnt/dind-disk/disk.img && " +
 						"mkfs.ext4 -q -F /mnt/dind-disk/disk.img && " +
@@ -638,6 +650,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// its _diag log is the only record, and it dies with the reaped Pod.
 	// Streaming _diag makes that exit reason durable.
 	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT", Value: "1"})
+	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "TUIST_RUNNER_IMAGE", Value: pool.Spec.Image})
 
 	// Idle-runner reaping: the runner image's idle watchdog terminates a
 	// runner that registered but never had a job assigned once this many

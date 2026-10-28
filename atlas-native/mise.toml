@@ -1,5 +1,5 @@
 [tools]
-"github:tuist/once" = "0.68.2"
+"github:tuist/once" = "0.71.2"
 rust = "1.96.0"
 kotlin = "2.4.10"
 "github:ktlint/ktlint" = { version = "1.7.1", asset_pattern = "ktlint-*.zip" }
@@ -55,6 +55,16 @@ python3 android/push/resources.py verify "$ANDROID_HOME/build-tools/35.0.0/aapt2
 depends = ["prepare:rust"]
 description = "Build the arm64 iOS simulator app"
 run = "once build AtlasIOS"
+
+[tasks."build:macos"]
+depends = ["prepare:rust"]
+description = "Build the native macOS app from the shared SwiftUI sources"
+run = ["once build AtlasMacOS", "rm -rf .once/macos/Atlas.app && bash macos/distribution/prepare.sh .once/out/AtlasMacOS/Atlas.app .once/macos/Atlas.app"]
+
+[tasks."test:macos"]
+depends = ["prepare:rust"]
+description = "Test the shared Swift adapters on macOS"
+run = "once test AtlasMacOSTests"
 
 [tasks."build:ios-device"]
 depends = ["prepare:rust"]

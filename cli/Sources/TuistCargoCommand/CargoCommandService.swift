@@ -26,11 +26,12 @@ public struct CargoCommandService {
         let directory = try directory ?? AbsolutePath(validating: FileManager.default.currentDirectoryPath)
         let invocation = CargoInvocation(arguments)
         if let toolchain = invocation.toolchain { environment["RUSTUP_TOOLCHAIN"] = toolchain }
-        if arguments.first == "__compiler" {
+        if arguments.first == "__compiler" || arguments.first == "__native" {
             try await CargoCompilerObserver(runner: runner).run(
                 Array(arguments.dropFirst()),
                 environment: environment,
-                directory: directory
+                directory: directory,
+                native: arguments.first == "__native"
             )
             return
         }
@@ -140,7 +141,11 @@ public struct CargoCommandService {
             )
             let cache = await CargoCacheSetup().prepare(configured, root: root)
             defer { cache?.refresh?.cancel() }
-            if let cache { environment = cache.environment }
+            if let cache {
+                environment = (try? await CargoClangInvocation.configure(
+                    environment: cache.environment, directory: context.directory, process: CargoProcess(runner: runner)
+                )) ?? cache.environment
+            }
             if innerWrapper == nil {
                 let wrapper = root.appendingPathComponent("rustc-observer")
                 try "#!/bin/sh\nexec \(CargoInvocation.shellQuote(try CargoProcess.ownExecutable())) cargo __compiler \"$@\"\n"
@@ -153,6 +158,18 @@ public struct CargoCommandService {
                 environment["RUSTC_WRAPPER"] = wrapper.path
                 environment["CARGO_BUILD_RUSTC_WRAPPER"] = nil
             }
+            let remoteEnvironment = environment
+            let broker = root.appendingPathComponent("cache-broker")
+            var brokerReady = false
+            if environment["TUIST_CARGO_CACHE_REMOTE_URL"] != nil {
+                do {
+                    try FileManager.default.createDirectory(
+                        at: broker, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
+                    )
+                    environment["TUIST_CARGO_CACHE_BROKER"] = broker.path
+                    brokerReady = true
+                } catch { environment["TUIST_CARGO_CACHE_REMOTE_URL"] = nil }
+            }
             let started = Date()
             environment["TUIST_CARGO_STARTED"] = String(started.timeIntervalSince1970)
             let child = CargoExecutionContext(
@@ -162,7 +179,18 @@ public struct CargoCommandService {
                 environment: environment,
                 reporting: context.reporting
             )
-            try await executeSession(child, root: root, started: started, metadata: metadata)
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                if brokerReady {
+                    group.addTask {
+                        try? await CargoRemoteCache.serve(directory: broker, prepare: {
+                            try await CargoCompilerObserver.remote(remoteEnvironment, connectionCount: 4)
+                        })
+                    }
+                }
+                defer { group.cancelAll() }
+                try Task.checkCancellation()
+                try await executeSession(child, root: root, started: started, metadata: metadata)
+            }
         }
     }
 

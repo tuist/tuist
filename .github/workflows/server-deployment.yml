@@ -108,6 +108,10 @@ on:
         type: boolean
         default: true
   workflow_call:
+    outputs:
+      linux_runner_image:
+        description: Intended Linux runner image before per-pool staging holds
+        value: ${{ jobs.deploy.outputs.linux_runner_image }}
     inputs:
       sandbox_template_image_tag:
         description: Published sandbox template tag; fresh deploys build it, pre-built server deploys preserve the live template when unset
@@ -481,6 +485,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
           build-args: ${{ matrix.build-args }}
@@ -870,6 +875,8 @@ jobs:
           mise -C infra run --skip-tools k8s:install-platform "$KUBECONFIG" "$CLUSTER_NAME"
 
   deploy:
+    outputs:
+      linux_runner_image: ${{ steps.deploy-chart.outputs.linux_runner_image }}
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
     needs: [build, build-images, build-sandbox-template, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
@@ -1377,6 +1384,7 @@ jobs:
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
       - name: helm upgrade --install
+        id: deploy-chart
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
         # TUIST_CLICKHOUSE_URL / TUIST_S3_* from priv/secrets/<env>.yml.enc
@@ -1483,8 +1491,12 @@ jobs:
             linux_runner_image_version="${LINUX_RUNNER_IMAGE_VERSION:-}"
           fi
           if [ -n "$linux_runner_image_version" ]; then
+            # Resolve manual pins too. The pool identity is content, so a new
+            # release tag serving the same manifest cannot churn idle runners.
+            linux_runner_image_digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "$linux_runner_image_version")"
+            echo "linux_runner_image=ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}" >> "$GITHUB_OUTPUT"
             add_set "runnersFleetLinux.shapeRunnerImage" \
-              "ghcr.io/tuist/tuist-linux-runner:${linux_runner_image_version}"
+              "ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}"
           fi
 
           helm_values_args=(
@@ -1824,7 +1836,7 @@ jobs:
           # Prepare KVM without switching existing pools until every available
           # Linux host has the kernel and enough device allocations. Uses the
           # same resolved images and values as the final release below.
-          if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
+          if [ -f .github/scripts/runner-kvm-prepare.sh ] || [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
             kvm_render="$(mktemp)"
             helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
               --namespace "$NAMESPACE" \
@@ -1834,7 +1846,28 @@ jobs:
               --set registry.image.tag="$registry_image_tag" \
               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
               "${image_sets[@]}" | yq -o=json -I=0 'select(.kind != null)' | jq -s . > "$kvm_render"
-            bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+            if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
+              bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+            fi
+            # Canary must qualify the candidate in this deployment, so wait for
+            # preparation and fail closed. Other environments retain background
+            # staging with per-pool holds and the existing warning-only fallback.
+            if [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
+              linux_staging_values="$(mktemp)"
+              export LINUX_IMAGE_STAGING_WAIT_SECONDS=0
+              if [ "$TARGET_ENVIRONMENT" = "canary" ]; then
+                export LINUX_IMAGE_STAGING_WAIT_SECONDS=300
+              fi
+              if ! bash .github/scripts/linux-runner-image-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE" > "$linux_staging_values"; then
+                if [ "$TARGET_ENVIRONMENT" = "canary" ]; then
+                  echo '::error::Cannot qualify the candidate Linux image; stopping before the Helm upgrade.'
+                  exit 1
+                fi
+                echo '::warning::Could not check Linux image staging; moving pools to the requested images.'
+                echo '{"runnersFleetLinux":{"imageHolds":{}}}' > "$linux_staging_values"
+              fi
+              helm_values_args+=(-f "$linux_staging_values")
+            fi
             rm -f "$kvm_render"
           fi
 

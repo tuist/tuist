@@ -1,6 +1,8 @@
 # The build context is the repository root, not server/. Keep unrelated projects,
 # local build outputs and credentials out of both the context and COPY cache keys.
 **
+!infra/certificate-trust/pem-store.sh
+!infra/certificate-trust/policy.json
 !server/mix.exs
 !server/mix.lock
 !server/package.json

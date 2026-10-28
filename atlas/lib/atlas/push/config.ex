@@ -9,12 +9,16 @@ defmodule Atlas.Push.Config do
   """
 
   @apns_topic "dev.tuist.atlas"
+  @macos_apns_topic "dev.tuist.atlas.macos"
   @apns_vars ~w(ATLAS_APNS_TEAM_ID ATLAS_APNS_KEY_ID ATLAS_APNS_PRIVATE_KEY)
   @fcm_var "ATLAS_FCM_SERVICE_ACCOUNT_JSON"
   @apple_identifier ~r/\A[A-Z0-9]{10}\z/
   @firebase_project ~r/\A[a-z][a-z0-9-]{4,28}[a-z0-9]\z/
 
+  # The zero-arity topic remains iOS-only, including its Live Activity suffix.
   def apns_topic, do: @apns_topic
+  def apns_topic("ios"), do: @apns_topic
+  def apns_topic("macos"), do: @macos_apns_topic
 
   def apns do
     case Keyword.get(config(), :apns) do
@@ -32,6 +36,15 @@ defmodule Atlas.Push.Config do
     end
   end
 
+  def apns_for(platform, environment) when platform in ["ios", "macos"] do
+    with {:ok, apns} <- apns_for(environment),
+         true <- platform == "ios" or Map.get(apns, :macos_enabled, false) == true do
+      {:ok, apns}
+    else
+      _ -> {:error, :not_configured}
+    end
+  end
+
   def fcm do
     case Keyword.get(config(), :fcm) do
       %{} = fcm -> {:ok, fcm}
@@ -40,12 +53,18 @@ defmodule Atlas.Push.Config do
   end
 
   def capabilities do
-    %{"ios" => match?({:ok, _}, apns()), "android" => match?({:ok, _}, fcm())}
+    %{
+      "ios" => match?({:ok, _}, __MODULE__.apns()),
+      "macos" => match?({:ok, %{macos_enabled: true}}, __MODULE__.apns()),
+      "android" => match?({:ok, _}, __MODULE__.fcm())
+    }
   end
 
   def available?(platform), do: Map.get(capabilities(), platform, false)
 
-  def available?("ios", environment), do: match?({:ok, _}, apns_for(environment))
+  def available?(platform, environment) when platform in ["ios", "macos"],
+    do: match?({:ok, _}, apns_for(platform, environment))
+
   def available?("android", "production"), do: available?("android")
   def available?(_platform, _environment), do: false
 
@@ -58,8 +77,12 @@ defmodule Atlas.Push.Config do
 
   defp parse_apns!(env) do
     values = Enum.map(@apns_vars, &present(env, &1))
+    macos_enabled = parse_macos_enabled!(env)
 
     case values do
+      [nil, nil, nil] when macos_enabled ->
+        raise "ATLAS_APNS_MACOS_ENABLED requires APNs credentials"
+
       [nil, nil, nil] ->
         nil
 
@@ -67,10 +90,27 @@ defmodule Atlas.Push.Config do
         if !Regex.match?(@apple_identifier, team_id), do: raise("ATLAS_APNS_TEAM_ID must be a 10-character team ID")
         if !Regex.match?(@apple_identifier, key_id), do: raise("ATLAS_APNS_KEY_ID must be a 10-character key ID")
         ensure_key!(private_key, "EC", "ATLAS_APNS_PRIVATE_KEY must be a PEM-encoded P-256 APNs signing key")
-        %{team_id: team_id, key_id: key_id, private_key: private_key, environment: parse_apns_environment!(env)}
+
+        %{
+          team_id: team_id,
+          key_id: key_id,
+          private_key: private_key,
+          environment: parse_apns_environment!(env),
+          macos_enabled: macos_enabled
+        }
 
       _ ->
         raise "Set ATLAS_APNS_TEAM_ID, ATLAS_APNS_KEY_ID and ATLAS_APNS_PRIVATE_KEY together, or none of them"
+    end
+  end
+
+  # A .p8 key does not encode topic restrictions. Reusing it for desktop requires
+  # the operator to verify authorization for the distinct fixed macOS App ID.
+  defp parse_macos_enabled!(env) do
+    case present(env, "ATLAS_APNS_MACOS_ENABLED") do
+      value when value in [nil, "false"] -> false
+      "true" -> true
+      _ -> raise "ATLAS_APNS_MACOS_ENABLED must be true or false"
     end
   end
 

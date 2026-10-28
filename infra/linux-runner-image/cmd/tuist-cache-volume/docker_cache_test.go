@@ -223,7 +223,7 @@ func TestDockerSnapshotDiffers(t *testing.T) {
 	if base.differs(dockerSnapshot{Images: []string{"b", "a"}, BuildCacheBytes: 10}) {
 		t.Fatal("same images in another order differ")
 	}
-	if !base.differs(dockerSnapshot{Images: []string{"a"}, BuildCacheBytes: 10}) || !base.differs(dockerSnapshot{Images: []string{"a", "b"}, BuildCacheBytes: 10 + dockerBuildCacheChange}) {
+	if !base.differs(dockerSnapshot{Images: []string{"a"}, BuildCacheBytes: 10}) || !base.differs(dockerSnapshot{Images: []string{"a", "b"}, BuildCache: "new layer"}) {
 		t.Fatal("a changed data root did not differ")
 	}
 	if base.differs(dockerSnapshot{Images: []string{"a", "b"}, BuildCacheBytes: 4096}) {

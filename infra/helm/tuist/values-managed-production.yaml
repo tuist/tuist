@@ -2289,7 +2289,7 @@ runnersFleetLinux:
     # `:runner_docker_cache` flag decides who gets an image cache. Turning this off
     # returns every Linux Pod to the plain dockerd sidecar.
     dockerCache:
-      enabled: true
+      enabled: false
   name: runners-linux
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
