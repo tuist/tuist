@@ -324,6 +324,28 @@ if [ -n "${TUIST_CLUSTER_DNS_IP:-}" ]; then
   fi
 fi
 
+# Step the guest clock to NTP before the job runs. A golden-base VM boots
+# with a clock that can start minutes behind, and macOS `timed` may not have
+# synced it yet. The GitHub runner stamps step times and metrics-poll stamps
+# samples off this clock, so an unsynced VM lands the two on different
+# timelines. `sntp -sS` steps a large offset via clock_settime (and slews a
+# sub-50ms one).
+#
+# The step runs in the background from boot, while the VM is still warming,
+# because each unanswered server costs `-t` seconds and a job waiting on it
+# waits that long for a runner. Dispatch only waits for a step still running,
+# which happens when the VM is handed a job within seconds of boot.
+# Best-effort: on failure `timed` still converges, just later.
+step_clock_to_ntp() {
+  if sudo /usr/bin/sntp -sS -t 5 time.apple.com >/dev/null 2>&1; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: clock stepped to NTP"
+  else
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING NTP step failed; relying on timed"
+  fi
+}
+step_clock_to_ntp &
+NTP_STEP_PID=$!
+
 SA_TOKEN_PATH=/etc/tuist-sa-token
 if [ ! -f "${SA_TOKEN_PATH}" ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: ${SA_TOKEN_PATH} missing; aborting"
@@ -1075,21 +1097,10 @@ while true; do
         rm -f "${job_env_tmp}"
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
-      # Force an NTP step before the job runs. A golden-base VM can be
-      # handed a job within seconds of boot — before macOS `timed` has
-      # synced the guest clock, which can start minutes behind. The
-      # GitHub runner stamps step times and metrics-poll stamps samples
-      # off this clock, so an unsynced VM lands the two on different
-      # timelines (the step timeline only drifts into alignment once
-      # `timed` catches up mid-job). `sntp -sS` steps a large offset via
-      # clock_settime (and slews a sub-50ms one); the network is already
-      # up here since dispatch just succeeded. Best-effort: on failure
-      # `timed` still converges, just later.
-      if sudo /usr/bin/sntp -sS -t 5 time.apple.com >/dev/null 2>&1; then
-        echo "$(date -u +%FT%TZ) dispatch-poll: clock stepped to NTP before runner start"
-      else
-        echo "$(date -u +%FT%TZ) dispatch-poll: WARNING NTP step failed; relying on timed"
+      if kill -0 "${NTP_STEP_PID}" 2>/dev/null; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: waiting for the boot NTP step before runner start"
       fi
+      wait "${NTP_STEP_PID}" 2>/dev/null || true
       stage_runner_caches
       # Fork the machine-metrics sampler so it runs for the job's
       # duration and POSTs CPU/memory/network/disk to the server. It

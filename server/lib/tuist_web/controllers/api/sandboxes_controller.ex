@@ -212,6 +212,9 @@ defmodule TuistWeb.API.SandboxesController do
         {:error, :orb_bootstrap_failed} ->
           conn |> put_status(:bad_gateway) |> json(%{message: "Orb bootstrap failed. Check the sandbox image."})
 
+        {:error, reason} when reason in [:no_capacity, :sandbox_concurrency_limit, :sandbox_account_busy, :locked] ->
+          conn |> put_resp_header("x-tuist-orb-retry", "admission") |> sandbox_error(reason)
+
         {:error, reason} ->
           sandbox_error(conn, reason)
       end
@@ -570,6 +573,18 @@ defmodule TuistWeb.API.SandboxesController do
       message:
         "The account has reached its limit of #{Sandboxes.max_live_sandboxes_per_account()} sandboxes. Delete some first."
     })
+  end
+
+  defp sandbox_error(conn, :sandbox_concurrency_limit) do
+    conn
+    |> put_status(:too_many_requests)
+    |> json(%{
+      message: "The account has reached its sandbox CPU or memory limit. Pause a sandbox before starting more work."
+    })
+  end
+
+  defp sandbox_error(conn, :sandbox_account_busy) do
+    conn |> put_status(:conflict) |> json(%{message: "Another sandbox admission is in progress. Retry shortly."})
   end
 
   defp sandbox_error(conn, :locked) do

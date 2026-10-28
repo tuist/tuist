@@ -64,7 +64,7 @@
   `get_coverage_file`) share `Tests.Coverage.Query` with the public API and
   derive their output schemas from `Tests.Coverage.Schemas` through
   `Tool.json_schema/1`. They require test-read, then
-  `FeatureFlags.xcode_coverage_enabled?/1` for the project's account.
+  `FeatureFlags.coverage_enabled?/3` for the project (open to Mix projects, behind the account's early access flag for the others).
 
 - Organization invitation tools reuse `Accounts.invite_user_to_organization/3`
   and the `:invitation` policies, matching the dashboard and REST API. They

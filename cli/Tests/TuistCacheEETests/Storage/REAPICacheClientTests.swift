@@ -1838,21 +1838,30 @@ struct REAPICacheClientTests {
     }
 
     /// A client that never reaches a serving replica fails instead of stalling for the rest of the drain.
-    @Test func givesUpOnADrainThatOutlastsTheRetryWindow() async throws {
-        try await withDrainingCache(
-            for: .seconds(60),
-            services: { [WireActions(state: $0)] }
-        ) { client, _, _ in
-            let started = ContinuousClock.now
-
-            let error = await #expect(throws: RPCError.self) {
-                try await client.actionResult(for: REAPI.digest(Data("action".utf8)))
+    @Test(.timeLimit(.minutes(1))) func givesUpOnADrainThatOutlastsTheRetryWindow() async throws {
+        let start = ContinuousClock.now
+        let now = Mutex(start)
+        let timing = REAPIDrainRetryLadder.Timing(
+            now: { now.withLock { $0 } },
+            sleep: { delay in
+                try Task.checkCancellation()
+                now.withLock { $0 += delay }
             }
+        )
+        try await REAPIDrainRetryLadder.$timing.withValue(timing) {
+            try await withDrainingCache(
+                for: .seconds(60),
+                services: { [WireActions(state: $0)] }
+            ) { client, _, gate in
+                let error = await #expect(throws: RPCError.self) {
+                    try await client.actionResult(for: REAPI.digest(Data("action".utf8)))
+                }
 
-            #expect(error?.message == "server is draining")
-            let elapsed = ContinuousClock.now - started
-            #expect(elapsed >= REAPIDrainRetryLadder.window - .milliseconds(100))
-            #expect(elapsed < REAPIDrainRetryLadder.window + .seconds(2))
+                #expect(error?.code == .unavailable)
+                #expect(error?.message == "server is draining")
+                #expect(now.withLock { $0 - start } == .seconds(5))
+                #expect(gate.refusals == 9)
+            }
         }
     }
 
@@ -1883,12 +1892,31 @@ struct REAPICacheClientTests {
     @Test func drainRetriesNeverWaitPastTheWindow() {
         var ladder = REAPIDrainRetryLadder()
         let start = ContinuousClock.now
-        for _ in 0 ..< 3 {
-            _ = ladder.nextDelay(now: start)
+        var now = start
+        let expectedDelays: [Duration] = [
+            .zero, .milliseconds(250), .milliseconds(500),
+            .seconds(1), .seconds(1), .seconds(1), .seconds(1), .milliseconds(250),
+        ]
+        for expected in expectedDelays {
+            #expect(ladder.nextDelay(now: now) == expected)
+            now += expected
         }
 
+        #expect(now - start == .seconds(5))
+        #expect(ladder.nextDelay(now: now) == nil)
+        #expect(ladder.nextDelay(now: now + .seconds(60)) == nil)
+    }
+
+    @Test func drainRetriesIncludeRPCAndSchedulingDelaysInTheWindow() {
+        var ladder = REAPIDrainRetryLadder()
+        let start = ContinuousClock.now
+
+        #expect(ladder.nextDelay(now: start) == .zero)
+        #expect(ladder.nextDelay(now: start + .seconds(3)) == .milliseconds(250))
         #expect(ladder.nextDelay(now: start + .milliseconds(4900)) == .milliseconds(100))
-        #expect(ladder.nextDelay(now: start + REAPIDrainRetryLadder.window) == nil)
+        #expect(ladder.nextDelay(now: start + .seconds(5) - .nanoseconds(1)) == .nanoseconds(1))
+        #expect(ladder.nextDelay(now: start + .seconds(5)) == nil)
+        #expect(ladder.nextDelay(now: start + .seconds(30)) == nil)
     }
 
     @Test func onlyKurasDrainRefusalIsADrainRefusal() {
@@ -2386,6 +2414,7 @@ private struct NoBinaryFallback: CacheStoring {
 private final class DrainGate: ServerInterceptor, Sendable {
     private let duration: Duration
     private let activationPending: Bool
+    private let now = REAPIDrainRetryLadder.timing.now
     private let state = Mutex<(started: ContinuousClock.Instant?, refusals: Int)>((nil, 0))
 
     var refusals: Int { state.withLock { $0.refusals } }
@@ -2401,9 +2430,10 @@ private final class DrainGate: ServerInterceptor, Sendable {
         next: @Sendable (StreamingServerRequest<Input>, ServerContext) async throws -> StreamingServerResponse<Output>
     ) async throws -> StreamingServerResponse<Output> {
         let refuses = state.withLock { state in
-            let started = state.started ?? .now
+            let current = now()
+            let started = state.started ?? current
             state.started = started
-            guard ContinuousClock.now - started < duration else { return false }
+            guard current - started < duration else { return false }
             state.refusals += 1
             return true
         }

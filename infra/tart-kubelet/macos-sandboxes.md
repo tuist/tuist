@@ -38,6 +38,9 @@ Managed Agents admission. Pause, stop-worker and delete remain available.
 The server reserves native CPU, RAM and one VM slot in a PostgreSQL transaction
 under a per-node advisory lock. It binds ownership to the Kubernetes Node UID;
 reusing a node name cannot move a checkpoint to a replacement machine.
+Account sandbox concurrency quotas also apply to native creation and resume,
+including resident resume. Pausing releases the account's active concurrency
+quota; a retained VM still holds its full host reservation against CI capacity.
 
 The CI allocator publishes grants only with known, unqueued CI demand and a
 healthy, unreserved host. Grants expire after 15 seconds and are also bound to

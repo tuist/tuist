@@ -243,7 +243,10 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 	now time.Time,
 	logger logr.Logger,
 ) (bool, error) {
-	if r.SandboxesNamespace == "" || (pool.Spec.OS != "linux" && pool.Spec.OS != "darwin") || ciQueued(fleet) {
+	if r.SandboxesNamespace == "" || (pool.Spec.OS != "linux" && pool.Spec.OS != "darwin") || fleet == nil {
+		return false, nil
+	}
+	if pool.Spec.OS == "darwin" && macOSCIQueued(fleet) {
 		return false, nil
 	}
 

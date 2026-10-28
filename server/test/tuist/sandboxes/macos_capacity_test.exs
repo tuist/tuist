@@ -9,6 +9,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
 
@@ -94,6 +95,49 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
   test "Linux placement never chooses a macOS node advertising the same template" do
     assert Capacity.ready_nodes("macos") == []
+  end
+
+  test "native creation respects account quotas before requesting a VM" do
+    account = account_fixture()
+    {:ok, account} = Concurrency.update_limits(account, %{sandbox_vcpus_limit: 4, sandbox_memory_gb_limit: 8})
+    reject(&Nodes.call/4)
+
+    assert {:error, :sandbox_concurrency_limit} = Sandboxes.create_sandbox(account, %{platform: :darwin})
+    assert Concurrency.usage(account.id) == %{vcpus: 0, memory_mb: 0}
+  end
+
+  test "resident and evicted resumes acquire the account quota again", %{node: node} do
+    for resident <- [true, false] do
+      account = account_fixture()
+      {:ok, account} = Concurrency.update_limits(account, %{sandbox_vcpus_limit: 8, sandbox_memory_gb_limit: 8})
+
+      environment =
+        agent_environment_fixture(account: account, platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192)
+
+      held = sandbox(account: account, state: :running, node_name: "another-node")
+
+      paused =
+        sandbox(
+          account: account,
+          state: :paused,
+          node_name: node.name,
+          node_uid: node.generation,
+          resident: resident,
+          agent_environment_id: environment.id,
+          anthropic_session_id: "session"
+        )
+
+      refute Capacity.admissible?(environment, "session")
+      refute Capacity.admissible?(environment, "new-session")
+      assert {:error, :sandbox_concurrency_limit} = Capacity.admit(paused)
+      assert Repo.reload!(paused).state == :paused
+      assert Repo.reload!(paused).resident == resident
+
+      held |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
+      assert {:ok, %{state: :resuming}} = Capacity.admit(paused)
+      assert Concurrency.usage(account.id) == %{vcpus: 8, memory_mb: 8192}
+      paused |> Repo.reload!() |> Ecto.Changeset.change(state: :paused, resident: false) |> Repo.update!()
+    end
   end
 
   test "the macOS gate is required even in development and before any create side effect" do

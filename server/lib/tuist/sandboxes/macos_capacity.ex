@@ -8,6 +8,7 @@ defmodule Tuist.Sandboxes.MacosCapacity do
 
   alias Tuist.Repo
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
 
@@ -48,13 +49,16 @@ defmodule Tuist.Sandboxes.MacosCapacity do
     if Sandboxes.platform_enabled?(environment) do
       case Sandboxes.get_sandbox_for_session(environment.id, session_id) do
         %Sandbox{} = sandbox ->
-          case Nodes.lookup(sandbox.node_name) do
-            {:ok, _pid, info} -> info[:generation] == sandbox.node_uid and allowed?(info)
+          with true <- sandbox.state in @charged or Concurrency.check(sandbox.account_id, sandbox) == :ok,
+               {:ok, _pid, info} <- Nodes.lookup(sandbox.node_name) do
+            info[:generation] == sandbox.node_uid and allowed?(info)
+          else
             _ -> false
           end
 
         nil ->
-          Enum.any?(Nodes.connected_nodes(), &(ready?(&1, environment.template) and room?(&1, environment)))
+          Concurrency.check(environment.account_id, environment) == :ok and
+            Enum.any?(Nodes.connected_nodes(), &(ready?(&1, environment.template) and room?(&1, environment)))
       end
     else
       false
@@ -90,10 +94,25 @@ defmodule Tuist.Sandboxes.MacosCapacity do
       if current.node_name && (current.node_name != node.name or current.node_uid != node.generation),
         do: Repo.rollback(:owner_changed)
 
-      current
-      |> Sandbox.update_changeset(%{node_name: node.name, node_uid: node.generation, state: state, resident: true})
-      |> Repo.update!()
+      update_reservation(current, node, state)
     end)
+  end
+
+  defp update_reservation(sandbox, node, state) do
+    update = fn ->
+      sandbox
+      |> Sandbox.update_changeset(%{node_name: node.name, node_uid: node.generation, state: state, resident: true})
+      |> Repo.update()
+    end
+
+    # Creation already acquired the account reservation before placement. A
+    # paused VM must acquire it again, even when its host retained the process.
+    result = if sandbox.state == :paused, do: Concurrency.admit(sandbox.account_id, sandbox, update), else: update.()
+
+    case result do
+      {:ok, reserved} -> reserved
+      {:error, reason} -> Repo.rollback(reason)
+    end
   end
 
   defp room?(node, sandbox) do

@@ -83,6 +83,47 @@ defmodule Tuist.Processor.XCResultProcessorTest do
                XCResultProcessor.process_local(fixture_zip)
     end
 
+    test "classifies native error codes independently of the diagnostic message" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      for {code, expected} <- [{"missing_object", :bundle_invalid}, {"parse_timeout", :parse_timeout}],
+          message <- ["A different diagnostic\nwith \"quotes\" and \\paths", "xcresult parsing timed out"] do
+        expect(XCResultNIF, :parse, fn _xcresult_path, _root_dir ->
+          {:error, JSON.encode!(%{"code" => code, "error" => message})}
+        end)
+
+        assert {:error, ^expected} = XCResultProcessor.process_local(fixture_zip)
+      end
+    end
+
+    test "keeps legacy and unknown parser failures retryable" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      legacy_message =
+        "The command 'xcresulttool get test-results tests' terminated unsuccessfully:\nError: item missing for id 0~example=="
+
+      failures = [
+        {legacy_message, legacy_message},
+        {JSON.encode!(%{"error" => legacy_message}), legacy_message},
+        {~s({"error": "#{legacy_message}"}), ~s({"error": "#{legacy_message}"})}
+      ]
+
+      failures =
+        failures ++
+          for code <- ["command_failed", "parse_failed", "future_error"] do
+            message = "xcresult parsing timed out: a diagnostic cannot override an explicit code"
+            {JSON.encode!(%{"code" => code, "error" => message}), message}
+          end
+
+      for {reason, message} <- failures do
+        expect(XCResultNIF, :parse, fn _xcresult_path, _root_dir -> {:error, reason} end)
+
+        assert {:error, {:parse_failed, ^message}} = XCResultProcessor.process_local(fixture_zip)
+      end
+    end
+
     test "collapses a parse timeout to a stable reason regardless of bundle path" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)

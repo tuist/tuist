@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -339,5 +340,38 @@ final class SchemeLinterTests: TuistUnitTestCase {
             got.first?.reason,
             "The target 'MissingTarget' specified in Scheme code coverage targets list isn't defined in the project."
         )
+    }
+}
+
+struct GeneratedTestPlanCoverageLinterTests {
+    @Test func missing_local_coverage_target_is_flagged_but_external_reference_is_allowed() async throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let plan = TestPlan(
+            path: projectPath.appending(component: "Plan.xctestplan"),
+            testTargets: [],
+            isDefault: true,
+            kind: .generated,
+            coverage: true,
+            codeCoverageTargets: [
+                .init(projectPath: projectPath, name: "LocalTarget"),
+                .init(projectPath: projectPath, name: "MissingTarget"),
+                .init(projectPath: "/External", name: "ExternalTarget"),
+            ]
+        )
+        let project = Project.test(
+            path: projectPath,
+            settings: Settings(configurations: [
+                .debug: Configuration(settings: .init(), xcconfig: nil),
+            ]),
+            targets: [Target.test(name: "LocalTarget")],
+            schemes: [Scheme(name: "Scheme", testAction: .test(testPlans: [plan]))]
+        )
+
+        let issues = try await SchemeLinter().lint(project: project)
+
+        #expect(issues.count == 1)
+        #expect(issues.first?.severity == .error)
+        #expect(issues.first?.reason ==
+            "The target 'MissingTarget' specified in Scheme code coverage targets list isn't defined in the project.")
     }
 }
