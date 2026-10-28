@@ -68,6 +68,31 @@ active inventory did not release its retained quota commitment. The exact
 policy implementation was unchanged. This clears the bounded policy-reuse
 proof, not production admission or CSI integration.
 
+## Bounded CPU diagnosis
+
+The separate [profile run](https://github.com/tuist/tuist/actions/runs/40693941162)
+at `805bc48c209` passed all four application layouts, 12,160 requests with zero
+failures, the primitive/policy checks and complete cleanup. Linux was
+7.0.0-1017-azure; the installed perf executable reported 6.8.12. It sampled the
+actual Kura process at 99 Hz with software CPU-clock events and recorded symbol
+reports only. Raw profiles and fixture credentials were removed. Its timings
+are diagnostic and are excluded from the unprofiled comparison above.
+
+Runtime system CPU was again about 12 seconds for XFS, 28 seconds for plain
+ext4 and 34 seconds for fscrypt during the ordinary phases. The backing-device
+cgroup I/O counters reported approximately 13.4 GB written for every layout;
+do not sum the duplicated loop/device-mapper/backing-device rows. This does not
+support an explanation based solely on twice as many written bytes.
+
+Sampled ext4 stacks included page allocation/initialization, locking,
+`dquot_add_space`, `ext4_da_map_blocks`, extent-status operations and writeback.
+The encrypted path additionally sampled `aes_xts_encrypt_vaes_avx2`. This is
+evidence of filesystem work as well as encryption work, not proof that one
+function causes the whole regression or that a particular mount option fixes
+it. The profiles contain only 369–1,026 samples per layout; percentages must
+not be treated as a complete accounting of cgroup CPU, all worker threads or
+host crypto/writeback work. No durability or runtime behavior was changed.
+
 ## Physical reclamation and confinement
 
 The first [primitive run](https://github.com/tuist/tuist/actions/runs/40685359928)
@@ -147,6 +172,15 @@ HTTP workload establishes equivalence on hosted NVMe or under production load.
 - [40688259559](https://github.com/tuist/tuist/actions/runs/40688259559) stopped
   before filesystem setup: its sparse sharing-policy checkout inherited a Go
   workspace referencing absent modules. The adapter build now sets `GOWORK=off`.
+- [40692671442](https://github.com/tuist/tuist/actions/runs/40692671442) stopped
+  before profiling because executable discovery skipped the packaged perf
+  symlink. [40693145649](https://github.com/tuist/tuist/actions/runs/40693145649)
+  completed the first layout's requests but attached to the idle container init
+  and rejected perf's intentional interrupt status. It cleaned up successfully,
+  but provides no useful profile. The final run locates the existing Kura
+  process, accepts only successful/intentional-interrupt termination and rejects
+  a report without samples. Neither failed diagnostic replaces the complete
+  unprofiled benchmark runs.
 
 No hosted staging or production storage was changed by these experiments.
 Earlier shared-XFS capacity/memory gains and thin-layout staging results remain
