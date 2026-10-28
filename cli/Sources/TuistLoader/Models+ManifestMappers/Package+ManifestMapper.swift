@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
@@ -14,15 +15,9 @@ extension XcodeGraph.Package {
         generatorPaths: GeneratorPaths
     ) throws -> XcodeGraph.Package {
         switch manifest {
-        case let .local(local, groupPath, excludingPath, keepStructure):
-            return .local(
-                config: .init(
-                    path: try generatorPaths.resolve(path: local),
-                    groupPath: groupPath?.pathString,
-                    excludingPath: excludingPath?.pathString,
-                    keepStructure: keepStructure
-                )
-            )
+        case let .local(path, config):
+            let path = try generatorPaths.resolve(path: path)
+            return .local(config: .init(path: path, grouping: .init(from: config?.grouping)))
         case let .remote(url: url, requirement: version):
             return .remote(url: url, requirement: .from(manifest: version))
         case let .registry(identifier: identifier, requirement: version):

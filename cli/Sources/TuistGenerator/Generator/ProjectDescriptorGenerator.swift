@@ -314,11 +314,11 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         Logger.current.debug("Processing \(project.packages.count) packages for project \(project.name)")
         for package in project.packages {
             switch package {
-            case let .local(path):
-                Logger.current.debug("Processing local package at \(path.pathString) for project \(project.name)")
-                let relativePath = path.relative(to: project.sourceRootPath).pathString
+            case let .local(config):
+                Logger.current.debug("Processing local package at \(config.path.pathString) for project \(project.name)")
+                let relativePath = config.path.relative(to: project.sourceRootPath).pathString
                 let reference = PBXFileReference(
-                    sourceTree: .sourceRoot,
+                    sourceTree: .group,
                     name: config.path.components.last,
                     lastKnownFileType: "folder",
                     path: relativePath
@@ -339,9 +339,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                     let localConfig = GeneratorLocalPackageReferenceConfig(
                         path: config.path.pathString,
                         sourceRoot: project.sourceRootPath.pathString,
-                        groupPath: config.groupPath,
-                        excludingPath: config.excludingPath,
-                        keepStructure: config.keepStructure
+                        grouping: config.grouping
                     )
                     try addLocalPackageReference(
                         root: root,
@@ -381,7 +379,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         project: PBXProj?,
         localConfig: GeneratorLocalPackageReferenceConfig
     ) throws {
-        let mainGroupName = localConfig.keepStructure ? "Project" : "Packages"
+        let mainGroupName = localConfig.grouping == .original ? "Project" : "Packages"
         let baseGroup = try root.group(namedOrPath: mainGroupName)
             ?? root.addGroup(named: mainGroupName, options: .withoutFolder).first
 
@@ -391,7 +389,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         for folder in components {
             guard let group = currentGroup else { break }
 
-            if localConfig.keepStructure {
+            if localConfig.grouping == .original {
                 currentGroup = try resolveStructuredReference(named: folder, in: group, project: project)
             } else {
                 currentGroup = try group.group(namedOrPath: folder)
@@ -429,7 +427,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     }
 
     private func makeGroupComponents(from config: GeneratorLocalPackageReferenceConfig) -> [String] {
-        if let groupPath = config.groupPath {
+        if case let .custom(groupPath) = config.grouping {
             return groupPath.split(separator: "/").map(String.init)
         }
 
@@ -442,7 +440,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         var components = relativePath.split(separator: "/").map(String.init)
 
         // Remove excluding prefix
-        if let excludingPath = config.excludingPath {
+        if case let .trimmingPrefix(excludingPath) = config.grouping {
             let excludeComponents = excludingPath.split(separator: "/").map(String.init)
             if components.starts(with: excludeComponents) {
                 components.removeFirst(excludeComponents.count)
@@ -505,21 +503,15 @@ private extension PBXGroup {
 struct GeneratorLocalPackageReferenceConfig: Equatable, Codable, Sendable {
     let path: String
     let sourceRoot: String
-    let groupPath: String?
-    let excludingPath: String?
-    let keepStructure: Bool
+    let grouping: LocalPackageReferenceConfig.Grouping?
     
     init(
         path: String,
         sourceRoot: String,
-        groupPath: String? = nil,
-        excludingPath: String? = nil,
-        keepStructure: Bool = false
+        grouping: LocalPackageReferenceConfig.Grouping? = nil
     ) {
         self.path = path
         self.sourceRoot = sourceRoot
-        self.groupPath = groupPath
-        self.excludingPath = excludingPath
-        self.keepStructure = keepStructure
+        self.grouping = grouping
     }
 }

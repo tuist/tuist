@@ -2683,7 +2683,7 @@ struct SchemeDescriptorsGeneratorCodeCoverageTests {
         let project = Project.test(
             path: projectPath,
             targets: [target, testTarget],
-            packages: [.local(path: packagePath)]
+            packages: [.local(config: .init(path: packagePath))]
         )
         let graph = Graph.test(
             projects: [project.path: project]
@@ -2736,7 +2736,7 @@ struct SchemeDescriptorsGeneratorCodeCoverageTests {
         let project = Project.test(
             path: projectPath,
             targets: [target, testTarget],
-            packages: [.local(path: packagePath)]
+            packages: [.local(config: .init(path: packagePath))]
         )
         let graph = Graph.test(
             projects: [project.path: project]

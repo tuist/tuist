@@ -1227,7 +1227,7 @@ struct TreeShakePrunedTargetsGraphMapperPackageTests {
             metadata: .metadata(tags: ["tuist:prunable"])
         )
         let other = Target.test(name: "Other", product: .staticFramework, metadata: .metadata(tags: ["tuist:prunable"]))
-        let supportPackage = Package.local(path: try AbsolutePath(validating: "/LocalPackage"))
+        let supportPackage = Package.local(config: .init(path: try AbsolutePath(validating: "/LocalPackage")))
         let supportProject = Project.test(
             path: supportProjectPath,
             targets: [support],

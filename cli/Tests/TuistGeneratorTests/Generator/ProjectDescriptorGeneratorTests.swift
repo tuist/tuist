@@ -734,7 +734,7 @@ struct ProjectDescriptorGeneratorTests {
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
         let target = Target.test(name: "A")
-        let package = Package.local(path: localPackagePath)
+        let package = Package.local(config: .init(path: localPackagePath))
         let project = Project.test(
             path: projectPath,
             sourceRootPath: projectPath,
@@ -851,7 +851,7 @@ struct ProjectDescriptorGeneratorTests {
         .inTemporaryDirectory,
         .withMockedXcodeController
     )
-    func test_generate_localSwiftPackageWithNestedGroupPath() async throws {
+    func test_generate_localSwiftPackageWithNestedCustomGroupPath() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/Project/LocalPackages/LocalPackageA")
@@ -863,7 +863,7 @@ struct ProjectDescriptorGeneratorTests {
             name: "Project",
             targets: [target],
             packages: [
-                .local(config: .init(path: localPackagePath, groupPath: "Vendor/Features")),
+                .local(config: .init(path: localPackagePath, grouping: .custom("Vendor/Features"))),
             ]
         )
 
@@ -896,7 +896,7 @@ struct ProjectDescriptorGeneratorTests {
         .inTemporaryDirectory,
         .withMockedXcodeController
     )
-    func test_generate_localSwiftPackageWithSingleLevelGroupPath() async throws {
+    func test_generate_localSwiftPackageWithSingleLevelCustomGroupPath() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/Project/LocalPackages/LocalPackageB")
@@ -906,7 +906,7 @@ struct ProjectDescriptorGeneratorTests {
             name: "Project",
             targets: [],
             packages: [
-                .local(config: .init(path: localPackagePath, groupPath: "External")),
+                .local(config: .init(path: localPackagePath, grouping: .custom("External"))),
             ]
         )
 
@@ -938,7 +938,7 @@ struct ProjectDescriptorGeneratorTests {
         .inTemporaryDirectory,
         .withMockedXcodeController
     )
-    func test_addLocalPackageReference_withExcludingPath() async throws {
+    func test_addLocalPackageReference_trimminPrefix() async throws {
         // Given
         let pbxproj = PBXProj()
         let rootGroup = PBXGroup(children: [], sourceTree: .group)
@@ -950,9 +950,7 @@ struct ProjectDescriptorGeneratorTests {
         let config = GeneratorLocalPackageReferenceConfig(
             path: "/Project/LocalPackages/Vendor/Features/MyPackage",
             sourceRoot: "/Project",
-            groupPath: nil,
-            excludingPath: "LocalPackages/Vendor",
-            keepStructure: false
+            grouping: .trimmingPrefix("LocalPackages/Vendor")
         )
 
         // When
@@ -993,9 +991,7 @@ struct ProjectDescriptorGeneratorTests {
         let config = GeneratorLocalPackageReferenceConfig(
             path: "/Project/LocalPackages/MyPackage",
             sourceRoot: "/Project",
-            groupPath: nil,
-            excludingPath: nil,
-            keepStructure: true
+            grouping: .original
         )
 
         // When

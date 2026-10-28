@@ -449,8 +449,8 @@ struct XcodeGraphMapperTests {
             .willReturn(
                 .test(
                     packages: [
-                        .local(path: "/tmp/LibraryA"),
-                        .local(path: "/tmp/LibraryB"),
+                        .local(config: .init(path: "/tmp/LibraryA")),
+                        .local(config: .init(path: "/tmp/LibraryB")),
                     ]
                 )
             )
