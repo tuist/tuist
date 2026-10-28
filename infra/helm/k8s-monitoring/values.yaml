@@ -227,6 +227,17 @@ k8s-monitoring:
           replacement = "keep"
           action = "replace"
         }
+        // macOS host-health alerts require the textfile timestamp as well as
+        // macos_host_* readings. Dropping it silently removes non-rack hosts
+        // from the risk alerts' freshness join in canary and staging.
+        write_relabel_config {
+          source_labels = ["job", "__name__"]
+          separator = ";"
+          regex = "tuist-macos-node-exporter;node_textfile_(mtime_seconds|scrape_error)"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
         // Rack hardware is the one exception that is not derived from alerts.
         // A rack lives in staging while it is at home, and its hosts are real
         // machines whose CPU, memory, disks and temperatures are the point of
