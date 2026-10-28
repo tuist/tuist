@@ -138,7 +138,9 @@ impl Store {
     }
     pub(super) async fn prototype_reclaim_unit(&self) -> Result<(), String> {
         let Some(c) = control()? else { return Ok(()) };
-        if self.handover_enabled { return Err("prototype drain is not qualified for managed handover".into()); }
+        if self.handover_enabled {
+            return Err("prototype drain is not qualified for managed handover".into());
+        }
         if c.drain.is_empty() {
             return Ok(());
         }
@@ -147,7 +149,19 @@ impl Store {
         {
             let _refresh = self.segment_refresh_lock.lock().await;
             let _exclusive = self.segment_write_barrier.write().await;
-            let _writer = self.segment_write_lock.lock().await;
+            let mut writer = self.segment_write_lock.lock().await;
+            if self
+                .segment_state_snapshot()
+                .state
+                .active()
+                .is_some_and(|s| c.drain.iter().any(|u| u == unit(&s.segment_id)))
+            {
+                // Seal under the ordinary exclusive writer barrier, including
+                // fsync and writer-handle retirement. Idle units must drain
+                // without waiting for another client upload to force rotation.
+                let (_, retirements) = self.active_segment(0, &mut writer).await?;
+                drop(retirements);
+            }
             let snapshot = self.segment_state_snapshot();
             let candidate = snapshot
                 .state

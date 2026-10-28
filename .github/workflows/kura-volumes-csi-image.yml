@@ -168,6 +168,18 @@ jobs:
           cd infra/kura-volumes-csi
           go test -c -o /tmp/kura-borrowed-driver.test ./internal/driver
           go build -o /tmp/kura-borrowed-cache-bench ./cmd/cache-bench
+      - name: Check out the pinned sharing policy
+        uses: actions/checkout@v4
+        with:
+          ref: 34956ca681a3dc0dc257ee5b4d0d65814bd5f23d
+          path: sharing-reference
+          sparse-checkout: infra/kura-controller
+          persist-credentials: false
+      - name: Build unchanged sharing target calculation
+        run: |
+          cp infra/kura-volumes-csi/thin/borrowed/allocator_test.go.fixture sharing-reference/infra/kura-controller/internal/diskallocator/borrowed_probe_test.go
+          cd sharing-reference/infra/kura-controller
+          GOWORK=off go test -c -o /tmp/kura-borrowed-allocator.test ./internal/diskallocator
       - name: Install private VM stack prerequisites
         run: |
           sudo apt-get update
@@ -176,7 +188,7 @@ jobs:
           test "$(df --output=avail -B1 /var/tmp | tail -1)" -gt 25000000000
       - name: Exercise real CSI and Kura with transferable encrypted units
         run: |
-          sudo env KURA_BORROWED_DISPOSABLE_VM=1 KURA_BORROWED_SCRIPT="$PWD/infra/kura-volumes-csi/thin/borrowed/stack.rb" KURA_BORROWED_BENCH=/tmp/kura-borrowed-cache-bench /tmp/kura-borrowed-driver.test -test.run '^TestBorrowedRealStack$' -test.v -test.timeout 40m | tee /tmp/kura-borrowed-driver.log
+          sudo env KURA_BORROWED_DISPOSABLE_VM=1 KURA_BORROWED_SCRIPT="$PWD/infra/kura-volumes-csi/thin/borrowed/stack.rb" KURA_BORROWED_BENCH=/tmp/kura-borrowed-cache-bench KURA_BORROWED_POLICY=/tmp/kura-borrowed-allocator.test KURA_BORROWED_SOURCE="$GITHUB_SHA" /tmp/kura-borrowed-driver.test -test.run '^TestBorrowedRealStack$' -test.v -test.timeout 40m | tee /tmp/kura-borrowed-driver.log
       - name: Preserve diagnostics
         if: failure()
         run: sudo dmesg | tail -100

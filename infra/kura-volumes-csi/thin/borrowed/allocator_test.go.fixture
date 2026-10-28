@@ -1,0 +1,43 @@
+// Compiled only into the pinned #14825 checkout. Exercises its unchanged target
+// calculation; deliberately does not claim its synchronous Agent fits this API.
+package diskallocator
+
+import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"testing"
+)
+
+func TestBorrowedPolicyTargets(t *testing.T) {
+	if os.Getenv("KURA_BORROWED_DISPOSABLE_VM") != "1" {
+		t.Skip("disposable prototype only")
+	}
+	var input struct {
+		Capacity uint64   `json:"capacity"`
+		Samples  []Sample `json:"samples"`
+	}
+	data, err := os.ReadFile(os.Getenv("KURA_BORROWED_PLAN_INPUT"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) > 4096 {
+		t.Fatal("oversized fixture")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err = decoder.Decode(&input); err != nil {
+		t.Fatal(err)
+	}
+	targets, err := Targets(input.Capacity, input.Samples)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err = json.Marshal(targets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(os.Getenv("KURA_BORROWED_PLAN_OUTPUT"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+}

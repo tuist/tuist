@@ -24,7 +24,7 @@ class BorrowedProbe
     @env_file=File.join(@root,'runtime-env')
     env={KURA_PORT:4000,KURA_INTERNAL_PORT:7443,KURA_NODE_URL:'http://127.0.0.1:7443',KURA_PEERS:'http://127.0.0.1:7443',KURA_TENANT_ID:'default',KURA_REGION:'qualification',KURA_DATA_DIR:'/fixture/base',KURA_TMP_DIR:'/fixture/base/tmp',KURA_TMP_DIR_MAX_BYTES:2*GIB,KURA_AUTH_JWT_SECRET:secret,RUST_LOG:'warn',KURA_OTEL_SERVICE_NAME:'borrowed-qualification',KURA_OTEL_DEPLOYMENT_ENVIRONMENT:'qualification'}
     File.write(@env_file,env.map{|k,v|"#{k}=#{v}"}.join("\n")+"\n",perm:0600)
-    @report[:environment]={kernel:run('uname','-r').strip,image:@image,cpu_limit:1,memory_bytes:768<<20,chunk_bytes:512<<10,keys:'fixture HMAC per-volume keys; no OpenBao/Kubernetes authorization qualification'}
+    @report[:environment]={source:ENV.fetch('KURA_BORROWED_SOURCE','unknown'),kernel:run('uname','-r').strip,image:@image,cpu_limit:1,memory_bytes:768<<20,chunk_bytes:512<<10,keys:'fixture HMAC per-volume keys; no OpenBao/Kubernetes authorization qualification'}
   end
   def cmd(*args)
     out,err,s=Open3.capture3(*args); [out,err,s.success?]
@@ -84,7 +84,18 @@ class BorrowedProbe
   def stats(owner)
     run('docker','exec',@containers.fetch(owner),'sh','-c','cat /sys/fs/cgroup/cpu.stat /sys/fs/cgroup/memory.events /sys/fs/cgroup/io.stat /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.stat')
   end
+  def plan(a_demand,b_demand)
+    input=File.join(@root,'plan-input.json');output=File.join(@root,'plan-output.json')
+    # Three completely backed units fit this fixture after per-device overhead.
+    # Targets receive useful-cache bytes, never pool mapped bytes or quota bytes.
+    samples=[['a',a_demand],['b',b_demand]].map{|id,demand|{id:id,floor_bytes:4*GIB,ceiling_bytes:16*GIB,demand_bytes:demand}}
+    File.write(input,JSON.generate(capacity:12*GIB,samples:samples),perm:0600)
+    run('env',"KURA_BORROWED_PLAN_INPUT=#{input}","KURA_BORROWED_PLAN_OUTPUT=#{output}",ENV.fetch('KURA_BORROWED_POLICY'),'-test.run','^TestBorrowedPolicyTargets$')
+    JSON.parse(File.read(output))
+  end
   def transfer
+    first_targets=plan(8*GIB,4*GIB)
+    check('unchanged sharing policy lends spare unit to A',first_targets=={'a'=>8*GIB,'b'=>4*GIB})
     create(1,'a','base');create(2,'b','base')
     %w[a b].each{|o|control(o,['base']);start(o)}
     base_before=snapshot
@@ -92,7 +103,11 @@ class BorrowedProbe
     create(3,'a','unit') # Hot-published after both runtimes are running.
     control('a',[id(3)])
     borrowed=File.join(@exports,'a','units',id(3),'segments')
-    bench('a',working:true)
+    borrowed_corpus=File.join(@root,'a-borrowed-corpus.json')
+    bench('a',working:true,corpus:borrowed_corpus)
+    run('docker','restart',@containers.fetch('a'));ready('a')
+    bench('a',verify:true,corpus:borrowed_corpus)
+    bench('a',verify:true,corpus:corpus)
     check('runtime placed real segments in borrowed filesystem',Dir.glob(borrowed+'/*.seg').any?)
     file=Dir.glob(borrowed+'/*.seg').first;@held=File.open(file,'rb');held_prefix=@held.read(4096);@held.rewind
     charged=snapshot;denied,ok=rpc('create',id:4,owner:'b',kind:'unit',bytes:4*GIB)
@@ -101,11 +116,14 @@ class BorrowedProbe
     call('fail-trim',fail:true)
     failure,ok=rpc('reclaim',id:3)
     check('injected discard failure is exercised',!ok,failure)
+    next_targets=plan(4*GIB,8*GIB)
+    check('unchanged sharing policy transfers target to B',next_targets=={'a'=>4*GIB,'b'=>8*GIB})
+    @report[:observations][:policy]={revision:'34956ca681a3dc0dc257ee5b4d0d65814bd5f23d',initial:first_targets,next:next_targets}
+    drain_started=Process.clock_gettime(Process::CLOCK_MONOTONIC)
     control('a',['base'],[id(3)])
-    # A normal write rotates away from the drained unit; the prototype worker
-    # retires its sealed segments via the real ring/index/handle cleanup.
-    bench('a',working:true)
+    # No new upload: the worker must seal and drain an idle active unit.
     wait('targeted runtime retirement'){Dir.glob(borrowed+'/*.seg').empty?}
+    drain_seconds=Process.clock_gettime(Process::CLOCK_MONOTONIC)-drain_started
     held_state=snapshot
     check('runtime unlink does not release the unit commitment',held_state['committed_bytes']==charged['committed_bytes'])
     check('open unlinked segment retains mapped allocation',observe(held_state,3).fetch('mapped_bytes')>=@held.stat.size)
@@ -119,6 +137,7 @@ class BorrowedProbe
     @held.close;@held=nil
     started=Process.clock_gettime(Process::CLOCK_MONOTONIC)
     wait('normal CSI unit deletion after final close'){_,ok=rpc('delete',id:3);ok}
+    delete_seconds=Process.clock_gettime(Process::CLOCK_MONOTONIC)-started
     released=snapshot
     check('confirmed deletion releases full unit commitment',charged['committed_bytes']-released['committed_bytes']==observe(charged,3).fetch('virtual_bytes'))
     check('deleted unit absent from authoritative inventory',observe(released,3).nil?)
@@ -134,11 +153,13 @@ class BorrowedProbe
     recipient=winners.first.fetch('id')
     pending=call('restart')
     check('restart charges an unpublished successful create',pending['committed_bytes']==charged['committed_bytes'])
+    grant_started=Process.clock_gettime(Process::CLOCK_MONOTONIC)
     create(recipient,'b','unit');control('b',['base',id(recipient)])
+    stage_publish_seconds=Process.clock_gettime(Process::CLOCK_MONOTONIC)-grant_started
     before=stats('b');phases=bench('b');after=stats('b');received=snapshot
     check('recipient uses transferred backing',observe(received,recipient).fetch('mapped_bytes')>GIB)
     [1,2].each{|n|check('base identity survives transfer',observe(base_before,n).fetch('lv_uuid')==observe(received,n).fetch('lv_uuid'))}
-    @report[:observations][:transfer]={charged:charged,held:held_state,released:released,received:received,delete_and_recipient_seconds:Process.clock_gettime(Process::CLOCK_MONOTONIC)-started,concurrent_creates:race,recipient_phases:phases,cpu_before:before,cpu_after:after}
+    @report[:observations][:transfer]={charged:charged,held:held_state,released:released,received:received,drain_seconds:drain_seconds,delete_seconds_after_close:delete_seconds,recipient_stage_publish_seconds:stage_publish_seconds,concurrent_creates:race,recipient_phases:phases,cpu_before:before,cpu_after:after}
     %w[a b].each{|o|stop(o)}
     [1,2,recipient].each{|n|call('delete',id:n)}
     call('fail-trim',fail:false)
@@ -163,8 +184,8 @@ class BorrowedProbe
       end
       control(owner,layout=='multi' ? ['base',id(11+round%2)] : ['base'])
       start(owner,prototype:layout=='multi',cache:4*GIB)
-      before=stats(owner);phases=bench(owner);after=stats(owner)
-      @report[:benchmarks]<<{layout:layout,round:round,phases:phases,before:before,after:after,physical:snapshot}
+      vm_before=File.read("/proc/stat").lines.first;before=stats(owner);phases=bench(owner);after=stats(owner);vm_after=File.read("/proc/stat").lines.first
+      @report[:benchmarks]<<{layout:layout,round:round,phases:phases,before:before,after:after,whole_vm_cpu_before:vm_before,whole_vm_cpu_after:vm_after,whole_vm_cpu_scope:"includes HTTP load client and host crypto workers",physical:snapshot}
       @report[:benchmarks].last[:working_set]=bench(owner,working:true)
       stop(owner)
       if layout=='plain'

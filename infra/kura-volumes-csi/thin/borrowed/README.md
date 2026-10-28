@@ -43,7 +43,7 @@ loop-backed VM results are not hosted NVMe or production throughput results.
 - No production allocator, fairness adaptation, budget leases or child-volume
   authorization. Existing whole-PVC identities stand in for child identities.
 - The control file is a trusted test control, not a durable fenced grant API.
-  Segments drain after rotation; there is no general forced active-segment drain.
+  Active segments seal through the normal writer barrier before targeted drain.
 - No Kubernetes scheduling, mount-namespace lifecycle or actual node reboot
   qualification. Docker propagation is one necessary primitive only.
 - No migration/endpoint-handoff qualification, replica workload or egress proof.
