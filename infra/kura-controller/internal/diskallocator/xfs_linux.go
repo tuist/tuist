@@ -99,6 +99,10 @@ func (x *XFS) project(v Volume) (uint32, error) {
 type quota struct{ Used, Limit uint64 }
 
 func parseReport(out string) (map[uint32]quota, error) {
+	return parseReportUnits(out, 1024)
+}
+
+func parseReportUnits(out string, unit uint64) (map[uint32]quota, error) {
 	quotas := map[uint32]quota{}
 	scanner := bufio.NewScanner(strings.NewReader(out))
 	for scanner.Scan() {
@@ -114,17 +118,17 @@ func parseReport(out string) (map[uint32]quota, error) {
 			return nil, err
 		}
 		used, err := strconv.ParseUint(fields[1], 10, 64)
-		if err != nil || used > ^uint64(0)/1024 {
+		if err != nil || used > ^uint64(0)/unit {
 			return nil, fmt.Errorf("invalid XFS usage")
 		}
 		limit, err := strconv.ParseUint(fields[3], 10, 64)
-		if err != nil || limit > ^uint64(0)/1024 {
+		if err != nil || limit > ^uint64(0)/unit {
 			return nil, fmt.Errorf("invalid XFS quota limit")
 		}
 		if _, exists := quotas[uint32(id)]; exists {
 			return nil, fmt.Errorf("duplicate XFS project")
 		}
-		quotas[uint32(id)] = quota{used * 1024, limit * 1024}
+		quotas[uint32(id)] = quota{used * unit, limit * unit}
 	}
 	return quotas, scanner.Err()
 }
@@ -149,6 +153,14 @@ func (x *XFS) Read(volumes []Volume) ([]Sample, uint64, error) {
 		return nil, 0, err
 	}
 	quotas, err := parseReport(out)
+	if err != nil {
+		return nil, 0, err
+	}
+	out, err = command("xfs_quota", "-x", "-c", "report -p -i -n -N", x.Mount)
+	if err != nil {
+		return nil, 0, err
+	}
+	inodes, err := parseReportUnits(out, 1)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -179,6 +191,12 @@ func (x *XFS) Read(volumes []Volume) ([]Sample, uint64, error) {
 			continue
 		}
 		if q.Limit == 0 {
+			// XFS keeps quota rows after the provisioner removes a project.
+			// Ignore only positively observed, fully released records. An
+			// empty directory or an unlinked open inode is still ownership.
+			if inode, observed := inodes[id]; observed && q.Used == 0 && inode.Used == 0 {
+				continue
+			}
 			return nil, 0, fmt.Errorf("unmanaged project %d is unbounded", id)
 		}
 		if q.Limit > q.Used {

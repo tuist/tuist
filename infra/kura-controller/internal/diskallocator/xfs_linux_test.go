@@ -62,3 +62,13 @@ func TestParseKernelQuotaReport(t *testing.T) {
 		}
 	}
 }
+
+func TestInodeReportDistinguishesReleasedProjectFromEmptyDirectory(t *testing.T) {
+	inodes, err := parseReportUnits("#1001 0 0 0 00 [--------]\n#1002 1 0 0 00 [--------]\n", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inodes[1001].Used != 0 || inodes[1002].Used != 1 {
+		t.Fatalf("inode counts must retain the empty-directory charge: %v", inodes)
+	}
+}

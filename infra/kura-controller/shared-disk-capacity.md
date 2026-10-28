@@ -50,7 +50,10 @@ Usable capacity is managed project use plus filesystem available bytes, minus
 unused commitments of every unmanaged project and a mandatory operational
 reserve. An optional absolute cap can reduce this further. Retained and legacy
 projects remain charged even when absent from the pod inventory. An unbounded
-nonzero unmanaged project refuses allocation. Project zero's actual use is
+nonzero unmanaged project refuses allocation unless both block and inode reports
+positively show it is fully released. XFS retains empty quota records after
+the provisioner deletes a volume; an empty directory or open deleted inode still
+has ownership and must not use that exception. Project zero's actual use is
 already reflected in filesystem availability; future non-tenant growth must fit
 inside the configured operational reserve.
 
