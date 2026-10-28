@@ -1,7 +1,10 @@
 {{- if .Values.sandboxes.macos.enabled }}
 {{- $namespace := .Values.sandboxes.namespace | default "tuist-sandboxes" }}
 {{- if ne $namespace "tuist-sandboxes" }}{{ fail "macOS sandbox host identity currently requires the tuist-sandboxes namespace" }}{{- end }}
-{{- $image := .Values.sandboxes.macos.image | default (include "tuist.macosRunnerImage" (dict "root" . "xcodeVersion" .Values.sandboxes.macos.xcodeVersion)) }}
+{{- $image := .Values.sandboxes.macos.image }}
+{{- if not $image }}
+{{- $image = include "tuist.macosRunnerImage" (dict "root" . "xcodeVersion" .Values.sandboxes.macos.xcodeVersion) }}
+{{- end }}
 {{- if not .Values.sandboxes.enabled }}
 apiVersion: v1
 kind: Namespace
