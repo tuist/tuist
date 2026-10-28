@@ -39,9 +39,6 @@ Allowlist the following ranges for macOS runner jobs:
 | IPv4 | `95.130.119.0/24` |
 | IPv6 | `2a11:83c0::/29` |
 
-> [!NOTE]
-> Add the IPv6 range if your allowlist supports IPv6 entries.
-
 #### Linux {#tuist-runners-linux}
 
 Allowlist the entire range for Linux runner jobs:
