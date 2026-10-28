@@ -99,6 +99,9 @@ spec:
   autoscaling:
     enabled: {{ dig "enabled" false $autoscaling }}
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
+    {{- with dig "maxLearnedWarmPoolFloor" 0 $autoscaling }}
+    maxLearnedWarmPoolFloor: {{ . }}
+    {{- end }}
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
     {{- if hasKey $autoscaling "holdRecentPeak" }}
@@ -350,6 +353,9 @@ spec:
   autoscaling:
     enabled: {{ dig "enabled" false $autoscaling }}
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
+    {{- with dig "maxLearnedWarmPoolFloor" 0 $autoscaling }}
+    maxLearnedWarmPoolFloor: {{ . }}
+    {{- end }}
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
   {{- end }}
@@ -435,6 +441,9 @@ spec:
   autoscaling:
     enabled: {{ dig "enabled" false $shapeAutoscaling }}
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 0 $shapeAutoscaling }}
+    {{- with dig "maxLearnedWarmPoolFloor" 0 $shapeAutoscaling }}
+    maxLearnedWarmPoolFloor: {{ . }}
+    {{- end }}
     maxReplicas: {{ dig "maxReplicas" 0 $shapeAutoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $shapeAutoscaling }}
   {{- end }}
@@ -535,6 +544,9 @@ spec:
   autoscaling:
     enabled: {{ dig "enabled" false $autoscaling }}
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
+    {{- with dig "maxLearnedWarmPoolFloor" 0 $autoscaling }}
+    maxLearnedWarmPoolFloor: {{ . }}
+    {{- end }}
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
     {{- if hasKey $autoscaling "holdRecentPeak" }}
@@ -642,6 +654,9 @@ spec:
   autoscaling:
     enabled: {{ dig "enabled" true $autoscaling }}
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
+    {{- with dig "maxLearnedWarmPoolFloor" 0 $autoscaling }}
+    maxLearnedWarmPoolFloor: {{ . }}
+    {{- end }}
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
   {{- with $shape.rollout }}

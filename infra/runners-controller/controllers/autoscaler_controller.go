@@ -166,11 +166,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
 	}
 
-	knobs := scaling.PolicyKnobs{
-		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
-		MaxReplicas:      pool.Spec.Autoscaling.MaxReplicas,
-		IgnoreRecentPeak: !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
-	}
+	knobs := policyKnobs(pool)
 	desired, fleet := r.desiredForPool(ctx, pool, *signals, knobs, logger)
 	if err := r.publishSandboxAllocations(ctx, pool, fleet); err != nil {
 		// CI scaling continues. A failed publication cannot renew the server's
@@ -252,6 +248,16 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
 }
 
+// policyKnobs reads a pool's autoscaling knobs from its spec.
+func policyKnobs(pool *tuistv1.RunnerPool) scaling.PolicyKnobs {
+	return scaling.PolicyKnobs{
+		MinWarmPoolFloor:        pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
+		MaxLearnedWarmPoolFloor: pool.Spec.Autoscaling.MaxLearnedWarmPoolFloor,
+		MaxReplicas:             pool.Spec.Autoscaling.MaxReplicas,
+		IgnoreRecentPeak:        !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
+	}
+}
+
 // desiredForPool computes the target replica count for `pool`.
 //
 // Pools with autoscaling-disabled `maxReplicas` keep the simple
@@ -289,7 +295,8 @@ func (r *AutoscalerReconciler) desiredForPool(
 	// Publish the allocation outcome so the warm-pool squeeze (target
 	// reaped down to `allocated` under fleet contention) is observable
 	// on its own series, not inferred from alive-vs-desired.
-	metrics.RecordAllocation(pool.Name, signals.Load(), knobs.MinWarmPoolFloor, perPool, allocated)
+	metrics.RecordAllocation(pool.Name, signals.Load(), knobs.MinWarmPoolFloor, max(knobs.MinWarmPoolFloor, scaling.LearnedSpare(signals, knobs)), perPool, allocated)
+	metrics.RecordLearnedWarmFloor(pool.Name, signals.LearnedWarmFloor, scaling.LearnedSpare(signals, knobs))
 
 	// Publish the demand signals unsummed as well. The allocator only
 	// needs occupied+queued, but the split shows both dispatch progress
@@ -624,11 +631,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 				return nil, nil, nil, fmt.Errorf("signals for sibling %q: %w", p.Name, err)
 			}
 			sig = *fetched
-			k = scaling.PolicyKnobs{
-				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
-				MaxReplicas:      p.Spec.Autoscaling.MaxReplicas,
-				IgnoreRecentPeak: !p.Spec.Autoscaling.HoldRecentPeakOrDefault(),
-			}
+			k = policyKnobs(p)
 		}
 
 		cost, err := r.perPodCost(ctx, p)
@@ -672,7 +675,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 		demands = append(demands, scaling.PoolDemand{
 			Name:       p.Name,
 			PerPodCost: cost,
-			Floor:      k.MinWarmPoolFloor,
+			Floor:      scaling.WarmFloor(sig, k),
 			Load:       sig.Load(),
 			Target:     scaling.DesiredReplicas(sig, k),
 			ShapeKey:   shape.key(),
