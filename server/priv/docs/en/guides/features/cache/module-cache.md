@@ -36,6 +36,21 @@ The command re-uses binaries to speed up the process.
 
 If a binary fails to upload, the command still uploads the rest, then exits with a non-zero status and lists the targets that weren't uploaded. Binaries in a machine's local cache count as cached, so to upload them again from the same machine, run `tuist clean binaries` before warming. Pass `--no-upload` to only store binaries in the local cache.
 
+### Simulator-only warming {#simulator-only-warming}
+
+To cache only iOS simulator binaries for supported modules, use `--simulator-only` when warming and generating:
+
+```bash
+tuist cache --simulator-only
+tuist generate --simulator-only
+```
+
+Run `tuist cache` later to add missing device or Mac Catalyst slices without rebuilding cached simulator slices. Normal generation keeps a module's sources if any required slices are missing.
+
+Simulator-only generation limits source targets to simulator destinations and preserves native macOS targets, including macros. Regenerate without the flag before building for a device or Mac Catalyst.
+
+Slice-by-slice caching supports iOS and macOS with standard architectures. Other platforms, custom architectures, and unsupported products keep full-artifact caching. Legacy module caching does not support `--simulator-only`.
+
 ### Remote upload admission {#remote-upload-admission}
 
 Modern module caching uses REAPI. When a busy cache temporarily rejects an upload with `RESOURCE_EXHAUSTED`, Tuist backs off with jitter, respects standard `google.rpc.RetryInfo` minimum delays, and retries within a bounded wait budget. Upload admission allows at most six retries per call. Each blob-upload operation shares one 60-second cumulative backoff budget across its presence checks, batch uploads, and streaming writes; concurrent waits each consume the budget, so repeated refusals do not grant every queued blob another minute of retries. Successful transfers do not consume this budget and are not cancelled when it runs out. Action-result publication has its own bounded budget. The exponential delay starts at one second and grows toward 30 seconds before proportional jitter. If a server's required delay exceeds the remaining budget, Tuist fails rather than retrying earlier than instructed. Cancellation interrupts backoff, and cache reads retain short retries so overload does not stall generation.

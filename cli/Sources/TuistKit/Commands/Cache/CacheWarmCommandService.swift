@@ -30,9 +30,12 @@ import XcodeGraph
         case uploadsFailed(failures: [CacheUploadFailure], storedCount: Int)
         case sourcesChangedDuringBuild(target: String)
         case coverageWithoutProject(AbsolutePath)
+        case simulatorOnlyRequiresModernCache
 
         var errorDescription: String? {
             switch self {
+            case .simulatorOnlyRequiresModernCache:
+                return "--simulator-only requires modern per-SDK caching. Disable TUIST_LEGACY_MODULE_CACHE or omit the flag."
             case let .sourcesChangedDuringBuild(target):
                 return "Sources for \(target) changed while warming the cache. Run the warm again with stable inputs."
             case let .coverageWithoutProject(path):
@@ -168,8 +171,12 @@ import XcodeGraph
             generateOnly: Bool,
             noUpload: Bool,
             cacheProfile: String?,
-            scratchDirectory: String?
+            scratchDirectory: String?,
+            simulatorOnly: Bool = false
         ) async throws {
+            if simulatorOnly, Environment.current.isLegacyModuleCacheEnabled {
+                throw CacheWarmCommandServiceError.simulatorOnlyRequiresModernCache
+            }
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let scratchDirectoryPath: AbsolutePath?
             if let scratchDirectory {
@@ -242,7 +249,8 @@ import XcodeGraph
                 requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
                 cacheStorage: cacheStorage,
-                coverage: coverage
+                coverage: coverage,
+                sdkSelection: simulatorOnly ? .simulators : .all
             )
             let cacheableTargets = hashedGraph.targetsToBuild
 
@@ -264,44 +272,63 @@ import XcodeGraph
             Logger.current
                 .notice("Targets to be cached: \(cacheableTargetNames.sorted().joined(separator: ", "))")
 
-            let targetsToBinaryCache = cacheableTargets.reduce(into: [Platform: Set<TargetQuery>]()) { acc, next in
-                for platform in next.0.target.supportedPlatforms {
-                    var platformTargets = acc[platform, default: Set()]
-                    platformTargets.insert(TargetQuery(stringLiteral: next.0.target.name))
-                    acc[platform] = platformTargets
-                }
-            }
-            let (projectPath, updatedGraph, _) = try await generatorFactory
-                .binaryCacheWarming(
-                    config: config,
-                    targetsToBinaryCache: targetsToBinaryCache,
-                    configuration: configuration,
-                    cacheStorage: cacheStorage,
-                    targetHashes: hashedGraph.targetHashes,
-                    coverage: coverage
-                )
-                .generateWithGraph(path: path, options: config.project.generatedProject?.generationOptions)
-
-            if generateOnly {
-                return
-            }
-
-            Logger.current.info("Building cacheable targets")
-
-            try await archive(
-                updatedGraph,
-                projectPath: projectPath,
-                configuration: configuration,
-                hashesByTargetToBeCached: cacheableTargets,
+            let plan = try await CacheWarmPlan.make(
+                targets: cacheableTargets,
                 fingerprints: hashedGraph.fingerprints,
-                cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
-                noUpload: noUpload,
-                isReleaseConfiguration: isReleaseConfiguration,
-                instrumentationSettings: instrumentationSettings,
-                scratchDirectory: scratchDirectoryMode
+                simulatorOnly: simulatorOnly,
+                generateOnly: generateOnly,
+                useSDKs: !Environment.current.isLegacyModuleCacheEnabled,
+                storage: cacheStorage,
+                preserving: Set(hashedGraph.localHits.keys.map(\.hash))
             )
+            for batch in plan.batches {
+                let targetsToBinaryCache = batch.targets.reduce(into: [Platform: Set<TargetQuery>]()) { acc, next in
+                    for platform in next.0.target.supportedPlatforms {
+                        if let variant = batch.variant, platform != variant.platform { continue }
+                        acc[platform, default: []].insert(TargetQuery(stringLiteral: next.0.target.name))
+                    }
+                }
+                let (projectPath, updatedGraph, _) = try await generatorFactory
+                    .binaryCacheWarming(
+                        config: config,
+                        targetsToBinaryCache: targetsToBinaryCache,
+                        configuration: configuration,
+                        cacheStorage: cacheStorage,
+                        targetHashes: hashedGraph.targetHashes,
+                        coverage: coverage,
+                        sdkSelection: batch.variant.map(BinaryCacheSDKSelection.variant) ?? .all
+                    )
+                    .generateWithGraph(path: path, options: config.project.generatedProject?.generationOptions)
+
+                if generateOnly { continue }
+
+                Logger.current.info("Building cacheable targets")
+                let batchScratch: CacheWarmScratchDirectory
+                if case let .callerOwned(path) = scratchDirectoryMode, let variant = batch.variant {
+                    batchScratch = .callerOwned(path.appending(components: "sdks", variant.rawValue))
+                } else {
+                    batchScratch = scratchDirectoryMode
+                }
+                try await archive(
+                    updatedGraph,
+                    projectPath: projectPath,
+                    configuration: configuration,
+                    hashesByTargetToBeCached: batch.targets,
+                    fingerprints: batch.fingerprints,
+                    cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
+                    noUpload: noUpload,
+                    isReleaseConfiguration: isReleaseConfiguration,
+                    instrumentationSettings: instrumentationSettings,
+                    scratchDirectory: batchScratch,
+                    variant: batch.variant
+                )
+            }
+            if generateOnly { return }
 
             if !noUpload {
+                for hits in plan.localHits {
+                    try await republishIfNeeded(hits, cacheStorage: cacheStorage)
+                }
                 try await republishIfNeeded(hashedGraph.localHits, cacheStorage: cacheStorage)
             }
 
@@ -367,7 +394,8 @@ import XcodeGraph
             noUpload _: Bool,
             isReleaseConfiguration: Bool,
             instrumentationSettings: [String],
-            scratchDirectory: CacheWarmScratchDirectory
+            scratchDirectory: CacheWarmScratchDirectory,
+            variant: BinaryCacheVariant?
         ) async throws {
             switch scratchDirectory {
             case .temporary:
@@ -384,7 +412,8 @@ import XcodeGraph
                             isReleaseConfiguration: isReleaseConfiguration,
                             instrumentationSettings: instrumentationSettings,
                             in: temporaryDirectory,
-                            compilationCacheCASArgument: compilationCacheCASArgument
+                            compilationCacheCASArgument: compilationCacheCASArgument,
+                            variant: variant
                         )
                     } catch {
                         throw diskExhaustionError(for: error, scratchDirectory: temporaryDirectory) ?? error
@@ -402,7 +431,8 @@ import XcodeGraph
                         isReleaseConfiguration: isReleaseConfiguration,
                         instrumentationSettings: instrumentationSettings,
                         in: path,
-                        compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path)
+                        compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path),
+                        variant: variant
                     )
                 } catch {
                     throw diskExhaustionError(for: error, scratchDirectory: path) ?? error
@@ -440,7 +470,8 @@ import XcodeGraph
             isReleaseConfiguration: Bool,
             instrumentationSettings: [String],
             in scratchDirectory: AbsolutePath,
-            compilationCacheCASArgument: XcodeBuildArgument
+            compilationCacheCASArgument: XcodeBuildArgument,
+            variant: BinaryCacheVariant?
         ) async throws {
             let binariesSchemes = graph.workspace.schemes
                 .filter { $0.name.contains("Binaries-Cache") && $0.name != "Binaries-Cache-Catalyst" }
@@ -493,7 +524,7 @@ import XcodeGraph
             }
 
             var binaryArtifactDirectories: [Platform: Set<AbsolutePath>] = [:]
-            for (scheme, _) in binariesSchemes {
+            for (scheme, _) in binariesSchemes where variant != .catalyst {
                 try await buildBinarySchemes(
                     scheme,
                     configuration: configuration,
@@ -505,11 +536,12 @@ import XcodeGraph
                     isReleaseConfiguration: isReleaseConfiguration,
                     compilationCacheCASArgument: compilationCacheCASArgument,
                     instrumentationSettings: instrumentationSettings,
-                    reservedProductsDirectoryNames: reservedProductsDirectoryNames
+                    reservedProductsDirectoryNames: reservedProductsDirectoryNames,
+                    variant: variant
                 )
             }
 
-            if let catalystScheme {
+            if let catalystScheme, variant == nil || variant == .catalyst {
                 try await buildCatalystScheme(
                     catalystScheme,
                     configuration: configuration,
@@ -568,7 +600,8 @@ import XcodeGraph
                     artifactsToStore,
                     fingerprints: fingerprints,
                     cacheStorage: cacheStorage,
-                    scratchDirectory: scratchDirectory
+                    scratchDirectory: scratchDirectory,
+                    requiresSDKSlices: variant != nil
                 )
             } catch let error as CacheUploadError {
                 let targets = Set(artifactsToStore.map { CacheStorableItem(name: $0.graphTarget.target.name, hash: $0.hash) })
@@ -1008,7 +1041,8 @@ import XcodeGraph
             isReleaseConfiguration: Bool,
             compilationCacheCASArgument: XcodeBuildArgument,
             instrumentationSettings: [String],
-            reservedProductsDirectoryNames: Set<String>
+            reservedProductsDirectoryNames: Set<String>,
+            variant: BinaryCacheVariant?
         ) async throws {
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
             let platformArtifactsDirectory = scratchDirectory.appending(components: ["artifacts", "\(platform.caseValue)"])
@@ -1016,7 +1050,7 @@ import XcodeGraph
             try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
 
             // Simulator
-            if platform.hasSimulators {
+            if platform.hasSimulators, variant == nil || variant == .iosSimulator {
                 let simulatorArtifactsDirectory = platformArtifactsDirectory.appending(component: "simulator")
                 try await fileSystem.makeDirectory(at: simulatorArtifactsDirectory)
 
@@ -1071,6 +1105,8 @@ import XcodeGraph
                     reservedProductsDirectoryNames: reservedProductsDirectoryNames
                 )
             }
+
+            if variant == .iosSimulator { return }
 
             // Device
             Logger.current.info("Building scheme \(scheme.name) for device", metadata: .section)
@@ -1278,7 +1314,8 @@ import XcodeGraph
             _ artifacts: [CacheGraphTargetBuiltArtifact],
             fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
-            scratchDirectory: AbsolutePath
+            scratchDirectory: AbsolutePath,
+            requiresSDKSlices: Bool
         ) async throws -> [CacheStorableTarget] {
             try await fileSystem.makeDirectory(at: scratchDirectory.appending(component: "Metadatas"))
             let storableTargets = Dictionary(
@@ -1287,7 +1324,10 @@ import XcodeGraph
                         acc[CacheStorableTarget(
                             target: next.graphTarget,
                             hash: next.hash,
-                            metadata: .init(binaryCacheFingerprints: fingerprints[next.hash] ?? [:])
+                            metadata: .init(
+                                binaryCacheFingerprints: fingerprints[next.hash] ?? [:],
+                                requiresSDKSlices: requiresSDKSlices
+                            )
                         )] = [next.path]
                     }.concurrentMap { storableTarget, paths in
                         let metadataFilePath = scratchDirectory.appending(
@@ -1314,7 +1354,8 @@ import XcodeGraph
             requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring,
-            coverage: BinaryCacheCoverage
+            coverage: BinaryCacheCoverage,
+            sdkSelection: BinaryCacheSDKSelection
         ) async throws -> CacheableTargets {
             let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1373,7 +1414,10 @@ import XcodeGraph
             let requestedItems = Set(selectedHashesByCacheableTarget.map { CacheStorableItem(
                 name: $0.key.target.name,
                 hash: $0.value.hash,
-                metadata: .init(binaryCacheFingerprints: $0.value.binaryCacheFingerprints)
+                metadata: .init(
+                    binaryCacheFingerprints: sdkSelection.fingerprints($0.value.binaryCacheFingerprints),
+                    requiresSDKSlices: sdkSelection != .all && !$0.value.binaryCacheFingerprints.isEmpty
+                )
             ) })
             let cacheItems = try await cacheStorage.fetch(requestedItems, cacheCategory: .binaries)
 

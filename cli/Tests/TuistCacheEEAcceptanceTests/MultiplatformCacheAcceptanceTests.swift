@@ -12,6 +12,7 @@ import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistGenerateCommand
 import TuistLoggerTesting
+import TuistLogging
 import TuistNooraTesting
 import TuistREAPI
 import TuistTesting
@@ -19,6 +20,92 @@ import TuistTesting
 @testable import TuistKit
 
 struct MultiplatformCacheAcceptanceTests {
+    // swiftlint:disable function_body_length
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_workspace_with_multiplatform_cache"),
+        arguments: [false, true]
+    ) func simulatorWarmCanBeCompletedWithoutRebuildingSimulatorSlices(narrowToIOS: Bool) async throws {
+        let fixture = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let cache = try CacheDirectoriesProvider().cacheDirectory(for: .binaries)
+        var roots = ["PhoneConsumer", "MacConsumer"]
+        let warm = [
+            "--path",
+            fixture.pathString,
+            "--no-upload",
+            "--cache-profile",
+            "only-external",
+        ]
+        let generate = ["--path", fixture.pathString, "--no-open"]
+        try await TuistTest.run(InstallCommand.self, ["--path", fixture.pathString])
+        try await TuistTest.run(CacheCommand.self, warm + roots + ["--simulator-only"])
+        let slices = try await fileSystem.glob(directory: cache, include: ["action-*/result.pb"]).collect()
+        #expect(slices.count == 4)
+        #expect(!Logger.testingLogHandler.collected[.info, <=].contains("Building scheme Binaries-Cache-iOS for device"))
+
+        try await TuistTest.run(GenerateCommand.self, generate + roots + ["--simulator-only"])
+        let project = fixture.appending(components: ["Phone", "Phone.xcodeproj"])
+        try TuistTest.expectLinked("Shared.xcframework", by: "PhoneConsumer", inXcodeProj: project)
+        for scheme in ["PhoneConsumer", "MacConsumer"] {
+            try await TuistTest.run(XcodeBuildBuildCommand.self, [
+                "-workspace", fixture.appending(component: "PlatformCache.xcworkspace").pathString,
+                "-scheme", scheme,
+                "-destination", scheme == "PhoneConsumer" ? "generic/platform=iOS Simulator" : "generic/platform=macOS",
+                "-derivedDataPath", temporaryDirectory.appending(component: "build").pathString,
+                "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO", "CODE_SIGN_IDENTITY=",
+            ])
+        }
+        try await TuistTest.run(GenerateCommand.self, generate + roots)
+        let sources = try await fileSystem.readTextFile(at: project.appending(component: "project.pbxproj"))
+        #expect(!sources.contains("Shared.xcframework"))
+        try await TuistTest.run(XcodeBuildBuildCommand.self, [
+            "-workspace", fixture.appending(component: "PlatformCache.xcworkspace").pathString,
+            "-scheme", "PhoneConsumer", "-destination", "generic/platform=iOS",
+            "-derivedDataPath", temporaryDirectory.appending(component: "device-build").pathString,
+            "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO", "CODE_SIGN_IDENTITY=",
+        ])
+
+        Logger.testingLogHandler.flush()
+        try await TuistTest.run(CacheCommand.self, warm + ["Leaf"])
+        #expect(try await fileSystem.glob(directory: cache, include: ["action-*/result.pb"]).collect().count == 5)
+        #expect(!Logger.testingLogHandler.collected[.info, <=].contains("Building scheme Binaries-Cache-iOS for the simulator"))
+
+        if narrowToIOS {
+            try await fileSystem.writeText(
+                "import ProjectDescription\nlet workspace = Workspace(name: \"PlatformCache\", projects: [\"Phone\"])\n",
+                at: fixture.appending(component: "Workspace.swift")
+            )
+            roots = ["PhoneConsumer"]
+        }
+        Logger.testingLogHandler.flush()
+        try await TuistTest.run(CacheCommand.self, warm + roots)
+        let completed = Logger.testingLogHandler.collected[.info, <=]
+        #expect(completed.contains("Building scheme Binaries-Cache-iOS for device"))
+        #expect(!completed.contains("Building scheme Binaries-Cache-iOS for the simulator"))
+        #expect(try await fileSystem.glob(directory: cache, include: ["action-*/result.pb"]).collect().count == 6)
+        try await TuistTest.run(GenerateCommand.self, generate + roots)
+        try TuistTest.expectLinked("Shared.xcframework", by: "PhoneConsumer", inXcodeProj: project)
+        try TuistTest.expectLinked("Leaf.xcframework", by: "PhoneConsumer", inXcodeProj: project)
+        for destination in ["generic/platform=iOS", "generic/platform=iOS Simulator"] {
+            try await TuistTest.run(XcodeBuildBuildCommand.self, [
+                "-workspace", fixture.appending(component: "PlatformCache.xcworkspace").pathString,
+                "-scheme", "PhoneConsumer", "-destination", destination,
+                "-derivedDataPath", temporaryDirectory.appending(component: "completed-build").pathString,
+                "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO", "CODE_SIGN_IDENTITY=",
+            ])
+        }
+        Logger.testingLogHandler.flush()
+        try await TuistTest.run(CacheCommand.self, warm + roots)
+        #expect(!Logger.testingLogHandler.collected[.info, <=].contains("Building cacheable targets"))
+    }
+
+    // swiftlint:enable function_body_length
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),

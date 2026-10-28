@@ -71,6 +71,9 @@
         )
         var configuration: String?
 
+        @Flag(name: .long, help: "Generate a simulator-only workspace that can use independently warmed simulator slices.")
+        var simulatorOnly: Bool = false
+
         public func run() async throws {
             if !binaryCache {
                 AlertController.current.warning(.alert(
@@ -88,7 +91,8 @@
                 noOpen: !open,
                 configuration: configuration,
                 ignoreBinaryCache: !binaryCache,
-                cacheProfile: cacheProfile
+                cacheProfile: cacheProfile,
+                simulatorOnly: simulatorOnly
             )
         }
     }

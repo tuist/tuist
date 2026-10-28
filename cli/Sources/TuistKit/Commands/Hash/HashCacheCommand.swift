@@ -30,7 +30,10 @@ public struct HashCacheCommand: AsyncParsableCommand, ProjectPathProviding {
     )
     var configuration: String?
 
+    @Flag(name: .long, help: "Also print the simulator and native macOS SDK fingerprints used by simulator-only caching.")
+    var simulatorOnly: Bool = false
+
     public func run() async throws {
-        try await HashCacheCommandService().run(path: path, configuration: configuration)
+        try await HashCacheCommandService().run(path: path, configuration: configuration, simulatorOnly: simulatorOnly)
     }
 }

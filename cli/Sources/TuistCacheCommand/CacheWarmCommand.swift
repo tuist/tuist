@@ -68,6 +68,12 @@
 
         var noUpload: Bool { !upload }
 
+        @Flag(
+            name: .long,
+            help: "Warm only simulator slices for per-SDK cacheable targets. Native macOS tools and exact-target products retain complete caching."
+        )
+        var simulatorOnly: Bool = false
+
         @Option(
             name: .long,
             help: "Cache profile to use for warming. Accepts built-in profiles (\(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", "))) or a custom profile name defined in your Tuist configuration. Applies the same profile-based target filtering as `tuist generate`, including base behavior, targetQueries, and exceptTargetQueries.",
@@ -92,7 +98,7 @@
                     "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
                     takeaway: "Use \(.command("tuist hash cache")) instead."
                 ))
-                try await Extension.hashCacheService.run(path: path, configuration: configuration)
+                try await Extension.hashCacheService.run(path: path, configuration: configuration, simulatorOnly: simulatorOnly)
                 return
             }
 
@@ -111,7 +117,8 @@
                 generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: cacheProfile,
-                scratchDirectory: scratchDirectory
+                scratchDirectory: scratchDirectory,
+                simulatorOnly: simulatorOnly
             )
         }
     }

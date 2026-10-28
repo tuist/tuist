@@ -96,7 +96,8 @@ public struct GenerateService {
         noOpen: Bool,
         configuration: String?,
         ignoreBinaryCache: Bool,
-        cacheProfile: CacheProfileType?
+        cacheProfile: CacheProfileType?,
+        simulatorOnly: Bool = false
     ) async throws {
         let timer = clock.startTimer()
         let path = try await self.path(path)
@@ -158,7 +159,8 @@ public struct GenerateService {
             configuration: configuration,
             cacheProfile: resolvedCacheProfile,
             cacheStorage: cacheStorage,
-            coverage: .resolved(config: config)
+            coverage: .resolved(config: config),
+            sdkSelection: simulatorOnly ? .simulators : .all
         )
         let (workspacePath, _, _) = try await generator.generateWithGraph(
             path: path,
