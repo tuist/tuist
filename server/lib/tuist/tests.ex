@@ -589,7 +589,6 @@ defmodule Tuist.Tests do
       test = %{test | inserted_at: NaiveDateTime.utc_now()}
       test = insert_test_run(test, shard_plan)
 
-      create_run_destinations(test, Map.get(attrs, :run_destinations, []))
       create_run_errors(test, Map.get(attrs, :run_errors, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
@@ -601,7 +600,8 @@ defmodule Tuist.Tests do
           test_modules,
           shard_index,
           shard_plan,
-          Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
+          Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence)),
+          Map.get(attrs, :run_destinations, [])
         )
 
       run_test_followups(test, test_case_runs, shard_plan)
@@ -678,7 +678,7 @@ defmodule Tuist.Tests do
     |> Map.drop(@test_struct_non_field_keys)
   end
 
-  defp create_run_destinations(%Test{id: test_run_id}, destinations) when is_list(destinations) do
+  defp create_run_destinations(%Test{id: test_run_id}, destinations) do
     now = NaiveDateTime.utc_now()
 
     rows =
@@ -696,12 +696,18 @@ defmodule Tuist.Tests do
       |> Enum.filter(&(&1.name && &1.platform && &1.os_version))
 
     case rows do
-      [] -> :ok
-      rows -> Batch.insert_all(TestRunDestination, rows)
-    end
-  end
+      [] ->
+        :ok
 
-  defp create_run_destinations(_, _), do: :ok
+      rows ->
+        Batch.insert_all(TestRunDestination, rows)
+        # Destination metadata must be durable before cases reference it, including
+        # inside immutable batches. Failed writes must not emit case-run evidence.
+        :ok = Batch.flush(TestRunDestination)
+    end
+
+    rows
+  end
 
   defp destination_field(destination, key) when is_atom(key) do
     Map.get(destination, key) || Map.get(destination, Atom.to_string(key))
@@ -858,10 +864,11 @@ defmodule Tuist.Tests do
       {test, test_case_runs, fact_set_id} =
         Batch.run(identity, plan.inserted_at, fn ->
           modules = Map.get(attrs, :test_modules, [])
-          create_run_destinations(test, Map.get(attrs, :run_destinations, []))
           create_run_errors(test, Map.get(attrs, :run_errors, []))
           StressNewTests.insert_candidates(test, stress)
-          {_newly_flaky, runs} = create_test_modules(test, modules, index, plan, %{})
+
+          {_newly_flaky, runs} =
+            create_test_modules(test, modules, index, plan, %{}, Map.get(attrs, :run_destinations, []))
 
           flaky? = test.is_flaky or flaky_run?(test, runs) or (test.is_ci and has_any_flaky_test_case?(modules))
           {%{test | is_flaky: flaky?}, runs, Batch.uuid(:report)}
@@ -978,7 +985,8 @@ defmodule Tuist.Tests do
                 test_modules,
                 shard_index,
                 shard_plan,
-                Coverage.Evidence.test_states(project_id, Map.get(attrs, :coverage_evidence))
+                Coverage.Evidence.test_states(project_id, Map.get(attrs, :coverage_evidence)),
+                Map.get(attrs, :run_destinations, [])
               )
             end
 
@@ -989,11 +997,6 @@ defmodule Tuist.Tests do
           # uniqueness, so an error hit by several shards is deduplicated on
           # read instead of here.
           create_run_errors(merged_test, Map.get(attrs, :run_errors, []))
-
-          # Every shard reports the destination it executed on, so a merged run
-          # that never takes the branch above would carry none at all. Same
-          # concurrency story as the errors: duplicates are collapsed on read.
-          create_run_destinations(merged_test, Map.get(attrs, :run_destinations, []))
 
           insert_shard_run(
             shard_plan_id,
@@ -2156,7 +2159,11 @@ defmodule Tuist.Tests do
 
   # `evidence_states` say, per test, what the report's evidence holds for it
   # (`Coverage.Evidence.test_states/2`), which their runs record.
-  defp create_test_modules(test, test_modules, shard_index, shard_plan, evidence_states) do
+  defp create_test_modules(test, test_modules, shard_index, shard_plan, evidence_states, destinations) do
+    destinations = normalize_run_destinations(destinations)
+    destination_rows = create_run_destinations(test, destinations)
+    destination = report_destination(destinations, destination_rows)
+
     # Resolved once per run and threaded down rather than looked up where each
     # row is built: it decides `is_new` for every test case and
     # `is_default_branch` for every run row, and both used to mean a separate
@@ -2167,7 +2174,7 @@ defmodule Tuist.Tests do
 
     test_case_run_data =
       OpenTelemetry.Tracer.with_span "tests.get_test_case_run_data" do
-        get_test_case_run_data(test, test_modules, project)
+        get_test_case_run_data(test, test_modules, project, destination)
       end
 
     test_case_ids = collect_test_case_ids(test.project_id, test_modules)
@@ -2286,7 +2293,26 @@ defmodule Tuist.Tests do
     :ok
   end
 
-  defp get_test_case_run_data(test, test_modules, project) do
+  defp normalize_run_destinations(destinations) when destinations in [nil, []], do: []
+
+  defp normalize_run_destinations(destinations) when is_list(destinations) do
+    destinations
+    |> Enum.map(fn destination ->
+      Map.new([:platform, :os_version, :name], &{&1, destination_field(destination, &1)})
+    end)
+    |> Enum.uniq()
+  end
+
+  defp normalize_run_destinations(_destinations), do: [%{platform: nil, os_version: nil, name: nil}]
+
+  defp report_destination([destination], [row]) do
+    if Enum.all?(Map.values(destination), &(is_binary(&1) and &1 != "")),
+      do: row
+  end
+
+  defp report_destination(_destinations, _rows), do: nil
+
+  defp get_test_case_run_data(test, test_modules, project, destination) do
     all_test_cases =
       Enum.flat_map(test_modules, fn module_attrs ->
         module_name = Map.get(module_attrs, :name)
@@ -2314,25 +2340,28 @@ defmodule Tuist.Tests do
       end)
 
     {test_case_data, historical_flaky_runs} =
-      check_cross_run_flakiness(test, test_case_data)
+      check_cross_run_flakiness(test, test_case_data, destination)
 
     mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
     test_case_data = check_new_test_cases(test_case_data, project)
 
     Map.new(test_case_data, fn data ->
-      {data.identity_key, Map.take(data, [:status, :is_flaky, :is_new, :is_flakiness_excluded])}
+      {data.identity_key,
+       data
+       |> Map.take([:status, :is_flaky, :is_new, :is_flakiness_excluded])
+       |> Map.put(:test_run_destination_id, destination && destination.id)}
     end)
   end
 
-  defp check_cross_run_flakiness(%{submission_auth: "network_trusted"}, data), do: {data, []}
+  defp check_cross_run_flakiness(%{submission_auth: "network_trusted"}, data, _destination), do: {data, []}
 
-  defp check_cross_run_flakiness(%{is_ci: false}, test_case_data), do: {test_case_data, []}
+  defp check_cross_run_flakiness(%{is_ci: false}, test_case_data, _destination), do: {test_case_data, []}
 
-  defp check_cross_run_flakiness(%{git_commit_sha: commit}, test_case_data) when commit in [nil, ""],
+  defp check_cross_run_flakiness(%{git_commit_sha: commit}, test_case_data, _destination) when commit in [nil, ""],
     do: {test_case_data, []}
 
-  defp check_cross_run_flakiness(test, test_case_data) do
+  defp check_cross_run_flakiness(test, test_case_data, destination) do
     scheme = test.scheme || ""
 
     existing_runs =
@@ -2340,7 +2369,8 @@ defmodule Tuist.Tests do
         Enum.reject(test_case_data, & &1.is_flakiness_excluded),
         test.git_commit_sha,
         test.project_id,
-        scheme
+        scheme,
+        destination
       )
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
@@ -2350,7 +2380,7 @@ defmodule Tuist.Tests do
   end
 
   # A run is flaky only when it is a failure that the same test case also passed
-  # on for the same commit and scheme — a failure that did not reproduce. The
+  # on for the same commit, scheme and destination — a failure that did not reproduce. The
   # passing runs that prove the test can succeed on the commit are left clean, so
   # flaky-run counts and rates reflect the spurious failures rather than every
   # execution of the commit.
@@ -2384,7 +2414,7 @@ defmodule Tuist.Tests do
   # them by `id` held hundreds of MiB per ingestion until it timed out. A run's
   # `status` is in the table's sort key and never changes, so each read stays
   # in range, and passes are only looked up for the test cases that failed now.
-  defp get_existing_ci_runs_for_commit(test_case_data, git_commit_sha, project_id, scheme) do
+  defp get_existing_ci_runs_for_commit(test_case_data, git_commit_sha, project_id, scheme, destination) do
     runs_on_commit =
       from(tcr in TestCaseRunByCommit,
         where: tcr.project_id == ^project_id,
@@ -2396,7 +2426,33 @@ defmodule Tuist.Tests do
     failed_test_case_ids = test_case_ids_with_status(test_case_data, "failure")
     passed_test_case_ids = test_case_ids_with_status(test_case_data, "success")
 
-    {passed_on_commit(runs_on_commit, failed_test_case_ids), failures_on_commit(runs_on_commit, passed_test_case_ids)}
+    {passed_on_commit(runs_on_commit, failed_test_case_ids, destination),
+     failures_on_commit(runs_on_commit, passed_test_case_ids, destination)}
+  end
+
+  defp filter_run_destination(runs, nil) do
+    # Missing, incomplete and multi-destination reports share one unattributed
+    # group. A non-null reference with temporarily unavailable metadata stays out.
+    from(r in runs, where: is_nil(r.test_run_destination_id))
+  end
+
+  defp filter_run_destination(runs, destination) do
+    attributable = from(r in runs, where: not is_nil(r.test_run_destination_id))
+    destination_ids = from(r in attributable, select: r.test_run_destination_id)
+    run_ids = from(r in attributable, select: r.test_run_id)
+
+    matching_destinations =
+      from(d in TestRunDestination,
+        # The run-ID filter uses the destination table's existing sort key;
+        # destination IDs then separate shards and reports sharing that parent.
+        where: d.test_run_id in subquery(run_ids),
+        where: d.id in subquery(destination_ids),
+        where: d.platform == ^destination.platform and d.os_version == ^destination.os_version,
+        where: d.name == ^destination.name,
+        select: d.id
+      )
+
+    from(r in attributable, where: r.test_run_destination_id in subquery(matching_destinations))
   end
 
   defp test_case_ids_with_status(test_case_data, status) do
@@ -2405,14 +2461,15 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp passed_on_commit(_runs_on_commit, []), do: MapSet.new()
+  defp passed_on_commit(_runs_on_commit, [], _destination), do: MapSet.new()
 
-  defp passed_on_commit(runs_on_commit, test_case_ids) do
+  defp passed_on_commit(runs_on_commit, test_case_ids, destination) do
     test_case_ids
     |> all_by_uuid_chunks(fn ids ->
-      from(tcr in runs_on_commit,
-        where: tcr.status == "success",
-        where: tcr.test_case_id in ^ids,
+      candidates =
+        from(tcr in runs_on_commit, where: tcr.status == "success" and tcr.test_case_id in ^ids)
+
+      from(tcr in filter_run_destination(candidates, destination),
         distinct: true,
         select: tcr.test_case_id
       )
@@ -2420,12 +2477,13 @@ defmodule Tuist.Tests do
     |> MapSet.new()
   end
 
-  defp failures_on_commit(runs_on_commit, test_case_ids) do
+  defp failures_on_commit(runs_on_commit, test_case_ids, destination) do
     test_case_ids
     |> all_by_uuid_chunks(fn ids ->
-      from(tcr in runs_on_commit,
-        where: tcr.status == "failure",
-        where: tcr.test_case_id in ^ids,
+      candidates =
+        from(tcr in runs_on_commit, where: tcr.status == "failure" and tcr.test_case_id in ^ids)
+
+      from(tcr in filter_run_destination(candidates, destination),
         group_by: [tcr.id, tcr.test_case_id],
         having: fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at) == false,
         select: %{
@@ -2691,7 +2749,13 @@ defmodule Tuist.Tests do
         identity_key = {case_name, module_name, suite_name}
         test_case_id = Map.get(test_case_id_map, identity_key)
 
-        %{status: status, is_flaky: is_flaky, is_new: is_new, is_flakiness_excluded: is_flakiness_excluded} =
+        %{
+          status: status,
+          is_flaky: is_flaky,
+          is_new: is_new,
+          is_flakiness_excluded: is_flakiness_excluded,
+          test_run_destination_id: destination_id
+        } =
           Map.get(test_case_run_data, identity_key)
 
         test_case_run = %{
@@ -2716,6 +2780,7 @@ defmodule Tuist.Tests do
           is_flaky: is_flaky,
           is_new: is_new,
           is_flakiness_excluded: is_flakiness_excluded,
+          test_run_destination_id: destination_id,
           is_quarantined: Map.get(case_attrs, :is_quarantined, false),
           coverage_evidence: Map.get(evidence_states, identity_key, "none"),
           duration: Map.get(case_attrs, :duration, 0),
@@ -4378,6 +4443,7 @@ defmodule Tuist.Tests do
       status,
       is_flaky,
       is_flakiness_excluded,
+      test_run_destination_id,
       is_new,
       is_quarantined,
       duration,
@@ -4409,6 +4475,7 @@ defmodule Tuist.Tests do
       status,
       true,
       is_flakiness_excluded,
+      test_run_destination_id,
       is_new,
       is_quarantined,
       duration,

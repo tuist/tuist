@@ -40,6 +40,8 @@ defmodule Atlas.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:castore, "~> 1.0.22"},
+      {:certifi, "~> 2.18", override: true},
       {:phoenix, "~> 1.8.4"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
@@ -86,7 +88,7 @@ defmodule Atlas.MixProject do
       {:xlsx_reader, "~> 0.8"},
       {:mimic, "~> 2.0", only: :test},
       {:tidewave, "~> 0.9", only: :dev},
-      {:condukt, github: "tuist/condukt", tag: "1.13.1", override: true},
+      {:condukt, github: "tuist/condukt", tag: "1.13.2", override: true},
       {:mail, "~> 0.5"},
       {:multipart, "~> 0.4"},
       {:oban, "~> 2.19"},

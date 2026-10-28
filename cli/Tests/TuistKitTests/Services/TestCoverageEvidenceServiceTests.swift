@@ -102,6 +102,75 @@ struct TestCoverageEvidenceServiceTests {
         ))
     }
 
+    @Test func addsWhatTheLaunchedAppExecutedToTheTestSuiteAndTargetThatLaunchedIt() {
+        let evidence = TestCoverageEvidenceService.reduce(
+            outputs: [output([
+                .init(
+                    kind: .xctest,
+                    overlapped: false,
+                    module: "AppUITests",
+                    suite: "SearchUITests",
+                    name: "testSearch",
+                    counters: [0: [0]]
+                ),
+            ])],
+            filesByFunction: ["/products/App": ["add": ["/src/SearchUITests.swift"]]],
+            targets: ["AppUITests": ["/src/SearchUITests.swift": IndexSet([3])]],
+            launched: [
+                .init(module: "AppUITests", suite: "SearchUITests", name: "testSearch"): [
+                    "/src/App/Search.swift": IndexSet(integersIn: 10 ... 12),
+                    "/src/App/Shared.swift": IndexSet([1]),
+                ],
+                .init(module: "AppUITests", suite: "SearchUITests", name: ""): ["/src/App/Shared.swift": IndexSet([2])],
+            ]
+        )
+
+        #expect(evidence == TestCoverageEvidence(
+            paths: ["/src/App/Search.swift", "/src/App/Shared.swift", "/src/SearchUITests.swift"],
+            scopes: [
+                .init(
+                    kind: .target, module: "AppUITests", suite: "", name: "", files: [0, 1, 2],
+                    lines: [[10, 12], [1, 2], [3, 3]]
+                ),
+                .init(kind: .suite, module: "AppUITests", suite: "SearchUITests", name: "", files: [1], lines: [[2, 2]]),
+                .init(
+                    kind: .test, module: "AppUITests", suite: "SearchUITests", name: "testSearch()", files: [0, 1, 2],
+                    lines: [[10, 12], [1, 1], []]
+                ),
+            ]
+        ))
+    }
+
+    @Test(.inTemporaryDirectory) func readsAnImageFromADeletedSimulatorCloneOffItsBuildProduct() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = directory.appending(components: "Build", "Products", "Debug-iphonesimulator")
+        let bundle = products.appending(components: "AppUITests-Runner.app", "PlugIns", "AppUITests.xctest")
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+        let product = bundle.appending(component: "AppUITests").pathString
+        FileManager.default.createFile(atPath: product, contents: Data())
+        let installed = directory.pathString
+            + "/XCTestDevices/CLONE/data/Containers/Bundle/Application/UUID/AppUITests-Runner.app/PlugIns/AppUITests.xctest/AppUITests"
+
+        let productsDirectories = [directory.appending(components: "Build", "Products", "Debug").pathString, products.pathString]
+        #expect(TestCoverageEvidenceService.buildProduct(ofInstalledImage: installed, productsDirectories: productsDirectories) ==
+            product)
+        #expect(TestCoverageEvidenceService
+            .buildProduct(ofInstalledImage: product, productsDirectories: productsDirectories) == nil)
+        // Xcode deletes a clone after the run, but not always before the evidence reads it.
+        try FileManager.default.createDirectory(
+            atPath: (installed as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: installed, contents: Data())
+        #expect(TestCoverageEvidenceService.buildProduct(ofInstalledImage: installed, productsDirectories: productsDirectories) ==
+            product)
+        #expect(TestCoverageEvidenceService.buildProduct(
+            ofInstalledImage: "/gone/libFoo.dylib",
+            productsDirectories: productsDirectories
+        ) ==
+            nil)
+    }
+
     @Test func namesATestModuleAfterItsBundle() {
         #expect(TestCoverageEvidenceService
             .testModule(ofImage: "/p/Debug/CoreTests.xctest/Contents/MacOS/CoreTests") == "CoreTests")

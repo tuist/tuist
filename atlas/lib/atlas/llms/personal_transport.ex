@@ -72,6 +72,10 @@ defmodule Atlas.LLMs.PersonalTransport do
         unavailable(conn, 409)
 
       Inference.atlas_role_configured?(:orbit) ->
+        # Personal Codex state belongs only to that account, never the workspace provider.
+        params =
+          update_in(params, ["messages"], &Enum.map(&1, fn message -> Map.delete(message, "reasoning_details") end))
+
         conn
         |> Map.put(:body_params, params)
         |> LocalTransport.call(role: :orbit)

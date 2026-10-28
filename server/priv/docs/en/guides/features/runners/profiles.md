@@ -33,6 +33,8 @@ Runners are available on macOS (Apple silicon, virtualized on the Mac fleet) and
 
 {{runner_linux_shapes_table}}
 
+Every Linux profile supports <.localized_link href="/guides/features/runners#android-emulators">hardware-accelerated Android emulators</.localized_link> through `/dev/kvm`. No separate KVM profile is required.
+
 ### macOS {#macos}
 
 {{runner_macos_shapes_table}}

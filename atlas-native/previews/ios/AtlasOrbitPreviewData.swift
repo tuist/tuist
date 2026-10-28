@@ -6,6 +6,8 @@ import SwiftUI
 final class AtlasOrbitPreviewData: ObservableObject {
     private var sequence = 0
     private var loads = 0
+    private var cached = false
+    private var failedCachedRefresh = false
     private let clock = ContinuousClock()
     private var activityStarted: ContinuousClock.Instant?
     private var followStarted: ContinuousClock.Instant?
@@ -37,10 +39,24 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private let secondPrivateID = "01922cc0-0000-7000-8000-000000000003"
 
     func request(_ action: [String: Any]) async throws -> Data {
-        if action["action"] as? String == "open" { return Data("{\"connection\":\"preview-only\"}".utf8) }
+        if action["action"] as? String == "open" {
+            cached = ProcessInfo.processInfo.arguments.contains("--cached-orbit")
+            guard cached else { return Data("{\"connection\":\"preview-only\"}".utf8) }
+            let initial = try JSONSerialization.jsonObject(with: snapshot())
+            return try JSONSerialization.data(withJSONObject: ["connection": "preview-only", "snapshot": initial])
+        }
         let command = action["command"] as? [String: Any] ?? [:]
         switch command["action"] as? String {
         case "load":
+            if cached {
+                try await Task.sleep(for: .seconds(6))
+                if ProcessInfo.processInfo.arguments.contains("--offline-orbit"),
+                   !failedCachedRefresh || !ProcessInfo.processInfo.arguments.contains("--recover-orbit") {
+                    failedCachedRefresh = true
+                    throw AtlasAuthenticationError(kind: "network", message: "Could not connect securely to Atlas. Try again.")
+                }
+                cached = false
+            }
             listKind = command["kind"] as? String
             if let status = command["status"] as? String { listStatus = status }
             loads += 1
@@ -79,7 +95,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 }
             }
         case "create": select(thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared"))
-        case "leave": select(nil)
+        case "leave":
+            if command["id"] as? String == selected?["id"] as? String { select(nil) }
         case "people":
             let query = command["query"] as? String ?? ""
             mentionCandidates = query.isEmpty || "Alex Morgan".localizedCaseInsensitiveContains(query)
@@ -87,7 +104,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
         case "history":
             if command["older"] as? Bool == true {
                 if ProcessInfo.processInfo.arguments.contains("--delayed-orbit-history") {
-                    try await Task.sleep(for: .seconds(8))
+                    try await Task.sleep(for: .seconds(20))
                 }
                 olderPromptsLoaded = true
             }
@@ -269,6 +286,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
         }
         return try JSONSerialization.data(withJSONObject: [
             "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
+            "cached": cached,
             "threads": threads.filter { (listKind == nil || $0["kind"] as? String == listKind) && $0["status"] as? String == listStatus },
             "status_filter": listStatus,
             "selection_id": selected?["id"] as Any? ?? NSNull(),

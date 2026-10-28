@@ -51,6 +51,9 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      sandbox_template_image_tag:
+        description: Published sandbox template tag; omit to build on a fresh deploy or preserve the live template on a server-only rollback
+        required: false
       staging_platform_revision:
         description: Restore an existing staging platform Helm revision instead of applying this commit's platform chart
         required: false
@@ -105,7 +108,15 @@ on:
         type: boolean
         default: true
   workflow_call:
+    outputs:
+      linux_runner_image:
+        description: Intended Linux runner image before per-pool staging holds
+        value: ${{ jobs.deploy.outputs.linux_runner_image }}
     inputs:
+      sandbox_template_image_tag:
+        description: Published sandbox template tag; fresh deploys build it, pre-built server deploys preserve the live template when unset
+        required: false
+        type: string
       staging_platform_revision:
         description: Existing staging platform Helm revision to restore and retain for this deployment
         required: false
@@ -298,6 +309,14 @@ jobs:
 
           echo "Production deploy is running from refs/heads/main."
 
+  build-sandbox-template:
+    name: Publish sandbox template
+    needs: guard_production_source
+    if: needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.sandbox_template_image_tag == ''
+    uses: ./.github/workflows/sandbox-image.yml
+    with:
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+
   build:
     name: Build + push server
     needs: guard_production_source
@@ -466,6 +485,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
           build-args: ${{ matrix.build-args }}
@@ -855,8 +875,10 @@ jobs:
           mise -C infra run --skip-tools k8s:install-platform "$KUBECONFIG" "$CLUSTER_NAME"
 
   deploy:
+    outputs:
+      linux_runner_image: ${{ steps.deploy-chart.outputs.linux_runner_image }}
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, build-images, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
+    needs: [build, build-images, build-sandbox-template, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `build-kura-runtime` is skipped on canary/production and on staging
     # re-rolls of a prebuilt image; when it does run (staging fresh build) the
@@ -878,7 +900,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-sandbox-template.result == 'success' || needs.build-sandbox-template.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -906,6 +928,7 @@ jobs:
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
       SERVER_IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
       CODEBASE_SEARCH_IMAGE_TAG: ${{ inputs.codebase_search_image_tag != '' && inputs.codebase_search_image_tag || needs.build.outputs.codebase_search_image_tag }}
+      SANDBOX_TEMPLATE_IMAGE_TAG: ${{ inputs.sandbox_template_image_tag || needs.build-sandbox-template.outputs.image_tag }}
       REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
       KURA_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.kura_controller_image_tag }}
@@ -1051,7 +1074,7 @@ jobs:
           fi
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "--locked helm kubectl yq"
           cache: "false"
       - uses: 1password/install-cli-action@v4
         with:
@@ -1361,6 +1384,7 @@ jobs:
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
       - name: helm upgrade --install
+        id: deploy-chart
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
         # TUIST_CLICKHOUSE_URL / TUIST_S3_* from priv/secrets/<env>.yml.enc
@@ -1467,8 +1491,12 @@ jobs:
             linux_runner_image_version="${LINUX_RUNNER_IMAGE_VERSION:-}"
           fi
           if [ -n "$linux_runner_image_version" ]; then
+            # Resolve manual pins too. The pool identity is content, so a new
+            # release tag serving the same manifest cannot churn idle runners.
+            linux_runner_image_digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "$linux_runner_image_version")"
+            echo "linux_runner_image=ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}" >> "$GITHUB_OUTPUT"
             add_set "runnersFleetLinux.shapeRunnerImage" \
-              "ghcr.io/tuist/tuist-linux-runner:${linux_runner_image_version}"
+              "ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}"
           fi
 
           helm_values_args=(
@@ -1553,6 +1581,16 @@ jobs:
             main_renders_xcresult_processor=true
           else
             main_renders_xcresult_processor=false
+          fi
+          # Read identity from the rendered chart rather than assuming its namespace
+          # or resource prefix. Explicit/published tags win; server-only re-promotions
+          # retain the live template instead of reverting to the values-file pin.
+          sandbox_namespace=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .metadata.namespace' "$registry_render")
+          if [ -n "$sandbox_namespace" ]; then
+            sandbox_name=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .metadata.name' "$registry_render")
+            sandbox_image=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .spec.template.spec.initContainers[] | select(.name == "template") | .image' "$registry_render")
+            sandbox_tag=$(bash .github/scripts/sandbox-template-tag.sh "$sandbox_namespace" "$sandbox_name" "$sandbox_image" "$SANDBOX_TEMPLATE_IMAGE_TAG")
+            add_set "sandboxes.templateImage.tag" "$sandbox_tag"
           fi
           rm -f "$registry_render"
           echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
@@ -1793,6 +1831,44 @@ jobs:
           else
             echo "Namespace $NAMESPACE does not exist yet; skipping the preflight for this first install."
             echo "::endgroup::"
+          fi
+
+          # Prepare KVM without switching existing pools until every available
+          # Linux host has the kernel and enough device allocations. Uses the
+          # same resolved images and values as the final release below.
+          if [ -f .github/scripts/runner-kvm-prepare.sh ] || [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
+            kvm_render="$(mktemp)"
+            helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+              --namespace "$NAMESPACE" \
+              "${helm_values_args[@]}" \
+              --set server.image.tag="$IMAGE_TAG" \
+              --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+              --set registry.image.tag="$registry_image_tag" \
+              --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+              "${image_sets[@]}" | yq -o=json -I=0 'select(.kind != null)' | jq -s . > "$kvm_render"
+            if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
+              bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+            fi
+            # Canary must qualify the candidate in this deployment, so wait for
+            # preparation and fail closed. Other environments retain background
+            # staging with per-pool holds and the existing warning-only fallback.
+            if [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
+              linux_staging_values="$(mktemp)"
+              export LINUX_IMAGE_STAGING_WAIT_SECONDS=0
+              if [ "$TARGET_ENVIRONMENT" = "canary" ]; then
+                export LINUX_IMAGE_STAGING_WAIT_SECONDS=300
+              fi
+              if ! bash .github/scripts/linux-runner-image-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE" > "$linux_staging_values"; then
+                if [ "$TARGET_ENVIRONMENT" = "canary" ]; then
+                  echo '::error::Cannot qualify the candidate Linux image; stopping before the Helm upgrade.'
+                  exit 1
+                fi
+                echo '::warning::Could not check Linux image staging; moving pools to the requested images.'
+                echo '{"runnersFleetLinux":{"imageHolds":{}}}' > "$linux_staging_values"
+              fi
+              helm_values_args+=(-f "$linux_staging_values")
+            fi
+            rm -f "$kvm_render"
           fi
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \

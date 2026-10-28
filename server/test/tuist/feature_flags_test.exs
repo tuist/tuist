@@ -8,6 +8,54 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  describe "runner_docker_cache_enabled?/1" do
+    test "canary qualification does not depend on a database flag" do
+      stub(Environment, :env, fn -> :can end)
+      reject(FunWithFlags, :enabled?, 2)
+
+      assert FeatureFlags.runner_docker_cache_enabled?(%Account{id: 42})
+    end
+
+    test "production still requires the account or global rollout flag" do
+      account = %Account{id: 42}
+      stub(Environment, :env, fn -> :prod end)
+
+      for enabled <- [false, true] do
+        expect(FunWithFlags, :enabled?, fn :runner_docker_cache, [for: ^account] -> enabled end)
+        assert FeatureFlags.runner_docker_cache_enabled?(account) == enabled
+      end
+    end
+
+    test "development, test and staging retain their enabled default" do
+      reject(FunWithFlags, :enabled?, 2)
+
+      for env <- [:dev, :test, :stag] do
+        stub(Environment, :env, fn -> env end)
+        assert FeatureFlags.runner_docker_cache_enabled?(%Account{id: 42})
+      end
+    end
+
+    test "production account opt-outs override a global rollout" do
+      account = %Account{id: 42}
+
+      flag = %FunWithFlags.Flag{
+        name: :runner_docker_cache,
+        gates: [
+          %FunWithFlags.Gate{type: :boolean, enabled: true},
+          %FunWithFlags.Gate{type: :actor, for: "account:42", enabled: false}
+        ]
+      }
+
+      stub(Environment, :env, fn -> :prod end)
+
+      expect(FunWithFlags, :enabled?, fn :runner_docker_cache, [for: ^account] ->
+        FunWithFlags.Flag.enabled?(flag, for: account)
+      end)
+
+      refute FeatureFlags.runner_docker_cache_enabled?(account)
+    end
+  end
+
   describe "immutable_shard_reports_enabled?/1" do
     test "coverage-enabled accounts cannot create immutable plans" do
       account = %Account{id: 42, name: "tuist"}

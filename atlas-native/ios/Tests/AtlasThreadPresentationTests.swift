@@ -259,6 +259,21 @@ struct AtlasThreadPresentationTests {
 }
 
 extension AtlasThreadPresentationTests {
+    @Test func attachmentPreviewsPreserveBytesInPrivateTemporaryFiles() throws {
+        let data = Data([0x31, 0x00, 0xff, 0x72])
+        let file = try AtlasAttachmentFile.preview(data, filename: "report.txt")
+        let directory = file.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        #expect(file.lastPathComponent == "report.txt")
+        #expect(try Data(contentsOf: file) == data)
+        #if os(macOS)
+        let directoryAttributes = try FileManager.default.attributesOfItem(atPath: directory.path)
+        let fileAttributes = try FileManager.default.attributesOfItem(atPath: file.path)
+        #expect((directoryAttributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
+        #expect((fileAttributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+        #endif
+    }
+
     @Test func bottomFollowingSurvivesLayoutCorrectionsButStopsForUserHistoryScrolling() {
         let state = AtlasThreadScrollState()
         let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }

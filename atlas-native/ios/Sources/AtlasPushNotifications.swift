@@ -1,6 +1,10 @@
 import Foundation
 import SwiftUI
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 import UserNotifications
 
 enum AtlasPushActions {
@@ -37,25 +41,23 @@ enum AtlasPushPayload {
 }
 
 @MainActor
-final class AtlasPushDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, ObservableObject {
+final class AtlasPushDelegate: NSObject, UNUserNotificationCenterDelegate, ObservableObject {
     @Published var token: String?
     @Published var destination: URL?
     @Published var registrationFailed = false
+    #if os(macOS)
+    var openWorkspace: (() -> Void)?
+    #endif
 
-    func application(_: UIApplication, didFinishLaunchingWithOptions _: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+    fileprivate func configureNotificationCenter() {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         center.setNotificationCategories([AtlasPushActions.orbitCompletedCategory])
-        return true
     }
 
-    func application(_: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    fileprivate func registered(_ deviceToken: Data) {
         token = deviceToken.map { String(format: "%02x", $0) }.joined()
         registrationFailed = false
-    }
-
-    func application(_: UIApplication, didFailToRegisterForRemoteNotificationsWithError _: Error) {
-        registrationFailed = true
     }
 
     nonisolated func userNotificationCenter(
@@ -67,7 +69,13 @@ final class AtlasPushDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
             content.userInfo, actionIdentifier: response.actionIdentifier, categoryIdentifier: content.categoryIdentifier
         )
         Task { @MainActor in
-            if let url { self.destination = url }
+            if let url {
+                self.destination = url
+                #if os(macOS)
+                self.openWorkspace?()
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                #endif
+            }
             completionHandler()
         }
     }
@@ -80,6 +88,37 @@ final class AtlasPushDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         completionHandler([])
     }
 }
+
+#if os(iOS)
+extension AtlasPushDelegate: UIApplicationDelegate {
+    func application(_: UIApplication, didFinishLaunchingWithOptions _: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        configureNotificationCenter()
+        return true
+    }
+
+    func application(_: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        registered(deviceToken)
+    }
+
+    func application(_: UIApplication, didFailToRegisterForRemoteNotificationsWithError _: Error) {
+        registrationFailed = true
+    }
+}
+#else
+extension AtlasPushDelegate: NSApplicationDelegate {
+    func applicationWillFinishLaunching(_: Notification) {
+        configureNotificationCenter()
+    }
+
+    func application(_: NSApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        registered(deviceToken)
+    }
+
+    func application(_: NSApplication, didFailToRegisterForRemoteNotificationsWithError _: Error) {
+        registrationFailed = true
+    }
+}
+#endif
 
 struct AtlasPushRegistration: Codable {
     var installationID: String
@@ -134,9 +173,11 @@ final class AtlasPushNotifications: ObservableObject {
     private var waiters: [CheckedContinuation<Void, Never>] = []
     private var generation = UUID()
     private let store: AtlasPushRegistrationStore
+    private let system: AtlasPushSystem
 
-    init(store: AtlasPushRegistrationStore = AtlasPushRegistrationStore()) {
+    init(store: AtlasPushRegistrationStore = AtlasPushRegistrationStore(), system: AtlasPushSystem? = nil) {
         self.store = store
+        self.system = system ?? .current
     }
 
     func configure(server: URL?, request: Request?) async {
@@ -162,23 +203,23 @@ final class AtlasPushNotifications: ObservableObject {
         } catch {
             if generation == identity { message = "Could not reconcile notification registration. Try again when connected." }
         }
-        if enabled, generation == identity { UIApplication.shared.registerForRemoteNotifications() }
+        if enabled, generation == identity, system.environment() != nil { system.register() }
     }
 
     func enable() async {
         await acquire()
         defer { release() }
         guard let server, let request else { return }
-        guard environment != nil else {
+        guard let environment = system.environment() else {
             message = "Push notifications are not configured in this signed build."
             return
         }
         let identity = generation
         do {
-            let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
+            let granted = try await system.requestAuthorization()
             guard generation == identity else { return }
             guard granted else {
-                message = "Allow notifications for Atlas in iOS Settings to enable alerts."
+                message = "Allow notifications for Atlas in \(AtlasPushSystem.settingsName) to enable alerts."
                 return
             }
             if let old = try store.load(origin: server.absoluteString), !old.enabled {
@@ -193,27 +234,30 @@ final class AtlasPushNotifications: ObservableObject {
             }
             enabled = true
             message = nil
-            UIApplication.shared.registerForRemoteNotifications()
+            system.register()
+            if let token, let saved = try store.load(origin: server.absoluteString) {
+                await sync(saved, request: request, token: token, environment: environment, identity: identity)
+            }
         } catch {
             if generation == identity { message = "Could not enable notifications. Try again." }
         }
     }
 
     func refresh(token: String? = nil) async {
-        if let token { self.token = token } else if enabled { UIApplication.shared.registerForRemoteNotifications() }
+        if let token { self.token = token } else if enabled, system.environment() != nil { system.register() }
         await acquire()
         defer { release() }
-        guard enabled, let server, let request, let environment,
+        guard enabled, let server, let request, let environment = system.environment(),
               let saved = try? store.load(origin: server.absoluteString), saved.enabled else { return }
         let identity = generation
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        let status = await system.authorizationStatus()
         guard generation == identity else { return }
-        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+        guard status == .authorized || status == .provisional else {
             await disableLocked()
             return
         }
         guard let token = self.token else {
-            UIApplication.shared.registerForRemoteNotifications()
+            system.register()
             return
         }
         await sync(saved, request: request, token: token, environment: environment, identity: identity)
@@ -234,19 +278,19 @@ final class AtlasPushNotifications: ObservableObject {
         request = nil
         server = nil
         token = nil
-        UIApplication.shared.unregisterForRemoteNotifications()
-        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+        system.unregister()
+        system.clearNotifications()
     }
 
     func registrationFailed() {
-        if enabled { message = "iOS could not register for notifications. Check your connection and signed build." }
+        let platform = AtlasPushSystem.platform == "macos" ? "macOS" : "iOS"
+        if enabled { message = "\(platform) could not register for notifications. Check your connection and signed build." }
     }
 
     private func disableLocked() async {
         enabled = false
-        UIApplication.shared.unregisterForRemoteNotifications()
-        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
-        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        system.unregister()
+        system.clearNotifications()
         guard let server else { return }
         let identity = generation
         do {
@@ -296,15 +340,8 @@ final class AtlasPushNotifications: ObservableObject {
     }
 
     private func registrationAction(_ saved: AtlasPushRegistration, token: String, environment: String) -> [String: Any] {
-        ["action": "register", "installation_id": saved.installationID, "platform": "ios", "token": token, "environment": environment]
-    }
-
-    private var environment: String? {
-        switch Bundle.main.object(forInfoDictionaryKey: "AtlasPushEnvironment") as? String {
-        case "development": "sandbox"
-        case "production": "production"
-        default: nil
-        }
+        ["action": "register", "installation_id": saved.installationID, "platform": AtlasPushSystem.platform,
+         "token": token, "environment": environment]
     }
 
     private func acquire() async {
@@ -313,22 +350,5 @@ final class AtlasPushNotifications: ObservableObject {
 
     private func release() {
         if waiters.isEmpty { busy = false } else { waiters.removeFirst().resume() }
-    }
-}
-
-struct AtlasPushSettingsView: View {
-    @ObservedObject var notifications: AtlasPushNotifications
-
-    var body: some View {
-        Section {
-            Toggle("Push notifications", isOn: Binding(
-                get: { notifications.enabled },
-                set: { enabled in Task { if enabled { await notifications.enable() } else { await notifications.disable() } } }
-            )).disabled(notifications.busy)
-            if let message = notifications.message { Text(message).font(.footnote).foregroundStyle(.secondary) }
-        } footer: {
-            Text("Get notified when Pip finishes. Alerts include the thread title and a short reply preview. "
-                 + "Control lock-screen previews in iOS Settings.")
-        }
     }
 }

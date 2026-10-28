@@ -51,6 +51,7 @@ The image fetches one exact public Tuist revision during the build and removes G
 
 ```bash
 docker build \
+  --build-context certificate-trust=infra/certificate-trust \
   --build-arg TUIST_REVISION="$(git rev-parse HEAD)" \
   --tag tuist-codebase-search \
   codebase-search
