@@ -72,6 +72,26 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     assert response(request(conn), 401)
   end
 
+  test "marks only explicit admission refusals as retryable", %{conn: conn, integration: integration} do
+    identity(integration)
+
+    for {reason, status, hint} <- [
+          {:no_capacity, 503, ["admission"]},
+          {:sandbox_concurrency_limit, 429, ["admission"]},
+          {:sandbox_account_busy, 409, ["admission"]},
+          {:locked, 409, ["admission"]},
+          {:orb_bootstrap_failed, 503, []},
+          {:timeout, 503, []},
+          {:node_disconnected, 503, []},
+          {:unauthorized, 403, []}
+        ] do
+      expect(Tuist.Sandboxes, :dispatch_amp_orb, fn _, _, _ -> {:error, reason} end)
+      result = request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture"})
+      assert response(result, status)
+      assert get_resp_header(result, "x-tuist-orb-retry") == hint
+    end
+  end
+
   test "rejects another namespace", %{conn: conn, integration: integration} do
     identity(integration, "another-environment")
     assert response(request(conn), 401)

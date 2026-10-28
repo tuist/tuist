@@ -30,10 +30,19 @@ defmodule TuistWeb.AmpOrbsController do
           send_resp(conn, :forbidden, "Provider is not authorized")
 
         {:error, :sandbox_concurrency_limit} ->
-          send_resp(conn, :too_many_requests, "Account sandbox CPU or memory limit reached")
+          conn
+          |> put_resp_header("x-tuist-orb-retry", "admission")
+          |> send_resp(:too_many_requests, "Account sandbox CPU or memory limit reached")
 
         {:error, reason} when reason in [:locked, :sandbox_account_busy] ->
-          send_resp(conn, :conflict, "Provider operation already in progress")
+          conn
+          |> put_resp_header("x-tuist-orb-retry", "admission")
+          |> send_resp(:conflict, "Provider operation already in progress")
+
+        {:error, :no_capacity} ->
+          conn
+          |> put_resp_header("x-tuist-orb-retry", "admission")
+          |> send_resp(:service_unavailable, "No sandbox capacity available")
 
         _ ->
           send_resp(conn, :service_unavailable, "Orb operation could not complete")

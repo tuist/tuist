@@ -203,6 +203,9 @@ defmodule TuistWeb.API.SandboxesController do
         {:error, :orb_bootstrap_failed} ->
           conn |> put_status(:bad_gateway) |> json(%{message: "Orb bootstrap failed. Check the sandbox image."})
 
+        {:error, reason} when reason in [:no_capacity, :sandbox_concurrency_limit, :sandbox_account_busy, :locked] ->
+          conn |> put_resp_header("x-tuist-orb-retry", "admission") |> sandbox_error(reason)
+
         {:error, reason} ->
           sandbox_error(conn, reason)
       end
