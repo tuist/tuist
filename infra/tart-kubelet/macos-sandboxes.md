@@ -45,6 +45,10 @@ the current control Pod UID. Unknown or stale demand denies new native work.
 Each grant specifies CPU, RAM and VM slots remaining after non-reclaimable CI
 reservations. Placement subtracts existing native reservations from that allowance,
 so a host occupied by CI is not selected just because its queue is empty.
+The kubelet refreshes host memory and process pressure on each heartbeat. macOS
+memory warning/critical levels and a process table at least 90% full report
+pressure; failed probes report `Unknown` and deny native admission. This also
+recovers conditions left `Unknown` by Kubernetes after a kubelet heartbeat gap.
 Idle warm CI runners can yield to a pending sandbox reservation; active CI jobs
 are never selected for this preemption.
 
