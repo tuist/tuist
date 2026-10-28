@@ -22,6 +22,10 @@ on:
         description: Run only the disposable fscrypt experiment, without publishing images
         type: boolean
         default: false
+      fscrypt_profile:
+        description: Profile one cache run per layout instead of the repeated benchmark and fio suite
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -134,10 +138,19 @@ jobs:
           make -C /tmp/fscryptctl fscryptctl
           sudo install /tmp/fscryptctl/fscryptctl /usr/local/bin/fscryptctl
       - name: Qualify encrypted shared filesystem and compare layouts
+        env:
+          FSCRYPT_PROFILE: ${{ inputs.fscrypt_profile }}
         run: |
+          profile_tool=""
+          if [ "$FSCRYPT_PROFILE" = "true" ]; then
+            sudo apt-get install -y linux-tools-generic
+            profile_tool=$(find /usr/lib/linux-tools -type f -name perf | sort -V | tail -1)
+            test -x "$profile_tool"
+            sudo sysctl -w kernel.perf_event_paranoid=1 kernel.kptr_restrict=0
+          fi
           # The unprivileged runner intentionally owns the report artifact.
           # shellcheck disable=SC2024
-          sudo env KURA_FSCRYPT_DISPOSABLE_VM=1 KURA_FSCRYPT_CACHE_BENCH=/tmp/kura-fscrypt-cache-bench KURA_FSCRYPT_ALLOCATOR_TEST=/tmp/kura-fscrypt-allocator.test ruby infra/kura-volumes-csi/fscrypt/stack_test.rb > /tmp/kura-fscrypt-stack.json
+          sudo env KURA_FSCRYPT_PERF="$profile_tool" KURA_FSCRYPT_DISPOSABLE_VM=1 KURA_FSCRYPT_CACHE_BENCH=/tmp/kura-fscrypt-cache-bench KURA_FSCRYPT_ALLOCATOR_TEST=/tmp/kura-fscrypt-allocator.test ruby infra/kura-volumes-csi/fscrypt/stack_test.rb > /tmp/kura-fscrypt-stack.json
       - name: Preserve disposable VM kernel diagnostics
         if: failure()
         run: sudo dmesg | tail -100

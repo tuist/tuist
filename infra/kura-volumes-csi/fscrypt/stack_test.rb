@@ -9,6 +9,7 @@ require 'digest'
 require 'openssl'
 require 'base64'
 require 'net/http'
+require 'timeout'
 
 abort 'requires a disposable Linux VM, root and KURA_FSCRYPT_DISPOSABLE_VM=1' unless
   RUBY_PLATFORM.include?('linux') && Process.uid.zero? && ENV['KURA_FSCRYPT_DISPOSABLE_VM'] == '1'
@@ -225,6 +226,7 @@ class FscryptFixture
       run(@helper, 'set', devices[name], projects[name], (2048*MIB).to_s, '65536')
     end
     cache_benchmarks(layouts, devices, projects) if ENV['KURA_FSCRYPT_CACHE_BENCH']
+    return if ENV['KURA_FSCRYPT_PERF'] && !ENV['KURA_FSCRYPT_PERF'].empty?
     layouts.each_key { |name| run(@helper, 'set', devices[name], projects[name], (2048*MIB).to_s, '65536') }
     order = %w[xfs ext4 fscrypt thick thin thin thick fscrypt ext4 xfs]
     order.each_with_index do |layout, round|
@@ -284,7 +286,11 @@ class FscryptFixture
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: 'qualification'}
     File.write(env_file, env.map { |k,v| "#{k}=#{v}" }.join("\n")+"\n", mode: 'w', perm: 0600)
     @result[:cache_benchmarks] = []
-    %w[xfs ext4 fscrypt thin thin fscrypt ext4 xfs].each_with_index do |layout, round|
+    perf = ENV['KURA_FSCRYPT_PERF']
+    profiling = perf && !perf.empty?
+    @result[:profile_tool] = run(perf, '--version').strip if profiling
+    order = profiling ? %w[xfs ext4 fscrypt thin] : %w[xfs ext4 fscrypt thin thin fscrypt ext4 xfs]
+    order.each_with_index do |layout, round|
       run(@helper, 'set', devices[layout], projects[layout], (6144*MIB).to_s, '65536')
       path = File.join(layouts[layout], 'cache-run')
       Dir.mkdir(path)
@@ -311,9 +317,17 @@ class FscryptFixture
         raise "runtime not ready: #{run('docker', 'logs', name)}" if Process.clock_gettime(Process::CLOCK_MONOTONIC)>deadline
         sleep 1
       end
-      warn "BENCH cache #{round+1}/8 #{layout}"
-      stats = -> { run('docker', 'exec', name, 'sh', '-c', 'cat /sys/fs/cgroup/cpu.stat /sys/fs/cgroup/memory.events /sys/fs/cgroup/memory.peak') }
+      warn "BENCH cache #{round+1}/#{order.size} #{layout}"
+      stats = -> { run('docker', 'exec', name, 'sh', '-c', 'cat /sys/fs/cgroup/cpu.stat /sys/fs/cgroup/memory.events /sys/fs/cgroup/io.stat /sys/fs/cgroup/memory.peak') }
       before = stats.call
+      if profiling
+        @profile_data = File.join(@root, 'cpu-profile.data')
+        @profile_log = File.join(@root, 'cpu-profile.log')
+        pid = Integer(run('docker', 'inspect', '--format', '{{.State.Pid}}', name).strip)
+        raise 'invalid fixture PID' unless pid > 1
+        @profiler = Process.spawn(perf, 'record', '-F', '99', '-e', 'cpu-clock', '-g', '-p', pid.to_s,
+          '-o', @profile_data, out: @profile_log, err: [:child, :out])
+      end
       output = File.join(@root, "cache-#{round}.json")
       run(executable, '-base', endpoint, '-token-file', token_file, '-account', 'default', '-out', output)
       metrics = JSON.parse(File.read(output))
@@ -325,6 +339,14 @@ class FscryptFixture
       working_metrics = JSON.parse(File.read(working))
       check('working set larger than memory passed', working_metrics.all? { |m| m.fetch('failures') == 0 })
       @result[:cache_benchmarks].last[:working_set] = working_metrics
+      if profiling
+        raise "profiler failed: #{File.read(@profile_log)}" unless stop_profile
+        @result[:cache_benchmarks].last[:cpu_profile] = run(perf, 'report', '--stdio', '--no-children',
+          '--percent-limit', '1', '-i', @profile_data)
+        @result[:cache_benchmarks].last[:profile_log] = File.read(@profile_log)
+        File.unlink(@profile_data)
+        File.unlink(@profile_log)
+      end
       run('docker', 'stop', '-t', '30', name)
       run('docker', 'rm', name)
       @container = nil
@@ -333,8 +355,25 @@ class FscryptFixture
       run('fstrim', layouts[layout]) if layout == 'thin'
     end
   end
+  def stop_profile
+    return true unless @profiler
+    begin
+      Process.kill('INT', @profiler)
+    rescue Errno::ESRCH
+      # Reap an already-exited profiler and report its actual status below.
+    end
+    Timeout.timeout(10) { Process.wait(@profiler) }
+    $?.success?
+  rescue Timeout::Error
+    Process.kill('KILL', @profiler)
+    Process.wait(@profiler)
+    false
+  ensure
+    @profiler = nil
+  end
   def cleanup
     safe = true
+    safe = stop_profile && safe if @profiler
     safe = cmd('docker', 'rm', '-f', @container, failure: true)[2] && safe if @container
     @mounts.reverse_each { |m| safe = cmd('umount', m, failure: true)[2] && safe }
     (@mappers || []).reverse_each { |m| safe = cmd('cryptsetup', 'close', m, failure: true)[2] && safe } if safe
