@@ -473,6 +473,80 @@
       </.card_section>
     </.card>
 
+    <.card
+      :if={@selection_run}
+      title={dgettext("dashboard_tests", "Selected by coverage")}
+      icon="filter"
+      data-part="test-selection-card"
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "View selection")}
+          variant="secondary"
+          size="small"
+          navigate={
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection/runs/#{@selection_run.id}"
+          }
+        />
+      </:actions>
+      <.card_section data-part="test-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Mode")}</div>
+              <.badge
+                label={TuistWeb.TestSelection.Components.mode_label(@selection_run.mode)}
+                color={TuistWeb.TestSelection.Components.mode_color(@selection_run.mode)}
+                style="light-fill"
+                size="large"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Baseline")}</div>
+              <span :if={@selection_run.baseline_sha != ""} data-part="value">
+                {String.slice(@selection_run.baseline_sha, 0, 7)}
+              </span>
+              <.badge
+                :if={@selection_run.fallback_reason != ""}
+                label={
+                  dgettext("dashboard_tests", "Ran everything: %{reason}",
+                    reason:
+                      TuistWeb.TestSelection.Components.fallback_label(
+                        @selection_run.fallback_reason
+                      )
+                  )
+                }
+                color="warning"
+                style="light-fill"
+                size="large"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Ran")}</div>
+              <span data-part="value">
+                {dgettext("dashboard_tests", "%{selected} of %{requested} tests",
+                  selected: @selection_run.selected_count,
+                  requested: @selection_run.requested_count
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">
+                {if @selection_run.mode == "dry_run",
+                  do: dgettext("dashboard_tests", "Misses"),
+                  else: dgettext("dashboard_tests", "Skipped")}
+              </div>
+              <span data-part="value">
+                {if @selection_run.mode == "dry_run",
+                  do: @selection_run.missed_count,
+                  else: @selection_run.skipped_count}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
     <.ci_context_card
       :if={@ci_context}
       context={@ci_context}
