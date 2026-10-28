@@ -5,7 +5,7 @@ on:
     paths:
       - .github/scripts/runners-acceptance/**
       - .github/workflows/runners-acceptance*.yml
-      - .github/workflows/runners-docker-cache-probe.yml
+      - .github/workflows/runners-docker-cache-*.yml
       - .github/scripts/docker-build-cache-benchmark.sh
       - .github/workflows/server-production-deployment.yml
       - .github/workflows/server-deployment.yml
@@ -14,7 +14,7 @@ on:
     paths:
       - .github/scripts/runners-acceptance/**
       - .github/workflows/runners-acceptance*.yml
-      - .github/workflows/runners-docker-cache-probe.yml
+      - .github/workflows/runners-docker-cache-*.yml
       - .github/scripts/docker-build-cache-benchmark.sh
       - .github/workflows/server-production-deployment.yml
       - .github/workflows/server-deployment.yml

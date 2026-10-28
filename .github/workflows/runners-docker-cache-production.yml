@@ -1,0 +1,91 @@
+name: Production Docker Cache Qualification
+
+# Explicit validation only: this workflow never enables caching or deploys.
+# First authorize one pool and the test account through the rollout runbook.
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Production Linux profile on the explicitly enabled pool
+        required: true
+        type: string
+      expected_linux_image:
+        description: Qualified ghcr.io/tuist/tuist-linux-runner@sha256 digest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Serialize experiments because both drivers publish whole-state databases.
+concurrency:
+  group: production-docker-cache-qualification
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate qualification inputs
+        env:
+          SOURCE_REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPOSITORY: ${{ github.repository }}
+          RUNNER_LABEL: ${{ inputs.runner_label }}
+          EXPECTED_LINUX_IMAGE: ${{ inputs.expected_linux_image }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          # Publishing requires a trusted default-branch run. Re-running a
+          # subset would give it a different experiment key; start a fresh run.
+          test "$REPOSITORY" = tuist/tuist
+          test "$SOURCE_REF" = "refs/heads/$DEFAULT_BRANCH"
+          test "$RUN_ATTEMPT" = 1
+          [[ "$RUNNER_LABEL" =~ ^tuist-linux(-[a-z0-9]+)*$ ]]
+          [[ "$EXPECTED_LINUX_IMAGE" =~ ^ghcr\.io/tuist/tuist-linux-runner@sha256:[a-f0-9]{64}$ ]]
+
+  cold:
+    needs: validate
+    uses: ./.github/workflows/runners-docker-cache-probe.yml
+    with:
+      phase: cold
+      runner_label: ${{ inputs.runner_label }}
+      expected_linux_image: ${{ inputs.expected_linux_image }}
+      environment_name: production
+
+  warm-layers:
+    needs: [validate, cold]
+    uses: ./.github/workflows/runners-docker-cache-probe.yml
+    with:
+      phase: warm-layers
+      runner_label: ${{ inputs.runner_label }}
+      expected_linux_image: ${{ inputs.expected_linux_image }}
+      environment_name: production
+
+  changed-source:
+    needs: [validate, warm-layers]
+    uses: ./.github/workflows/runners-docker-cache-probe.yml
+    with:
+      phase: changed-source
+      runner_label: ${{ inputs.runner_label }}
+      expected_linux_image: ${{ inputs.expected_linux_image }}
+      environment_name: production
+
+  same-size-write:
+    needs: [validate, changed-source]
+    uses: ./.github/workflows/runners-docker-cache-probe.yml
+    with:
+      phase: same-size-write
+      runner_label: ${{ inputs.runner_label }}
+      expected_linux_image: ${{ inputs.expected_linux_image }}
+      environment_name: production
+
+  verify-final:
+    needs: [validate, same-size-write]
+    uses: ./.github/workflows/runners-docker-cache-probe.yml
+    with:
+      phase: verify-final
+      runner_label: ${{ inputs.runner_label }}
+      expected_linux_image: ${{ inputs.expected_linux_image }}
+      environment_name: production

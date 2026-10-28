@@ -218,6 +218,74 @@ test('probe rejects an older candidate image before any build', () => {
   assert.match(result.stdout, /Acceptance ran on candidate@sha256:old, expected candidate@sha256:new/);
 });
 
+const productionQualification = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/runners-docker-cache-production.yml'), 'utf8'));
+
+test('production qualification is manual and stops the five-phase chain on failure', () => {
+  assert.deepEqual(Object.keys(productionQualification.on), ['workflow_dispatch']);
+  assert.deepEqual(productionQualification.permissions, { contents: 'read' });
+  assert.equal(productionQualification.concurrency['cancel-in-progress'], false);
+  let previous = 'validate';
+  for (const phase of dockerPhases) {
+    const job = productionQualification.jobs[phase];
+    assert.ok([job.needs].flat().includes(previous));
+    assert.ok([job.needs].flat().includes('validate'));
+    assert.equal(job.uses, './.github/workflows/runners-docker-cache-probe.yml');
+    assert.equal(job.with.phase, phase);
+    assert.equal(job.with.runner_label, '${{ inputs.runner_label }}');
+    assert.equal(job.with.expected_linux_image, '${{ inputs.expected_linux_image }}');
+    assert.equal(job.with.environment_name, 'production');
+    assert.equal(job.if, undefined); // Default success dependency; never always().
+    assert.notEqual(job['continue-on-error'], true);
+    previous = phase;
+  }
+});
+
+const productionInputs = {
+  REPOSITORY: 'tuist/tuist', SOURCE_REF: 'refs/heads/main', DEFAULT_BRANCH: 'main',
+  RUN_ATTEMPT: '1', RUNNER_LABEL: 'tuist-linux-large',
+  EXPECTED_LINUX_IMAGE: `ghcr.io/tuist/tuist-linux-runner@sha256:${'a'.repeat(64)}`,
+};
+for (const [name, overrides, succeeds] of [
+  ['qualified production input', {}, true],
+  ['default production profile', { RUNNER_LABEL: 'tuist-linux' }, true],
+  ['canary profile', { RUNNER_LABEL: 'tuist-canary-linux' }, false],
+  ['empty profile', { RUNNER_LABEL: '' }, false],
+  ['runner expression injection', { RUNNER_LABEL: 'tuist-linux; exit 0' }, false],
+  ['mutable image tag', { EXPECTED_LINUX_IMAGE: 'ghcr.io/tuist/tuist-linux-runner:latest' }, false],
+  ['empty image', { EXPECTED_LINUX_IMAGE: '' }, false],
+  ['other image repository', { EXPECTED_LINUX_IMAGE: `ghcr.io/other/runner@sha256:${'a'.repeat(64)}` }, false],
+  ['untrusted branch', { SOURCE_REF: 'refs/heads/experiment' }, false],
+  ['tag', { SOURCE_REF: 'refs/tags/main' }, false],
+  ['fork repository', { REPOSITORY: 'fork/tuist' }, false],
+  ['rerun', { RUN_ATTEMPT: '2' }, false],
+]) {
+  test(`production preflight: ${name}`, () => {
+    const result = spawnSync('bash', ['-c', productionQualification.jobs.validate.steps[0].run], {
+      encoding: 'utf8', env: { ...process.env, ...productionInputs, ...overrides },
+    });
+    assert.equal(result.status === 0, succeeds, result.stderr);
+  });
+}
+
+test('partial production rerun fails even when the original validation job is not rerun', () => {
+  const probe = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/runners-docker-cache-probe.yml'), 'utf8'));
+  const check = probe.jobs.build.steps.find(step => step.name === 'Require candidate runner and mounted cache');
+  const result = spawnSync('bash', ['-c', check.run], {
+    encoding: 'utf8', env: { ...process.env, EXPECTED_LINUX_IMAGE: productionInputs.EXPECTED_LINUX_IMAGE,
+      QUALIFICATION_ENVIRONMENT: 'production', GITHUB_RUN_ATTEMPT: '2' },
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stdout, /Start a fresh qualification run/);
+});
+
+test('reusable probe preserves canary defaults and pins checkout to the dispatch commit', () => {
+  const probe = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/runners-docker-cache-probe.yml'), 'utf8'));
+  assert.equal(probe.on.workflow_call.inputs.runner_label.default, 'tuist-canary-linux');
+  assert.equal(probe.on.workflow_call.inputs.environment_name.default, 'canary');
+  assert.equal(probe.jobs.build['runs-on'], '${{ inputs.runner_label }}');
+  assert.equal(probe.jobs.build.steps.find(step => step.uses === 'actions/checkout@v4').with.ref, '${{ github.sha }}');
+});
+
 for (const mounted of [true, false]) {
   test(`candidate probe requires a real mount: mounted=${mounted}`, () => {
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'docker-probe-'));

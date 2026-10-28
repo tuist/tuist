@@ -9,6 +9,12 @@ on:
       expected_linux_image:
         type: string
         default: ""
+      runner_label:
+        type: string
+        default: tuist-canary-linux
+      environment_name:
+        type: string
+        default: canary
 
 permissions:
   contents: read
@@ -27,20 +33,29 @@ jobs:
   build:
     name: Build
     needs: publication-window
-    runs-on: tuist-canary-linux
+    runs-on: ${{ inputs.runner_label }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.sha }}
           sparse-checkout: |
             .github/actions/setup-docker-builder
             .github/scripts/docker-build-cache-benchmark.sh
       - name: Require candidate runner and mounted cache
         env:
           EXPECTED_LINUX_IMAGE: ${{ inputs.expected_linux_image }}
+          QUALIFICATION_ENVIRONMENT: ${{ inputs.environment_name }}
         run: |
           set -euo pipefail
+          if [ "${QUALIFICATION_ENVIRONMENT:-canary}" = production ]; then
+            test "${GITHUB_RUN_ATTEMPT:-}" = 1 || {
+              echo '::error::Start a fresh qualification run; retrying phases changes their shared experiment key.'
+              exit 1
+            }
+            test -n "$EXPECTED_LINUX_IMAGE"
+          fi
           if [ -n "$EXPECTED_LINUX_IMAGE" ]; then
             test "${TUIST_RUNNER_IMAGE:-}" = "$EXPECTED_LINUX_IMAGE" || {
               echo "::error::Acceptance ran on ${TUIST_RUNNER_IMAGE:-unknown}, expected $EXPECTED_LINUX_IMAGE"
@@ -54,6 +69,7 @@ jobs:
             exit 1
           fi
           echo "Runner image: ${TUIST_RUNNER_IMAGE:-unknown}" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Runner: %s\nPod: %s\nSource: %s\n' "${RUNNER_NAME:-unknown}" "${TUIST_CACHE_VOLUME_POD:-unknown}" "${GITHUB_SHA:-unknown}" >> "$GITHUB_STEP_SUMMARY"
       - uses: ./.github/actions/setup-docker-builder
         id: builder
         with:
@@ -61,6 +77,7 @@ jobs:
       - name: Verify both drivers
         env:
           CACHE_PHASE: ${{ inputs.phase }}
+          CACHE_ENVIRONMENT: ${{ inputs.environment_name }}
           BUILDER: ${{ steps.builder.outputs.name }}
         run: |
           set -euo pipefail
@@ -68,7 +85,7 @@ jobs:
           # overwrite whole BuildKit databases, obscuring what this gate tests.
           for driver in docker docker-container; do
             export CACHE_DRIVER="$driver"
-            export CACHE_EXPERIMENT="canary-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$driver"
+            export CACHE_EXPERIMENT="${CACHE_ENVIRONMENT}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$driver"
             export CACHE_BUILDER=default
             [ "$driver" != docker-container ] || export CACHE_BUILDER="$BUILDER"
             bash .github/scripts/docker-build-cache-benchmark.sh
@@ -77,7 +94,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: canary-docker-cache-${{ inputs.phase }}-${{ github.run_attempt }}
+          name: ${{ inputs.environment_name }}-docker-cache-${{ inputs.phase }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/docker-cache-*
             ${{ runner.temp }}/docker-build-cache-results

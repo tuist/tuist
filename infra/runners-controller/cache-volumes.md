@@ -539,16 +539,17 @@ above the guest target for metadata/shutdown writes; it never mounts or parses
 the guest filesystem. Roll out the controller/agent and runner images together.
 
 Staging enables it on every Linux pool (`values-managed-staging.yaml`). The
-server gates it per account with `:runner_docker_cache` on canary and
-production, and each runner profile can turn it off.
+server gates it per account with `:runner_docker_cache` in production. Non-production
+environments enable the server rollout policy by default. Each runner profile
+can still turn it off.
 
 ### Canary qualification before production enablement
 
 Production's Docker cache pool flag remains off during recovery. Canary enables
 cache volumes and Docker caching only for its default `2vcpu-8gb` pool, using a
 bounded 200 GB host store with the 40 GB admission reserve. The server's
-`runner_docker_cache` account flag and runner-profile opt-out still apply; the
-acceptance probe fails if either prevents mounting. Do not bypass that failure.
+runner-profile opt-out still applies; the acceptance probe fails if authorization
+or a profile opt-out prevents mounting. Do not bypass that failure.
 
 The normal production cascade runs native and actual job-container Linux probes,
 then five separate jobs on that canary pool: cold, warm layers, changed source,
@@ -573,3 +574,51 @@ image cannot qualify a candidate. Hotfix deployment still bypasses acceptance;
 use the normal cascade for this recovery. After canary passes, separately qualify
 one production pool and its host publication/allocation evidence before widening
 enablement. Keeping the production pool flag off is the immediate rollback.
+
+### Limited production qualification
+
+`runners-docker-cache-production.yml` is an explicit manual qualification, not a
+deployment or an enablement mechanism. Merging it leaves all production pools
+cache-disabled and leaves the hourly production acceptance workflow unchanged.
+It runs the same five phases and both drivers as canary, using one immutable
+workflow/source revision and a fresh experiment per dispatch. It requires an
+explicit production profile label and exact qualified runner digest; run it from
+the default branch so successful jobs can publish. Do not rerun failed jobs:
+the reusable probe rejects production attempts after the first, including a
+partial rerun that skips the already-successful input validation job.
+
+Before dispatch, obtain explicit authorization for a limited production trial:
+
+1. Verify the runner, controller and cache-agent versions contain the qualified
+   fix and that the selected pool's hosts have the candidate image ready.
+2. Choose a low-traffic, non-default pool and resolve its profile label to the
+   exact RunnerPool name. Enable only that name through `dockerCache.pools`.
+   An empty pool allowlist enables every pool when `dockerCache.enabled` is true.
+3. Check the production server flag before enabling the pool: use a disabled
+   global `runner_docker_cache` flag and an explicit test-account grant. Preserve
+   profile opt-outs. These flag changes require human-authorized production
+   access. An account grant limits cache allocation, **not** DinD supervisor
+   startup: every job on an enabled pool uses that startup path.
+4. Record the original pool and flag settings and the rollback owner. Returning
+   the selected pool's `dockerCache` to false restores ordinary DinD for new pods;
+   it does not alter already-running pods. Never clear caches or restart running
+   jobs as part of qualification.
+
+After those prerequisites are explicitly authorized and applied, dispatch
+`Production Docker Cache Qualification` on the default branch with that profile
+and the qualified `ghcr.io/tuist/tuist-linux-runner@sha256:...` image. The workflow
+has read-only GitHub permissions and no infrastructure credentials or flag writes.
+It serializes its own qualification runs, stops dependent phases on failure, and
+retains separate production artifacts and runner/pod/source summaries.
+
+Observe host publication and subsequent attached generations alongside each
+phase. The 120-second allowance does not establish publication or cross-host
+prefetch completion. A stale-copy miss must fail qualification; inspect bounded
+prefetch/publication evidence before deciding whether a fresh experiment is
+appropriate. Record allocated bytes against the 30,000,000,000-byte publication
+cap, trimming/retention outcomes, startup failures and agent pressure. Require
+ordinary native and actual job-container successes on the enabled pool too.
+The synthetic build fixture alone does not validate cap pressure, concurrent
+whole-state writers, fleet-wide freshness, or unrelated accounts. Widening to
+another pool or account is a separate rollout decision after reviewing this
+evidence; a green workflow never changes the production flags automatically.
