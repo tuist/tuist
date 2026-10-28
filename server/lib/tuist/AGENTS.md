@@ -125,6 +125,7 @@ This directory contains the core business logic and domain modules for the serve
 - Vault: `server/lib/tuist/vault/AGENTS.md`
 - Vcs: `server/lib/tuist/vcs/AGENTS.md`
 - Xcode: `server/lib/tuist/xcode/AGENTS.md`
+- Sandboxes: [sandboxes/AGENTS.md](sandboxes/AGENTS.md).
 
 ## Related Context
 

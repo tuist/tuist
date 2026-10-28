@@ -11,7 +11,9 @@ ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
 ARG DEBIAN_RUNNER_VERSION=bookworm-slim
 ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
 ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:${DEBIAN_RUNNER_VERSION}"
-ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.2-bookworm"
+# Swift 6.4 includes the FoundationNetworking fix for concurrent registry
+# redirects on Bookworm (swiftlang/swift-corelibs-foundation#5448).
+ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.4.1-bookworm"
 ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
 
 # ========================================

@@ -75,6 +75,23 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether the account may use agent sandboxes: the sandbox and agent
+  session API, and the work pollers of its agent environments. Canary and
+  production require an explicit `:sandboxes` FunWithFlags toggle for the
+  account, since every sandbox runs on shared bare-metal nodes.
+  Development, test, and staging default to enabled.
+  """
+  def sandboxes_enabled?(account) do
+    not sandboxes_flag_required?() or FunWithFlags.enabled?(:sandboxes, for: account)
+  end
+
+  @doc "Default-off macOS sandbox enablement, including staging and development."
+  def macos_sandboxes_enabled?(account),
+    do: sandboxes_enabled?(account) and FunWithFlags.enabled?(:macos_sandboxes, for: account)
+
+  defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
+
+  @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
   for the given account. Canary and production require an explicit
   `:runners` FunWithFlags toggle for the actor. Development, test, and

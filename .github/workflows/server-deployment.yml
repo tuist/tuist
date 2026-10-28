@@ -36,6 +36,10 @@ name: Server Deployment
 on:
   workflow_dispatch:
     inputs:
+      build_only:
+        description: Build and publish only the server image, without deployment or cluster credentials
+        type: boolean
+        default: false
       environment:
         description: Target environment
         required: true
@@ -106,6 +110,10 @@ on:
         default: true
   workflow_call:
     inputs:
+      build_only:
+        description: Build and publish only the server image, without deployment or cluster credentials
+        type: boolean
+        default: false
       staging_platform_revision:
         description: Existing staging platform Helm revision to restore and retain for this deployment
         required: false
