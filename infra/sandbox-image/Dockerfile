@@ -13,7 +13,6 @@
 #   rootfs   turns the guest stage into rootfs.ext4 and fetches the kernel
 #   final    a small image whose entrypoint installs /template onto the node
 
-ARG GO_VERSION=1.26.10
 ARG KERNEL_URL=https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.15/x86_64/vmlinux-6.1.155
 ARG KERNEL_SHA256=
 ARG NODE_MAJOR=22
@@ -22,7 +21,7 @@ ARG AMP_VERSION=0.0.1793104576-gc52692
 ARG ROOTFS_SIZE=8G
 ARG VERSION=dev
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine3.23 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
