@@ -60,14 +60,125 @@ struct BinaryCacheStorageTests {
         let combined = item("combined", fingerprints)
         #expect(try await reader.fetch([combined], cacheCategory: .binaries).isEmpty)
         let mac = item("mac", fingerprints.filter { $0.key == "macos-device" })
-        _ = try await producer.store([mac: [artifact]], cacheCategory: .binaries)
+        _ = try await subject(directory.appending(component: "other-producer"), remote: remote)
+            .store([mac: [artifact]], cacheCategory: .binaries)
         let hits = try await reader.fetch([combined], cacheCategory: .binaries)
         #expect(hits.count == 1)
         #expect(await remote.actions.count == 3)
         #expect(await remote.uploads.values.allSatisfy { $0 == 1 })
-        var changed = fingerprints
-        changed["ios-device"] = "changed-compilation-settings"
-        #expect(try await reader.fetch([item("changed", changed)], cacheCategory: .binaries).isEmpty)
+        let fresh = subject(directory.appending(component: "fresh-reader"), remote: remote)
+        #expect(try await fresh.fetch([item("different-consumer-graph", fingerprints)], cacheCategory: .binaries).count == 1)
+        for variant in fingerprints.keys {
+            var changed = fingerprints
+            changed[variant] = "changed-compilation-settings"
+            #expect(try await fresh.fetch([item("changed", changed)], cacheCategory: .binaries).isEmpty)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [BinaryCacheVariant.iosSimulator, .iosDevice])
+    func partialWarmAndFullWarmShareSDKKeysAndOnlyPlanMissingBuilds(firstVariant: BinaryCacheVariant) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let cache = subject(directory.appending(component: "cache"))
+        let target = GraphTarget.test(target: .test(name: "Shared", product: .framework))
+        let sdkHashes = fingerprints.filter { $0.key != "macos-device" }
+        let inputs = ["same-target-hash": sdkHashes]
+        let targets = [(target, "same-target-hash")]
+        let selection: BinaryCacheSDKSelection = firstVariant == .iosSimulator ? .simulators : .devices
+        let missingVariant: BinaryCacheVariant = firstVariant == .iosSimulator ? .iosDevice : .iosSimulator
+        let withCatalyst = fingerprints.merging(["ios-maccatalyst": "catalyst-inputs"]) { _, new in new }
+        #expect(selection.fingerprints(withCatalyst) == [
+            firstVariant.rawValue: sdkHashes[firstVariant.rawValue]!, "macos-device": "mac-inputs",
+        ])
+        let cold = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, storage: cache, preserving: []
+        ).batches
+        #expect(cold.count == 1 && cold[0].variant == nil)
+        #expect(cold[0].fingerprints == inputs)
+        let partial = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, sdkSelection: selection, storage: cache, preserving: []
+        ).batches
+        #expect(partial.map(\.variant) == [firstVariant])
+        let partialArtifact = directory.appending(components: "partial", "Shared.xcframework")
+        try await makeArtifact(at: partialArtifact, variants: [firstVariant.rawValue])
+        let partialItem = CacheStorableItem(name: "Shared", hash: "same-target-hash", metadata: .init(
+            binaryCacheFingerprints: partial[0].fingerprints["same-target-hash"]!, requiresSDKSlices: true
+        ))
+        _ = try await cache.store([partialItem: [partialArtifact]], cacheCategory: .binaries)
+        #expect(try await cache.fetch([item("same-target-hash", sdkHashes)], cacheCategory: .binaries).isEmpty)
+        let remaining = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, storage: cache, preserving: []
+        ).batches
+        #expect(remaining.map(\.variant) == [missingVariant])
+        let remainingArtifact = directory.appending(components: "remaining", "Shared.xcframework")
+        try await makeArtifact(at: remainingArtifact, variants: [missingVariant.rawValue])
+        _ = try await cache.store([CacheStorableItem(name: "Shared", hash: "same-target-hash", metadata: .init(
+            binaryCacheFingerprints: remaining[0].fingerprints["same-target-hash"]!, requiresSDKSlices: true
+        )): [remainingArtifact]], cacheCategory: .binaries)
+        let restored = try #require(try await cache.fetch([item("same-target-hash", sdkHashes)], cacheCategory: .binaries).values
+            .first)
+        #expect(try await XCFrameworkCoverageService().coverage(at: restored).keys.sorted() == ["ios-device", "ios-simulator"])
+        for selection in [BinaryCacheSDKSelection.all, .simulators, .devices] {
+            #expect(try await CacheWarmPlan.make(
+                targets: targets, fingerprints: inputs, sdkSelection: selection, storage: cache, preserving: []
+            ).batches.isEmpty)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func asymmetricSDKMissesStaySeparateAndLocalSlicesCanBeRepublished() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let root = directory.appending(component: "cache")
+        let local = subject(root)
+        let targets = ["Consumer", "Dependency"].map {
+            (GraphTarget.test(target: .test(name: $0, product: .framework)), $0.lowercased())
+        }
+        let inputs = Dictionary(uniqueKeysWithValues: targets.map { target, hash in
+            (hash, ["ios-device": "\(target.target.name)-device", "ios-simulator": "\(target.target.name)-simulator"])
+        })
+        for (index, variant) in [BinaryCacheVariant.iosDevice, .iosSimulator].enumerated() {
+            let (target, hash) = targets[index]
+            let artifact = directory.appending(component: "\(target.target.name).xcframework")
+            try await makeArtifact(at: artifact, variants: [variant.rawValue], name: target.target.name)
+            _ = try await local.store([CacheStorableItem(name: target.target.name, hash: hash, metadata: .init(
+                binaryCacheFingerprints: [variant.rawValue: inputs[hash]![variant.rawValue]!], requiresSDKSlices: true
+            )): [artifact]], cacheCategory: .binaries)
+        }
+        let remote = MemoryREAPICache()
+        let cache = subject(root, remote: remote)
+        let plan = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, storage: cache, preserving: []
+        )
+        #expect(plan.batches.map(\.variant) == [.iosDevice, .iosSimulator])
+        #expect(plan.batches[0].targets.map(\.0.target.name) == ["Dependency"])
+        #expect(plan.batches[1].targets.map(\.0.target.name) == ["Consumer"])
+        #expect(plan.localHits.flatMap(\.keys).count == 2)
+        let debugPlan = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, generateOnly: true, storage: cache, preserving: []
+        )
+        #expect(debugPlan.batches.count == 1)
+        let debugBatch = try #require(debugPlan.batches.first)
+        #expect(debugBatch.variant == nil)
+        #expect(Set(debugBatch.targets.map(\.0.target.name)) == ["Consumer", "Dependency"])
+        #expect(debugBatch.fingerprints == inputs)
+        for hits in plan.localHits {
+            try await cache.republishIfNeeded(hits, cacheCategory: .binaries)
+        }
+        #expect(await remote.actions.count == 2)
+    }
+
+    @Test(.inTemporaryDirectory) func partialPublicationCannotFallBackToACompleteTargetAction() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let cache = subject(directory.appending(component: "cache"), remote: remote)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: ["ios-device"])
+        let target = CacheStorableItem(name: "Shared", hash: "full-target-hash", metadata: .init(
+            binaryCacheFingerprints: ["ios-simulator": "simulator-inputs"], requiresSDKSlices: true
+        ))
+        await #expect(throws: CacheUploadError.self) {
+            try await cache.store([target: [artifact]], cacheCategory: .binaries)
+        }
+        #expect(try await cache.fetch([item("full-target-hash", fingerprints)], cacheCategory: .binaries).isEmpty)
+        #expect(await remote.actions.isEmpty)
     }
 
     @Test(.inTemporaryDirectory) func missingAndCorruptBlobsAreMisses() async throws {
@@ -542,12 +653,12 @@ struct BinaryCacheStorageTests {
         CacheStorableItem(name: "Shared", hash: hash, metadata: .init(binaryCacheFingerprints: fingerprints))
     }
 
-    private func makeArtifact(at path: AbsolutePath, variants: Set<String>) async throws {
+    private func makeArtifact(at path: AbsolutePath, variants: Set<String>, name: String = "Shared") async throws {
         let fileSystem = FileSystem()
         try await fileSystem.makeDirectory(at: path)
         let libraries = try BinaryCacheVariant.allCases.filter { variants.contains($0.rawValue) }.map { variant in
             XCFrameworkInfoPlist.Library(
-                identifier: variant.rawValue, path: try RelativePath(validating: "Shared.framework"), mergeable: false,
+                identifier: variant.rawValue, path: try RelativePath(validating: "\(name).framework"), mergeable: false,
                 platform: variant == .macos ? .macOS : .iOS,
                 platformVariant: variant == .iosSimulator ? .simulator : variant == .catalyst ? .maccatalyst : nil,
                 architectures: Array(variant.architectures)
@@ -556,7 +667,7 @@ struct BinaryCacheStorageTests {
         for library in libraries {
             let framework = path.appending(component: library.identifier).appending(library.path)
             try await fileSystem.makeDirectory(at: framework)
-            try Data(library.identifier.utf8).write(to: framework.appending(component: "Shared").url)
+            try Data(library.identifier.utf8).write(to: framework.appending(component: name).url)
             try Data("shared-resource".utf8).write(to: framework.appending(component: "resource").url)
         }
         try await fileSystem.writeAsPlist(XCFrameworkInfoPlist(libraries: libraries), at: path.appending(component: "Info.plist"))

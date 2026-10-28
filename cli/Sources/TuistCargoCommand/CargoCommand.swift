@@ -8,7 +8,7 @@ public struct CargoCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "cargo",
         abstract: "Run Cargo with Tuist build and test insights.",
-        discussion: "Cargo arguments are forwarded unchanged. Use 'test-build' to archive nextest tests and plan shards. Set TUIST_SHARD_INDEX to execute a shard with 'nextest run'."
+        discussion: "Cargo arguments are forwarded unchanged except Tuist shard options. Use 'test --no-run --shard-max N' to plan target-level shards, then set TUIST_SHARD_INDEX and TUIST_SHARD_PLAN_ID for 'test'. Plain tests apply mute/skip quarantine; TUIST_TEST_SKIP_QUARANTINE=1 disables it. 'test-build' and 'nextest run' retain archive-based sharding."
     )
 
     private static let testBuildHelp = """

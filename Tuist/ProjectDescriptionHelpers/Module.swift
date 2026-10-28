@@ -1372,6 +1372,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "ArgumentParser"),
                 ]
             case .accountCommand:
                 [
