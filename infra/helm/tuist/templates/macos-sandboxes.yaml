@@ -20,6 +20,32 @@ metadata:
   namespace: {{ $namespace }}
 automountServiceAccountToken: false
 ---
+# The server checks the Pod UID and role after TokenReview. This permission
+# must exist even when the Linux sandbox DaemonSet is disabled.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "macos-sandbox-reader") }}
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "macos-sandbox-reader") }}
+  namespace: {{ $namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.componentName" (dict "root" . "component" "macos-sandbox-reader") }}
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
