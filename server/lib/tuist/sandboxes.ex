@@ -742,15 +742,7 @@ defmodule Tuist.Sandboxes do
     known = Repo.all(from s in Sandbox, where: s.id in ^reported_ids)
 
     Enum.each(known, fn sandbox ->
-      if sandbox.platform != :darwin or (sandbox.node_name == node_name and sandbox.node_uid == report["generation"]) do
-        reported_sandbox = Map.fetch!(reported_by_id, sandbox.id)
-        reconcile_reported(sandbox, node_name, reported_sandbox)
-
-        if sandbox.platform == :darwin and is_binary(sandbox.residency_work_id) and
-             reported_sandbox["finished_work_id"] == sandbox.residency_work_id do
-          end_residency(sandbox)
-        end
-      end
+      reconcile_known_report(sandbox, node_name, report["generation"], Map.fetch!(reported_by_id, sandbox.id))
     end)
 
     reported_ids
@@ -778,6 +770,17 @@ defmodule Tuist.Sandboxes do
   end
 
   def reconcile_node_report(_node_name, _report), do: :ok
+
+  defp reconcile_known_report(sandbox, node_name, generation, reported) do
+    if sandbox.platform != :darwin or (sandbox.node_name == node_name and sandbox.node_uid == generation) do
+      reconcile_reported(sandbox, node_name, reported)
+
+      if sandbox.platform == :darwin and is_binary(sandbox.residency_work_id) and
+           reported["finished_work_id"] == sandbox.residency_work_id do
+        end_residency(sandbox)
+      end
+    end
+  end
 
   defp reconcile_reported(%Sandbox{state: :deleted}, _node_name, _reported), do: :ok
 

@@ -110,8 +110,7 @@ defmodule Tuist.Sandboxes.MacosCapacity do
     node_memory = get_in(node, [:capacity, :memory_bytes])
     node_cpus = get_in(node, [:capacity, :cpus])
 
-    is_integer(granted_memory) and is_integer(granted_cpu) and is_integer(granted_slots) and
-      is_integer(node_memory) and is_integer(node_cpus) and
+    Enum.all?([granted_memory, granted_cpu, granted_slots, node_memory, node_cpus], &is_integer/1) and
       memory <= min(node_memory, granted_memory) and cpus * 1000 <= min(node_cpus * 1000, granted_cpu) and
       length(others) < min(2, granted_slots)
   end

@@ -1,3 +1,5 @@
+//go:build darwin
+
 // sbx-macos is a stdin-only bridge over Tart's host-local vsock transport.
 // Credentials travel through stdin and process environments, never argv or journals.
 package main
