@@ -147,6 +147,19 @@ records before interpreting absent Alloy observations. Header success does not
 replay POST serialization, pooled connections, body reads or downstream delivery.
 Keep selection empty until the separate rollout is approved.
 
+Customer, instance and node identifiers belong in the private incident record,
+not public values, PR descriptions, commit messages or validation logs. For
+identifying selections, set `kuraController.connectivityDiagnostics.existingSecret`
+instead of the inline `instances` list. The existing Secret must be in the
+controller namespace with an `instances` key containing comma-separated exact
+KuraInstance names. Provision it through the approved private configuration
+process before deploying the reference; a missing Secret or key prevents the
+new controller pod from starting. The chart never creates or reads this Secret
+and rejects configuring both selection sources. Kubelet resolves the value into
+the controller environment; public manifests contain only its generic reference.
+Changing Secret contents requires controller replacement to reload the value.
+The Secret is not copied to the runtime pods, and no new RBAC is needed.
+
 ## Rollout, acceptance, and rollback
 
 This PR does not deploy or enable diagnostics. Use the normal reviewed deployment
@@ -156,9 +169,10 @@ process; no incident elevation is required to implement or read these logs.
    workflows. Keep selection empty while upgrading. An older runtime ignores
    the new variable and emits no diagnostic records; verify the selected image
    contains this module before treating absent logs as a network failure.
-2. In an approved non-production environment, configure exact instance names in
-   `kuraController.connectivityDiagnostics.instances`, using KuraInstance names
-   rather than ordinal pod names. The controller uses
+2. In an approved non-production environment, configure exact instance names
+   through `kuraController.connectivityDiagnostics.existingSecret`; reserve the
+   inline `instances` list for non-identifying configuration. Use KuraInstance
+   names rather than ordinal pod names. The controller uses
    `telemetry.deploymentEnvironment` to choose the matching compiled profile and
    rejects selection without a watched namespace or valid environment.
 3. Inspect the rendered and admitted Pod spec: one additional fixed-profile
@@ -189,8 +203,10 @@ omit the startup resolver record; inspect earlier retained logs. Rotation can
 remove that record without implying DNS failure. Following logs waits for the
 next scheduled cycle and does not initiate network activity.
 
-Rollback removes selected names from the reviewed values and deploys the
-controller configuration. Reconciliation removes the profile environment variable
-and selected pods follow their normal replacement procedure. No RBAC, token-mount,
+Rollback clears the configured `instances` list or `existingSecret` reference
+through reviewed values and deploys the controller configuration. Reconciliation
+removes the profile environment variable and selected pods follow their normal
+replacement procedure. Clearing the reference stops selection without deleting
+or reading the private Secret. No RBAC, token-mount,
 database, or stored-data migration needs undoing. Service-account-token hardening
 is independent of diagnostics and remains separate fleet-wide work.

@@ -445,15 +445,13 @@ kuraController:
   # Off the processor pool, which has no memory to spare beside the processor.
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
-  # Incident-only Alloy timeout investigation; owner: Pedro Piñera.
-  # https://atlas.tuist.dev/engineering/errors/56d8db50-0d2a-5613-b5d6-cf19fdadb23c
+  # Incident-only Alloy timeout investigation; selections stay in private config.
   # Collect for one hour from the first selected pod's port-4318 sample.
   # No automatic expiry: remove this block through a follow-up PR and normal
   # rollout, then verify profiles are absent and new samples have stopped.
+  # Provision the private Secret's instances key before deploying this reference.
   connectivityDiagnostics:
-    instances:
-      - kura-pedidosya-sa-west-1 # Affected Santiago instance.
-      - kura-appswithlove-eu-central-1 # Different-node, cross-region comparison.
+    existingSecret: kura-connectivity-diagnostics
   # Instance activation remains explicit; keep renewal enabled after activation.
   servingAuthority:
     enabled: true

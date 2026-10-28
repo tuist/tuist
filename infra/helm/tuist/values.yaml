@@ -192,6 +192,11 @@ kuraController:
   # changes the pod template and rolls these instances. No RBAC grant needed.
   # Requires a Kura runtime image with built-in connectivity telemetry.
   connectivityDiagnostics:
+    # Keep identifying selections out of tracked values. The existing Secret
+    # must contain an instances key with comma-separated exact instance names.
+    # Provision it in the controller namespace before setting this reference.
+    # Mutually exclusive with the inline list; the chart never creates it.
+    existingSecret: ""
     instances: []
   # Enable managed gateway readiness reads and its Cilium backend policy.
   privateGateway:
