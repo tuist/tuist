@@ -116,6 +116,7 @@ defmodule TuistWeb.API.CargoController do
       body
       |> RemoteURL.strip_credentials_from_params()
       |> Map.merge(%{project_id: project.id, account_id: Authentication.authenticated_subject_account(conn).id})
+      |> Map.put(:tuist_version, TuistWeb.Headers.get_build_integration_version(conn, :cargo))
 
     case Cargo.create_build(attrs) do
       {:ok, id} ->
