@@ -1,3 +1,4 @@
+@preconcurrency import AnyCodable
 import CryptoKit
 import Foundation
 import Path
@@ -44,9 +45,22 @@ public struct TestPlanDescriptor: Equatable {
         }
     }
 
-    public init(path: AbsolutePath, testTargets: [TestTarget]) {
+    /// Language the tests run in, written as the plan's default `language` option.
+    public let language: String?
+
+    /// Region the tests run in, written as the plan's default `region` option.
+    public let region: String?
+
+    public init(
+        path: AbsolutePath,
+        testTargets: [TestTarget],
+        language: String? = nil,
+        region: String? = nil
+    ) {
         self.path = path
         self.testTargets = testTargets
+        self.language = language
+        self.region = region
     }
 
     /// Encodes the descriptor into the Xcode `.xctestplan` JSON format.
@@ -69,13 +83,20 @@ public struct TestPlanDescriptor: Equatable {
             configurations: [
                 XCTestPlan.Configuration(id: configurationID, name: "Configuration 1"),
             ],
-            defaultOptions: [:],
+            defaultOptions: defaultOptions,
             version: 1
         )
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(plan)
+    }
+
+    private var defaultOptions: [String: AnyCodable] {
+        [
+            "language": language,
+            "region": region,
+        ].compactMapValues { $0 }.mapValues { AnyCodable($0) }
     }
 
     /// Deterministic UUID derived from the plan's absolute path.

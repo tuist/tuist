@@ -947,7 +947,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests")),
             ],
             isDefault: true,
-            kind: .generated
+            kind: .generated,
+            language: "en",
+            region: "US"
         )
         let existingPlanPath = projectPath.appending(component: "Existing.xctestplan")
         let existingPlan = TestPlan(
@@ -984,6 +986,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             testPlanDescriptors.first?.testTargets.map(\.pbxTarget.name),
             ["AppTests"]
         )
+        XCTAssertEqual(testPlanDescriptors.first?.language, "en")
+        XCTAssertEqual(testPlanDescriptors.first?.region, "US")
     }
 
     func test_generateProjectSchemes_rejects_duplicate_generated_test_plan_paths() throws {

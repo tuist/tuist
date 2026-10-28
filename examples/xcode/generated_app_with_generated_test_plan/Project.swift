@@ -43,7 +43,9 @@ let project = Project(
                 ),
                 .generated(
                     name: "SnapshotTests",
-                    testTargets: [.testableTarget(target: "AppSnapshotTests")]
+                    testTargets: [.testableTarget(target: "AppSnapshotTests")],
+                    language: "en",
+                    region: "US"
                 ),
             ]),
             runAction: .runAction(configuration: .debug, executable: "App")

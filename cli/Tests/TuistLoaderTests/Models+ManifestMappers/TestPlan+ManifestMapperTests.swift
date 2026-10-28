@@ -59,6 +59,32 @@ struct TestPlanManifestMapperTests {
         )
     }
 
+    @Test(.inTemporaryDirectory) func generated_plan_maps_language_and_region() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let manifest = ProjectDescription.TestPlan.generated(
+            name: "UnitTests",
+            testTargets: [.testableTarget(target: "AppTests")],
+            language: "en",
+            region: "US"
+        )
+
+        // When
+        let got = try await TestPlan.from(
+            manifests: [manifest],
+            generatorPaths: GeneratorPaths(
+                manifestDirectory: temporaryDirectory,
+                rootDirectory: temporaryDirectory
+            ),
+            schemeName: nil,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        #expect(got.map(\.language) == ["en"])
+        #expect(got.map(\.region) == ["US"])
+    }
+
     @Test(.inTemporaryDirectory) func plan_with_bare_container_path_resolves_to_manifest_directory() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

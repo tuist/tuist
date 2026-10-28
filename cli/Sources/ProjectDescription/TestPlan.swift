@@ -28,7 +28,16 @@ public enum TestPlan: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
     /// next to the manifest (gitignored alongside other derived artefacts). Set `path` to pin
     /// the file to a specific checked-in location, for example when external tooling like
     /// `xcodebuild -testPlan` needs a predictable path.
-    case generated(name: String, testTargets: [TestableTarget], path: Path? = nil)
+    ///
+    /// Set `language` and `region` to run the plan's tests in a fixed locale, for example
+    /// when tests format dates or numbers and must not depend on the simulator's settings.
+    case generated(
+        name: String,
+        testTargets: [TestableTarget],
+        path: Path? = nil,
+        language: SchemeLanguage? = nil,
+        region: String? = nil
+    )
 
     public init(stringLiteral value: String) {
         self = .path(Path(stringLiteral: value))
