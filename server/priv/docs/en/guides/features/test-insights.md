@@ -7,7 +7,7 @@
 ---
 # Test Insights {#test-insights}
 
-Use Test Insights to monitor your test suite's health by identifying slow tests, tracking flaky tests, and quickly understanding failed CI runs. It currently supports Xcode, Gradle, Bazel, Elixir, and Rust.
+Use Test Insights to monitor your test suite's health by identifying slow tests, tracking flaky tests, and quickly understanding failed CI runs. It currently supports Xcode, Gradle, Bazel, Elixir, and Rust. To follow which code your tests execute, see <.localized_link href="/guides/features/test-insights/code-coverage">Code Coverage</.localized_link>.
 
 <.home_cards>
   <.home_card

@@ -326,6 +326,22 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
+            label: "Coverage",
+            slug: "/en/guides/features/test-insights/code-coverage",
+            items: [
+              %Item{
+                label: "Xcode",
+                slug: "/en/guides/features/test-insights/code-coverage/xcode",
+                icon: "brand_apple"
+              },
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/test-insights/code-coverage/generated-xcode-project",
+                icon: "brand_apple"
+              }
+            ]
+          },
+          %Item{
             label: "Sharding",
             slug: "/en/guides/features/test-sharding",
             items: [
