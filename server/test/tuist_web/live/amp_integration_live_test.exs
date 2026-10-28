@@ -45,8 +45,16 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
     refute render(view) =~ "aop_live_replaced"
 
     view |> element("#amp-integration button", "Disconnect") |> render_click()
-    assert has_element?(view, "#amp-integration", "Saved disks remain")
-    view |> element("#amp-integration button", "Disconnect Amp") |> render_click()
+    assert_push_event(view, "open-modal", %{id: "disconnect-amp-modal"})
+    assert has_element?(view, "#amp-settings-form-2 input[name=provider_token]")
+    refute has_element?(view, "#amp-settings-form-2", "Saved disks remain")
+    view |> with_target("#amp-integration") |> render_click("cancel-disconnect")
+    assert_push_event(view, "close-modal", %{id: "disconnect-amp-modal"})
+    assert AmpIntegrations.get(account.id).enabled
+    view |> element("#amp-integration button", "Disconnect") |> render_click()
+    assert_push_event(view, "open-modal", %{id: "disconnect-amp-modal"})
+    view |> with_target("#amp-integration") |> render_click("disconnect")
+    assert_push_event(view, "close-modal", %{id: "disconnect-amp-modal"})
     assert has_element?(view, "#amp-integration button", "Connect")
     refute has_element?(view, "#amp-integration input[name=provider_token]")
     assert is_nil(AmpIntegrations.get(account.id).provider_token)
@@ -57,6 +65,7 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
     {:ok, view, _} = live(conn, "/#{account.name}/settings/integrations")
     assert has_element?(view, "#amp-integration[hidden]")
     refute has_element?(view, "#connect-amp-modal")
+    refute has_element?(view, "#disconnect-amp-modal")
   end
 
   test "existing connection is hidden when sandbox access is disabled", %{conn: conn, account: account, user: user} do
@@ -65,5 +74,6 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
     {:ok, view, _} = live(conn, "/#{account.name}/settings/integrations")
     assert has_element?(view, "#amp-integration[hidden]")
     refute has_element?(view, "#connect-amp-modal")
+    refute has_element?(view, "#disconnect-amp-modal")
   end
 end

@@ -360,32 +360,15 @@
   }
 }
 
-#integrations > [data-part="amp-card-section"] [data-part="form"] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--noora-spacing-5);
-  color: var(--noora-surface-label-secondary);
-  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-
-  p {
-    margin: 0;
-  }
-  [data-part="actions"] {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--noora-spacing-4);
-  }
-}
-
 #integrations > [data-part="amp-card-section"][hidden] {
   display: none;
 }
 
-#connect-amp-modal > [data-part="positioner"] > [data-part="content"] {
+:is(#connect-amp-modal, #disconnect-amp-modal) > [data-part="positioner"] > [data-part="content"] {
   width: min(560px, 90vw);
 }
 
-#connect-amp-modal [data-part="amp-form"] {
+:is(#connect-amp-modal, #disconnect-amp-modal) [data-part="amp-form"] {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-5);

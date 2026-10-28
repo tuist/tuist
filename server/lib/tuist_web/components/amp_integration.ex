@@ -13,7 +13,7 @@ defmodule TuistWeb.Components.AmpIntegration do
   @impl true
   def update(assigns, socket) do
     socket =
-      socket |> assign(assigns) |> assign(error: nil, confirm_disconnect: false, form_version: 0, token_changed: false)
+      socket |> assign(assigns) |> assign(error: nil, disconnect_error: nil, form_version: 0, token_changed: false)
 
     {:ok, load(socket)}
   end
@@ -23,13 +23,20 @@ defmodule TuistWeb.Components.AmpIntegration do
     do: {:noreply, socket |> load() |> assign(error: nil) |> push_event("open-modal", %{id: "connect-amp-modal"})}
 
   def handle_event("cancel", _, socket),
-    do: {:noreply, socket |> assign(confirm_disconnect: false, error: nil) |> close_connection_modal()}
+    do: {:noreply, socket |> assign(disconnect_error: nil, error: nil) |> close_connection_modal()}
 
   def handle_event("validate", %{"provider_token" => token}, socket),
     do: {:noreply, assign(socket, token_changed: String.trim(token) != "")}
 
   def handle_event("save", %{"provider_token" => ""}, socket), do: {:noreply, socket}
-  def handle_event("confirm-disconnect", _, socket), do: {:noreply, socket |> load() |> assign(confirm_disconnect: true)}
+
+  def handle_event("confirm-disconnect", _, socket),
+    do:
+      {:noreply,
+       socket |> load() |> assign(disconnect_error: nil) |> push_event("open-modal", %{id: "disconnect-amp-modal"})}
+
+  def handle_event("cancel-disconnect", _, socket),
+    do: {:noreply, socket |> assign(disconnect_error: nil) |> push_event("close-modal", %{id: "disconnect-amp-modal"})}
 
   def handle_event("save", %{"provider_token" => token}, socket) do
     case AmpIntegrations.connect(socket.assigns.account.id, socket.assigns.current_user, token) do
@@ -52,12 +59,17 @@ defmodule TuistWeb.Components.AmpIntegration do
   def handle_event("disconnect", _, socket) do
     case AmpIntegrations.disconnect(socket.assigns.account.id, socket.assigns.current_user) do
       {:ok, _} ->
-        {:noreply, socket |> load() |> assign(confirm_disconnect: false, error: nil)}
+        {:noreply,
+         socket
+         |> load()
+         |> assign(disconnect_error: nil, error: nil)
+         |> push_event("close-modal", %{id: "disconnect-amp-modal"})}
 
       _ ->
         {:noreply,
          assign(socket,
-           error: dgettext("dashboard_integrations", "You no longer have permission to disconnect this integration.")
+           disconnect_error:
+             dgettext("dashboard_integrations", "You no longer have permission to disconnect this integration.")
          )}
     end
   end
@@ -102,7 +114,7 @@ defmodule TuistWeb.Components.AmpIntegration do
               {dgettext("dashboard_integrations", "Run your Amp workspace’s Orbs on Tuist sandboxes.")}
             </span>
           </div>
-          <div :if={not @confirm_disconnect} data-part="actions">
+          <div data-part="actions">
             <.button
               :if={@integration && @integration.enabled}
               type="button"
@@ -122,7 +134,7 @@ defmodule TuistWeb.Components.AmpIntegration do
           </div>
         </div>
         <.alert
-          :if={@error && (@confirm_disconnect || (@integration && @integration.enabled))}
+          :if={@error && @integration && @integration.enabled}
           status="error"
           type="secondary"
           size="small"
@@ -140,7 +152,7 @@ defmodule TuistWeb.Components.AmpIntegration do
             )
           }
         />
-        <div :if={@integration && @integration.enabled && !@confirm_disconnect} data-part="fields">
+        <div :if={@integration && @integration.enabled} data-part="fields">
           <.text_input
             id={"amp-saved-provider-token-#{@form_version}"}
             name="provider_token"
@@ -151,37 +163,13 @@ defmodule TuistWeb.Components.AmpIntegration do
             value=""
           />
         </div>
-        <div :if={@integration && @integration.enabled && !@confirm_disconnect} data-part="actions">
+        <div :if={@integration && @integration.enabled} data-part="actions">
           <.button
             type="submit"
             label={dgettext("dashboard_integrations", "Save changes")}
             variant="primary"
             disabled={not @token_changed}
           />
-        </div>
-        <div :if={@confirm_disconnect} data-part="form">
-          <p>
-            {dgettext(
-              "dashboard_integrations",
-              "Disconnect Amp? This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
-            )}
-          </p>
-          <div data-part="actions">
-            <.button
-              type="button"
-              label={dgettext("dashboard_integrations", "Cancel")}
-              variant="secondary"
-              phx-click="cancel"
-              phx-target={@myself}
-            />
-            <.button
-              type="button"
-              label={dgettext("dashboard_integrations", "Disconnect Amp")}
-              variant="primary"
-              phx-click="disconnect"
-              phx-target={@myself}
-            />
-          </div>
         </div>
       </form>
       <.modal
@@ -254,6 +242,48 @@ defmodule TuistWeb.Components.AmpIntegration do
             />
           </div>
         </form>
+      </.modal>
+      <.modal
+        :if={@available}
+        id="disconnect-amp-modal"
+        title={dgettext("dashboard_integrations", "Disconnect Amp")}
+        header_size="large"
+      >
+        <:trigger :let={attrs}>
+          <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+        </:trigger>
+        <.line_divider />
+        <div data-part="amp-form">
+          <.alert
+            :if={@disconnect_error}
+            status="error"
+            type="secondary"
+            size="small"
+            title={@disconnect_error}
+          />
+          <p>
+            {dgettext(
+              "dashboard_integrations",
+              "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
+            )}
+          </p>
+          <div data-part="actions">
+            <.button
+              type="button"
+              label={dgettext("dashboard_integrations", "Cancel")}
+              variant="secondary"
+              phx-click="cancel-disconnect"
+              phx-target={@myself}
+            />
+            <.button
+              type="button"
+              label={dgettext("dashboard_integrations", "Disconnect Amp")}
+              variant="primary"
+              phx-click="disconnect"
+              phx-target={@myself}
+            />
+          </div>
+        </div>
       </.modal>
     </section>
     """
