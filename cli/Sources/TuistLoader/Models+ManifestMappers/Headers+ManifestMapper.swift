@@ -1,7 +1,7 @@
 import FileSystem
 import Foundation
 import Path
-import ProjectDescription
+@_spi(TuistLoader) import ProjectDescription
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -90,7 +90,16 @@ extension XcodeGraph.Headers {
         return Headers(
             public: publicHeaders.sorted(),
             private: privateHeaders.sorted(),
-            project: projectHeaders.sorted()
+            project: projectHeaders.sorted(),
+            sourceLayout: try manifest.sourceLayout.map {
+                Headers.SourceLayout(
+                    root: try generatorPaths.resolve(path: $0.root),
+                    publicHeaders: try generatorPaths.resolve(path: $0.publicHeaders),
+                    moduleMap: try generatorPaths.resolve(path: $0.moduleMap),
+                    moduleName: $0.moduleName,
+                    usesDirectoryModuleMap: $0.usesDirectoryModuleMap
+                )
+            }
         )
     }
 }
