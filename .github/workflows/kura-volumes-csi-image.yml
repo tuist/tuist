@@ -16,7 +16,12 @@ on:
       - infra/helm/rack-nodes/**
       - infra/helm/tuist/templates/kura-volumes-csi.yaml
       - .github/workflows/kura-volumes-csi-image.yml
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      fscrypt_only:
+        description: Run only the disposable fscrypt experiment, without publishing images
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -28,7 +33,7 @@ env:
 
 jobs:
   test:
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    if: github.repository == 'tuist/tuist' && inputs.fscrypt_only != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +52,7 @@ jobs:
         run: go vet ./...
 
   thin-stack:
-    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch'
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true
     # Device-mapper fault tests need their own disposable VM, never a shared
     # staging host or a container with access to a runner host's block devices.
     runs-on: ubuntu-24.04
@@ -100,6 +105,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ruby build-essential e2fsprogs quota xfsprogs lvm2 cryptsetup thin-provisioning-tools fio
+          if ! sudo modprobe quota_v2; then
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+            sudo modprobe quota_v2
+          fi
           sudo modprobe dm_thin_pool
           git clone https://github.com/google/fscryptctl /tmp/fscryptctl
           git -C /tmp/fscryptctl checkout --detach 361a040c0f50c2440d51347b5eb48482ae1a41b7
@@ -110,6 +119,9 @@ jobs:
           # The unprivileged runner intentionally owns the report artifact.
           # shellcheck disable=SC2024
           sudo env KURA_FSCRYPT_DISPOSABLE_VM=1 ruby infra/kura-volumes-csi/fscrypt/stack_test.rb > /tmp/kura-fscrypt-stack.json
+      - name: Preserve disposable VM kernel diagnostics
+        if: failure()
+        run: sudo dmesg | tail -100
       - uses: actions/upload-artifact@v4
         if: always()
         with:
