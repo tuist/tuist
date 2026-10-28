@@ -4,6 +4,8 @@ This is a storage-primitive experiment for #14152, not a CSI implementation,
 OpenBao deployment or replacement rollout. The aim is to preserve tenant keys
 while letting the later #14825 allocator transfer filesystem quota grants
 without thin-pool overcommit or filesystem replacement.
+The [integration gates](integration.md) describe the remaining CSI, key lifecycle,
+confinement and migration work; none of it is implied by a passing VM test.
 
 Run `stack_test.rb` only as root in a disposable Linux VM with
 `KURA_FSCRYPT_DISPOSABLE_VM=1`. It creates private sparse files and loop devices;
