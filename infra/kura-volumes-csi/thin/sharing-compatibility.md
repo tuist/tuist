@@ -205,7 +205,7 @@ Benchmark several sizes before choosing one; do not blindly repeat the current
 2 GiB workspace allowance for every unit. Workspace, LUKS headers, XFS metadata,
 logs, inode limits and rotation headroom need a new explicit sizing profile.
 
-### Bounded prototype result — 2026-10-28
+### Initial bounded prototype result — historical evidence
 
 The [real CSI/Kura prototype](borrowed/README.md) now demonstrates the allocation
 transfer in an isolated Linux VM. [Qualification and raw-evidence links](borrowed/validation.md)
@@ -225,6 +225,46 @@ The later production acceptance list below is not wholly covered by this test.
 Whole-unit backing/deletion also works with thick LUKS/XFS devices. Thin storage
 is not required for the demonstrated granularity of sharing; compare thick units
 before committing to the backend. The shipping CSI contract remains unchanged.
+
+### Follow-up qualification — 2026-10-28
+
+The initial result above has been extended with a real opt-in CSI child API and
+compiled server authorization. [The updated evidence](borrowed/validation.md)
+records 94 VM assertions and a five-layout matched comparison (including thick
+units), a further 71-assertion interruption/recovery check, and 128-device cold
+pool recovery. Avoiding redundant activation reduced full observations below
+the explicit five-second test budget; this was separately requalified.
+
+An isolated Paris Kubernetes/OpenBao fixture now passes hot child publication,
+CSI pod restart, cold runtime-pod replacement, old-pod fencing, OpenBao quorum-loss
+refusal and recovery, Transit rotation/rewrap followed by cold reopen, and actual
+open-deleted-reader accounting. After final close, exactly one 6.5 GiB device's
+commitment was released; another synthetic tenant received a new independently
+keyed child and wrote/checksummed real cache objects. Neither base LV changed.
+This is stronger evidence than Docker propagation and fixture-derived keys, but
+it is not a node power-loss, production custody or migration/handoff rehearsal.
+The matched Paris comparison passed 30,400 requests without failures: thin-unit
+churn was 160.19–161.26 MiB/s against 163.25–163.70 on shared XFS, with about
+6.1 ms higher small-PUT p95 at sample midpoints. Thick-unit churn was
+158.69–160.47 MiB/s and its small-PUT latency overlapped shared XFS. There is
+no demonstrated throughput winner between unit backends in this workload;
+the earlier direct-I/O regressions remain separate evidence.
+
+The policy direction is now concrete: reuse target calculation, add a CSI backend
+and asynchronous effective-grant reconciliation, and keep backing attached to
+whole units until verified deletion. The runtime placement/recovery change is
+still an experiment, not a supported released cache format. Thin provisioning
+is optional for this whole-unit safety model; backend selection must follow the
+matched thick/thin comparison.
+
+Before enrolling the encryption layout, choose a versioned base-directory/mount
+contract and base size that can survive the later sharing rollout. The present
+`borrowed_units: v1` attribute is immutable and opted into at volume creation;
+an ordinary monolithic PV does not gain children through an allocator adapter.
+A base sized to a previous large ceiling also retains that entire reservation.
+Shipping those monolithic volumes first may therefore require a later one-time
+staged migration. This qualification does **not** justify promising a migration-free
+or adapter-only upgrade for existing monolithic volumes.
 
 ### Compatibility costs that must be accepted explicitly
 
@@ -296,7 +336,9 @@ The prior encrypted staging candidate still has a random-read regression and
 about 6 ms higher small-PUT p95 against the shared-XFS baseline. No later
 plaintext sharing benchmark supersedes those measurements.
 
-No storage, scheduling or enrollment settings were changed for this review.
+The initial review changed no storage or enrollment settings. The later
+qualification uses an isolated staging pool, claims, key endpoint and one CSI
+node; its cleanup and restoration are recorded in the prototype validation.
 Preserve the source-node migration gate, replica catch-up, destination-bound
 write acknowledgments, endpoint handoff and retained-volume deletion checks.
 Existing thick storage still needs landing capacity and safe migration; it

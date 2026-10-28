@@ -45,11 +45,11 @@ loop-backed VM results are not hosted NVMe or production throughput results.
 ## Deliberate limits
 
 - No production allocator, fairness adaptation or runtime budget leases. The
-  fenced CSI API and server parent-PVC authorization are implemented, but their
-  Kubernetes/OpenBao integration remains a separate acceptance gate.
+  fenced CSI API and server parent-PVC authorization passed the isolated
+  Kubernetes/OpenBao fixture recorded in the validation report.
 - Active segments seal through the normal writer barrier before targeted drain.
-- No Kubernetes scheduling, mount-namespace lifecycle or actual node reboot
-  qualification. Docker propagation is one necessary primitive only.
+- Kubernetes hot publication, CSI pod restart and cold runtime-pod replacement
+  passed on Paris staging. Actual node reboot/power-loss qualification is separate.
 - No migration/endpoint-handoff qualification, replica workload or egress proof.
 - Existing sizing is intentionally reused, including 2 GiB workspace per volume;
   this overstates useful capacity cost and is not a final multi-volume profile.
@@ -96,8 +96,9 @@ pool/volume locks. Parent re-publication restores child mounts; parent node
 cleanup closes children first. PVC deletion removes detached children without
 requiring a live allocator, including non-empty children, but refuses active or
 ambiguous mappings. It removes only empty host mountpoint directories, never
-recursively deleting uncertain mount trees. This does not qualify kubelet mount
-propagation, node reboot or hosted throughput. The separate 128-device
-qualification covers bounded scattered writes and cold activation, with the
-observation-latency limitation recorded in the validation report; it is not
+recursively deleting uncertain mount trees. The staging fixture qualifies kubelet
+propagation and pod/CSI restart; node reboot and production readiness remain
+separate gates. Hosted throughput measurements are recorded in validation.md.
+The separate 128-device qualification covers bounded scattered writes and cold
+activation and now meets the five-second observation budget. It is not
 worst-case metadata mapping qualification.

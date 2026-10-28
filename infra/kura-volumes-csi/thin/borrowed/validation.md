@@ -4,6 +4,173 @@ This record concerns the disposable prototype in this directory. It is not
 approval to enroll hosted nodes, ship the experimental segment layout, remove
 per-device backing, or declare the production sharing backend implemented.
 
+## Real Kubernetes/OpenBao qualification on Paris staging
+
+The isolated October 28 fixture runs on
+`tuist-tuist-kura-fleet-fm4h8-qmkn8`: AMD EPYC 7232P (8 cores/16 threads), kernel
+`6.8.0-146-generic`, the node's actual NVMe-backed VG. It uses a new **48 GiB**
+thin data pool made only from unallocated extents, **512 MiB metadata**, **512 KiB
+chunks**, **1 GiB data reserve**, **64 MiB metadata reserve** and **eight slots**.
+The existing `data` LV and unrelated workload were not converted or reformatted.
+This is ordinary bounded provisioning, not the destructive disposable-VM harness.
+
+Only the Paris CSI pod was replaced, using `OnDelete`; the other two plugin pod
+identities/images stayed unchanged. The ordinary template was restored under
+`OnDelete` immediately after each scoped restart. The test uses an isolated
+three-voter persistent OpenBao 2.7.1 cluster, TLS, Kubernetes authentication and
+a derived non-exportable Transit key. Two synthetic accounts have real persisted
+wrapped key rows and distinct live PVC ownership. The main server deployment,
+ordinary key-provider defaults and production enrollment were not changed.
+
+The key listener runs the **compiled production controller, VolumeKeys, Repo,
+Kubernetes client and OpenBao provider**, with a small fixture-only Bandit/PubSub
+bootstrap instead of the main application's supervision tree/background jobs.
+It verifies real projected pod-bound CSI tokens and live PV/PVC ownership. This
+is not a full Phoenix deployment smoke test or permanent OpenBao custody rollout.
+
+Image/source identities:
+
+- CSI source `170e555be89bbc3ea0f3445c739029cc92b2e57a`, image
+  `ghcr.io/tuist/kura-volumes-csi@sha256:ea6492b17b9db4e8a9c0503d04e0ea4bf73abffe678ca9510f4231a9c4381afc`.
+- Experiment runtime from the qualified `ce0cb6914e9` build, image
+  `ghcr.io/tuist/kura@sha256:2c7e3ddc67bd196452663078c9f95bf8dd17a654d8bb0d9c0c388bc8c072ab43`.
+- Compiled server artifact from `339fea900c053209b07cb4a21243ee7a253839e6`,
+  key-only image
+  `ghcr.io/tuist/tuist@sha256:cc01d2d5791ac7f1488b9e107a77d34c1f3063486dd2297c3d132b1262562cd0`.
+  This derivative omits browser/toolchain and unrelated static/native/doc assets;
+  the controller and VolumeKeys BEAM hashes match the full server artifact.
+
+The real staging sequence passed:
+
+1. Verified TLS and rejected an unauthenticated request to the compiled endpoint.
+2. Wrapped only the two fixture accounts with OpenBao, then created real encrypted
+   parent claims through the Kubernetes external provisioner and kubelet.
+3. Created a child through the fenced Unix-socket API. It appeared in the already
+   running unprivileged Kura pod through host-to-container propagation. Exact
+   response replay allocated nothing twice; a stale generation was refused.
+4. Wrote/read a 1 GiB corpus (512 successful requests) across base and child.
+   After a real CSI Pod replacement, all 256 objects still matched their hashes.
+5. Deleted the runtime Pod and verified both parent and child dm-crypt mappings
+   were closed. Sealing two of three OpenBao voters removed quorum. A third seal
+   request returned 500 because quorum was already absent; status confirmed two
+   sealed voters and one unsealed standby. Real kubelet restage failed with the
+   expected key-service 503, rather than opening without authorization.
+6. Restored quorum, re-staged, and verified all 256 checksums. Base/child LV UUIDs
+   stayed stable while the runtime Pod UID changed; the previous Pod's lease was
+   rejected. Transit rotation and account-key rewrap to envelope v2, followed by
+   another cold Pod replacement, preserved all 256 checksums again.
+7. Held a real child segment open inside the unprivileged Pod. CSI-driven drain
+   retired/unlinked its segments. Release failed while the reader remained open;
+   both mapped pool usage and full commitment stayed charged. The descriptor's
+   bytes stayed readable until final close. Retrying the same release then
+   removed the child; repeating the completed request could not credit twice.
+8. Created a fresh child for the second synthetic account in the same pool. Its
+   experimental runtime wrote/read another 1 GiB corpus (512 successful requests)
+   and placed real segments on the new child. Both base LV identities survived.
+9. OpenBao audit inspection found 165 records and verified JWT/plaintext fields
+   were HMAC-protected rather than logged in cleartext.
+
+The held-reader boundary retained **27,917,287,424 committed bytes** and
+**1,383,596,032 pool data bytes**. Final close/deletion reduced commitment to
+**20,937,965,568 bytes** (exactly **6.5 GiB released**) and pool data to
+**758,120,448 bytes**. These are authoritative pool/device observations, not
+`df`, deletion success or fstrim's claimed byte count.
+
+Failures during fixture setup are retained as limitations, not passing evidence:
+
+- The original 903 MB server fixture image hit a registry connection reset while
+  pulling. A 114 MB key-only derivative pulled successfully; no containerd socket
+  importer or host-control bypass was used.
+- The first key bootstrap called an unavailable direct PubSub start function;
+  it was corrected to use the dependency's supervisor child specification.
+- The initial 512 MiB load generator was OOM-killed during calibration. The
+  complete comparison uses a **2 GiB client**, while every runtime remains at
+  **1 CPU/768 MiB**. The failed partial sample is excluded.
+- Reapplying the initial manifest list attempted to change the already-reset
+  plain fixture's immutable init command. Kubernetes refused that update; the
+  separate thick claims/pods still provisioned successfully. Subsequent setup
+  excludes the existing plain Pod from that list.
+
+Matched hardware comparison and cleanup verification follow below. This
+fixture does not qualify node power loss, permanent unseal/backup custody, the
+production fairness agent, a supported multi-volume cache format, or a new
+migration/endpoint-handoff path. Existing migration safeguards remain mandatory.
+
+## Matched Paris hardware comparison and interpretation
+
+All **ten samples** passed: **30,400 authenticated HTTP requests**, zero reported
+failures and zero runtime OOM kills. Layout order was shared XFS, thick monolithic,
+thin monolithic, thin units, thick units, then the reverse. Every sample starts
+with empty fixture cache data on its own filesystem; the same volumes are reused
+across the two passes. All use the same experimental binary (opt-in disabled for
+monolithic controls), **1 CPU, 768 MiB runtime memory, 4 GiB cache budget and
+13 GiB aggregate virtual size**. The separate same-node client has 2 CPUs/2 GiB.
+The shared-XFS control uses an isolated directory on the node's existing XFS
+`data` LV; encrypted controls use real thick or thin LVs on the same VG/NVMe.
+
+| Measurement | Shared XFS | Thick LUKS/XFS | Thin LUKS/XFS | Two thick units | Two thin units |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Upload/eviction churn, MiB/s | 163.25–163.70 | 160.80–161.80 | 157.22–160.60 | 158.69–160.47 | 160.19–161.26 |
+| 16 KiB PUT p95, ms | 28.93–32.99 | 27.34–31.91 | 35.20–36.18 | 30.18–31.72 | 35.77–38.37 |
+| 4 MiB PUT p95, ms | 260.56–279.10 | 246.41–256.94 | 261.38–273.27 | 263.35–270.26 | 248.73–273.34 |
+| 1 GiB checksum reads, MiB/s | 463.83–479.74 | 469.62–497.65 | 519.54–523.52 | 482.85–509.63 | 502.35–506.27 |
+| Runtime CPU seconds, ordinary run | 42.33–42.36 | 42.26–42.56 | 42.38–42.96 | 42.53–42.84 | 42.28–42.40 |
+
+At sample midpoints, thin units are **1.7% below shared XFS** for upload/eviction
+churn, versus **2.4% for thick units** and **2.8% for monolithic thin storage**.
+The thin-vs-thick unit difference is under 1%; two samples do not establish a
+throughput winner. The large thin-unit penalty from loop-backed VMs did not
+reproduce in this one-CPU hosted workload. Runtime cgroup CPU stayed similar.
+
+The notable latency cost remains small uploads: thin-unit 16 KiB PUT p95 was
+**35.77–38.37 ms**, versus **28.93–32.99 ms** on shared XFS (about **6.1 ms** at
+midpoints). Thick-unit small PUT latency overlapped the shared baseline. Large
+PUT p95 and checksum-read results do not show the same slowdown in these samples.
+These measurements describe requests to a bounded cache fixture, not whole-build
+speed or a promise of zero regression.
+
+The 1 GiB checksum read set exceeds the configured runtime memory limit, but it
+is not a fully cold-disk test; global caches were not dropped on the shared host.
+Runtime CPU counters exclude some host crypto work. Whole-host CPU counters were
+also retained, but include the load generator and unrelated services. The earlier
+direct-I/O/QD32 regressions remain separate evidence and are not overturned by a
+one-CPU HTTP workload. No regional density, memory savings, hit-rate or general
+high-concurrency performance claim follows from this test.
+
+Thin units now have real child-lifecycle/key integration and close cache-workload
+performance on the intended hardware. Thick units remain a credible simpler
+physical-backing alternative; this comparison does not justify selecting thin
+for speed. Both options must retain whole-device backing until deletion. The
+experiment supports the base-plus-units safety model; it does not release the
+experimental runtime format or remove the versioned base-size/mount-contract
+choice before enrollment. See the updated sharing-compatibility review.
+
+Raw report SHA-256: `e117e55f0c0712e509a4b31e9155b10d9b2bae3545109a20507272a58090d90a`.
+Child lifecycle evidence SHA-256:
+`1d6a2842522e4573c9187f498a0daec207ca5d7adff8f898b83221dd5a14117b`.
+
+## Staging teardown and restoration
+
+Normal Pod/PVC/CSI deletion removed all five benchmark PVs, including the
+non-empty child of the final parent. The final pool observation was healthy with
+**zero mapped data and zero committed bytes**. Removing the empty test pool also
+removed its metadata spare; the VG contains only its original `data` LV and has
+exactly its original **812,541,542,400 free bytes** again. Plain fixture contents
+were removed; its empty host directory remains. No forced/lazy unmount was used.
+
+The original CSI image/template/RollingUpdate strategy is restored and all three
+node plugins are ready. Both non-Paris pod UIDs remained unchanged. Both synthetic
+accounts, ownership rows and key rows were deleted; the key inventory reported
+zero remaining OpenBao rows. The isolated key endpoint, TLS/auth Secrets, OpenBao
+StatefulSet, all three persistent claims/PVs, Services and ConfigMaps were removed.
+The three OpenBao PVs used `Retain`; each was verified Released with its exact
+claim UID gone before changing only those PVs to `Delete`. All three PVs are now
+absent. [Cleanup run 40753215580](https://github.com/tuist/tuist/actions/runs/40753215580)
+removed the fixture StorageClass and TokenReview identity/RBAC through the normal
+staging deployment lane. Private test unseal shares, root token and TLS private
+keys were destroyed after resource teardown. Only dedicated fixture image tags
+and non-secret measurement artifacts remain; production was not changed.
+
 ## Recovery follow-up and second matched comparison
 
 [Run 40736770879](https://github.com/tuist/tuist/actions/runs/40736770879), source
@@ -76,8 +243,17 @@ explicit observation/operation latency budget and qualification against it.
 Source `170e555be89` avoids reactivating already-active LVs during accounting
 (the kernel status query does not need device-node repair). Inactive volumes
 still activate normally; missing status fails closed. Local Go tests and vet
-passed. Separate metadata and child-lifecycle runs are checking the change,
-including a five-second full-observation gate; results remain pending.
+passed. [Run 40744420814](https://github.com/tuist/tuist/actions/runs/40744420814)
+passed **14 assertions** and verified cleanup in **308.17 seconds**. Full
+observations took **1.79 seconds** and post-recovery observations **1.65 seconds**,
+both within the new five-second gate. Cold activation/restaging took **56.71
+seconds**. The complete 128-device recovery, identity, checksum, pressure and
+deletion checks passed again. The child-lifecycle follow-up
+[40745223600](https://github.com/tuist/tuist/actions/runs/40745223600) passed
+**71 assertions** in **142.95 seconds**, with verified cleanup and no repeated
+benchmarks.
+The before/after runs used different hosted VMs, so timing is evidence for the
+explicit budget, not an isolated hardware-controlled speedup measurement.
 
 ## Child API and matched thick/thin comparison — October 28
 
@@ -150,7 +326,8 @@ tags after explicit user approval. The alternate host-containerd socket importer
 was rejected and was not used. Native amd64 server release boot passed in
 [40740703970](https://github.com/tuist/tuist/actions/runs/40740703970); this is not
 full web-server readiness. An isolated three-voter OpenBao fixture and compiled
-key endpoint are being qualified on staging; hardware measurements remain pending.
+key endpoint and matched hardware comparison passed the staging sequence
+recorded above. Cleanup/restoration evidence is recorded alongside it.
 
 ## Earlier fixture-only prototype (historical evidence)
 
