@@ -1132,7 +1132,9 @@ struct TreeShakePrunedTargetsGraphMapperEmptiedProjectSchemesTests {
                                 path: try AbsolutePath(validating: "/App/Derived/TestPlans/AllUnitTests.xctestplan"),
                                 testTargets: [.test(target: .init(projectPath: featureProjectPath, name: featureTests.name))],
                                 isDefault: true,
-                                kind: .generated
+                                kind: .generated,
+                                language: "fr",
+                                region: "NZ"
                             ),
                         ]
                     ),
@@ -1162,6 +1164,9 @@ struct TreeShakePrunedTargetsGraphMapperEmptiedProjectSchemesTests {
             gotScheme.testAction?.preActions.first?.target
                 == TargetReference(projectPath: featureProjectPath, name: featureTests.name)
         )
+        let gotPlan = try #require(gotScheme.testAction?.testPlans?.first)
+        #expect(gotPlan.language == "fr")
+        #expect(gotPlan.region == "NZ")
     }
 
     @Test func map_removes_an_emptied_project_when_none_of_its_schemes_survive() throws {

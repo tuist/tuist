@@ -386,7 +386,9 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 path: testPlan.path,
                 testTargets: testTargets,
                 isDefault: testPlan.isDefault,
-                kind: testPlan.kind
+                kind: testPlan.kind,
+                language: testPlan.language,
+                region: testPlan.region
             )
         }
     }

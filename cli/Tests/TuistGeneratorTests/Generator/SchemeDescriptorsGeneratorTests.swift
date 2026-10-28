@@ -935,61 +935,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
     }
 
-    func test_generateProjectSchemes_emits_testPlan_side_effects_for_generated_plans() throws {
-        // Given
-        let projectPath = try AbsolutePath(validating: "/Project")
-        let target = Target.test(name: "App", product: .app)
-        let testTarget = Target.test(name: "AppTests", product: .unitTests)
-        let planPath = projectPath.appending(component: "UnitTests.xctestplan")
-        let plan = TestPlan(
-            path: planPath,
-            testTargets: [
-                TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests")),
-            ],
-            isDefault: true,
-            kind: .generated,
-            language: "en",
-            region: "US"
-        )
-        let existingPlanPath = projectPath.appending(component: "Existing.xctestplan")
-        let existingPlan = TestPlan(
-            path: existingPlanPath,
-            testTargets: [],
-            isDefault: false,
-            kind: .referenced
-        )
-        let scheme = Scheme.test(
-            testAction: TestAction.test(testPlans: [plan, existingPlan])
-        )
-        let project = Project.test(path: projectPath, targets: [target, testTarget], schemes: [scheme])
-        let graph = Graph.test(projects: [project.path: project])
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // When
-        let (_, sideEffects) = try subject.generateProjectSchemes(
-            project: project,
-            generatedProject: generatedProject(
-                targets: Array(project.targets.values),
-                projectPath: project.xcodeProjPath.pathString
-            ),
-            graphTraverser: graphTraverser
-        )
-
-        // Then
-        let testPlanDescriptors = sideEffects.compactMap { sideEffect -> TestPlanDescriptor? in
-            guard case let .testPlan(descriptor) = sideEffect else { return nil }
-            return descriptor
-        }
-        XCTAssertEqual(testPlanDescriptors.count, 1)
-        XCTAssertEqual(testPlanDescriptors.first?.path, planPath)
-        XCTAssertEqual(
-            testPlanDescriptors.first?.testTargets.map(\.pbxTarget.name),
-            ["AppTests"]
-        )
-        XCTAssertEqual(testPlanDescriptors.first?.language, "en")
-        XCTAssertEqual(testPlanDescriptors.first?.region, "US")
-    }
-
     func test_generateProjectSchemes_rejects_duplicate_generated_test_plan_paths() throws {
         // Given: two schemes targeting the same generated test plan path
         let projectPath = try AbsolutePath(validating: "/Project")
@@ -2819,6 +2764,57 @@ struct SchemeDescriptorsGeneratorCodeCoverageTests {
                 )
             )
         })
+    }
+}
+
+struct SchemeDescriptorsGeneratorTestPlanTests {
+    @Test func generates_test_plan_side_effects_only_for_generated_plans() throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let planPath = projectPath.appending(component: "UnitTests.xctestplan")
+        let plan = TestPlan(
+            path: planPath,
+            testTargets: [
+                TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests")),
+            ],
+            isDefault: true,
+            kind: .generated,
+            language: "en",
+            region: "US"
+        )
+        let existingPlan = TestPlan(
+            path: projectPath.appending(component: "Existing.xctestplan"),
+            testTargets: [],
+            isDefault: false,
+            kind: .referenced
+        )
+        let scheme = Scheme.test(testAction: TestAction.test(testPlans: [plan, existingPlan]))
+        let project = Project.test(path: projectPath, targets: [target, testTarget], schemes: [scheme])
+        let graphTraverser = GraphTraverser(graph: .test(projects: [project.path: project]))
+        let generatedProject = GeneratedProject(
+            pbxproj: .init(),
+            path: project.xcodeProjPath,
+            targets: ["App": PBXNativeTarget(name: "App"), "AppTests": PBXNativeTarget(name: "AppTests")],
+            name: project.xcodeProjPath.basename
+        )
+
+        let (_, sideEffects) = try SchemeDescriptorsGenerator().generateProjectSchemes(
+            project: project,
+            generatedProject: generatedProject,
+            graphTraverser: graphTraverser
+        )
+
+        let testPlanDescriptors = sideEffects.compactMap { sideEffect -> TestPlanDescriptor? in
+            guard case let .testPlan(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }
+        #expect(testPlanDescriptors.count == 1)
+        let descriptor = try #require(testPlanDescriptors.first)
+        #expect(descriptor.path == planPath)
+        #expect(descriptor.testTargets.map(\.pbxTarget.name) == ["AppTests"])
+        #expect(descriptor.language == "en")
+        #expect(descriptor.region == "US")
     }
 }
 

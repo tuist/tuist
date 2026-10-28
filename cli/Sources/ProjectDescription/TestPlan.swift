@@ -28,16 +28,42 @@ public enum TestPlan: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
     /// next to the manifest (gitignored alongside other derived artefacts). Set `path` to pin
     /// the file to a specific checked-in location, for example when external tooling like
     /// `xcodebuild -testPlan` needs a predictable path.
+    case generated(name: String, testTargets: [TestableTarget], path: Path? = nil)
+
+    /// A generated test plan with an explicit application language or region.
+    ///
+    /// Use ``generated(name:testTargets:path:language:region:)`` to create a locale-aware plan.
+    case generatedWithLocale(
+        name: String,
+        testTargets: [TestableTarget],
+        path: Path?,
+        language: SchemeLanguage?,
+        region: String?
+    )
+
+    /// Have Tuist generate a `.xctestplan` file with an optional fixed locale.
     ///
     /// Set `language` and `region` to run the plan's tests in a fixed locale, for example
     /// when tests format dates or numbers and must not depend on the simulator's settings.
-    case generated(
+    @_disfavoredOverload
+    public static func generated(
         name: String,
         testTargets: [TestableTarget],
         path: Path? = nil,
         language: SchemeLanguage? = nil,
         region: String? = nil
-    )
+    ) -> TestPlan {
+        guard language != nil || region != nil else {
+            return .generated(name: name, testTargets: testTargets, path: path)
+        }
+        return .generatedWithLocale(
+            name: name,
+            testTargets: testTargets,
+            path: path,
+            language: language,
+            region: region
+        )
+    }
 
     public init(stringLiteral value: String) {
         self = .path(Path(stringLiteral: value))

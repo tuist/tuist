@@ -10,6 +10,38 @@ import XcodeGraph
 struct TestPlanManifestMapperTests {
     private let fileSystem = FileSystem()
 
+    @Test func generated_preserves_the_legacy_constructor_pattern_and_json() throws {
+        let factory: (String, [ProjectDescription.TestableTarget], ProjectDescription.Path?) -> ProjectDescription.TestPlan =
+            ProjectDescription.TestPlan.generated
+        let plan = factory("UnitTests", [], "Plans/UnitTests.xctestplan")
+
+        guard case let .generated(name, targets, path) = plan else {
+            Issue.record("The legacy constructor must produce the original generated case")
+            return
+        }
+        #expect(name == "UnitTests")
+        #expect(targets.isEmpty)
+        #expect(path == "Plans/UnitTests.xctestplan")
+
+        let historical = Data(
+            """
+            {"generated":{"name":"UnitTests","testTargets":[],"path":{
+              "type":"relativeToManifest","pathString":"Plans/UnitTests.xctestplan"
+            }}}
+            """.utf8
+        )
+        #expect(try JSONDecoder().decode(ProjectDescription.TestPlan.self, from: historical) == plan)
+        let encoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(plan)) as? NSDictionary
+        let expected = try JSONSerialization.jsonObject(with: historical) as? NSDictionary
+        #expect(encoded == expected)
+    }
+
+    @Test func generated_with_nil_locale_preserves_the_legacy_representation() {
+        let plan = ProjectDescription.TestPlan.generated(name: "UnitTests", testTargets: [], language: nil, region: nil)
+
+        #expect(plan == .generated(name: "UnitTests", testTargets: []))
+    }
+
     @Test(.inTemporaryDirectory) func plan_when_manifest_directory_is_in_a_subdirectory() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
