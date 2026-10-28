@@ -1,20 +1,3 @@
-msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2025-12-24 20:47+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
-"Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
-"dashboard_projects/tr/>\n"
-"Language: tr\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.15.1\n"
-
 ## This file is a PO Template file.
 ##
 ## "msgid"s here are often extracted from source code.
@@ -25,543 +8,3361 @@ msgstr ""
 ## date. Leave "msgstr"s empty as changing them here has no
 ## effect: edit them in PO (.po) files instead.
 #
-#: lib/tuist_web/live/overview_live.html.heex:816
-#, elixir-autogen, elixir-format, fuzzy
-msgid "%{average_build_time}s"
-msgstr "%{ortalama_inşa_zamanı}s"
+msgid ""
+msgstr "Language: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n>1);\n"
 
-#: lib/tuist_web/live/overview_live.html.heex:104
-#: lib/tuist_web/live/overview_live.html.heex:180
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1042
+#, elixir-autogen, elixir-format
+msgid "%{average_build_time}s"
+msgstr "%{average_build_time}s"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:110
+#: lib/tuist_web/live/xcode_overview_live.html.heex:238
+#, elixir-autogen, elixir-format
 msgid "%{binary_cache_effectiveness}%"
 msgstr "%{binary_cache_effectiveness}%"
 
-#: lib/tuist_web/live/overview_live.html.heex:140
-#: lib/tuist_web/live/overview_live.html.heex:159
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/mix_overview_live.html.heex:100
+#: lib/tuist_web/live/xcode_overview_live.html.heex:172
+#, elixir-autogen, elixir-format
 msgid "%{duration}s"
-msgstr "%{süre}s"
+msgstr "%{duration}s"
 
-#: lib/tuist_web/live/overview_live.html.heex:189
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:250
+#, elixir-autogen, elixir-format
 msgid "%{selective_test_effectiveness}%"
 msgstr "%{selective_test_effectiveness}%"
 
-#: lib/tuist_web/live/overview_live.html.heex:122
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:141
+#, elixir-autogen, elixir-format
 msgid "%{selective_tests_effectiveness}%"
 msgstr "%{selective_tests_effectiveness}%"
 
-#: lib/tuist_web/live/create_project_live.ex:76
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Account"
-msgstr "Hesap"
-
-#: lib/tuist_web/live/projects_live.ex:223
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/projects_live.ex:273
+#, elixir-autogen, elixir-format
 msgid "All projects"
 msgstr "Tüm projeler"
 
-#: lib/tuist_web/live/overview_live.html.heex:3
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_cache_live.ex:123
+#: lib/tuist_web/live/bazel_invocations_live.ex:259
+#: lib/tuist_web/live/bazel_overview_live.ex:115
+#: lib/tuist_web/live/cargo_overview_live.html.heex:5
+#: lib/tuist_web/live/once_cache_live.ex:171
+#: lib/tuist_web/live/once_overview_live.ex:109
+#: lib/tuist_web/live/once_runs_live.ex:406
+#: lib/tuist_web/live/xcode_overview_live.html.heex:11
+#, elixir-autogen, elixir-format
 msgid "Analytics"
 msgstr "Analitik"
 
-#: lib/tuist_web/live/overview_live.ex:325
-#: lib/tuist_web/live/overview_live.html.heex:23
-#: lib/tuist_web/live/overview_live.html.heex:654
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_invocations_live.ex:938
+#: lib/tuist_web/live/bazel_invocations_live.ex:942
+#: lib/tuist_web/live/bazel_overview_live.ex:703
+#: lib/tuist_web/live/bazel_overview_live.ex:707
+#: lib/tuist_web/live/once_overview_live.ex:335
+#: lib/tuist_web/live/once_overview_live.ex:684
+#: lib/tuist_web/live/project_notifications_live.ex:761
+#: lib/tuist_web/live/project_notifications_live.ex:764
+#: lib/tuist_web/live/xcode_overview_live.ex:269
+#: lib/tuist_web/live/xcode_overview_live.html.heex:23
+#: lib/tuist_web/live/xcode_overview_live.html.heex:834
+#, elixir-autogen, elixir-format
 msgid "Any"
-msgstr "Herhangi bir"
+msgstr "Herhangi biri"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:40
-#: lib/tuist_web/live/project_settings_live.html.heex:64
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:60
+#: lib/tuist_web/live/project_settings_live.html.heex:84
+#, elixir-autogen, elixir-format
 msgid "Anyone with the link"
-msgstr "Bağlantısı olan herkes"
+msgstr "Bağlantıya sahip olan herkes"
 
-#: lib/tuist_web/live/overview_live.html.heex:511
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:654
+#, elixir-autogen, elixir-format
 msgid "App:"
 msgstr "Uygulama:"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:161
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:333
+#, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
 msgstr "Bunu silmek istediğinizden emin misiniz?"
 
-#: lib/tuist_web/live/overview_live.html.heex:132
-#: lib/tuist_web/live/overview_live.html.heex:814
-#: lib/tuist_web/live/overview_live.html.heex:883
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_overview_live.ex:188
+#: lib/tuist_web/live/bazel_overview_live.ex:450
+#: lib/tuist_web/live/bazel_overview_live.ex:485
+#: lib/tuist_web/live/cargo_overview_live.ex:290
+#: lib/tuist_web/live/cargo_overview_live.html.heex:24
+#: lib/tuist_web/live/cargo_overview_live.html.heex:78
+#: lib/tuist_web/live/cargo_overview_live.html.heex:196
+#: lib/tuist_web/live/mix_overview_live.html.heex:90
+#: lib/tuist_web/live/mix_overview_live.html.heex:164
+#: lib/tuist_web/live/mix_overview_live.html.heex:217
+#: lib/tuist_web/live/once_overview_live.ex:182
+#: lib/tuist_web/live/once_overview_live.ex:458
+#: lib/tuist_web/live/once_overview_live.ex:506
+#: lib/tuist_web/live/xcode_overview_live.html.heex:162
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1040
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1110
+#, elixir-autogen, elixir-format
 msgid "Average build time"
-msgstr "Ortalama yapım süresi"
+msgstr "Ortalama derleme süresi"
 
-#: lib/tuist_web/live/overview_live.html.heex:151
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Average test time"
-msgstr "Ortalama test süresi"
-
-#: lib/tuist_web/live/overview_live.html.heex:134
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:164
+#, elixir-autogen, elixir-format
 msgid "Average time it takes to build a project as reported from Xcode post actions."
-msgstr ""
-"Xcode sonrası eylemlerden bildirildiği gibi bir proje oluşturmak için geçen "
-"ortalama süre."
+msgstr "Xcode post actions üzerinden raporlanan bir projeyi derlemek için geçen ortalama süre."
 
-#: lib/tuist_web/live/overview_live.html.heex:153
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Average time it takes to test a project when using the 'tuist test' command."
-msgstr ""
-"'tuist test' komutunu kullanırken bir projeyi test etmek için geçen ortalama "
-"süre."
-
-#: lib/tuist_web/live/overview_live.html.heex:377
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:451
+#, elixir-autogen, elixir-format
 msgid "Binary cache and selective testing: no data yet"
-msgstr "İkili önbellek ve seçmeli test: henüz veri yok"
+msgstr "İkili önbellek ve seçici testler: henüz veri yok"
 
-#: lib/tuist_web/live/overview_live.html.heex:324
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:395
+#, elixir-autogen, elixir-format
 msgid "Build time"
-msgstr "İnşa süresi"
+msgstr "Derleme süresi"
 
-#: lib/tuist_web/live/overview_live.html.heex:287
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:357
+#, elixir-autogen, elixir-format
 msgid "Build time saved"
-msgstr "İnşa süresinden tasarruf"
+msgstr "Kazanılan derleme süresi"
 
-#: lib/tuist_web/live/overview_live.html.heex:642
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_builds_live.ex:10
+#: lib/tuist_web/live/bazel_overview_live.ex:316
+#: lib/tuist_web/live/cargo_overview_live.html.heex:146
+#: lib/tuist_web/live/once_overview_live.ex:323
+#: lib/tuist_web/live/once_runs_live.ex:50
+#: lib/tuist_web/live/xcode_overview_live.html.heex:822
+#, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "Derlemeler"
 
-#: lib/tuist_web/live/overview_live.html.heex:622
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:781
+#, elixir-autogen, elixir-format
 msgid "Bundle install size"
-msgstr "Paket yükleme boyutu"
+msgstr "Paket kurulum boyutu"
 
-#: lib/tuist_web/live/overview_live.html.heex:503
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_automations_live.html.heex:30
+#: lib/tuist_web/live/project_bundle_settings_live.ex:27
+#: lib/tuist_web/live/project_bundle_settings_live.ex:30
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:30
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:37
+#: lib/tuist_web/live/project_notifications_live.html.heex:30
+#: lib/tuist_web/live/project_settings_live.html.heex:30
+#: lib/tuist_web/live/xcode_overview_live.html.heex:646
+#, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr "Paketler"
 
-#: lib/tuist_web/live/overview_live.ex:333
-#: lib/tuist_web/live/overview_live.html.heex:39
-#: lib/tuist_web/live/overview_live.html.heex:670
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_invocations_live.ex:936
+#: lib/tuist_web/live/bazel_invocations_live.ex:943
+#: lib/tuist_web/live/bazel_invocations_live.ex:1011
+#: lib/tuist_web/live/bazel_overview_live.ex:701
+#: lib/tuist_web/live/bazel_overview_live.ex:708
+#: lib/tuist_web/live/once_overview_live.ex:343
+#: lib/tuist_web/live/once_overview_live.ex:682
+#: lib/tuist_web/live/project_notifications_live.ex:763
+#: lib/tuist_web/live/xcode_overview_live.ex:271
+#: lib/tuist_web/live/xcode_overview_live.html.heex:31
+#: lib/tuist_web/live/xcode_overview_live.html.heex:842
+#, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
 
-#: lib/tuist_web/live/overview_live.html.heex:96
-#: lib/tuist_web/live/overview_live.html.heex:178
-#: lib/tuist_web/live/overview_live.html.heex:251
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/once_overview_live.ex:164
+#: lib/tuist_web/live/once_overview_live.ex:236
+#: lib/tuist_web/live/once_overview_live.ex:282
+#: lib/tuist_web/live/xcode_overview_live.html.heex:100
+#: lib/tuist_web/live/xcode_overview_live.html.heex:236
+#: lib/tuist_web/live/xcode_overview_live.html.heex:319
+#, elixir-autogen, elixir-format
 msgid "Cache effectiveness"
 msgstr "Önbellek etkinliği"
 
-#: lib/tuist_web/live/overview_live.html.heex:98
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:102
+#, elixir-autogen, elixir-format
 msgid "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
-msgstr ""
-"Önbellek etkinliği, hem Modül önbelleğinin hem de Xcode önbelleğinin "
-"birleşik isabet oranını temsil eder ve yeniden oluşturulmak yerine "
-"önbellekten çözümlenen önbelleğe alınabilir öğelerin yüzdesini gösterir."
+msgstr "Önbellek etkinliği, hem Modül önbelleği hem de Xcode önbelleğinin birleşik isabet oranını temsil eder ve yeniden derlenmek yerine önbellekten çözümlenen önbelleklenebilir öğelerin yüzdesini gösterir."
 
-#: lib/tuist_web/live/overview_live.html.heex:79
-#: lib/tuist_web/live/overview_live.html.heex:552
-#: lib/tuist_web/live/overview_live.html.heex:710
-#: lib/tuist_web/live/project_settings_live.html.heex:125
-#: lib/tuist_web/live/project_settings_live.html.heex:197
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_cache_live.ex:139
+#: lib/tuist_web/live/bazel_invocations_live.ex:236
+#: lib/tuist_web/live/bazel_overview_live.ex:146
+#: lib/tuist_web/live/bazel_overview_live.ex:347
+#: lib/tuist_web/live/cargo_overview_live.ex:158
+#: lib/tuist_web/live/once_cache_live.ex:151
+#: lib/tuist_web/live/once_overview_live.ex:140
+#: lib/tuist_web/live/once_overview_live.ex:369
+#: lib/tuist_web/live/once_runs_live.ex:383
+#: lib/tuist_web/live/project_automations_live.html.heex:1083
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:223
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:412
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:564
+#: lib/tuist_web/live/project_notifications_live.html.heex:173
+#: lib/tuist_web/live/project_notifications_live.html.heex:500
+#: lib/tuist_web/live/project_notifications_live.html.heex:845
+#: lib/tuist_web/live/project_settings_live.html.heex:146
+#: lib/tuist_web/live/project_settings_live.html.heex:297
+#: lib/tuist_web/live/project_settings_live.html.heex:369
+#: lib/tuist_web/live/xcode_overview_live.html.heex:79
+#: lib/tuist_web/live/xcode_overview_live.html.heex:694
+#: lib/tuist_web/live/xcode_overview_live.html.heex:890
+#, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "İptal"
 
-#: lib/tuist_web/live/create_project_live.ex:78
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Choose an account to create your project or set up a new organization."
-msgstr ""
-"Projenizi oluşturmak veya yeni bir organizasyon kurmak için bir hesap seçin."
-
-#: lib/tuist_web/live/create_project_live.ex:97
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/create_project_live.ex:108
+#, elixir-autogen, elixir-format
 msgid "Continue"
-msgstr "Devam et"
+msgstr "Devam"
 
-#: lib/tuist_web/live/create_project_live.ex:60
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Create a Tuist project to continue"
-msgstr "Devam etmek için bir Tuist projesi oluşturun"
-
-#: lib/tuist_web/live/projects_live.ex:320
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/projects_live.ex:385
+#, elixir-autogen, elixir-format
 msgid "Create a new project"
-msgstr "Yeni proje oluştur"
+msgstr "Yeni bir proje oluştur"
 
-#: lib/tuist_web/live/create_project_live.ex:58
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/create_project_live.ex:54
+#, elixir-autogen, elixir-format
 msgid "Create a project"
-msgstr "Bir proje oluşturun"
+msgstr "Proje oluştur"
 
-#: lib/tuist_web/live/create_project_live.ex:102
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Create organization"
-msgstr "Organizasyon oluşturun"
-
-#: lib/tuist_web/live/projects_live.ex:306
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/projects_live.ex:369
+#, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr "Proje oluştur"
 
-#: lib/tuist_web/live/projects_live.ex:170
-#: lib/tuist_web/live/projects_live.ex:213
-#: lib/tuist_web/live/projects_live.ex:280
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/projects_live.ex:214
+#: lib/tuist_web/live/projects_live.ex:263
+#: lib/tuist_web/live/projects_live.ex:338
+#, elixir-autogen, elixir-format
 msgid "Created %{time}"
-msgstr "Oluşturuldu %{time}"
+msgstr "%{time} tarihinde oluşturuldu"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:205
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:377
+#, elixir-autogen, elixir-format
 msgid "Delete"
-msgstr "Silme"
+msgstr "Sil"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:146
-#: lib/tuist_web/live/project_settings_live.html.heex:167
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:318
+#: lib/tuist_web/live/project_settings_live.html.heex:339
+#, elixir-autogen, elixir-format
 msgid "Delete project"
-msgstr "Proje silme"
+msgstr "Projeyi sil"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:179
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:351
+#, elixir-autogen, elixir-format
 msgid "Deleting the project will permanently remove all of its data"
-msgstr "Projenin silinmesi tüm verilerini kalıcı olarak kaldıracaktır"
+msgstr "Projeyi silmek, tüm verilerini kalıcı olarak kaldıracaktır"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:186
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:358
+#, elixir-autogen, elixir-format
 msgid "Enter this project's name to confirm"
 msgstr "Onaylamak için bu projenin adını girin"
 
-#: lib/tuist_web/live/overview_live.html.heex:19
-#: lib/tuist_web/live/overview_live.html.heex:650
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_invocations_live.ex:213
+#: lib/tuist_web/live/bazel_overview_live.ex:123
+#: lib/tuist_web/live/bazel_overview_live.ex:324
+#: lib/tuist_web/live/cargo_overview_live.ex:135
+#: lib/tuist_web/live/once_overview_live.ex:117
+#: lib/tuist_web/live/once_overview_live.ex:331
+#: lib/tuist_web/live/xcode_overview_live.html.heex:19
+#: lib/tuist_web/live/xcode_overview_live.html.heex:830
+#, elixir-autogen, elixir-format
 msgid "Environment:"
-msgstr "Çevre:"
+msgstr "Ortam:"
 
-#: lib/tuist_web/live/overview_live.html.heex:735
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_invocations_live.ex:696
+#: lib/tuist_web/live/bazel_invocations_live.ex:811
+#: lib/tuist_web/live/bazel_overview_live.ex:382
+#: lib/tuist_web/live/cargo_overview_live.ex:205
+#: lib/tuist_web/live/once_overview_live.ex:403
+#: lib/tuist_web/live/once_runs_live.ex:460
+#: lib/tuist_web/live/once_runs_live.ex:1188
+#: lib/tuist_web/live/xcode_overview_live.html.heex:933
+#, elixir-autogen, elixir-format
 msgid "Failed builds"
-msgstr "Başarısız yapılar"
+msgstr "Başarısız derlemeler"
 
-#: lib/tuist_web/live/overview_live.html.heex:405
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_overview_live.ex:529
+#: lib/tuist_web/live/cargo_overview_live.ex:206
+#: lib/tuist_web/live/once_overview_live.ex:316
+#: lib/tuist_web/live/once_runs_live.ex:1011
+#: lib/tuist_web/live/xcode_overview_live.html.heex:508
+#, elixir-autogen, elixir-format
 msgid "Failed runs"
-msgstr "Başarısız koşular"
+msgstr "Başarısız çalıştırmalar"
 
+#: lib/tuist_web/live/project_automations_live.html.heex:8
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:8
+#: lib/tuist_web/live/project_notifications_live.html.heex:8
 #: lib/tuist_web/live/project_settings_live.html.heex:8
-#: lib/tuist_web/live/project_settings_live.html.heex:19
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:36
+#, elixir-autogen, elixir-format
 msgid "General"
 msgstr "Genel"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:32
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:52
+#, elixir-autogen, elixir-format
 msgid "General access"
 msgstr "Genel erişim"
 
-#: lib/tuist_web/live/overview_live.html.heex:573
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_bundle_settings_live.ex:359
+#: lib/tuist_web/live/project_notifications_live.ex:788
+#: lib/tuist_web/live/xcode_overview_live.html.heex:731
+#, elixir-autogen, elixir-format
 msgid "Install size"
 msgstr "Kurulum boyutu"
 
-#: lib/tuist_web/live/overview_live.html.heex:787
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_overview_live.ex:398
+#: lib/tuist_web/live/cargo_overview_live.ex:239
+#: lib/tuist_web/live/once_overview_live.ex:419
+#: lib/tuist_web/live/once_overview_live.ex:575
+#: lib/tuist_web/live/xcode_overview_live.html.heex:986
+#, elixir-autogen, elixir-format
 msgid "Last 30 runs"
-msgstr "Son 30 koşu"
+msgstr "Son 30 çalıştırma"
 
-#: lib/tuist_web/live/overview_live.html.heex:458
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_overview_live.ex:545
+#: lib/tuist_web/live/cargo_overview_live.ex:240
+#: lib/tuist_web/live/xcode_overview_live.html.heex:562
+#, elixir-autogen, elixir-format
 msgid "Last 40 runs"
-msgstr "Son 40 koşu"
+msgstr "Son 40 çalıştırma"
 
-#: lib/tuist_web/live/projects_live.ex:165
-#: lib/tuist_web/live/projects_live.ex:208
-#: lib/tuist_web/live/projects_live.ex:275
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/projects_live.ex:209
+#: lib/tuist_web/live/projects_live.ex:258
+#: lib/tuist_web/live/projects_live.ex:333
+#, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
-msgstr "En son %{time} ile etkileşime girdi"
+msgstr "Son etkileşim: %{time}"
 
-#: lib/tuist_web/live/overview_live.html.heex:483
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:614
+#, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "Son uygulama önizlemeleri"
+msgstr "En son uygulama önizlemeleri"
 
-#: lib/tuist_web/live/overview_live.ex:329
-#: lib/tuist_web/live/overview_live.html.heex:31
-#: lib/tuist_web/live/overview_live.html.heex:662
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_invocations_live.ex:937
+#: lib/tuist_web/live/bazel_invocations_live.ex:944
+#: lib/tuist_web/live/bazel_invocations_live.ex:1012
+#: lib/tuist_web/live/bazel_overview_live.ex:702
+#: lib/tuist_web/live/bazel_overview_live.ex:709
+#: lib/tuist_web/live/once_overview_live.ex:351
+#: lib/tuist_web/live/once_overview_live.ex:683
+#: lib/tuist_web/live/once_runs_live.ex:915
+#: lib/tuist_web/live/project_notifications_live.ex:762
+#: lib/tuist_web/live/xcode_overview_live.ex:270
+#: lib/tuist_web/live/xcode_overview_live.html.heex:39
+#: lib/tuist_web/live/xcode_overview_live.html.heex:850
+#, elixir-autogen, elixir-format
 msgid "Local"
 msgstr "Yerel"
 
-#: lib/tuist_web/live/create_project_live.ex:67
-#: lib/tuist_web/live/projects_live.ex:328
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/create_project_live.ex:83
+#: lib/tuist_web/live/project_automations_live.html.heex:89
+#: lib/tuist_web/live/project_automations_live.html.heex:1141
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:121
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:249
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:307
+#: lib/tuist_web/live/project_notifications_live.html.heex:283
+#: lib/tuist_web/live/project_notifications_live.html.heex:431
+#: lib/tuist_web/live/project_notifications_live.html.heex:525
+#: lib/tuist_web/live/project_notifications_live.html.heex:592
+#: lib/tuist_web/live/project_notifications_live.html.heex:765
+#: lib/tuist_web/live/projects_live.ex:394
+#, elixir-autogen, elixir-format
 msgid "Name"
-msgstr "İsim"
+msgstr "Ad"
 
-#: lib/tuist_web/live/projects_live.ex:313
-#, elixir-autogen, elixir-format, fuzzy
-msgid "New project"
-msgstr "Yeni proje"
-
-#: lib/tuist_web/live/overview_live.html.heex:895
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_overview_live.ex:693
+#: lib/tuist_web/live/cargo_overview_live.html.heex:216
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1125
+#, elixir-autogen, elixir-format
 msgid "No builds yet"
-msgstr "Henüz yapı yok"
+msgstr "Henüz derleme yok"
 
-#: lib/tuist_web/live/overview_live.html.heex:633
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:795
+#, elixir-autogen, elixir-format
 msgid "No bundles yet"
 msgstr "Henüz paket yok"
 
-#: lib/tuist_web/live/overview_live.html.heex:493
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:624
+#, elixir-autogen, elixir-format
 msgid "No previews yet"
 msgstr "Henüz önizleme yok"
 
-#: lib/tuist_web/live/overview_live.html.heex:792
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/cargo_overview_live.html.heex:176
+#: lib/tuist_web/live/once_overview_live.ex:424
+#: lib/tuist_web/live/xcode_overview_live.html.heex:991
+#, elixir-autogen, elixir-format
 msgid "No recent builds yet"
-msgstr "Henüz yeni derleme yok"
+msgstr "Henüz son derleme yok"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:38
-#: lib/tuist_web/live/project_settings_live.html.heex:52
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Only people with access"
-msgstr "Sadece erişimi olan kişiler"
+#: lib/tuist_web/live/project_settings_live.html.heex:58
+#: lib/tuist_web/live/project_settings_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "Only organization members"
+msgstr "Yalnızca organizasyon üyeleri"
 
-#: lib/tuist_web/live/create_project_live.ex:100
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Or set up a new organization"
-msgstr "Ya da yeni bir organizasyon kurun"
-
-#: lib/tuist_web/live/overview_live.ex:25
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_invocation_live.ex:184
+#: lib/tuist_web/live/once_run_live.ex:258
+#: lib/tuist_web/live/overview_live.ex:17
+#: lib/tuist_web/live/overview_live.ex:21
+#, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "Genel Bakış"
 
-#: lib/tuist_web/live/overview_live.html.heex:730
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_overview_live.ex:377
+#: lib/tuist_web/live/cargo_overview_live.ex:196
+#: lib/tuist_web/live/once_overview_live.ex:398
+#: lib/tuist_web/live/xcode_overview_live.html.heex:928
+#, elixir-autogen, elixir-format
 msgid "Passed builds"
-msgstr "Geçti yapılar"
+msgstr "Başarılı derlemeler"
 
-#: lib/tuist_web/live/overview_live.html.heex:400
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_overview_live.ex:524
+#: lib/tuist_web/live/cargo_overview_live.ex:197
+#: lib/tuist_web/live/once_overview_live.ex:315
+#: lib/tuist_web/live/once_runs_live.ex:1008
+#: lib/tuist_web/live/xcode_overview_live.html.heex:503
+#, elixir-autogen, elixir-format
 msgid "Passed runs"
-msgstr "Geçilen koşular"
+msgstr "Başarılı çalıştırmalar"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:24
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:44
+#, elixir-autogen, elixir-format
 msgid "Preview access"
 msgstr "Önizleme erişimi"
 
-#: lib/tuist_web/live/overview_live.html.heex:472
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:587
+#, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr "Önizlemeler"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:117
-#: lib/tuist_web/live/project_settings_live.html.heex:189
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:289
+#: lib/tuist_web/live/project_settings_live.html.heex:361
+#, elixir-autogen, elixir-format
 msgid "Project name"
 msgstr "Proje adı"
 
-#: lib/tuist_web/live/projects_live.ex:33
-#: lib/tuist_web/live/projects_live.ex:124
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/projects_live.ex:43
+#: lib/tuist_web/live/projects_live.ex:154
+#, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr "Projeler"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:13
-#, elixir-autogen, elixir-format, fuzzy
-msgid "QA"
-msgstr "QA"
-
-#: lib/tuist_web/live/projects_live.ex:180
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/projects_live.ex:224
+#, elixir-autogen, elixir-format
 msgid "Recent projects"
 msgstr "Son projeler"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:133
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:305
+#, elixir-autogen, elixir-format
 msgid "Rename"
-msgstr "Yeniden Adlandır"
+msgstr "Yeniden adlandır"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:80
-#: lib/tuist_web/live/project_settings_live.html.heex:101
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:252
+#: lib/tuist_web/live/project_settings_live.html.heex:273
+#, elixir-autogen, elixir-format
 msgid "Rename project"
 msgstr "Projeyi yeniden adlandır"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:95
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:267
+#, elixir-autogen, elixir-format
 msgid "Rename your project?"
-msgstr "Projenizi yeniden adlandırmak mı?"
+msgstr "Projenizi yeniden adlandırmak ister misiniz?"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:112
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:284
+#, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
-msgstr "Yeniden adlandırma beklenmedik sonuçlar doğurabilir"
+msgstr "Yeniden adlandırmanın beklenmedik sonuçları olabilir"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:83
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:255
+#, elixir-autogen, elixir-format
 msgid "Renaming your project can have unintended side effects."
-msgstr "Projenizi yeniden adlandırmanın istenmeyen yan etkileri olabilir."
+msgstr "Projenizi yeniden adlandırmak istenmeyen yan etkilere neden olabilir."
 
-#: lib/tuist_web/live/overview_live.html.heex:463
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_overview_live.ex:550
+#: lib/tuist_web/live/cargo_overview_live.html.heex:139
+#: lib/tuist_web/live/xcode_overview_live.html.heex:567
+#, elixir-autogen, elixir-format
 msgid "Runs: no data yet"
-msgstr "Çalışmalar: henüz veri yok"
+msgstr "Çalıştırmalar: henüz veri yok"
 
-#: lib/tuist_web/live/overview_live.html.heex:350
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:421
+#, elixir-autogen, elixir-format
 msgid "Saved"
-msgstr "Kurtarıldı"
+msgstr "Kaydedildi"
 
-#: lib/tuist_web/live/projects_live.ex:235
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/projects_live.ex:285
+#, elixir-autogen, elixir-format
 msgid "Search projects..."
-msgstr "Projeleri arayın..."
+msgstr "Projeleri ara..."
 
-#: lib/tuist_web/live/create_project_live.ex:72
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Select account"
-msgstr "Hesap seçin"
-
-#: lib/tuist_web/live/overview_live.html.heex:114
-#: lib/tuist_web/live/overview_live.html.heex:187
-#: lib/tuist_web/live/overview_live.html.heex:266
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:131
+#: lib/tuist_web/live/xcode_overview_live.html.heex:248
+#: lib/tuist_web/live/xcode_overview_live.html.heex:334
+#, elixir-autogen, elixir-format
 msgid "Selective test effectiveness"
 msgstr "Seçici test etkinliği"
 
-#: lib/tuist_web/live/overview_live.html.heex:116
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/xcode_overview_live.html.heex:133
+#, elixir-autogen, elixir-format
 msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
-msgstr ""
-"Seçici test etkinliği, seçici test isabetlerinin seçici test ıskalarına "
-"oranını temsil eder."
+msgstr "Seçici test etkinliği, seçici test isabetlerinin seçici test ıskalamalarına oranını temsil eder."
 
-#: lib/tuist_web/live/project_settings_live.html.heex:27
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:47
+#, elixir-autogen, elixir-format
 msgid "Set your previews to be public or private by default."
-msgstr ""
-"Önizlemelerinizi varsayılan olarak herkese açık veya özel olacak şekilde "
-"ayarlayın."
+msgstr "Önizlemelerinizi varsayılan olarak herkese açık veya özel olacak şekilde ayarlayın."
 
-#: lib/tuist_web/live/project_settings_live.ex:24
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.ex:30
+#: lib/tuist_web/live/project_settings_live.ex:33
+#, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "Ayarlar"
 
-#: lib/tuist_web/live/projects_live.ex:196
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/projects_live.ex:246
+#, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr "Desteklenen platformlar"
 
-#: lib/tuist_web/live/overview_live.html.heex:386
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_overview_live.ex:501
+#: lib/tuist_web/live/cargo_overview_live.html.heex:116
+#: lib/tuist_web/live/once_overview_live.ex:311
+#: lib/tuist_web/live/xcode_overview_live.html.heex:475
+#, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr "Testler"
 
-#: lib/tuist_web/live/projects_live.ex:24
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/projects_live.ex:25
+#, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr "Aradığınız sayfa mevcut değil veya taşınmış."
 
-#: lib/tuist_web/live/project_settings_live.html.heex:149
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_settings_live.html.heex:321
+#, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
 msgstr "Bu işlem geri alınamaz."
 
-#: lib/tuist_web/live/create_project_live.ex:50
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/create_project_live.ex:48
+#, elixir-autogen, elixir-format
 msgid "Tuist Logo"
-msgstr "Tuist Logo"
+msgstr "Tuist Logosu"
 
-#: lib/tuist_web/live/overview_live.html.heex:390
-#: lib/tuist_web/live/overview_live.html.heex:476
-#: lib/tuist_web/live/overview_live.html.heex:807
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_cache_live.ex:424
+#: lib/tuist_web/live/bazel_overview_live.ex:443
+#: lib/tuist_web/live/bazel_overview_live.ex:508
+#: lib/tuist_web/live/cargo_overview_live.html.heex:122
+#: lib/tuist_web/live/cargo_overview_live.html.heex:187
+#: lib/tuist_web/live/once_cache_live.ex:479
+#: lib/tuist_web/live/once_overview_live.ex:451
+#: lib/tuist_web/live/once_overview_live.ex:538
+#: lib/tuist_web/live/xcode_overview_live.html.heex:481
+#: lib/tuist_web/live/xcode_overview_live.html.heex:591
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1033
+#, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "Daha fazla görüntüle"
+msgstr "Daha fazlasını görüntüle"
 
-#: lib/tuist_web/live/project_settings_live.ex:14
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/project_automation_live.ex:25
+#: lib/tuist_web/live/project_automations_live.ex:25
+#: lib/tuist_web/live/project_bundle_settings_live.ex:19
+#: lib/tuist_web/live/project_notifications_live.ex:27
+#: lib/tuist_web/live/project_settings_live.ex:18
+#: lib/tuist_web/live/projects_live.ex:502
+#, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr "Bu işlemi gerçekleştirme yetkiniz yoktur."
+msgstr "Bu işlemi gerçekleştirmek için yetkiniz yok."
 
-#: lib/tuist_web/live/overview_live.ex:322
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:30
+#: lib/tuist_web/live/xcode_overview_live.ex:267
+#, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr "geçen aydan beri"
 
-#: lib/tuist_web/live/overview_live.ex:319
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:27
+#: lib/tuist_web/live/xcode_overview_live.ex:264
+#, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr "geçen haftadan beri"
 
-#: lib/tuist_web/live/overview_live.ex:320
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:28
+#: lib/tuist_web/live/xcode_overview_live.ex:265
+#, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr "geçen yıldan beri"
 
-#: lib/tuist_web/live/overview_live.html.heex:86
-#: lib/tuist_web/live/overview_live.html.heex:561
-#: lib/tuist_web/live/overview_live.html.heex:717
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_cache_live.ex:148
+#: lib/tuist_web/live/bazel_invocations_live.ex:245
+#: lib/tuist_web/live/bazel_overview_live.ex:155
+#: lib/tuist_web/live/bazel_overview_live.ex:356
+#: lib/tuist_web/live/cargo_overview_live.ex:165
+#: lib/tuist_web/live/once_cache_live.ex:160
+#: lib/tuist_web/live/once_overview_live.ex:149
+#: lib/tuist_web/live/once_overview_live.ex:376
+#: lib/tuist_web/live/once_runs_live.ex:392
+#: lib/tuist_web/live/xcode_overview_live.html.heex:88
+#: lib/tuist_web/live/xcode_overview_live.html.heex:703
+#: lib/tuist_web/live/xcode_overview_live.html.heex:897
+#, elixir-autogen, elixir-format
 msgid "Apply"
-msgstr "Başvurmak"
+msgstr "Uygula"
 
-#: lib/tuist_web/live/overview_live.html.heex:70
-#: lib/tuist_web/live/overview_live.html.heex:543
-#: lib/tuist_web/live/overview_live.html.heex:701
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:38
+#: lib/tuist_web/live/cargo_overview_live.ex:181
+#: lib/tuist_web/live/xcode_overview_live.html.heex:70
+#: lib/tuist_web/live/xcode_overview_live.html.heex:685
+#: lib/tuist_web/live/xcode_overview_live.html.heex:881
+#, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr "Özel"
 
-#: lib/tuist_web/live/overview_live.html.heex:67
-#: lib/tuist_web/live/overview_live.html.heex:540
-#: lib/tuist_web/live/overview_live.html.heex:698
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:37
+#: lib/tuist_web/live/cargo_overview_live.ex:180
+#: lib/tuist_web/live/xcode_overview_live.html.heex:67
+#: lib/tuist_web/live/xcode_overview_live.html.heex:682
+#: lib/tuist_web/live/xcode_overview_live.html.heex:878
+#, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr "Son 12 ay"
 
-#: lib/tuist_web/live/overview_live.html.heex:52
-#: lib/tuist_web/live/overview_live.html.heex:683
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:34
+#: lib/tuist_web/live/cargo_overview_live.ex:177
+#: lib/tuist_web/live/xcode_overview_live.html.heex:52
+#: lib/tuist_web/live/xcode_overview_live.html.heex:863
+#, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "Son 24 saat"
 
-#: lib/tuist_web/live/overview_live.html.heex:62
-#: lib/tuist_web/live/overview_live.html.heex:535
-#: lib/tuist_web/live/overview_live.html.heex:693
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:36
+#: lib/tuist_web/live/cargo_overview_live.ex:179
+#: lib/tuist_web/live/xcode_overview_live.html.heex:62
+#: lib/tuist_web/live/xcode_overview_live.html.heex:677
+#: lib/tuist_web/live/xcode_overview_live.html.heex:873
+#, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr "Son 30 gün"
 
-#: lib/tuist_web/live/overview_live.html.heex:57
-#: lib/tuist_web/live/overview_live.html.heex:530
-#: lib/tuist_web/live/overview_live.html.heex:688
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:35
+#: lib/tuist_web/live/cargo_overview_live.ex:178
+#: lib/tuist_web/live/xcode_overview_live.html.heex:57
+#: lib/tuist_web/live/xcode_overview_live.html.heex:672
+#: lib/tuist_web/live/xcode_overview_live.html.heex:868
+#, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr "Son 7 gün"
 
-#: lib/tuist_web/live/overview_live.ex:321
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:29
+#: lib/tuist_web/live/xcode_overview_live.ex:266
+#, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "son dönemden bu yana"
+msgstr "son dönemden beri"
 
-#: lib/tuist_web/live/overview_live.ex:318
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:26
+#: lib/tuist_web/live/xcode_overview_live.ex:263
+#, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr "dünden beri"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:548
+#, elixir-autogen, elixir-format
+msgid "Channel"
+msgstr "Kanal"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Configure"
+msgstr "Yapılandır"
+
+#: lib/tuist_web/live/project_notifications_live.ex:606
+#: lib/tuist_web/live/project_notifications_live.html.heex:97
+#: lib/tuist_web/live/project_notifications_live.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Daily"
+msgstr "Günlük"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Frequency"
+msgstr "Sıklık"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:96
+#: lib/tuist_web/live/project_notifications_live.html.heex:103
+#, elixir-autogen, elixir-format
+msgid "Never"
+msgstr "Asla"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1100
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:421
+#: lib/tuist_web/live/project_notifications_live.html.heex:181
+#: lib/tuist_web/live/project_settings_live.html.heex:154
+#, elixir-autogen, elixir-format
+msgid "Save"
+msgstr "Kaydet"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Send test report"
+msgstr "Test raporu gönder"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Time"
+msgstr "Saat"
+
+#: lib/tuist_web/live/project_notifications_live.ex:592
+#, elixir-autogen, elixir-format
+msgid "All days"
+msgstr "Tüm günler"
+
+#: lib/tuist_web/live/project_notifications_live.ex:590
+#, elixir-autogen, elixir-format
+msgid "Select days"
+msgstr "Günleri seçin"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:822
+#: lib/tuist_web/live/once_runs_live.ex:1199
+#: lib/tuist_web/live/project_notifications_live.ex:645
+#, elixir-autogen, elixir-format
+msgid "Average"
+msgstr "Ortalama"
+
+#: lib/tuist_web/live/project_notifications_live.ex:637
+#, elixir-autogen, elixir-format
+msgid "Build duration"
+msgstr "Derleme süresi"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:607
+#: lib/tuist_web/live/bazel_overview_live.ex:170
+#: lib/tuist_web/live/project_notifications_live.ex:639
+#, elixir-autogen, elixir-format
+msgid "Cache hit rate"
+msgstr "Önbellek isabet oranı"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:297
+#: lib/tuist_web/live/project_notifications_live.html.heex:528
+#: lib/tuist_web/live/project_notifications_live.html.heex:607
+#, elixir-autogen, elixir-format
+msgid "Category"
+msgstr "Kategori"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Get notified when metrics regress"
+msgstr "Metrikler gerilediğinde bildirim alın"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:135
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:252
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:321
+#: lib/tuist_web/live/project_notifications_live.html.heex:326
+#: lib/tuist_web/live/project_notifications_live.html.heex:531
+#: lib/tuist_web/live/project_notifications_live.html.heex:640
+#, elixir-autogen, elixir-format
+msgid "Metric"
+msgstr "Metrik"
+
+#: lib/tuist_web/live/project_notifications_live.ex:638
+#, elixir-autogen, elixir-format
+msgid "Test duration"
+msgstr "Test süresi"
+
+#: lib/tuist_web/live/project_automations_live.ex:1065
+#: lib/tuist_web/live/project_automations_live.html.heex:259
+#: lib/tuist_web/live/project_automations_live.html.heex:763
+#: lib/tuist_web/live/project_notifications_live.html.heex:401
+#: lib/tuist_web/live/project_notifications_live.html.heex:541
+#: lib/tuist_web/live/project_notifications_live.html.heex:725
+#, elixir-autogen, elixir-format
+msgid "Rolling window"
+msgstr "Kayan pencere"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:260
+#, elixir-autogen, elixir-format
+msgid "Add alert rule"
+msgstr "Uyarı kuralı ekle"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:290
+#: lib/tuist_web/live/project_notifications_live.html.heex:599
+#, elixir-autogen, elixir-format
+msgid "Alert name"
+msgstr "Uyarı adı"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:239
+#, elixir-autogen, elixir-format
+msgid "Alert rules"
+msgstr "Uyarı kuralları"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "Configure schedule"
+msgstr "Zamanlamayı yapılandır"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Configure your report notifications"
+msgstr "Rapor bildirimlerinizi yapılandırın"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:388
+#: lib/tuist_web/live/project_notifications_live.html.heex:708
+#, elixir-autogen, elixir-format
+msgid "Deviation (%)"
+msgstr "Sapma (%)"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:14
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:14
+#: lib/tuist_web/live/project_notifications_live.ex:33
+#: lib/tuist_web/live/project_notifications_live.ex:36
+#: lib/tuist_web/live/project_notifications_live.html.heex:14
+#: lib/tuist_web/live/project_notifications_live.html.heex:37
+#: lib/tuist_web/live/project_settings_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Notifications"
+msgstr "Bildirimler"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "Repeat"
+msgstr "Tekrarla"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Reports"
+msgstr "Raporlar"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Schedule"
+msgstr "Zamanla"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:200
+#, elixir-autogen, elixir-format
+msgid "Slack"
+msgstr "Slack"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:542
+#: lib/tuist_web/live/project_automations_live.html.heex:925
+#: lib/tuist_web/live/project_notifications_live.html.heex:211
+#: lib/tuist_web/live/project_notifications_live.html.heex:221
+#: lib/tuist_web/live/project_notifications_live.html.heex:481
+#: lib/tuist_web/live/project_notifications_live.html.heex:819
+#: lib/tuist_web/live/project_notifications_live.html.heex:831
+#, elixir-autogen, elixir-format
+msgid "Select channel"
+msgstr "Kanal seç"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:541
+#: lib/tuist_web/live/project_automations_live.html.heex:924
+#: lib/tuist_web/live/project_notifications_live.html.heex:220
+#: lib/tuist_web/live/project_notifications_live.html.heex:480
+#: lib/tuist_web/live/project_notifications_live.html.heex:818
+#, elixir-autogen, elixir-format
+msgid "Update channel"
+msgstr "Kanalı güncelle"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:470
+#: lib/tuist_web/live/project_notifications_live.html.heex:807
+#, elixir-autogen, elixir-format
+msgid "Slack channel"
+msgstr "Slack kanalı"
+
+#: lib/tuist_web/live/project_notifications_live.ex:785
+#, elixir-autogen, elixir-format
+msgid "average"
+msgstr "ortalama"
+
+#: lib/tuist_web/live/project_notifications_live.ex:770
+#, elixir-autogen, elixir-format
+msgid "build time"
+msgstr "derleme süresi"
+
+#: lib/tuist_web/live/project_notifications_live.ex:778
+#: lib/tuist_web/live/project_notifications_live.ex:780
+#, elixir-autogen, elixir-format
+msgid "builds"
+msgstr "derlemeler"
+
+#: lib/tuist_web/live/project_notifications_live.ex:776
+#, elixir-autogen, elixir-format
+msgid "cache hit rate"
+msgstr "önbellek isabet oranı"
+
+#: lib/tuist_web/live/project_notifications_live.ex:773
+#, elixir-autogen, elixir-format
+msgid "test time"
+msgstr "test süresi"
+
+#: lib/tuist_web/live/project_notifications_live.ex:779
+#, elixir-autogen, elixir-format
+msgid "tests"
+msgstr "testler"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1103
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:231
+#: lib/tuist_web/live/project_notifications_live.html.heex:508
+#: lib/tuist_web/live/projects_live.ex:432
+#, elixir-autogen, elixir-format
+msgid "Create"
+msgstr "Oluştur"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:254
+#, elixir-autogen, elixir-format
+msgid "Create alert rule"
+msgstr "Uyarı kuralı oluştur"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:255
+#: lib/tuist_web/live/project_notifications_live.html.heex:538
+#, elixir-autogen, elixir-format
+msgid "Deviation"
+msgstr "Sapma"
+
+#: lib/tuist_web/live/project_automation_live.ex:297
+#: lib/tuist_web/live/project_automation_live.ex:303
+#: lib/tuist_web/live/project_notifications_live.html.heex:551
+#, elixir-autogen, elixir-format
+msgid "None"
+msgstr "Yok"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:854
+#, elixir-autogen, elixir-format
+msgid "Update"
+msgstr "Güncelle"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:566
+#, elixir-autogen, elixir-format
+msgid "Update alert rule"
+msgstr "Uyarı kuralını güncelle"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:250
+#, elixir-autogen, elixir-format
+msgid "Metrics"
+msgstr "Metrikler"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:882
+#, elixir-autogen, elixir-format
+msgid "Create an alert rule to get notified when metrics regress"
+msgstr "Metriklerde gerileme olduğunda bildirim almak için bir uyarı kuralı oluştur"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:880
+#, elixir-autogen, elixir-format
+msgid "No alert rules"
+msgstr "Uyarı kuralı yok"
+
+#: lib/tuist_web/live/project_automation_live.ex:40
+#: lib/tuist_web/live/project_automation_live.html.heex:6
+#: lib/tuist_web/live/project_automations_live.ex:36
+#: lib/tuist_web/live/project_automations_live.ex:39
+#: lib/tuist_web/live/project_automations_live.html.heex:24
+#: lib/tuist_web/live/project_automations_live.html.heex:37
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:24
+#: lib/tuist_web/live/project_notifications_live.html.heex:24
+#: lib/tuist_web/live/project_settings_live.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Automations"
+msgstr "Otomasyonlar"
+
+#: lib/tuist_web/live/create_project_live.ex:95
+#: lib/tuist_web/live/projects_live.ex:406
+#, elixir-autogen, elixir-format
+msgid "Build system"
+msgstr "Derleme sistemi"
+
+#: lib/tuist_web/live/create_project_live.ex:89
+#: lib/tuist_web/live/projects_live.ex:400
+#, elixir-autogen, elixir-format
+msgid "Select build system"
+msgstr "Derleme sistemini seçin"
+
+#: lib/tuist_web/live/project_notifications_live.ex:667
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
+msgstr "<strong>%{git_branch}</strong> dalındaki en son paketin <strong>%{size_label}</strong> değeri, önceki pakete kıyasla <strong>%{deviation}%</strong> arttığında uyar."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:277
+#: lib/tuist_web/live/project_notifications_live.html.heex:373
+#: lib/tuist_web/live/project_notifications_live.html.heex:692
+#, elixir-autogen, elixir-format
+msgid "Branch"
+msgstr "Dal"
+
+#: lib/tuist_web/live/project_notifications_live.ex:640
+#, elixir-autogen, elixir-format
+msgid "Bundle size"
+msgstr "Paket boyutu"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:360
+#: lib/tuist_web/live/project_notifications_live.ex:789
+#, elixir-autogen, elixir-format
+msgid "Download size"
+msgstr "İndirme boyutu"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:348
+#: lib/tuist_web/live/project_notifications_live.html.heex:666
+#, elixir-autogen, elixir-format
+msgid "Size metric"
+msgstr "Boyut metriği"
+
+#: lib/tuist_web/live/project_notifications_live.ex:633
+#, elixir-autogen, elixir-format
+msgid "e.g. main"
+msgstr "örn. main"
+
+#: lib/tuist_web/live/project_notifications_live.ex:748
+#, elixir-autogen, elixir-format
+msgid "%{scheme} %{unit}"
+msgstr "%{scheme} %{unit}"
+
+#: lib/tuist_web/live/project_notifications_live.ex:700
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
+msgstr "Son <strong>%{rolling_window_size} %{current_unit}</strong> dönemindeki <strong>%{metric_category}</strong> değeri, önceki <strong>%{rolling_window_size} %{unit}</strong> dönemine kıyasla <strong>%{deviation}%</strong> azaldığında uyar."
+
+#: lib/tuist_web/live/project_notifications_live.ex:723
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
+msgstr "Son <strong>%{rolling_window_size} %{current_unit}</strong> dönemindeki <strong>%{metric_category}</strong> değeri, önceki <strong>%{rolling_window_size} %{unit}</strong> dönemine kıyasla <strong>%{deviation}%</strong> arttığında uyar."
+
+#: lib/tuist_web/live/project_notifications_live.ex:675
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
+msgstr "<strong>%{git_branch}</strong> dalındaki en son <strong>%{bundle_name}</strong> paketinin <strong>%{size_label}</strong> değeri, önceki pakete kıyasla <strong>%{deviation}%</strong> arttığında uyar."
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:417
+#: lib/tuist_web/live/project_notifications_live.html.heex:747
+#, elixir-autogen, elixir-format
+msgid "Scheme"
+msgstr "Şema"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:211
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:399
+#: lib/tuist_web/live/project_notifications_live.html.heex:424
+#: lib/tuist_web/live/project_notifications_live.html.heex:438
+#: lib/tuist_web/live/project_notifications_live.html.heex:754
+#: lib/tuist_web/live/project_notifications_live.html.heex:772
+#, elixir-autogen, elixir-format
+msgid "e.g. MyApp (optional)"
+msgstr "Örn. MyApp (isteğe bağlı)"
+
+#: lib/tuist_web/live/project_notifications_live.ex:751
+#, elixir-autogen, elixir-format
+msgid "%{environment} %{unit}"
+msgstr "%{environment} %{unit}"
+
+#: lib/tuist_web/live/project_notifications_live.ex:741
+#, elixir-autogen, elixir-format
+msgid "%{scheme} %{environment} %{unit}"
+msgstr "%{scheme} %{environment} %{unit}"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:1007
+#: lib/tuist_web/live/once_runs_live.ex:998
+#: lib/tuist_web/live/project_notifications_live.html.heex:448
+#: lib/tuist_web/live/project_notifications_live.html.heex:783
+#, elixir-autogen, elixir-format
+msgid "Environment"
+msgstr "Ortam"
+
+#: lib/tuist_web/live/project_notifications_live.ex:766
+#, elixir-autogen, elixir-format
+msgid "local"
+msgstr "yerel"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:93
+#, elixir-autogen, elixir-format
+msgid "Add threshold"
+msgstr "Eşik ekle"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "All"
+msgstr "Tümü"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:190
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:258
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:378
+#, elixir-autogen, elixir-format
+msgid "Baseline branch"
+msgstr "Temel dal"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
+msgstr "Paket boyutu temel bir dala kıyasla bir eşiği aştığında PR'ları engelle"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:204
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:261
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:392
+#, elixir-autogen, elixir-format
+msgid "Bundle name"
+msgstr "Paket adı"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:457
+#, elixir-autogen, elixir-format
+msgid "Create a threshold to block PRs when bundle size exceeds a limit"
+msgstr "Paket boyutu bir sınırı aştığında PR'ları engellemek için bir eşik oluştur"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:87
+#, elixir-autogen, elixir-format
+msgid "Create size threshold"
+msgstr "Boyut eşiği oluştur"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:377
+#, elixir-autogen, elixir-format
+msgid "Deviation %"
+msgstr "Sapma %"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:455
+#, elixir-autogen, elixir-format
+msgid "No size thresholds"
+msgstr "Boyut eşikleri yok"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Size thresholds"
+msgstr "Boyut eşikleri"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:128
+#, elixir-autogen, elixir-format
+msgid "Threshold name"
+msgstr "Eşik adı"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Thresholds"
+msgstr "Eşikler"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:278
+#, elixir-autogen, elixir-format
+msgid "Update size threshold"
+msgstr "Boyut eşiğini güncelle"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "Connect GitHub"
+msgstr "GitHub'ı Bağla"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
+msgstr "PR'larda paket boyutu kontrol çalıştırmalarını etkinleştirmek için Tuist GitHub Uygulamasını bağlayın."
+
+#: lib/tuist_web/live/create_project_live.ex:56
+#, elixir-autogen, elixir-format
+msgid "Create a Tuist project"
+msgstr "Bir Tuist projesi oluştur"
+
+#: lib/tuist_web/live/create_project_live.ex:68
+#, elixir-autogen, elixir-format
+msgid "Organization"
+msgstr "Organizasyon"
+
+#: lib/tuist_web/live/create_project_live.ex:62
+#, elixir-autogen, elixir-format
+msgid "Select organization"
+msgstr "Organizasyon seç"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:608
+#: lib/tuist_web/live/once_run_live.ex:407
+#: lib/tuist_web/live/once_run_live.ex:803
+#: lib/tuist_web/live/once_run_live.ex:946
+#: lib/tuist_web/live/project_automations_live.html.heex:401
+#, elixir-autogen, elixir-format
+msgid "Action"
+msgstr "Eylem"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:412
+#, elixir-autogen, elixir-format
+msgid "Add action"
+msgstr "Eylem ekle"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:75
+#, elixir-autogen, elixir-format
+msgid "Add automation"
+msgstr "Otomasyon ekle"
+
+#: lib/tuist_web/live/project_automations_live.ex:968
+#, elixir-autogen, elixir-format
+msgid "Add label"
+msgstr "Etiket ekle"
+
+#: lib/tuist_web/live/project_automations_live.ex:989
+#, elixir-autogen, elixir-format
+msgid "Add label: %{label}"
+msgstr "Etiket ekle: %{label}"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:682
+#, elixir-autogen, elixir-format
+msgid "Add recovery action"
+msgstr "Kurtarma eylemi ekle"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:596
+#: lib/tuist_web/live/project_automations_live.html.heex:979
+#, elixir-autogen, elixir-format
+msgid "Available variables:"
+msgstr "Mevcut değişkenler:"
+
+#: lib/tuist_web/live/project_automations_live.ex:966
+#: lib/tuist_web/live/project_automations_live.html.heex:422
+#: lib/tuist_web/live/project_automations_live.html.heex:692
+#, elixir-autogen, elixir-format
+msgid "Change state"
+msgstr "Durumu değiştir"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:477
+#: lib/tuist_web/live/project_automations_live.html.heex:860
+#, elixir-autogen, elixir-format
+msgid "Change state to"
+msgstr "Durumu şuna değiştir:"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Condition"
+msgstr "Koşul"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:55
+#, elixir-autogen, elixir-format
+msgid "Continuously monitor tests and respond with automated actions."
+msgstr "Testleri sürekli olarak izleyin ve otomatik eylemlerle yanıt verin."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Create automation"
+msgstr "Otomasyon oluştur"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1180
+#, elixir-autogen, elixir-format
+msgid "Delete this automation?"
+msgstr "Bu otomasyonu silmek istiyor musunuz?"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Edit automation"
+msgstr "Otomasyonu düzenle"
+
+#: lib/tuist_web/live/project_automations_live.ex:958
+#, elixir-autogen, elixir-format
+msgid "Enable"
+msgstr "Etkinleştir"
+
+#: lib/tuist_web/live/project_automation_live.ex:294
+#: lib/tuist_web/live/project_automation_live.html.heex:26
+#: lib/tuist_web/live/project_automations_live.ex:963
+#: lib/tuist_web/live/project_automations_live.html.heex:516
+#: lib/tuist_web/live/project_automations_live.html.heex:868
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr "Etkin"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:588
+#: lib/tuist_web/live/project_automations_live.html.heex:971
+#, elixir-autogen, elixir-format
+msgid "Enter message template..."
+msgstr "Mesaj şablonunu girin..."
+
+#: lib/tuist_web/live/project_automations_live.ex:905
+#: lib/tuist_web/live/project_automations_live.html.heex:141
+#, elixir-autogen, elixir-format
+msgid "Flakiness rate"
+msgstr "Kararsızlık oranı"
+
+#: lib/tuist_web/live/project_automations_live.ex:906
+#: lib/tuist_web/live/project_automations_live.html.heex:149
+#, elixir-autogen, elixir-format
+msgid "Flaky runs"
+msgstr "Kararsız çalıştırmalar"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:439
+#: lib/tuist_web/live/project_automations_live.html.heex:726
+#, elixir-autogen, elixir-format
+msgid "Mark as flaky"
+msgstr "Kararsız olarak işaretle"
+
+#: lib/tuist_web/live/project_automations_live.ex:752
+#: lib/tuist_web/live/project_automations_live.html.heex:608
+#: lib/tuist_web/live/project_automations_live.html.heex:991
+#, elixir-autogen, elixir-format
+msgid "Mark test as flaky"
+msgstr "Testi kararsız olarak işaretle"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:566
+#: lib/tuist_web/live/project_automations_live.html.heex:949
+#, elixir-autogen, elixir-format
+msgid "Message template"
+msgstr "Mesaj şablonu"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1124
+#, elixir-autogen, elixir-format
+msgid "No automations yet. Add one to start automatically managing test case state based on conditions."
+msgstr "Henüz otomasyon yok. Koşullara göre test senaryosu durumunu otomatik olarak yönetmeye başlamak için bir tane ekleyin."
+
+#: lib/tuist_web/live/project_automation_live.html.heex:56
+#: lib/tuist_web/live/project_automations_live.html.heex:646
+#: lib/tuist_web/live/project_automations_live.html.heex:670
+#, elixir-autogen, elixir-format
+msgid "Recovery"
+msgstr "Kurtarma"
+
+#: lib/tuist_web/live/project_automations_live.ex:969
+#, elixir-autogen, elixir-format
+msgid "Remove label"
+msgstr "Etiketi kaldır"
+
+#: lib/tuist_web/live/project_automations_live.ex:992
+#, elixir-autogen, elixir-format
+msgid "Remove label: %{label}"
+msgstr "Etiketi kaldır: %{label}"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:673
+#, elixir-autogen, elixir-format
+msgid "Run actions when the conditions no longer hold"
+msgstr "Koşullar artık geçerli olmadığında bu eylemleri çalıştır"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:404
+#, elixir-autogen, elixir-format
+msgid "Run these actions for each test case that meets the condition"
+msgstr "Koşulu karşılayan her test senaryosu için bu eylemleri çalıştır"
+
+#: lib/tuist_web/live/project_automations_live.ex:967
+#: lib/tuist_web/live/project_automations_live.html.heex:461
+#: lib/tuist_web/live/project_automations_live.html.heex:529
+#: lib/tuist_web/live/project_automations_live.html.heex:731
+#: lib/tuist_web/live/project_automations_live.html.heex:912
+#, elixir-autogen, elixir-format
+msgid "Send Slack notification"
+msgstr "Slack bildirimi gönder"
+
+#: lib/tuist_web/live/project_automations_live.ex:986
+#, elixir-autogen, elixir-format
+msgid "Slack: not configured"
+msgstr "Slack: yapılandırılmadı"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:569
+#: lib/tuist_web/live/project_automations_live.html.heex:952
+#, elixir-autogen, elixir-format
+msgid "Supports Slack"
+msgstr "Slack'i destekler"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Test case automations"
+msgstr "Test senaryosu otomasyonları"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1144
+#, elixir-autogen, elixir-format
+msgid "Trigger"
+msgstr "Tetikleme"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:787
+#: lib/tuist_web/live/once_run_live.ex:1342
+#: lib/tuist_web/live/once_run_live.ex:1344
+#: lib/tuist_web/live/project_automations_live.ex:909
+#: lib/tuist_web/live/project_automations_live.ex:920
+#: lib/tuist_web/live/project_automations_live.ex:943
+#: lib/tuist_web/live/project_automations_live.ex:959
+#: lib/tuist_web/live/project_automations_live.ex:964
+#: lib/tuist_web/live/project_automations_live.ex:970
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr "Bilinmeyen"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:456
+#: lib/tuist_web/live/project_automations_live.html.heex:709
+#, elixir-autogen, elixir-format
+msgid "Unmark as flaky"
+msgstr "Kararsız olarak işaretleme"
+
+#: lib/tuist_web/live/project_automations_live.ex:755
+#: lib/tuist_web/live/project_automations_live.html.heex:612
+#: lib/tuist_web/live/project_automations_live.html.heex:995
+#, elixir-autogen, elixir-format
+msgid "Unmark test as flaky"
+msgstr "Testi kararsız olarak işaretlemeyi kaldır"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:118
+#: lib/tuist_web/live/project_automations_live.html.heex:133
+#, elixir-autogen, elixir-format
+msgid "When"
+msgstr "Ne zaman"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:743
+#, elixir-autogen, elixir-format
+msgid "Without trigger for"
+msgstr "İçin tetikleyici olmadan"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:97
+#, elixir-autogen, elixir-format
+msgid "e.g. Auto-quarantine flaky tests"
+msgstr "Örn. Kararsız testleri otomatik karantinaya alma"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:577
+#: lib/tuist_web/live/project_automations_live.html.heex:960
+#, elixir-autogen, elixir-format
+msgid "formatting."
+msgstr "biçimlendirme."
+
+#: lib/tuist_web/live/project_automations_live.ex:956
+#, elixir-autogen, elixir-format
+msgid "Mute"
+msgstr "Sustur"
+
+#: lib/tuist_web/live/project_automations_live.ex:961
+#: lib/tuist_web/live/project_automations_live.html.heex:485
+#: lib/tuist_web/live/project_automations_live.html.heex:877
+#, elixir-autogen, elixir-format
+msgid "Muted"
+msgstr "Susturuldu"
+
+#: lib/tuist_web/live/project_automations_live.ex:957
+#, elixir-autogen, elixir-format
+msgid "Skip"
+msgstr "Atla"
+
+#: lib/tuist_web/live/once_run_live.ex:1338
+#: lib/tuist_web/live/project_automations_live.ex:962
+#: lib/tuist_web/live/project_automations_live.html.heex:494
+#: lib/tuist_web/live/project_automations_live.html.heex:886
+#, elixir-autogen, elixir-format
+msgid "Skipped"
+msgstr "Atlandı"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:179
+#, elixir-autogen, elixir-format
+msgid "Comparison"
+msgstr "Karşılaştırma"
+
+#: lib/tuist_web/live/project_automations_live.ex:953
+#, elixir-autogen, elixir-format
+msgid "Count"
+msgstr "Sayı"
+
+#: lib/tuist_web/live/project_automations_live.ex:939
+#: lib/tuist_web/live/project_automations_live.html.heex:187
+#, elixir-autogen, elixir-format
+msgid "Greater or equal"
+msgstr "Büyük veya eşit"
+
+#: lib/tuist_web/live/project_automations_live.ex:940
+#: lib/tuist_web/live/project_automations_live.html.heex:195
+#, elixir-autogen, elixir-format
+msgid "Greater than"
+msgstr "Büyük"
+
+#: lib/tuist_web/live/project_automations_live.ex:942
+#: lib/tuist_web/live/project_automations_live.html.heex:211
+#, elixir-autogen, elixir-format
+msgid "Less or equal"
+msgstr "Küçük veya eşit"
+
+#: lib/tuist_web/live/project_automations_live.ex:941
+#: lib/tuist_web/live/project_automations_live.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "Less than"
+msgstr "Küçük"
+
+#: lib/tuist_web/live/project_automations_live.ex:951
+#: lib/tuist_web/live/project_automations_live.ex:952
+#, elixir-autogen, elixir-format
+msgid "Percent"
+msgstr "Yüzde"
+
+#: lib/tuist_web/live/project_automations_live.ex:954
+#, elixir-autogen, elixir-format
+msgid "Threshold"
+msgstr "Eşik"
+
+#: lib/tuist_web/live/project_automations_live.ex:1000
+#, elixir-autogen, elixir-format
+msgid "When flakiness rate %{symbol} %{threshold}% over %{window}"
+msgstr "Kararsızlık oranı %{window} süresince %{threshold}% %{symbol} olduğunda"
+
+#: lib/tuist_web/live/project_automations_live.ex:1013
+#, elixir-autogen, elixir-format
+msgid "When flaky runs %{symbol} %{threshold} over %{window}"
+msgstr "Dengesiz çalıştırmalar %{window} içinde %{threshold} kez %{symbol} olduğunda"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:303
+#: lib/tuist_web/live/project_automations_live.html.heex:803
+#, elixir-autogen, elixir-format
+msgid "Last N runs"
+msgstr "Son N çalıştırma"
+
+#: lib/tuist_web/live/project_automations_live.ex:1066
+#: lib/tuist_web/live/project_automations_live.html.heex:251
+#: lib/tuist_web/live/project_automations_live.html.heex:753
+#, elixir-autogen, elixir-format
+msgid "Last days"
+msgstr "Son günler"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:243
+#, elixir-autogen, elixir-format
+msgid "Over"
+msgstr "Üzerinde"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:276
+#: lib/tuist_web/live/project_automations_live.html.heex:779
+#, elixir-autogen, elixir-format
+msgid "Window"
+msgstr "Zaman aralığı"
+
+#: lib/tuist_web/live/project_automation_live.ex:306
+#: lib/tuist_web/live/project_automations_live.ex:1053
+#, elixir-autogen, elixir-format
+msgid "the last %{size} runs"
+msgstr "son %{size} çalıştırma"
+
+#: lib/tuist_web/live/project_automations_live.ex:1145
+#, elixir-autogen, elixir-format
+msgid "1–%{max}"
+msgstr "1–%{max}"
+
+#: lib/tuist_web/live/project_automations_live.ex:923
+#, elixir-autogen, elixir-format
+msgid "Fires when a test is manually flagged as flaky."
+msgstr "Bir test manuel olarak dengesiz olarak işaretlendiğinde tetiklenir."
+
+#: lib/tuist_web/live/project_automations_live.ex:932
+#, elixir-autogen, elixir-format
+msgid "Fires when a test is muted (still runs, failures ignored)."
+msgstr "Bir test sessize alındığında tetiklenir (hala çalışır, hatalar yok sayılır)."
+
+#: lib/tuist_web/live/project_automations_live.ex:935
+#, elixir-autogen, elixir-format
+msgid "Fires when a test is skipped entirely."
+msgstr "Bir test tamamen atlandığında tetiklenir."
+
+#: lib/tuist_web/live/project_automations_live.ex:929
+#, elixir-autogen, elixir-format
+msgid "Fires when a test returns to the default enabled state."
+msgstr "Bir test varsayılan etkin durumuna döndüğünde tetiklenir."
+
+#: lib/tuist_web/live/project_automations_live.ex:926
+#, elixir-autogen, elixir-format
+msgid "Fires when the flaky flag is manually removed."
+msgstr "Değişkenlik bayrağı manuel olarak kaldırıldığında tetiklenir."
+
+#: lib/tuist_web/live/project_automations_live.ex:911
+#, elixir-autogen, elixir-format
+msgid "Marked as flaky"
+msgstr "Değişken olarak işaretlendi"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:328
+#, elixir-autogen, elixir-format
+msgid "On these events"
+msgstr "Bu olaylarda"
+
+#: lib/tuist_web/live/project_automations_live.ex:914
+#, elixir-autogen, elixir-format
+msgid "State changed to Enabled"
+msgstr "Durum Etkin olarak değiştirildi"
+
+#: lib/tuist_web/live/project_automations_live.ex:916
+#, elixir-autogen, elixir-format
+msgid "State changed to Muted"
+msgstr "Durum Sessiz olarak değiştirildi"
+
+#: lib/tuist_web/live/project_automations_live.ex:918
+#, elixir-autogen, elixir-format
+msgid "State changed to Skipped"
+msgstr "Durum Atlandı olarak değiştirildi"
+
+#: lib/tuist_web/live/project_automations_live.ex:908
+#: lib/tuist_web/live/project_automations_live.html.heex:165
+#, elixir-autogen, elixir-format
+msgid "Test updated"
+msgstr "Test güncellendi"
+
+#: lib/tuist_web/live/project_automations_live.ex:912
+#, elixir-autogen, elixir-format
+msgid "Unmarked as flaky"
+msgstr "Kararsız olarak işaretlenmedi"
+
+#: lib/tuist_web/live/project_automations_live.ex:1040
+#, elixir-autogen, elixir-format
+msgid "When a test is updated"
+msgstr "Bir test güncellendiğinde"
+
+#: lib/tuist_web/live/project_automations_live.ex:1044
+#, elixir-autogen, elixir-format
+msgid "When a test is updated: %{events}"
+msgstr "Bir test güncellendiğinde: %{events}"
+
+#: lib/tuist_web/live/projects_live.ex:376
+#, elixir-autogen, elixir-format
+msgid "New Project"
+msgstr "Yeni Proje"
+
+#: lib/tuist_web/live/project_automations_live.ex:907
+#: lib/tuist_web/live/project_automations_live.html.heex:157
+#, elixir-autogen, elixir-format
+msgid "Test reliability"
+msgstr "Test güvenilirliği"
+
+#: lib/tuist_web/live/project_notifications_live.ex:628
+#, elixir-autogen, elixir-format
+msgid "Branch is required."
+msgstr "Dal gereklidir."
+
+#: lib/tuist_web/live/project_settings_live.html.heex:135
+#, elixir-autogen, elixir-format
+msgid "Branch name"
+msgstr "Dal adı"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "Default branch"
+msgstr "Varsayılan dal"
+
+#: lib/tuist_web/live/project_settings_live.ex:134
+#, elixir-autogen, elixir-format
+msgid "Default branch updated."
+msgstr "Varsayılan dal güncellendi."
+
+#: lib/tuist_web/live/project_settings_live.html.heex:124
+#, elixir-autogen, elixir-format
+msgid "Edit default branch"
+msgstr "Varsayılan dalı düzenle"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:103
+#, elixir-autogen, elixir-format
+msgid "The branch Tuist treats as the baseline for analytics, insights, and comparisons."
+msgstr "Tuist'in analizler, içgörüler ve karşılaştırmalar için temel olarak kabul ettiği dal."
+
+#: lib/tuist_web/live/project_settings_live.ex:121
+#, elixir-autogen, elixir-format
+msgid "can't be blank"
+msgstr "boş bırakılamaz"
+
+#: lib/tuist_web/live/project_automations_live.ex:621
+#, elixir-autogen, elixir-format
+msgid "This automation uses an unsupported trigger configuration. Edit it before enabling it."
+msgstr "Bu otomasyon desteklenmeyen bir tetikleyici yapılandırması kullanıyor. Etkinleştirmeden önce düzenleyin."
+
+#: lib/tuist_web/live/project_automation_live.ex:90
+#, elixir-autogen, elixir-format
+msgid "%{actor} changed this automation from %{source}"
+msgstr "%{actor} bu otomasyonu %{source} kaynağından değiştirdi"
+
+#: lib/tuist_web/live/project_automation_live.ex:81
+#, elixir-autogen, elixir-format
+msgid "%{actor} created this automation from %{source}"
+msgstr "%{actor}, bu otomasyonu %{source} üzerinden oluşturdu"
+
+#: lib/tuist_web/live/once_run_live.ex:339
+#: lib/tuist_web/live/once_run_live.ex:376
+#: lib/tuist_web/live/project_automation_live.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Actions"
+msgstr "Eylemler"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Automation"
+msgstr "Otomasyon"
+
+#: lib/tuist_web/live/project_automation_live.ex:77
+#: lib/tuist_web/live/project_automation_live.ex:120
+#, elixir-autogen, elixir-format
+msgid "Automation created"
+msgstr "Otomasyon oluşturuldu"
+
+#: lib/tuist_web/live/project_automation_live.ex:162
+#, elixir-autogen, elixir-format
+msgid "Automation disabled"
+msgstr "Otomasyon devre dışı bırakıldı"
+
+#: lib/tuist_web/live/project_automation_live.ex:161
+#, elixir-autogen, elixir-format
+msgid "Automation enabled"
+msgstr "Otomasyon etkinleştirildi"
+
+#: lib/tuist_web/live/project_automation_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Automation not found."
+msgstr "Otomasyon bulunamadı."
+
+#: lib/tuist_web/live/project_automation_live.ex:128
+#, elixir-autogen, elixir-format
+msgid "Automation renamed"
+msgstr "Otomasyon yeniden adlandırıldı"
+
+#: lib/tuist_web/live/project_automation_live.ex:78
+#, elixir-autogen, elixir-format
+msgid "Automation updated"
+msgstr "Otomasyon güncellendi"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:48
+#, elixir-autogen, elixir-format
+msgid "Cadence"
+msgstr "Aralık"
+
+#: lib/tuist_web/live/project_automation_live.ex:131
+#, elixir-autogen, elixir-format
+msgid "Cadence changed"
+msgstr "Aralık değiştirildi"
+
+#: lib/tuist_web/live/project_automation_live.ex:196
+#, elixir-autogen, elixir-format
+msgid "Condition changed"
+msgstr "Koşul değiştirildi"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Configuration changes to this automation, newest first."
+msgstr "Bu otomasyona ait yapılandırma değişiklikleri, en yeni önce."
+
+#: lib/tuist_web/live/project_automation_live.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Current configuration"
+msgstr "Mevcut yapılandırma"
+
+#: lib/tuist_web/live/project_automation_live.ex:63
+#: lib/tuist_web/live/project_automation_live.ex:295
+#: lib/tuist_web/live/project_automation_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Disabled"
+msgstr "Devre dışı"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Edit history"
+msgstr "Değişiklik geçmişi"
+
+#: lib/tuist_web/live/project_automation_live.ex:66
+#, elixir-autogen, elixir-format
+msgid "Enabled after %{window}"
+msgstr "%{window} sonra etkinleştirildi"
+
+#: lib/tuist_web/live/project_automation_live.ex:74
+#, elixir-autogen, elixir-format
+msgid "Every %{cadence}"
+msgstr "Her %{cadence}"
+
+#: lib/tuist_web/live/project_automation_live.ex:118
+#, elixir-autogen, elixir-format
+msgid "Initial configuration"
+msgstr "İlk yapılandırma"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:125
+#, elixir-autogen, elixir-format
+msgid "No configuration changes recorded yet"
+msgstr "Henüz yapılandırma değişikliği kaydedilmedi"
+
+#: lib/tuist_web/live/project_automation_live.ex:142
+#, elixir-autogen, elixir-format
+msgid "Recovery actions changed"
+msgstr "Kurtarma eylemleri değiştirildi"
+
+#: lib/tuist_web/live/project_automation_live.ex:254
+#, elixir-autogen, elixir-format
+msgid "Recovery condition changed"
+msgstr "Kurtarma koşulu değiştirildi"
+
+#: lib/tuist_web/live/project_automation_live.ex:231
+#, elixir-autogen, elixir-format
+msgid "Recovery disabled"
+msgstr "Kurtarma devre dışı bırakıldı"
+
+#: lib/tuist_web/live/project_automation_live.ex:230
+#, elixir-autogen, elixir-format
+msgid "Recovery enabled"
+msgstr "Kurtarma etkinleştirildi"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:17
+#, elixir-autogen, elixir-format
+msgid "Review changes to this automation and see who changed its configuration."
+msgstr "Bu otomasyondaki değişiklikleri inceleyin ve yapılandırmasını kimin değiştirdiğini görün."
+
+#: lib/tuist_web/live/project_automation_live.ex:135
+#, elixir-autogen, elixir-format
+msgid "Trigger actions changed"
+msgstr "Tetikleme eylemleri değiştirildi"
+
+#: lib/tuist_web/live/project_automation_live.ex:100
+#: lib/tuist_web/live/project_automation_live.ex:104
+#, elixir-autogen, elixir-format
+msgid "Tuist"
+msgstr "Tuist"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1154
+#, elixir-autogen, elixir-format
+msgid "View automation details"
+msgstr "Otomasyon ayrıntılarını görüntüle"
+
+#: lib/tuist_web/live/project_automation_live.ex:99
+#, elixir-autogen, elixir-format
+msgid "an integration"
+msgstr "bir entegrasyon"
+
+#: lib/tuist_web/live/project_automation_live.ex:98
+#, elixir-autogen, elixir-format
+msgid "the dashboard"
+msgstr "kontrol paneli"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:350
+#: lib/tuist_web/live/project_automations_live.html.heex:828
+#, elixir-autogen, elixir-format
+msgid "Only apply to tests in these states"
+msgstr "Yalnızca bu durumlardaki testlere uygula"
+
+#: lib/tuist_web/live/project_notifications_live.ex:710
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> on branch <strong>%{git_branch}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
+msgstr "<strong>%{git_branch}</strong> dalındaki son <strong>%{rolling_window_size} %{current_unit}</strong> için <strong>%{metric_category}</strong> değeri, önceki <strong>%{rolling_window_size} %{unit}</strong> ile karşılaştırıldığında <strong>%{deviation}%</strong> azaldığında uyarı ver."
+
+#: lib/tuist_web/live/project_notifications_live.ex:635
+#, elixir-autogen, elixir-format
+msgid "e.g. main (optional)"
+msgstr "ör. main (isteğe bağlı)"
+
+#: lib/tuist_web/live/project_automation_live.html.heex:132
+#, elixir-autogen, elixir-format
+msgid "Show more"
+msgstr "Daha fazla göster"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:572
+#, elixir-autogen, elixir-format
+msgid "Add"
+msgstr "Ekle"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:520
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:532
+#, elixir-autogen, elixir-format
+msgid "Add approver"
+msgstr "Onaylayan ekle"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:315
+#, elixir-autogen, elixir-format
+msgid "Anyone"
+msgstr "Herkes"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:319
+#, elixir-autogen, elixir-format
+msgid "Anyone with write access to the repository."
+msgstr "Depoya yazma erişimi olan herkes."
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:472
+#, elixir-autogen, elixir-format
+msgid "Approvals"
+msgstr "Onaylar"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:517
+#, elixir-autogen, elixir-format
+msgid "Approvers"
+msgstr "Onaylayanlar"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:474
+#, elixir-autogen, elixir-format
+msgid "Choose who can accept a bundle size increase that exceeded a threshold."
+msgstr "Eşiği aşan bir paket boyutu artışını kimin kabul edebileceğini seçin."
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:285
+#, elixir-autogen, elixir-format
+msgid "Connect the Tuist GitHub App to this project first, so the username can be checked against GitHub."
+msgstr "Kullanıcı adının GitHub ile karşılaştırılabilmesi için önce Tuist GitHub Uygulamasını bu projeye bağlayın."
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:305
+#, elixir-autogen, elixir-format
+msgid "Enter a valid GitHub username that isn't already on the list."
+msgstr "Listede zaten olmayan geçerli bir GitHub kullanıcı adı girin."
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:544
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:587
+#, elixir-autogen, elixir-format
+msgid "GitHub username"
+msgstr "GitHub kullanıcı adı"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:292
+#, elixir-autogen, elixir-format
+msgid "No GitHub user with that username."
+msgstr "Bu kullanıcı adına sahip bir GitHub kullanıcısı yok."
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:608
+#, elixir-autogen, elixir-format
+msgid "No approvers"
+msgstr "Onaylayan yok"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:610
+#, elixir-autogen, elixir-format
+msgid "Nobody can accept a size increase until a GitHub username is added"
+msgstr "Bir GitHub kullanıcı adı eklenene kadar hiç kimse boyut artışını kabul edemez"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:323
+#, elixir-autogen, elixir-format
+msgid "Only the GitHub usernames you add below."
+msgstr "Yalnızca aşağıya eklediğiniz GitHub kullanıcı adları."
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:316
+#, elixir-autogen, elixir-format
+msgid "Selected GitHub users"
+msgstr "Seçilen GitHub kullanıcıları"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:307
+#: lib/tuist_web/live/project_bundle_settings_live.ex:312
+#, elixir-autogen, elixir-format
+msgid "The approver could not be added."
+msgstr "Onaylayan eklenemedi."
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:522
+#, elixir-autogen, elixir-format
+msgid "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
+msgstr "Bu kişi, bir çekme isteğindeki kontrol çalışmasından gelen ve bir eşiği aşan paket boyutu artışını kabul edebilir."
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:485
+#, elixir-autogen, elixir-format
+msgid "Who can accept"
+msgstr "Kimler kabul edebilir"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:300
+#, elixir-autogen, elixir-format
+msgid "Couldn't reach GitHub to check that username. Try again in a moment."
+msgstr "Kullanıcı adını kontrol etmek için GitHub'a ulaşılamadı. Birazdan tekrar deneyin."
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:296
+#, elixir-autogen, elixir-format
+msgid "That is not a valid GitHub username."
+msgstr "Bu geçerli bir GitHub kullanıcı adı değil."
+
+#: lib/tuist_web/live/project_automations_live.ex:1026
+#, elixir-autogen, elixir-format
+msgid "When test reliability on the default branch %{symbol} %{threshold}% over %{window}"
+msgstr "Varsayılan dalda test güvenilirliği %{symbol} %{window} boyunca %{threshold}%"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:437
+#: lib/tuist_web/live/bazel_cache_live.ex:466
+#: lib/tuist_web/live/bazel_cache_live.ex:623
+#: lib/tuist_web/live/bazel_overview_live.ex:250
+#: lib/tuist_web/live/bazel_overview_live.ex:275
+#: lib/tuist_web/live/once_cache_live.ex:492
+#: lib/tuist_web/live/once_cache_live.ex:525
+#: lib/tuist_web/live/once_cache_live.ex:683
+#, elixir-autogen, elixir-format
+msgid "Action cache hit rate"
+msgstr "Eylem önbelleği isabet oranı"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:479
+#: lib/tuist_web/live/once_run_live.ex:649
+#, elixir-autogen, elixir-format
+msgid "Action cache lookups"
+msgstr "Eylem önbelleği aramaları"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:492
+#: lib/tuist_web/live/bazel_invocations_live.ex:575
+#: lib/tuist_web/live/bazel_invocations_live.ex:997
+#, elixir-autogen, elixir-format
+msgid "Command"
+msgstr "Komut"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:270
+#, elixir-autogen, elixir-format
+msgid "Completed Bazel commands in the retained data window."
+msgstr "Saklanan veri penceresindeki tamamlanan Bazel komutları."
+
+#: lib/tuist_web/live/bazel_cache_live.ex:507
+#: lib/tuist_web/live/bazel_invocations_live.ex:598
+#: lib/tuist_web/live/once_cache_live.ex:561
+#: lib/tuist_web/live/once_run_live.ex:455
+#: lib/tuist_web/live/once_runs_live.ex:923
+#, elixir-autogen, elixir-format
+msgid "Duration"
+msgstr "Süre"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:591
+#: lib/tuist_web/live/bazel_invocations_live.ex:987
+#: lib/tuist_web/live/once_run_live.ex:351
+#: lib/tuist_web/live/once_run_live.ex:1337
+#: lib/tuist_web/live/once_runs_live.ex:885
+#: lib/tuist_web/live/once_runs_live.ex:1343
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "Başarısız"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:698
+#, elixir-autogen, elixir-format
+msgid "Invocation success rate"
+msgstr "Çağrı başarı oranı"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:58
+#: lib/tuist_web/live/bazel_invocations_live.ex:23
+#, elixir-autogen, elixir-format
+msgid "Invocations"
+msgstr "Çağrılar"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:886
+#, elixir-autogen, elixir-format
+msgid "No cache lookups"
+msgstr "Önbellek araması yok"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:799
+#: lib/tuist_web/live/bazel_invocations_live.ex:583
+#: lib/tuist_web/live/bazel_invocations_live.ex:982
+#: lib/tuist_web/live/once_run_live.ex:429
+#: lib/tuist_web/live/once_run_live.ex:1026
+#: lib/tuist_web/live/once_run_live.ex:1212
+#: lib/tuist_web/live/once_runs_live.ex:874
+#: lib/tuist_web/live/once_runs_live.ex:1338
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "Durum"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:590
+#: lib/tuist_web/live/bazel_invocations_live.ex:986
+#: lib/tuist_web/live/once_run_live.ex:1336
+#, elixir-autogen, elixir-format
+msgid "Succeeded"
+msgstr "Başarılı"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:286
+#: lib/tuist_web/live/once_runs_live.ex:441
+#, elixir-autogen, elixir-format
+msgid "The share of completed commands with a zero exit code."
+msgstr "Sıfır çıkış koduyla tamamlanan komutların oranı."
+
+#: lib/tuist_web/live/project_settings_live.html.heex:170
+#, elixir-autogen, elixir-format
+msgid "A square image that represents the project. PNG, JPEG, or WebP up to 2 MB."
+msgstr "Projeyi temsil eden kare bir görsel. PNG, JPEG veya WebP, en fazla 2 MB."
+
+#: lib/tuist_web/live/project_settings_live.html.heex:212
+#, elixir-autogen, elixir-format
+msgid "Cancel selected file"
+msgstr "Seçili dosyayı iptal et"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:199
+#, elixir-autogen, elixir-format
+msgid "Choose file"
+msgstr "Dosya seç"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:183
+#, elixir-autogen, elixir-format
+msgid "Current project logo"
+msgstr "Mevcut proje logosu"
+
+#: lib/tuist_web/live/project_settings_live.ex:244
+#, elixir-autogen, elixir-format
+msgid "Logo must be 2 MB or smaller."
+msgstr "Logo 2 MB veya daha küçük olmalıdır."
+
+#: lib/tuist_web/live/project_settings_live.ex:202
+#: lib/tuist_web/live/project_settings_live.ex:248
+#, elixir-autogen, elixir-format
+msgid "Logo must be a PNG, JPEG, or WebP image."
+msgstr "Logo bir PNG, JPEG veya WebP görseli olmalıdır."
+
+#: lib/tuist_web/live/project_settings_live.ex:229
+#, elixir-autogen, elixir-format
+msgid "Logo removed."
+msgstr "Logo kaldırıldı."
+
+#: lib/tuist_web/live/project_settings_live.ex:193
+#, elixir-autogen, elixir-format
+msgid "Logo updated."
+msgstr "Logo güncellendi."
+
+#: lib/tuist_web/live/project_settings_live.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "No file chosen"
+msgstr "Dosya seçilmedi"
+
+#: lib/tuist_web/live/project_settings_live.ex:252
+#, elixir-autogen, elixir-format
+msgid "Only one logo can be uploaded at a time."
+msgstr "Bir seferde yalnızca bir logo yüklenebilir."
+
+#: lib/tuist_web/live/project_settings_live.html.heex:167
+#, elixir-autogen, elixir-format
+msgid "Project logo"
+msgstr "Proje logosu"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:234
+#, elixir-autogen, elixir-format
+msgid "Remove"
+msgstr "Kaldır"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:236
+#, elixir-autogen, elixir-format
+msgid "Remove the current project logo?"
+msgstr "Mevcut proje logosunu kaldırmak istiyor musunuz?"
+
+#: lib/tuist_web/live/project_settings_live.ex:218
+#, elixir-autogen, elixir-format
+msgid "Select a logo before uploading."
+msgstr "Yüklemeden önce bir logo seçin."
+
+#: lib/tuist_web/live/project_settings_live.ex:255
+#, elixir-autogen, elixir-format
+msgid "The selected file couldn't be uploaded."
+msgstr "Seçilen dosya yüklenemedi."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:794
+#: lib/tuist_web/live/bazel_invocation_live.ex:813
+#: lib/tuist_web/live/bazel_invocation_live.ex:859
+#: lib/tuist_web/live/once_run_live.ex:912
+#: lib/tuist_web/live/once_run_live.ex:1010
+#: lib/tuist_web/live/once_run_live.ex:1033
+#: lib/tuist_web/live/project_settings_live.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Upload"
+msgstr "Yükle"
+
+#: lib/tuist_web/live/project_settings_live.ex:238
+#, elixir-autogen, elixir-format
+msgid "We couldn't remove the logo. Please try again."
+msgstr "Logoyu kaldıramadık. Lütfen tekrar deneyin."
+
+#: lib/tuist_web/live/project_settings_live.ex:210
+#, elixir-autogen, elixir-format
+msgid "We couldn't save the logo. Please try again."
+msgstr "Logoyu kaydedemedik. Lütfen tekrar deneyin."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:785
+#, elixir-autogen, elixir-format
+msgid "Action cache lookup"
+msgstr "Eylem önbelleği araması"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:378
+#, elixir-autogen, elixir-format
+msgid "Action cache lookups that did not find a result in the remote cache."
+msgstr "Uzak önbellekte sonuç bulunamayan eylem önbelleği aramaları."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:366
+#, elixir-autogen, elixir-format
+msgid "Action cache lookups that found a result in the remote cache."
+msgstr "Uzak önbellekte sonuç bulunan eylem önbelleği aramaları."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:471
+#: lib/tuist_web/live/once_run_live.ex:641
+#, elixir-autogen, elixir-format
+msgid "Action cache lookups:"
+msgstr "Eylem önbelleği aramaları:"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:364
+#: lib/tuist_web/live/once_run_live.ex:530
+#, elixir-autogen, elixir-format
+msgid "Action hits"
+msgstr "Eylem isabetleri"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:376
+#: lib/tuist_web/live/once_run_live.ex:542
+#, elixir-autogen, elixir-format
+msgid "Action misses"
+msgstr "Eylem ıskalamaları"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:708
+#, elixir-autogen, elixir-format
+msgid "Average invocation duration"
+msgstr "Ortalama çağrı süresi"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:552
+#: lib/tuist_web/live/once_run_live.ex:723
+#, elixir-autogen, elixir-format
+msgid "Average throughput for downloaded content objects."
+msgstr "İndirilen içerik nesneleri için ortalama aktarım hızı."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:566
+#: lib/tuist_web/live/once_run_live.ex:734
+#, elixir-autogen, elixir-format
+msgid "Average throughput for uploaded content objects."
+msgstr "Yüklenen içerik nesneleri için ortalama aktarım hızı."
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:704
+#: lib/tuist_web/live/once_runs_live.ex:1093
+#, elixir-autogen, elixir-format
+msgid "Avg. build duration"
+msgstr "Ort. derleme süresi"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:715
+#: lib/tuist_web/live/once_cache_live.ex:781
+#, elixir-autogen, elixir-format
+msgid "Avg. cache hit rate"
+msgstr "Ort. önbellek isabet oranı"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:517
+#: lib/tuist_web/live/once_run_live.ex:687
+#, elixir-autogen, elixir-format
+msgid "Avg. latency reading cache keys"
+msgstr "Ort. önbellek anahtarlarını okuma gecikmesi"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:534
+#: lib/tuist_web/live/once_run_live.ex:703
+#, elixir-autogen, elixir-format
+msgid "Avg. latency writing cache keys"
+msgstr "Ort. önbellek anahtarlarını yazma gecikmesi"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:195
+#: lib/tuist_web/live/bazel_invocation_live.ex:437
+#, elixir-autogen, elixir-format
+msgid "Bazel Cache"
+msgstr "Bazel Önbelleği"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:1003
+#, elixir-autogen, elixir-format
+msgid "Bazel invocation"
+msgstr "Bazel çağrısı"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:69
+#, elixir-autogen, elixir-format
+msgid "Bazel invocation not found."
+msgstr "Bazel çağrısı bulunamadı."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:306
+#: lib/tuist_web/live/bazel_invocations_live.ex:417
+#: lib/tuist_web/live/bazel_invocations_live.ex:422
+#, elixir-autogen, elixir-format
+msgid "Bazel version"
+msgstr "Bazel sürümü"
+
+#: lib/tuist_web/live/bazel_build_invocation_live.ex:10
+#: lib/tuist_web/live/bazel_build_runs_live.ex:10
+#: lib/tuist_web/live/once_run_live.ex:214
+#: lib/tuist_web/live/once_runs_live.ex:43
+#: lib/tuist_web/live/once_runs_live.ex:43
+#, elixir-autogen, elixir-format
+msgid "Build Runs"
+msgstr "Derleme Çalıştırmaları"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:959
+#: lib/tuist_web/live/bazel_invocation_live.ex:962
+#, elixir-autogen, elixir-format
+msgid "Build failed (exit code 1)"
+msgstr "Derleme başarısız oldu (çıkış kodu 1)"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:695
+#: lib/tuist_web/live/bazel_invocations_live.ex:800
+#: lib/tuist_web/live/once_runs_live.ex:438
+#: lib/tuist_web/live/once_runs_live.ex:1177
+#, elixir-autogen, elixir-format
+msgid "Build success rate"
+msgstr "Derleme başarı oranı"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:357
+#: lib/tuist_web/live/once_run_live.ex:523
+#, elixir-autogen, elixir-format
+msgid "Cache Summary"
+msgstr "Önbellek Özeti"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:737
+#: lib/tuist_web/live/once_cache_live.ex:804
+#, elixir-autogen, elixir-format
+msgid "Cache downloads"
+msgstr "Önbellek indirmeleri"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:646
+#: lib/tuist_web/live/once_run_live.ex:840
+#, elixir-autogen, elixir-format
+msgid "Cache key"
+msgstr "Önbellek anahtarı"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:278
+#: lib/tuist_web/live/bazel_cache_live.ex:651
+#: lib/tuist_web/live/bazel_cache_live.ex:742
+#: lib/tuist_web/live/once_cache_live.ex:297
+#: lib/tuist_web/live/once_cache_live.ex:711
+#: lib/tuist_web/live/once_cache_live.ex:810
+#, elixir-autogen, elixir-format
+msgid "Cache latency"
+msgstr "Önbellek gecikmesi"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:328
+#: lib/tuist_web/live/bazel_cache_live.ex:674
+#: lib/tuist_web/live/bazel_cache_live.ex:745
+#: lib/tuist_web/live/once_cache_live.ex:347
+#: lib/tuist_web/live/once_cache_live.ex:734
+#: lib/tuist_web/live/once_cache_live.ex:815
+#, elixir-autogen, elixir-format
+msgid "Cache throughput"
+msgstr "Önbellek verimliliği"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:738
+#: lib/tuist_web/live/once_cache_live.ex:805
+#, elixir-autogen, elixir-format
+msgid "Cache uploads"
+msgstr "Önbellek yüklemeleri"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:426
+#: lib/tuist_web/live/once_run_live.ex:592
+#, elixir-autogen, elixir-format
+msgid "Cacheable Actions"
+msgstr "Önbellenebilir Eylemler"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:970
+#, elixir-autogen, elixir-format
+msgid "Command-line problem (exit code 2)"
+msgstr "Komut satırı sorunu (çıkış kodu 2)"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:285
+#: lib/tuist_web/live/once_run_live.ex:358
+#, elixir-autogen, elixir-format
+msgid "Commit"
+msgstr "Commit"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:789
+#: lib/tuist_web/live/once_runs_live.ex:1166
+#, elixir-autogen, elixir-format
+msgid "Completed commands"
+msgstr "Tamamlanan komutlar"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:305
+#: lib/tuist_web/live/once_runs_live.ex:466
+#, elixir-autogen, elixir-format
+msgid "Completed commands with a nonzero exit code."
+msgstr "Sıfır olmayan bir çıkış koduyla tamamlanan komutlar."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:431
+#: lib/tuist_web/live/once_run_live.ex:597
+#, elixir-autogen, elixir-format
+msgid "Content Objects"
+msgstr "İçerik Nesneleri"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:505
+#: lib/tuist_web/live/once_run_live.ex:675
+#, elixir-autogen, elixir-format
+msgid "Content objects"
+msgstr "İçerik nesneleri"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:494
+#: lib/tuist_web/live/once_run_live.ex:664
+#, elixir-autogen, elixir-format
+msgid "Content objects:"
+msgstr "İçerik nesneleri:"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:793
+#: lib/tuist_web/live/bazel_invocation_live.ex:811
+#: lib/tuist_web/live/bazel_invocation_live.ex:847
+#: lib/tuist_web/live/once_run_live.ex:913
+#: lib/tuist_web/live/once_run_live.ex:1001
+#: lib/tuist_web/live/once_run_live.ex:1032
+#, elixir-autogen, elixir-format
+msgid "Download"
+msgstr "İndir"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:338
+#: lib/tuist_web/live/bazel_cache_live.ex:680
+#: lib/tuist_web/live/bazel_invocation_live.ex:550
+#: lib/tuist_web/live/once_cache_live.ex:357
+#: lib/tuist_web/live/once_cache_live.ex:740
+#: lib/tuist_web/live/once_run_live.ex:721
+#, elixir-autogen, elixir-format
+msgid "Download throughput"
+msgstr "İndirme hızı"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:501
+#: lib/tuist_web/live/bazel_cache_live.ex:634
+#: lib/tuist_web/live/bazel_invocations_live.ex:610
+#: lib/tuist_web/live/once_cache_live.ex:555
+#: lib/tuist_web/live/once_cache_live.ex:694
+#, elixir-autogen, elixir-format
+msgid "Downloaded"
+msgstr "İndirildi"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:229
+#: lib/tuist_web/live/once_cache_live.ex:248
+#, elixir-autogen, elixir-format
+msgid "Downloads"
+msgstr "İndirmeler"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:975
+#, elixir-autogen, elixir-format
+msgid "External environment failure (exit code 32)"
+msgstr "Harici ortam hatası (çıkış kodu 32)"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:995
+#, elixir-autogen, elixir-format
+msgid "Failed (exit code %{code})"
+msgstr "Başarısız (çıkış kodu %{code})"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:699
+#, elixir-autogen, elixir-format
+msgid "Failed invocations"
+msgstr "Başarısız çağrılar"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:596
+#: lib/tuist_web/live/bazel_invocations_live.ex:540
+#: lib/tuist_web/live/once_run_live.ex:395
+#: lib/tuist_web/live/once_run_live.ex:761
+#: lib/tuist_web/live/once_runs_live.ex:847
+#, elixir-autogen, elixir-format
+msgid "Filter"
+msgstr "Filtrele"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:798
+#: lib/tuist_web/live/once_run_live.ex:447
+#: lib/tuist_web/live/once_run_live.ex:962
+#: lib/tuist_web/live/once_run_live.ex:1028
+#: lib/tuist_web/live/once_run_live.ex:1125
+#: lib/tuist_web/live/once_run_live.ex:1225
+#, elixir-autogen, elixir-format
+msgid "Hit"
+msgstr "Eşleşme"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:498
+#: lib/tuist_web/live/bazel_invocation_live.ex:388
+#: lib/tuist_web/live/once_cache_live.ex:552
+#: lib/tuist_web/live/once_run_live.ex:554
+#, elixir-autogen, elixir-format
+msgid "Hit rate"
+msgstr "İsabet oranı"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:983
+#, elixir-autogen, elixir-format
+msgid "Internal Bazel error (exit code 37)"
+msgstr "Dahili Bazel hatası (çıkış kodu 37)"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:972
+#, elixir-autogen, elixir-format
+msgid "Interrupted (exit code 8)"
+msgstr "Kesildi (çıkış kodu 8)"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:293
+#, elixir-autogen, elixir-format
+msgid "Invocation ID"
+msgstr "Çağrı Kimliği"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:617
+#: lib/tuist_web/live/once_run_live.ex:820
+#, elixir-autogen, elixir-format
+msgid "Key"
+msgstr "Anahtar"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:665
+#: lib/tuist_web/live/once_run_live.ex:859
+#, elixir-autogen, elixir-format
+msgid "Latency"
+msgstr "Gecikme"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:980
+#, elixir-autogen, elixir-format
+msgid "Local environment failure (exit code 36)"
+msgstr "Yerel ortam hatası (çıkış kodu 36)"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:796
+#: lib/tuist_web/live/bazel_invocation_live.ex:804
+#: lib/tuist_web/live/bazel_invocation_live.ex:812
+#: lib/tuist_web/live/bazel_invocation_live.ex:833
+#: lib/tuist_web/live/once_run_live.ex:963
+#: lib/tuist_web/live/once_run_live.ex:980
+#: lib/tuist_web/live/once_run_live.ex:1126
+#, elixir-autogen, elixir-format
+msgid "Missed"
+msgstr "Iskaladı"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:710
+#, elixir-autogen, elixir-format
+msgid "No Bazel builds have been received yet."
+msgstr "Henüz Bazel derlemesi alınmadı."
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:720
+#, elixir-autogen, elixir-format
+msgid "No Bazel builds in the selected period."
+msgstr "Seçilen dönemde Bazel derlemesi yok."
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:714
+#, elixir-autogen, elixir-format
+msgid "No Bazel builds match the current filters."
+msgstr "Mevcut filtrelerle eşleşen Bazel derlemesi yok."
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:711
+#, elixir-autogen, elixir-format
+msgid "No Bazel invocations have been received yet."
+msgstr "Henüz Bazel çağrısı alınmadı."
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:723
+#, elixir-autogen, elixir-format
+msgid "No Bazel invocations in the selected period."
+msgstr "Seçilen dönemde Bazel çağrısı yok."
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:384
+#, elixir-autogen, elixir-format
+msgid "No Bazel invocations in this period"
+msgstr "Bu dönemde Bazel çağrısı yok"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:717
+#, elixir-autogen, elixir-format
+msgid "No Bazel invocations match the current filters."
+msgstr "Mevcut filtrelerle eşleşen Bazel çağrısı yok."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:770
+#, elixir-autogen, elixir-format
+msgid "No action cache requests were observed for this invocation."
+msgstr "Bu çağrı için herhangi bir eylem önbelleği isteği gözlemlenmedi."
+
+#: lib/tuist_web/live/bazel_cache_live.ex:756
+#, elixir-autogen, elixir-format
+msgid "No cache activity associated with an invocation in the selected period"
+msgstr "Seçilen dönemde bir çağrıyla ilişkili önbellek etkinliği yok"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:759
+#, elixir-autogen, elixir-format
+msgid "No cache activity associated with an invocation yet"
+msgstr "Henüz bir çağrıyla ilişkili önbellek etkinliği yok"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:751
+#: lib/tuist_web/live/bazel_overview_live.ex:684
+#: lib/tuist_web/live/once_cache_live.ex:821
+#, elixir-autogen, elixir-format
+msgid "No cache observations in the selected period"
+msgstr "Seçilen dönemde önbellek gözlemi yok"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:753
+#: lib/tuist_web/live/bazel_overview_live.ex:686
+#: lib/tuist_web/live/once_cache_live.ex:823
+#: lib/tuist_web/live/toolchain_cache_live.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "No cache observations yet"
+msgstr "Henüz önbellek gözlemi yok"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:767
+#, elixir-autogen, elixir-format
+msgid "No content object transfers were observed for this invocation."
+msgstr "Bu çağrı için herhangi bir içerik nesnesi aktarımı gözlemlenmedi."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:530
+#: lib/tuist_web/live/bazel_invocation_live.ex:544
+#: lib/tuist_web/live/bazel_invocation_live.ex:560
+#: lib/tuist_web/live/bazel_invocation_live.ex:574
+#, elixir-autogen, elixir-format
+msgid "No data"
+msgstr "Veri yok"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:789
+#, elixir-autogen, elixir-format
+msgid "No digest"
+msgstr "Özet yok"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:685
+#, elixir-autogen, elixir-format
+msgid "No matching cache requests"
+msgstr "Eşleşen önbellek isteği yok"
+
+#: lib/tuist_web/live/bazel_analytics_helpers.ex:70
+#, elixir-autogen, elixir-format
+msgid "No targets reported"
+msgstr "Hiçbir hedef bildirilmedi"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:968
+#, elixir-autogen, elixir-format
+msgid "No tests found (exit code 4)"
+msgstr "Test bulunamadı (çıkış kodu 4)"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:676
+#: lib/tuist_web/live/once_run_live.ex:865
+#, elixir-autogen, elixir-format
+msgid "Observed"
+msgstr "Gözlemlenen"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:977
+#, elixir-autogen, elixir-format
+msgid "Out of memory (exit code 33)"
+msgstr "Bellek yetersizliği (çıkış kodu 33)"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:285
+#: lib/tuist_web/live/bazel_cache_live.ex:657
+#: lib/tuist_web/live/bazel_cache_live.ex:740
+#: lib/tuist_web/live/once_cache_live.ex:304
+#: lib/tuist_web/live/once_cache_live.ex:717
+#: lib/tuist_web/live/once_cache_live.ex:808
+#, elixir-autogen, elixir-format
+msgid "Read latency"
+msgstr "Okuma gecikmesi"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:795
+#: lib/tuist_web/live/bazel_invocation_live.ex:803
+#: lib/tuist_web/live/bazel_invocation_live.ex:824
+#: lib/tuist_web/live/once_run_live.ex:971
+#, elixir-autogen, elixir-format
+msgid "Remote"
+msgstr "Uzak"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:989
+#, elixir-autogen, elixir-format
+msgid "Remote cache entry evicted (exit code 39)"
+msgstr "Uzak önbellek girdisi çıkarıldı (çıkış kodu 39)"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:273
+#, elixir-autogen, elixir-format
+msgid "Repository"
+msgstr "Depo"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:986
+#, elixir-autogen, elixir-format
+msgid "Result publishing failed (exit code 38)"
+msgstr "Sonuç yayınlama başarısız oldu (çıkış kodu 38)"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:992
+#, elixir-autogen, elixir-format
+msgid "Result publishing failed (exit code 45)"
+msgstr "Sonuç yayınlama başarısız oldu (çıkış kodu 45)"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:659
+#: lib/tuist_web/live/once_run_live.ex:855
+#, elixir-autogen, elixir-format
+msgid "Size"
+msgstr "Boyut"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:260
+#, elixir-autogen, elixir-format
+msgid "Started"
+msgstr "Başlatıldı"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:797
+#: lib/tuist_web/live/bazel_invocation_live.ex:805
+#: lib/tuist_web/live/once_run_live.ex:964
+#: lib/tuist_web/live/once_run_live.ex:1127
+#, elixir-autogen, elixir-format
+msgid "Stored"
+msgstr "Depolandı"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:637
+#: lib/tuist_web/live/once_run_live.ex:833
+#, elixir-autogen, elixir-format
+msgid "Target"
+msgstr "Hedef"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:489
+#: lib/tuist_web/live/bazel_invocation_live.ex:267
+#: lib/tuist_web/live/bazel_invocations_live.ex:568
+#, elixir-autogen, elixir-format
+msgid "Targets"
+msgstr "Hedefler"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:965
+#, elixir-autogen, elixir-format
+msgid "Tests failed or timed out (exit code 3)"
+msgstr "Testler başarısız oldu veya zaman aşımına uğradı (çıkış kodu 3)"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:253
+#, elixir-autogen, elixir-format
+msgid "The average time Tuist's remote cache spent serving reads and writes during the selected period."
+msgstr "Seçilen dönemde Tuist'in uzak önbelleğinin okuma ve yazma isteklerini yanıtlamak için harcadığı ortalama süre."
+
+#: lib/tuist_web/live/bazel_cache_live.ex:194
+#, elixir-autogen, elixir-format
+msgid "The bytes returned from and accepted by Tuist's remote cache during the selected period."
+msgstr "Seçilen dönemde Tuist'in uzak önbelleği tarafından döndürülen ve kabul edilen bayt sayısı."
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:321
+#, elixir-autogen, elixir-format
+msgid "The duration of completed Bazel commands, with average and percentile views."
+msgstr "Tamamlanan Bazel komutlarının süresi, ortalama ve yüzdelik görünümleriyle."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:390
+#, elixir-autogen, elixir-format
+msgid "The percentage of action cache lookups that found a result in the remote cache."
+msgstr "Uzak önbellekte sonuç bulunan eylem önbelleği aramalarının yüzdesi."
+
+#: lib/tuist_web/live/bazel_cache_live.ex:163
+#, elixir-autogen, elixir-format
+msgid "The percentage of action-cache lookups served from Tuist's remote cache, measured per invocation."
+msgstr "Her çağrı başına ölçülen, Tuist'in uzak önbelleğinden yanıtlanan eylem önbelleği aramalarının yüzdesi."
+
+#: lib/tuist_web/live/bazel_overview_live.ex:172
+#, elixir-autogen, elixir-format
+msgid "The share of action-cache lookups served from Tuist's remote cache."
+msgstr "Tuist'in uzak önbelleğinden yanıtlanan eylem önbelleği aramalarının oranı."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:764
+#, elixir-autogen, elixir-format
+msgid "This invocation did not use a remote cache."
+msgstr "Bu çağrı bir uzak önbellek kullanmadı."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:519
+#, elixir-autogen, elixir-format
+msgid "Time to read action cache keys, including both remote hits and misses."
+msgstr "Hem uzak önbellek isabetleri hem de isabetsizlikleri dahil olmak üzere eylem önbelleği anahtarlarını okuma süresi."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:536
+#, elixir-autogen, elixir-format
+msgid "Time to write action results to the remote cache."
+msgstr "Eylem sonuçlarının uzak önbelleğe yazılma süresi."
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:694
+#: lib/tuist_web/live/once_runs_live.ex:417
+#, elixir-autogen, elixir-format
+msgid "Total builds"
+msgstr "Toplam derlemeler"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:697
+#, elixir-autogen, elixir-format
+msgid "Total invocations"
+msgstr "Toplam çağrılar"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:303
+#, elixir-autogen, elixir-format
+msgid "Transferred remote-cache bytes divided by measured request time. Requests without a measured duration are excluded."
+msgstr "Ölçülen istek süresine bölünen aktarılan uzak-önbellek baytları. Ölçülen süresi olmayan istekler hariç tutulur."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:686
+#, elixir-autogen, elixir-format
+msgid "Try changing or clearing your filters."
+msgstr "Filtrelerinizi değiştirmeyi veya temizlemeyi deneyin."
+
+#: lib/tuist_web/live/bazel_cache_live.ex:348
+#: lib/tuist_web/live/bazel_cache_live.ex:686
+#: lib/tuist_web/live/bazel_invocation_live.ex:564
+#: lib/tuist_web/live/once_cache_live.ex:367
+#: lib/tuist_web/live/once_cache_live.ex:746
+#: lib/tuist_web/live/once_run_live.ex:732
+#, elixir-autogen, elixir-format
+msgid "Upload throughput"
+msgstr "Yükleme hızı"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:504
+#: lib/tuist_web/live/bazel_cache_live.ex:640
+#: lib/tuist_web/live/bazel_invocations_live.ex:613
+#: lib/tuist_web/live/once_cache_live.ex:558
+#: lib/tuist_web/live/once_cache_live.ex:700
+#, elixir-autogen, elixir-format
+msgid "Uploaded"
+msgstr "Yüklendi"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:239
+#: lib/tuist_web/live/once_cache_live.ex:258
+#, elixir-autogen, elixir-format
+msgid "Uploads"
+msgstr "Yüklemeler"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:292
+#: lib/tuist_web/live/bazel_cache_live.ex:663
+#: lib/tuist_web/live/bazel_cache_live.ex:741
+#: lib/tuist_web/live/once_cache_live.ex:311
+#: lib/tuist_web/live/once_cache_live.ex:723
+#: lib/tuist_web/live/once_cache_live.ex:809
+#, elixir-autogen, elixir-format
+msgid "Write latency"
+msgstr "Yazma gecikmesi"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:714
+#: lib/tuist_web/live/once_cache_live.ex:780
+#, elixir-autogen, elixir-format
+msgid "p50 action cache hit rate"
+msgstr "p50 eylem önbelleği isabet oranı"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:703
+#: lib/tuist_web/live/once_runs_live.ex:1092
+#, elixir-autogen, elixir-format
+msgid "p50 build duration"
+msgstr "p50 derleme süresi"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:707
+#, elixir-autogen, elixir-format
+msgid "p50 invocation duration"
+msgstr "p50 çağrı süresi"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:713
+#: lib/tuist_web/live/once_cache_live.ex:779
+#, elixir-autogen, elixir-format
+msgid "p90 action cache hit rate"
+msgstr "p90 eylem önbelleği isabet oranı"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:702
+#: lib/tuist_web/live/once_runs_live.ex:1091
+#, elixir-autogen, elixir-format
+msgid "p90 build duration"
+msgstr "p90 derleme süresi"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:706
+#, elixir-autogen, elixir-format
+msgid "p90 invocation duration"
+msgstr "p90 çağrı süresi"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:712
+#: lib/tuist_web/live/once_cache_live.ex:778
+#, elixir-autogen, elixir-format
+msgid "p99 action cache hit rate"
+msgstr "p99 eylem önbelleği isabet oranı"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:701
+#: lib/tuist_web/live/once_runs_live.ex:1090
+#, elixir-autogen, elixir-format
+msgid "p99 build duration"
+msgstr "p99 derleme süresi"
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:705
+#, elixir-autogen, elixir-format
+msgid "p99 invocation duration"
+msgstr "p99 çağrı süresi"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:743
+#: lib/tuist_web/live/once_cache_live.ex:812
+#, elixir-autogen, elixir-format
+msgid "Cache download throughput"
+msgstr "Önbellek indirme hızı"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:219
+#: lib/tuist_web/live/bazel_cache_live.ex:739
+#: lib/tuist_web/live/once_cache_live.ex:238
+#: lib/tuist_web/live/once_cache_live.ex:806
+#, elixir-autogen, elixir-format
+msgid "Cache transfer"
+msgstr "Önbellek aktarımı"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:744
+#: lib/tuist_web/live/once_cache_live.ex:814
+#, elixir-autogen, elixir-format
+msgid "Cache upload throughput"
+msgstr "Önbellek yükleme hızı"
+
+#: lib/tuist_web/live/bazel_overview_live.ex:691
+#, elixir-autogen, elixir-format
+msgid "No builds in the selected period"
+msgstr "Seçilen dönemde derleme yok"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:513
+#: lib/tuist_web/live/bazel_invocations_live.ex:618
+#: lib/tuist_web/live/once_cache_live.ex:567
+#: lib/tuist_web/live/once_runs_live.ex:934
+#, elixir-autogen, elixir-format
+msgid "Ran at"
+msgstr "Çalıştırılma zamanı"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:495
+#, elixir-autogen, elixir-format
+msgid "Ran by"
+msgstr "Çalıştıran"
+
+#: lib/tuist_web/live/bazel_cache_live.ex:417
+#, elixir-autogen, elixir-format
+msgid "Recent Invocations"
+msgstr "Son Çağrılar"
+
+#: lib/tuist_web/live/bazel_overview_live.ex:190
+#, elixir-autogen, elixir-format
+msgid "The average duration of Bazel build invocations."
+msgstr "Bazel derleme çağrılarının ortalama süresi."
+
+#: lib/tuist_web/live/bazel_invocations_live.ex:561
+#, elixir-autogen, elixir-format
+msgid "Invocation"
+msgstr "Çağrı"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:503
+#: lib/tuist_web/live/project_automations_live.html.heex:895
+#, elixir-autogen, elixir-format
+msgid "Skips the entire target, including healthy tests."
+msgstr "Sağlıklı testler dahil olmak üzere tüm hedefi atlar."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:400
+#: lib/tuist_web/live/once_run_live.ex:566
+#, elixir-autogen, elixir-format
+msgid "Content downloaded"
+msgstr "İndirilen içerik"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:412
+#: lib/tuist_web/live/once_run_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Content uploaded"
+msgstr "Yüklenen içerik"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:402
+#, elixir-autogen, elixir-format
+msgid "Total size of build outputs downloaded from the remote cache. Excludes action cache lookups, which return metadata rather than outputs."
+msgstr "Uzak önbellekten indirilen derleme çıktılarının toplam boyutu. Çıktılar yerine meta veri döndüren eylem önbelleği aramalarını hariç tutar."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:414
+#, elixir-autogen, elixir-format
+msgid "Total size of build outputs uploaded to the remote cache. Excludes action cache writes, which store metadata rather than outputs."
+msgstr "Uzak önbelleğe yüklenen derleme çıktılarının toplam boyutu. Çıktılar yerine meta veri depolayan eylem önbelleği yazmalarını hariç tutar."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1071
+#, elixir-autogen, elixir-format
+msgid "Actions for existing matches are pending. Save with this option unchecked to cancel any remaining actions."
+msgstr "Mevcut eşleşmeler için işlemler beklemede. Kalan tüm işlemleri iptal etmek için bu seçeneği işaretli olmadan kaydedin."
+
+#: lib/tuist_web/live/project_automations_live.ex:742
+#, elixir-autogen, elixir-format
+msgid "After %{window} without a trigger: %{actions}."
+msgstr "%{window} boyunca tetikleyici olmadığında: %{actions}."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1032
+#, elixir-autogen, elixir-format
+msgid "Apply to existing matches"
+msgstr "Mevcut eşleşmelere uygula"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1059
+#, elixir-autogen, elixir-format
+msgid "Complete a valid condition to see matching tests."
+msgstr "Eşleşen testleri görmek için geçerli bir koşul tamamlayın."
+
+#: lib/tuist_web/live/project_automations_live.ex:711
+#, elixir-autogen, elixir-format
+msgid "Complete a valid condition."
+msgstr "Geçerli bir koşul tamamlayın."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1052
+#, elixir-autogen, elixir-format
+msgid "Counting matching tests…"
+msgstr "Eşleşen testler sayılıyor…"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1097
+#, elixir-autogen, elixir-format
+msgid "Create and apply actions"
+msgstr "İşlemler oluştur ve uygula"
+
+#: lib/tuist_web/live/project_automations_live.ex:734
+#, elixir-autogen, elixir-format
+msgid "For each matching test: %{actions}."
+msgstr "Her eşleşen test için: %{actions}."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1054
+#, elixir-autogen, elixir-format
+msgid "Match count unavailable. You can still save."
+msgstr "Eşleşme sayısı mevcut değil. Yine de kaydedebilirsiniz."
+
+#: lib/tuist_web/live/project_automations_live.ex:731
+#, elixir-autogen, elixir-format
+msgid "No actions selected."
+msgstr "Hiçbir eylem seçilmedi."
+
+#: lib/tuist_web/live/project_automations_live.ex:747
+#, elixir-autogen, elixir-format
+msgid "Recovery is disabled."
+msgstr "Kurtarma devre dışı bırakıldı."
+
+#: lib/tuist_web/live/project_automation_live.ex:288
+#, elixir-autogen, elixir-format
+msgid "Requested actions for existing matches"
+msgstr "Mevcut eşleşmeler için istenen eylemler"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1096
+#, elixir-autogen, elixir-format
+msgid "Save and apply actions"
+msgstr "Eylemleri kaydet ve uygula"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1045
+#, elixir-autogen, elixir-format
+msgid "Select to also run them once after saving for %{count} test that currently matches."
+msgid_plural "Select to also run them once after saving for %{count} tests that currently match."
+msgstr[0] "Şu anda eşleşen %{count} test için kaydettikten sonra bir kez çalıştırmak üzere seçin."
+msgstr[1] "Şu anda eşleşen %{count} test için kaydettikten sonra bir kez çalıştırmak üzere seçin."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:385
+#, elixir-autogen, elixir-format
+msgid "What"
+msgstr "Ne"
+
+#: lib/tuist_web/live/project_automations_live.ex:1131
+#, elixir-autogen, elixir-format
+msgid "e.g. 30d"
+msgstr "ör. 30g"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:1038
+#, elixir-autogen, elixir-format
+msgid "By default, actions run only when a test starts matching the condition. Tests that currently match won't get them unless they recover and then match again."
+msgstr "Varsayılan olarak, eylemler yalnızca bir test koşulla eşleşmeye başladığında çalışır. Şu anda eşleşen testler, kurtulup tekrar eşleşmedikçe bunları almaz."
+
+#: lib/tuist_web/live/once_run_live.ex:1329
+#, elixir-autogen, elixir-format
+msgid "Action %{index}"
+msgstr "Eylem %{index}"
+
+#: lib/tuist_web/live/once_run_live.ex:544
+#, elixir-autogen, elixir-format
+msgid "Actions that had to execute because the Once cache had no result."
+msgstr "Once önbelleğinde sonuç olmadığı için yürütülmek zorunda kalan eylemler."
+
+#: lib/tuist_web/live/once_run_live.ex:532
+#, elixir-autogen, elixir-format
+msgid "Actions that replayed from the Once cache instead of executing."
+msgstr "Yürütülmek yerine Once önbelleğinden yeniden oynatılan eylemler."
+
+#: lib/tuist_web/live/once_run_live.ex:773
+#, elixir-autogen, elixir-format
+msgid "All outcomes"
+msgstr "Tüm sonuçlar"
+
+#: lib/tuist_web/live/once_run_live.ex:300
+#, elixir-autogen, elixir-format
+msgid "Argument values are redacted by Once before this command is sent to Tuist."
+msgstr "Bu komut Tuist'e gönderilmeden önce argüman değerleri Once tarafından gizlenir."
+
+#: lib/tuist_web/live/once_run_live.ex:1332
+#, elixir-autogen, elixir-format
+msgid "Build"
+msgstr "Derleme"
+
+#: lib/tuist_web/live/once_run_live.ex:926
+#, elixir-autogen, elixir-format
+msgid "Build script"
+msgstr "Derleme betiği"
+
+#: lib/tuist_web/live/once_run_live.ex:440
+#: lib/tuist_web/live/once_run_live.ex:915
+#: lib/tuist_web/live/once_run_live.ex:1221
+#, elixir-autogen, elixir-format
+msgid "Cache"
+msgstr "Önbellek"
+
+#: lib/tuist_web/live/once_run_live.ex:343
+#, elixir-autogen, elixir-format
+msgid "Cache hits"
+msgstr "Önbellek isabetleri"
+
+#: lib/tuist_web/live/once_run_live.ex:1269
+#: lib/tuist_web/live/once_run_live.ex:1339
+#, elixir-autogen, elixir-format
+msgid "Cancelled"
+msgstr "İptal edildi"
+
+#: lib/tuist_web/live/once_runs_live.ex:424
+#, elixir-autogen, elixir-format
+msgid "Completed once commands in the selected period."
+msgstr "Seçilen dönemde bir kez tamamlanan komutlar."
+
+#: lib/tuist_web/live/once_run_live.ex:347
+#, elixir-autogen, elixir-format
+msgid "Executed"
+msgstr "Yürütüldü"
+
+#: lib/tuist_web/live/once_run_live.ex:463
+#, elixir-autogen, elixir-format
+msgid "Finished"
+msgstr "Tamamlandı"
+
+#: lib/tuist_web/live/once_run_live.ex:556
+#, elixir-autogen, elixir-format
+msgid "Fraction of the run's actions that replayed from the cache."
+msgstr "Çalıştırma eylemlerinin önbellekten yeniden oynatılan oranı."
+
+#: lib/tuist_web/live/once_run_live.ex:1334
+#, elixir-autogen, elixir-format
+msgid "Generic"
+msgstr "Genel"
+
+#: lib/tuist_web/live/once_cache_live.ex:397
+#: lib/tuist_web/live/once_run_live.ex:372
+#: lib/tuist_web/live/once_runs_live.ex:550
+#: lib/tuist_web/live/once_runs_live.ex:940
+#: lib/tuist_web/live/once_runs_live.ex:997
+#, elixir-autogen, elixir-format
+msgid "Host"
+msgstr "Ana Bilgisayar"
+
+#: lib/tuist_web/live/once_run_live.ex:1341
+#, elixir-autogen, elixir-format
+msgid "Infrastructure error"
+msgstr "Altyapı hatası"
+
+#: lib/tuist_web/live/once_run_live.ex:319
+#, elixir-autogen, elixir-format
+msgid "Kind"
+msgstr "Tür"
+
+#: lib/tuist_web/live/once_run_live.ex:448
+#: lib/tuist_web/live/once_run_live.ex:1226
+#, elixir-autogen, elixir-format
+msgid "Miss"
+msgstr "Eşleşme Yok"
+
+#: lib/tuist_web/live/once_run_live.ex:1234
+#, elixir-autogen, elixir-format
+msgid "No actions match your search or filters"
+msgstr "Aramanız veya filtrelerinizle eşleşen işlem yok"
+
+#: lib/tuist_web/live/once_run_live.ex:1238
+#, elixir-autogen, elixir-format
+msgid "No actions recorded"
+msgstr "Kaydedilmiş işlem yok"
+
+#: lib/tuist_web/live/once_cache_live.ex:826
+#, elixir-autogen, elixir-format
+msgid "No cache activity associated with a run in the selected period"
+msgstr "Seçilen dönemde bir çalışmayla ilişkilendirilmiş önbellek etkinliği yok"
+
+#: lib/tuist_web/live/once_cache_live.ex:829
+#, elixir-autogen, elixir-format
+msgid "No cache activity associated with a run yet"
+msgstr "Henüz bir çalışmayla ilişkili önbellek etkinliği yok"
+
+#: lib/tuist_web/live/once_run_live.ex:612
+#, elixir-autogen, elixir-format
+msgid "No cache lookups reported yet"
+msgstr "Henüz önbellek araması bildirilmedi"
+
+#: lib/tuist_web/live/once_run_live.ex:613
+#, elixir-autogen, elixir-format
+msgid "No content transfers reported yet"
+msgstr "Henüz içerik aktarımı bildirilmedi"
+
+#: lib/tuist_web/live/once_runs_live.ex:1102
+#, elixir-autogen, elixir-format
+msgid "No once builds have been received yet."
+msgstr "Henüz tek seferlik derleme alınmadı."
+
+#: lib/tuist_web/live/once_runs_live.ex:1099
+#, elixir-autogen, elixir-format
+msgid "No once builds in the selected period."
+msgstr "Seçilen dönemde tek seferlik derleme yok."
+
+#: lib/tuist_web/live/once_runs_live.ex:1096
+#, elixir-autogen, elixir-format
+msgid "No once builds match the current filters."
+msgstr "Mevcut filtrelere uygun tek seferlik derleme yok."
+
+#: lib/tuist_web/live/once_runs_live.ex:604
+#: lib/tuist_web/live/once_runs_live.ex:797
+#, elixir-autogen, elixir-format
+msgid "No once runs in this period"
+msgstr "Bu dönemde tek seferlik çalışma yok"
+
+#: lib/tuist_web/live/once_run_live.ex:263
+#: lib/tuist_web/live/once_run_live.ex:603
+#, elixir-autogen, elixir-format
+msgid "Once Cache"
+msgstr "Tek Seferlik Önbellek"
+
+#: lib/tuist_web/live/once_run_live.ex:1251
+#, elixir-autogen, elixir-format
+msgid "Once build"
+msgstr "Bir kez derleme"
+
+#: lib/tuist_web/live/once_run_live.ex:1253
+#, elixir-autogen, elixir-format
+msgid "Once run"
+msgstr "Bir kez çalıştırma"
+
+#: lib/tuist_web/live/once_run_live.ex:1252
+#, elixir-autogen, elixir-format
+msgid "Once test"
+msgstr "Bir kez test"
+
+#: lib/tuist_web/live/once_cache_live.ex:398
+#: lib/tuist_web/live/once_run_live.ex:371
+#: lib/tuist_web/live/once_runs_live.ex:551
+#: lib/tuist_web/live/once_runs_live.ex:999
+#, elixir-autogen, elixir-format
+msgid "Once version"
+msgstr "Bir kez sürüm"
+
+#: lib/tuist_web/live/once_cache_live.ex:472
+#, elixir-autogen, elixir-format
+msgid "Recent Runs"
+msgstr "Son Çalıştırmalar"
+
+#: lib/tuist_web/live/once_run_live.ex:914
+#: lib/tuist_web/live/once_run_live.ex:965
+#: lib/tuist_web/live/once_run_live.ex:1128
+#, elixir-autogen, elixir-format
+msgid "Reused"
+msgstr "Yeniden kullanıldı"
+
+#: lib/tuist_web/live/once_cache_live.ex:549
+#: lib/tuist_web/live/once_runs_live.ex:868
+#, elixir-autogen, elixir-format
+msgid "Run"
+msgstr "Çalıştır"
+
+#: lib/tuist_web/live/once_run_live.ex:362
+#, elixir-autogen, elixir-format
+msgid "Run identifier"
+msgstr "Çalıştırma tanımlayıcısı"
+
+#: lib/tuist_web/live/once_run_live.ex:29
+#, elixir-autogen, elixir-format
+msgid "Run not found"
+msgstr "Çalıştırma bulunamadı"
+
+#: lib/tuist_web/live/once_run_live.ex:1277
+#: lib/tuist_web/live/once_runs_live.ex:890
+#, elixir-autogen, elixir-format
+msgid "Running"
+msgstr "Çalışıyor"
+
+#: lib/tuist_web/live/once_run_live.ex:1333
+#, elixir-autogen, elixir-format
+msgid "Test"
+msgstr "Test"
+
+#: lib/tuist_web/live/once_runs_live.ex:39
+#: lib/tuist_web/live/once_runs_live.ex:39
+#, elixir-autogen, elixir-format
+msgid "Test Runs"
+msgstr "Test Çalıştırmaları"
+
+#: lib/tuist_web/live/once_cache_live.ex:272
+#, elixir-autogen, elixir-format
+msgid "The average time Once's remote cache spent serving reads and writes during the selected period."
+msgstr "Seçilen dönemde Once'ın uzak önbelleğinin okuma ve yazma işlemlerini sunarken harcadığı ortalama süre."
+
+#: lib/tuist_web/live/once_cache_live.ex:213
+#, elixir-autogen, elixir-format
+msgid "The bytes returned from and accepted by Once's remote cache during the selected period."
+msgstr "Seçilen dönemde Once'ın uzak önbelleği tarafından döndürülen ve kabul edilen bayt sayısı."
+
+#: lib/tuist_web/live/once_runs_live.ex:501
+#, elixir-autogen, elixir-format
+msgid "The duration of completed once commands, with average and percentile views."
+msgstr "Tamamlanan once komutlarının süresi, ortalama ve yüzde dilimi görünümleriyle."
+
+#: lib/tuist_web/live/once_cache_live.ex:182
+#, elixir-autogen, elixir-format
+msgid "The percentage of action-cache lookups served from Once's remote cache, measured per run."
+msgstr "Once'ın uzak önbelleğinden sunulan eylem-önbelleği aramalarının yüzdesi, çalıştırma başına ölçülür."
+
+#: lib/tuist_web/live/once_run_live.ex:689
+#, elixir-autogen, elixir-format
+msgid "Time Once spent reading action cache keys, including hits and misses."
+msgstr "Once'ın eylem önbelleği anahtarlarını okumak için harcadığı süre, isabetler ve kaçırılanlar dahil."
+
+#: lib/tuist_web/live/once_run_live.ex:705
+#, elixir-autogen, elixir-format
+msgid "Time Once spent writing action results back into the cache."
+msgstr "Once'ın eylem sonuçlarını tekrar önbelleğe yazmak için harcadığı süre."
+
+#: lib/tuist_web/live/once_run_live.ex:1340
+#, elixir-autogen, elixir-format
+msgid "Timed out"
+msgstr "Zaman aşımına uğradı"
+
+#: lib/tuist_web/live/once_run_live.ex:568
+#, elixir-autogen, elixir-format
+msgid "Total bytes moved from the Once cache into this run."
+msgstr "Once önbelleğinden bu çalışmaya taşınan toplam bayt sayısı."
+
+#: lib/tuist_web/live/once_run_live.ex:580
+#, elixir-autogen, elixir-format
+msgid "Total bytes this run stored back into the Once cache."
+msgstr "Bu çalışmada Once önbelleğine geri depolanan toplam bayt."
+
+#: lib/tuist_web/live/once_cache_live.ex:322
+#, elixir-autogen, elixir-format
+msgid "Transferred remote-cache bytes divided by measured request time."
+msgstr "Ölçülen istek süresine bölünmüş uzak önbellek baytları."
+
+#: lib/tuist_web/live/once_run_live.ex:1240
+#, elixir-autogen, elixir-format
+msgid "Waiting for actions…"
+msgstr "Eylemler bekleniyor…"
+
+#: lib/tuist_web/live/once_run_live.ex:1245
+#, elixir-autogen, elixir-format
+msgid "[redacted]"
+msgstr "[gizli]"
+
+#: lib/tuist_web/live/once_overview_live.ex:298
+#, elixir-autogen, elixir-format
+msgid "No cache activity yet"
+msgstr "Henüz önbellek etkinliği yok"
+
+#: lib/tuist_web/live/once_overview_live.ex:317
+#, elixir-autogen, elixir-format
+msgid "No test runs yet"
+msgstr "Henüz test çalıştırması yok"
+
+#: lib/tuist_web/live/once_overview_live.ex:183
+#, elixir-autogen, elixir-format
+msgid "The average duration of Once build runs."
+msgstr "Bir kez derleme çalıştırmalarının ortalama süresi."
+
+#: lib/tuist_web/live/once_overview_live.ex:200
+#, elixir-autogen, elixir-format
+msgid "The average duration of Once test runs."
+msgstr "Bir kez test çalıştırmalarının ortalama süresi."
+
+#: lib/tuist_web/live/once_cache_live.ex:417
+#: lib/tuist_web/live/once_runs_live.ex:573
+#, elixir-autogen, elixir-format
+msgid "The 1,000 run limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent runs."
+msgstr "1.000 çalışma sınırına ulaşıldı, veriler yalnızca %{date} tarihine kadar dahil edilir. Daha yeni çalıştırmaları görmek için tarih aralığını daraltmayı deneyin."
+
+#: lib/tuist_web/live/once_overview_live.ex:166
+#, elixir-autogen, elixir-format
+msgid "The share of cacheable actions resolved from cache rather than being rerun."
+msgstr "Önbellekten çözümlenen önbelleklenebilir eylemlerin yeniden çalıştırılmak yerine önbellekten karşılanan oranı."
+
+#: lib/tuist_web/live/once_run_live.ex:781
+#, elixir-autogen, elixir-format
+msgid "No cache activity matches your search or filters"
+msgstr "Aramanız veya filtrelerinizle eşleşen önbellek etkinliği yok"
+
+#: lib/tuist_web/live/once_run_live.ex:1275
+#, elixir-autogen, elixir-format
+msgid "Interrupted"
+msgstr "Kesildi"
+
+#: lib/tuist_web/live/mix_overview_live.html.heex:92
+#, elixir-autogen, elixir-format
+msgid "Average time it takes to complete a mix compile run during the selected period."
+msgstr "Seçilen dönemde bir karma derleme çalışmasını tamamlamanın ortalama süresi."
+
+#: lib/tuist_web/live/cargo_overview_live.html.heex:109
+#: lib/tuist_web/live/mix_overview_live.html.heex:240
+#, elixir-autogen, elixir-format
+msgid "No data yet"
+msgstr "Henüz veri yok"
+
+#: lib/tuist_web/live/layout_live.ex:173
+#: lib/tuist_web/live/overview_live.ex:22
+#, elixir-autogen, elixir-format
+msgid "Project dashboard"
+msgstr "Proje panosu"
+
+#: lib/tuist_web/live/project_automations_live.ex:40
+#: lib/tuist_web/live/project_bundle_settings_live.ex:31
+#: lib/tuist_web/live/project_notifications_live.ex:37
+#, elixir-autogen, elixir-format
+msgid "Project settings"
+msgstr "Proje ayarları"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:375
+#, elixir-autogen, elixir-format
+msgid "Absolute size (MB)"
+msgstr "Mutlak boyut (MB)"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:416
+#, elixir-autogen, elixir-format
+msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
+msgstr "<strong>%{size_label}</strong>, <strong>%{baseline_branch}</strong> üzerindeki en son pakete kıyasla <strong>%{deviation}</strong> oranından fazla arttığında PR'ları engelleyin."
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:424
+#, elixir-autogen, elixir-format
+msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
+msgstr "<strong>%{bundle_name}</strong> paketinin <strong>%{size_label}</strong> değeri, <strong>%{baseline_branch}</strong> üzerindeki en son pakete kıyasla <strong>%{deviation}</strong> oranından fazla arttığında PR'ları engelleyin."
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:362
+#, elixir-autogen, elixir-format
+msgid "Enter a valid size threshold."
+msgstr "Geçerli bir boyut eşiği girin."
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:374
+#, elixir-autogen, elixir-format
+msgid "Percentage (%)"
+msgstr "Yüzde (%)"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:365
+#, elixir-autogen, elixir-format
+msgid "The size threshold could not be saved. Check the name and baseline branch."
+msgstr "Boyut eşiği kaydedilemedi. Adı ve temel dalı kontrol edin."
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:157
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:344
+#, elixir-autogen, elixir-format
+msgid "Threshold type"
+msgstr "Eşik türü"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:380
+#, elixir-autogen, elixir-format
+msgid "1 MB = 1,000,000 bytes"
+msgstr "1 MB = 1.000.000 bayt"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:378
+#, elixir-autogen, elixir-format
+msgid "Deviation (MB)"
+msgstr "Sapma (MB)"
+
+#: lib/tuist_web/live/once_run_live.ex:419
+#: lib/tuist_web/live/once_run_live.ex:813
+#, elixir-autogen, elixir-format
+msgid "Source files"
+msgstr "Kaynak dosyalar"
+
+#: lib/tuist_web/live/once_run_live.ex:387
+#, elixir-autogen, elixir-format
+msgid "Search actions, targets or files..."
+msgstr "Eylemleri, hedefleri veya dosyaları ara..."
+
+#: lib/tuist_web/live/once_run_live.ex:1313
+#, elixir-autogen, elixir-format
+msgid "%{display_count} more file"
+msgid_plural "%{display_count} more files"
+msgstr[0] "%{display_count} dosya daha"
+msgstr[1] "%{display_count} dosya daha"
+
+#: lib/tuist_web/live/cargo_overview_live.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "Average time it takes to complete a Cargo invocation during the selected period."
+msgstr "Seçilen dönemde bir Cargo çağrısının tamamlanması için geçen ortalama süre."

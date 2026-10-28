@@ -14,7 +14,7 @@ msgstr "Language: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/components/chart_type_toggle.ex:39
 #, elixir-autogen, elixir-format
 msgid "Group by:"
-msgstr "그룹화 기준:"
+msgstr "그룹 기준:"
 
 #: lib/tuist_web/components/chart_type_toggle.ex:53
 #, elixir-autogen, elixir-format

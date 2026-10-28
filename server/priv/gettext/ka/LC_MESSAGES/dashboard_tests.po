@@ -162,12 +162,12 @@ msgstr "ბრენჩი"
 #: lib/tuist_web/live/test_run_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Build: %{name}"
-msgstr "აწყობა: %{name}"
+msgstr "აგება: %{name}"
 
 #: lib/tuist_web/live/test_run_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Build: %{scheme}"
-msgstr "აწყობა: %{scheme}"
+msgstr "აგება: %{scheme}"
 
 #: lib/tuist_web/live/flaky_tests_live.ex:293
 #: lib/tuist_web/live/flaky_tests_live.html.heex:26
@@ -210,12 +210,12 @@ msgstr "დაფიქსირებული შეცდომა"
 #: lib/tuist_web/helpers/failure_message.ex:60
 #, elixir-autogen, elixir-format
 msgid "Caught error at %{location}"
-msgstr "დაფიქსირებული შეცდომა მდებარეობაზე %{location}"
+msgstr "დაფიქსირებული შეცდომა %{location}-ში"
 
 #: lib/tuist_web/helpers/failure_message.ex:63
 #, elixir-autogen, elixir-format
 msgid "Caught error at %{location}: %{message}"
-msgstr "დაფიქსირებული შეცდომა მდებარეობაზე %{location}: %{message}"
+msgstr "დაფიქსირებული შეცდომა %{location}-ში: %{message}"
 
 #: lib/tuist_web/helpers/failure_message.ex:38
 #, elixir-autogen, elixir-format
@@ -335,17 +335,17 @@ msgstr "გამონაკლისი"
 #: lib/tuist_web/helpers/failure_message.ex:30
 #, elixir-autogen, elixir-format
 msgid "Expectation failed"
-msgstr "მოსალოდნელი შედეგი ვერ მიღწეულია"
+msgstr "მოსალოდნელი პირობა არ შესრულდა"
 
 #: lib/tuist_web/helpers/failure_message.ex:50
 #, elixir-autogen, elixir-format
 msgid "Expectation failed at %{location}"
-msgstr "მოსალოდნელი შედეგი ვერ მიღწეულია მისამართზე %{location}"
+msgstr "მოსალოდნელი პირობა არ შესრულდა %{location}-ზე"
 
 #: lib/tuist_web/helpers/failure_message.ex:53
 #, elixir-autogen, elixir-format
 msgid "Expectation failed at %{location}: %{message}"
-msgstr "მოსალოდნელი შედეგი ვერ მიღწეულია მისამართზე %{location}: %{message}"
+msgstr "მოსალოდნელი პირობა არ შესრულდა %{location}-ზე: %{message}"
 
 #: lib/tuist_web/helpers/failure_message.ex:33
 #, elixir-autogen, elixir-format
@@ -403,43 +403,43 @@ msgstr "მოლოდინი ვერ შესრულდა: %{message}"
 #: lib/tuist_web/live/tests_live.html.heex:993
 #, elixir-autogen, elixir-format
 msgid "Failed"
-msgstr "ვერ შესრულდა"
+msgstr "ვერ მოხერხდა"
 
 #: lib/tuist_web/live/once_runs_live.ex:459
 #: lib/tuist_web/live/test_runs_live.ex:335
 #: lib/tuist_web/live/test_runs_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Failed run count"
-msgstr "ვერ შესრულებული გაშვებების რაოდენობა"
+msgstr "ვერ მოხერხებული გაშვებების რაოდენობა"
 
 #: lib/tuist_web/live/test_runs_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
-msgstr "ვერ შესრულებული გაშვებების რაოდენობა წარმოადგენს იმ ტესტის გაშვებების რაოდენობას, რომლებიც მოცემულ პერიოდში ვერ შესრულდა. ტესტის გაშვება ხორციელდება ან 'tuist test'-ის, ან 'tuist xcodebuild test'-ის გამოყენებით."
+msgstr "ვერ მოხერხებული გაშვებების რაოდენობა წარმოადგენს იმ ტესტის გაშვებების რიცხვს, რომლებიც ვერ მოხერხდა მოცემულ პერიოდში. ტესტის გაშვება ხორციელდება ან 'tuist test'-ის, ან 'tuist xcodebuild test'-ის ბრძანებებით."
 
 #: lib/tuist_web/live/once_tests_live.html.heex:450
 #: lib/tuist_web/live/tests_live.html.heex:917
 #, elixir-autogen, elixir-format
 msgid "Failed runs"
-msgstr "ვერ შესრულებული გაშვებები"
+msgstr "ვერ მოხერხებული გაშვებები"
 
 #: lib/tuist_web/live/test_case_live.html.heex:238
 #: lib/tuist_web/live/test_cases_live.ex:352
 #: lib/tuist_web/live/test_cases_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Failed test case runs"
-msgstr "ვერ შესრულებული სატესტო შემთხვევების გაშვებები"
+msgstr "ვერ მოხერხებული სატესტო შემთხვევების გაშვებები"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Failed test case runs represents the number of individual test case executions that failed during a given period."
-msgstr "ვერ შესრულებული სატესტო შემთხვევების გაშვებები წარმოადგენს ინდივიდუალური სატესტო შემთხვევების შესრულებების რაოდენობას, რომლებიც მოცემულ პერიოდში ვერ შესრულდა."
+msgstr "ვერ მოხერხებული სატესტო შემთხვევების გაშვებები წარმოადგენს ინდივიდუალური სატესტო შემთხვევების შესრულების რაოდენობას, რომლებიც ვერ მოხერხდა მოცემულ პერიოდში."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:150
 #: lib/tuist_web/live/test_run_live.html.heex:401
 #, elixir-autogen, elixir-format
 msgid "Failed test cases"
-msgstr "ვერ შესრულებული სატესტო შემთხვევები"
+msgstr "ვერ მოხერხებული სატესტო შემთხვევები"
 
 #: lib/tuist_web/live/once_tests_live.html.heex:102
 #: lib/tuist_web/live/once_tests_live.html.heex:374
@@ -447,7 +447,7 @@ msgstr "ვერ შესრულებული სატესტო შე
 #: lib/tuist_web/live/tests_live.html.heex:621
 #, elixir-autogen, elixir-format
 msgid "Failed test runs"
-msgstr "წარუმატებელი ტესტის გაშვებები"
+msgstr "ტესტის ჩავარდნები"
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:61
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:145
@@ -538,7 +538,7 @@ msgstr "არასტაბილური გაშვებები"
 #: lib/tuist_web/live/test_run_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "Flaky test cases"
-msgstr "არასტაბილური ტესტის შემთხვევები"
+msgstr "არასტაბილური ტესტ-ქეისები"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:163
 #: lib/tuist_web/live/flaky_tests_live.html.heex:313
@@ -547,7 +547,7 @@ msgstr "არასტაბილური ტესტის შემთხ�
 #: lib/tuist_web/live/tests_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "Flaky test runs"
-msgstr "არასტაბილური ტესტის გაშვებები"
+msgstr "არასტაბილური ტესტების გაშვებები"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:159
 #, elixir-autogen, elixir-format
@@ -568,17 +568,17 @@ msgstr "გამოსახულება"
 #: lib/tuist_web/helpers/failure_message.ex:40
 #, elixir-autogen, elixir-format
 msgid "Issue recorded"
-msgstr "პრობლემა ჩაწერილია"
+msgstr "პრობლემა დაფიქსირდა"
 
 #: lib/tuist_web/helpers/failure_message.ex:70
 #, elixir-autogen, elixir-format
 msgid "Issue recorded at %{location}"
-msgstr "პრობლემა ჩაიწერა %{location}-ში"
+msgstr "პრობლემა ჩაიწერა მისამართზე %{location}"
 
 #: lib/tuist_web/helpers/failure_message.ex:73
 #, elixir-autogen, elixir-format
 msgid "Issue recorded at %{location}: %{message}"
-msgstr "პრობლემა ჩაიწერა %{location}-ში: %{message}"
+msgstr "პრობლემა ჩაიწერა მისამართზე %{location}: %{message}"
 
 #: lib/tuist_web/helpers/failure_message.ex:43
 #, elixir-autogen, elixir-format
@@ -746,7 +746,7 @@ msgstr "მოდულები"
 #: lib/tuist_web/live/tests_live.html.heex:1152
 #, elixir-autogen, elixir-format
 msgid "Most occurring flaky tests"
-msgstr "ყველაზე ხშირად გამოვლენილი არასტაბილური ტესტები"
+msgstr "ყველაზე ხშირად ცვალებადი ტესტები"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:51
 #: lib/tuist_web/live/test_run_live.ex:1265
@@ -779,7 +779,7 @@ msgstr "მონაცემები არ არის"
 #: lib/tuist_web/live/tests_live.html.heex:1030
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "მონაცემები ჯერ არ არის"
+msgstr "ჯერ კიდევ მონაცემები არ არის"
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:157
 #: lib/tuist_web/live/test_case_run_live.html.heex:1171
@@ -791,7 +791,7 @@ msgstr "შეცდომები არ აღმოჩენილა"
 #: lib/tuist_web/live/flaky_tests_live.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "No flaky tests"
-msgstr "არასტაბილური ტესტები არ არის"
+msgstr "ცვალებადი ტესტები არ არის"
 
 #: lib/tuist_web/live/test_case_live.html.heex:1117
 #, elixir-autogen, elixir-format
@@ -801,17 +801,17 @@ msgstr "ისტორია ხელმისაწვდომი არ ა
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:174
 #, elixir-autogen, elixir-format
 msgid "No modules found"
-msgstr "მოდულები არ მოიძებნა"
+msgstr "მოდულები ვერ მოიძებნა"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "No quarantined tests"
-msgstr "კარანტინში მოთავსებული ტესტები არ არის"
+msgstr "კარანტინში მყოფი ტესტები არ არის"
 
 #: lib/tuist_web/live/test_case_live.html.heex:1064
 #, elixir-autogen, elixir-format
 msgid "No test case runs found"
-msgstr "ტესტის შემთხვევების გაშვებები ვერ მოიძებნა"
+msgstr "ტესტის გაშვებები ვერ მოიძებნა"
 
 #: lib/tuist_web/live/test_run_live.html.heex:1325
 #, elixir-autogen, elixir-format
@@ -936,7 +936,7 @@ msgstr "კარანტინში მოთავსებული ტე�
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:378
 #, elixir-autogen, elixir-format
 msgid "Quarantined by"
-msgstr "კარანტინში მოთავსებულია"
+msgstr "კარანტინში მოათავსა"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:66
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:217
@@ -971,7 +971,7 @@ msgstr "გაშვების დრო"
 #: lib/tuist_web/live/tests_live.html.heex:1012
 #, elixir-autogen, elixir-format
 msgid "Ran by"
-msgstr "გაშვებული"
+msgstr "გაშვებული მიერ"
 
 #: lib/tuist_web/live/coverage_live.html.heex:107
 #: lib/tuist_web/live/once_tests_live.html.heex:416
@@ -984,7 +984,7 @@ msgstr "ბოლო ტესტის გაშვებები"
 #: lib/tuist_web/live/test_run_live.ex:1441
 #, elixir-autogen, elixir-format
 msgid "Remote"
-msgstr "დაშორებული"
+msgstr "დისტანციური"
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:70
 #: lib/tuist_web/live/test_case_run_live.html.heex:115
@@ -1017,7 +1017,7 @@ msgstr "სქემა"
 #: lib/tuist_web/live/tests_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "ძიება..."
+msgstr "ძებნა..."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:76
 #: lib/tuist_web/live/test_run_live.html.heex:220
@@ -1034,22 +1034,22 @@ msgstr "სელექციური ტესტების ეფექტ�
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:49
 #, elixir-autogen, elixir-format
 msgid "Selective test hits"
-msgstr "სელექციური ტესტების წარმატებული გამოტოვებები"
+msgstr "სელექციური ტესტების წარმატებები"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:51
 #, elixir-autogen, elixir-format
 msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
-msgstr "სელექციური ტესტების წარმატებული გამოტოვებები წარმოადგენს ტესტის მოდულების რაოდენობას, რომლებიც გამოტოვებულ იქნა სელექციური ტესტირების საშუალებით."
+msgstr "სელექციური ტესტების წარმატებები წარმოადგენს იმ ტესტის მოდულების რაოდენობას, რომლებიც გამოტოვებული იქნა სელექციური ტესტირების წყალობით."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:63
 #, elixir-autogen, elixir-format
 msgid "Selective test misses"
-msgstr "სელექციური ტესტების გამოტოვებული შემთხვევები"
+msgstr "სელექციური ტესტების გამოტოვებები"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:65
 #, elixir-autogen, elixir-format
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-msgstr "სელექციური ტესტების გამოტოვებული შემთხვევები წარმოადგენს ტესტის მოდულების რაოდენობას, რომლებიც შესრულდა, რადგან ისინი ადრე წარმატებით არ შესრულდა."
+msgstr "სელექციური ტესტების გამოტოვებები წარმოადგენს იმ ტესტის მოდულების რაოდენობას, რომლებიც გაეშვა, რადგან ისინი ადრე წარმატებით არ შესრულებულა."
 
 #: lib/tuist_web/live/tests_live.html.heex:854
 #, elixir-autogen, elixir-format
@@ -1146,7 +1146,7 @@ msgstr "ქვეტიპი"
 #: lib/tuist_web/helpers/test_labels.ex:28
 #, elixir-autogen, elixir-format
 msgid "Suite"
-msgstr "საიტე"
+msgstr "კრებული"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:32
 #, elixir-autogen, elixir-format
@@ -1175,7 +1175,7 @@ msgstr "სატესტო შემთხვევის გაშვებ�
 #: lib/tuist_web/live/test_case_run_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Test Case: %{name}"
-msgstr "ტესტის საქმე: %{name}"
+msgstr "ტესტის შემთხვევა: %{name}"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:175
 #: lib/tuist_web/live/once_test_run_live.html.heex:190
@@ -1188,7 +1188,7 @@ msgstr "ტესტის საქმე: %{name}"
 #: lib/tuist_web/live/tests_live.html.heex:1054
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
-msgstr "ტესტის საქმეები"
+msgstr "ტესტის შემთხვევები"
 
 #: lib/tuist_web/helpers/test_labels.ex:30
 #, elixir-autogen, elixir-format
@@ -1240,13 +1240,13 @@ msgstr "ტესტის გაშვებები"
 #: lib/tuist_web/helpers/test_labels.ex:31
 #, elixir-autogen, elixir-format
 msgid "Test Suite"
-msgstr "ტესტების კრებული"
+msgstr "ტესტის კრებული"
 
 #: lib/tuist_web/helpers/test_labels.ex:34
 #: lib/tuist_web/live/test_run_live.html.heex:521
 #, elixir-autogen, elixir-format
 msgid "Test Suites"
-msgstr "ტესტების კრებულები"
+msgstr "ტესტის კრებულები"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:206
 #: lib/tuist_web/live/test_cases_live.ex:75
@@ -1308,7 +1308,7 @@ msgstr "ტესტის ისტორია"
 #: lib/tuist_web/live/test_case_live.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "Test reliability"
-msgstr "ტესტის საიმედოობა"
+msgstr "ტესტის სანდოობა"
 
 #: lib/tuist_web/live/once_runs_live.ex:416
 #: lib/tuist_web/live/test_runs_live.ex:327
@@ -1320,7 +1320,7 @@ msgstr "ტესტის გაშვების რაოდენობა"
 #: lib/tuist_web/live/test_runs_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
-msgstr "ტესტის გაშვების რაოდენობა წარმოადგენს იმ ტესტების რაოდენობას, რომლებიც შესრულდა მოცემულ პერიოდში. ტესტის გაშვება ხდება ან 'tuist test'-ის, ან 'tuist xcodebuild test'-ის მეშვეობით."
+msgstr "ტესტის გაშვების რაოდენობა წარმოადგენს იმ ტესტის გაშვებების რაოდენობას, რომლებიც შესრულდა მოცემულ პერიოდში. ტესტის გაშვება ხორციელდება 'tuist test' ან 'tuist xcodebuild test' ბრძანებების გამოყენებით."
 
 #: lib/tuist_web/live/test_run_live.ex:60
 #: lib/tuist_web/live/test_run_live.ex:64
@@ -1355,27 +1355,27 @@ msgstr "ტექსტური ფაილი"
 #: lib/tuist_web/live/tests_live.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "The average test run duration with individual percentile intervals."
-msgstr "ტესტის საშუალო გაშვების ხანგრძლივობა ინდივიდუალური პროცენტილის ინტერვალებით."
+msgstr "ტესტის გაშვების საშუალო ხანგრძლივობა ინდივიდუალური პროცენტილის ინტერვალებით."
 
 #: lib/tuist_web/live/once_runs_live.ex:465
 #: lib/tuist_web/live/once_tests_live.html.heex:104
 #: lib/tuist_web/live/tests_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "The number of test runs that failed."
-msgstr "ჩავარდნილი ტესტის გაშვებების რაოდენობა."
+msgstr "ტესტის ჩავარდნების რაოდენობა."
 
 #: lib/tuist_web/live/once_tests_live.html.heex:89
 #: lib/tuist_web/live/tests_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "The number of test runs with flaky tests."
-msgstr "არასტაბილური ტესტების მქონე ტესტის გაშვებების რაოდენობა."
+msgstr "ტესტის გაშვებების რაოდენობა არასტაბილური ტესტებით."
 
 #: lib/tuist_web/live/once_runs_live.ex:422
 #: lib/tuist_web/live/once_tests_live.html.heex:74
 #: lib/tuist_web/live/tests_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "The total number of test runs."
-msgstr "ტესტის გაშვებების საერთო რაოდენობა."
+msgstr "ტესტის გაშვებების ჯამური რაოდენობა."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:38
 #, elixir-autogen, elixir-format
@@ -1385,18 +1385,18 @@ msgstr "ჯამური მოდულები"
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:40
 #, elixir-autogen, elixir-format
 msgid "Total modules represents the total number of testable modules."
-msgstr "ჯამური მოდულები წარმოადგენს ტესტირებადი მოდულების საერთო რაოდენობას."
+msgstr "ჯამური მოდულები წარმოადგენს დასატესტავი მოდულების საერთო რაოდენობას."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:145
 #: lib/tuist_web/live/test_run_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Total number of test cases executed."
-msgstr "შესრულებული ტესტის შემთხვევების საერთო რაოდენობა."
+msgstr "შესრულებული ტესტ-ქეისების ჯამური რაოდენობა."
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:175
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "ცადეთ საძიებო სიტყვის შეცვლა"
+msgstr "ცადეთ საძიებო ტერმინის შეცვლა"
 
 #: lib/tuist_web/live/coverage/components.ex:672
 #: lib/tuist_web/live/coverage_detail_live.html.heex:248
@@ -1450,12 +1450,12 @@ msgstr "უცნობი შეცდომა"
 #: lib/tuist_web/live/test_case_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Unmark as flaky"
-msgstr "არასტაბილურად მონიშვნის მოხსნა"
+msgstr "მოხსენით, როგორც არასტაბილური"
 
 #: lib/tuist_web/live/test_case_live.ex:845
 #, elixir-autogen, elixir-format
 msgid "Unmarked as flaky"
-msgstr "არასტაბილურად მონიშვნა მოხსნილია"
+msgstr "მოხსნილია, როგორც არასტაბილური"
 
 #: lib/tuist_web/live/coverage/components.ex:115
 #: lib/tuist_web/live/coverage_live.html.heex:30
@@ -1476,7 +1476,7 @@ msgstr "მეტის ნახვა"
 #: lib/tuist_web/live/test_run_live.html.heex:360
 #, elixir-autogen, elixir-format
 msgid "macOS version"
-msgstr "macOS ვერსია"
+msgstr "macOS-ის ვერსია"
 
 #: lib/tuist_web/live/once_tests_live.html.heex:272
 #: lib/tuist_web/live/shards_live.html.heex:391
@@ -1496,7 +1496,7 @@ msgstr "p50"
 #: lib/tuist_web/live/test_cases_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "p50 test case run duration"
-msgstr "p50 ტესტის შემთხვევის შესრულების ხანგრძლივობა"
+msgstr "p50 ტესტის შემთხვევის გაშვების ხანგრძლივობა"
 
 #: lib/tuist_web/live/once_runs_live.ex:1088
 #: lib/tuist_web/live/once_tests_live.ex:229
@@ -1505,7 +1505,7 @@ msgstr "p50 ტესტის შემთხვევის შესრულ
 #: lib/tuist_web/live/tests_live.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "p50 test run duration"
-msgstr "p50 ტესტის შესრულების ხანგრძლივობა"
+msgstr "p50 ტესტის გაშვების ხანგრძლივობა"
 
 #: lib/tuist_web/live/once_tests_live.html.heex:259
 #: lib/tuist_web/live/shards_live.html.heex:378
@@ -1525,7 +1525,7 @@ msgstr "p90"
 #: lib/tuist_web/live/test_cases_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "p90 test case run duration"
-msgstr "p90 ტესტის შემთხვევის შესრულების ხანგრძლივობა"
+msgstr "p90 ტესტის შემთხვევის გაშვების ხანგრძლივობა"
 
 #: lib/tuist_web/live/once_runs_live.ex:1087
 #: lib/tuist_web/live/once_tests_live.ex:228
@@ -1534,7 +1534,7 @@ msgstr "p90 ტესტის შემთხვევის შესრულ
 #: lib/tuist_web/live/tests_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "p90 test run duration"
-msgstr "p90 ტესტის შესრულების ხანგრძლივობა"
+msgstr "p90 ტესტის გაშვების ხანგრძლივობა"
 
 #: lib/tuist_web/live/once_tests_live.html.heex:246
 #: lib/tuist_web/live/shards_live.html.heex:365
@@ -1554,7 +1554,7 @@ msgstr "p99"
 #: lib/tuist_web/live/test_cases_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "p99 test case run duration"
-msgstr "p99 ტესტის სცენარის შესრულების ხანგრძლივობა"
+msgstr "p99 ტესტის შემთხვევის გაშვების ხანგრძლივობა"
 
 #: lib/tuist_web/live/once_runs_live.ex:1086
 #: lib/tuist_web/live/once_tests_live.ex:227
@@ -1648,7 +1648,7 @@ msgstr "დეტალიზაცია"
 #: lib/tuist_web/live/shards_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "How evenly test duration is distributed across shards. 100% means perfectly balanced."
-msgstr "რამდენად თანაბრად არის გადანაწილებული ტესტის ხანგრძლივობა შარდებზე. 100% ნიშნავს სრულად დაბალანსებულს."
+msgstr "როგორ არის განაწილებული ტესტის ხანგრძლივობა შარდებს შორის. 100% ნიშნავს სრულად დაბალანსებულს."
 
 #: lib/tuist_web/live/coverage/components.ex:416
 #: lib/tuist_web/live/coverage_detail_live.ex:341
@@ -1671,17 +1671,17 @@ msgstr "მიმდინარეობს"
 #: lib/tuist_web/live/shards_live.html.heex:638
 #, elixir-autogen, elixir-format
 msgid "No sharded runs"
-msgstr "გაყოფილი გაშვებები არ არის"
+msgstr "არ არის შარდული გაშვებები"
 
 #: lib/tuist_web/live/shards_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Number of shards used per sharded run during a given period."
-msgstr "გამოყენებული შარდების რაოდენობა თითოეულ დაყოფილ გაშვებაზე მოცემული პერიოდის განმავლობაში."
+msgstr "განსაზღვრული პერიოდის განმავლობაში თითოეული დაშლილი გაშვებისთვის გამოყენებული შარდების რაოდენობა."
 
 #: lib/tuist_web/live/test_run_live.html.heex:559
 #, elixir-autogen, elixir-format
 msgid "Pending"
-msgstr "მოლოდინის რეჟიმში"
+msgstr "მოლოდინში"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:201
 #: lib/tuist_web/live/test_run_live.ex:1404
@@ -1706,7 +1706,7 @@ msgstr "შარდი %{index}"
 #: lib/tuist_web/live/shards_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "Sharded run count"
-msgstr "დაყოფილი გაშვებების რაოდენობა"
+msgstr "დაშლილი გაშვებების რაოდენობა"
 
 #: lib/tuist_web/live/shards_live.ex:24
 #: lib/tuist_web/live/shards_live.ex:27
@@ -1725,7 +1725,7 @@ msgstr "შარდები დამუშავების პროცე�
 #: lib/tuist_web/live/shards_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Total sharded runs"
-msgstr "სულ დაყოფილი გაშვებები"
+msgstr "სულ დაშლილი გაშვებები"
 
 #: lib/tuist_web/live/shards_live.ex:327
 #: lib/tuist_web/live/shards_live.html.heex:151
@@ -1776,12 +1776,12 @@ msgstr "განახლება"
 #: lib/tuist_web/live/test_run_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "ეს ჩვეულებრივ რამდენიმე წამს იღებს. თუ გვერდი ავტომატურად არ განახლდება, დააჭირეთ განახლების ღილაკს."
+msgstr "ეს ჩვეულებრივ რამდენიმე წამს გრძელდება. თუ გვერდი ავტომატურად არ განახლდება, დააჭირეთ განახლების ღილაკს."
 
 #: lib/tuist_web/live/test_run_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Your test results are being processed"
-msgstr "თქვენი ტესტის შედეგები მუშავდება"
+msgstr "თქვენი ტესტების შედეგები მუშავდება"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:910
 #, elixir-autogen, elixir-format
@@ -1817,7 +1817,7 @@ msgstr "გარემო"
 #: lib/tuist_web/live/tests_live.ex:516
 #, elixir-autogen, elixir-format
 msgid "Passed (flaky)"
-msgstr "გავლილი (არასტაბილური)"
+msgstr "გავლილი (არამდგრადი)"
 
 #: lib/tuist_web/live/tests_live.html.heex:430
 #, elixir-autogen, elixir-format
@@ -1840,7 +1840,7 @@ msgstr "ჩართული"
 #: lib/tuist_web/live/test_cases_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Number of distinct test cases with at least one run in the 14 days ending on each date."
-msgstr "განსხვავებული ტესტების რაოდენობა, რომლებსაც ბოლო 14 დღის განმავლობაში ყოველ თარიღზე მაინც ერთი გაშვება ჰქონდათ."
+msgstr "განსხვავებული სატესტო შემთხვევების რაოდენობა, რომლებსაც ბოლო 14 დღის განმავლობაში თითოეულ თარიღზე ერთი გაშვება მაინც ჰქონდათ."
 
 #: lib/tuist_web/live/quarantined_tests_live.ex:66
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:362
@@ -1857,29 +1857,29 @@ msgstr "რეჟიმი"
 #: lib/tuist_web/live/test_cases_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Muted"
-msgstr "ჩუმად"
+msgstr "დაყუჩებული"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:133
 #: lib/tuist_web/live/flaky_tests_live.html.heex:310
 #: lib/tuist_web/live/test_case_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Flaky test case runs"
-msgstr "არასტაბილური ტესტების გაშვებები"
+msgstr "არამდგრადი სატესტო შემთხვევების გაშვებები"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Number of test runs (build-level test invocations) that contained at least one flaky test case. Each test run is counted once even if it contained many flaky executions."
-msgstr "ტესტის გაშვებების რაოდენობა (აგების დონის ტესტის გამოძახებები), რომლებიც შეიცავდნენ მინიმუმ ერთ არასტაბილურ ტესტს. თითოეული ტესტის გაშვება ითვლება ერთხელ, მაშინაც კი, თუ ის ბევრ არასტაბილურ შესრულებას შეიცავდა."
+msgstr "ტესტის გაშვებების რაოდენობა (აგების დონეზე ტესტის გამოძახებები), რომლებიც შეიცავდნენ მინიმუმ ერთ არასტაბილურ ტესტს. თითოეული ტესტის გაშვება ითვლება ერთხელ, მაშინაც კი, თუ ის შეიცავდა ბევრ არასტაბილურ შესრულებას."
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Number of unique test cases currently flagged as flaky at the end of the period. Each test case is counted at most once, regardless of how often it flaked."
-msgstr "არაუნიკალური ტესტების რაოდენობა, რომლებიც პერიოდის ბოლოს არასტაბილურად არიან მონიშნული. თითოეული ტესტი ითვლება მაქსიმუმ ერთხელ, მიუხედავად იმისა, თუ რამდენჯერ გამოჩნდა არასტაბილურობა."
+msgstr "პერიოდის ბოლოს არასტაბილურად მონიშნული უნიკალური ტესტების რაოდენობა. თითოეული ტესტი ითვლება მაქსიმუმ ერთხელ, მიუხედავად იმისა, თუ რამდენჯერ გამოჩნდა მისი არასტაბილურობა."
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Total number of individual test case executions marked as flaky in the period. A single test case can be counted many times if it flaked across multiple runs."
-msgstr "პერიოდში არასტაბილურად მონიშნული ინდივიდუალური ტესტის შესრულებების საერთო რაოდენობა. ერთი და იგივე ტესტი შეიძლება მრავალჯერ დაითვალოს, თუ ის რამდენიმე გაშვების განმავლობაში არასტაბილური იყო."
+msgstr "პერიოდში არასტაბილურად მონიშნული ინდივიდუალური ტესტების შესრულებების საერთო რაოდენობა. ერთი და იგივე ტესტი შეიძლება დაითვალოს რამდენჯერმე, თუ ის არასტაბილური იყო რამდენიმე გაშვების განმავლობაში."
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:102
 #: lib/tuist_web/live/flaky_tests_live.html.heex:307
@@ -1907,12 +1907,12 @@ msgstr "სესიის ჩამოტვირთვა"
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Muted tests"
-msgstr "ჩახშობილი ტესტები"
+msgstr "ჩაჩუმებული ტესტები"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Number of muted test cases at the end of the period. Muted tests still execute but their failures are ignored."
-msgstr "პერიოდის ბოლოს ჩუმად დატოვებული ტესტების რაოდენობა. ჩუმად დატოვებული ტესტები მაინც სრულდება, მაგრამ მათი შეცდომები იგნორირდება."
+msgstr "პერიოდის ბოლოს ჩუმად დატოვებული ტესტების რაოდენობა. ჩუმი ტესტები მაინც სრულდება, მაგრამ მათი შეცდომები იგნორირდება."
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:116
 #, elixir-autogen, elixir-format
@@ -1922,7 +1922,7 @@ msgstr "პერიოდის ბოლოს გამოტოვებუ�
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Number of test cases currently quarantined at the end of the period. Combines both muted and skipped tests."
-msgstr "პერიოდის ბოლოს კარანტინში მყოფი ტესტების რაოდენობა. მოიცავს როგორც ჩუმად დატოვებულ, ისე გამოტოვებულ ტესტებს."
+msgstr "პერიოდის ბოლოს კარანტინში მყოფი ტესტების რაოდენობა. მოიცავს როგორც ჩუმ, ისე გამოტოვებულ ტესტებს."
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:114
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:219
@@ -1959,29 +1959,29 @@ msgstr "ტესტის შეცდომები"
 #: lib/tuist_web/live/flaky_tests_live.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Marked flaky at"
-msgstr "მონიშნულია როგორც არასტაბილური"
+msgstr "აღინიშნა როგორც არასტაბილური"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:283
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:307
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:397
 #, elixir-autogen, elixir-format
 msgid "Quarantined at"
-msgstr "კარანტინში მოთავსებულია"
+msgstr "კარანტინში მოთავსდა"
 
 #: lib/tuist_web/live/test_case_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Number of times this test case has been executed in the selected period."
-msgstr "ჯამი, რამდენჯერაც შესრულდა ეს ტესტი შერჩეულ პერიოდში."
+msgstr "რამდენჯერ შესრულდა ეს სატესტო შემთხვევა შერჩეულ პერიოდში."
 
 #: lib/tuist_web/live/test_case_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Percentage of test runs that were flaky in the selected period."
-msgstr "პროცენტული მაჩვენებელი იმ ტესტებისა, რომლებიც არასტაბილური იყო შერჩეულ პერიოდში."
+msgstr "შერჩეულ პერიოდში სატესტო გაშვებების პროცენტული მაჩვენებელი, რომლებიც არასტაბილური იყო."
 
 #: lib/tuist_web/live/test_case_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Success rate in the selected period, based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}."
-msgstr "წარმატების მაჩვენებელი შერჩეულ პერიოდში, დაფუძნებული %{branch} ბრენჩის გაშვებებზე. თუ %{branch}-ზე გაშვებები არ არსებობს, გამოიყენება ყველა ბრენჩი."
+msgstr "წარმატების მაჩვენებელი შერჩეულ პერიოდში, დაფუძნებული %{branch} შტოს გაშვებებზე. თუ %{branch}-ზე გაშვებები არ არსებობს, გამოიყენება ყველა შტო."
 
 #: lib/tuist_web/live/test_case_live.html.heex:298
 #: lib/tuist_web/live/test_case_live.html.heex:315
@@ -1995,17 +1995,17 @@ msgstr "არ არის ხელმისაწვდომი"
 #: lib/tuist_web/live/test_cases_live.html.heex:688
 #, elixir-autogen, elixir-format
 msgid "Not enough runs"
-msgstr "არასაკმარისი გაშვებები"
+msgstr "არასაკმარისი რაოდენობის გაშვებები"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "Shown once a test case has run at least %{count} times in the last %{days} days. This one has %{runs}."
-msgstr "ჩანახდება მხოლოდ მაშინ, როცა ტესტი ბოლო %{days} დღის განმავლობაში მინიმუმ %{count}-ჯერ შესრულდა. ამჟამად შესრულებულია %{runs}-ჯერ."
+msgstr "ჩანართი ჩნდება მხოლოდ მაშინ, როდესაც სატესტო შემთხვევა ბოლო %{days} დღის განმავლობაში სულ მცირე %{count}-ჯერ შესრულდა. ამჟამად შესრულებულია %{runs} ჯერ."
 
 #: lib/tuist_web/live/test_case_live.html.heex:416
 #, elixir-autogen, elixir-format
 msgid "Duration of this test case across the runs in the selected period."
-msgstr "ამ სატესტო შემთხვევის ხანგრძლივობა შერჩეულ პერიოდში ჩატარებულ ყველა გაშვებაზე."
+msgstr "ამ სატესტო შემთხვევის ხანგრძლივობა შერჩეულ პერიოდში ჩატარებულ გაშვებებში."
 
 #: lib/tuist_web/live/test_cases_live.ex:490
 #, elixir-autogen, elixir-format
@@ -2036,7 +2036,7 @@ msgstr "არ არის მოხსენებული"
 #: lib/tuist_web/live/test_case_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to update this test case."
-msgstr "თქვენ არ გაქვთ უფლება ამ სატესტო შემთხვევის განახლების."
+msgstr "თქვენ არ გაქვთ უფლება, განაახლოთ ეს სატესტო შემთხვევა."
 
 #: lib/tuist_web/live/test_run_live.html.heex:248
 #, elixir-autogen, elixir-format
@@ -2051,7 +2051,7 @@ msgstr "ამ Bazel-ის გამოძახებისთვის ლო
 #: lib/tuist_web/helpers/test_labels.ex:15
 #, elixir-autogen, elixir-format
 msgid "Test target"
-msgstr "ტესტის მიზანი"
+msgstr "ტესტის სამიზნე"
 
 #: lib/tuist_web/helpers/test_labels.ex:19
 #: lib/tuist_web/helpers/test_labels.ex:23
@@ -2060,7 +2060,7 @@ msgstr "ტესტის მიზანი"
 #: lib/tuist_web/live/once_test_run_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Test Targets"
-msgstr "ტესტის მიზნები"
+msgstr "ტესტის სამიზნეები"
 
 #: lib/tuist_web/helpers/test_labels.ex:40
 #, elixir-autogen, elixir-format
@@ -2082,7 +2082,7 @@ msgstr[0] "%{count} გამეორება წარმატებით �
 #: lib/tuist_web/live/test_run_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "%{failed} of %{total} repetitions failed"
-msgstr "%{total}-დან %{failed} განმეორება ვერ მოხერხდა"
+msgstr "%{failed} %{total}-დან გამეორება ვერ მოხერხდა"
 
 #: lib/tuist_web/live/test_run_live.ex:203
 #, elixir-autogen, elixir-format
@@ -2097,17 +2097,17 @@ msgstr "არ არის დატვირთული"
 #: lib/tuist_web/live/test_run_live.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that both passed and failed in this run, whether across retries or under the stress gate's repetitions."
-msgstr "ამ გაშვებისას წარმატებული და ჩავარდნილი ტესტების რაოდენობა, იქნება ეს ხელახალი ცდების დროს თუ სტრეს-გეიტის განმეორებების ფარგლებში."
+msgstr "ტესტების რაოდენობა, რომლებიც ამ გაშვებისას წარმატებით დასრულდა ან ჩავარდა, იქნება ეს ხელახალი ცდები თუ სტრეს-გეიტის გამეორებები."
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:280
 #, elixir-autogen, elixir-format
 msgid "Repetition %{number}"
-msgstr "განმეორება %{number}"
+msgstr "გამეორება %{number}"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Repetitions"
-msgstr "განმეორებები"
+msgstr "გამეორებები"
 
 #: lib/tuist_web/live/test_run_live.ex:200
 #, elixir-autogen, elixir-format
@@ -2122,17 +2122,17 @@ msgstr "ტოვებს მთლიან სამიზნეს, ჯა�
 #: lib/tuist_web/live/test_cases_live.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "Bazel target"
-msgstr "Bazel-ის მიზანი"
+msgstr "Bazel-ის სამიზნე"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "Bazel target, no JUnit report"
-msgstr "Bazel-ის მიზანი, JUnit ანგარიშის გარეშე"
+msgstr "Bazel-ის სამიზნე, JUnit-ის ანგარიშის გარეშე"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:633
 #, elixir-autogen, elixir-format
 msgid "The runner for this target didn't emit test.xml, so per-case detail isn't available. Open a recent run to view the raw test.log."
-msgstr "ამ მიზნის გამშვებმა არ გამოიტანა test.xml, ამიტომ დეტალური ინფორმაცია თითოეული ტესტის შესახებ ხელმისაწვდომი არ არის. გახსენით ბოლო გაშვება raw test.log-ის სანახავად."
+msgstr "ამ სამიზნის გამშვებმა არ გამოიმუშავა test.xml, ამიტომ დეტალური ინფორმაცია თითოეული ტესტის შესახებ მიუწვდომელია. ნახეთ ბოლო გაშვება raw test.log-ის სანახავად."
 
 #: lib/tuist_web/live/coverage/components.ex:342
 #: lib/tuist_web/live/coverage/components.ex:554
@@ -2211,7 +2211,7 @@ msgstr "ფუნქციები"
 #: lib/tuist_web/live/coverage/components.ex:579
 #, elixir-autogen, elixir-format
 msgid "Functions the compiler instrumented in the file."
-msgstr "ფუნქციები, რომლებიც კომპილატორმა ფაილში ინსტრუმენტალურად დაამატა."
+msgstr "ფუნქციები, რომლებიც კომპილატორმა ამ ფაილში ინსტრუმენტალურად დაამატა."
 
 #: lib/tuist_web/live/coverage_file_live.ex:202
 #: lib/tuist_web/live/coverage_file_live.html.heex:149
@@ -2227,7 +2227,7 @@ msgstr "ხაზების დაფარვა"
 #: lib/tuist_web/live/coverage/components.ex:556
 #, elixir-autogen, elixir-format
 msgid "Share of the file's executable lines the tests ran at least once."
-msgstr "ფაილის შესრულებადი ხაზების წილი, რომელიც ტესტებმა მინიმუმ ერთხელ შეასრულეს."
+msgstr "ფაილის შესასრულებელი ხაზების ის ნაწილი, რომელიც ტესტებმა მინიმუმ ერთხელ შეასრულეს."
 
 #: lib/tuist_web/helpers/test_labels.ex:16
 #: lib/tuist_web/helpers/test_labels.ex:50
@@ -2246,7 +2246,7 @@ msgstr "მიზნები"
 #: lib/tuist_web/live/coverage_file_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
-msgstr "ხელმისაწვდომელი არ არის"
+msgstr "ხელმისაწვდომი არ არის"
 
 #: lib/tuist_web/live/coverage/components.ex:275
 #: lib/tuist_web/live/coverage_detail_live.ex:519
@@ -2268,7 +2268,7 @@ msgstr "ცდა"
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Case id"
-msgstr "Case id"
+msgstr "Case ID"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:117
 #, elixir-autogen, elixir-format
@@ -2288,7 +2288,7 @@ msgstr "ამ გაშვებისთვის არ არის მო�
 #: lib/tuist_web/live/once_test_run_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that both passed and failed."
-msgstr "ტესტის შემთხვევების რაოდენობა, რომლებიც წარმატებით შესრულდა და ვერ შესრულდა."
+msgstr "ტესტის შემთხვევების რაოდენობა, რომლებიც წარმატებით დაასრულდა და ვერც კი."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:90
 #, elixir-autogen, elixir-format
@@ -2338,12 +2338,12 @@ msgstr[0] "%{count} ფაილი"
 #: lib/tuist_web/live/coverage_detail_live.ex:573
 #, elixir-autogen, elixir-format
 msgid "Branch %{name}"
-msgstr "ბრენჩი %{name}"
+msgstr "ბრანჩი %{name}"
 
 #: lib/tuist_web/live/coverage/components.ex:35
 #, elixir-autogen, elixir-format
 msgid "Branch:"
-msgstr "ბრენჩი:"
+msgstr "ბრანჩი:"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:432
 #: lib/tuist_web/live/coverage_live.html.heex:82
@@ -2356,7 +2356,7 @@ msgstr "ცვლილება"
 #: lib/tuist_web/live/coverage_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Code coverage is not enabled for this account."
-msgstr "კოდის დაფარვა ამ ანგარიშისთვის არ არის ჩართული."
+msgstr "კოდის დაფარვა ამ ანგარიშზე არ არის ჩართული."
 
 #: lib/tuist_web/live/coverage/components.ex:341
 #: lib/tuist_web/live/coverage_detail_live.ex:571
@@ -2368,7 +2368,7 @@ msgstr "კომიტი %{name}"
 #: lib/tuist_web/live/coverage_file_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Commit %{sha} has no coverage for this file"
-msgstr "კომიტს %{sha} არ აქვს დაფარვა ამ ფაილისთვის"
+msgstr "კომიტს %{sha} ამ ფაილისთვის დაფარვა არ აქვს"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:580
 #: lib/tuist_web/live/coverage_detail_live.html.heex:335
@@ -2380,13 +2380,13 @@ msgstr "კომიტები"
 #: lib/tuist_web/live/coverage_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Committed"
-msgstr "დაკომიტებული"
+msgstr "დაკომიტული"
 
 #: lib/tuist_web/live/coverage/components.ex:418
 #: lib/tuist_web/live/coverage_detail_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "Complete"
-msgstr "დასრულებული"
+msgstr "დასრულება"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:31
 #, elixir-autogen, elixir-format
@@ -2401,7 +2401,7 @@ msgstr "დაფარვის ცვლილებები"
 #: lib/tuist_web/live/coverage/components.ex:286
 #, elixir-autogen, elixir-format
 msgid "Every test of the run's scheme ran, so it measured the scheme in full."
-msgstr "გაშვებული სქემის ყველა ტესტი შესრულდა, რამაც სქემის სრული გაზომვა უზრუნველყო."
+msgstr "გაშვების სქემის ყველა ტესტი შესრულდა, რამაც სქემის სრული გაზომვა უზრუნველყო."
 
 #: lib/tuist_web/live/coverage/components.ex:662
 #: lib/tuist_web/live/coverage_detail_live.ex:465
@@ -2418,13 +2418,13 @@ msgstr "ფაილი: %{name}"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Lines that commit's tests ran at least once."
-msgstr "ხაზები, რომლებზეც კომიტის ტესტები მინიმუმ ერთხელ გაშვებულა."
+msgstr "ხაზები, რომლებიც კომიტის ტესტებმა სულ მცირე ერთხელ გაუშვეს."
 
 #: lib/tuist_web/live/coverage/components.ex:801
 #: lib/tuist_web/live/coverage_detail_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Lines the compiler instrumented for coverage at that commit."
-msgstr "ხაზები, რომლებიც კომპილატორმა ამ კომიტზე დაფარვისთვის ინსტრუმენტალიზებული აქვს."
+msgstr "ხაზები, რომლებიც კომპილატორმა ამ კომიტზე დაფარვისთვის ინსტრუმენტალიზაცია გაუკეთა."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:467
 #, elixir-autogen, elixir-format
@@ -2439,7 +2439,7 @@ msgstr "ამ ფილტრებს არცერთი კომიტი
 #: lib/tuist_web/live/coverage_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "No complete commits on %{branch} in this period"
-msgstr "%{branch}-ზე ამ პერიოდში სრული კომიტები არ არის"
+msgstr "%{branch}-ზე ამ პერიოდში არ არის სრული კომიტები"
 
 #: lib/tuist_web/live/coverage/components.ex:143
 #, elixir-autogen, elixir-format
@@ -2454,7 +2454,7 @@ msgstr "ამ პერიოდში %{branch}-ზე დაფარვა �
 #: lib/tuist_web/live/coverage/components.ex:671
 #, elixir-autogen, elixir-format
 msgid "No file matches this search"
-msgstr "ძებნას არცერთი ფაილი არ შეესაბამება"
+msgstr "ძებნას არცერთი ფაილი არ ემთხვევა"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:325
 #, elixir-autogen, elixir-format
@@ -2464,37 +2464,37 @@ msgstr "ამ კომიტზე არცერთი ფაილი ა�
 #: lib/tuist_web/live/coverage_file_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "No function matches this search"
-msgstr "ძებნას არცერთი ფუნქცია არ შეესაბამება"
+msgstr "ძებნას არცერთი ფუნქცია არ ემთხვევა"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage here"
-msgstr "აქ დაფარვა არცერთმა გაშვებამ არ შეაგროვა"
+msgstr "აქ დაფარვის მონაცემები არ შეგროვებულა"
 
 #: lib/tuist_web/live/coverage_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage on %{branch} in this period"
-msgstr "ამ პერიოდში %{branch}-ზე დაფარვა არცერთმა გაშვებამ არ შეაგროვა"
+msgstr "ამ პერიოდში %{branch}-ზე დაფარვის მონაცემები არ შეგროვებულა"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "No run matches these filters"
-msgstr "ამ ფილტრებს არცერთი გაშვება არ შეესაბამება"
+msgstr "ეს ფილტრები არცერთ გაშვებას არ ემთხვევა"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "No run of commit %{sha} gathered coverage."
-msgstr "კომიტის %{sha} გაშვებამ დაფარვა არ შეაგროვა."
+msgstr "კომიტის %{sha} გაშვებისას დაფარვის მონაცემები არ შეგროვებულა."
 
 #: lib/tuist_web/live/coverage/components.ex:426
 #, elixir-autogen, elixir-format
 msgid "No run of this commit gathered coverage, so it has no figure of its own."
-msgstr "ამ კომიტის შესრულებისას დაფარვა არ შეგროვებულა, ამიტომ მას საკუთარი მაჩვენებელი არ აქვს."
+msgstr "ამ კომიტის შესრულებისას არ შეგროვებულა დაფარვის მონაცემები, ამიტომ მას საკუთარი მაჩვენებელი არ გააჩნია."
 
 #: lib/tuist_web/live/coverage_detail_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "No run on branch %{branch} gathered coverage."
-msgstr "%{branch} შტოზე შესრულებისას დაფარვა არ შეგროვებულა."
+msgstr "%{branch} შტოზე შესრულებისას არ შეგროვებულა დაფარვის მონაცემები."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:247
 #, elixir-autogen, elixir-format
@@ -2511,7 +2511,7 @@ msgstr "ამ კომიტზე არცერთი სამიზნე
 #: lib/tuist_web/live/coverage_detail_live.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Not measured"
-msgstr "არ არის გაზომილი"
+msgstr "არ გაზომილა"
 
 #: lib/tuist_web/live/coverage_live.html.heex:55
 #, elixir-autogen, elixir-format
@@ -2521,17 +2521,17 @@ msgstr "ბოლო კომიტები"
 #: lib/tuist_web/live/coverage/components.ex:281
 #, elixir-autogen, elixir-format
 msgid "Selective testing, or a filter, left some of the run's tests out, so it measured part of the scheme."
-msgstr "შერჩევითმა ტესტირებამ ან ფილტრმა ზოგიერთი ტესტი გამორიცხა, ამიტომ სქემის ნაწილი გაიზომა."
+msgstr "შერჩევითმა ტესტირებამ ან ფილტრმა ზოგიერთი ტესტი გამორიცხა, რის გამოც სქემის ნაწილი გაიზომა."
 
 #: lib/tuist_web/live/coverage/components.ex:765
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it."
-msgstr "%{branch}-ის ბოლო გაზომილ კომიტზე, %{sha}, შესრულებადი ხაზების დაფარვის წილი, გაერთიანებული იმ სქემების მიხედვით, რომლებმაც ის გაზომეს."
+msgstr "%{branch}, %{sha} ბოლოს გაზომილ კომიტზე შესრულებადი ხაზების დაფარვის წილი, გაერთიანებული იმ სქემების მიხედვით, რომლებმაც ის გაზომეს."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines some run's tests ran at least once, across %{schemes}."
-msgstr "შესრულებადი ხაზების წილი, რომელთა ტესტები მინიმუმ ერთხელ გაეშვა %{schemes}-ის ფარგლებში."
+msgstr "შესრულებადი ხაზების წილი, რომელთა ტესტები ერთხელ მაინც გაეშვა %{schemes}-ში."
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:389
 #, elixir-autogen, elixir-format
@@ -2546,29 +2546,29 @@ msgstr "მიზნის სახელი"
 #: lib/tuist_web/live/coverage_file_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "The latest complete commit on %{branch} in this period has no coverage for this file"
-msgstr "ამ პერიოდში %{branch}-ზე ბოლო სრულყოფილ კომიტს ამ ფაილისთვის დაფარვა არ აქვს"
+msgstr "ამ პერიოდში %{branch}-ზე უახლეს სრულ კომიტს ამ ფაილისთვის დაფარვა არ აქვს"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "These commits are listed in the order they were measured, not the order the repository's history puts them in."
-msgstr "ეს კომიტები ჩამოთვლილია იმ თანმიმდევრობით, რითაც ისინი გაიზომა და არა იმ თანმიმდევრობით, როგორც ისინი რეპოზიტორიის ისტორიაშია განლაგებული."
+msgstr "ეს კომიტები ჩამოთვლილია იმ თანმიმდევრობით, რითაც ისინი გაიზომა და არა იმ თანმიმდევრობით, რითაც ისინი რეპოზიტორიის ისტორიაშია განლაგებული."
 
 #: lib/tuist_web/live/coverage/components.ex:429
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
-msgstr "ამ კომიტის დაფარვის პაიპლაინმა ჯერ არ მოახსენა დასრულება, ამიტომ შესაძლოა კიდევ შემოვიდეს დამატებითი გაშვებები და მისი კარიბჭეები ლოდინის რეჟიმშია."
+msgstr "ამ კომიტის დაფარვის პაიპლაინმა ჯერ არ მოგვაწოდა დასრულების სიგნალი, შესაბამისად, შეიძლება კიდევ შემოვიდეს ახალი გაშვებები და მისი გეიტები ჯერ გადაწყვეტილი არ არის."
 
 #: lib/tuist_web/live/coverage/components.ex:438
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
-msgstr "ამ კომიტის დაფარვის პაიპლაინმა დაასრულა მუშაობა, ამიტომ მისი მაჩვენებელი საბოლოოა და კარიბჭეების გადაწყვეტილება მიღებულია."
+msgstr "ამ კომიტის დაფარვის პაიპლაინმა დასრულების სიგნალი მოგვაწოდა, შესაბამისად, მისი მაჩვენებელი საბოლოოა და მისი გეიტები გადაწყვეტილია."
 
 #: lib/tuist_web/live/coverage/components.ex:775
 #: lib/tuist_web/live/coverage/components.ex:792
 #: lib/tuist_web/live/coverage/components.ex:810
 #, elixir-autogen, elixir-format
 msgid "over the period"
-msgstr "მოცემული პერიოდის განმავლობაში"
+msgstr "პერიოდის განმავლობაში"
 
 #: lib/tuist_web/live/coverage/components.ex:417
 #: lib/tuist_web/live/coverage_detail_live.ex:340
@@ -2580,12 +2580,12 @@ msgstr "არასრული"
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
 msgid_plural "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
-msgstr[0] "ზოგიერთი ტესტი გამოტოვებული იყო და %{count} მათგანის კოდის დაფარვა ვერ განისაზღვრა, ამიტომ რეალური დაფარვა შეიძლება უფრო მაღალი იყოს."
+msgstr[0] "ზოგიერთი ტესტი გამოტოვებული იყო და %{count}-ის დაფარვა ვერ განისაზღვრა, ამიტომ რეალური დაფარვა შეიძლება უფრო მაღალი იყოს."
 
 #: lib/tuist_web/live/coverage/components.ex:404
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and their coverage couldn't be fully determined, so the actual coverage may be higher."
-msgstr "ზოგიერთი ტესტი გამოტოვებული იყო და მათი კოდის დაფარვა სრულად ვერ განისაზღვრა, ამიტომ რეალური დაფარვა შეიძლება უფრო მაღალი იყოს."
+msgstr "ზოგიერთი ტესტი გამოტოვებული იყო და მათი დაფარვა სრულად ვერ განისაზღვრა, ამიტომ რეალური დაფარვა შეიძლება უფრო მაღალი იყოს."
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:76
 #, elixir-autogen, elixir-format
@@ -2610,7 +2610,7 @@ msgstr "გაშვება გაუქმდა ნებისმიერ�
 #: lib/tuist_web/live/coverage/components.ex:375
 #, elixir-autogen, elixir-format
 msgid "Some coverage only came from runs on a checkout with uncommitted changes, which don't count, so the actual coverage may be higher."
-msgstr "ზოგიერთი დაფარვა მიღებული იქნა მხოლოდ შეუკავშირებელი ცვლილებების შემცველი ჩეკაუტის გაშვებიდან, რომლებიც არ ითვლება, ამიტომ რეალური დაფარვა შეიძლება უფრო მაღალი იყოს."
+msgstr "ზოგიერთი დაფარვა მიღებული იყო მხოლოდ ისეთი ჩეკაუთის გაშვებებიდან, რომლებსაც ჰქონდათ არაკომიტური ცვლილებები, რაც არ ითვლება, ამიტომ რეალური დაფარვა შეიძლება უფრო მაღალი იყოს."
 
 #: lib/tuist_web/live/coverage/components.ex:260
 #, elixir-autogen, elixir-format
@@ -2620,7 +2620,7 @@ msgstr "გაუქმებული"
 #: lib/tuist_web/live/coverage/components.ex:263
 #, elixir-autogen, elixir-format
 msgid "The run came from a checkout with uncommitted changes, so it measured code that isn't the commit's and its coverage was discarded."
-msgstr "გაშვება მოხდა შეუკავშირებელი ცვლილებების შემცველი ჩეკაუტიდან, ამიტომ გაიზომა კოდი, რომელიც არ ეკუთვნის კომიტს და მისი დაფარვა გაუქმდა."
+msgstr "გაშვება მოხდა ჩეკაუთიდან არაკომიტური ცვლილებებით, ამიტომ მან გაზომა კოდი, რომელიც არ ეკუთვნის კომიტს და მისი დაფარვა გაუქმდა."
 
 #: lib/tuist_web/helpers/test_labels.ex:49
 #, elixir-autogen, elixir-format
@@ -2646,12 +2646,12 @@ msgstr[0] "%{count} მათგანი არ ეკუთვნის არ
 #: lib/tuist_web/live/coverage_detail_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Every run that executed this target's tests took it from the binary cache as a binary built without coverage counters, so what they covered in it is unknown."
-msgstr "ამ მიზნის ტესტების შესრულების ყოველი გაშვება ბინარული კეშიდან იღებდა ბინარულ ფაილს, რომელიც აგებული იყო კოდის დაფარვის მრიცხველების გარეშე, ამიტომ უცნობია, რა დაფარა მან."
+msgstr "ამ მიზნის ტესტების შემსრულებელი ყოველი გაშვება ბინარულ კეშიდან იღებდა ბინარს, რომელიც აგებული იყო კოდის დაფარვის მრიცხველების გარეშე, ამიტომ უცნობია, რა დაფარა მან."
 
 #: lib/tuist_web/live/coverage/components.ex:381
 #, elixir-autogen, elixir-format
 msgid "Some of the code the tests ran came from the binary cache as binaries built without coverage counters, so what they covered in it is unknown and the actual coverage may be higher. The Targets tab lists them as not measured."
-msgstr "ტესტების მიერ შესრულებული კოდის ნაწილი ბინარული კეშიდან მოვიდა ბინარული ფაილების სახით, რომლებიც აგებული იყო კოდის დაფარვის მრიცხველების გარეშე, ამიტომ უცნობია, რა დაფარა მან და რეალური დაფარვა შეიძლება უფრო მაღალი იყოს. მიზნების ჩანართში ისინი ჩამოთვლილია როგორც არაგაზომილი."
+msgstr "ტესტების მიერ შესრულებული კოდის ნაწილი ბინარულ კეშიდან იქნა მიღებული ბინარების სახით, რომლებიც აგებული იყო კოდის დაფარვის მრიცხველების გარეშე, ამიტომ უცნობია, რა დაფარა მან და რეალური დაფარვა შეიძლება უფრო მაღალი იყოს. „მიზნები“-ის ჩანართში ისინი ჩამოთვლილია როგორც არაგაზომილი."
 
 #: lib/tuist_web/live/coverage/components.ex:833
 #, elixir-autogen, elixir-format

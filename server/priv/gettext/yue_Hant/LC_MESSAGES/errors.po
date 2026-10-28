@@ -15,7 +15,7 @@ msgstr "Language: yue_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1092
 #, elixir-autogen, elixir-format
 msgid "Page not found"
-msgstr "找不到頁面"
+msgstr "搵唔到頁面"
 
 #: lib/tuist_web/controllers/build_controller.ex:26
 #: lib/tuist_web/controllers/build_controller.ex:71
@@ -23,9 +23,9 @@ msgstr "找不到頁面"
 #: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:25
 #, elixir-autogen, elixir-format
 msgid "Build not found"
-msgstr "找不到構建"
+msgstr "搵唔到構建"
 
 #: lib/tuist_web/controllers/build_controller.ex:67
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "您無權訪問此構建"
+msgstr "你無權存取此構建"
