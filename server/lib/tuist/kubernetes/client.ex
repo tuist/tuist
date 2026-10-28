@@ -144,6 +144,10 @@ defmodule Tuist.Kubernetes.Client do
     create_audience_token_review(token, @sandbox_node_audience, opts)
   end
 
+  def create_amp_provider_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, "tuist-amp-orbs", opts)
+  end
+
   # Audience of the token a macOS runner host mints for its own per-machine
   # ServiceAccount to list the cache masters it should prefetch. Distinct from
   # the dispatch audience, which every guest holds a token for: the list carries
@@ -193,7 +197,7 @@ defmodule Tuist.Kubernetes.Client do
         end
 
       {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
-        parse_sa_principal(user)
+        if audience == "tuist-amp-orbs", do: {:error, :unauthenticated}, else: parse_sa_principal(user)
 
       {:ok, %{"status" => %{"authenticated" => false}}} ->
         {:error, :unauthenticated}
@@ -475,6 +479,22 @@ defmodule Tuist.Kubernetes.Client do
          "metadata" => %{"namespace" => namespace, "name" => name}
        }) do
     {:ok, "/api/v1/namespaces/#{namespace}/secrets/#{name}"}
+  end
+
+  defp manifest_path(%{
+         "apiVersion" => "v1",
+         "kind" => "ServiceAccount",
+         "metadata" => %{"namespace" => namespace, "name" => name}
+       }) do
+    {:ok, "/api/v1/namespaces/#{namespace}/serviceaccounts/#{name}"}
+  end
+
+  defp manifest_path(%{
+         "apiVersion" => "apps/v1",
+         "kind" => "Deployment",
+         "metadata" => %{"namespace" => namespace, "name" => name}
+       }) do
+    {:ok, "/apis/apps/v1/namespaces/#{namespace}/deployments/#{name}"}
   end
 
   defp manifest_path(%{"kind" => kind}), do: {:error, "unsupported Kubernetes manifest kind #{kind}"}

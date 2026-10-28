@@ -2550,8 +2550,9 @@ macosFleet:
 sandboxes:
   enabled: false
   namespace: tuist-sandboxes
-  # Both tags are `sha-<git-sha>` tags pushed by sandboxd-image.yml and
-  # sandbox-image.yml (workflow_dispatch). Empty is a render-time failure.
+  # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
+  # server deploys publish/select the guest template automatically; sandboxd
+  # remains explicitly pinned. Empty tags are a render-time failure.
   image:
     repository: ghcr.io/tuist/sandboxd
     tag: ""
@@ -4150,3 +4151,13 @@ kuraActivation:
     production: https://tuist.dev
     canary: https://canary.tuist.dev
     staging: https://staging.tuist.dev
+
+# Account integrations provision isolated provider workloads in this namespace.
+# No shared provider token or human Tuist login is required.
+ampOrbProvider:
+  enabled: false
+  namespace: tuist-amp-orbs
+  url: ""
+  image:
+    repository: ghcr.io/tuist/tuist-sandbox-template
+  nodeSelector: {}

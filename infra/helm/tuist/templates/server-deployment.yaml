@@ -296,6 +296,16 @@ spec:
             - name: TUIST_RUNNER_HOST_IDENTITY_NAMESPACE
               value: {{ .Release.Namespace | quote }}
             {{- end }}
+            {{- if .Values.ampOrbProvider.enabled }}
+            - name: TUIST_AMP_PROVIDER_NAMESPACE
+              value: {{ .Values.ampOrbProvider.namespace | quote }}
+            - name: TUIST_AMP_PROVIDER_URL
+              value: {{ .Values.ampOrbProvider.url | quote }}
+            - name: TUIST_AMP_PROVIDER_IMAGE
+              value: {{ printf "%s:%s-provider" .Values.ampOrbProvider.image.repository .Values.sandboxes.templateImage.tag | quote }}
+            - name: TUIST_AMP_PROVIDER_NODE_SELECTOR
+              value: {{ .Values.ampOrbProvider.nodeSelector | toJson | quote }}
+            {{- end }}
             {{- if .Values.sandboxes.enabled }}
             # Sandboxes namespace: the principal namespace the server requires
             # on the sandboxd node connection's TokenReview.

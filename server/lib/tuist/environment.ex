@@ -2016,6 +2016,15 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_SANDBOXES_NAMESPACE", "tuist-sandboxes")
   end
 
+  def amp_provider_config do
+    %{
+      image: System.get_env("TUIST_AMP_PROVIDER_IMAGE"),
+      namespace: System.get_env("TUIST_AMP_PROVIDER_NAMESPACE", "tuist-amp-orbs"),
+      url: System.get_env("TUIST_AMP_PROVIDER_URL"),
+      node_selector: "TUIST_AMP_PROVIDER_NODE_SELECTOR" |> System.get_env("{}") |> JSON.decode!()
+    }
+  end
+
   @doc """
   Override for the Anthropic API base URL used by the sandbox work
   poller, or `nil` to use the public API. Set `TUIST_ANTHROPIC_API_URL`

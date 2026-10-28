@@ -51,6 +51,9 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      sandbox_template_image_tag:
+        description: Published sandbox template tag; omit to build on a fresh deploy or preserve the live template on a server-only rollback
+        required: false
       staging_platform_revision:
         description: Restore an existing staging platform Helm revision instead of applying this commit's platform chart
         required: false
@@ -110,6 +113,10 @@ on:
         description: Intended Linux runner image before per-pool staging holds
         value: ${{ jobs.deploy.outputs.linux_runner_image }}
     inputs:
+      sandbox_template_image_tag:
+        description: Published sandbox template tag; fresh deploys build it, pre-built server deploys preserve the live template when unset
+        required: false
+        type: string
       staging_platform_revision:
         description: Existing staging platform Helm revision to restore and retain for this deployment
         required: false
@@ -301,6 +308,14 @@ jobs:
           fi
 
           echo "Production deploy is running from refs/heads/main."
+
+  build-sandbox-template:
+    name: Publish sandbox template
+    needs: guard_production_source
+    if: needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.sandbox_template_image_tag == ''
+    uses: ./.github/workflows/sandbox-image.yml
+    with:
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
 
   build:
     name: Build + push server
@@ -863,7 +878,7 @@ jobs:
     outputs:
       linux_runner_image: ${{ steps.deploy-chart.outputs.linux_runner_image }}
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, build-images, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
+    needs: [build, build-images, build-sandbox-template, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `build-kura-runtime` is skipped on canary/production and on staging
     # re-rolls of a prebuilt image; when it does run (staging fresh build) the
@@ -885,7 +900,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-sandbox-template.result == 'success' || needs.build-sandbox-template.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -913,6 +928,7 @@ jobs:
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
       SERVER_IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
       CODEBASE_SEARCH_IMAGE_TAG: ${{ inputs.codebase_search_image_tag != '' && inputs.codebase_search_image_tag || needs.build.outputs.codebase_search_image_tag }}
+      SANDBOX_TEMPLATE_IMAGE_TAG: ${{ inputs.sandbox_template_image_tag || needs.build-sandbox-template.outputs.image_tag }}
       REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
       KURA_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.kura_controller_image_tag }}
@@ -1565,6 +1581,16 @@ jobs:
             main_renders_xcresult_processor=true
           else
             main_renders_xcresult_processor=false
+          fi
+          # Read identity from the rendered chart rather than assuming its namespace
+          # or resource prefix. Explicit/published tags win; server-only re-promotions
+          # retain the live template instead of reverting to the values-file pin.
+          sandbox_namespace=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .metadata.namespace' "$registry_render")
+          if [ -n "$sandbox_namespace" ]; then
+            sandbox_name=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .metadata.name' "$registry_render")
+            sandbox_image=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .spec.template.spec.initContainers[] | select(.name == "template") | .image' "$registry_render")
+            sandbox_tag=$(bash .github/scripts/sandbox-template-tag.sh "$sandbox_namespace" "$sandbox_name" "$sandbox_image" "$SANDBOX_TEMPLATE_IMAGE_TAG")
+            add_set "sandboxes.templateImage.tag" "$sandbox_tag"
           fi
           rm -f "$registry_render"
           echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
