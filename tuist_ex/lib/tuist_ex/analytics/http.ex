@@ -7,6 +7,8 @@ defmodule TuistEx.Analytics.HTTP do
   alias TuistEx.Auth
   alias TuistEx.HTTP
 
+  @version Mix.Project.config()[:version]
+
   # Sends a fully-shaped test-run payload to
   # `POST /api/projects/:account/:project/tests`.
   #
@@ -77,16 +79,16 @@ defmodule TuistEx.Analytics.HTTP do
           "/api/projects/" <>
           config.project_handle.account <> "/" <> config.project_handle.project <> suffix
 
-      actor_headers =
+      report_headers =
         if report?,
-          do: Actor.headers(options),
+          do: [{"x-tuist-ex-version", @version} | Actor.headers(options)],
           else: []
 
       case HTTP.request(
              method,
              url,
              body,
-             if(token, do: [{"authorization", "Bearer " <> token}], else: []) ++ actor_headers
+             if(token, do: [{"authorization", "Bearer " <> token}], else: []) ++ report_headers
            ) do
         {:ok, status, decoded} when status in 200..299 -> {:ok, decoded}
         {:ok, status, decoded} -> {:error, {:http, status, decoded}}
