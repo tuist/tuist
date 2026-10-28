@@ -1,0 +1,524 @@
+<div id="test-selection">
+  <.button
+    label={dgettext("dashboard_tests", "Test Selection")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div data-part="kind">
+          <div data-part="icon"><.icon name="filter" /></div>
+        </div>
+        <h1 data-part="label">{run_title(@run)}</h1>
+      </div>
+      <div data-part="badges">
+        <.badge
+          label={short_sha(@run.git_commit_sha)}
+          color="neutral"
+          style="light-fill"
+          size="large"
+        >
+          <:icon><.icon name="git_commit" /></:icon>
+        </.badge>
+        <.badge
+          :if={@run.git_branch != ""}
+          label={@run.git_branch}
+          color="neutral"
+          style="light-fill"
+          size="large"
+        >
+          <:icon><.icon name="git_branch" /></:icon>
+        </.badge>
+        <.badge
+          :if={@run.destination != ""}
+          label={@run.destination}
+          color="neutral"
+          style="light-fill"
+          size="large"
+        >
+          <:icon><.icon name="devices" /></:icon>
+        </.badge>
+        <.badge
+          label={mode_label(@run.mode)}
+          color={mode_color(@run.mode)}
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          :if={@run.fallback_reason != ""}
+          label={fallback_label(@run.fallback_reason)}
+          color="warning"
+          style="light-fill"
+          size="large"
+        >
+          <:icon><.icon name="alert_triangle" /></:icon>
+        </.badge>
+      </div>
+    </div>
+    <div data-part="filters">
+      <.button
+        label={dgettext("dashboard_tests", "View commit")}
+        variant="secondary"
+        size="medium"
+        navigate={commit_href(assigns)}
+      >
+        <:icon_left><.git_commit /></:icon_left>
+      </.button>
+      <.button
+        :if={@run.test_run_id}
+        label={dgettext("dashboard_tests", "View test run")}
+        variant="secondary"
+        size="medium"
+        navigate={test_run_href(assigns)}
+        data-part="test-run-link"
+      >
+        <:icon_left><.icon name="dashboard" /></:icon_left>
+      </.button>
+    </div>
+  </div>
+
+  <.card title={dgettext("dashboard_tests", "Summary")} icon="chart_arcs" data-part="summary-card">
+    <.card_section :if={@run.fallback_reason != ""} data-part="file-summary-section">
+      <.alert
+        id="test-selection-run-fallback"
+        type="secondary"
+        status="warning"
+        size="large"
+        title={
+          dgettext("dashboard_tests", "Ran everything: %{reason}",
+            reason: fallback_label(@run.fallback_reason)
+          )
+        }
+        description={fallback_description(@run.fallback_reason)}
+      />
+    </.card_section>
+    <.card_section data-part="summary-section">
+      <div data-part="widgets">
+        <.widget
+          id="widget-selected"
+          title={dgettext("dashboard_tests", "Selected")}
+          description={dgettext("dashboard_tests", "Requested tests this invocation had to run.")}
+          value={"#{format_number(@summary.selected)} / #{format_number(@summary.requested)}"}
+          legend_color="primary"
+        />
+        <.widget
+          id="widget-skipped"
+          title={
+            if @run.mode == "dry_run",
+              do: dgettext("dashboard_tests", "Would skip"),
+              else: dgettext("dashboard_tests", "Skipped")
+          }
+          description={
+            if @run.mode == "dry_run",
+              do:
+                dgettext(
+                  "dashboard_tests",
+                  "Requested tests the selection would have skipped. In dry run they ran anyway."
+                ),
+              else: dgettext("dashboard_tests", "Requested tests the selection skipped.")
+          }
+          value={format_number(@summary.skipped)}
+          legend_color="secondary"
+        />
+        <.widget
+          id="widget-skip-rate"
+          title={dgettext("dashboard_tests", "Skip rate")}
+          description={
+            dgettext("dashboard_tests", "The share of requested tests that were skipped.")
+          }
+          value={"#{@summary.skip_rate}%"}
+          legend_color="tertiary"
+        />
+        <.widget
+          id="widget-time-saved"
+          title={dgettext("dashboard_tests", "Est. time saved")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "The skipped tests' estimated duration, run one after another."
+            )
+          }
+          value={format_duration(@run.skipped_duration)}
+        />
+        <.widget
+          :if={@run.mode == "dry_run"}
+          id="widget-missed"
+          title={dgettext("dashboard_tests", "Misses")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Tests the selection would have skipped that failed when they ran anyway."
+            )
+          }
+          value={if @summary.reported, do: format_number(@summary.missed), else: "–"}
+          legend_color="destructive"
+        />
+        <.widget
+          id="widget-not-run"
+          title={dgettext("dashboard_tests", "Planned, not run")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Selected tests the test run reported no result for: removed or renamed since the baseline, or lost with a shard."
+            )
+          }
+          value={if @summary.reported, do: format_number(@summary.not_run), else: "–"}
+        />
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard_tests", "Invocation")} icon="list_tree" data-part="plan-card">
+    <.card_section data-part="file-summary-section">
+      <dl data-part="file-details">
+        <div>
+          <dt>{dgettext("dashboard_tests", "Baseline")}</dt>
+          <dd>
+            <.link_button
+              :if={@run.baseline_sha != "" and @baseline_coverage?}
+              navigate={coverage_href(assigns, @run.baseline_sha)}
+              label={short_sha(@run.baseline_sha)}
+              variant="secondary"
+              size="large"
+              underline
+            />
+            <span :if={@run.baseline_sha != "" and !@baseline_coverage?}>
+              {short_sha(@run.baseline_sha)}
+            </span>
+            <span :if={@run.baseline_sha == ""}>{dgettext("dashboard_tests", "None")}</span>
+          </dd>
+        </div>
+        <div>
+          <dt>{scheme_label(@selected_project)}</dt>
+          <dd>{@run.scheme}</dd>
+        </div>
+        <div :if={@run.test_plan != ""}>
+          <dt>{dgettext("dashboard_tests", "Test plan")}</dt>
+          <dd>{@run.test_plan}</dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard_tests", "Requested targets")}</dt>
+          <dd>{format_number(length(@run.requested_targets))}</dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard_tests", "Shards")}</dt>
+          <dd>{format_number(@run.shard_count)}</dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard_tests", "CI job")}</dt>
+          <dd>{@run.ci_job_id} · {@run.ci_run_id}</dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard_tests", "Selected at")}</dt>
+          <dd>{Tuist.Utilities.DateFormatter.from_now(@run.inserted_at)}</dd>
+        </div>
+      </dl>
+    </.card_section>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_tests", "Reasons")}
+    icon="filter_question"
+    data-part="reasons-card"
+  >
+    <.card_section data-part="decisions-section">
+      <div :if={@summary.reasons != []} data-part="decisions-table">
+        <.table
+          id="test-selection-reasons-table"
+          rows={@summary.reasons}
+          row_key={&"#{&1.decision}-#{&1.reason}"}
+        >
+          <:col :let={row} label={dgettext("dashboard_tests", "Reason")}>
+            <.text_cell label={reason_label(row.reason)} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Decision")}>
+            <.decision_cell decision={row.decision} />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_tests", "Tests")}>
+            <.text_cell label={format_number(row.count)} />
+          </:col>
+        </.table>
+      </div>
+      <.coverage_empty
+        :if={@summary.reasons == []}
+        title={dgettext("dashboard_tests", "The invocation requested no tests")}
+        image="table"
+      />
+    </.card_section>
+  </.card>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      :for={tab <- tabs()}
+      selected={@tab == tab}
+      label={tab_label(tab, assigns)}
+      patch={"?#{@uri.query |> Query.put("tab", tab) |> Query.drop("page")}"}
+    />
+  </.tab_menu_horizontal>
+
+  <%!-- Tests --%>
+  <.card
+    :if={@tab == "tests"}
+    title={dgettext("dashboard_tests", "Tests")}
+    icon="subtask"
+    data-part="decisions-card"
+  >
+    <.card_section data-part="decisions-section">
+      <div data-part="filters">
+        <.form
+          for={%{}}
+          id="search-test-selection-run-tests-form"
+          phx-change="search-tests"
+          phx-debounce="200"
+        >
+          <.text_input
+            type="search"
+            id="search-test-selection-run-tests"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@tests_search}
+          />
+        </.form>
+        <.dropdown
+          id="test-selection-decision-dropdown"
+          label={decision_filter_label(@decision_filter)}
+          secondary_text={dgettext("dashboard_tests", "Decision:")}
+        >
+          <.dropdown_item
+            :for={decision <- ~w(any selected skipped)}
+            value={decision}
+            label={decision_filter_label(decision)}
+            patch={"?#{@uri.query |> Query.put("decision", decision) |> Query.drop("page")}"}
+            data-selected={@decision_filter == decision}
+          >
+            <:right_icon :if={@decision_filter == decision}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.dropdown
+          :if={@run.test_run_id}
+          id="test-selection-flag-dropdown"
+          label={flag_filter_label(@flag_filter)}
+          secondary_text={dgettext("dashboard_tests", "Flag:")}
+        >
+          <.dropdown_item
+            :for={
+              flag <-
+                if(@run.mode == "dry_run", do: ~w(any missed not_run), else: ~w(any not_run))
+            }
+            value={flag}
+            label={flag_filter_label(flag)}
+            patch={"?#{@uri.query |> Query.put("flag", flag) |> Query.drop("page")}"}
+            data-selected={@flag_filter == flag}
+          >
+            <:right_icon :if={@flag_filter == flag}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.dropdown
+          :if={@run.shard_count > 1}
+          id="test-selection-shard-dropdown"
+          label={shard_filter_label(@shard_filter)}
+          secondary_text={dgettext("dashboard_tests", "Shard:")}
+        >
+          <.dropdown_item
+            value="any"
+            label={shard_filter_label(nil)}
+            patch={"?#{@uri.query |> Query.drop("shard") |> Query.drop("page")}"}
+            data-selected={is_nil(@shard_filter)}
+          >
+            <:right_icon :if={is_nil(@shard_filter)}><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            :for={index <- 0..(@run.shard_count - 1)}
+            value={to_string(index)}
+            label={shard_filter_label(index)}
+            patch={"?#{@uri.query |> Query.put("shard", index) |> Query.drop("page")}"}
+            data-selected={@shard_filter == index}
+          >
+            <:right_icon :if={@shard_filter == index}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+
+      <div :if={@tests != []} data-part="decisions-table">
+        <.table
+          id="test-selection-run-tests-table"
+          rows={@tests}
+          row_key={& &1.test_case_id}
+          row_navigate={&test_href(assigns, &1)}
+        >
+          <:col
+            :let={test}
+            label={dgettext("dashboard_tests", "Test")}
+            patch={column_sort_patch(assigns, "name")}
+            sort_order={@tests_sort_by == "name" && @tests_sort_order}
+          >
+            <.text_and_description_cell label={test.name} description={test_location(test)} />
+          </:col>
+          <:col
+            :let={test}
+            label={dgettext("dashboard_tests", "Decision")}
+            patch={column_sort_patch(assigns, "decision")}
+            sort_order={@tests_sort_by == "decision" && @tests_sort_order}
+          >
+            <.decision_cell decision={test.decision} />
+          </:col>
+          <:col :let={test} label={dgettext("dashboard_tests", "Reason")}>
+            <.text_and_description_cell
+              label={reason_label(test.reason)}
+              description={if test.matched_path != "", do: Path.basename(test.matched_path)}
+            />
+          </:col>
+          <:col
+            :let={test}
+            :if={@run.shard_count > 1}
+            label={dgettext("dashboard_tests", "Shard")}
+            patch={column_sort_patch(assigns, "shard")}
+            sort_order={@tests_sort_by == "shard" && @tests_sort_order}
+          >
+            <.text_cell :if={test.decision == "selected"} label={format_number(test.shard_index)} />
+            <.text_cell :if={test.decision != "selected"} label="–" />
+          </:col>
+          <:col
+            :let={test}
+            label={dgettext("dashboard_tests", "Est. duration")}
+            patch={column_sort_patch(assigns, "duration")}
+            sort_order={@tests_sort_by == "duration" && @tests_sort_order}
+          >
+            <.text_cell label={format_duration(test.estimated_duration_ms)} icon="history" />
+          </:col>
+          <:col :let={test} label={dgettext("dashboard_tests", "Outcome")}>
+            <.outcome_cell
+              outcome={visible_outcome(test, @run.mode)}
+              decision={test.decision}
+              mode={@run.mode}
+              reported={not is_nil(@run.test_run_id)}
+            />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@tests_meta.total_pages > 1}
+          current_page={@tests_meta.current_page}
+          number_of_pages={@tests_meta.total_pages}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+        />
+      </div>
+
+      <.coverage_empty
+        :if={@tests == []}
+        title={dgettext("dashboard_tests", "No test matches")}
+        image="table"
+        data-part="empty-tests"
+      />
+    </.card_section>
+  </.card>
+
+  <%!-- Targets --%>
+  <.card
+    :if={@tab == "targets"}
+    title={dgettext("dashboard_tests", "Targets")}
+    icon="stack_2"
+    data-part="decisions-card"
+  >
+    <.card_section data-part="decisions-section">
+      <div :if={@targets != []} data-part="decisions-table">
+        <.table
+          id="test-selection-run-targets-table"
+          rows={@targets}
+          row_key={& &1.module_name}
+          row_navigate={
+            fn target ->
+              "?#{@uri.query |> Query.put("tab", "tests") |> Query.put("tests-search", target.module_name) |> Query.drop("page")}"
+            end
+          }
+        >
+          <:col :let={target} label={dgettext("dashboard_tests", "Test target")}>
+            <.text_cell label={target.module_name} />
+          </:col>
+          <:col :let={target} label={dgettext("dashboard_tests", "Selected")}>
+            <.text_cell label={"#{format_number(target.selected)} / #{format_number(target.requested)}"} />
+          </:col>
+          <:col :let={target} label={dgettext("dashboard_tests", "Skip rate")}>
+            <.text_cell label={"#{Selections.skip_rate(target.selected, target.skipped)}%"} />
+          </:col>
+          <:col :let={target} label={dgettext("dashboard_tests", "Why it runs")}>
+            <.text_cell label={
+              target.reasons |> Enum.sort() |> Enum.map_join(", ", &reason_label/1)
+            } />
+          </:col>
+          <:col :let={target} label={dgettext("dashboard_tests", "Est. time saved")}>
+            <.text_cell label={format_duration(target.estimated_skipped_duration)} icon="history" />
+          </:col>
+        </.table>
+      </div>
+      <.coverage_empty
+        :if={@targets == []}
+        title={dgettext("dashboard_tests", "The invocation requested no tests")}
+        image="table"
+      />
+    </.card_section>
+  </.card>
+
+  <%!-- Shards --%>
+  <.card
+    :if={@tab == "shards"}
+    title={dgettext("dashboard_tests", "Shards")}
+    icon="server"
+    data-part="decisions-card"
+  >
+    <.card_section data-part="decisions-section">
+      <div :if={@shards != []} data-part="decisions-table">
+        <.table
+          id="test-selection-run-shards-table"
+          rows={@shards}
+          row_key={&"shard-#{&1.shard_index}"}
+          row_navigate={&shard_patch(assigns, &1.shard_index)}
+        >
+          <:col :let={shard} label={dgettext("dashboard_tests", "Shard")}>
+            <.text_cell label={shard_filter_label(shard.shard_index)} />
+          </:col>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Planned")}>
+            <.text_cell label={format_number(shard.planned)} />
+          </:col>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Est. duration")}>
+            <.text_cell label={format_duration(shard.estimated_duration)} icon="history" />
+          </:col>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Ran")}>
+            <.text_cell label={if @summary.reported, do: format_number(shard.ran), else: "–"} />
+          </:col>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Failed")}>
+            <.status_badge_cell
+              :if={shard.failed > 0}
+              status="error"
+              label={format_number(shard.failed)}
+            />
+            <.text_cell :if={shard.failed == 0} label="0" />
+          </:col>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Planned, not run")}>
+            <.status_badge_cell
+              :if={@summary.reported and shard.not_run > 0}
+              status="warning"
+              label={format_number(shard.not_run)}
+            />
+            <.text_cell
+              :if={!@summary.reported or shard.not_run == 0}
+              label={if @summary.reported, do: "0", else: "–"}
+            />
+          </:col>
+        </.table>
+      </div>
+      <.coverage_empty
+        :if={@shards == []}
+        title={dgettext("dashboard_tests", "No test was planned on a shard")}
+        image="table"
+      />
+    </.card_section>
+  </.card>
+</div>

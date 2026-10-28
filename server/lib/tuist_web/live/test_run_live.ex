@@ -19,12 +19,15 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Bazel
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.FeatureFlags
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.Selections
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Xcode
@@ -106,6 +109,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign_stress_gate(run)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
+      |> assign(:selection_run, selection_run(project, socket.assigns.selected_account, run))
       |> assign(:show_test_suites, project.build_system != :bazel)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
@@ -1678,6 +1682,12 @@ defmodule TuistWeb.TestRunLive do
       |> Map.new()
 
     assign(socket, :text_attachment_urls, urls)
+  end
+
+  defp selection_run(project, account, run) do
+    if Project.xcode_project?(project) and FeatureFlags.xcode_coverage_enabled?(account) do
+      Selections.run_for_test_run(project.id, run.id)
+    end
   end
 
   defp assign_shard_rows(socket, run) do
