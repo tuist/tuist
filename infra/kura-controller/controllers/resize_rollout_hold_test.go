@@ -489,11 +489,70 @@ func TestReplacePodsStrandedOnCPU(t *testing.T) {
 			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(f.instance, f.statefulSet(onDelete(), tc.template, tc.annotations), pod).Build()
 			r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
-			if err := r.replacePodsStrandedOnCPU(ctx, f.instance); err != nil {
+			if err := r.replacePodsStrandedOnResources(ctx, f.instance); err != nil {
 				t.Fatal(err)
 			}
 			if deleted := !objectExists(t, c, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace}}); deleted != tc.wantDeleted {
 				t.Fatalf("deleted = %v, want %v", deleted, tc.wantDeleted)
+			}
+		})
+	}
+}
+
+func TestResizeHoldRecoversReducedDiskRequest(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		change      func(*appsv1.StatefulSet, *corev1.Pod)
+		wantDeleted bool
+	}{
+		{name: "replaces unscheduled oversized request", wantDeleted: true},
+		{name: "preserves operator pause", change: func(s *appsv1.StatefulSet, _ *corev1.Pod) { s.Annotations = nil }},
+		{name: "preserves rolling partition", change: func(s *appsv1.StatefulSet, _ *corev1.Pod) {
+			s.Spec.UpdateStrategy = rollingUpdate()
+			s.Spec.UpdateStrategy.RollingUpdate.Partition = ptr(int32(1))
+		}},
+		{name: "preserves scheduled pod", change: func(_ *appsv1.StatefulSet, p *corev1.Pod) { p.Spec.NodeName = "node" }},
+		{name: "preserves equal request", change: func(s *appsv1.StatefulSet, _ *corev1.Pod) {
+			s.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceEphemeralStorage] = resource.MustParse("64Gi")
+		}},
+		{name: "preserves smaller request", change: func(s *appsv1.StatefulSet, _ *corev1.Pod) {
+			s.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceEphemeralStorage] = resource.MustParse("128Gi")
+		}},
+		{name: "requires nonzero template request", change: func(s *appsv1.StatefulSet, _ *corev1.Pod) {
+			delete(s.Spec.Template.Spec.Containers[0].Resources.Requests, corev1.ResourceEphemeralStorage)
+		}},
+		{name: "requires Kura template", change: func(s *appsv1.StatefulSet, _ *corev1.Pod) { s.Spec.Template.Spec.Containers[0].Name = "sidecar" }},
+		{name: "rejects duplicate Kura templates", change: func(s *appsv1.StatefulSet, _ *corev1.Pod) {
+			s.Spec.Template.Spec.Containers = append(s.Spec.Template.Spec.Containers, s.Spec.Template.Spec.Containers[0])
+		}},
+		{name: "requires disk scheduling failure", change: func(_ *appsv1.StatefulSet, p *corev1.Pod) {
+			for i := range p.Status.Conditions {
+				p.Status.Conditions[i].Message = "node affinity mismatch"
+			}
+		}},
+		{name: "requires Pending", change: func(_ *appsv1.StatefulSet, p *corev1.Pod) { p.Status.Phase = corev1.PodRunning }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newResizeHoldFixture(100)
+			sts := f.statefulSet(onDelete(), "100m", resizeHeld())
+			sts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceEphemeralStorage] = resource.MustParse("32Gi")
+			pod := f.unscheduledPod(1, "100m", "Insufficient ephemeral-storage")
+			pod.Spec.Containers[0].Resources.Requests[corev1.ResourceEphemeralStorage] = resource.MustParse("64Gi")
+			if tc.change != nil {
+				tc.change(sts, pod)
+			}
+			donor := f.servingPod(0, "100m")
+			claim := f.claim(1, "64Gi")
+			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(sts, pod, donor, claim).Build()
+			r := &KuraInstanceReconciler{Client: c}
+			if err := r.replacePodsStrandedOnResources(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			if deleted := !objectExists(t, c, pod); deleted != tc.wantDeleted {
+				t.Fatalf("deleted=%v, want %v", deleted, tc.wantDeleted)
+			}
+			if !objectExists(t, c, donor) || !objectExists(t, c, claim) {
+				t.Fatal("discarded serving replica or cache claim")
 			}
 		})
 	}
