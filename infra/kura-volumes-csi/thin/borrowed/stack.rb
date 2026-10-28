@@ -122,13 +122,25 @@ class BorrowedProbe
     released=snapshot
     check('confirmed deletion releases full unit commitment',charged['committed_bytes']-released['committed_bytes']==observe(charged,3).fetch('virtual_bytes'))
     check('deleted unit absent from authoritative inventory',observe(released,3).nil?)
-    create(4,'b','unit');control('b',['base',id(4)])
+    %w[data metadata].each do |kind|
+      pressure=call('pressure',kind:kind)
+      check("#{kind} reserve refuses growth",!pressure.fetch('healthy'))
+      refusal,ok=rpc('create',id:4,owner:'b',kind:'unit',bytes:4*GIB)
+      check("#{kind} reserve blocks actual CSI create",!ok,refusal)
+      call('restart')
+    end
+    race=call('race-create');winners=race.select{|r|r.fetch('created')}
+    check('concurrent recipients cannot double-spend one unit',winners.size==1,race:race)
+    recipient=winners.first.fetch('id')
+    pending=call('restart')
+    check('restart charges an unpublished successful create',pending['committed_bytes']==charged['committed_bytes'])
+    create(recipient,'b','unit');control('b',['base',id(recipient)])
     before=stats('b');phases=bench('b');after=stats('b');received=snapshot
-    check('recipient uses transferred backing',observe(received,4).fetch('mapped_bytes')>GIB)
+    check('recipient uses transferred backing',observe(received,recipient).fetch('mapped_bytes')>GIB)
     [1,2].each{|n|check('base identity survives transfer',observe(base_before,n).fetch('lv_uuid')==observe(received,n).fetch('lv_uuid'))}
-    @report[:observations][:transfer]={charged:charged,held:held_state,released:released,received:received,delete_and_recipient_seconds:Process.clock_gettime(Process::CLOCK_MONOTONIC)-started,recipient_phases:phases,cpu_before:before,cpu_after:after}
+    @report[:observations][:transfer]={charged:charged,held:held_state,released:released,received:received,delete_and_recipient_seconds:Process.clock_gettime(Process::CLOCK_MONOTONIC)-started,concurrent_creates:race,recipient_phases:phases,cpu_before:before,cpu_after:after}
     %w[a b].each{|o|stop(o)}
-    [1,2,4].each{|n|call('delete',id:n)}
+    [1,2,recipient].each{|n|call('delete',id:n)}
     call('fail-trim',fail:false)
     check('all transfer commitments released',snapshot.fetch('committed_bytes')==0)
   end

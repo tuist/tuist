@@ -102,10 +102,11 @@ jobs:
 
   borrowed-build:
     if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
-    runs-on: tuist-linux
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
+      id-token: write
     defaults:
       run:
         working-directory: kura
@@ -130,8 +131,8 @@ jobs:
           cp src/borrowed_prototype.rs /tmp/kura-borrowed-runtime.rs
       - name: Validate and build the experimental runtime
         run: |
-          mise run --skip-tools clippy
-          mise run --skip-tools compile --binary-only -- -c opt
+          mise run --skip-tools clippy -- --jobs=2
+          mise run --skip-tools compile --binary-only -- -c opt --jobs=2
           cp bazel-bin/kura /tmp/kura-borrowed-runtime
       - uses: actions/upload-artifact@v4
         with:

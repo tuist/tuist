@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -169,7 +170,45 @@ func TestBorrowedRealStack(t *testing.T) {
 		case "fail-trim":
 			runner.failTrim.Store(q.Fail)
 			value = true
+		case "pressure":
+			var s *ThinSnapshot
+			s, e = d.ThinStatus(ctx)
+			if e != nil {
+				break
+			}
+			pressured := cfg
+			if q.Kind == "metadata" {
+				pressured.Thin.MetadataReserveBytes = s.MetadataTotal - s.MetadataUsed + 4096
+			} else if q.Kind == "data" {
+				pressured.Thin.DataReserveBytes = s.DataTotal - s.DataUsed + s.ChunkBytes
+			} else {
+				e = fmt.Errorf("unknown reserve")
+				break
+			}
+			d, e = New(pressured)
+			if e == nil {
+				value, e = d.ThinStatus(ctx)
+			}
+		case "race-create":
+			type result struct {
+				ID      int    `json:"id"`
+				Created bool   `json:"created"`
+				Error   string `json:"error,omitempty"`
+			}
+			results := make(chan result, 2)
+			for _, n := range []int{4, 5} {
+				go func(n int) {
+					_, err := d.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: id(n), CapacityRange: &csi.CapacityRange{RequiredBytes: 4 << 30}, VolumeCapabilities: []*csi.VolumeCapability{capability}, Parameters: map[string]string{"layout": ThinLayout}, AccessibilityRequirements: &csi.TopologyRequirement{Requisite: []*csi.Topology{{Segments: map[string]string{TopologyKey: "borrowed-test"}}}}})
+					r := result{ID: n, Created: err == nil}
+					if err != nil {
+						r.Error = err.Error()
+					}
+					results <- r
+				}(n)
+			}
+			value = []result{<-results, <-results}
 		case "create":
+
 			if q.ID < 1 || q.ID > 12 || (q.Owner != "a" && q.Owner != "b" && q.Owner != "bench") || (q.Kind != "base" && q.Kind != "unit") || q.Bytes < 1<<30 || q.Bytes > 8<<30 {
 				e = fmt.Errorf("invalid fixture request")
 				break
@@ -270,10 +309,10 @@ func TestBorrowedRealStack(t *testing.T) {
 	if script == "" {
 		t.Fatal("fixture script required")
 	}
-	out, e := (ExecRunner{}).Run(ctx, nil, "ruby", script, conf)
-	// Script emits measurements only; credentials and keys stay in private files.
-	t.Log(string(out))
-	if e != nil {
+	command := exec.CommandContext(ctx, "ruby", script, conf)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	if e := command.Run(); e != nil {
 		t.Fatal(e)
 	}
 }
