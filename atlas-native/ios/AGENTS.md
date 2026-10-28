@@ -151,7 +151,10 @@ Show loading feedback before the first protected history
 request completes. Approaching the top automatically loads one earlier page, retaining the
 current visible message through the lazy stack's native anchoring, not a forced jump to the
 old first row after the response. The scroll content has one lazy stack with stable group IDs;
-do not wrap the entire transcript in another scroll target.
+do not wrap the entire transcript in another scroll target. On iOS, each group has a native
+hosting boundary that measures its natural height at the proposed width; keep the outer
+environment and let the transcript own safe-area insets. Preserve this isolation for tall
+Dynamic Type content rather than eagerly rendering the entire history.
 Keep manual retry and never loop failed requests.
 Keep the latest-message action beside the index
 and reserve transcript space so these controls do not cover message content.

@@ -240,8 +240,9 @@ final class AtlasOrbitUITests: XCTestCase {
         let microphone = app.buttons["thread-microphone"]
         XCTAssertTrue(microphone.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(microphone.frame.height, 44)
-        let accountCard = try app.visibleElement("thread-account-card", up: false)
-        XCTAssertTrue(accountCard.isHittable)
+        let accountCard = app.descendants(matching: .any)["thread-account-card"].firstMatch
+        XCTAssertTrue(accountCard.waitForExistence(timeout: 5))
+        XCTAssertTrue(try app.visibleElement("Northstar", up: false).isHittable)
         let source = try visibleCardSource(in: app)
         XCTAssertGreaterThanOrEqual(source.frame.height, 44)
         XCTAssertFalse(app.staticTexts["Result"].exists)
@@ -255,11 +256,11 @@ final class AtlasOrbitUITests: XCTestCase {
 
     @MainActor private func visibleCardSource(in app: XCUIApplication) throws -> XCUIElement {
         let source = app.descendants(matching: .any).matching(identifier: "thread-card-source").firstMatch
-        let composer = app.textFields["thread-composer"]
+        let model = app.buttons["thread-model"]
         for _ in 0..<10 {
             // NativeShell can expose an offscreen child as hittable. Require its whole target inside the transcript.
             let top = app.navigationBars.firstMatch.frame.maxY
-            let bottom = composer.frame.minY
+            let bottom = model.frame.minY
             if source.exists, source.isHittable, source.frame.minY >= top, source.frame.maxY <= bottom { return source }
             app.scrollContent(up: !source.exists || source.frame.maxY > bottom)
         }
@@ -271,9 +272,37 @@ final class AtlasOrbitUITests: XCTestCase {
         app.launchArguments = ["--workspace", "--orbit-rich"]
         app.launch()
         defer { app.terminate() }
+        XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.buttons["thread-01922cc0-0000-7000-8000-000000000001"].waitForExistence(timeout: 10))
         app.buttons["thread-01922cc0-0000-7000-8000-000000000001"].tap()
-        XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
+        let composer = app.textFields["thread-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["thread-account-card"].firstMatch.waitForExistence(timeout: 5))
+        let header = try app.visibleElement("Account lookup · succeeded")
+        let next = try app.visibleElement("Check recent activity for this account.")
+        let collapsedGap = next.frame.minY - header.frame.maxY
+        header.tap()
+        XCTAssertTrue(try app.visibleElement("Result").isHittable)
+        _ = try app.visibleElement("Check recent activity for this account.")
+        let expanded = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            next.frame.minY - header.frame.maxY > collapsedGap + 40
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed)
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(try app.visibleElement("Result").isHittable)
+        capture(app, "ios-orbit-inline-account-landscape-expanded-evidence-preview")
+        XCUIDevice.shared.orientation = .portrait
+        composer.tap()
+        composer.typeText("Keep this evidence open.")
+        XCTAssertTrue(try app.visibleElement("Result").isHittable)
+        try app.visibleElement("Account lookup · succeeded").tap()
+        _ = try app.visibleElement("Check recent activity for this account.")
+        let collapsed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            abs(next.frame.minY - header.frame.maxY - collapsedGap) < 1
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [collapsed], timeout: 5), .completed)
+        XCTAssertFalse(app.staticTexts["Result"].exists)
+        XCTAssertEqual(composer.value as? String, "Keep this evidence open.")
         try app.visibleElement("Account lookup · succeeded").tap()
         XCTAssertTrue(try app.visibleElement("Result").isHittable)
         capture(app, "ios-orbit-inline-account-expanded-evidence-preview")
@@ -590,9 +619,10 @@ final class AtlasOrbitUITests: XCTestCase {
     @MainActor private func assertLatestVisible(_ app: XCUIApplication, latest: XCUIElement, composer: XCUIElement) {
         let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             latest.exists && latest.frame.height > 0 && latest.frame.minY >= app.navigationBars.firstMatch.frame.maxY &&
-                latest.frame.maxY <= composer.frame.minY && latest.isHittable
+                latest.frame.maxY <= app.buttons["thread-model"].frame.minY && latest.isHittable
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 10), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 10), .completed,
+                       "Latest: \(latest.frame), navigation: \(app.navigationBars.firstMatch.frame), composer: \(composer.frame)")
     }
 
     @MainActor func testBottomFollowsAppendedAndGrowingReplyWithoutMovingHistoryReaders() throws {
@@ -883,7 +913,9 @@ final class AtlasOrbitUITests: XCTestCase {
     }
 
     @MainActor private func capture(_ app: XCUIApplication, _ name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        // Application screenshots can crop the rotated window to a portrait-sized square.
+        let screenshot = app.frame.width > app.frame.height ? XCUIScreen.main.screenshot() : app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
