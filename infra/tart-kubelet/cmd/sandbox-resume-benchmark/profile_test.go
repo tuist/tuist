@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
@@ -60,7 +62,7 @@ func TestProfileReadsOnlyCurrentLaunch(t *testing.T) {
 	if err := os.WriteFile(path, []byte(old+profileText(profileFixture())), 0600); err != nil {
 		t.Fatal(err)
 	}
-	p, err := readRuntimeProfile(path, int64(len(old)))
+	p, err := readRuntimeProfile(t.Context(), path, int64(len(old)))
 	if err != nil || p == nil {
 		t.Fatalf("profile: %v, %v", p, err)
 	}
@@ -70,6 +72,67 @@ func TestProfileReadsOnlyCurrentLaunch(t *testing.T) {
 	p, err = parseRuntimeProfile(strings.NewReader("unmodified runtime\n"))
 	if err != nil || p != nil {
 		t.Fatalf("invented measurements for uninstrumented binary: %v, %v", p, err)
+	}
+}
+
+func TestProfileWaitsForDelayedLogDelivery(t *testing.T) {
+	t.Setenv("TUIST_TART_PROFILE", "1")
+	full := profileText(profileFixture())
+	for _, prefix := range []string{"", full[:len(full)-12]} {
+		path := filepath.Join(t.TempDir(), "vm.log")
+		if err := os.WriteFile(path, []byte(prefix), 0600); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() {
+			profile, err := readRuntimeProfile(t.Context(), path, 0)
+			if err == nil && profile == nil {
+				err = errors.New("missing expected profile")
+			}
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			t.Fatalf("returned before complete log delivery: %v", err)
+		case <-time.After(30 * time.Millisecond):
+		}
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.WriteString(full[len(prefix):])
+		closeErr := f.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("append: %v, close: %v", err, closeErr)
+		}
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestProfileWaitHonorsDeadline(t *testing.T) {
+	t.Setenv("TUIST_TART_PROFILE", "1")
+	path := filepath.Join(t.TempDir(), "vm.log")
+	if err := os.WriteFile(path, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	if _, err := readRuntimeProfile(ctx, path, 0); !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, errIncompleteProfile) {
+		t.Fatalf("expected bounded incomplete profile error: %v", err)
+	}
+}
+
+func TestUninstrumentedPartialLogDoesNotRequireProfile(t *testing.T) {
+	t.Setenv("TUIST_TART_PROFILE", "")
+	path := filepath.Join(t.TempDir(), "vm.log")
+	if err := os.WriteFile(path, []byte("ordinary output without a newline"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	profile, err := readRuntimeProfile(t.Context(), path, 0)
+	if err != nil || profile != nil {
+		t.Fatalf("uninstrumented log: %v, %v", profile, err)
 	}
 }
 

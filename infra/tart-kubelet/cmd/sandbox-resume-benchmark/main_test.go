@@ -54,7 +54,7 @@ func TestRequiresReservationAndIsolatedStore(t *testing.T) {
 	if err := os.Symlink(regular, alias); err != nil {
 		t.Fatal(err)
 	}
-	o := options{home: alias, source: "base", mode: "resume", memory: 8192, cpus: 8, cycles: 1, timeout: time.Minute, build: "build.sh", acquire: "acquire.sh"}
+	o := options{home: alias, kubeletHome: regular, source: "base", mode: "resume", memory: 8192, cpus: 8, cycles: 1, timeout: time.Minute, build: "build.sh", acquire: "acquire.sh"}
 	if err := o.validate(); err == nil {
 		t.Fatal("accepted alias of the runner store")
 	}
@@ -66,5 +66,47 @@ func TestRequiresReservationAndIsolatedStore(t *testing.T) {
 	o.acquire = "acquire.sh"
 	if err := o.validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestStoreIsolationAcrossUsersAndSymlinks(t *testing.T) {
+	root := t.TempDir()
+	userHome := filepath.Join(root, "operator")
+	regular := filepath.Join(userHome, ".tart")
+	kubelet := filepath.Join(root, "runner", "store")
+	sibling := filepath.Join(userHome, ".tart-benchmark")
+	for _, dir := range []string{regular, kubelet, sibling, filepath.Join(regular, "nested"), filepath.Join(kubelet, "nested")} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("HOME", userHome)
+	alias := filepath.Join(root, "alias")
+	if err := os.Symlink(kubelet, alias); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, home, protected string
+		valid                 bool
+	}{
+		{"different user store", kubelet, kubelet, false},
+		{"nested kubelet store", filepath.Join(kubelet, "nested"), kubelet, false},
+		{"ancestor", root, kubelet, false},
+		{"alias", alias, kubelet, false},
+		{"nested alias", filepath.Join(alias, "nested"), kubelet, false},
+		{"protected alias", kubelet, alias, false},
+		{"operator store", regular, kubelet, false},
+		{"nested operator store", filepath.Join(regular, "nested"), kubelet, false},
+		{"sibling prefix", sibling, kubelet, true},
+		{"missing kubelet path", sibling, "", false},
+		{"relative kubelet path", sibling, "store", false},
+		{"nonexistent kubelet path", sibling, filepath.Join(root, "absent"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			o := options{home: tc.home, kubeletHome: tc.protected, source: "base", mode: "resume", memory: 8192, cpus: 8, cycles: 1, timeout: time.Minute, build: "build.sh", acquire: "acquire.sh"}
+			if err := o.validate(); (err == nil) != tc.valid {
+				t.Fatalf("valid=%v: %v", tc.valid, err)
+			}
+		})
 	}
 }

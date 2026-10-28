@@ -25,6 +25,7 @@ import (
 
 type options struct {
 	home, binary, source, mode       string
+	kubeletHome                      string
 	prepare, build, between, acquire string
 	beforeSuspend                    string
 	betweenLabel                     string
@@ -65,6 +66,7 @@ type sample struct {
 func main() {
 	var o options
 	flag.StringVar(&o.home, "home", "", "isolated TART_HOME containing the local source image (required)")
+	flag.StringVar(&o.kubeletHome, "kubelet-home", "", "actual kubelet Tart store, including when owned by another user (required)")
 	flag.StringVar(&o.source, "source", "", "stopped local base VM in the isolated store (required; never modified)")
 	flag.StringVar(&o.binary, "tart", "/usr/local/bin/tart", "Tart binary")
 	flag.StringVar(&o.mode, "mode", "resume", "resume, resident (opt-in patched runtime), or workload")
@@ -103,9 +105,24 @@ func (o options) validate() error {
 	if err != nil {
 		return fmt.Errorf("isolated home: %w", err)
 	}
-	regular, _ := filepath.EvalSymlinks(filepath.Join(userHome, ".tart"))
-	if resolved == regular {
-		return errors.New("refusing the user's default Tart store; use an isolated store")
+	if !filepath.IsAbs(o.kubeletHome) {
+		return errors.New("provide the actual absolute --kubelet-home; do not infer it from the invoking user")
+	}
+	kubeletHome, err := filepath.EvalSymlinks(o.kubeletHome)
+	if err != nil {
+		return fmt.Errorf("kubelet home: %w", err)
+	}
+	protected := []string{kubeletHome}
+	regular, err := filepath.EvalSymlinks(filepath.Join(userHome, ".tart"))
+	if err == nil {
+		protected = append(protected, regular)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("default Tart home: %w", err)
+	}
+	for _, store := range protected {
+		if pathsOverlap(resolved, store) {
+			return fmt.Errorf("isolated home overlaps protected Tart store %s", store)
+		}
 	}
 	if o.mode != "resume" && o.mode != "workload" && o.mode != "resident" {
 		return errors.New("mode must be resume, resident or workload")
@@ -120,6 +137,16 @@ func (o options) validate() error {
 		return errors.New("--build-script and --acquire-script are required")
 	}
 	return nil
+}
+
+// Compare path components, not string prefixes: a sibling named .tart-bench is
+// safe, but either an ancestor or a descendant of a protected store is not.
+func pathsOverlap(a, b string) bool {
+	contains := func(parent, child string) bool {
+		rel, err := filepath.Rel(parent, child)
+		return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	}
+	return contains(a, b) || contains(b, a)
 }
 
 func run(parent context.Context, o options, out, progress io.Writer) (resultErr error) {
@@ -323,7 +350,7 @@ func run(parent context.Context, o options, out, progress io.Writer) (resultErr 
 			return fmt.Errorf("cycle %d readiness: %w", cycle, err)
 		}
 		s.FirstCommandMS = time.Since(started).Milliseconds()
-		s.RuntimeProfile, err = readRuntimeProfile(h.LogPath, logOffset)
+		s.RuntimeProfile, err = readRuntimeProfile(ctx, h.LogPath, logOffset)
 		if err != nil {
 			stopObserving()
 			<-consumed

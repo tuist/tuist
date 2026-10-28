@@ -219,7 +219,7 @@ func evictResident(ctx context.Context, o options, c *tart.Client, h *tart.RunHa
 		return err
 	}
 	firstMS := milliseconds(time.Since(start))
-	profile, err := readRuntimeProfile(h.LogPath, offset)
+	profile, err := readRuntimeProfile(ctx, h.LogPath, offset)
 	if err != nil {
 		return err
 	}

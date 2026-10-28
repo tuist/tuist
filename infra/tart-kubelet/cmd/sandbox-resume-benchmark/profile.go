@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
 )
 
 type probeAttempt struct {
@@ -47,7 +49,32 @@ func logSize(path string) (int64, error) {
 	return info.Size(), nil
 }
 
-func readRuntimeProfile(path string, offset int64) (*runtimeProfile, error) {
+var errIncompleteProfile = errors.New("incomplete runtime profile")
+
+// A successful guest probe can race with the log-copy goroutine. Wait briefly
+// for complete records; this runs after the first-command timestamp is captured.
+func readRuntimeProfile(ctx context.Context, path string, offset int64) (*runtimeProfile, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	for {
+		profile, err := readRuntimeProfileOnce(path, offset)
+		if err == nil && (profile != nil || os.Getenv("TUIST_TART_PROFILE") != "1") {
+			return profile, nil
+		}
+		if err != nil && !errors.Is(err, errIncompleteProfile) {
+			return nil, err
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, errors.Join(ctx.Err(), errIncompleteProfile)
+		case <-timer.C:
+		}
+	}
+}
+
+func readRuntimeProfileOnce(path string, offset int64) (*runtimeProfile, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -56,7 +83,18 @@ func readRuntimeProfile(path string, offset int64) (*runtimeProfile, error) {
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		return nil, err
 	}
-	return parseRuntimeProfile(io.LimitReader(f, 4<<20))
+	data, err := io.ReadAll(io.LimitReader(f, 4<<20))
+	if err != nil {
+		return nil, err
+	}
+	// The pipe may have delivered only part of the final JSON line.
+	text := string(data)
+	end := strings.LastIndexByte(text, '\n') + 1
+	profile, err := parseRuntimeProfile(strings.NewReader(text[:end]))
+	if err == nil && strings.HasPrefix(text[end:], "TUIST_RESUME_PROFILE ") {
+		return nil, errIncompleteProfile
+	}
+	return profile, err
 }
 
 func parseRuntimeProfile(r io.Reader) (*runtimeProfile, error) {
@@ -94,8 +132,11 @@ func parseRuntimeProfile(r io.Reader) (*runtimeProfile, error) {
 	var previous uint64
 	for _, name := range ordered {
 		event, ok := byName[name]
-		if !ok || event.UptimeNS < previous {
-			return nil, fmt.Errorf("missing or out-of-order profile boundary %q", name)
+		if !ok {
+			return nil, fmt.Errorf("%w: missing boundary %q", errIncompleteProfile, name)
+		}
+		if event.UptimeNS < previous {
+			return nil, fmt.Errorf("out-of-order profile boundary %q", name)
 		}
 		previous = event.UptimeNS
 	}

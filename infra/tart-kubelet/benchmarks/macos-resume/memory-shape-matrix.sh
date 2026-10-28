@@ -4,6 +4,7 @@
 set -euo pipefail
 root=${1:?usage: memory-shape-matrix.sh /absolute/experiment-root /absolute/tart}
 tart_binary=${2:?provide the profiling Tart binary}
+: "${KUBELET_TART_HOME:?set KUBELET_TART_HOME to the actual kubelet store}"
 case "$root:$tart_binary" in /*:/*) ;; *) exit 1 ;; esac
 scripts=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$root/results"
@@ -22,6 +23,7 @@ for workload in idle fixture; do
       build="$scripts/build-fixture.sh"
     fi
     "$root/benchmark" --home "$root/store" --source sandbox-base \
+      --kubelet-home "$KUBELET_TART_HOME" \
       --tart "$tart_binary" --memory-mb "$memory" --cpus 8 --cycles 3 \
       --timeout 15m --acquire-script "$root/acquire.sh" \
       --prepare-script "$prepare" --build-script "$build" \

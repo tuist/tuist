@@ -27,6 +27,9 @@ func (c *Client) Exec(ctx context.Context, name string, command ...string) ([]by
 // A stopped VM is an error, not a successful suspension. On any error callers
 // must retain the capacity charge and reconcile the VM before releasing it.
 // Serialize this with all other lifecycle operations for the same VM.
+// Names must be unique across all Tart stores on the host: IsRunning matches
+// process arguments, not HomeDir. A same-name process in another store keeps
+// this operation waiting (and its capacity charged), even after this VM exits.
 func (c *Client) Suspend(ctx context.Context, handle *RunHandle) error {
 	if handle == nil {
 		return errors.New("suspend requires the owned Tart process handle")

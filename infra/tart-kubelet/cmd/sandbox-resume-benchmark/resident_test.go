@@ -92,7 +92,7 @@ func TestResidentCanceledRequestDoesNotPauseVM(t *testing.T) {
 }
 
 func TestResidentModeCannotPretendToReleaseCapacity(t *testing.T) {
-	o := options{home: t.TempDir(), source: "base", mode: "resident", memory: 8192, cpus: 8,
+	o := options{home: t.TempDir(), kubeletHome: t.TempDir(), source: "base", mode: "resident", memory: 8192, cpus: 8,
 		cycles: 1, timeout: time.Minute, acquire: "reservation.sh", build: "build.sh"}
 	t.Setenv("TUIST_RESIDENT_BENCHMARK", "")
 	if err := o.validate(); err == nil {
