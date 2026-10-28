@@ -1,0 +1,29 @@
+diff --git a/Sources/tart/Commands/Run.swift b/Sources/tart/Commands/Run.swift
+--- a/Sources/tart/Commands/Run.swift
++++ b/Sources/tart/Commands/Run.swift
+@@ -536,7 +536,11 @@ struct Run: AsyncParsableCommand {
+             if FileManager.default.fileExists(atPath: vmDir.stateURL.path) {
+               print("restoring VM state from a snapshot...")
+               resumeProfile("restore_started")
+-              try await vm!.virtualMachine.restoreMachineStateFrom(url: vmDir.stateURL)
++              if ProcessInfo.processInfo.environment["TUIST_EARLY_RESUME_PROBE"] == "1" {
++                try await restoreWithEarlyResumeProbe(vm!.virtualMachine, from: vmDir.stateURL)
++              } else {
++                try await vm!.virtualMachine.restoreMachineStateFrom(url: vmDir.stateURL)
++              }
+               resumeProfile("restore_finished")
+               try FileManager.default.removeItem(at: vmDir.stateURL)
+               resumeProfile("state_removed")
+@@ -603,6 +603,12 @@ struct Run: AsyncParsableCommand {
+           }
+         }
+ 
++        if ProcessInfo.processInfo.environment["TUIST_RESIDENT_BENCHMARK"] == "1" {
++          Task { @MainActor in
++            await runResidentBenchmark(vm!.virtualMachine, directory: vmDir.baseURL)
++          }
++        }
++
+         try await vm!.run()
+ 
+         if let vncImpl = vncImpl {

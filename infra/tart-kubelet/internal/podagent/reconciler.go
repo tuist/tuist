@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/macosandbox"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
@@ -270,7 +271,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
+	// Native sandbox Pods are reconciled by the independent host service. Never
+	// turn their control marker or resource reservation into an ordinary CI VM.
+	if pod.Labels[macosandbox.RoleLabel] != "" {
+		if pod.Namespace != macosandbox.Namespace {
+			return ctrl.Result{}, fmt.Errorf("sandbox Pod outside trusted namespace")
+		}
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
 	if !pod.DeletionTimestamp.IsZero() {
+
 		// Pod is being deleted. Run VM teardown, then drop our
 		// finalizer and force-complete the API object deletion. Order
 		// matters: the Pod must not disappear from kubectl's view
