@@ -39,6 +39,13 @@ be on the configured filesystem, without symlinks, with unique inherited XFS
 project IDs and finite enforced quotas. Missing or inconsistent observations
 stop authorization renewal. No namespace or Kubernetes mutation is required.
 
+The hosted provisioner records PV paths under `/opt/local-path-provisioner`,
+a bind mount of `/data/local-path-provisioner`. The agent mounts that root
+read-only and explicitly allows it with `--volume-root`; quota operations still
+target `/data`. Every volume must be a nonsymlink descendant of an allowed root
+on the same device as `/data`, with its own inherited project ID. Merely sharing
+a path prefix or declaring an alternate root never permits another filesystem.
+
 Usable capacity is managed project use plus filesystem available bytes, minus
 unused commitments of every unmanaged project and a mandatory operational
 reserve. An optional absolute cap can reduce this further. Retained and legacy

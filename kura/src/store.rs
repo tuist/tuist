@@ -23367,6 +23367,13 @@ mod tests {
             config.cas_capacity_bytes = Some(8 * 1024 * 1024 * 1024);
             config.tmp_dir_max_bytes = 128 * 1024 * 1024;
         });
+        // Model released blocks explicitly. Concurrent writes on the test
+        // runner can otherwise make statfs report no progress for these tiny
+        // files and leave the no-progress guard armed before the phase below.
+        let available = Arc::new(AtomicU64::new(16u64 << 30));
+        store.disk_available_override = Some(Arc::new(move || {
+            available.fetch_add(4096, Ordering::Relaxed)
+        }));
         let manifests = seed_pressure_segments(&store, 12).await;
         let file = dir.path().join("budget.json");
         let now = std::time::SystemTime::now()

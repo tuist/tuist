@@ -16,9 +16,10 @@ import (
 )
 
 type XFS struct {
-	Mount    string
-	Reserve  uint64
-	Capacity uint64
+	Mount      string
+	VolumeRoot string
+	Reserve    uint64
+	Capacity   uint64
 }
 
 func command(name string, args ...string) (string, error) {
@@ -31,27 +32,43 @@ func command(name string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-func (x *XFS) project(v Volume) (uint32, error) {
+func (x *XFS) volumePath(v Volume) (string, error) {
 	path, err := filepath.EvalSymlinks(v.Path)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	root, err := filepath.EvalSymlinks(x.Mount)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	if path != v.Path || !strings.HasPrefix(path, root+string(filepath.Separator)) {
-		return 0, fmt.Errorf("volume %q is outside quota filesystem or contains a symlink", v.ID)
+	allowed := strings.HasPrefix(path, root+string(filepath.Separator))
+	if x.VolumeRoot != "" {
+		alias, err := filepath.EvalSymlinks(x.VolumeRoot)
+		if err != nil || alias != x.VolumeRoot {
+			return "", fmt.Errorf("invalid provisioner volume root")
+		}
+		allowed = allowed || strings.HasPrefix(path, alias+string(filepath.Separator))
+	}
+	if path != v.Path || !allowed {
+		return "", fmt.Errorf("volume %q is outside quota filesystem or contains a symlink", v.ID)
 	}
 	var stat, rootStat unix.Stat_t
 	if err := unix.Stat(path, &stat); err != nil {
-		return 0, err
+		return "", err
 	}
 	if err := unix.Stat(root, &rootStat); err != nil {
-		return 0, err
+		return "", err
 	}
 	if stat.Dev != rootStat.Dev {
-		return 0, fmt.Errorf("volume %q is on another filesystem", v.ID)
+		return "", fmt.Errorf("volume %q is on another filesystem", v.ID)
+	}
+	return path, nil
+}
+
+func (x *XFS) project(v Volume) (uint32, error) {
+	path, err := x.volumePath(v)
+	if err != nil {
+		return 0, err
 	}
 	out, err := command("xfs_io", "-c", "stat", path)
 	if err != nil {

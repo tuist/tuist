@@ -27,6 +27,7 @@ func run() error {
 	node := flag.String("node", "", "Kubernetes node name; replaces the inventory file")
 	namespace := flag.String("namespace", "kura", "Kubernetes workload namespace")
 	mount := flag.String("mount", "/data", "XFS filesystem mount")
+	volumeRoot := flag.String("volume-root", "", "optional provisioner bind-mount root on the same filesystem")
 	control := flag.String("control-dir", "/run/kura-disk", "node-owned runtime budget directory")
 	lockPath := flag.String("lock", "/var/lock/tuist-kura-quota.lock", "shared local-path provisioner lock")
 	reserve := flag.Uint64("reserve-bytes", 0, "physical free-space reserve, required")
@@ -66,7 +67,7 @@ func run() error {
 	if err := unix.Flock(int(owner.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		return fmt.Errorf("another disk allocator owns this filesystem: %w", err)
 	}
-	agent := diskallocator.Agent{Backend: &diskallocator.XFS{Mount: *mount, Reserve: *reserve, Capacity: *capacity}, ControlDir: *control}
+	agent := diskallocator.Agent{Backend: &diskallocator.XFS{Mount: *mount, VolumeRoot: *volumeRoot, Reserve: *reserve, Capacity: *capacity}, ControlDir: *control}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(stop)
