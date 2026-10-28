@@ -12,7 +12,7 @@ import Testing
     import Musl
 #endif
 
-@Suite struct CommandRunnerTests {
+@Suite(.serialized) struct CommandRunnerTests {
     #if os(macOS)
         @Test(arguments: ["--jobserver-auth", "--jobserver-fds"])
         func preservesCargoJobserverDescriptors(flag: String) async throws {
