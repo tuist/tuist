@@ -135,6 +135,12 @@ residencies and daemon worker/exec guards remain authoritative.
 
 ## Multiple replicas
 
+Managed Amp Orbs use account-owned integrations and a workload-authenticated internal dispatch endpoint; standalone providers retain the account-admin endpoint. Both use the `AmpOrbs` context;
+[`infra/amp-orbs/README.md`](../../../../infra/amp-orbs/README.md) specifies
+the provider contract and rollout. Preserve their active residency while
+bootstrap is detached, and exclude non-null `amp_orb_id` rows from inactivity
+retention: Amp owns their pause/delete lifecycle.
+
 Web replicas form an Erlang cluster, and nothing here assumes the
 socket, the poller and the caller share a replica:
 

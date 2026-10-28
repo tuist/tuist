@@ -1832,16 +1832,32 @@ public class GraphTraverser: GraphTraversing {
         guard let dependencies = graph.dependencies[rootDependency] else { return .incompatible }
 
         let result: PlatformCondition.CombinationResult
+        let xcframework = transitiveDependency.xcframeworkDependency
+        let hasDirectDependency = dependencies.contains(transitiveDependency)
 
-        // We've reached our destination, return a condition for the leaf relationship (`nil` or a `PlatformFilters` set)
-        if dependencies.contains(transitiveDependency) {
+        // Signature normalization can coalesce direct and transitive XCFramework references.
+        // Preserve direct-edge precedence for other dependency kinds.
+        if hasDirectDependency,
+           xcframework == nil || graph.dependencyConditions[(rootDependency, transitiveDependency)] == nil
+        {
             result = .condition(graph.dependencyConditions[(rootDependency, transitiveDependency)])
         } else {
             // Capture the filters that could be applied to intermediate dependencies
             // A --> (.ios) B --> C : C should have the .ios filter applied due to B
             let filters = dependencies.map { node -> PlatformCondition.CombinationResult in
-                let transitive = combinedCondition(to: transitiveDependency, from: node)
                 let currentCondition = graph.dependencyConditions[(rootDependency, node)]
+                if node == transitiveDependency {
+                    return .condition(currentCondition)
+                }
+                // Dynamic linkers absorb static dependencies; source dynamic targets also link their own frameworks.
+                // Precompiled dynamic frameworks still propagate their dynamic dependencies to the consumer.
+                if hasDirectDependency,
+                   canDependencyLinkStaticProducts(dependency: node),
+                   node.isTarget || xcframework?.linking == .static
+                {
+                    return .incompatible
+                }
+                let transitive = combinedCondition(to: transitiveDependency, from: node)
                 switch transitive {
                 case .incompatible:
                     return .incompatible

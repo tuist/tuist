@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.25-bookworm AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS builder
 WORKDIR /src
 COPY infra/kura-controller/go.mod infra/kura-controller/go.sum* ./
 RUN go mod download

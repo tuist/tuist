@@ -549,3 +549,46 @@ func TestDockerDeleteRemovesTheOfferedHead(t *testing.T) {
 		}
 	}
 }
+
+func TestDockerOlderCloneCannotReplaceItsAssignedHead(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := dockerSlot(first)
+	path := attachDocker(t, b, slot)
+	slot.BaseGeneration = 8
+	if err := os.WriteFile(b.image(slot)+".base", []byte("7"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	writeSuperblock(t, b.image(slot), 1, 0, 0)
+	writeDockerReport(t, path, DockerReport{Clean: true, Changed: true})
+	if err := b.Seal(slot, path); !errors.Is(err, ErrSuperseded) {
+		t.Fatalf("unmerged older clone: %v", err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("published generation 7 over assigned generation 8")
+	}
+}
+
+func TestDockerOlderClonePublishesAfterMergingItsAlreadyAssignedHead(t *testing.T) {
+	for _, into := range []string{"branch", "head"} {
+		t.Run(into, func(t *testing.T) {
+			head := savedDockerHead(8)
+			b, transfer, slot, path := mergingDocker(t, head)
+			slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = 8, head.ImageDigest, head.ContentDigest
+			if err := os.WriteFile(b.image(slot)+".base", []byte("7"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			image := b.image(slot)
+			if into == "head" {
+				image += ".merge"
+			}
+			writeSuperblock(t, image, 1, 0, 0)
+			writeDockerReport(t, path, DockerReport{Clean: true, Changed: true, MergedGeneration: 8, MergedInto: into})
+			if err := b.Seal(slot, path); err != nil {
+				t.Fatal(err)
+			}
+			if transfer.uploads != 1 || len(transfer.rebased) != 0 {
+				t.Fatalf("uploads=%d rebased=%v; assigned head needs no rebase", transfer.uploads, transfer.rebased)
+			}
+		})
+	}
+}

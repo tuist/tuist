@@ -15,6 +15,12 @@ defmodule TuistWeb.Gettext.Configuration do
         allowed_locales: allowed_locales,
         plural_forms: TuistWeb.Gettext.Plural,
         split_module_by: [:locale, :domain]
+
+      # Gettext compiles each locale/domain module in a ParallelCompiler async task that
+      # waits on the plural module. If it is not compiled yet, the compiler only resumes
+      # those tasks on its 10s threshold tick, stalling cold compiles for ~30 minutes.
+      # The catalogs compile in __before_compile__, so this still runs first.
+      require TuistWeb.Gettext.Plural
     end
   end
 end

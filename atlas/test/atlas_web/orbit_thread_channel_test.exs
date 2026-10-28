@@ -40,27 +40,25 @@ defmodule AtlasWeb.OrbitThreadChannelTest do
     assert Enum.all?(people, &(Map.keys(&1) |> Enum.sort() == [:id, :name, :typing]))
   end
 
-  test "compaction activity pushes even when history revision is unchanged", %{owner: owner, thread: thread} do
+  test "legacy compaction activity clears even when history revision is unchanged", %{owner: owner, thread: thread} do
     run =
       Repo.insert!(%Run{
         thread_id: thread.id,
         acting_user_id: owner.id,
         status: "running",
+        activity: "compacting",
         trigger_seq: 0,
         session_id: Ecto.UUID.generate()
       })
 
     {socket, initial} = join_as(owner, thread)
-    assert initial.agent_status == "running"
+    assert initial.agent_status == "compacting"
     metadata = %{agent: Agent, session_id: run.session_id}
-    Progress.handle_event([:condukt, :compact, :start], %{}, metadata, nil)
-    send(socket.channel_pid, :thread_changed)
-    assert %{revision: revision} = await_snapshot(&(&1.agent_status == "compacting"))
-    assert revision == initial.revision
 
     Progress.handle_event([:condukt, :compact, :stop], %{}, Map.put(metadata, :changed, false), nil)
     send(socket.channel_pid, :thread_changed)
-    assert %{revision: ^revision} = await_snapshot(&(&1.agent_status == "running"))
+    assert %{revision: revision} = await_snapshot(&(&1.agent_status == "running"))
+    assert revision == initial.revision
   end
 
   test "new messages move the revision", %{owner: owner, thread: thread} do

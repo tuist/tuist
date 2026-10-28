@@ -1,6 +1,9 @@
 package podtemplate
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -632,7 +635,7 @@ func TestBuild_NestedVirtualizationBootsKVMKernelAndRequestsTheDevice(t *testing
 	}
 	for _, c := range pod.Spec.InitContainers {
 		if _, ok := c.Resources.Limits[KVMResourceName]; ok {
-			t.Errorf("init container %q requests %s; only the runner runs customer guests", c.Name, KVMResourceName)
+			t.Errorf("init container %q requests %s; the runner's allocation covers the shared Kata guest", c.Name, KVMResourceName)
 		}
 	}
 }
@@ -648,6 +651,64 @@ func TestBuild_WithoutNestedVirtualizationHasNoKVM(t *testing.T) {
 	}
 	if _, ok := containerByName(t, pod, "runner").Resources.Limits[KVMResourceName]; ok {
 		t.Errorf("runner requests %s on a pool that did not opt in", KVMResourceName)
+	}
+	if strings.Contains(initContainerByName(t, pod, "dind").Args[0], "/dev/kvm") {
+		t.Fatal("Docker creates a KVM device on a pool that did not opt in")
+	}
+}
+
+func TestBuild_DockerKVMSetupPrecedesEveryDaemonMode(t *testing.T) {
+	for _, mode := range []string{"plain", "cache-volumes", "docker-cache"} {
+		for _, failure := range []string{"", "mknod", "chmod"} {
+			t.Run(mode+"/fail="+failure, func(t *testing.T) {
+				pool := basePool("linux")
+				pool.Spec.NestedVirtualization = true
+				if mode != "plain" {
+					pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+					pool.Spec.CacheVolumeURL = "http://agent:8090"
+				}
+				pool.Spec.DockerCache = mode == "docker-cache"
+				pod := build(t, pool)
+				for _, c := range pod.Spec.InitContainers {
+					if quantity := c.Resources.Limits[KVMResourceName]; quantity.Value() != 0 {
+						t.Fatal("Docker must share the guest's KVM without another allocation")
+					}
+				}
+				command := initContainerByName(t, pod, "dind").Args[0]
+				// Execute the generated startup suffix with fake daemon/device
+				// commands: no mounts, real devices or Docker are touched. This
+				// catches shell-list precedence letting dockerd start after a
+				// failed setup, particularly the mount-server background mode.
+				_, command, ok := strings.Cut(command, "mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && ")
+				if !ok || !strings.Contains(command, "/dev/kvm") {
+					t.Fatal("missing KVM setup before Docker startup")
+				}
+				dir := t.TempDir()
+				command = strings.ReplaceAll(command, "/dev/kvm", filepath.Join(dir, "kvm"))
+				command = strings.ReplaceAll(command, externalsPath, dir)
+				command = strings.ReplaceAll(command, workPath, dir)
+				for name, body := range map[string]string{
+					"mknod":              "[ \"$FAIL\" != mknod ] || exit 1\n[ \"$2 $3 $4\" = 'c 10 232' ] || exit 2\ntouch \"$1\"",
+					"chmod":              "[ \"$FAIL\" != chmod ] || exit 1\n[ \"$1\" = 0666 ] || exit 2\ntouch \"$PROOF\"",
+					"dockerd":            "test -e \"$PROOF\" || exit 3\ntouch \"$STARTED\"",
+					"tuist-cache-volume": "[ \"$1\" != mount-server ] || exit 0\ntest -e \"$PROOF\" || exit 3\ntouch \"$STARTED\"",
+				} {
+					if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\nset -e\n"+body+"\n"), 0o755); err != nil {
+						t.Fatal(err)
+					}
+				}
+				cmd := exec.Command("sh", "-ec", command)
+				cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "FAIL="+failure, "PROOF="+filepath.Join(dir, "mode-set"), "STARTED="+filepath.Join(dir, "started"))
+				out, err := cmd.CombinedOutput()
+				_, started := os.Stat(filepath.Join(dir, "started"))
+				if failure == "" && (err != nil || started != nil) {
+					t.Fatalf("Docker did not start after KVM setup: %v, %s", err, out)
+				}
+				if failure != "" && (err == nil || !os.IsNotExist(started)) {
+					t.Fatalf("Docker started despite %s failure: %v, %s", failure, err, out)
+				}
+			})
+		}
 	}
 }
 
@@ -1132,7 +1193,17 @@ func TestDockerCacheRunsDockerdUnderTheSupervisor(t *testing.T) {
 	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
 	pool.Spec.CacheVolumeURL = "http://agent:8090"
 	pool.Spec.DockerCache = true
-	dind := initContainer(t, build(t, pool), "dind")
+	pod := build(t, pool)
+	reportedImage := ""
+	for _, env := range pod.Spec.Containers[0].Env {
+		if env.Name == "TUIST_RUNNER_IMAGE" {
+			reportedImage = env.Value
+		}
+	}
+	if reportedImage == "" || reportedImage != pod.Spec.Containers[0].Image {
+		t.Fatalf("acceptance image %q does not identify the actual runner image %q", reportedImage, pod.Spec.Containers[0].Image)
+	}
+	dind := initContainer(t, pod, "dind")
 	command := dind.Args[0]
 	want := "exec /home/runner/actions-runner/externals/tuist-cache-volume dind " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache /mnt/dind-disk/disk.img -- dockerd --host=unix:///var/run/docker.sock --group=123 --default-ulimit nofile=1048576:1048576 --max-concurrent-downloads=8"
 	if !strings.HasSuffix(command, want) {
@@ -1140,6 +1211,9 @@ func TestDockerCacheRunsDockerdUnderTheSupervisor(t *testing.T) {
 	}
 	if strings.Contains(command, "mount-server") {
 		t.Fatal("a second mount broker would race the supervisor's socket")
+	}
+	if strings.Contains(command, "util-linux") {
+		t.Fatal("util-linux replaces the BusyBox loop mount used in Kata")
 	}
 	if !strings.Contains(command, "apk add --no-cache e2fsprogs coreutils") {
 		t.Fatal("BuildKit merges need GNU cp to preserve overlay xattrs")

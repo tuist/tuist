@@ -54,7 +54,7 @@ ARG TAILSCALE_VERSION=1.96.5
 # Dockerfile.
 ARG NODE_EXPORTER_VERSION=1.8.2
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS manager-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS manager-builder
 
 # The operator's go.mod has `replace ../macos-host-bootstrap`, so both
 # modules land under /src for the build to resolve. We do not COPY
@@ -82,7 +82,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/rack-node-linux-amd64 ./cmd/rack-node
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS sandbox-tools-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS sandbox-tools-builder
 WORKDIR /src/sandbox-image
 COPY infra/sandbox-image ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
@@ -90,7 +90,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /out/sbx-macos ./cmd/sbx-macos && \
     CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /out/sbx-worker ./cmd/sbx-worker
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS kubelet-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS kubelet-builder
 
 WORKDIR /src/tart-kubelet
 COPY infra/runner-cache /src/runner-cache
@@ -111,7 +111,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o /out/tart-kubelet-darwin-arm64 ./cmd/tart-kubelet
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS log-shipper-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS log-shipper-builder
 
 WORKDIR /src
 COPY infra/macos-log-shipper ./
@@ -133,7 +133,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o /out/tuist-log-shipper-darwin-arm64 ./cmd/tuist-log-shipper
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS host-sensors-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS host-sensors-builder
 
 WORKDIR /src
 COPY infra/macos-host-sensors ./

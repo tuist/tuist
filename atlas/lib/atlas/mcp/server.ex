@@ -239,6 +239,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListTuistFeatureFlags
   alias Atlas.MCP.Tools.ListTuistPostgresTables
   alias Atlas.MCP.Tools.ListUpcomingRenewals
+  alias Atlas.MCP.Tools.ManageAccountConnections
   alias Atlas.MCP.Tools.MarkAccountNotAccount
   alias Atlas.MCP.Tools.MarkAssetInRepair
   alias Atlas.MCP.Tools.MarkAssetLost
@@ -558,6 +559,7 @@ defmodule Atlas.MCP.Server do
     GetMCPConnectionStatus,
     GetMyProfile,
     UpdateMyProfile,
+    ManageAccountConnections,
     ListLLMProviderConnections,
     ConnectClaudeProvider,
     StartChatGPTProviderLogin,
@@ -1000,8 +1002,14 @@ defmodule Atlas.MCP.Server do
     admin_tool_allowed?(conn, tool_module) and automation_tool_allowed?(conn, tool_module) and
       approval_tool_allowed?(conn, tool_module) and feature_flag_tool_allowed?(conn, tool_module) and
       error_context_tool_allowed?(conn, tool_module) and error_alert_tool_allowed?(conn, tool_module) and
+      personal_connection_tool_allowed?(conn, tool_module) and
       (not restricted_mcp_session?(conn) or tool_group(tool_module) in allowed_tool_groups(conn))
   end
+
+  defp personal_connection_tool_allowed?(conn, ManageAccountConnections),
+    do: ManageAccountConnections.allowed_context?(conn)
+
+  defp personal_connection_tool_allowed?(_conn, _tool_module), do: true
 
   defp approval_tool_allowed?(conn, ReviewHoliday), do: Atlas.TimeOff.can_approve?(Tool.current_user(conn))
   defp approval_tool_allowed?(_conn, _module), do: true

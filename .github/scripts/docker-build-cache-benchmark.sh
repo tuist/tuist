@@ -9,6 +9,7 @@ case "$CACHE_PHASE" in
   cold|warm-layers) version=first; previous= ;;
   changed-source) version=second; previous=first ;;
   same-size-write) version=third!; previous=second ;;
+  verify-final) version=third!; previous= ;;
   *) echo 'Invalid phase' >&2; exit 1 ;;
 esac
 
@@ -44,7 +45,7 @@ elapsed_ms=$(( ($(date +%s%N) - start) / 1000000 ))
 test "$("$work/output/app")" = "$version"
 case "$CACHE_PHASE" in
   cold) grep -Eq '^#[0-9]+ [0-9.]+ MOUNT_COLD$' "$results/build.log" ;;
-  warm-layers)
+  warm-layers|verify-final)
     # Require the compile vertex itself to hit, not an unrelated FROM/COPY.
     awk '/^#[0-9]+ .*RUN --mount=type=cache/ { vertex=$1 }
       $1 == vertex && $2 == "CACHED" { hit=1 }

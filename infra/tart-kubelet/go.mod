@@ -1,8 +1,6 @@
 module github.com/tuist/tuist/infra/tart-kubelet
 
-go 1.25.0
-
-toolchain go1.25.10
+go 1.26.10
 
 require (
 	github.com/coder/websocket v1.8.13
@@ -75,3 +73,5 @@ require (
 replace github.com/tuist/tuist/infra/runner-cache => ../runner-cache
 
 replace github.com/tuist/tuist/infra/sandboxd => ../sandboxd
+
+godebug default=go1.25

@@ -46,6 +46,8 @@ defmodule Tuist.Sandboxes do
   def default_template, do: @default_template
   def default_shape, do: @default_shape
 
+  defdelegate dispatch_amp_orb(account, orb_id, params), to: Tuist.Sandboxes.AmpOrbs, as: :dispatch
+
   # ----- Agent environments -----
 
   def create_agent_environment(%Account{id: account_id} = account, attrs) when is_map(attrs) do
@@ -165,6 +167,7 @@ defmodule Tuist.Sandboxes do
   def list_sandboxes_idle_before(%DateTime{} = cutoff) do
     Repo.all(
       from s in Sandbox,
+        where: is_nil(s.amp_orb_id),
         where:
           (s.state == :paused and coalesce(s.paused_at, s.updated_at) < ^cutoff) or
             (s.state == :error and s.updated_at < ^cutoff),

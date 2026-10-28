@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import SwiftUI
 
 struct AtlasThreadScrollMetrics: Equatable {
     let height: CGFloat
@@ -17,6 +18,27 @@ final class AtlasThreadScrollState: ObservableObject {
     private var previous: AtlasThreadScrollMetrics?
     private var baseline: CGFloat?
     private var correcting = false
+    private var latestTask: Task<Void, Never>?
+
+    func reset() {
+        latestTask?.cancel()
+        latestTask = nil
+        if !following { following = true }
+        userScrolling = nil
+        previous = nil
+        baseline = nil
+        correcting = false
+    }
+
+    @MainActor func scheduleLatest(_ action: @escaping () -> Void) {
+        guard latestTask == nil else { return }
+        latestTask = Task { @MainActor [weak self] in
+            await Task.yield()
+            guard !Task.isCancelled, let self else { return }
+            latestTask = nil
+            if following { action() }
+        }
+    }
 
     func update(_ metrics: AtlasThreadScrollMetrics) -> Bool {
         let layoutChanged = previous?.height != metrics.height || previous?.viewport != metrics.viewport
@@ -37,5 +59,39 @@ final class AtlasThreadScrollState: ObservableObject {
             correcting = false
         }
         return following && !metrics.atBottom
+    }
+}
+
+struct AtlasThreadScrollPreference: PreferenceKey {
+    static var defaultValue: AtlasThreadScrollMetrics? { nil }
+    static func reduce(value: inout AtlasThreadScrollMetrics?, nextValue: () -> AtlasThreadScrollMetrics?) { value = nextValue() }
+}
+
+struct AtlasThreadScrollObserver: ViewModifier {
+    let update: (AtlasThreadScrollMetrics) -> Void
+    let interaction: (Bool?) -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            content.onScrollGeometryChange(for: AtlasThreadScrollMetrics.self) { geometry in
+                AtlasThreadScrollMetrics(height: geometry.contentSize.height,
+                                         bottom: geometry.contentSize.height + geometry.contentInsets.bottom - geometry.contentOffset.y,
+                                         viewport: geometry.containerSize.height,
+                                         inset: geometry.contentInsets.top + geometry.contentInsets.bottom)
+            } action: { _, metrics in
+                update(metrics)
+            }
+            .onScrollPhaseChange { _, phase in
+                interaction(phase == .interacting || phase == .decelerating)
+            }
+            .onAppear { interaction(false) }
+        } else {
+            content.onPreferenceChange(AtlasThreadScrollPreference.self) { metrics in
+                if let metrics { update(metrics) }
+            }
+            .simultaneousGesture(DragGesture(minimumDistance: 1)
+                .onChanged { _ in interaction(true) }
+                .onEnded { _ in interaction(nil) })
+        }
     }
 }

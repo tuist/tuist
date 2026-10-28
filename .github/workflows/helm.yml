@@ -35,6 +35,9 @@ on:
       - infra/mise.lock
       - infra/mise/tasks/helm/**
       - .github/scripts/runner-kvm-*
+      - .github/scripts/linux-runner-image-*
+      - .github/scripts/ghcr-manifest-digest*
+      - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
@@ -49,6 +52,9 @@ on:
       - infra/mise.lock
       - infra/mise/tasks/helm/**
       - .github/scripts/runner-kvm-*
+      - .github/scripts/linux-runner-image-*
+      - .github/scripts/ghcr-manifest-digest*
+      - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
@@ -260,6 +266,11 @@ jobs:
         run: infra/mise/tasks/helm/linux-vrack.sh
       - name: KVM defaults and preparation gate
         run: infra/mise/tasks/helm/nested-kvm.sh
+      - name: Linux images are staged before pools move
+        run: |
+          bash .github/scripts/linux-runner-image-prepare.test.sh
+          bash infra/mise/tasks/helm/linux-image-staging.sh
+          bash .github/scripts/ghcr-manifest-digest.test.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

@@ -5,12 +5,11 @@
 # the per-sandbox network namespaces and to `cp --reflink=always` (coreutils)
 # as the FICLONE fallback. Root user: it drives the jailer, mknods device
 # nodes into chroots and chowns files to per-sandbox uids.
-ARG GO_VERSION=1.25
 ARG ALPINE_VERSION=3.22
 ARG FIRECRACKER_VERSION=v1.16.1
 ARG FIRECRACKER_SHA256=382a02a869e4d6d5cb14c40577f9545e8458021ea8b0b2d3fc10ec14d9c242e6
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 
 WORKDIR /src
 COPY infra/sandboxd/go.mod infra/sandboxd/go.sum ./

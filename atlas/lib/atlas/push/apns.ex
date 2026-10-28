@@ -19,17 +19,20 @@ defmodule Atlas.Push.APNs do
 
   alias Atlas.Push.Config
   alias Atlas.Push.Credentials
+  alias Atlas.Push.Installation
+  alias Atlas.Push.LiveActivity
 
   @hosts %{"production" => "https://api.push.apple.com", "sandbox" => "https://api.sandbox.push.apple.com"}
 
   def origins, do: Map.values(@hosts)
 
-  def deliver(%{token: token, environment: environment}, payload, opts) when is_map_key(@hosts, environment) do
-    with {:ok, apns} <- Config.apns_for(environment),
-         {:ok, provider_token} <- Credentials.apns_token(apns) do
-      live_activity? = Keyword.get(opts, :live_activity, false)
-      topic = if live_activity?, do: Config.apns_topic() <> ".push-type.liveactivity", else: Config.apns_topic()
+  def deliver(%{token: token, environment: environment} = registration, payload, opts)
+      when is_map_key(@hosts, environment) do
+    live_activity? = Keyword.get(opts, :live_activity, false)
 
+    with {:ok, platform, topic} <- destination(registration, live_activity?),
+         {:ok, apns} <- Config.apns_for(platform, environment),
+         {:ok, provider_token} <- Credentials.apns_token(apns) do
       request =
         Keyword.merge(
           [
@@ -59,6 +62,13 @@ defmodule Atlas.Push.APNs do
       {:error, _reason} -> {:retry, nil}
     end
   end
+
+  defp destination(%Installation{platform: platform}, false) when platform in ["ios", "macos"],
+    do: {:ok, platform, Config.apns_topic(platform)}
+
+  defp destination(%LiveActivity{}, true), do: {:ok, "ios", Config.apns_topic() <> ".push-type.liveactivity"}
+
+  defp destination(_registration, _live_activity?), do: {:error, :not_configured}
 
   defp classify({:ok, %Req.Response{status: 200}}, _apns), do: :ok
 

@@ -875,6 +875,18 @@ runnersFleetLinux:
   # Resolved at deploy time from the latest `linux-runner-image@` git tag.
   shapeRunnerImage: ""
   shapeRuntimeClass: kata-qemu
+  cacheVolumes:
+    enabled: true
+    hostPath: /var/lib/kubelet/tuist-runner-cache
+    minFreeGB: 40
+    volumeGB: 20
+    provisioning:
+      enabled: true
+      sizeGB: 200
+    dockerCache:
+      enabled: true
+      # Acceptance uses the default shape; qualify it before widening rollout.
+      pools: [tuist-tuist-runner-pool-linux-2vcpu-8gb]
   shapeAutoscaling:
     enabled: true
     minWarmPoolFloor: 0
@@ -899,3 +911,7 @@ runnersFleetLinux:
 # rate limiter falls back to the per-pod InMemory bucket.
 redis:
   enabled: true
+
+ampOrbProvider:
+  enabled: true
+  url: https://canary.tuist.dev

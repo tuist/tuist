@@ -441,6 +441,9 @@ observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts onl
 controller sets it only for deployment-selected instances. A dedicated thread
 and async runtime keep network waits and diagnostic failures out of startup and
 readiness decisions; this remains telemetry inside Kura's process resource budget.
+Each cycle includes four fixed server `/ready` checks and two Alloy OTLP HTTP
+header checks on port 4318, followed by a 60-second pause. Alloy checks use GET,
+not span submission; a 405 response measures reachability, not telemetry delivery.
 See the [connectivity runbook](../infra/kura-controller/connectivity-diagnostics.md)
 for fixed targets, sample interpretation, access boundaries, and rollout.
 
@@ -815,6 +818,29 @@ Core env vars:
 
 A node given none of these does not authorize at all, so leaving them unset
 serves the cache to anyone who can reach it.
+
+### Network-trusted self-hosted caches
+
+Keep authorization configured and set `TUIST_NETWORK_TRUSTED_CACHE_ACCESS=true`
+on the **Tuist server**, not Kura, to allow clients without credentials to read
+and write caches on a private office/VPN network. The default is off; hosted
+Tuist never enables it. Protect every public HTTP/gRPC listener with the network
+boundary. Anyone inside it can read outputs and poison or exhaust the cache.
+The dashboard, purges, Remote Asset downloads and BES reports remain protected;
+reporting has its own independent server policy.
+
+Kura uses its control-plane client ID/secret to fetch account-bound policy from
+`GET /_internal/kura/cache-policy?tenant_id=...`. Public client discovery is not
+authority. Concurrent checks coalesce in a separate bounded cache, with at most
+60 seconds of authority measured from request start and no stale-on-outage
+grace. An old/unreachable server, malformed response or missing node credentials
+fails closed. Only absent credentials qualify; present invalid, blank or
+duplicate credentials never downgrade. No peer or storage formats change.
+Restart every server replica to enable/disable; block ingress first for immediate
+revocation because in-flight transfers continue. Upgrade all server and Kura
+replicas before credential-free clients; older nodes refuse unsigned traffic.
+
+### Authenticated cache requests
 
 A token the node can verify itself, whose own claims prove the request, is
 answered from those claims and never reaches the server. What follows is about

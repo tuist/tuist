@@ -2556,8 +2556,9 @@ sandboxes:
     # Empty follows the same released, digest-pinned image as the CI pool.
     image: ""
   namespace: tuist-sandboxes
-  # Both tags are `sha-<git-sha>` tags pushed by sandboxd-image.yml and
-  # sandbox-image.yml (workflow_dispatch). Empty is a render-time failure.
+  # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
+  # server deploys publish/select the guest template automatically; sandboxd
+  # remains explicitly pinned. Empty tags are a render-time failure.
   image:
     repository: ghcr.io/tuist/sandboxd
     tag: ""
@@ -3120,6 +3121,10 @@ runnersFleetLinux:
   # shape can override autoscaling via its own `autoscaling:` block;
   # otherwise `shapeAutoscaling` defaults apply.
   shapeRunnerImage: ""
+  # Deployment-only map: full RunnerPool name -> current image while the
+  # desired image prepares in the background. Recomputed on every deploy;
+  # empty in source values so holds do not become permanent image pins.
+  imageHolds: {}
   shapeRuntimeClass: "kata-qemu"
   shapeAutoscaling:
     enabled: true
@@ -4152,3 +4157,13 @@ kuraActivation:
     production: https://tuist.dev
     canary: https://canary.tuist.dev
     staging: https://staging.tuist.dev
+
+# Account integrations provision isolated provider workloads in this namespace.
+# No shared provider token or human Tuist login is required.
+ampOrbProvider:
+  enabled: false
+  namespace: tuist-amp-orbs
+  url: ""
+  image:
+    repository: ghcr.io/tuist/tuist-sandbox-template
+  nodeSelector: {}

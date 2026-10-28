@@ -521,6 +521,33 @@ defmodule Tuist.Kubernetes.ClientTest do
     end
   end
 
+  describe "Amp provider workload identity" do
+    @tag :tmp_dir
+    test "requires explicit confirmation of the dedicated audience", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      for audiences <- [nil, ["tuist-sandboxes"], ["tuist-amp-orbs"]] do
+        expect(Req, :request, fn request ->
+          assert JSON.decode!(request[:body])["spec"]["audiences"] == ["tuist-amp-orbs"]
+
+          status = %{
+            "authenticated" => true,
+            "user" => %{"username" => "system:serviceaccount:amp:provider", "uid" => "sa-uid"}
+          }
+
+          status = if audiences, do: Map.put(status, "audiences", audiences), else: status
+          {:ok, %Req.Response{status: 200, body: %{"status" => status}}}
+        end)
+
+        if audiences == ["tuist-amp-orbs"] do
+          assert {:ok, %{name: "provider", namespace: "amp"}} = Client.create_amp_provider_token_review("projected", opts)
+        else
+          assert {:error, :unauthenticated} = Client.create_amp_provider_token_review("projected", opts)
+        end
+      end
+    end
+  end
+
   defp in_cluster_opts(tmp_dir) do
     token_path = Path.join(tmp_dir, "token")
     ca_path = Path.join(tmp_dir, "ca.crt")
