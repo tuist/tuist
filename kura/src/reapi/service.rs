@@ -4962,10 +4962,13 @@ fn grpc_request_context(
     spec: &GrpcRequestSpec<'_>,
     metadata: &tonic::metadata::MetadataMap,
 ) -> RequestContext {
-    let authorization = metadata
-        .get("authorization")
-        .and_then(|value| value.to_str().ok())
-        .map(ToOwned::to_owned);
+    let authorization = metadata.get("authorization").map(|value| {
+        if metadata.get_all("authorization").iter().count() == 1 {
+            value.to_str().unwrap_or_default().to_owned()
+        } else {
+            String::new()
+        }
+    });
     let tenant_id = tenant_id_from_metadata(metadata);
     RequestContext {
         transport: "grpc".into(),
