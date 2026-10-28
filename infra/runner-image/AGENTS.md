@@ -457,19 +457,26 @@ CI:
 - **Releases.** `.github/workflows/runner-image-release.yml` runs on
   pushes to `main` under `infra/runner-image/**` and on
   `workflow_dispatch`, in its own concurrency lane, off the server
-  deploy path:
+  deploy path. A newer release cancels one still in flight; it plans
+  from the same latest tag, so it rebuilds everything the cancelled
+  one would have:
   1. `plan` (`.github/scripts/runner-image-release-plan.sh`) rebuilds a
-     profile when the image's sources changed in a releasable commit,
-     when the previous release did not carry it, or when its
-     `macos-tahoe-xcode` base resolves to a different digest than the
-     one in the previous release's `build-manifest.json`. Every other
-     profile is carried over. A base-only change releases a patch
-     version.
-  2. `build` fans the rebuilt profiles across the `vm-image-builder`
-     hosts. Each clones its base by digest and pushes
-     `:macos-<dashes>-<semver>` and `:macos-<dashes>`.
+     profile's stacked image when the image's sources changed in a
+     releasable commit, when the previous release did not carry it, or
+     when its `macos-tahoe-xcode` base resolves to a different digest
+     than the one in the previous release's `build-manifest.json`. It
+     rebuilds a standalone image only when the release is dispatched
+     with `standalone`, or when the previous release published none for
+     the profile. Every other image is carried over. A base-only change
+     releases a patch version.
+  2. `build-stacked` runs the stacked builds (see "Stacked images"), and
+     `build` the standalone ones on the `vm-image-builder` hosts. Each
+     clones its base by digest and pushes `:macos-<dashes>-<semver>`
+     and `:macos-<dashes>`, with `-stacked` for the stacked image.
   3. `carry` re-tags `:macos-<dashes>-<previous>` as
      `:macos-<dashes>-<semver>`, a manifest copy with no layer upload.
+     A carried standalone image stays on the base it was built on,
+     which `build-manifest.json` records as `standalone_base_digest`.
   4. `release` checks every profile tag is published, then creates the
      `runner-image@<semver>` tag and GitHub Release with
      `build-manifest.json` attached. The chart's
@@ -530,18 +537,23 @@ the runner layer is an ASIF overlay. Clone and run need macOS 27 and
 Tart 2.36 or newer, so only rack hosts run it. Older hosts can pull one
 but not boot it.
 
-- **Release.** The plan builds a profile's stacked image whenever it
-  rebuilds the standalone one, and when the previous release published
-  none for it (its `build-manifest.json` entry lacks `stacked: true`).
-  Otherwise `carry` re-tags it like the standalone tag. The
-  `build-stacked` job runs on the macOS 27 builder (`macos-27` label),
-  and the release gate requires both tags of every profile.
+- **Release.** The plan builds a profile's stacked image on the release
+  triggers above, and when the previous release published none for it
+  (its `build-manifest.json` entry lacks `stacked: true`). Otherwise
+  `carry` re-tags it like the standalone tag. The `build-stacked` job
+  runs on the macOS 27 builders (`macos-27` label), and the release gate
+  requires both tags of every profile. Pulling the base is most of a
+  stacked build, so its disk reclaim keeps the release's other bases
+  cached, evicting the ones later in `profiles.json` first.
 - **Where it runs.** `server-deployment.yml` resolves each published
   stacked tag's digest into `runnersFleet.runnerImageStackedDigests`.
   Rack pools run it when `rackFleet.runners.stackedImages` is on, which
   requires every host of that rack, including borrowed ones, to run
-  macOS 27 and Tart 2.36 or newer. Rented pools, explicit pools and any
-  Xcode pinned by `imageTag` keep the standalone image.
+  macOS 27 and Tart 2.36 or newer, as does an explicit pool that names
+  an `xcodeVersion` and selects that rack's fleet. Rented pools, other
+  explicit pools and any Xcode pinned by `imageTag` keep the standalone
+  image, so a release that rents macOS hosts again is dispatched with
+  `standalone`.
 - **One-off builds.** `runner-image.yml` with `stacked: true` builds the
   same image from a branch and pushes `:macos-<dashes>-<git-sha>-stacked`.
 

@@ -20,10 +20,12 @@ builder running in staging or canary would pick up production
 image-release jobs indiscriminately, including pushing production
 image tags from a non-prod host. Staging and canary therefore pin
 `buildersFleet.enabled: false`; only `values-managed-production.yaml`
-runs the fleet, sized at 2. It bakes the xcresult-processor image on
-the server deploy path and the runner images from
-`runner-image-release.yml`, which fans rebuilt profiles across every
-builder.
+runs the fleet. It bakes the xcresult-processor image on the server
+deploy path and the runner images from `runner-image-release.yml`. A
+release's stacked builds run only on the builders labelled `macos-27`,
+one build at a time each, so their number sets how long a release
+takes; the standalone builds, run only when a release asks for them,
+go to the `vm-image-builder` ones.
 
 The GitHub App and the setup steps below are still written per-env
 because the App is a single shared identity any env could borrow for a
