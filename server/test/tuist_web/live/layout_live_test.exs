@@ -152,7 +152,7 @@ defmodule TuistWeb.LayoutLiveTest do
                      value: project.id,
                      selected: true,
                      href: ~p"/#{organization.account.name}/#{project.name}",
-                     build_tool: "xcode"
+                     image: ~p"/images/build-systems/xcode.png"
                    }
                  ],
                  footer_items: [
@@ -165,7 +165,7 @@ defmodule TuistWeb.LayoutLiveTest do
                    }
                  ],
                  label: project.name,
-                 build_tool: "xcode"
+                 image: ~p"/images/build-systems/xcode.png"
                }
              ]
 
