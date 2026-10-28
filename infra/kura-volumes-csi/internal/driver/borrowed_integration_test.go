@@ -282,7 +282,7 @@ func TestBorrowedRealStack(t *testing.T) {
 			value = []result{<-results, <-results}
 		case "create":
 
-			if q.ID < 1 || q.ID > 12 || (q.Owner != "a" && q.Owner != "b" && q.Owner != "bench") || (q.Kind != "base" && q.Kind != "unit" && q.Kind != "parent") || q.Bytes < 1<<30 || q.Bytes > 16<<30 {
+			if q.ID < 1 || q.ID > 12 || (q.Owner != "a" && q.Owner != "b" && q.Owner != "bench") || (q.Kind != "base" && q.Kind != "unit" && q.Kind != "parent") || q.Bytes < 256<<20 || q.Bytes > 16<<30 {
 				e = fmt.Errorf("invalid fixture request")
 				break
 			}

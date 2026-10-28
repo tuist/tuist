@@ -7,6 +7,48 @@ class ChildProbe < BorrowedProbe
   def request_for(n,unit,action,bytes:0)
     parent(n).slice('volume_id','lv_uuid','pool_uuid','pod_uid','generation').merge('operation_id'=>SecureRandom.uuid,'unit_id'=>unit,'action'=>action,'cache_bytes'=>bytes)
   end
+  def scale_and_recovery
+    create(3,'a','parent',256<<20)
+    # Exhaustion before LV creation must be cancellable without optimistic credit.
+    failed=SecureRandom.uuid
+    _,ok=rpc('unit',unit:request_for(3,failed,'create',bytes:32*GIB))
+    check('unbacked child create fails',!ok)
+    call('restart')
+    call('unit',unit:request_for(3,failed,'abort'))
+    _,ok=rpc('unit',unit:request_for(3,failed,'create',bytes:256<<20))
+    check('cancelled create identity remains retired',!ok)
+    units=7.times.map do
+      u=SecureRandom.uuid;call('unit',unit:request_for(3,u,'create',bytes:256<<20));u
+    end
+    full=snapshot
+    _,ok=rpc('unit',unit:request_for(3,SecureRandom.uuid,'create',bytes:256<<20))
+    check('eight device profile refuses ninth device',!ok && snapshot['committed_bytes']==full['committed_bytes'])
+    paths=[File.join(@exports,'a','base')]+units.map{|u|File.join(@exports,'a','units',id(3)+'-unit-'+u,'segments')}
+    payload=SecureRandom.random_bytes(4096)
+    paths.each do |path|
+      File.open(File.join(path,'scale'),'wb') do |f|
+        # Sparse 4 KiB writes occupy separate 512 KiB thin chunks. This is
+        # deliberately hostile to interpreting quota usage as mapped allocation.
+        2048.times{|i|f.seek(i*(512<<10));f.write(payload)}
+        f.fsync
+      end
+    end
+    mapped=snapshot
+    check('all eight devices retain physical backing under scattered writes',mapped['volumes'].size==8 && mapped['volumes'].all?{|v|v['mapped_bytes']>=GIB})
+    check('metadata remains below reserve at qualified device count',mapped['metadata_used_bytes']<mapped['metadata_total_bytes']-mapped['metadata_reserve_bytes'])
+    call('restart')
+    paths.each do |path|
+      File.open(File.join(path,'scale'),'rb') do |f|
+        f.seek(2047*(512<<10));check('scattered data survives CSI reconstruction',f.read(4096)==payload)
+      end
+    end
+    # Parent lifecycle owns deletion, including non-empty children after the
+    # workload is gone; no allocator-side drain is needed for PVC teardown.
+    call('delete',id:3)
+    empty=snapshot
+    check('parent deletion reclaims all eight detached devices',empty['volumes'].empty? && empty['committed_bytes']==0)
+    @report[:observations][:metadata_scale]={slots:8,scattered_chunks_per_device:2048,full:full,mapped:mapped,deleted:empty}
+  end
   def transfer
     create(1,'a','parent');create(2,'b','parent')
     initial=snapshot
@@ -64,6 +106,7 @@ end
 probe=ChildProbe.new(ARGV.fetch(0))
 begin
   probe.transfer
+  probe.scale_and_recovery
   probe.benchmarks
 rescue Exception=>e
   probe.report[:failure]="#{e.class}: #{e.message}"

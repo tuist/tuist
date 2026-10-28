@@ -280,6 +280,12 @@ func (d *Driver) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolu
 			}
 		}
 	}
+	if thin != nil {
+		thin.StagingPath = ""
+		if err = d.saveThin(v, thin); err != nil {
+			return nil, err
+		}
+	}
 	d.logger.Info("unstaged volume", "volume_id", v.id)
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }

@@ -109,6 +109,9 @@ func (d *Driver) readThin(v volume) (*ThinVolume, error) {
 	if err != nil || r.Version != 1 || r.VolumeID != v.id || r.VirtualBytes != virtual || r.FloorBytes < mib || r.GrantBytes < r.FloorBytes || r.GrantBytes > r.CeilingBytes || r.Generation == 0 || r.PoolUUID == "" || r.GrantBytes%mib != 0 || r.CeilingBytes%mib != 0 {
 		return nil, fmt.Errorf("invalid thin record for %s", v.id)
 	}
+	if err := validateBorrowedRecord(&r); err != nil {
+		return nil, err
+	}
 	return &r, nil
 }
 func (d *Driver) saveThin(v volume, r *ThinVolume) error {

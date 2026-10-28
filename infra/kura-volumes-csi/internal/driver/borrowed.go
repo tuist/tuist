@@ -20,6 +20,10 @@ import (
 // Nested child lifecycle calls still acquire their own volume lock.
 type borrowedPoolLock struct{}
 
+// The runtime control format accepts at most eight placements, including base.
+// Draining and incomplete children also occupy a slot until deletion completes.
+const maxBorrowedChildren = 7
+
 var childVolumeIDPattern = regexp.MustCompile(`^(pvc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-unit-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$`)
 
 // BorrowedRequest always names the stable parent and its current pod generation.
@@ -45,6 +49,34 @@ type BorrowedOperation struct {
 
 func (o *BorrowedOperation) matches(req BorrowedRequest) bool {
 	return o != nil && o.ID == req.OperationID && o.Generation == req.Generation && o.UnitID == req.UnitID && o.Action == req.Action && o.CacheBytes == req.CacheBytes
+}
+
+func validateBorrowedRecord(r *ThinVolume) error {
+	child := childVolumeIDPattern.MatchString(r.VolumeID)
+	if (child && r.BorrowedUnits) || (!child && r.UnitPhase != "") || (r.UnitOperation != nil && !r.BorrowedUnits) {
+		return fmt.Errorf("invalid borrowed volume role")
+	}
+	if r.UnitPhase != "" && r.UnitPhase != "active" && r.UnitPhase != "draining" && r.UnitPhase != "releasing" {
+		return fmt.Errorf("invalid child lifecycle")
+	}
+	if o := r.UnitOperation; o != nil {
+		if !podUIDPattern.MatchString(o.ID) || !podUIDPattern.MatchString(o.UnitID) || o.Generation == 0 || o.Generation >= r.Generation {
+			return fmt.Errorf("invalid child operation identity")
+		}
+		switch o.Action {
+		case "create":
+			if _, err := ThinVirtualBytes(o.CacheBytes); err != nil || o.CacheBytes%mib != 0 {
+				return fmt.Errorf("invalid child capacity intent")
+			}
+		case "drain", "release", "abort":
+			if o.CacheBytes != 0 {
+				return fmt.Errorf("unexpected child capacity intent")
+			}
+		default:
+			return fmt.Errorf("invalid child operation")
+		}
+	}
+	return nil
 }
 
 func unitCapability() *csi.VolumeCapability {
@@ -265,6 +297,39 @@ func (d *Driver) unpublishBorrowedChildren(ctx context.Context, parent *ThinVolu
 	return nil
 }
 
+// Called under the parent/pool lock, only after normal node cleanup. PVC
+// deletion includes every child, even when no live allocator remains to drain
+// it. Refuse active/uncertain devices; never force an unmount to reclaim credit.
+func (d *Driver) deleteDetachedBorrowedChildren(ctx context.Context, parent *ThinVolume) error {
+	if parent.StagingPath != "" || len(parent.Targets) != 0 {
+		return status.Error(codes.FailedPrecondition, "unstage parent before deleting children")
+	}
+	children, err := d.borrowedChildren(parent.VolumeID)
+	if err != nil {
+		return err
+	}
+	for _, child := range children {
+		if child.StagingPath != "" || len(child.Targets) != 0 {
+			return status.Error(codes.FailedPrecondition, "child node cleanup incomplete")
+		}
+		v, _ := d.volume(child.VolumeID)
+		active, _, err := d.mapperBacking(ctx, v)
+		if err != nil {
+			return err
+		}
+		if active {
+			return status.Error(codes.FailedPrecondition, "child mapping remains active")
+		}
+	}
+	ctx = context.WithValue(ctx, borrowedPoolLock{}, true)
+	for _, child := range children {
+		if _, err = d.DeleteVolume(ctx, &csi.DeleteVolumeRequest{VolumeId: child.VolumeID}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (d *Driver) ChangeBorrowedUnit(ctx context.Context, req BorrowedRequest) (*ThinSnapshot, error) {
 	v, err := d.volume(req.VolumeID)
 	if err != nil {
@@ -273,7 +338,7 @@ func (d *Driver) ChangeBorrowedUnit(ctx context.Context, req BorrowedRequest) (*
 	if !volumeIDPattern.MatchString(req.VolumeID) || !podUIDPattern.MatchString(req.UnitID) {
 		return nil, status.Error(codes.InvalidArgument, "invalid parent or unit identity")
 	}
-	if req.Action != "create" && req.Action != "drain" && req.Action != "release" {
+	if req.Action != "create" && req.Action != "drain" && req.Action != "release" && req.Action != "abort" {
 		return nil, status.Error(codes.InvalidArgument, "unknown unit action")
 	}
 	unlock, err := d.lockVolume(ctx, v)
@@ -299,6 +364,13 @@ func (d *Driver) ChangeBorrowedUnit(ctx context.Context, req BorrowedRequest) (*
 		return nil, err
 	}
 	if req.Action == "create" {
+		children, err := d.borrowedChildren(parent.VolumeID)
+		if err != nil {
+			return nil, err
+		}
+		if child == nil && len(children) >= maxBorrowedChildren {
+			return nil, status.Error(codes.ResourceExhausted, "parent child slot limit reached")
+		}
 		if exists, e := fileExists(filepath.Join(d.stateDir, childID+".released")); e != nil {
 			return nil, e
 		} else if exists {
@@ -310,6 +382,9 @@ func (d *Driver) ChangeBorrowedUnit(ctx context.Context, req BorrowedRequest) (*
 	}
 	if req.Action == "drain" && (child == nil || child.UnitPhase == "releasing") {
 		return nil, status.Error(codes.FailedPrecondition, "unit cannot enter drain")
+	}
+	if req.Action == "abort" && child != nil && child.UnitPhase != "" && child.UnitPhase != "releasing" {
+		return nil, status.Error(codes.FailedPrecondition, "cannot abort an advertised child; drain and release it")
 	}
 	retry := parent.UnitOperation.matches(req) && parent.Generation == req.Generation+1
 	if !retry && req.Generation != parent.Generation {
@@ -323,7 +398,8 @@ func (d *Driver) ChangeBorrowedUnit(ctx context.Context, req BorrowedRequest) (*
 			}
 			// After pod replacement a new fenced caller can resume the same
 			// incomplete intent, but cannot replace it with a different grant.
-			if !old.Done && (old.UnitID != req.UnitID || old.Action != req.Action || old.CacheBytes != req.CacheBytes) {
+			abortCreate := old.Action == "create" && req.Action == "abort" && old.UnitID == req.UnitID
+			if !old.Done && !abortCreate && (old.UnitID != req.UnitID || old.Action != req.Action || old.CacheBytes != req.CacheBytes) {
 				return nil, status.Error(codes.FailedPrecondition, "resume incomplete unit operation first")
 			}
 		}
@@ -382,14 +458,18 @@ func (d *Driver) ChangeBorrowedUnit(ctx context.Context, req BorrowedRequest) (*
 		if err = d.saveThin(childVolume, child); err != nil {
 			return nil, err
 		}
-	case "release":
+	case "release", "abort":
 		if child != nil {
-			if child.UnitPhase != "draining" && child.UnitPhase != "releasing" {
+			if req.Action == "release" && child.UnitPhase != "draining" && child.UnitPhase != "releasing" {
 				return nil, status.Error(codes.FailedPrecondition, "drain child before release")
 			}
 			if child.UnitPhase == "draining" {
 				if child.StagingPath == "" {
 					return nil, status.Error(codes.FailedPrecondition, "stage child to verify drain")
+				}
+				mounted, err := d.volumeMounted(child.StagingPath, childVolume)
+				if err != nil || !mounted {
+					return nil, status.Error(codes.FailedPrecondition, "verify child mount before drain")
 				}
 				entries, err := os.ReadDir(filepath.Join(child.StagingPath, "segments"))
 				if err != nil {
@@ -398,11 +478,10 @@ func (d *Driver) ChangeBorrowedUnit(ctx context.Context, req BorrowedRequest) (*
 				if len(entries) != 0 {
 					return nil, status.Error(codes.FailedPrecondition, "child still contains segments")
 				}
-
-				child.UnitPhase = "releasing"
-				if err = d.saveThin(childVolume, child); err != nil {
-					return nil, err
-				}
+			}
+			child.UnitPhase = "releasing"
+			if err = d.saveThin(childVolume, child); err != nil {
+				return nil, err
 			}
 			for target := range child.Targets {
 				if target != filepath.Join(parent.StagingPath, "units", childID) {
@@ -412,8 +491,10 @@ func (d *Driver) ChangeBorrowedUnit(ctx context.Context, req BorrowedRequest) (*
 					return nil, err
 				}
 			}
-			if _, err = d.NodeUnstageVolume(ctx, &csi.NodeUnstageVolumeRequest{VolumeId: childID, StagingTargetPath: child.StagingPath}); err != nil {
-				return nil, err
+			if child.StagingPath != "" {
+				if _, err = d.NodeUnstageVolume(ctx, &csi.NodeUnstageVolumeRequest{VolumeId: childID, StagingTargetPath: child.StagingPath}); err != nil {
+					return nil, err
+				}
 			}
 			if err = writeMarker(filepath.Join(d.stateDir, childID+".released")); err != nil {
 				return nil, err
@@ -424,6 +505,14 @@ func (d *Driver) ChangeBorrowedUnit(ctx context.Context, req BorrowedRequest) (*
 			if _, err = d.DeleteVolume(ctx, &csi.DeleteVolumeRequest{VolumeId: childID}); err != nil {
 				return nil, err
 			}
+		}
+		// A failed create may have stopped before any LV/record existed. Its
+		// identity must still never be reused after cancellation.
+		if err = writeMarker(filepath.Join(d.stateDir, childID+".released")); err != nil {
+			return nil, err
+		}
+		if err = syncDir(d.stateDir); err != nil {
+			return nil, err
 		}
 	}
 	parent.UnitOperation.Done = true

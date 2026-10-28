@@ -2,8 +2,11 @@ package driver
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"syscall"
 
@@ -223,6 +226,9 @@ func (d *Driver) accessibleFrom(req *csi.TopologyRequirement) bool {
 }
 
 func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
+	if childVolumeIDPattern.MatchString(req.GetVolumeId()) && ctx.Value(borrowedPoolLock{}) != true {
+		return nil, status.Error(codes.FailedPrecondition, "delete child through its parent lifecycle")
+	}
 	v, err := d.volume(req.GetVolumeId())
 	if err != nil {
 		return nil, err
@@ -239,15 +245,6 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 	}
 	if thin != nil && d.thin.Pool == "" {
 		return nil, status.Error(codes.FailedPrecondition, "thin configuration required")
-	}
-	if thin != nil && thin.BorrowedUnits {
-		children, err := d.borrowedChildren(v.id)
-		if err != nil {
-			return nil, err
-		}
-		if len(children) != 0 {
-			return nil, status.Error(codes.FailedPrecondition, "return child units before deleting parent")
-		}
 	}
 	if thin != nil && len(thin.Targets) > 0 {
 		return nil, status.Error(codes.FailedPrecondition, "thin publication cleanup incomplete")
@@ -283,6 +280,11 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 		}
 		if active {
 			return nil, status.Errorf(codes.FailedPrecondition, "volume %s is still open as %s", v.id, v.mapper)
+		}
+		if thin != nil && thin.BorrowedUnits {
+			if err := d.deleteDetachedBorrowedChildren(ctx, thin); err != nil {
+				return nil, err
+			}
 		}
 		if err := d.removeLV(ctx, v, lvSize); err != nil {
 			return nil, err
@@ -332,6 +334,29 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 		}
 		if err := wipeHeader(v.image); err != nil {
 			return nil, status.Errorf(codes.Internal, "wipe volume header: %v", err)
+		}
+	}
+	// Also recover interruption after removing the parent LV but before its
+	// state record. Children must be gone before removing their ownership record.
+	if thin != nil && thin.BorrowedUnits {
+		if err := d.deleteDetachedBorrowedChildren(ctx, thin); err != nil {
+			return nil, err
+		}
+		tombstones, err := filepath.Glob(filepath.Join(d.stateDir, v.id+"-unit-*.released"))
+		if err != nil {
+			return nil, err
+		}
+		for _, path := range tombstones {
+			if err := removeIfExists(path); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if childVolumeIDPattern.MatchString(v.id) {
+		// Remove only the empty mountpoint; an unexpected mount or directory
+		// contents must fail, never trigger recursive removal.
+		if err := os.Remove(filepath.Join(d.stateDir, "unit-staging", v.id)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
 		}
 	}
 	for _, path := range []string{v.image, v.temp, v.marker, v.keyVersion, v.keyVersionTemp, d.thinRecordPath(v), d.thinRecordPath(v) + ".new", v.lock} {
