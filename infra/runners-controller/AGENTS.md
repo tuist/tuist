@@ -59,6 +59,11 @@ cancellable and leaves the reserve intact. See
   hour. Explicit `runnersFleet.pools` / `runnersFleetLinux.pools`
   entries render it when their `autoscaling` block sets it.
 
+  The autoscaler also stamps `status.lastDemandAt` when the pool has real
+  work (`Signals.Load() > 0`), at most every ten minutes, with a status merge
+  patch. tart-kubelet ranks the images a host keeps within its golden budget by
+  it (`infra/tart-kubelet/AGENTS.md`).
+
   **Fleet-capacity awareness.** Both Linux shape pools and macOS Xcode
   pools share a capacity budget across siblings, so their warm capacity
   competes. The reconciler runs the per-pool target through

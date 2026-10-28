@@ -1501,8 +1501,8 @@ rackFleet:
     maxPods: 5
     # Shared built-in/custom cache budget on the 1858 GiB disk, enforced by
     # tart-kubelet (`--runner-cache-budget-gib`). Planning allowance: 512 GiB
-    # cache + up to 540 GiB goldens (every catalog image; hosts usually hold
-    # 1 to 3) + 280 GiB guest disks + 100 GiB host data, which stays above the
+    # cache + up to 540 GiB goldens (`goldenBudget` below) + 280 GiB guest
+    # disks + 100 GiB host data, which stays above the
     # 15% (279 GiB) free floor cache admission and the golden GC keep.
     #
     # The volume's APFS quota is half the disk (929 GiB), fixed when the
@@ -1543,13 +1543,17 @@ rackFleet:
   # hours (26.1.1) or none (27.1, 27.2-beta, 26.4.1), and start cold. The
   # 12 vCPU shape stays cold: an idle one would hold a whole host.
   #
-  # Every image's golden fits beside the cache: about 60 GiB each, 9 images
-  # in the 540 GiB allowance above, and a release pulls only the overlay on
-  # hosts that held the previous image (infra/tart-kubelet/AGENTS.md).
   runners:
     enabled: true
     # Every BER1 host runs macOS 27 and Tart 2.41.1.
     stackedImages: true
+    # The 540 GiB of goldens in the disk plan above. Each Xcode's image has its
+    # own base, about 73 GB on a host (measured 2026-10-28 across b03 to b15:
+    # disk outside the cache = 78 GB + 73 GB per golden), and a release of the
+    # same Xcode adds only its overlay, about 2 GB. Seven images fit; the
+    # images beyond them are the ones with the least recent demand, and their
+    # first Pod on a host pulls.
+    goldenBudget: 7
     guestShapes:
       6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
       12vcpu-28gb: { vcpus: 16, memoryGb: 48 }

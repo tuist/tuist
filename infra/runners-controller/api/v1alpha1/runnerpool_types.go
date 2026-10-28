@@ -419,6 +419,14 @@ type RunnerPoolStatus struct {
 	// of several starved pools on a fleet goes first.
 	// +optional
 	UnplaceableSince *metav1.Time `json:"unplaceableSince,omitempty"`
+
+	// LastDemandAt is when the autoscaler last saw the pool with real work
+	// (occupied, queued or held at an account's limit), stamped at most
+	// every demandStampInterval. tart-kubelet ranks the images it keeps
+	// within a host's golden budget by it, so the images in use stay on
+	// every host and the idle ones give way.
+	// +optional
+	LastDemandAt *metav1.Time `json:"lastDemandAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

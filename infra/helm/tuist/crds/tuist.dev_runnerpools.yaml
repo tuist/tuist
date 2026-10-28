@@ -283,6 +283,10 @@ spec:
                   type: string
                   format: date-time
                   description: Timestamp the controller last observed spec.image change. The server-side dispatch endpoint uses this to stagger HTTP 410 drain responses across a rolling window so the warm pool doesn't drop to zero on every digest-pin bump.
+                lastDemandAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp the autoscaler last saw the pool with real work (occupied, queued or held at an account's limit), stamped at most every ten minutes. tart-kubelet ranks the images it keeps within a host's golden budget by it.
                 unplaceableSince:
                   type: string
                   format: date-time
