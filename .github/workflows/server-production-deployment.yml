@@ -1338,6 +1338,11 @@ jobs:
             image: tuist/kura-controller
             context: .
             file: ./infra/kura-controller/Dockerfile
+          - name: Kura volumes CSI
+            image: tuist/kura-volumes-csi
+            context: .
+            file: ./infra/kura-volumes-csi/Dockerfile
+            build-args: VERSION=${{ github.sha }}
           - name: Swift registry
             image: tuist/registry
             context: .

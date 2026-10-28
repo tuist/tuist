@@ -653,6 +653,10 @@ pass. Bootstrap the distribution repository and release credential first.
 Recover an unrecorded distribution from its original SOURCE_COMMIT before
 publishing newer source; never replace an immutable version.
 
+Kura CSI's rack plugin is deployed by the independent, unwaited rack-nodes
+release with the same pinned CSI image as the main release. Its offline chart
+regression needs Helm; the CSI workflow installs it before running Go tests.
+
 ## Nested KVM runner acceptance
 
 `linux-runners-staging-smoke.yml` has a manual `nested_kvm` mode, isolated from
@@ -670,3 +674,16 @@ Managed server deployment prepares KVM before upgrading runner pools, using the 
 `macos-maintenance.test.sh` exercises the explicit host-maintenance request task
 with a fake kubectl and no credentials. The provider's macOS Go suite runs it;
 keep planning read-only and refuse a new request over active or failed status.
+
+Manual Kura controller image builds from branches publish only immutable SHA
+candidates; only main updates `latest`. This keeps staging storage rehearsals
+from changing the default controller image.
+
+The manually dispatched Kura runtime-image workflow validates formatting, Clippy
+and unit tests before publishing a staging SHA candidate. It keeps the PR draft
+while allowing Linux validation when the local platform toolchain is unavailable.
+
+The CSI image dispatch requires real thin-stack qualification in disposable
+GitHub-hosted Ubuntu VMs (64 and 512 KiB chunks) before publishing. These tests
+create only private loop-backed VGs; never move them onto shared staging hosts.
+PR builds retain the ordinary unit-test/image path.

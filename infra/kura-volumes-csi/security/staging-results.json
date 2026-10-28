@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-27",
+  "workflow": "https://github.com/tuist/tuist/actions/runs/40479579902",
+  "integration_commit": "1457e5a1ef5365a8b26ca9af15be79b392dc9193",
+  "staging_base": "130e8af72995f9e70dcf50fa3e52690eed5c1fdf",
+  "server_image": "sha-ef07ca13e38d",
+  "kura_runtime_image": "sha-6e7fbe5cf700",
+  "controller_and_csi_image": "sha-ae6b8b3d489f",
+  "kms_enabled": false,
+  "fixture": {
+    "size": "1Gi",
+    "backing": "lvm",
+    "encryption": "none",
+    "write_read_marker_verified": true,
+    "pod_deleted": true,
+    "pvc_deleted": true,
+    "pv_deleted": true
+  },
+  "existing_kura_pods": 12,
+  "pod_uid_or_readiness_changes": [
+
+  ],
+  "csi_ready": 3,
+  "csi_desired": 3,
+  "authorization_errors_observed": false,
+  "log_window_minutes": 10,
+  "production_mutations": false
+}

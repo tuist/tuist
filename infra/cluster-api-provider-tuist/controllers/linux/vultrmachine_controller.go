@@ -47,7 +47,7 @@ var vultrConvertScript string
 // vultrConvertResult parses the machine-readable tail the conversion prints, so
 // status records what the box actually ended up with rather than what was asked
 // for.
-var vultrConvertResult = regexp.MustCompile(`RESULT device=(\S+) fstype=(\S+) quota=(\S+)`)
+var vultrConvertResult = regexp.MustCompile(`RESULT device=(\S+) fstype=(\S+) quota=(\S+) vg=(\S+)`)
 
 const (
 	// VultrMachineFinalizer guards the CR until the node identity is cleaned up
@@ -431,7 +431,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 		known = creds.HostFingerprint
 	}
 	hk := bootstrap.NewHostKeyState(known)
-	out, err := r.runner()(ctx, vultrBootstrapUser, server.MainIP, privateKey, vultrConvertScript, hk)
+	out, err := r.runner()(ctx, vultrBootstrapUser, server.MainIP, privateKey, kuraLVMSetupScript+"\n"+vultrConvertScript, hk)
 	if observed := hk.Observed(); observed != "" && observed != known {
 		if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, observed); perr != nil {
 			logger.Error(perr, "persist host fingerprint; will retry")
@@ -446,7 +446,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 	}
 
 	m := vultrConvertResult.FindStringSubmatch(out)
-	if m == nil {
+	if m == nil || m[2] != "xfs" || m[3] != "true" || m[4] != "kura-volumes" {
 		// The script exits non-zero when the gates fail, so a zero exit without a
 		// result line means it is not the script we think it is.
 		status.Attempts++

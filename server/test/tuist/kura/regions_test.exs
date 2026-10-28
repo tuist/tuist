@@ -7,6 +7,34 @@ defmodule Tuist.Kura.RegionsTest do
 
   setup :set_mimic_from_context
 
+  test "LVM enrollment includes rack storage and leaves other regions unchanged" do
+    stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["scw-fr-par-runners", "ber1-runners"] end)
+    assert Regions.get("scw-fr-par-runners").provisioner_config.storage_class == "kura-lvm-nvme"
+    assert Regions.disk_resource(Regions.get("scw-fr-par-runners")) == "tuist.dev/kura-disk"
+    assert Regions.disk_resource(Regions.get("us-east")) == "ephemeral-storage"
+    assert Regions.get("ber1-runners").provisioner_config.storage_class == "kura-lvm-nvme"
+    assert Regions.disk_resource(Regions.get("ber1-runners")) == "tuist.dev/kura-disk"
+    assert Regions.get("larch-runners").provisioner_config.storage_class == "scw-local-nvme"
+    refute Regions.get("larch-runners").provisioner_config.encrypted_volumes
+  end
+
+  test "each rack site requires its own explicit LVM enrollment" do
+    for id <- ["ber1-runners", "larch-runners"] do
+      stub(Tuist.Environment, :kura_lvm_region_ids, fn -> [id] end)
+      config = Regions.get(id).provisioner_config
+      assert config.storage_class == "kura-lvm-nvme"
+      assert config.encrypted_volumes
+      assert config.replicas == 2
+      assert Regions.disk_resource(Regions.get(id)) == "tuist.dev/kura-disk"
+
+      other_id = if id == "ber1-runners", do: "larch-runners", else: "ber1-runners"
+      other_config = Regions.get(other_id).provisioner_config
+      assert other_config.storage_class == "scw-local-nvme"
+      refute other_config.encrypted_volumes
+      assert other_config.replicas == 1
+    end
+  end
+
   describe "all/0" do
     test "exposes concrete managed regions backed by KubernetesController" do
       ids = Enum.map(Regions.all(), & &1.id)

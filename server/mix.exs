@@ -26,7 +26,7 @@ defmodule Tuist.MixProject do
   def application do
     [
       mod: {Tuist.Application, []},
-      extra_applications: [:logger, :runtime_tools, :os_mon, :ssh]
+      extra_applications: [:logger, :runtime_tools, :os_mon, :ssh, :inets]
     ]
   end
 

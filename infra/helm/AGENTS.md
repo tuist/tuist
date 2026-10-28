@@ -20,6 +20,25 @@ Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
 
+- `kuraVolumesCSI` deploys the `kura-volumes.tuist.dev` CSI driver
+  (`tuist/templates/kura-volumes-csi.yaml`, see `../kura-volumes-csi/AGENTS.md`) and
+  the `kura-encrypted-nvme` StorageClass. Its node plugin runs on the pools
+  `tuist.kuraCachePools` lists, the same list the quota exporter uses, and
+  excludes delegated rack pools, whose plugin belongs to the independent
+  `rack-nodes` release. The `kura-volumes` namespace and the
+  `kura-volumes-csi-node` ServiceAccount are fixed: the server's key endpoint
+  authorizes by that TokenReview username. `kuraVolumesCSI.image.tag` pins a
+  `sha-` build (set by the deploy workflows) and is required. An account's
+  instances use encryption when their region is LVM-enrolled or its legacy
+  policy permits the `:kura_encrypted_volumes` feature flag. Legacy root keys
+  are synced by `server.config.kuraVolumeRootKeys.enabled` from the env's
+  `KURA_VOLUME_ROOT_KEYS` 1Password item (`value`); OpenBao configuration and
+  migration gates are described below. Missing wrapping keys fail closed.
+  Its objects are `helm.sh/resource-policy: keep`, so a release without them
+  (a rollback, or a staging deploy of an older branch) leaves the driver
+  running: only it can unmount, close and delete existing volumes. Remove it
+  by hand once no `kura-encrypted-nvme` PV is left.
+
 - `capi.ovhRunnerEgress` keeps its disabled ConfigMap and cleanup RBAC present
   while the provider withdraws runner policies and host addresses. Reservations
   belong to the controller, never Helm. Staging/canary values enable egress;
@@ -239,10 +258,28 @@ Keep the chart-facing [server scaling guide](tuist/README.md#scaling-the-server)
 
 Cluster formation requires a stable shared cookie Secret, a fixed distribution listener, allowed EPMD/distribution ingress, and a headless service. More than one server replica requires clustering. Managed canary runs two replicas so actual membership is exercised before production promotion. Do not promote until the proof-cache and authoritative authentication rollouts are stable and OAuth entity operations no longer depend on replicated invalidations. Boruta's cache and membership supervision still starts; the entity callbacks, not that lifecycle, are disabled. The stable private cookie connects different image versions during rolling upgrades; the first migration from image-baked cookies still creates old/new islands. Qualify PubSub, Oban PG notifications and peer replacement across the actual versions. Offline/GitOps renderers without live Secret lookup must use a separately managed `cookieExistingSecret`; a missing key in an existing generated Secret fails rather than silently rotating it. Managed staging/canary/production configure `server.cluster.externalSecret` with `cookieExistingSecret: tuist-server-cluster-cookie`: the dedicated ESO resource reads `SERVER_CLUSTER_COOKIE/password` from each environment's own 1Password vault, never the shared server-config Secret. It renders only when clustering is enabled, uses `refreshPolicy: OnChange` so source edits alone do not propagate on a timer, and requires an explicit sync during coordinated rotation; self-host defaults require no ESO. Missing/empty source data must not trigger cookie generation. `test-cluster-cookie.py` checks ownership, all three environment overlays, web-only references and invalid configurations in Helm CI. Bootstrap, rebuild and coordinated rotation are documented in [onboarding](../k8s/onboarding.md#5e-durable-server-distribution-cookies). Cookie rotation requires coordinated process replacement. The chart guard rejects previously accepted unclustered multi-web configurations because live PubSub/PG notifications must cross replicas; it is not a runtime replica-count detector. See the [self-host clustering upgrade guidance](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).
 
+- `kuraVolumesCSI.lvmRegions` renders `TUIST_KURA_LVM_REGIONS` on the server.
+  It defaults empty and must be enabled per environment only with the matching
+  node-layout rollout. Both `kura-lvm-nvme` and `kura-encrypted-nvme` need the CSI
+  driver retained across rollback.
+
+- `server.config.kuraVolumeOpenBao` adds a dedicated projected Kubernetes token
+  to the web server, with explicit HTTPS origin, Transit/auth mounts, key names
+  and role. An optional ConfigMap supplies the private CA without disabling TLS. Legacy root sync
+  remains independently enabled during verified rewrap, then must be disabled
+  and every shared Secret consumer restarted. Managed overlays must not claim
+  OpenBao custody until identity, seal recovery, backups, audit and re-stage gates pass.
+- Kura CSI's retained admission policies constrain its pod-bound identity to
+  its own node's PV lifecycle and disk capacity, and preserve PVC ownership.
+  Claim writes/events are a `kura` Role. Run the disposable real-API admission
+  test and Helm tests in `../kura-volumes-csi/security/` when changing these
+  rules. Do not install the test's intentionally broad role in hosted clusters.
 - Linux runners use one host pool and the existing regional Kura Service for
   every account. No alternate pools, account-path flag or WAN relay are needed.
   Canary and production fleet templates declare vRack enrollment; existing
   OnDelete hosts require a drained backfill and transport validation. Check
   shared capacity and enrollment with `helm/linux-vrack.sh`.
+
+- The immutable `kura-thin-encrypted-nvme` class requires thin topology. Thin opt-in is per node through `/data/kura-volumes/thin-pool.json` plus a restart of that node's CSI pod. Global `kuraVolumesCSI.thin` overrides are for homogeneous prepared deployments; leave them empty for mixed fleets. `podInfoOnMount` supplies the UID needed to fence grant operations. See `../kura-volumes-csi/thin/interface.md`.
 
 - Managed Linux pools inherit KVM through `runnersFleetLinux.nestedVirtualization.defaultEnabled`; false rolls idle runners back without removing host prerequisites. Device allocations follow each Node’s Pod capacity. Validate defaults, rollback revisions and the preparation gate with `bash infra/mise/tasks/helm/nested-kvm.sh`.

@@ -124,7 +124,7 @@ func TestVultrConversionIgnoresAnotherBoxesRecord(t *testing.T) {
 	called := false
 	r := conversionReconciler(t, func(context.Context, string, string, []byte, string, *bootstrap.HostKeyState) (string, error) {
 		called = true
-		return "prep-vultr: RESULT device=/dev/nvme0n1p2 fstype=xfs quota=true size=894G", nil
+		return "prep-vultr: RESULT device=/dev/mapper/kura--volumes-data fstype=xfs quota=true vg=kura-volumes size=128G", nil
 	})
 	m := vultrMachine("tuist", "m", "box-2")
 	m.Status.Converted = &infrav1.ConversionStatus{InstanceID: "box-1", QuotaEnforced: true}
@@ -144,7 +144,7 @@ func TestVultrConversionIgnoresAnotherBoxesRecord(t *testing.T) {
 // The result line is what proves the layout, so it has to land in status.
 func TestVultrConversionRecordsWhatTheBoxActuallyGot(t *testing.T) {
 	r := conversionReconciler(t, func(context.Context, string, string, []byte, string, *bootstrap.HostKeyState) (string, error) {
-		return "prep-vultr: gate ok\nprep-vultr: RESULT device=/dev/nvme0n1p2 fstype=xfs quota=true size=894G\n", nil
+		return "prep-vultr: gate ok\nprep-vultr: RESULT device=/dev/mapper/kura--volumes-data fstype=xfs quota=true vg=kura-volumes size=128G\n", nil
 	})
 	m := vultrMachine("tuist", "m", "box-1")
 
@@ -153,7 +153,7 @@ func TestVultrConversionRecordsWhatTheBoxActuallyGot(t *testing.T) {
 		t.Fatalf("done=%v err=%v", done, err)
 	}
 	c := m.Status.Converted
-	if c.DataDevice != "/dev/nvme0n1p2" || c.DataFilesystem != "xfs" || !c.QuotaEnforced {
+	if c.DataDevice != "/dev/mapper/kura--volumes-data" || c.DataFilesystem != "xfs" || !c.QuotaEnforced {
 		t.Fatalf("converted = %+v, want the parsed result line", c)
 	}
 	if c.Attempts != 0 || c.ConvertedAt == nil {
@@ -366,5 +366,23 @@ func TestVultrReleaseHoldsTheClaimUntilTheWipeIsUnderway(t *testing.T) {
 	}
 	if controllerutil.ContainsFinalizer(m, VultrMachineFinalizer) {
 		t.Fatal("still holding the claim after the wipe was observably running")
+	}
+}
+
+func TestVultrConversionRejectsIncompleteLVMResult(t *testing.T) {
+	for _, result := range []string{
+		"RESULT device=/dev/md1 fstype=xfs quota=true",
+		"RESULT device=/dev/md1 fstype=xfs quota=false vg=kura-volumes",
+		"RESULT device=/dev/md1 fstype=ext4 quota=true vg=kura-volumes",
+		"RESULT device=/dev/md1 fstype=xfs quota=true vg=other",
+	} {
+		r := conversionReconciler(t, func(context.Context, string, string, []byte, string, *bootstrap.HostKeyState) (string, error) {
+			return result, nil
+		})
+		m := vultrMachine("tuist", "m", "box-1")
+		done, _, err := r.reconcileConversion(context.Background(), m, &vultr.Server{ID: "box-1", MainIP: "1.2.3.4"}, nil)
+		if err != nil || done || m.Status.Converted.ConvertedAt != nil {
+			t.Fatalf("accepted invalid conversion result %q: done=%v err=%v", result, done, err)
+		}
 	}
 }

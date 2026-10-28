@@ -10,8 +10,9 @@ partition repeated the eviction cycle.
 
 ## Preventing repeated eviction
 
-For the managed `scw-local-nvme` storage class, the controller supplies these
-defaults when the StatefulSet is created or changes runtime image:
+For the managed node-local storage classes (`scw-local-nvme` and
+`kura-encrypted-nvme`), the controller supplies these defaults when the
+StatefulSet is created or changes runtime image:
 
 ```yaml
 tolerations:

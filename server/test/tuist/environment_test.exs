@@ -31,6 +31,33 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "kura_volume_root_keys/1" do
+    test "reads root keys in order, the first being the active one" do
+      key_a = :crypto.strong_rand_bytes(32)
+      key_b = :crypto.strong_rand_bytes(32)
+
+      assert Environment.parse_kura_volume_root_keys("b:#{Base.encode64(key_b)}, a:#{Base.encode64(key_a)}") ==
+               [{"b", key_b}, {"a", key_a}]
+    end
+
+    test "is empty when any entry is malformed, rather than activating the wrong key" do
+      key = Base.encode64(:crypto.strong_rand_bytes(32))
+
+      assert Environment.parse_kura_volume_root_keys("bad:#{Base.encode64("short")},a:#{key}") == []
+      assert Environment.parse_kura_volume_root_keys("a:#{key},a:#{key}") == []
+      assert Environment.parse_kura_volume_root_keys(":#{key}") == []
+      assert Environment.parse_kura_volume_root_keys("a") == []
+    end
+
+    test "derives a stable development key from the secret key base when unset" do
+      secrets = %{"secret_key" => %{"base" => "development-base"}}
+
+      assert [{"dev", key}] = Environment.kura_volume_root_keys(secrets)
+      assert byte_size(key) == 32
+      assert Environment.kura_volume_root_keys(secrets) == [{"dev", key}]
+    end
+  end
+
   describe "runners_rented_macos_fleet?/1" do
     test "rents a macOS fleet unless the deployment says it has none" do
       assert Environment.runners_rented_macos_fleet?(%{})

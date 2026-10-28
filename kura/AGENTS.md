@@ -236,3 +236,32 @@ Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of 
 - Linux builds keep content-addressed Bazel downloads and action outputs under `~/.cache/tuist/bazel`, configured in `.bazelrc`. CI mounts that directory directly; do not persist the output base or generated remote credentials. Disk-cache idle GC is a soft 12 GiB/seven-day target within the 20 GB volume.
 
 - Bazel failure analytics retain bounded structured failure codes as `tuist.detected_failure_category`, and the BuildStarted user as `tuist.reported_user` (128 bytes maximum), within the existing custom metadata limit. Classify compiler/test nonzero exits only with recognized action mnemonics; arbitrary commands remain unknown. Infrastructure evidence takes precedence. Never retain FailureDetail messages or stack traces for classification.
+
+Planned thin-storage migration retires public connection reuse before terminating
+its donor. `/_internal/connections/retire` is internal/mTLS only and requires the
+process's `connection_incarnation` from rollout status. It swaps a bounded
+connection cohort once, keeps serving/admission/replication unchanged, and makes
+HTTP/1 responses close after completion (including accelerated GETs). The receipt
+counts connections accepted before retirement, including TLS handshakes; newer
+health probes cannot keep that cohort alive. HTTP/2 retains its existing bounded
+connection aging. Retirement is not draining or serving-authority permission.
+Never substitute a timer or Kubernetes readiness for an empty cohort receipt.
+An empty cohort is also not a data-transfer receipt: staging still observed
+fresh-write GET misses at handoff. Zero-error migration needs destination-bound
+write completion and serving coordination; do not claim asynchronous replication
+is synchronized by closing the donor's connections.
+
+The pending migration acknowledgment path in `src/migration.rs` binds a legacy
+storage move to one destination process. Preparation hashes retained records and
+verifies them on that peer; armed HTTP/gRPC mutation completion checks committed
+feed records against actual destination content. Feed cursors alone never prove
+retention. A fixed preparation deadline, bounded verification batches and a
+single verification worker prevent unbounded work. This is not a serving grant
+or permission to bypass cache capacity. Its implementation is still awaiting
+Linux tests, failure recovery qualification and live staging rehearsal.
+
+A ready migration bridge must survive the preparation deadline and controller
+pauses. Its bounded weak-reference task retains the feed pin until draining;
+release that pin on failed preparation or draining. The internal reset API may
+clear only a completed failed unarmed attempt and must serialize with write
+acknowledgments. Never use it to abandon a ready bridge after endpoint movement.

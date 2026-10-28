@@ -155,6 +155,9 @@ for the threat model and the separate approved rollout required to add it to pod
 ### `egress-tree-agent/` — per-node shared egress HTB tree
 Go DaemonSet that enforces the kura per-tenant egress floors (`egress_guaranteed_mbps`), ceilings (`egress_burst_mbps`), and the node's advertised egress budget (`tuist.dev/egress-mbps`) with one shared HTB tree per node (tuist/tuist#12363). Shaped packets take a tcx BPF veth-trampoline detour (attached ahead of `cil_from_container`, returned to the same hook afterwards) so Cilium policy/identity/masquerade stay fully applied — the classic ifb detour measurably bypasses NetworkPolicy and must not come back. Consumes the `tuist.dev/egress-class` pod annotation rendered by kura-controller; co-located replica sync takes an unshaped bypass. Deliberately no pod-level qdisc underneath. See `egress-tree-agent/AGENTS.md`.
 
+### `kura-volumes-csi/`: encrypted Kura data volumes
+Go CSI driver `kura-volumes.tuist.dev` backs encrypted Kura volumes with per-volume LUKS2 containers on logical volumes in the node's `kura-volumes` VG, or preallocated files under `/data/kura-volumes` on legacy hosts. Keys are fetched per stage from the server. The main chart owns the rented-node plugin and shared resources; the independent rack release owns plugins for delegated rack pools. See [kura-volumes-csi/AGENTS.md](kura-volumes-csi/AGENTS.md) for storage, migration and key-security contracts.
+
 ### `tart-kubelet/` — Mac mini VM kubelet
 Go kubelet-shaped agent that registers a Mac mini as a Kubernetes Node and maps Pods to Tart VMs. Interactive runner VNC is host-controlled here: runner VMs start with Tart's host-owned experimental VNC enabled, generated VNC credentials stay in host-control state, and a relay opens only while either a legacy host-local `vnc-control-dir/requests/<namespace>_<pod>` file exists or the server stamps its session annotation on the runner Pod.
 
@@ -344,6 +347,9 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - Shared runner-cache lifecycle: [`runner-cache/AGENTS.md`](runner-cache/AGENTS.md).
+
+The independent rack node workloads, including the Kura CSI plugin, are documented
+in [`helm/rack-nodes/AGENTS.md`](helm/rack-nodes/AGENTS.md).
 
 - Linux runner pools with `nestedVirtualization` give the runner container `/dev/kvm` for Android emulators: a KVM-enabled Kata guest kernel ([`kata-kvm-kernel/AGENTS.md`](kata-kvm-kernel/AGENTS.md)), installed and proven per boot by the CAPI provider, plus a CDI-backed device plugin. Enabled on managed Linux pools with an internal rollback switch; self-hosted defaults stay off. See "Nested virtualization" in [`runners-controller/AGENTS.md`](runners-controller/AGENTS.md).
 

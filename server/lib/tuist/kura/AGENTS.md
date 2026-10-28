@@ -44,6 +44,7 @@
 
 - Stable routing uses existing instance regions only when an account has no placement rows. Explicit desired/retiring rows take precedence, including an all-retiring set. Keep direct DNS intent, batched reconciliation and activation consistent without writing placement as a read side effect.
 
+- `VolumeKeys` issues LUKS passphrases for encrypted Kura volumes to the `kura-volumes.tuist.dev` CSI node plugin through `POST /_internal/kura/volume-keys` (`TuistWeb.Internal.KuraVolumeKeysController` documents the byte-exact wire format the Go driver mirrors). Tenant keys are versioned share lists in `kura_tenant_keys`; add customer KMS shares as a new `ShareProvider` and a new key version, never by changing stored shares. The `:kura_encrypted_volumes` feature flag renders an account's instances in regions configured with `scw-local-nvme` on `kura-encrypted-nvme` (unless the region sets `encrypted_volumes: false`) and moves the manifest revision so the change rolls out.
 - Cold activation polling must continue after the regional deployment closes until stable intent is published and fresh controller readiness reaches the shared projection. Keep this in the bounded unique background worker, never in the authenticated request. Stop for draining, moving, private and unclaimed instances; preserve generation/TLS/provider checks and the original job stall deadline.
 
 - A storage claim is account-wide and applies all or nothing across every storage-governed region the account runs in, private runner-cache regions (`scw-fr-par-runners`, `ber1-runners`) included: one full region refuses the growth everywhere. Every shrink, occupancy included, is floored at the plan's starting claim.
@@ -55,3 +56,23 @@
 - Usage events carry the `origin` Kura read off the cache token that authorized them (managed nodes only; self-hosted reports are stripped). `Origins.refresh_hits/1` rolls public-region hits per account-origin-day into `kura_origin_rollups.hit_count` on the claim-sizing refresh, replacing the column rather than adding to it, so it never disturbs the additive run and resolution counts. For flagged accounts where at least half the window's hits carry an origin, origin hits (mapped through `OriginMap`) replace runs for expansion and for moving the primary to a region the account does not hold; expansion needs a tenth of the attributed hits or four times the retirement rate against the region's projected reservation. Private runner-cache hits never count.
 
 - Rollout convergence leaves out servers whose `KuraInstance` reports `status.imageHold` (a positively fenced instance's runtime pin or manual replacement, or a replica recovery's hold): the controller never converges them alone, so they would hold every wave open until the deadline paused the fleet. `RolloutServer.held_reason` records the hold from each tick's health read; an unreadable read keeps the previous verdict. A held server is never evidence: the canary wave must converge one server of its own, and a rollout whose scope is all held does not complete. Completing a rollout cancels held servers' open deployments so the next rollout can mint one. A server whose hold clears rejoins convergence and the gate. Unannotated operator `OnDelete` is not a hold and still pauses the rollout.
+
+- `TUIST_KURA_LVM_REGIONS` selects regions whose nodes have been prepared
+  for LVM. It enables encryption for every account in each enrolled region and
+  sets `diskResource` to `tuist.dev/kura-disk`. Each rack site requires its own
+  explicit enrollment and separately deployed rack CSI plugin; unenrolled rack
+  sites retain their legacy storage and single replica. Enrolled regions use at
+  least two replicas. The storage
+  revision includes this choice in both the desired revision and manifest.
+  Capacity totals, reservations, retained volumes and placement simulation all
+  use the region's disk resource; they must never substitute `/data` free space
+  for missing LVM capacity.
+
+- [Volume-key providers](volume_keys/AGENTS.md) support `openbao` with pinned HTTPS
+  origin/mount/key identities and a dedicated projected Kubernetes identity. Partial configuration
+  fails closed. `VolumeKeys.Rotation` rewraps the SAME plaintext shares with a
+  pinned target, verification and compare-and-swap outside remote-call
+  transactions. This envelope-only change is safe within a version; adding or
+  removing a composite share is not. Include retired versions and retained
+  backups before retiring a root. `KeyServiceHTTP` avoids shared request-body telemetry.
+  See `infra/kura-volumes-csi/security/key-management.md` for activation/recovery.

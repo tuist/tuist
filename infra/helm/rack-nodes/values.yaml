@@ -36,3 +36,7 @@ runnersFleet:
   xcodeVersions: []
   xcodeOverrides: {}
   runnerImageSemver: ""
+
+kuraVolumesCSI:
+  enabled: false
+  rackPools: []
