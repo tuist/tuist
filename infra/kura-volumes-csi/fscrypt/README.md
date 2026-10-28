@@ -6,6 +6,8 @@ while letting the later #14825 allocator transfer filesystem quota grants
 without thin-pool overcommit or filesystem replacement.
 The [integration gates](integration.md) describe the remaining CSI, key lifecycle,
 confinement and migration work; none of it is implied by a passing VM test.
+The [measured results](validation.md) pass the bounded storage/policy experiment,
+but retain a write-throughput and CPU blocker before a broad implementation change.
 
 Run `stack_test.rb` only as root in a disposable Linux VM with
 `KURA_FSCRYPT_DISPOSABLE_VM=1`. It creates private sparse files and loop devices;
@@ -45,6 +47,9 @@ directory each time. Every layout has a 6 GiB project quota. Authenticated,
 checksum-checked HTTP workloads include eviction churn and a 1 GiB working set.
 The temporary auth token is fixture-only, kept out of artifacts and deleted
 with the fixture. This remains VM testing, not Kubernetes/CSI or OpenBao E2E.
+The optional `fscrypt_profile` workflow input runs each application layout once
+under a 99 Hz CPU profile and skips fio; it records symbol reports, not raw
+profile data. Keep those diagnostic timings separate from the unprofiled runs.
 
 `allocator_test.go.fixture` is compiled against the exact #14825 policy revision
 `34956ca681a3dc0dc257ee5b4d0d65814bd5f23d` in a separate CI checkout. Set
