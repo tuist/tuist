@@ -323,7 +323,14 @@ class FscryptFixture
       if profiling
         @profile_data = File.join(@root, 'cpu-profile.data')
         @profile_log = File.join(@root, 'cpu-profile.log')
-        pid = Integer(run('docker', 'inspect', '--format', '{{.State.Pid}}', name).strip)
+        # Container PID 1 is tini, which is idle after spawning Kura. Attach
+        # to the existing runtime, not just to future children of its init.
+        runtime_pids = run('docker', 'top', name, '-eo', 'pid,comm').lines.filter_map do |line|
+          fields = line.split
+          Integer(fields[0]) if fields[1] == 'kura'
+        end
+        raise 'expected one fixture runtime' unless runtime_pids.size == 1
+        pid = runtime_pids.first
         raise 'invalid fixture PID' unless pid > 1
         @profiler = Process.spawn(perf, 'record', '-F', '99', '-e', 'cpu-clock', '-g', '-p', pid.to_s,
           '-o', @profile_data, out: @profile_log, err: [:child, :out])
@@ -341,8 +348,10 @@ class FscryptFixture
       @result[:cache_benchmarks].last[:working_set] = working_metrics
       if profiling
         raise "profiler failed: #{File.read(@profile_log)}" unless stop_profile
-        @result[:cache_benchmarks].last[:cpu_profile] = run(perf, 'report', '--stdio', '--no-children',
+        profile = run(perf, 'report', '--stdio', '--no-children',
           '--percent-limit', '1', '-i', @profile_data)
+        raise 'profiler collected no samples' unless profile.include?('Samples:') && profile.match?(/\d+\.\d+%/)
+        @result[:cache_benchmarks].last[:cpu_profile] = profile
         @result[:cache_benchmarks].last[:profile_log] = File.read(@profile_log)
         File.unlink(@profile_data)
         File.unlink(@profile_log)
@@ -363,7 +372,7 @@ class FscryptFixture
       # Reap an already-exited profiler and report its actual status below.
     end
     Timeout.timeout(10) { Process.wait(@profiler) }
-    $?.success?
+    $?.success? || $?.termsig == Signal.list.fetch('INT') || $?.exitstatus == 130
   rescue Timeout::Error
     Process.kill('KILL', @profiler)
     Process.wait(@profiler)
