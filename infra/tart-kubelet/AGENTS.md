@@ -40,16 +40,29 @@ workflow code runs in the guest. Never expose host credentials or masters.
   RunnerPools as the prewarmer does. A golden or cached OCI image that no pool
   runs and no Pod on the Node references is reaped on the next pass; one a
   pool still runs, or will run next (the upcoming runner images ConfigMap,
-  see staging below), is kept until the disk-pressure reclaim takes it, since
-  staging keeps it on every host. Evidence: from 2026-10-24 to 10-28 every
-  rack runner Pod Pending for over a minute with most slots free waited 3 to
-  29 minutes on a pull, on a host that had dropped its pool's golden a day
-  after its last Pod of it or never staged it. Cached images are matched by
+  see staging below), keeps the 24h idle retention. Cached images are matched by
   full ref, except a repository a Pod or pool names by tag keeps every digest.
   A fleet without pools, or a failed RunnerPool or ConfigMap List, falls back
   to retention and the repository match. Evidence: on 2026-10-20 rack hosts held 13 to 21
   goldens, 1 or 2 of them current, because runner images are released several
   times a day and every catalog image shares one repository.
+- A fleet with a golden budget (`internal/podagent/budget.go`; ConfigMaps
+  labelled `tuist.dev/runner-golden-budgets=true`, keyed by fleet, valued in
+  images, rendered from `rackFleet.runners.goldenBudget`) keeps the same images
+  on every host. The catalog pools' images (pools with a
+  `tuist.dev/xcode-version` label, so not the smoke pool or a pinned image) are
+  ranked by warm floor, then by the pools' `status.lastDemandAt` (stamped by the
+  runners-controller's autoscaler) to the day, then whether the host holds
+  them. Staging pulls what the top `budget` lines run next that the host lacks;
+  the GC keeps their goldens, reaps the rest of the catalog's goldens and
+  cached images unless a Pod on the Node runs them, and follows only releases
+  inside the budget. A pinned image keeps the retention above. Each Xcode's
+  image has its own base, about 73 GB on a rack host; a release of the same
+  Xcode adds about 2 GB. Without a budget, staging and the GC keep the rules
+  below. Evidence: from 2026-10-24 to 10-28 every rack runner Pod Pending for
+  over a minute with most slots free waited 3 to 29 minutes on a pull, on a host
+  that had dropped its pool's image a day after its last Pod of it or had never
+  staged it.
 - A release is followed, not re-pulled (`internal/podagent/follow.go`). While
   a host holds the golden of a pool's `status.previousImage` (or of
   `status.observedImage` before the runners-controller has seen the new
@@ -97,10 +110,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   on 2026-10-21 ber1-runner-b05 came back from `tuist.dev/os-reinstall`
   untainted with no goldens and took runner Pods that waited on downloads.
 - A release is also staged before pools move to it. Once a minute every host
-  pulls in the background the image each pool of its fleet runs next when it
-  lacks it: the image the pool moves to, or its current image while it moves
-  to none (`podagent.Prewarmer.stage`, `internal/podagent/stage.go`), so
-  every host holds every pool's image and a Pod clones wherever it lands. The next image
+  pulls in the background the image each pool of its fleet moves to next,
+  when it holds the golden of the pool's current image and not the next one
+  (`podagent.Prewarmer.stage`, `internal/podagent/stage.go`). The next image
   comes from ConfigMaps labelled
   `tuist.dev/upcoming-runner-images=true`, keyed `<xcode>.<variant>`, which
   the `announce` job of `runner-image-release.yml` writes into canary and
@@ -130,8 +142,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   still fetching until the next pass. A Pod of another image that arrives
   during a staged pull waits for it, since a host pulls one golden at a time,
   and a Pod of the same image waits on it at background priority. A pool moved before its hosts
-  staged it (the timeout or a skip) is followed as above, and staged as its
-  current image on a host that held neither image, unless a Pod there pulls it first.
+  staged it (the timeout or a skip) is followed as above; a host that held
+  neither image pulls on its first Pod.
   `tart_kubelet_golden_staged_total{result}` counts what staging did; the
   pools' materialized and reused counts show whether Pods still pull.
   Following alone still leaves the first Pod after a move waiting on the pull

@@ -591,23 +591,28 @@ func TestRunOnceReapsImagesNoPoolRuns(t *testing.T) {
 		}
 	})
 
-	// A host that ran no Pod of a pool's image for a day used to drop its
-	// golden, so the next Pod there pulled it while its job waited.
-	t.Run("keeps the golden of an image a pool runs past the retention window", func(t *testing.T) {
-		c, read := newCollector(t, entries, catalog(), fleet, pod)
-		c.goldenSeen = map[string]time.Time{goldenVMName(current): now.Add(-48 * time.Hour)}
+	t.Run("reaps the golden and OCI entry of a catalog image beyond the golden budget", func(t *testing.T) {
+		pools := &poolLister{pools: []unstructured.Unstructured{
+			catalogPool("macos-27-0", current, "27.0", "stacked", 0, 0),
+			catalogPool("macos-26-6", running, "26.6", "stacked", 1, 1),
+		}}
+		budgets := func(budget string) *corev1.ConfigMap {
+			return &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "tuist-runner-golden-budgets", Labels: map[string]string{goldenBudgetsLabel: "true"}},
+				Data:       map[string]string{fleet: budget},
+			}
+		}
+		c, read := newCollector(t, entries, pools, fleet, budgets("1"))
+		c.RunOnce(context.Background())
+		if got, want := read(t), []string{goldenVMName(current), goldenVMName(superseded), current, superseded}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("deletes = %v, want the over-budget and superseded goldens and their OCI entries %v", got, want)
+		}
+
+		c, read = newCollector(t, entries, pools, fleet, budgets("2"))
+		c.goldenSeen = map[string]time.Time{goldenVMName(current): now.Add(-48 * time.Hour), goldenVMName(running): now.Add(-48 * time.Hour)}
 		c.RunOnce(context.Background())
 		if got, want := read(t), []string{goldenVMName(superseded), superseded}; !reflect.DeepEqual(got, want) {
-			t.Fatalf("deletes = %v, want only the superseded golden and its OCI entry %v", got, want)
-		}
-	})
-
-	t.Run("reaps an unreferenced golden past the retention window when the pools cannot be listed", func(t *testing.T) {
-		c, read := newCollector(t, entries, &poolLister{err: errors.New("no matches for kind RunnerPool")}, fleet, pod)
-		c.goldenSeen = map[string]time.Time{goldenVMName(current): now.Add(-48 * time.Hour)}
-		c.RunOnce(context.Background())
-		if got, want := read(t), []string{goldenVMName(current)}; !reflect.DeepEqual(got, want) {
-			t.Fatalf("deletes = %v, want the retention window to apply without the pools %v", got, want)
+			t.Fatalf("deletes = %v, want only the superseded golden and its OCI entry %v: the budget keeps both images past the retention window", got, want)
 		}
 	})
 

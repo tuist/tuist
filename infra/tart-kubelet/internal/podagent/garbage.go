@@ -213,6 +213,8 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 		aggressive = true
 	}
 
+	c.applyBudget(expected, vms, now)
+
 	var follow []string
 	if !aggressive {
 		follow = c.planFollow(expected, vms, now)
@@ -260,7 +262,7 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 			// OCI cache is reconstructible by re-pull, so an actual
 			// out-of-disk provision must win over keeping it warm (mirrors
 			// the golden policy).
-			if expected.keepsImage(vm.Name) && !aggressive {
+			if _, over := expected.overBudgetRefs[vm.Name]; expected.keepsImage(vm.Name) && !aggressive && !over {
 				continue
 			}
 			if err := c.Tart.Delete(ctx, vm.Name); err != nil {
@@ -433,15 +435,15 @@ func (c *Collector) liveBackedGoldens(ctx context.Context) map[string]struct{} {
 
 // keepGolden decides whether to retain a golden base VM this pass and
 // stamps its last-seen time. A golden whose digest a current Pod still
-// references is always kept (and its retention clock reset), and so is one
-// of an image a pool of the fleet runs or moves to next, outside `aggressive`
-// reclaim: staging keeps those on every host, and the disk-pressure reclaim
-// bounds them. An unreferenced golden of an image no pool of the fleet runs
-// is reaped. Any other unreferenced golden is kept until GoldenRetention
-// elapses since it was last seen — except under `aggressive` reclaim, where
-// unreferenced always means reap. First unreferenced sighting starts the
-// clock now (covers a just-materialized golden the Pod List hasn't caught up
-// to, and pre-restart goldens), so it's never reaped on the very pass that
+// references is always kept (and its retention clock reset), and so,
+// outside `aggressive` reclaim, is one the fleet's golden budget keeps. An
+// unreferenced golden of an image no pool of the fleet runs, or of a catalog
+// image beyond the budget, is reaped. Any
+// other unreferenced golden is kept until GoldenRetention elapses since it
+// was last seen — except under `aggressive` reclaim, where unreferenced
+// always means reap. First unreferenced sighting starts the clock now
+// (covers a just-materialized golden the Pod List hasn't caught up to,
+// and pre-restart goldens), so it's never reaped on the very pass that
 // discovers it.
 func (c *Collector) keepGolden(name string, expected *expectedSet, now time.Time, retention time.Duration, aggressive bool) bool {
 	c.goldenSeenMu.Lock()
@@ -454,7 +456,7 @@ func (c *Collector) keepGolden(name string, expected *expectedSet, now time.Time
 		c.goldenSeen[name] = now
 		return true
 	}
-	if _, current := expected.poolGoldens[name]; current && !aggressive {
+	if _, kept := expected.kept[name]; kept && !aggressive {
 		c.goldenSeen[name] = now
 		return true
 	}
@@ -462,6 +464,9 @@ func (c *Collector) keepGolden(name string, expected *expectedSet, now time.Time
 		return true
 	}
 	if aggressive || expected.superseded(name) {
+		return false
+	}
+	if _, over := expected.overBudget[name]; over {
 		return false
 	}
 	last, ok := c.goldenSeen[name]
@@ -551,6 +556,15 @@ type expectedSet struct {
 	// their successor is pulled (see follow.go).
 	successions map[string]succession
 	following   map[string]struct{}
+
+	// budget is the fleet's golden budget and the pools it ranks, nil without
+	// one. applyBudget fills kept and overBudget from it: the goldens of the
+	// catalog image lines inside the budget, and those beyond it that no Pod
+	// here references, with overBudgetRefs naming their cached images.
+	budget         *budgetPlan
+	kept           map[string]struct{}
+	overBudget     map[string]struct{}
+	overBudgetRefs map[string]struct{}
 }
 
 // superseded reports whether golden is for an image no pool of the fleet
@@ -615,6 +629,15 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 			if upcoming, err = listUpcomingImages(ctx, c.K8s); err != nil {
 				log.FromContext(ctx).WithName("gc").Error(err, "list upcoming runner images; keeping superseded images for the retention window")
 				pools = nil
+			}
+		}
+		if len(pools) > 0 {
+			budget, budgeted, err := goldenBudget(ctx, c.K8s, c.Fleet)
+			if err != nil {
+				log.FromContext(ctx).WithName("gc").Error(err, "read the golden budget; collecting as without one")
+			}
+			if budgeted {
+				out.budget = &budgetPlan{pools: pools, upcoming: upcoming, budget: budget}
 			}
 		}
 		for _, pool := range pools {

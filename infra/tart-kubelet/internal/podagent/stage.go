@@ -83,13 +83,13 @@ func (p *Prewarmer) stageEvery(ctx context.Context, interval time.Duration) {
 	}
 }
 
-// stage materializes, one at a time, the image each pool of the fleet runs
-// next when this host lacks it: the image the pool moves to, or its current
-// image while it moves to none. The deploy that moves a pool finds the next
-// image here and holds the pool until it does
-// (.github/scripts/runner-image-staging-gate.sh), and a pool's Pod finds its
-// image on whichever host it lands. Without this, the first Pod of an image
-// on a host waits on the pull.
+// stage materializes, one at a time, the image each pool this host serves
+// moves to next, so the deploy that moves the pool finds it here and holds
+// the pool until it does (.github/scripts/runner-image-staging-gate.sh). A Pod
+// of a new image otherwise pays the pull on each host its pool lands on.
+// After a pool moves, the GC follows it (follow.go). On a fleet with a golden
+// budget (budget.go), the host instead stages what the top of the catalog
+// ranking runs next, whether or not it holds the current image.
 //
 // Staging stays out of the jobs' way. It starts no pull while a Pod waits on
 // one, since the host runs one golden pull at a time, nor while a runner on
@@ -117,6 +117,13 @@ func (p *Prewarmer) stage(ctx context.Context) {
 	}
 
 	images := p.stageImages(pools, upcoming, held)
+	budget, budgeted, err := goldenBudget(ctx, p.K8s, p.Fleet)
+	if err != nil {
+		logger.Error(err, "read the golden budget; staging as without one")
+	}
+	if budgeted {
+		images = budgetImages(rankImageLines(pools, upcoming, p.Fleet, held, p.clock()), budget)
+	}
 	if len(images) == 0 {
 		p.jobsDeferredSince = time.Time{}
 		return
@@ -205,9 +212,9 @@ func (p *Prewarmer) clock() time.Time {
 }
 
 // stageImages returns the images to stage, given the goldens the host holds:
-// for each pool of the fleet, the image it moves to next, or its current
-// image when it moves to none, when the host lacks it. Warm floors go first,
-// then demand, as for prewarming.
+// the next image of each pool of the fleet whose current image the host holds,
+// when it lacks the next one. Warm floors go first, then demand, as for
+// prewarming.
 func (p *Prewarmer) stageImages(pools []runnerPoolSpec, upcoming upcomingImages, held map[string]struct{}) []string {
 	type candidate struct {
 		image    string
@@ -219,9 +226,12 @@ func (p *Prewarmer) stageImages(pools []runnerPoolSpec, upcoming upcomingImages,
 		if !pool.runsOn(p.Fleet) {
 			continue
 		}
+		if _, serves := held[goldenVMName(pool.Spec.Image)]; !serves {
+			continue
+		}
 		next := upcoming.forPool(pool)
 		if next == "" {
-			next = pool.Spec.Image
+			continue
 		}
 		if _, ok := held[goldenVMName(next)]; ok {
 			continue

@@ -40,10 +40,10 @@ func stagingPrewarmer(pools *poolLister, goldens *recordingGoldens) *Prewarmer {
 
 // On 2026-10-21 ber1-runner-b04 and b08 pulled a new runner image from
 // ghcr.io for 532 s and 562 s while its first Pod waited. A release names its
-// images before a deploy moves the pools to them, so a host pulls each pool's
-// next image while the pool still runs the current one, whether or not the
-// host holds the current one: the pool's Pods may land on any host.
-func TestStagePullsTheNextImageOfEveryPool(t *testing.T) {
+// images before a deploy moves the pools to them, so a host that serves a
+// pool pulls the pool's next image while it still runs the current one, and
+// leaves alone the pools it does not serve.
+func TestStagePullsTheNextImageOfThePoolsTheHostServes(t *testing.T) {
 	pools := &poolLister{
 		pools: []unstructured.Unstructured{
 			catalogPool("macos-ber1-26-6-6vcpu", img266, "26.6", "stacked", 1, 1),
@@ -60,50 +60,24 @@ func TestStagePullsTheNextImageOfEveryPool(t *testing.T) {
 
 	stagingPrewarmer(pools, goldens).stage(context.Background())
 
-	if want := []string{stackedNext, img270Next}; !reflect.DeepEqual(goldens.pulled, want) {
-		t.Fatalf("staged %v, want %v: the next image of the variant each pool runs, warm floors first", goldens.pulled, want)
+	if want := []string{stackedNext}; !reflect.DeepEqual(goldens.pulled, want) {
+		t.Fatalf("staged %v, want %v: only the next image of the variant the served pools run", goldens.pulled, want)
 	}
 }
 
-// From 2026-10-24 to 10-28, every BER1 rack runner Pod Pending for over a
-// minute while most guest slots were free was waiting on a golden pull, 3 to
-// 29 minutes, on a host that did not hold its pool's image: only hosts that
-// held a pool's current image staged its next one, and the rest kept a pool's
-// image only for a day after their last Pod of it. A host pulls the current
-// image of each pool it lacks, so a Pod clones wherever it lands.
-func TestStagePullsTheCurrentImageOfAPoolTheHostLacks(t *testing.T) {
+// After a deploy moves a pool, following it to the new image is the GC's
+// (follow.go): staging pulls only what a pool moves to next.
+func TestStageLeavesAPoolTheDeployAlreadyMoved(t *testing.T) {
 	pools := &poolLister{
-		pools: []unstructured.Unstructured{
-			catalogPool("macos-ber1-26-6-6vcpu", img266, "26.6", "stacked", 1, 1),
-			catalogPool("macos-ber1-27-0-6vcpu", img270, "27.0", "stacked", 2, 0),
-			runnerPool("ber1", stackedNext, rackFleet, 0, 0),
-			runnerPool("elsewhere", img266Next, "tuist-tuist-builders-fleet", 1, 1),
-		},
+		pools:    []unstructured.Unstructured{catalogPool("macos-ber1-26-6-6vcpu", stackedNext, "26.6", "stacked", 0, 0)},
+		upcoming: map[string]string{"26.6.stacked": stackedNext},
 	}
 	goldens := &recordingGoldens{held: heldGoldensOf(img266)}
 
 	stagingPrewarmer(pools, goldens).stage(context.Background())
 
-	if want := []string{img270, stackedNext}; !reflect.DeepEqual(goldens.pulled, want) {
-		t.Fatalf("staged %v, want %v: the current image of every pool of the fleet the host lacks", goldens.pulled, want)
-	}
-}
-
-// A host that already holds what each pool runs next pulls nothing.
-func TestStageLeavesAHostThatHoldsWhatEveryPoolRunsNext(t *testing.T) {
-	pools := &poolLister{
-		pools: []unstructured.Unstructured{
-			catalogPool("macos-ber1-26-6-6vcpu", stackedNext, "26.6", "stacked", 0, 0),
-			catalogPool("macos-ber1-27-0-6vcpu", img270, "27.0", "stacked", 0, 0),
-		},
-		upcoming: map[string]string{"26.6.stacked": stackedNext},
-	}
-	goldens := &recordingGoldens{held: heldGoldensOf(stackedNext, img270)}
-
-	stagingPrewarmer(pools, goldens).stage(context.Background())
-
 	if len(goldens.pulled) != 0 {
-		t.Fatalf("staged %v on a host that holds every pool's image", goldens.pulled)
+		t.Fatalf("staged %v for a pool already on its next image", goldens.pulled)
 	}
 }
 
