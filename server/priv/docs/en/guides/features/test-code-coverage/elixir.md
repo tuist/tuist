@@ -7,9 +7,6 @@
 ---
 # Elixir code coverage {#elixir-code-coverage}
 
-> [!NOTE] EARLY ACCESS
-> Code coverage is in early access. [Reach out](mailto:contact@tuist.dev) to turn it on for your account. The Hex package needs no extra setting: once it's on, `--cover` runs upload their coverage.
-
 Code coverage tells you which lines of your code your tests executed. The Hex package uploads the line coverage of every `mix test --cover` run, and Tuist folds the runs of a commit into one figure, for the project, each OTP application and each file. The dashboard's **Code Coverage** page shows it per commit and as a trend for each branch.
 
 > [!IMPORTANT] REQUIREMENTS

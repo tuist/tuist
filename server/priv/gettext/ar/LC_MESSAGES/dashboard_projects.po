@@ -70,8 +70,8 @@ msgstr "التحليلات"
 msgid "Any"
 msgstr "أي"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:60
-#: lib/tuist_web/live/project_settings_live.html.heex:84
+#: lib/tuist_web/live/project_settings_live.html.heex:65
+#: lib/tuist_web/live/project_settings_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Anyone with the link"
 msgstr "أي شخص لديه الرابط"
@@ -81,7 +81,7 @@ msgstr "أي شخص لديه الرابط"
 msgid "App:"
 msgstr "التطبيق:"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:333
+#: lib/tuist_web/live/project_settings_live.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
 msgstr "هل أنت متأكد من رغبتك في حذف هذا؟"
@@ -141,13 +141,14 @@ msgstr "عمليات البناء"
 msgid "Bundle install size"
 msgstr "حجم تثبيت الحزمة"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:30
+#: lib/tuist_web/live/project_automations_live.html.heex:35
 #: lib/tuist_web/live/project_bundle_settings_live.ex:27
 #: lib/tuist_web/live/project_bundle_settings_live.ex:30
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:30
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:37
-#: lib/tuist_web/live/project_notifications_live.html.heex:30
-#: lib/tuist_web/live/project_settings_live.html.heex:30
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:35
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:42
+#: lib/tuist_web/live/project_integrations_live.html.heex:33
+#: lib/tuist_web/live/project_notifications_live.html.heex:35
+#: lib/tuist_web/live/project_settings_live.html.heex:35
 #: lib/tuist_web/live/xcode_overview_live.html.heex:646
 #, elixir-autogen, elixir-format
 msgid "Bundles"
@@ -192,16 +193,16 @@ msgstr "تمثل فعالية ذاكرة التخزين المؤقت معدل ا
 #: lib/tuist_web/live/once_overview_live.ex:140
 #: lib/tuist_web/live/once_overview_live.ex:369
 #: lib/tuist_web/live/once_runs_live.ex:383
-#: lib/tuist_web/live/project_automations_live.html.heex:1083
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:223
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:412
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:564
-#: lib/tuist_web/live/project_notifications_live.html.heex:173
-#: lib/tuist_web/live/project_notifications_live.html.heex:500
-#: lib/tuist_web/live/project_notifications_live.html.heex:845
-#: lib/tuist_web/live/project_settings_live.html.heex:146
-#: lib/tuist_web/live/project_settings_live.html.heex:297
-#: lib/tuist_web/live/project_settings_live.html.heex:369
+#: lib/tuist_web/live/project_automations_live.html.heex:1088
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:228
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:417
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:569
+#: lib/tuist_web/live/project_notifications_live.html.heex:178
+#: lib/tuist_web/live/project_notifications_live.html.heex:505
+#: lib/tuist_web/live/project_notifications_live.html.heex:850
+#: lib/tuist_web/live/project_settings_live.html.heex:151
+#: lib/tuist_web/live/project_settings_live.html.heex:302
+#: lib/tuist_web/live/project_settings_live.html.heex:374
 #: lib/tuist_web/live/xcode_overview_live.html.heex:79
 #: lib/tuist_web/live/xcode_overview_live.html.heex:694
 #: lib/tuist_web/live/xcode_overview_live.html.heex:890
@@ -236,23 +237,23 @@ msgstr "إنشاء مشروع"
 msgid "Created %{time}"
 msgstr "تم الإنشاء في %{time}"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:377
+#: lib/tuist_web/live/project_settings_live.html.heex:382
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr "حذف"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:318
-#: lib/tuist_web/live/project_settings_live.html.heex:339
+#: lib/tuist_web/live/project_settings_live.html.heex:323
+#: lib/tuist_web/live/project_settings_live.html.heex:344
 #, elixir-autogen, elixir-format
 msgid "Delete project"
 msgstr "حذف المشروع"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:351
+#: lib/tuist_web/live/project_settings_live.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Deleting the project will permanently remove all of its data"
 msgstr "سيؤدي حذف المشروع إلى إزالة جميع بياناته بشكل دائم"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:358
+#: lib/tuist_web/live/project_settings_live.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Enter this project's name to confirm"
 msgstr "أدخل اسم هذا المشروع للتأكيد"
@@ -292,14 +293,15 @@ msgstr "عمليات التشغيل الفاشلة"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:8
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:8
+#: lib/tuist_web/live/project_integrations_live.html.heex:6
 #: lib/tuist_web/live/project_notifications_live.html.heex:8
 #: lib/tuist_web/live/project_settings_live.html.heex:8
-#: lib/tuist_web/live/project_settings_live.html.heex:36
+#: lib/tuist_web/live/project_settings_live.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "عام"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:52
+#: lib/tuist_web/live/project_settings_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "General access"
 msgstr "الوصول العام"
@@ -356,16 +358,16 @@ msgid "Local"
 msgstr "محلي"
 
 #: lib/tuist_web/live/create_project_live.ex:83
-#: lib/tuist_web/live/project_automations_live.html.heex:89
-#: lib/tuist_web/live/project_automations_live.html.heex:1141
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:121
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:249
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:307
-#: lib/tuist_web/live/project_notifications_live.html.heex:283
-#: lib/tuist_web/live/project_notifications_live.html.heex:431
-#: lib/tuist_web/live/project_notifications_live.html.heex:525
-#: lib/tuist_web/live/project_notifications_live.html.heex:592
-#: lib/tuist_web/live/project_notifications_live.html.heex:765
+#: lib/tuist_web/live/project_automations_live.html.heex:94
+#: lib/tuist_web/live/project_automations_live.html.heex:1146
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:126
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:254
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:312
+#: lib/tuist_web/live/project_notifications_live.html.heex:288
+#: lib/tuist_web/live/project_notifications_live.html.heex:436
+#: lib/tuist_web/live/project_notifications_live.html.heex:530
+#: lib/tuist_web/live/project_notifications_live.html.heex:597
+#: lib/tuist_web/live/project_notifications_live.html.heex:770
 #: lib/tuist_web/live/projects_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "Name"
@@ -395,8 +397,8 @@ msgstr "لا توجد معاينات بعد"
 msgid "No recent builds yet"
 msgstr "لا توجد عمليات بناء حديثة بعد"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:58
-#: lib/tuist_web/live/project_settings_live.html.heex:72
+#: lib/tuist_web/live/project_settings_live.html.heex:63
+#: lib/tuist_web/live/project_settings_live.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Only organization members"
 msgstr "أعضاء المؤسسة فقط"
@@ -426,7 +428,7 @@ msgstr "عمليات البناء الناجحة"
 msgid "Passed runs"
 msgstr "التشغيلات الناجحة"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:44
+#: lib/tuist_web/live/project_settings_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Preview access"
 msgstr "الوصول إلى المعاينات"
@@ -436,8 +438,8 @@ msgstr "الوصول إلى المعاينات"
 msgid "Previews"
 msgstr "المعاينات"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:289
-#: lib/tuist_web/live/project_settings_live.html.heex:361
+#: lib/tuist_web/live/project_settings_live.html.heex:294
+#: lib/tuist_web/live/project_settings_live.html.heex:366
 #, elixir-autogen, elixir-format
 msgid "Project name"
 msgstr "اسم المشروع"
@@ -453,28 +455,28 @@ msgstr "المشاريع"
 msgid "Recent projects"
 msgstr "المشاريع الأخيرة"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:305
+#: lib/tuist_web/live/project_settings_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr "إعادة تسمية"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:252
-#: lib/tuist_web/live/project_settings_live.html.heex:273
+#: lib/tuist_web/live/project_settings_live.html.heex:257
+#: lib/tuist_web/live/project_settings_live.html.heex:278
 #, elixir-autogen, elixir-format
 msgid "Rename project"
 msgstr "إعادة تسمية المشروع"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:267
+#: lib/tuist_web/live/project_settings_live.html.heex:272
 #, elixir-autogen, elixir-format
 msgid "Rename your project?"
 msgstr "هل تريد إعادة تسمية مشروعك؟"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:284
+#: lib/tuist_web/live/project_settings_live.html.heex:289
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
 msgstr "قد تكون لإعادة التسمية عواقب غير متوقعة"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:255
+#: lib/tuist_web/live/project_settings_live.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "Renaming your project can have unintended side effects."
 msgstr "قد تؤدي إعادة تسمية مشروعك إلى آثار جانبية غير مقصودة."
@@ -508,7 +510,7 @@ msgstr "فعالية الاختبارات الانتقائية"
 msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
 msgstr "تمثل فعالية الاختبارات الانتقائية نسبة نتائج الاختبارات الانتقائية الإيجابية مقارنة بالنتائج السلبية."
 
-#: lib/tuist_web/live/project_settings_live.html.heex:47
+#: lib/tuist_web/live/project_settings_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Set your previews to be public or private by default."
 msgstr "اضبط إعدادات المعاينات لتكون عامة أو خاصة بشكل افتراضي."
@@ -537,7 +539,7 @@ msgstr "الاختبارات"
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr "الصفحة التي تبحث عنها غير موجودة أو تم نقلها."
 
-#: lib/tuist_web/live/project_settings_live.html.heex:321
+#: lib/tuist_web/live/project_settings_live.html.heex:326
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
 msgstr "لا يمكن التراجع عن هذا الإجراء."
@@ -565,6 +567,7 @@ msgstr "عرض المزيد"
 #: lib/tuist_web/live/project_automation_live.ex:25
 #: lib/tuist_web/live/project_automations_live.ex:25
 #: lib/tuist_web/live/project_bundle_settings_live.ex:19
+#: lib/tuist_web/live/project_integrations_live.ex:13
 #: lib/tuist_web/live/project_notifications_live.ex:27
 #: lib/tuist_web/live/project_settings_live.ex:18
 #: lib/tuist_web/live/projects_live.ex:502
@@ -662,48 +665,48 @@ msgstr "منذ الفترة السابقة"
 msgid "since yesterday"
 msgstr "منذ الأمس"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:548
+#: lib/tuist_web/live/project_notifications_live.html.heex:553
 #, elixir-autogen, elixir-format
 msgid "Channel"
 msgstr "القناة"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:80
+#: lib/tuist_web/live/project_notifications_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Configure"
 msgstr "تكوين"
 
 #: lib/tuist_web/live/project_notifications_live.ex:606
-#: lib/tuist_web/live/project_notifications_live.html.heex:97
-#: lib/tuist_web/live/project_notifications_live.html.heex:114
+#: lib/tuist_web/live/project_notifications_live.html.heex:102
+#: lib/tuist_web/live/project_notifications_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Daily"
 msgstr "يوميًا"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:90
+#: lib/tuist_web/live/project_notifications_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Frequency"
 msgstr "التكرار"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:96
-#: lib/tuist_web/live/project_notifications_live.html.heex:103
+#: lib/tuist_web/live/project_notifications_live.html.heex:101
+#: lib/tuist_web/live/project_notifications_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr "أبدًا"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1100
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:421
-#: lib/tuist_web/live/project_notifications_live.html.heex:181
-#: lib/tuist_web/live/project_settings_live.html.heex:154
+#: lib/tuist_web/live/project_automations_live.html.heex:1105
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:426
+#: lib/tuist_web/live/project_notifications_live.html.heex:186
+#: lib/tuist_web/live/project_settings_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "حفظ"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:51
+#: lib/tuist_web/live/project_notifications_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Send test report"
 msgstr "إرسال تقرير الاختبار"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:146
+#: lib/tuist_web/live/project_notifications_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Time"
 msgstr "الوقت"
@@ -737,24 +740,24 @@ msgstr "مدة البناء"
 msgid "Cache hit rate"
 msgstr "معدل نجاح ذاكرة التخزين المؤقت"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:297
-#: lib/tuist_web/live/project_notifications_live.html.heex:528
-#: lib/tuist_web/live/project_notifications_live.html.heex:607
+#: lib/tuist_web/live/project_notifications_live.html.heex:302
+#: lib/tuist_web/live/project_notifications_live.html.heex:533
+#: lib/tuist_web/live/project_notifications_live.html.heex:612
 #, elixir-autogen, elixir-format
 msgid "Category"
 msgstr "الفئة"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:242
+#: lib/tuist_web/live/project_notifications_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "Get notified when metrics regress"
 msgstr "احصل على إشعار عند تراجع المقاييس"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:135
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:252
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:321
-#: lib/tuist_web/live/project_notifications_live.html.heex:326
-#: lib/tuist_web/live/project_notifications_live.html.heex:531
-#: lib/tuist_web/live/project_notifications_live.html.heex:640
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:140
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:257
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:326
+#: lib/tuist_web/live/project_notifications_live.html.heex:331
+#: lib/tuist_web/live/project_notifications_live.html.heex:536
+#: lib/tuist_web/live/project_notifications_live.html.heex:645
 #, elixir-autogen, elixir-format
 msgid "Metric"
 msgstr "المقياس"
@@ -765,100 +768,101 @@ msgid "Test duration"
 msgstr "مدة الاختبار"
 
 #: lib/tuist_web/live/project_automations_live.ex:1065
-#: lib/tuist_web/live/project_automations_live.html.heex:259
-#: lib/tuist_web/live/project_automations_live.html.heex:763
-#: lib/tuist_web/live/project_notifications_live.html.heex:401
-#: lib/tuist_web/live/project_notifications_live.html.heex:541
-#: lib/tuist_web/live/project_notifications_live.html.heex:725
+#: lib/tuist_web/live/project_automations_live.html.heex:264
+#: lib/tuist_web/live/project_automations_live.html.heex:768
+#: lib/tuist_web/live/project_notifications_live.html.heex:406
+#: lib/tuist_web/live/project_notifications_live.html.heex:546
+#: lib/tuist_web/live/project_notifications_live.html.heex:730
 #, elixir-autogen, elixir-format
 msgid "Rolling window"
 msgstr "النافذة المتحركة"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:260
+#: lib/tuist_web/live/project_notifications_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Add alert rule"
 msgstr "إضافة قاعدة تنبيه"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:290
-#: lib/tuist_web/live/project_notifications_live.html.heex:599
+#: lib/tuist_web/live/project_notifications_live.html.heex:295
+#: lib/tuist_web/live/project_notifications_live.html.heex:604
 #, elixir-autogen, elixir-format
 msgid "Alert name"
 msgstr "اسم التنبيه"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:239
+#: lib/tuist_web/live/project_notifications_live.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "Alert rules"
 msgstr "قواعد التنبيه"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:74
+#: lib/tuist_web/live/project_notifications_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Configure schedule"
 msgstr "تكوين الجدول الزمني"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:47
+#: lib/tuist_web/live/project_notifications_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Configure your report notifications"
 msgstr "تكوين إشعارات التقرير الخاص بك"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:388
-#: lib/tuist_web/live/project_notifications_live.html.heex:708
+#: lib/tuist_web/live/project_notifications_live.html.heex:393
+#: lib/tuist_web/live/project_notifications_live.html.heex:713
 #, elixir-autogen, elixir-format
 msgid "Deviation (%)"
 msgstr "الانحراف (%)"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:14
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:14
+#: lib/tuist_web/live/project_automations_live.html.heex:19
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:19
+#: lib/tuist_web/live/project_integrations_live.html.heex:17
 #: lib/tuist_web/live/project_notifications_live.ex:33
 #: lib/tuist_web/live/project_notifications_live.ex:36
-#: lib/tuist_web/live/project_notifications_live.html.heex:14
-#: lib/tuist_web/live/project_notifications_live.html.heex:37
-#: lib/tuist_web/live/project_settings_live.html.heex:14
+#: lib/tuist_web/live/project_notifications_live.html.heex:19
+#: lib/tuist_web/live/project_notifications_live.html.heex:42
+#: lib/tuist_web/live/project_settings_live.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Notifications"
 msgstr "الإشعارات"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:127
+#: lib/tuist_web/live/project_notifications_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Repeat"
 msgstr "تكرار"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:44
+#: lib/tuist_web/live/project_notifications_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Reports"
 msgstr "التقارير"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:62
+#: lib/tuist_web/live/project_notifications_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Schedule"
 msgstr "الجدولة"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:200
+#: lib/tuist_web/live/project_notifications_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr "Slack"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:542
-#: lib/tuist_web/live/project_automations_live.html.heex:925
-#: lib/tuist_web/live/project_notifications_live.html.heex:211
-#: lib/tuist_web/live/project_notifications_live.html.heex:221
-#: lib/tuist_web/live/project_notifications_live.html.heex:481
-#: lib/tuist_web/live/project_notifications_live.html.heex:819
-#: lib/tuist_web/live/project_notifications_live.html.heex:831
+#: lib/tuist_web/live/project_automations_live.html.heex:547
+#: lib/tuist_web/live/project_automations_live.html.heex:930
+#: lib/tuist_web/live/project_notifications_live.html.heex:216
+#: lib/tuist_web/live/project_notifications_live.html.heex:226
+#: lib/tuist_web/live/project_notifications_live.html.heex:486
+#: lib/tuist_web/live/project_notifications_live.html.heex:824
+#: lib/tuist_web/live/project_notifications_live.html.heex:836
 #, elixir-autogen, elixir-format
 msgid "Select channel"
 msgstr "اختر قناة"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:541
-#: lib/tuist_web/live/project_automations_live.html.heex:924
-#: lib/tuist_web/live/project_notifications_live.html.heex:220
-#: lib/tuist_web/live/project_notifications_live.html.heex:480
-#: lib/tuist_web/live/project_notifications_live.html.heex:818
+#: lib/tuist_web/live/project_automations_live.html.heex:546
+#: lib/tuist_web/live/project_automations_live.html.heex:929
+#: lib/tuist_web/live/project_notifications_live.html.heex:225
+#: lib/tuist_web/live/project_notifications_live.html.heex:485
+#: lib/tuist_web/live/project_notifications_live.html.heex:823
 #, elixir-autogen, elixir-format
 msgid "Update channel"
 msgstr "تحديث القناة"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:470
-#: lib/tuist_web/live/project_notifications_live.html.heex:807
+#: lib/tuist_web/live/project_notifications_live.html.heex:475
+#: lib/tuist_web/live/project_notifications_live.html.heex:812
 #, elixir-autogen, elixir-format
 msgid "Slack channel"
 msgstr "قناة Slack"
@@ -894,53 +898,53 @@ msgstr "وقت الاختبار"
 msgid "tests"
 msgstr "الاختبارات"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1103
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:231
-#: lib/tuist_web/live/project_notifications_live.html.heex:508
+#: lib/tuist_web/live/project_automations_live.html.heex:1108
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:236
+#: lib/tuist_web/live/project_notifications_live.html.heex:513
 #: lib/tuist_web/live/projects_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr "إنشاء"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:254
+#: lib/tuist_web/live/project_notifications_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Create alert rule"
 msgstr "إنشاء قاعدة تنبيه"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:255
-#: lib/tuist_web/live/project_notifications_live.html.heex:538
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:260
+#: lib/tuist_web/live/project_notifications_live.html.heex:543
 #, elixir-autogen, elixir-format
 msgid "Deviation"
 msgstr "انحراف"
 
 #: lib/tuist_web/live/project_automation_live.ex:297
 #: lib/tuist_web/live/project_automation_live.ex:303
-#: lib/tuist_web/live/project_notifications_live.html.heex:551
+#: lib/tuist_web/live/project_notifications_live.html.heex:556
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr "لا شيء"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:854
+#: lib/tuist_web/live/project_notifications_live.html.heex:859
 #, elixir-autogen, elixir-format
 msgid "Update"
 msgstr "تحديث"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:566
+#: lib/tuist_web/live/project_notifications_live.html.heex:571
 #, elixir-autogen, elixir-format
 msgid "Update alert rule"
 msgstr "تحديث قاعدة التنبيه"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:250
+#: lib/tuist_web/live/project_notifications_live.html.heex:255
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr "المقاييس"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:882
+#: lib/tuist_web/live/project_notifications_live.html.heex:887
 #, elixir-autogen, elixir-format
 msgid "Create an alert rule to get notified when metrics regress"
 msgstr "أنشئ قاعدة تنبيه لتلقي إشعار عند تدهور المقاييس"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:880
+#: lib/tuist_web/live/project_notifications_live.html.heex:885
 #, elixir-autogen, elixir-format
 msgid "No alert rules"
 msgstr "لا توجد قواعد تنبيه"
@@ -949,11 +953,12 @@ msgstr "لا توجد قواعد تنبيه"
 #: lib/tuist_web/live/project_automation_live.html.heex:6
 #: lib/tuist_web/live/project_automations_live.ex:36
 #: lib/tuist_web/live/project_automations_live.ex:39
-#: lib/tuist_web/live/project_automations_live.html.heex:24
-#: lib/tuist_web/live/project_automations_live.html.heex:37
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:24
-#: lib/tuist_web/live/project_notifications_live.html.heex:24
-#: lib/tuist_web/live/project_settings_live.html.heex:24
+#: lib/tuist_web/live/project_automations_live.html.heex:29
+#: lib/tuist_web/live/project_automations_live.html.heex:42
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:29
+#: lib/tuist_web/live/project_integrations_live.html.heex:27
+#: lib/tuist_web/live/project_notifications_live.html.heex:29
+#: lib/tuist_web/live/project_settings_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Automations"
 msgstr "الأتمتة"
@@ -976,8 +981,8 @@ msgid "Alert when the <strong>%{size_label}</strong> of the latest bundle on bra
 msgstr "تنبيه عند زيادة <strong>%{size_label}</strong> لأحدث حزمة على الفرع <strong>%{git_branch}</strong> بنسبة <strong>%{deviation}%</strong> مقارنة بالحزمة السابقة."
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:277
-#: lib/tuist_web/live/project_notifications_live.html.heex:373
-#: lib/tuist_web/live/project_notifications_live.html.heex:692
+#: lib/tuist_web/live/project_notifications_live.html.heex:378
+#: lib/tuist_web/live/project_notifications_live.html.heex:697
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr "الفرع"
@@ -993,8 +998,8 @@ msgstr "حجم الحزمة"
 msgid "Download size"
 msgstr "حجم التنزيل"
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:348
-#: lib/tuist_web/live/project_notifications_live.html.heex:666
+#: lib/tuist_web/live/project_notifications_live.html.heex:353
+#: lib/tuist_web/live/project_notifications_live.html.heex:671
 #, elixir-autogen, elixir-format
 msgid "Size metric"
 msgstr "مقياس الحجم"
@@ -1024,18 +1029,18 @@ msgstr "أرسل تنبيهًا عندما يزداد <strong>%{metric_category}
 msgid "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
 msgstr "أرسل تنبيهًا عندما يزداد <strong>%{size_label}</strong> لأحدث حزمة <strong>%{bundle_name}</strong> على الفرع <strong>%{git_branch}</strong> بنسبة <strong>%{deviation}%</strong> مقارنةً بالحزمة السابقة."
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:417
-#: lib/tuist_web/live/project_notifications_live.html.heex:747
+#: lib/tuist_web/live/project_notifications_live.html.heex:422
+#: lib/tuist_web/live/project_notifications_live.html.heex:752
 #, elixir-autogen, elixir-format
 msgid "Scheme"
 msgstr "المخطط"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:211
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:399
-#: lib/tuist_web/live/project_notifications_live.html.heex:424
-#: lib/tuist_web/live/project_notifications_live.html.heex:438
-#: lib/tuist_web/live/project_notifications_live.html.heex:754
-#: lib/tuist_web/live/project_notifications_live.html.heex:772
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:216
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:404
+#: lib/tuist_web/live/project_notifications_live.html.heex:429
+#: lib/tuist_web/live/project_notifications_live.html.heex:443
+#: lib/tuist_web/live/project_notifications_live.html.heex:759
+#: lib/tuist_web/live/project_notifications_live.html.heex:777
 #, elixir-autogen, elixir-format
 msgid "e.g. MyApp (optional)"
 msgstr "مثال: MyApp (اختياري)"
@@ -1052,8 +1057,8 @@ msgstr "%{scheme} %{environment} %{unit}"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:1007
 #: lib/tuist_web/live/once_runs_live.ex:998
-#: lib/tuist_web/live/project_notifications_live.html.heex:448
-#: lib/tuist_web/live/project_notifications_live.html.heex:783
+#: lib/tuist_web/live/project_notifications_live.html.heex:453
+#: lib/tuist_web/live/project_notifications_live.html.heex:788
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "البيئة"
@@ -1063,41 +1068,41 @@ msgstr "البيئة"
 msgid "local"
 msgstr "محلي"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:93
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Add threshold"
 msgstr "إضافة حد"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:268
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "الكل"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:190
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:258
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:378
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:195
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:263
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:383
 #, elixir-autogen, elixir-format
 msgid "Baseline branch"
 msgstr "فرع الأساس"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:47
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr "حظر طلبات الدمج عندما يتجاوز حجم الحزمة حداً معيناً مقارنة بفرع الأساس"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:204
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:261
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:392
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:209
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:266
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:397
 #, elixir-autogen, elixir-format
 msgid "Bundle name"
 msgstr "اسم الحزمة"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:457
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
 msgstr "إنشاء حد لحظر طلبات الدمج عندما يتجاوز حجم الحزمة الحد المسموح به"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:87
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Create size threshold"
 msgstr "إنشاء حد للحجم"
@@ -1107,37 +1112,37 @@ msgstr "إنشاء حد للحجم"
 msgid "Deviation %"
 msgstr "الانحراف %"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:455
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "No size thresholds"
 msgstr "لا توجد حدود للحجم"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:44
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Size thresholds"
 msgstr "حدود الحجم"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:128
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Threshold name"
 msgstr "اسم الحد"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:82
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Thresholds"
 msgstr "الحدود"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:278
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "Update size threshold"
 msgstr "تحديث حد الحجم"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:72
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Connect GitHub"
 msgstr "ربط GitHub"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:62
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
 msgstr "اربط تطبيق Tuist على GitHub لتمكين عمليات فحص حجم الحزم في طلبات السحب."
@@ -1161,17 +1166,17 @@ msgstr "اختيار المؤسسة"
 #: lib/tuist_web/live/once_run_live.ex:407
 #: lib/tuist_web/live/once_run_live.ex:803
 #: lib/tuist_web/live/once_run_live.ex:946
-#: lib/tuist_web/live/project_automations_live.html.heex:401
+#: lib/tuist_web/live/project_automations_live.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "Action"
 msgstr "إجراء"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:412
+#: lib/tuist_web/live/project_automations_live.html.heex:417
 #, elixir-autogen, elixir-format
 msgid "Add action"
 msgstr "إضافة إجراء"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:75
+#: lib/tuist_web/live/project_automations_live.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Add automation"
 msgstr "إضافة أتمتة"
@@ -1186,26 +1191,26 @@ msgstr "إضافة تصنيف"
 msgid "Add label: %{label}"
 msgstr "إضافة تصنيف: %{label}"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:682
+#: lib/tuist_web/live/project_automations_live.html.heex:687
 #, elixir-autogen, elixir-format
 msgid "Add recovery action"
 msgstr "إضافة إجراء استرداد"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:596
-#: lib/tuist_web/live/project_automations_live.html.heex:979
+#: lib/tuist_web/live/project_automations_live.html.heex:601
+#: lib/tuist_web/live/project_automations_live.html.heex:984
 #, elixir-autogen, elixir-format
 msgid "Available variables:"
 msgstr "المتغيرات المتاحة:"
 
 #: lib/tuist_web/live/project_automations_live.ex:966
-#: lib/tuist_web/live/project_automations_live.html.heex:422
-#: lib/tuist_web/live/project_automations_live.html.heex:692
+#: lib/tuist_web/live/project_automations_live.html.heex:427
+#: lib/tuist_web/live/project_automations_live.html.heex:697
 #, elixir-autogen, elixir-format
 msgid "Change state"
 msgstr "تغيير الحالة"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:477
-#: lib/tuist_web/live/project_automations_live.html.heex:860
+#: lib/tuist_web/live/project_automations_live.html.heex:482
+#: lib/tuist_web/live/project_automations_live.html.heex:865
 #, elixir-autogen, elixir-format
 msgid "Change state to"
 msgstr "تغيير الحالة إلى"
@@ -1215,22 +1220,22 @@ msgstr "تغيير الحالة إلى"
 msgid "Condition"
 msgstr "الشرط"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:55
+#: lib/tuist_web/live/project_automations_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Continuously monitor tests and respond with automated actions."
 msgstr "مراقبة الاختبارات باستمرار والاستجابة بإجراءات آلية."
 
-#: lib/tuist_web/live/project_automations_live.html.heex:67
+#: lib/tuist_web/live/project_automations_live.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "Create automation"
 msgstr "إنشاء أتمتة"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1180
+#: lib/tuist_web/live/project_automations_live.html.heex:1185
 #, elixir-autogen, elixir-format
 msgid "Delete this automation?"
 msgstr "هل تريد حذف هذه الأتمتة؟"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:66
+#: lib/tuist_web/live/project_automations_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Edit automation"
 msgstr "تعديل الأتمتة"
@@ -1243,57 +1248,57 @@ msgstr "تمكين"
 #: lib/tuist_web/live/project_automation_live.ex:294
 #: lib/tuist_web/live/project_automation_live.html.heex:26
 #: lib/tuist_web/live/project_automations_live.ex:963
-#: lib/tuist_web/live/project_automations_live.html.heex:516
-#: lib/tuist_web/live/project_automations_live.html.heex:868
+#: lib/tuist_web/live/project_automations_live.html.heex:521
+#: lib/tuist_web/live/project_automations_live.html.heex:873
 #, elixir-autogen, elixir-format
 msgid "Enabled"
 msgstr "مُمكّن"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:588
-#: lib/tuist_web/live/project_automations_live.html.heex:971
+#: lib/tuist_web/live/project_automations_live.html.heex:593
+#: lib/tuist_web/live/project_automations_live.html.heex:976
 #, elixir-autogen, elixir-format
 msgid "Enter message template..."
 msgstr "أدخل قالب الرسالة..."
 
 #: lib/tuist_web/live/project_automations_live.ex:905
-#: lib/tuist_web/live/project_automations_live.html.heex:141
+#: lib/tuist_web/live/project_automations_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Flakiness rate"
 msgstr "معدل التقلب"
 
 #: lib/tuist_web/live/project_automations_live.ex:906
-#: lib/tuist_web/live/project_automations_live.html.heex:149
+#: lib/tuist_web/live/project_automations_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Flaky runs"
 msgstr "عمليات غير مستقرة"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:439
-#: lib/tuist_web/live/project_automations_live.html.heex:726
+#: lib/tuist_web/live/project_automations_live.html.heex:444
+#: lib/tuist_web/live/project_automations_live.html.heex:731
 #, elixir-autogen, elixir-format
 msgid "Mark as flaky"
 msgstr "وضع علامة كمُتقلّب"
 
 #: lib/tuist_web/live/project_automations_live.ex:752
-#: lib/tuist_web/live/project_automations_live.html.heex:608
-#: lib/tuist_web/live/project_automations_live.html.heex:991
+#: lib/tuist_web/live/project_automations_live.html.heex:613
+#: lib/tuist_web/live/project_automations_live.html.heex:996
 #, elixir-autogen, elixir-format
 msgid "Mark test as flaky"
 msgstr "وضع علامة على الاختبار كمُتقلّب"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:566
-#: lib/tuist_web/live/project_automations_live.html.heex:949
+#: lib/tuist_web/live/project_automations_live.html.heex:571
+#: lib/tuist_web/live/project_automations_live.html.heex:954
 #, elixir-autogen, elixir-format
 msgid "Message template"
 msgstr "قالب الرسالة"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1124
+#: lib/tuist_web/live/project_automations_live.html.heex:1129
 #, elixir-autogen, elixir-format
 msgid "No automations yet. Add one to start automatically managing test case state based on conditions."
 msgstr "لا توجد أتمتة بعد. أضف واحدة لبدء إدارة حالة حالات الاختبار تلقائيًا بناءً على الشروط."
 
 #: lib/tuist_web/live/project_automation_live.html.heex:56
-#: lib/tuist_web/live/project_automations_live.html.heex:646
-#: lib/tuist_web/live/project_automations_live.html.heex:670
+#: lib/tuist_web/live/project_automations_live.html.heex:651
+#: lib/tuist_web/live/project_automations_live.html.heex:675
 #, elixir-autogen, elixir-format
 msgid "Recovery"
 msgstr "الاسترداد"
@@ -1308,21 +1313,21 @@ msgstr "إزالة التصنيف"
 msgid "Remove label: %{label}"
 msgstr "إزالة التصنيف: %{label}"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:673
+#: lib/tuist_web/live/project_automations_live.html.heex:678
 #, elixir-autogen, elixir-format
 msgid "Run actions when the conditions no longer hold"
 msgstr "تنفيذ الإجراءات عندما لا تتحقق الشروط بعد الآن"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:404
+#: lib/tuist_web/live/project_automations_live.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Run these actions for each test case that meets the condition"
 msgstr "تنفيذ هذه الإجراءات لكل حالة اختبار تستوفي الشرط"
 
 #: lib/tuist_web/live/project_automations_live.ex:967
-#: lib/tuist_web/live/project_automations_live.html.heex:461
-#: lib/tuist_web/live/project_automations_live.html.heex:529
-#: lib/tuist_web/live/project_automations_live.html.heex:731
-#: lib/tuist_web/live/project_automations_live.html.heex:912
+#: lib/tuist_web/live/project_automations_live.html.heex:466
+#: lib/tuist_web/live/project_automations_live.html.heex:534
+#: lib/tuist_web/live/project_automations_live.html.heex:736
+#: lib/tuist_web/live/project_automations_live.html.heex:917
 #, elixir-autogen, elixir-format
 msgid "Send Slack notification"
 msgstr "إرسال إشعار عبر Slack"
@@ -1332,18 +1337,18 @@ msgstr "إرسال إشعار عبر Slack"
 msgid "Slack: not configured"
 msgstr "Slack: غير مُهيأ"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:569
-#: lib/tuist_web/live/project_automations_live.html.heex:952
+#: lib/tuist_web/live/project_automations_live.html.heex:574
+#: lib/tuist_web/live/project_automations_live.html.heex:957
 #, elixir-autogen, elixir-format
 msgid "Supports Slack"
 msgstr "يدعم Slack"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:52
+#: lib/tuist_web/live/project_automations_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Test case automations"
 msgstr "أتمتة حالات الاختبار"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1144
+#: lib/tuist_web/live/project_automations_live.html.heex:1149
 #, elixir-autogen, elixir-format
 msgid "Trigger"
 msgstr "المشغّل"
@@ -1361,37 +1366,37 @@ msgstr "المشغّل"
 msgid "Unknown"
 msgstr "غير معروف"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:456
-#: lib/tuist_web/live/project_automations_live.html.heex:709
+#: lib/tuist_web/live/project_automations_live.html.heex:461
+#: lib/tuist_web/live/project_automations_live.html.heex:714
 #, elixir-autogen, elixir-format
 msgid "Unmark as flaky"
 msgstr "إلغاء وضع غير مستقر"
 
 #: lib/tuist_web/live/project_automations_live.ex:755
-#: lib/tuist_web/live/project_automations_live.html.heex:612
-#: lib/tuist_web/live/project_automations_live.html.heex:995
+#: lib/tuist_web/live/project_automations_live.html.heex:617
+#: lib/tuist_web/live/project_automations_live.html.heex:1000
 #, elixir-autogen, elixir-format
 msgid "Unmark test as flaky"
 msgstr "إلغاء وضع الاختبار كغير مستقر"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:118
-#: lib/tuist_web/live/project_automations_live.html.heex:133
+#: lib/tuist_web/live/project_automations_live.html.heex:123
+#: lib/tuist_web/live/project_automations_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "When"
 msgstr "عند"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:743
+#: lib/tuist_web/live/project_automations_live.html.heex:748
 #, elixir-autogen, elixir-format
 msgid "Without trigger for"
 msgstr "بدون مشغل لـ"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:97
+#: lib/tuist_web/live/project_automations_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "e.g. Auto-quarantine flaky tests"
 msgstr "مثال: عزل الاختبارات غير المستقرة تلقائيًا"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:577
-#: lib/tuist_web/live/project_automations_live.html.heex:960
+#: lib/tuist_web/live/project_automations_live.html.heex:582
+#: lib/tuist_web/live/project_automations_live.html.heex:965
 #, elixir-autogen, elixir-format
 msgid "formatting."
 msgstr "تنسيق."
@@ -1402,8 +1407,8 @@ msgid "Mute"
 msgstr "إسكات"
 
 #: lib/tuist_web/live/project_automations_live.ex:961
-#: lib/tuist_web/live/project_automations_live.html.heex:485
-#: lib/tuist_web/live/project_automations_live.html.heex:877
+#: lib/tuist_web/live/project_automations_live.html.heex:490
+#: lib/tuist_web/live/project_automations_live.html.heex:882
 #, elixir-autogen, elixir-format
 msgid "Muted"
 msgstr "مُسكت"
@@ -1415,13 +1420,13 @@ msgstr "تخطي"
 
 #: lib/tuist_web/live/once_run_live.ex:1338
 #: lib/tuist_web/live/project_automations_live.ex:962
-#: lib/tuist_web/live/project_automations_live.html.heex:494
-#: lib/tuist_web/live/project_automations_live.html.heex:886
+#: lib/tuist_web/live/project_automations_live.html.heex:499
+#: lib/tuist_web/live/project_automations_live.html.heex:891
 #, elixir-autogen, elixir-format
 msgid "Skipped"
 msgstr "تم التخطي"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:179
+#: lib/tuist_web/live/project_automations_live.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Comparison"
 msgstr "المقارنة"
@@ -1432,25 +1437,25 @@ msgid "Count"
 msgstr "العدد"
 
 #: lib/tuist_web/live/project_automations_live.ex:939
-#: lib/tuist_web/live/project_automations_live.html.heex:187
+#: lib/tuist_web/live/project_automations_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Greater or equal"
 msgstr "أكبر من أو يساوي"
 
 #: lib/tuist_web/live/project_automations_live.ex:940
-#: lib/tuist_web/live/project_automations_live.html.heex:195
+#: lib/tuist_web/live/project_automations_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Greater than"
 msgstr "أكبر من"
 
 #: lib/tuist_web/live/project_automations_live.ex:942
-#: lib/tuist_web/live/project_automations_live.html.heex:211
+#: lib/tuist_web/live/project_automations_live.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "Less or equal"
 msgstr "أقل من أو يساوي"
 
 #: lib/tuist_web/live/project_automations_live.ex:941
-#: lib/tuist_web/live/project_automations_live.html.heex:203
+#: lib/tuist_web/live/project_automations_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Less than"
 msgstr "أقل من"
@@ -1476,26 +1481,26 @@ msgstr "عندما يكون معدل عدم الاستقرار %{symbol} %{thres
 msgid "When flaky runs %{symbol} %{threshold} over %{window}"
 msgstr "عندما تكون عمليات التشغيل غير مستقرة %{symbol} %{threshold} خلال %{window}"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:303
-#: lib/tuist_web/live/project_automations_live.html.heex:803
+#: lib/tuist_web/live/project_automations_live.html.heex:308
+#: lib/tuist_web/live/project_automations_live.html.heex:808
 #, elixir-autogen, elixir-format
 msgid "Last N runs"
 msgstr "آخر N من عمليات التشغيل"
 
 #: lib/tuist_web/live/project_automations_live.ex:1066
-#: lib/tuist_web/live/project_automations_live.html.heex:251
-#: lib/tuist_web/live/project_automations_live.html.heex:753
+#: lib/tuist_web/live/project_automations_live.html.heex:256
+#: lib/tuist_web/live/project_automations_live.html.heex:758
 #, elixir-autogen, elixir-format
 msgid "Last days"
 msgstr "الأيام الأخيرة"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:243
+#: lib/tuist_web/live/project_automations_live.html.heex:248
 #, elixir-autogen, elixir-format
 msgid "Over"
 msgstr "خلال"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:276
-#: lib/tuist_web/live/project_automations_live.html.heex:779
+#: lib/tuist_web/live/project_automations_live.html.heex:281
+#: lib/tuist_web/live/project_automations_live.html.heex:784
 #, elixir-autogen, elixir-format
 msgid "Window"
 msgstr "النافذة الزمنية"
@@ -1541,7 +1546,7 @@ msgstr "يتم تشغيله عند إزالة علامة التقلب يدويً
 msgid "Marked as flaky"
 msgstr "مُعلَّم على أنه متقلب"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:328
+#: lib/tuist_web/live/project_automations_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "On these events"
 msgstr "في هذه الأحداث"
@@ -1562,7 +1567,7 @@ msgid "State changed to Skipped"
 msgstr "تم تغيير الحالة إلى تم التخطي"
 
 #: lib/tuist_web/live/project_automations_live.ex:908
-#: lib/tuist_web/live/project_automations_live.html.heex:165
+#: lib/tuist_web/live/project_automations_live.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Test updated"
 msgstr "تم تحديث الاختبار"
@@ -1588,7 +1593,7 @@ msgid "New Project"
 msgstr "مشروع جديد"
 
 #: lib/tuist_web/live/project_automations_live.ex:907
-#: lib/tuist_web/live/project_automations_live.html.heex:157
+#: lib/tuist_web/live/project_automations_live.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "Test reliability"
 msgstr "موثوقية الاختبار"
@@ -1598,12 +1603,12 @@ msgstr "موثوقية الاختبار"
 msgid "Branch is required."
 msgstr "الفرع مطلوب."
 
-#: lib/tuist_web/live/project_settings_live.html.heex:135
+#: lib/tuist_web/live/project_settings_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Branch name"
 msgstr "اسم الفرع"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:100
+#: lib/tuist_web/live/project_settings_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Default branch"
 msgstr "الفرع الافتراضي"
@@ -1613,12 +1618,12 @@ msgstr "الفرع الافتراضي"
 msgid "Default branch updated."
 msgstr "تم تحديث الفرع الافتراضي."
 
-#: lib/tuist_web/live/project_settings_live.html.heex:124
+#: lib/tuist_web/live/project_settings_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Edit default branch"
 msgstr "تحرير الفرع الافتراضي"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:103
+#: lib/tuist_web/live/project_settings_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "The branch Tuist treats as the baseline for analytics, insights, and comparisons."
 msgstr "الفرع الذي يعتبره Tuist كأساس للتحليلات والرؤى والمقارنات."
@@ -1779,7 +1784,7 @@ msgstr "تم تغيير إجراءات التشغيل"
 msgid "Tuist"
 msgstr "Tuist"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1154
+#: lib/tuist_web/live/project_automations_live.html.heex:1159
 #, elixir-autogen, elixir-format
 msgid "View automation details"
 msgstr "عرض تفاصيل الأتمتة"
@@ -1794,8 +1799,8 @@ msgstr "تكامل"
 msgid "the dashboard"
 msgstr "لوحة التحكم"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:350
-#: lib/tuist_web/live/project_automations_live.html.heex:828
+#: lib/tuist_web/live/project_automations_live.html.heex:355
+#: lib/tuist_web/live/project_automations_live.html.heex:833
 #, elixir-autogen, elixir-format
 msgid "Only apply to tests in these states"
 msgstr "تطبيق فقط على الاختبارات في هذه الحالات"
@@ -1815,13 +1820,13 @@ msgstr "مثال: main (اختياري)"
 msgid "Show more"
 msgstr "عرض المزيد"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:572
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:577
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr "إضافة"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:520
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:532
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:525
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Add approver"
 msgstr "إضافة مُوافق"
@@ -1836,17 +1841,17 @@ msgstr "أي شخص"
 msgid "Anyone with write access to the repository."
 msgstr "أي شخص لديه صلاحية الكتابة على المستودع."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:472
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "Approvals"
 msgstr "الموافقات"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:517
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:522
 #, elixir-autogen, elixir-format
 msgid "Approvers"
 msgstr "المُوافقون"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:474
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "Choose who can accept a bundle size increase that exceeded a threshold."
 msgstr "اختر من يمكنه قبول زيادة حجم الحزمة التي تجاوزت حدًا معينًا."
@@ -1861,8 +1866,8 @@ msgstr "قم أولاً بربط تطبيق Tuist على GitHub بهذا الم�
 msgid "Enter a valid GitHub username that isn't already on the list."
 msgstr "أدخل اسم مستخدم صالح على GitHub غير موجود بالفعل في القائمة."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:544
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:587
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:549
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:592
 #, elixir-autogen, elixir-format
 msgid "GitHub username"
 msgstr "اسم مستخدم GitHub"
@@ -1872,12 +1877,12 @@ msgstr "اسم مستخدم GitHub"
 msgid "No GitHub user with that username."
 msgstr "لا يوجد مستخدم على GitHub بهذا الاسم."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:608
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:613
 #, elixir-autogen, elixir-format
 msgid "No approvers"
 msgstr "لا يوجد موافقون"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:610
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Nobody can accept a size increase until a GitHub username is added"
 msgstr "لا يمكن لأي شخص قبول زيادة الحجم حتى تتم إضافة اسم مستخدم على GitHub"
@@ -1898,12 +1903,12 @@ msgstr "مستخدمو GitHub المحددون"
 msgid "The approver could not be added."
 msgstr "لم تتمكّن من إضافة المُوافق."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:522
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
 msgstr "يمكن لهذا الشخص قبول زيادة حجم الحزمة التي تجاوزت حدًا معينًا، من خلال عملية التحقق على طلب السحب."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:485
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:490
 #, elixir-autogen, elixir-format
 msgid "Who can accept"
 msgstr "من يمكنه القبول"
@@ -2013,22 +2018,22 @@ msgstr "نجح"
 msgid "The share of completed commands with a zero exit code."
 msgstr "نسبة الأوامر المكتملة التي انتهت برمز خروج صفر."
 
-#: lib/tuist_web/live/project_settings_live.html.heex:170
+#: lib/tuist_web/live/project_settings_live.html.heex:175
 #, elixir-autogen, elixir-format
 msgid "A square image that represents the project. PNG, JPEG, or WebP up to 2 MB."
 msgstr "صورة مربعة تمثل المشروع. PNG أو JPEG أو WebP بحجم يصل إلى 2 ميغابايت."
 
-#: lib/tuist_web/live/project_settings_live.html.heex:212
+#: lib/tuist_web/live/project_settings_live.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Cancel selected file"
 msgstr "إلغاء الملف المحدد"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:199
+#: lib/tuist_web/live/project_settings_live.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "Choose file"
 msgstr "اختيار ملف"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:183
+#: lib/tuist_web/live/project_settings_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Current project logo"
 msgstr "شعار المشروع الحالي"
@@ -2054,7 +2059,7 @@ msgstr "تمت إزالة الشعار."
 msgid "Logo updated."
 msgstr "تم تحديث الشعار."
 
-#: lib/tuist_web/live/project_settings_live.html.heex:203
+#: lib/tuist_web/live/project_settings_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "No file chosen"
 msgstr "لم يتم اختيار أي ملف"
@@ -2064,17 +2069,17 @@ msgstr "لم يتم اختيار أي ملف"
 msgid "Only one logo can be uploaded at a time."
 msgstr "يمكن تحميل شعار واحد فقط في كل مرة."
 
-#: lib/tuist_web/live/project_settings_live.html.heex:167
+#: lib/tuist_web/live/project_settings_live.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "Project logo"
 msgstr "شعار المشروع"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:234
+#: lib/tuist_web/live/project_settings_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr "إزالة"
 
-#: lib/tuist_web/live/project_settings_live.html.heex:236
+#: lib/tuist_web/live/project_settings_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Remove the current project logo?"
 msgstr "هل تريد إزالة شعار المشروع الحالي؟"
@@ -2095,7 +2100,7 @@ msgstr "لم نتمكن من رفع الملف المحدد."
 #: lib/tuist_web/live/once_run_live.ex:912
 #: lib/tuist_web/live/once_run_live.ex:1010
 #: lib/tuist_web/live/once_run_live.ex:1033
-#: lib/tuist_web/live/project_settings_live.html.heex:242
+#: lib/tuist_web/live/project_settings_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "Upload"
 msgstr "رفع"
@@ -2830,8 +2835,8 @@ msgstr "متوسط مدة استدعاءات بناء Bazel."
 msgid "Invocation"
 msgstr "الاستدعاء"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:503
-#: lib/tuist_web/live/project_automations_live.html.heex:895
+#: lib/tuist_web/live/project_automations_live.html.heex:508
+#: lib/tuist_web/live/project_automations_live.html.heex:900
 #, elixir-autogen, elixir-format
 msgid "Skips the entire target, including healthy tests."
 msgstr "يتخطى الهدف بالكامل، بما في ذلك الاختبارات السليمة."
@@ -2858,7 +2863,7 @@ msgstr "إجمالي حجم مخرجات البناء التي تم تنزيله
 msgid "Total size of build outputs uploaded to the remote cache. Excludes action cache writes, which store metadata rather than outputs."
 msgstr "إجمالي حجم مخرجات البناء التي تم رفعها إلى ذاكرة التخزين المؤقت البعيدة. لا يتضمن عمليات الكتابة في ذاكرة التخزين المؤقت للإجراءات، التي تخزن البيانات الوصفية بدلاً من المخرجات."
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1071
+#: lib/tuist_web/live/project_automations_live.html.heex:1076
 #, elixir-autogen, elixir-format
 msgid "Actions for existing matches are pending. Save with this option unchecked to cancel any remaining actions."
 msgstr "الإجراءات الخاصة بالتطابقات الحالية قيد الانتظار. احفظ مع إلغاء تحديد هذا الخيار لإلغاء أي إجراءات متبقية."
@@ -2868,12 +2873,12 @@ msgstr "الإجراءات الخاصة بالتطابقات الحالية قي
 msgid "After %{window} without a trigger: %{actions}."
 msgstr "بعد %{window} بدون مشغل: %{actions}."
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1032
+#: lib/tuist_web/live/project_automations_live.html.heex:1037
 #, elixir-autogen, elixir-format
 msgid "Apply to existing matches"
 msgstr "تطبيق على التطابقات الحالية"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1059
+#: lib/tuist_web/live/project_automations_live.html.heex:1064
 #, elixir-autogen, elixir-format
 msgid "Complete a valid condition to see matching tests."
 msgstr "أكمل شرطًا صالحًا لعرض الاختبارات المتطابقة."
@@ -2883,12 +2888,12 @@ msgstr "أكمل شرطًا صالحًا لعرض الاختبارات المت�
 msgid "Complete a valid condition."
 msgstr "أكمل شرطًا صالحًا."
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1052
+#: lib/tuist_web/live/project_automations_live.html.heex:1057
 #, elixir-autogen, elixir-format
 msgid "Counting matching tests…"
 msgstr "جاري عد الاختبارات المتطابقة…"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1097
+#: lib/tuist_web/live/project_automations_live.html.heex:1102
 #, elixir-autogen, elixir-format
 msgid "Create and apply actions"
 msgstr "إنشاء وتطبيق الإجراءات"
@@ -2898,7 +2903,7 @@ msgstr "إنشاء وتطبيق الإجراءات"
 msgid "For each matching test: %{actions}."
 msgstr "لكل اختبار متطابق: %{actions}."
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1054
+#: lib/tuist_web/live/project_automations_live.html.heex:1059
 #, elixir-autogen, elixir-format
 msgid "Match count unavailable. You can still save."
 msgstr "عدد المطابقات غير متاح. لا يزال بإمكانك الحفظ."
@@ -2918,12 +2923,12 @@ msgstr "تم تعطيل الاسترداد."
 msgid "Requested actions for existing matches"
 msgstr "الإجراءات المطلوبة للمطابقات الحالية"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1096
+#: lib/tuist_web/live/project_automations_live.html.heex:1101
 #, elixir-autogen, elixir-format
 msgid "Save and apply actions"
 msgstr "حفظ وتطبيق الإجراءات"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1045
+#: lib/tuist_web/live/project_automations_live.html.heex:1050
 #, elixir-autogen, elixir-format
 msgid "Select to also run them once after saving for %{count} test that currently matches."
 msgid_plural "Select to also run them once after saving for %{count} tests that currently match."
@@ -2934,7 +2939,7 @@ msgstr[3] "حدد لتشغيلها أيضًا مرة واحدة بعد الحف�
 msgstr[4] "حدد لتشغيلها أيضًا مرة واحدة بعد الحفظ لـ %{count} اختبارات تتطابق حاليًا."
 msgstr[5] "حدد لتشغيلها أيضًا مرة واحدة بعد الحفظ لـ %{count} اختبارات تتطابق حاليًا."
 
-#: lib/tuist_web/live/project_automations_live.html.heex:385
+#: lib/tuist_web/live/project_automations_live.html.heex:390
 #, elixir-autogen, elixir-format
 msgid "What"
 msgstr "ماذا"
@@ -2944,7 +2949,7 @@ msgstr "ماذا"
 msgid "e.g. 30d"
 msgstr "مثال: 30 يومًا"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:1038
+#: lib/tuist_web/live/project_automations_live.html.heex:1043
 #, elixir-autogen, elixir-format
 msgid "By default, actions run only when a test starts matching the condition. Tests that currently match won't get them unless they recover and then match again."
 msgstr "بشكل افتراضي، لا يتم تنفيذ الإجراءات إلا عندما يبدأ اختبار في مطابقة الشرط. لن تحصل الاختبارات التي تتطابق حاليًا على هذه الإجراءات إلا إذا استعادت حالتها ثم طابقت الشرط مرة أخرى."
@@ -3332,8 +3337,8 @@ msgstr "النسبة المئوية (%)"
 msgid "The size threshold could not be saved. Check the name and baseline branch."
 msgstr "لم يتم حفظ حد الحجم. تحقق من الاسم وفرع الأساس."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:157
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:344
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:162
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:349
 #, elixir-autogen, elixir-format
 msgid "Threshold type"
 msgstr "نوع الحد"
@@ -3374,3 +3379,29 @@ msgstr[5] "%{display_count} ملفات إضافية"
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to complete a Cargo invocation during the selected period."
 msgstr "متوسط الوقت المستغرق لإكمال استدعاء Cargo خلال الفترة المحددة."
+
+#: lib/tuist_web/live/project_integrations_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Configure GitHub behavior for this project."
+msgstr "تكوين سلوك GitHub لهذا المشروع."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:13
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:13
+#: lib/tuist_web/live/project_integrations_live.ex:20
+#: lib/tuist_web/live/project_integrations_live.html.heex:11
+#: lib/tuist_web/live/project_integrations_live.html.heex:39
+#: lib/tuist_web/live/project_notifications_live.html.heex:13
+#: lib/tuist_web/live/project_settings_live.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Integrations"
+msgstr "التكاملات"
+
+#: lib/tuist_web/live/project_integrations_live.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "Post and update Tuist run reports on pull or merge requests. Uploads and CI job summaries are unaffected."
+msgstr "نشر وتحديث تقارير تشغيل Tuist على طلبات السحب أو الدمج. لا تتأثر عمليات التحميل وملخصات وظائف CI."
+
+#: lib/tuist_web/live/project_integrations_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Run report comments"
+msgstr "تعليقات تقرير التشغيل"

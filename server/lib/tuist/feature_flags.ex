@@ -5,8 +5,23 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Observability
   alias Tuist.Projects.Project
 
-  @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
-  def immutable_shard_reports_enabled?(account, flags \\ nil) do
+  @doc """
+  Default-off immutable shard creation gate. Version-1 plans drop coverage, so
+  projects with coverage (`coverage_enabled?/3`: Mix projects, and every
+  project of a coverage-enabled account) remain on legacy plans. Given an
+  account, it answers for the account's non-Mix projects.
+  """
+  def immutable_shard_reports_enabled?(subject, flags \\ nil)
+
+  def immutable_shard_reports_enabled?(%Project{account: account} = project, flags) do
+    Observability.feature_flag_evaluated(
+      :immutable_shard_reports,
+      account,
+      flag_enabled?(:immutable_shard_reports, account, flags) and not coverage_enabled?(account, project, flags)
+    )
+  end
+
+  def immutable_shard_reports_enabled?(account, flags) do
     Observability.feature_flag_evaluated(
       :immutable_shard_reports,
       account,
@@ -127,11 +142,22 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether code coverage (Xcode's and Mix's) is ingested, processed and shown
-  for the given account. Canary and production require an explicit `:xcode_coverage`
-  FunWithFlags toggle for the account while the feature is in early access, so
-  its data model and API can still change. Development, test, and staging
-  default to enabled.
+  Whether code coverage is ingested, processed and shown for a project of the
+  account. Mix projects have it in every account. Every other build system
+  (Xcode's coverage and test selection) is in early access behind
+  `xcode_coverage_enabled?/2`.
+  """
+  def coverage_enabled?(account, project, flags \\ nil)
+
+  def coverage_enabled?(_account, %Project{build_system: :mix}, _flags), do: true
+  def coverage_enabled?(account, _project, flags), do: xcode_coverage_enabled?(account, flags)
+
+  @doc """
+  Whether code coverage is ingested, processed and shown for the account's
+  projects other than Mix ones (see `coverage_enabled?/3`). Canary and
+  production require an explicit `:xcode_coverage` FunWithFlags toggle for the
+  account while the feature is in early access, so its data model and API can
+  still change. Development, test, and staging default to enabled.
   """
   def xcode_coverage_enabled?(account, flags \\ nil)
 

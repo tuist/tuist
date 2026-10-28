@@ -1891,6 +1891,12 @@ rackFleet:
     # stacked image but not boot it. An Xcode without a stacked digest, or with
     # an `imageTag` override, keeps its standalone image.
     stackedImages: false
+    # How many runner images each host keeps. Every host stages the catalog
+    # pools' images up to it, warm floors first and then by the pools'
+    # `status.lastDemandAt`, and reaps the lowest-ranked beyond it. Empty
+    # leaves hosts staging only the releases of the images they hold and
+    # dropping an unused one after a day.
+    goldenBudget: ~
     # Every rack pool's scaling unless its `xcodeOverrides` entry sets its own.
     # `maxReplicas` is a per-pool ceiling against this fleet's slots (hosts x
     # guestCapacity); the allocator caps the pools' joint sum.

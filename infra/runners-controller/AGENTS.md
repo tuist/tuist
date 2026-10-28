@@ -59,6 +59,11 @@ cancellable and leaves the reserve intact. See
   hour. Explicit `runnersFleet.pools` / `runnersFleetLinux.pools`
   entries render it when their `autoscaling` block sets it.
 
+  The autoscaler also stamps `status.lastDemandAt` when the pool has real
+  work (`Signals.Load() > 0`), at most every ten minutes, with a status merge
+  patch. tart-kubelet ranks the images a host keeps within its golden budget by
+  it (`infra/tart-kubelet/AGENTS.md`).
+
   **Fleet-capacity awareness.** Both Linux shape pools and macOS Xcode
   pools share a capacity budget across siblings, so their warm capacity
   competes. The reconciler runs the per-pool target through
@@ -163,11 +168,13 @@ cancellable and leaves the reserve intact. See
     read failure cannot freeze scale-up for queued work. Memory is the
     only dimension — Kata pins it per microVM and CPU is oversubscribed.
 
-    Sandbox admission is CI-first with zero additional warm memory. The fleet's
-    first enabled pool publishes short-lived per-node grants; CI reservations
-    revoke before tainting, and queued or unknown CI demand disables sandbox
-    preemption. Keep the server/controller protocol and its ordering guarantees
-    aligned with [`fleet-sharing.md`](../sandboxd/fleet-sharing.md).
+    Queued CI and sandbox work have equal admission priority with zero additional
+    warm sandbox memory. The fleet's first enabled pool publishes short-lived
+    per-node grants; CI reservations revoke before tainting, and unknown fleet
+    demand disables sandbox
+    preemption. Queued CI alone does not revoke sandbox grants or block retiring
+    idle, unclaimed warm runners for sandbox growth. Keep the server/controller
+    protocol and its ordering guarantees aligned with [`fleet-sharing.md`](../sandboxd/fleet-sharing.md).
 
     Sandbox daemons (`infra/sandboxd`, namespace from
     `TUIST_SANDBOXES_NAMESPACE`, an env var so a controller release that

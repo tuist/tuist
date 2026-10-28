@@ -1,5 +1,6 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Testing
 import TuistConstants
 import TuistCore
@@ -7,6 +8,25 @@ import XcodeGraph
 @testable import TuistGenerator
 
 struct DeleteDerivedDirectoryProjectMapperTests {
+    @Test(.inTemporaryDirectory) func regeneration_preservesGeneratedTestPlanCoverage() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let planPath = projectPath.appending(components: "Derived", "TestPlans", "UnitTests.xctestplan")
+        let descriptor = TestPlanDescriptor(path: planPath, testTargets: [], coverage: true)
+        let executor = SideEffectDescriptorExecutor()
+        let fileSystem = FileSystem()
+
+        for _ in 0 ..< 2 {
+            let (_, cleanup) = try await DeleteDerivedDirectoryProjectMapper().map(project: .test(path: projectPath))
+            try await executor.execute(sideEffects: [.testPlan(descriptor)])
+            try await executor.execute(sideEffects: cleanup)
+
+            let data = try await fileSystem.readFile(at: planPath)
+            let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let options = try #require(json["defaultOptions"] as? [String: Any])
+            #expect(options["codeCoverage"] is [String: Any])
+        }
+    }
+
     @Test(.inTemporaryDirectory) func map_preservesGeneratedInputsDuringEarlyCleanup() async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let derivedDirectory = projectPath.appending(component: Constants.DerivedDirectory.name)

@@ -180,6 +180,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	current := pool.Spec.Replicas
 	now := r.now()
+	r.stampDemand(ctx, pool, *signals, now, logger)
 
 	// A sandbox carve-out's growth waiting for room on a node outranks the
 	// idle warm runners there, whatever the cooldown.
@@ -765,6 +766,28 @@ func (r *AutoscalerReconciler) applyReplicas(ctx context.Context, pool *tuistv1.
 	original := pool.DeepCopy()
 	pool.Spec.Replicas = desired
 	return r.Patch(ctx, pool, client.MergeFrom(original))
+}
+
+// demandStampInterval bounds how often a pool's status.lastDemandAt is
+// written. tart-kubelet ranks images by it over hours and days, so a write
+// every five-second tick would only churn the object.
+const demandStampInterval = 10 * time.Minute
+
+// stampDemand records on the pool's status that it has real work now, for
+// tart-kubelet's golden budget. A failed write is retried on a later tick.
+func (r *AutoscalerReconciler) stampDemand(ctx context.Context, pool *tuistv1.RunnerPool, signals scaling.Signals, now time.Time, logger logr.Logger) {
+	if signals.Load() <= 0 {
+		return
+	}
+	if last := pool.Status.LastDemandAt; last != nil && now.Sub(last.Time) < demandStampInterval {
+		return
+	}
+	original := pool.DeepCopy()
+	ts := metav1.NewTime(now)
+	pool.Status.LastDemandAt = &ts
+	if err := r.Status().Patch(ctx, pool, client.MergeFrom(original)); err != nil && !apierrors.IsNotFound(err) {
+		logger.Error(err, "stamp lastDemandAt; will retry")
+	}
 }
 
 func (r *AutoscalerReconciler) pollInterval() time.Duration {

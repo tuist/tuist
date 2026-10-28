@@ -18,11 +18,18 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorker do
   `queued` for minutes after the job started, so a `queued` job carrying this
   runner's name binds as well as an `in_progress` one. A later `in_progress`
   delivery for the same pair is a no-op.
+
+  The API lags too: a job GitHub started several seconds ago may not name its
+  runner yet. A miss snoozes and asks again every two seconds for as long as
+  the agent waits, and the uniqueness period spans that window so the agent's
+  repeated requests join the lookup in flight. Until the binding lands, a job
+  displaced by the runner shuffle stays attached to the claim it was minted
+  under and cannot be handed over or re-queued.
   """
   use Oban.Worker,
     queue: :webhooks,
     max_attempts: 1,
-    unique: [period: 10, keys: [:session_id]]
+    unique: [period: 20, keys: [:session_id]]
 
   import Ecto.Query
 
@@ -37,13 +44,17 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorker do
 
   @max_runs 10
   @active_window_seconds 6 * 60 * 60
+  @retry_seconds 2
+  # The agent waits 25 seconds from its first pending answer, which comes
+  # just before this job is inserted.
+  @retry_window_seconds 20
 
   def enqueue(%RunnerSession{id: session_id}) do
     %{session_id: session_id} |> new() |> Oban.insert()
   end
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"session_id" => session_id}}) do
+  def perform(%Oban.Job{args: %{"session_id" => session_id}, inserted_at: inserted_at}) do
     with %RunnerSession{ended_at: nil, executed_workflow_job_id: nil, runner_name: runner_name} = session
          when runner_name != "" <- Repo.get(RunnerSession, session_id),
          %WorkflowJob{provider: "github"} = minted <-
@@ -52,10 +63,10 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorker do
       session
       |> candidate_runs(minted)
       |> Enum.find_value(&executed_job_id(installation, &1, runner_name))
-      |> record(session)
+      |> record(session, inserted_at)
+    else
+      _ -> :ok
     end
-
-    :ok
   end
 
   defp candidate_runs(%RunnerSession{} = session, %WorkflowJob{} = minted) do
@@ -98,16 +109,22 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorker do
   end
 
   # GitHub reports the job a runner picked up late, by webhook and API alike, so
-  # a miss here means the host may give up before the binding arrives. The job
-  # logged is the one the runner was minted for.
-  defp record(nil, %RunnerSession{} = session) do
-    Logger.info("runners: execution lookup found no job GitHub reports running on this runner",
-      runner_name: session.runner_name,
-      workflow_job_id: session.workflow_job_id
-    )
+  # a miss at the end of the window means the host may give up before the
+  # binding arrives. The job logged is the one the runner was minted for.
+  defp record(nil, %RunnerSession{} = session, inserted_at) do
+    if DateTime.diff(DateTime.utc_now(), inserted_at) < @retry_window_seconds do
+      {:snooze, @retry_seconds}
+    else
+      Logger.info("runners: execution lookup found no job GitHub reports running on this runner",
+        runner_name: session.runner_name,
+        workflow_job_id: session.workflow_job_id
+      )
+
+      :ok
+    end
   end
 
-  defp record({executed_workflow_job_id, github_status}, %RunnerSession{} = session) do
+  defp record({executed_workflow_job_id, github_status}, %RunnerSession{} = session, _inserted_at) do
     outcome = Dispatch.record_execution(session.runner_name, executed_workflow_job_id, session.account_id)
 
     Logger.info("runners: recorded execution from GitHub API (#{inspect(outcome)}, GitHub status #{github_status})",

@@ -1203,3 +1203,56 @@ func linuxNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int6
 		},
 	}
 }
+
+// tart-kubelet keeps the images of pools with recent work on every host
+// within its golden budget, so the autoscaler stamps when a pool last had
+// real work, at most every demandStampInterval, and never for an idle pool.
+func TestAutoscaler_StampsLastDemandAt(t *testing.T) {
+	autoscaling := &tuistv1.RunnerPoolAutoscaling{Enabled: true, MaxReplicas: 30}
+	start := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+
+	idle := newAutoscalerPool("idle", 0, autoscaling)
+	r, server := setupReconciler(t, idle, scaling.Signals{Fleet: "idle"})
+	defer server.Close()
+	r.Now = func() time.Time { return start }
+	reconcileOnce(t, r, "idle")
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(idle), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Status.LastDemandAt != nil {
+		t.Fatalf("LastDemandAt = %v, want nil for a pool without work", got.Status.LastDemandAt)
+	}
+
+	busy := newAutoscalerPool("busy", 1, autoscaling)
+	r, server = setupReconciler(t, busy, scaling.Signals{Fleet: "busy", Queued: 1})
+	defer server.Close()
+	now := start
+	r.Now = func() time.Time { return now }
+	read := func() time.Time {
+		t.Helper()
+		got := &tuistv1.RunnerPool{}
+		if err := r.Get(context.Background(), client.ObjectKeyFromObject(busy), got); err != nil {
+			t.Fatalf("get pool: %v", err)
+		}
+		if got.Status.LastDemandAt == nil {
+			t.Fatal("LastDemandAt = nil, want it stamped for a pool with queued work")
+		}
+		return got.Status.LastDemandAt.Time
+	}
+
+	reconcileOnce(t, r, "busy")
+	if got := read(); !got.Equal(start) {
+		t.Fatalf("LastDemandAt = %v, want %v", got, start)
+	}
+	now = start.Add(demandStampInterval - time.Second)
+	reconcileOnce(t, r, "busy")
+	if got := read(); !got.Equal(start) {
+		t.Fatalf("LastDemandAt = %v, want %v until demandStampInterval passes", got, start)
+	}
+	now = start.Add(demandStampInterval)
+	reconcileOnce(t, r, "busy")
+	if got := read(); !got.Equal(now) {
+		t.Fatalf("LastDemandAt = %v, want %v", got, now)
+	}
+}
