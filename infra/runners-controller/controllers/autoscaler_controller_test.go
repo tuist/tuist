@@ -827,6 +827,70 @@ func TestAutoscaler_MacosFleetSqueezesIdleHeadroomAgainstHostBudget(t *testing.T
 	}
 }
 
+// TestAutoscaler_LearnedSpareOutranksSiblingHeadroom: a pool's learned
+// burst is its floor tier, so on a tight fleet it is funded before a
+// sibling's p95 headroom rather than split with it.
+func TestAutoscaler_LearnedSpareOutranksSiblingHeadroom(t *testing.T) {
+	const fleet = "runners-macos"
+	learned := macosFleetPool("macos-learned", fleet, 0, 0, 9)
+	learned.Spec.Autoscaling.MaxLearnedWarmPoolFloor = 3
+	peak := macosFleetPool("macos-peak", fleet, 0, 0, 9)
+	// 4 single-guest hosts = 4 slots: the learned burst of 3, and 1 slot
+	// of the sibling's p95 headroom of 4.
+	var nodes []client.Object
+	for i := 1; i <= 4; i++ {
+		nodes = append(nodes, macosNode(fmt.Sprintf("mac-%d", i), fleet))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	objs := []client.Object{learned, peak}
+	objs = append(objs, nodes...)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	signalsByFleet := map[string]scaling.Signals{
+		"macos-learned": {Fleet: "macos-learned", LearnedWarmFloor: 3},
+		"macos-peak":    {Fleet: "macos-peak", P95ConcurrentLastHour: 4},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(signalsByFleet[r.URL.Query().Get("fleet")])
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	_ = os.WriteFile(tokenPath, []byte("test-token"), 0o600)
+	sc := scaling.NewClient(server.URL)
+	sc.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:        fakeClient,
+		Scheme:        scheme,
+		SignalsClient: sc,
+		PollInterval:  time.Millisecond,
+	}
+
+	reconcileOnce(t, r, "macos-learned")
+	reconcileOnce(t, r, "macos-peak")
+
+	gotLearned := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "macos-learned", Namespace: "tuist-runners"}, gotLearned)
+	gotPeak := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "macos-peak", Namespace: "tuist-runners"}, gotPeak)
+
+	if gotLearned.Spec.Replicas != 3 {
+		t.Errorf("learned Replicas = %d, want 3 (learned burst funded as floor)", gotLearned.Spec.Replicas)
+	}
+	if gotPeak.Spec.Replicas != 1 {
+		t.Errorf("peak Replicas = %d, want 1 (headroom gets what is left)", gotPeak.Spec.Replicas)
+	}
+}
+
 // TestAutoscaler_MacosFleetGrantsHeadroomWhenSlotsAvailable verifies
 // the uncontended path: with idle siblings and slack hosts, an
 // autoscaling macOS pool gets its full speculative warm buffer.
