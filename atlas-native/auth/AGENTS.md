@@ -29,7 +29,7 @@ omitting it preserves generic browser login, including self-hosted providers.
 - Direct `orbit_session` `select` accepts a validated UUID even outside loaded pages and reads only fixed `Messages { id, page: 1 }`. Additive snapshot `selection_id` is a navigation intent for Back/Retry, never authoritative metadata; `selected` stays null until matching protected history succeeds. Do not synthesize Thread metadata or page the list to resolve a link. `has_drafts` reports retained nonblank drafts across threads for platform protected-work guards. Unavailable reads revoke cached rows, history, presence and that thread's drafts/retry IDs, retain the target for explicit Retry, and invalidate older list/detail results; superseded failures cannot revoke a newer selection. Shared state tests inject transport at the actual typed route boundary, including unseen IDs, denial, mismatched metadata, retry, supersession and close.
 - `orbit_components.rs` filters the server-authored `result_table` v1 contract: at most three columns, five rows, bounded strings, one `show_evidence` action, no extra executable/navigation fields. Invalid/unknown versions drop only the component and preserve original tool evidence. Local `orbit_session` `component_action` events require the current active selected thread and a matching succeeded tool message's server-provided action; the sole effect reveals existing source evidence. No model run, business mutation, arbitrary request or thread state is authored by the client.
 - `themes.rs` implements `themes` (fixed public GET on the selected origin), `validate_themes` (including cached catalogs), and `default_themes` (bundled Atlas). Treat this as optional appearance data, never an authentication requirement. Public transport attaches no bearer token and never maps 401/403/404/501 to rejected credentials. Validate the version, stable IDs, limits, opaque colors, radii and WCAG contrast; serialize only allowlisted fields. Native adapters own per-origin preferences and cache, using separate workers and generation guards. Do not add theme networking to the credential queue.
-- `push.rs` implements only bearer-authenticated PUT/DELETE `/api/me/push-devices/:installation_id` through the `push` bridge command. Register accepts platform, token and environment (`sandbox|production`, Android production only), never an owner/app/topic/endpoint selector. UUID/token validation precedes networking; responses expose only registered/deleted status and the server registration UUID, never the token. Native coordinators own opt-in, device-only installation storage and logout cleanup. A deleted installation ID is terminal: clients rotate it only after successful cleanup. Keep this source in all three production Once targets.
+- `push.rs` implements only bearer-authenticated PUT/DELETE `/api/me/push-devices/:installation_id` through the `push` bridge command. Register accepts platform (`ios|macos|android`), token and environment (`sandbox|production`, Android production only), never an owner/app/topic/endpoint selector. iOS and macOS share bounded APNs hex-token validation but send distinct platforms. UUID/token validation precedes networking; responses expose only registered/deleted status and the server registration UUID, never the token. Native coordinators own opt-in, device-only installation storage and logout cleanup. A deleted installation ID is terminal: clients rotate it only after successful cleanup. Keep this source in all production Once targets.
 - `orbit_activity.rs` implements `orbit_activity`: fixed bearer GET `/api/me/orbit-live-activity` and PUT/DELETE registration routes beneath it. Validate lowercase UUIDs, bounded hex tokens, environment and sessions before networking. Return generic phases, timestamps, completed-tool counts and up to three distinct conversation IDs with optional typed `title`; strip unknown response metadata. Missing/null titles are accepted and omitted on serialization for older-server compatibility; present titles must be strings of at most 80 Unicode scalar values, rejecting overlong/non-string values without echoing them. The server uses only the currently authorized stored `Thread.title`, cleaned for whitespace/control/format characters with `Conversation` for blank values. This title is an explicit contextual exception to the previous content-free contract: Apple receives bounded titles, which can appear on the Lock Screen. Raw prompts/results, replies and tool text remain excluded; neither inference nor title logging/persistence is introduced. Optional-route failures never reject OAuth credentials. The iOS coordinator owns ActivityKit lifecycle and token cleanup; Rust neither creates activities nor accepts owner/topic/endpoint selectors. Keep this source in all three production Once targets.
 - `business.rs` implements allowlisted tasks/accounts/invoices CRUD and task completion under `/api/native`, plus read-only caller Profile. Validate fields/IDs/dates before networking and filter response fields; preserve decimal strings and currency-separated summaries. Server contexts remain authoritative for scopes, manual-invoice provenance and audit attribution. Keep feature networking independent after serialized session refresh/persistence so unrelated work can run in parallel.
 - Optional account `details` and invoice `finance_overview` are typed read-only projections. Filter every related record's fields, drop account details from non-account resources and bank overview from non-invoice resources, and never expand write allowlists to include them. Preserve nullable metrics and exact converted decimal strings. Missing additions remain compatible with older servers; the server owns document-summary permissions and FX conversion.
@@ -39,8 +39,14 @@ omitting it preserves generic browser login, including self-hosted providers.
 - C inputs are borrowed NUL-terminated strings. Outputs are owned allocations and
   must be freed exactly once using `atlas_auth_free`. JNI uses VM-managed strings.
 - The calling native coordinator owns secure storage and serializes credential
-  mutations. Rust does not persist anything or call platform APIs. This keeps
-  platform SDKs out of host tests and avoids a global runtime/session lock.
+  mutations. Rust never persists credentials or calls platform APIs. Its optional
+  `cache.rs` persists sanitized read projections to an adapter-supplied private
+  directory; see [Durable read cache](../README.md#durable-read-cache) for key,
+  retention, invalidation and append-only transactional SQLite migration rules.
+  Local `bootstrap` validates/upgrades the opaque session without networking;
+  native adapters persist it before publishing the shell. Protected requests
+  still restore/rotate credentials first. Keep platform SDKs out of host tests
+  and never hold the SQLite mutex during networking.
 - iOS presents ASWebAuthenticationSession; Android presents the system browser
   and receives its registered custom-scheme callback. Rust validates the complete
   callback destination, state, duplicate parameters, and ten-minute login lifetime.
@@ -66,6 +72,19 @@ before networking; strip response extras and never echo provider/server bodies.
 Optional endpoint failures do not revoke OAuth. The host persists the immutable first
 save payload/UUID for uncertain retries; the extension has no Rust/auth/network dependency.
 Keep the source in all three production Once lists and tests in the host test glob.
+
+`environments.rs` owns the `environment` bridge command: fixed caller-only
+registration, command claim/progress/result and private-thread environment selection,
+activity and cancellation routes. Validate selectors, exact fields and bounded typed command envelopes
+before native execution. `orbit_live.rs` joins only `environment:<uuid>` with the
+bound native OAuth client; event waits stay outside credential serialization.
+Live snapshots are transport notifications, not durable sessions or permission
+grants. A claimed command is never replayed, while an identical result may be
+uploaded again. Claims carry only the digest: terminal envelopes require the fixed
+1800-second policy. Terminal execution requires explicit local opt-in, not per-command decisions.
+The owner activity projection never forwards claim tokens. The Mac adapter owns
+opt-in, local paths and process lifetime; shared native conversation controls own
+command progress and cancellation. Atlas owns durable jobs, runs and authorization.
 
 `api.rs` owns an allowlisted Automation request enum, same-origin bearer HTTP and
 bounded TLS Phoenix subscriptions. Credentials travel in the WebSocket subprotocol,

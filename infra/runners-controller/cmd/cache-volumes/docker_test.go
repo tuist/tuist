@@ -200,3 +200,32 @@ func TestDockerMergeOffersNothingWhenNoOtherJobSaved(t *testing.T) {
 		t.Fatalf("another pod's request answered %d", code)
 	}
 }
+
+func TestDockerMergeOffersAssignedHeadForAnOlderMountedCopy(t *testing.T) {
+	a, _ := dockerAgent(t, http.StatusOK)
+	requestDocker(t, a, "/docker", "10.0.0.5")
+	// Reproduce the durable journal from production: allocation pinned head 8,
+	// while Attach cloned locally resident generation 7.
+	slots, err := a.store.Snapshot()
+	if err != nil || len(slots) != 1 {
+		t.Fatalf("snapshot: %v %v", slots, err)
+	}
+	slot := slots[0]
+	slot.BaseGeneration, slot.MountedGeneration, slot.Warm = 8, 7, true
+	slot.ImageDigest, slot.ContentDigest = strings.Repeat("b", 40), strings.Repeat("c", 64)
+	data, _ := json.Marshal(slot)
+	files, _ := filepath.Glob(filepath.Join(a.root, "state", "*.json"))
+	if len(files) != 1 {
+		t.Fatalf("journal files: %v", files)
+	}
+	if err := os.WriteFile(files[0], data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.dockerHeads = func(cachevolumes.Slot) (cachevolumes.Identity, error) {
+		return cachevolumes.Identity{BaseGeneration: 8}, nil
+	}
+	a.exposeDockerHead = func(context.Context, cachevolumes.Slot, string, cachevolumes.Identity) error { return nil }
+	if code, response := requestDocker(t, a, "/docker-merge", "10.0.0.5"); code != http.StatusOK || response["merge"] != true || response["generation"] != float64(8) {
+		t.Fatalf("stale mount did not receive its assigned head: %d %v", code, response)
+	}
+}

@@ -8,25 +8,63 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
   alias Condukt.AnonymousAgent
   alias Ecto.Adapters.SQL.Sandbox
 
+  test "the account catalog exposes only selectable models compatible with this adapter" do
+    visible = %{
+      "slug" => "gpt-6.1-sol",
+      "display_name" => "GPT-6.1 Sol",
+      "visibility" => "list",
+      "supported_reasoning_levels" => [%{"effort" => "low"}],
+      "instructions" => "private upstream instructions"
+    }
+
+    expect(Req, :get, fn opts ->
+      assert opts[:url] == "https://chatgpt.com/backend-api/codex/models"
+      assert {"authorization", "Bearer " <> chatgpt_token()} in opts[:headers]
+      assert {"chatgpt-account-id", "personal-account"} in opts[:headers]
+      assert opts[:retry] == false and opts[:redirect] == false
+
+      {:ok,
+       %{
+         status: 200,
+         body: %{
+           "models" => [
+             visible,
+             visible,
+             Map.put(visible, "visibility", "hide"),
+             Map.put(visible, "slug", "../other"),
+             Map.put(visible, "supported_reasoning_levels", "low"),
+             Map.put(visible, "supported_reasoning_levels", ["low", nil]),
+             Map.put(visible, "supported_reasoning_levels", [%{"effort" => "high"}])
+           ]
+         }
+       }}
+    end)
+
+    assert {:ok, [%{id: "chatgpt:gpt-6.1-sol", name: "GPT-6.1 Sol", provider: "ChatGPT"}]} =
+             PersonalProviders.models(chatgpt_token())
+  end
+
   test "ChatGPT uses the subscription Responses endpoint and retains complete tool calls" do
     expect(Req, :post, fn opts ->
       assert opts[:url] == "https://chatgpt.com/backend-api/codex/responses"
       assert {"authorization", "Bearer " <> chatgpt_token()} in opts[:headers]
       assert {"chatgpt-account-id", "personal-account"} in opts[:headers]
       assert opts[:retry] == false and opts[:redirect] == false
-      assert opts[:json]["reasoning"] == %{"effort" => "none"}
+      assert opts[:json]["model"] == "gpt-6-sol"
+      assert opts[:json]["reasoning"] == %{"effort" => "low"}
+      assert opts[:json]["include"] == ["reasoning.encrypted_content"]
       assert opts[:json]["store"] == false
       assert opts[:json]["stream"] == true
       refute Map.has_key?(opts[:json], "max_tokens")
       assert opts[:json]["instructions"] == "Bounded Orbit instructions"
       assert Enum.any?(opts[:json]["input"], &(&1["type"] == "function_call_output"))
       assert Enum.any?(opts[:json]["input"], &(&1["type"] == "function_call" and &1["call_id"] == "call-1"))
-      assert [%{"type" => "function", "name" => "list_accounts"}] = opts[:json]["tools"]
+      assert [%{"type" => "function", "name" => "list_accounts", "strict" => false}] = opts[:json]["tools"]
 
       response = %{
         "status" => "completed",
         "id" => "response-1",
-        "model" => "gpt-5.4",
+        "model" => "gpt-6-sol",
         "output" => [
           %{"type" => "function_call", "call_id" => "call-2", "name" => "list_accounts", "arguments" => "{}"}
         ]
@@ -116,7 +154,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
 
       log =
         capture_log([level: :error], fn ->
-          assert {:error, ^status} = PersonalProviders.complete(provider, chatgpt_token(), params())
+          assert {:error, ^status, :http_error} = PersonalProviders.complete(provider, chatgpt_token(), params())
         end)
 
       assert log =~ "Orbit personal provider failed: provider=#{provider} category=http_error status=#{status}"
@@ -128,11 +166,45 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
       {:ok, %{status: 200, body: ~s(data: {"type":"response.output_text.delta","delta":"partial"}\n\n)}}
     end)
 
-    assert {:error, 502} = PersonalProviders.complete("chatgpt", chatgpt_token(), params())
-    assert {:error, 401} = PersonalProviders.complete("chatgpt", "invalid-token", params())
+    assert {:error, 502, :incomplete_stream} = PersonalProviders.complete("chatgpt", chatgpt_token(), params())
+    assert {:error, 401, :invalid_account_claim} = PersonalProviders.complete("chatgpt", "invalid-token", params())
   end
 
-  test "nonempty reasoning is rejected rather than lost before the next tool turn" do
+  test "structured rejection diagnostics use fixed categories without logging provider data" do
+    for encode <- [&Function.identity/1, &JSON.encode!/1],
+        {error, category} <- [
+          {%{"param" => "reasoning.effort"}, "unsupported_reasoning_effort"},
+          {%{"param" => "tools[0].parameters"}, "invalid_tools"},
+          {%{"code" => "model_not_found"}, "model_not_found"},
+          {%{"param" => "private-field"}, "http_error"}
+        ] do
+      expect(Req, :post, fn _opts ->
+        {:ok, %{status: 400, body: encode.(%{"error" => Map.put(error, "message", "private provider message")})}}
+      end)
+
+      log =
+        capture_log(fn ->
+          assert {:error, 400, _category} = PersonalProviders.complete("chatgpt", chatgpt_token(), params())
+        end)
+
+      assert log =~ "category=#{category}"
+      refute log =~ "private"
+      refute log =~ chatgpt_token()
+    end
+  end
+
+  test "an explicitly strict tool retains its caller-owned schema and mode" do
+    request = put_in(params(), ["tools", Access.at(0), "function", "strict"], true)
+
+    expect(Req, :post, fn opts ->
+      assert [%{"strict" => true, "parameters" => %{}}] = opts[:json]["tools"]
+      {:ok, %{status: 200, body: sse([%{"type" => "response.completed", "response" => %{"output" => []}}])}}
+    end)
+
+    assert {:ok, _} = PersonalProviders.complete("chatgpt", chatgpt_token(), request)
+  end
+
+  test "nonempty reasoning stays separate from reply text and round-trips without losing provider fields" do
     for state <- [
           %{"encrypted_content" => "opaque-provider-state", "summary" => []},
           %{"summary" => [%{"type" => "summary_text", "text" => "private reasoning"}]},
@@ -140,7 +212,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
         ],
         terminal <- [:full, :metadata_only] do
       expect(Req, :post, fn opts ->
-        assert opts[:json]["reasoning"] == %{"effort" => "none"}
+        assert opts[:json]["reasoning"] == %{"effort" => "low"}
 
         response = %{
           "status" => "completed",
@@ -155,12 +227,20 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
         {:ok, %{status: 200, body: sse(done ++ [%{"type" => "response.completed", "response" => response}])}}
       end)
 
-      log =
-        capture_log(fn -> assert {:error, 502} = PersonalProviders.complete("chatgpt", chatgpt_token(), params()) end)
+      assert {:ok, %{"choices" => [%{"message" => message}]}} =
+               PersonalProviders.complete("chatgpt", chatgpt_token(), params())
 
-      assert log =~ "category=unsupported_reasoning"
-      refute log =~ "opaque-provider-state"
-      refute log =~ "private reasoning"
+      assert message["content"] == ""
+      assert [%{"format" => "atlas-codex-v1", "item" => item}] = message["reasoning_details"]
+      assert item == Map.put(state, "type", "reasoning")
+
+      expect(Req, :post, fn opts ->
+        assert [^item] = Enum.filter(opts[:json]["input"], &(&1["type"] == "reasoning"))
+        {:ok, %{status: 200, body: sse([%{"type" => "response.completed", "response" => %{"output" => []}}])}}
+      end)
+
+      next = update_in(params(), ["messages"], &(&1 ++ [message]))
+      assert {:ok, _} = PersonalProviders.complete("chatgpt", chatgpt_token(), next)
     end
   end
 
@@ -171,7 +251,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
 
     log =
       capture_log([level: :error], fn ->
-        assert {:error, 504} = PersonalProviders.complete("claude", "setup-token", params())
+        assert {:error, 504, :timeout} = PersonalProviders.complete("claude", "setup-token", params())
       end)
 
     assert log =~ "Orbit personal provider failed: provider=claude category=timeout status=504"
@@ -190,10 +270,11 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
 
       expect(Finch, :stream_while, 2, fn request, _pool, acc, callback, _opts ->
         body = request.body |> IO.iodata_to_binary() |> JSON.decode!()
-        assert body["model"] in ["gpt-5.4", "claude-sonnet-4-6"]
+        assert body["model"] == if(provider == "chatgpt", do: "gpt-6-sol", else: "claude-sonnet-4-6")
 
         tools = body["tools"]
         assert [%{"name" => "lookup_status"} = tool] = tools
+        if provider == "chatgpt", do: assert(tool["strict"] == false)
         schema = tool[if(provider == "chatgpt", do: "parameters", else: "input_schema")]
         assert schema["properties"]["kind"]["type"] == "string"
 
@@ -231,11 +312,11 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = JSON.decode!(body)
 
-        case PersonalProviders.complete(provider, chatgpt_token(), params) do
+        case PersonalProviders.complete(provider, chatgpt_token(), Map.delete(params, "model")) do
           {:ok, completion} ->
             Req.Test.json(conn, completion)
 
-          {:error, status} ->
+          {:error, status, _category} ->
             conn |> Plug.Conn.put_status(status) |> Req.Test.json(%{"error" => %{"code" => "provider_error"}})
         end
       end
@@ -277,7 +358,8 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
     for {error, status, category} <- [
           {%{"code" => "rate_limit_exceeded"}, 429, "rate_limited"},
           {%{"code" => "insufficient_quota"}, 402, "billing"},
-          {%{"code" => "context_length_exceeded"}, 400, "invalid_request"},
+          {%{"code" => "context_length_exceeded"}, 400, "context_length"},
+          {%{"code" => "model_not_found"}, 400, "model_not_found"},
           {%{"code" => "invalid_prompt"}, 400, "invalid_request"},
           {%{"type" => "invalid_request_error", "code" => nil}, 400, "invalid_request"},
           {%{"type" => "usage_limit_reached"}, 429, "rate_limited"},
@@ -312,7 +394,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
 
       log =
         capture_log([level: :error], fn ->
-          assert {:error, ^status} = PersonalProviders.complete("chatgpt", chatgpt_token(), params())
+          assert {:error, ^status, _category} = PersonalProviders.complete("chatgpt", chatgpt_token(), params())
         end)
 
       assert log =~ "provider=chatgpt"
@@ -337,7 +419,9 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
       expect(Req, :post, fn _opts -> {:ok, %{status: 200, body: sse([partial, event])}} end)
 
       log =
-        capture_log(fn -> assert {:error, 502} = PersonalProviders.complete("chatgpt", chatgpt_token(), params()) end)
+        capture_log(fn ->
+          assert {:error, 502, _category} = PersonalProviders.complete("chatgpt", chatgpt_token(), params())
+        end)
 
       assert log =~ "category=#{category}"
       refute log =~ "private partial text"
@@ -357,7 +441,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
           [%{"type" => "response.completed", "response" => %{"status" => "in_progress"}}]
         ] do
       expect(Req, :post, fn _opts -> {:ok, %{status: 200, body: sse([done | terminal])}} end)
-      assert {:error, 502} = PersonalProviders.complete("chatgpt", chatgpt_token(), params())
+      assert {:error, 502, _category} = PersonalProviders.complete("chatgpt", chatgpt_token(), params())
     end
   end
 
@@ -375,15 +459,17 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
        }}
     end)
 
-    assert {:error, 502} = PersonalProviders.complete("claude", "setup-token", params())
+    assert {:error, 502, :incomplete_response} = PersonalProviders.complete("claude", "setup-token", params())
   end
 
   defp assert_initial_request("chatgpt", body) do
-    assert body["reasoning"] == %{"effort" => "none"}
+    assert body["reasoning"] == %{"effort" => "low"}
     assert body["instructions"] == "Bounded Orbit instructions"
     assert body["store"] == false
     assert body["stream"] == true
-    assert [%{"role" => "user", "content" => "What needs my attention?"}] = body["input"]
+
+    assert [%{"role" => "user", "content" => [%{"type" => "input_text", "text" => "What needs my attention?"}]}] =
+             body["input"]
   end
 
   defp assert_initial_request("claude", body) do
@@ -410,7 +496,17 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
              {"call_invoices", "invoices evidence"}
            ]
 
-    refute Enum.any?(body["input"], &(&1["type"] == "reasoning"))
+    assert [reasoning] = Enum.filter(body["input"], &(&1["type"] == "reasoning"))
+
+    assert reasoning == %{
+             "type" => "reasoning",
+             "id" => "rs_fixture",
+             "encrypted_content" => "opaque-fixture-state",
+             "summary" => []
+           }
+
+    assert Enum.find_index(body["input"], &(&1["type"] == "reasoning")) <
+             Enum.find_index(body["input"], &(&1["type"] == "function_call"))
   end
 
   defp assert_tool_continuation("claude", body) do
@@ -441,7 +537,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
           }
         ]
       else
-        [%{"type" => "reasoning", "id" => "rs_empty", "summary" => []}] ++
+        [%{"type" => "reasoning", "id" => "rs_fixture", "encrypted_content" => "opaque-fixture-state", "summary" => []}] ++
           Enum.map(["tasks", "invoices"], fn kind ->
             %{
               "type" => "function_call",
@@ -460,7 +556,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
       "status" => "completed",
       "error" => nil,
       "incomplete_details" => nil,
-      "model" => "gpt-5.4",
+      "model" => "gpt-6-sol",
       "output" => output,
       "usage" => %{"input_tokens" => 90, "output_tokens" => 30, "total_tokens" => 120}
     }

@@ -1372,6 +1372,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "ArgumentParser"),
                 ]
             case .accountCommand:
                 [
@@ -1795,6 +1796,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "ArgumentParser"),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
                 ]
             case .bazelCommand:
                 [

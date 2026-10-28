@@ -107,7 +107,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   names the master's `scope` and `generation`.
 - The Linux agent prefetches the assigned master after a warm acquisition that
   found no local copy of it (mounted older, started empty, or timed out; checked
-  with `HasMaster`), one at a time with no queue and the same disk reserve. Like
+  with `HasMaster`), one at a time with a bounded 64-lineage FIFO and the same
+  disk reserve. Coalesce queued generations to the newest one per scope. Like
   refreshes, a prefetch has no deadline: its download ends on a stall or after
   its attempts. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
@@ -180,6 +181,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Linux attach admission is `MinFreeBytes` plus whatever the expected size
   exceeds `SizeGB` by. APFS prefetch needs `Identity.RestoreBytes`: twice the head's used
   bytes, else twice the capacity.
+- Linux pressure eviction rechecks free space every 10 ms for up to 100 ms
+  (`ReclaimWait`) before removing another master. XFS queues inode reclamation
+  after unlink; `statfs` starts that work without waiting, and `syncfs` does not
+  reliably wait for it either. An immediate check can evict every master and
+  still report capacity exhausted. Keep the request deadline, physical-space
+  threshold and error propagation intact; live reflinks may retain the blocks.
+  APFS leaves the wait disabled.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
   abandoned after two minutes without bytes (response headers included),
@@ -293,6 +301,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   even with no dirty archive pages. These bound Git's tunable working sets, not
   all allocations for arbitrary object counts or incoming delta chains; retain
   strict pack validation and synchronous GC, and validate with real Git.
+  The inheritance test accepts Trace2 config events without `scope` on older
+  Git (including the runner's 2.34), retaining the last value per process/key
+  so repository settings cannot hide missing command overrides.
 - `Checkouts.InUse` (each host passes `Store.InUse`) keeps pressure eviction
   off masters a job holds or is attaching: their blocks are shared, so evicting
   them frees nothing and the attaching job loses its seed.
@@ -343,3 +354,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   superblock checks, then the use is rebased on the server (`Rebaser`, the
   `rebase` image operation; a conflict is `ErrSuperseded`) and published as any
   branch. Without a merge a branch whose HEAD moved stays `ErrSuperseded`.
+
+- Replacement-image tests must keep the original inode allocated (rename it
+  aside before creating the replacement). Unlinking and immediately recreating
+  a file can reuse its inode on Linux, so it does not reliably exercise the
+  different-inode guard.

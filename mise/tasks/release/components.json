@@ -66,6 +66,8 @@
       "initial_version": "0.1.0",
       "include_paths": [
         "server/**/*",
+        "infra/certificate-trust/policy.json",
+        "infra/certificate-trust/pem-store.sh",
         "tuist_common/**/*",
         "noora/**/*",
         "mise/tasks/server/**/*",
@@ -81,7 +83,7 @@
       "tag_regex": "^cache@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "cache/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["cache/**/*"]
+      "include_paths": ["cache/**/*", "infra/certificate-trust/policy.json", "infra/certificate-trust/pem-store.sh"]
     },
     {
       "name": "atlas",
@@ -91,6 +93,8 @@
       "initial_version": "0.1.0",
       "include_paths": [
         "atlas/**/*",
+        "infra/certificate-trust/policy.json",
+        "infra/certificate-trust/pem-store.sh",
         "infra/helm/atlas/**/*",
         "infra/k8s/atlas/**/*",
         "mise/tasks/release/components.json",

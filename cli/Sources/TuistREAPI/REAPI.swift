@@ -134,6 +134,17 @@ public struct REAPIBlobUpload: Sendable {
     }
 }
 
+/// Verified downloads and blobs lost to endpoint failures, distinct from absent or corrupt entries.
+public struct REAPIBlobDownload: Sendable {
+    public var available: Set<REAPI.Digest>
+    public var remoteFailures: Set<REAPI.Digest>
+
+    public init(available: Set<REAPI.Digest>, remoteFailures: Set<REAPI.Digest> = []) {
+        self.available = available
+        self.remoteFailures = remoteFailures
+    }
+}
+
 public protocol REAPICacheStoring: Sendable {
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult?
     /// Whether the cache still stores the action. Sends `x-tuist-lookup: presence`, which asks Kura not to extend
@@ -142,6 +153,7 @@ public protocol REAPICacheStoring: Sendable {
     func containsActionResult(for digest: REAPI.Digest) async throws -> Bool
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws
     func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload
+    func downloadBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobDownload
     func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest>
     /// Accepts verified blobs as they become available; implementations may report batches. The callback
     /// may move the file into its final cache location. Publication failures exclude that blob
@@ -157,6 +169,10 @@ public protocol REAPICacheStoring: Sendable {
 }
 
 extension REAPICacheStoring {
+    public func downloadBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobDownload {
+        try await REAPIBlobDownload(available: downloadAvailableBlobs(blobs))
+    }
+
     public func uploadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload {
         try await uploadBlobs(blobs)
         return REAPIBlobUpload(available: Set(blobs.keys))

@@ -103,6 +103,69 @@ struct NativeWorkspaceTests {
             .readFile(at: checkout.appendingPathComponent(".gitmodules").absolutePath) == Data(contents.utf8))
     }
 
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func staleSubmoduleDeclarationsPublishCacheAndRestoreFreshWorkspace(hasRealSubmodule: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let scratch = root.appendingPathComponent("scratch")
+        let checkout = scratch.appendingPathComponent("checkouts/Dependency")
+        _ = try await repository(at: checkout)
+        let stalePath = "Sources/Thorvg/Thorvg"
+        try await git(checkout, ["config", "-f", ".gitmodules", "submodule.stale.path", stalePath])
+        try await git(checkout, ["config", "-f", ".gitmodules", "submodule.stale.url", "https://example.invalid/Thorvg.git"])
+        if hasRealSubmodule {
+            let submodule = root.appendingPathComponent("Submodule")
+            _ = try await repository(at: submodule)
+            try await git(checkout, [
+                "-c", "protocol.file.allow=always", "submodule", "add", submodule.path, "deps/dotlottie-rs",
+            ])
+        }
+        try await git(checkout, ["add", ".gitmodules"])
+        try await git(checkout, [
+            "-c", "user.name=Tests", "-c", "user.email=tests@example.com", "commit", "-qm", "stale submodule declaration",
+        ])
+        #expect(try await git(checkout, ["ls-tree", "HEAD", "--", stalePath]).isEmpty)
+        let gitmodules = try await fileSystem.readFile(at: checkout.appendingPathComponent(".gitmodules").absolutePath)
+        let revision = try await git(checkout, ["rev-parse", "HEAD"]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let pin = ResolvedPin(
+            identity: "dependency", kind: "remoteSourceControl", location: "https://example.invalid/Dependency.git",
+            state: .init(branch: nil, revision: revision, version: "1.0.0")
+        )
+        let resolved = ResolvedPins(originHash: nil, pins: [pin], version: 3)
+        let cache = try await Cache(root: root.appendingPathComponent("cache"))
+        try await WorkspaceRestorer.cacheNativeSourceCheckouts(
+            scratchDir: scratch, cache: cache, mirrors: MirrorConfig(), resolved: resolved
+        )
+        let cached = try cache.sourcePath(pin: pin)
+        #expect(try await fileSystem.readFile(at: cached.appendingPathComponent(".gitmodules").absolutePath) == gitmodules)
+        #expect(!fileSystem.existsIncludingSymlinks(cached.appendingPathComponent(".git")))
+        try await fileSystem.atomicWrite("cached source", to: cached.appendingPathComponent("cache-hit"))
+        try await ResolvedFile.write(packageDir: root, resolved: resolved, mirrors: MirrorConfig())
+        try await fileSystem.removePath(scratch)
+        if hasRealSubmodule {
+            try await fileSystem.removePath(root.appendingPathComponent("Submodule"))
+        }
+
+        #expect(try await !PackageResolver.shouldUseNativeColdPath(
+            packageDir: root, cacheRoot: cache.root, registryConfig: RegistryConfig()
+        ))
+        let freshScratch = root.appendingPathComponent("fresh-scratch")
+        try await WorkspaceRestorer.restorePackage(
+            scratchDir: freshScratch, cache: cache, registryConfig: RegistryConfig(), mirrors: MirrorConfig(),
+            resolved: resolved, progress: nil, disableSandbox: true
+        )
+        let restored = freshScratch.appendingPathComponent("checkouts/Dependency")
+        #expect(try await fileSystem
+            .readTextFile(at: restored.appendingPathComponent("cache-hit").absolutePath) == "cached source")
+        #expect(try await fileSystem.readFile(at: restored.appendingPathComponent(".gitmodules").absolutePath) == gitmodules)
+        #expect(!fileSystem.existsIncludingSymlinks(restored.appendingPathComponent(stalePath)))
+        if hasRealSubmodule {
+            #expect(try await fileSystem.readTextFile(
+                at: restored.appendingPathComponent("deps/dotlottie-rs/Sources/Dependency/file.swift").absolutePath
+            ) == "original")
+            #expect(!fileSystem.existsIncludingSymlinks(restored.appendingPathComponent("deps/dotlottie-rs/.git")))
+        }
+    }
+
     @Test(.inTemporaryDirectory)
     func malformedGitmodulesStillRejectsSnapshot() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory).fileURL

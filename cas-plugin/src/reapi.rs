@@ -15,6 +15,8 @@
 //!   makes cross-process upload dedup server-side) -> UpdateActionResult
 //!   LAST, so a reader can never observe an entry whose graph is incomplete.
 
+use std::cell::RefCell;
+use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -1055,14 +1057,10 @@ impl LookupBreaker {
 
 type AuthValue = tonic::metadata::MetadataValue<tonic::metadata::Ascii>;
 
-/// Wraps a message in a `tonic::Request`, attaching the bearer when present.
-fn authed_request<T>(message: T, auth: Option<&AuthValue>) -> tonic::Request<T> {
+/// Keeps account routing and authorization together, including spawned RPCs.
+fn authed_request<T>(message: T, auth: &tonic::metadata::MetadataMap) -> tonic::Request<T> {
     let mut request = tonic::Request::new(message);
-    if let Some(value) = auth {
-        request
-            .metadata_mut()
-            .insert("authorization", value.clone());
-    }
+    *request.metadata_mut() = auth.clone();
     request
 }
 
@@ -1130,11 +1128,13 @@ impl Remote {
         let Ok(mut client) = self.ac_client() else {
             return;
         };
-        let request = self.authed(reapi::GetActionResultRequest {
+        let Ok(request) = self.authed(reapi::GetActionResultRequest {
             instance_name: self.config.instance.clone(),
             action_digest: Some(action_digest(LOOKUP_PROBE_KEY)),
             ..Default::default()
-        });
+        }) else {
+            return;
+        };
         let lookups = self.lookups.clone();
         runtime().spawn(async move {
             lookups.record(client.get_action_result(request).await.as_ref().map(|_| ()));
@@ -1177,16 +1177,33 @@ impl Remote {
         size >= 2 * 1024 * 1024 && self.supports_chunking()
     }
 
-    /// The `authorization: Bearer <token>` header, or `None` when the endpoint
-    /// is unauthenticated. Cloned onto every request so the spawned batch-read
-    /// tasks stay self-contained.
-    fn authorization(&self) -> Option<AuthValue> {
-        let token = self.tokens.current()?;
-        AuthValue::try_from(format!("Bearer {token}")).ok()
+    fn authorization(&self) -> Result<tonic::metadata::MetadataMap, tonic::Status> {
+        let mut metadata = tonic::metadata::MetadataMap::new();
+        let token = self
+            .tokens
+            .current_for_endpoint(&self.config.grpc_url)
+            .map_err(tonic::Status::unauthenticated)?;
+        if let Some(token) = token {
+            // Invalid supplied credentials must never become absent headers.
+            metadata.insert(
+                "authorization",
+                AuthValue::try_from(format!("Bearer {token}"))
+                    .unwrap_or_else(|_| AuthValue::from_static("Bearer")),
+            );
+        }
+        if let Some(account) = self.tokens.account_handle() {
+            let value = AuthValue::try_from(account)
+                .map_err(|_| tonic::Status::invalid_argument("invalid cache account handle"))?;
+            value
+                .to_str()
+                .map_err(|_| tonic::Status::invalid_argument("invalid cache account handle"))?;
+            metadata.insert("x-tuist-account-handle", value);
+        }
+        Ok(metadata)
     }
 
-    fn authed<T>(&self, message: T) -> tonic::Request<T> {
-        authed_request(message, self.authorization().as_ref())
+    fn authed<T>(&self, message: T) -> Result<tonic::Request<T>, tonic::Status> {
+        Ok(authed_request(message, &self.authorization()?))
     }
 
     /// An authed request carrying a git ref (the branch a publish is attributed
@@ -1208,8 +1225,8 @@ impl Remote {
         header: &'static str,
         binary_header: &'static str,
         value: Option<&str>,
-    ) -> tonic::Request<T> {
-        let mut request = self.authed(message);
+    ) -> Result<tonic::Request<T>, tonic::Status> {
+        let mut request = self.authed(message)?;
         if let Some(value) = value.filter(|value| !value.is_empty()) {
             if let Ok(ascii) = tonic::metadata::MetadataValue::try_from(value) {
                 request.metadata_mut().insert(header, ascii);
@@ -1219,7 +1236,7 @@ impl Remote {
                 tonic::metadata::MetadataValue::from_bytes(value.as_bytes()),
             );
         }
-        request
+        Ok(request)
     }
 
     fn channel(&self) -> Result<RemoteChannel, String> {
@@ -1333,7 +1350,7 @@ impl Remote {
                 ..Default::default()
             };
             let response = retry_call_if(
-                || runtime().block_on(client.get_action_result(self.authed(request.clone()))),
+                || runtime().block_on(client.get_action_result(self.authed(request.clone())?)),
                 lookup_retryable,
             );
             self.lookups.record(response.as_ref().map(|_| ()));
@@ -1397,7 +1414,7 @@ impl Remote {
                 "x-tuist-trunk-branch",
                 "x-tuist-trunk-branch-bin",
                 trunk,
-            )))
+            )?))
         });
         match response {
             Ok(response) => {
@@ -1506,7 +1523,7 @@ impl Remote {
         let client = self
             .cas_client()?
             .max_decoding_message_size(2 * 1024 * 1024);
-        let auth = self.authorization();
+        let auth = self.authorization().map_err(|status| status.to_string())?;
         let splits = runtime().block_on(async {
             stream::iter(large)
                 .map(|blob| {
@@ -1521,7 +1538,7 @@ impl Remote {
                         let result = retry_call_async_if(
                             || {
                                 let mut client = client.clone();
-                                let request = authed_request(request.clone(), auth.as_ref());
+                                let request = authed_request(request.clone(), &auth);
                                 async move { client.split_blob(request).await }
                             },
                             |status| {
@@ -1737,7 +1754,7 @@ impl Remote {
         }
         let client = self.cas_client()?;
         let instance = self.config.instance.clone();
-        let auth = self.authorization();
+        let auth = self.authorization().map_err(|status| status.to_string())?;
         let chunks = chunk_digests(blobs);
         let responses = runtime().block_on(async {
             let mut join_set = tokio::task::JoinSet::new();
@@ -1757,7 +1774,7 @@ impl Remote {
                             let auth = auth.clone();
                             async move {
                                 client
-                                    .batch_read_blobs(authed_request(request, auth.as_ref()))
+                                    .batch_read_blobs(authed_request(request, &auth))
                                     .await
                             }
                         },
@@ -1810,7 +1827,7 @@ impl Remote {
                 ..Default::default()
             };
             let response = retry_call(|| {
-                runtime().block_on(client.find_missing_blobs(self.authed(request.clone())))
+                runtime().block_on(client.find_missing_blobs(self.authed(request.clone())?))
             })
             .map_err(|status| format!("find_missing: {status}"))?;
             Ok(response.into_inner().missing_blob_digests)
@@ -1908,7 +1925,7 @@ impl Remote {
         }
         self.batch_update_whole(whole, true)?;
         let client = self.cas_client()?;
-        let auth = self.authorization();
+        let auth = self.authorization().map_err(|status| status.to_string())?;
         let splices = runtime().block_on(async {
             stream::iter(recipes)
                 .map(|(digest, chunk_digests)| {
@@ -1925,7 +1942,7 @@ impl Remote {
                         let result =
                             retry_write_async(&self.write_pressure_backoff_until_ms, || {
                                 let mut client = client.clone();
-                                let request = authed_request(request.clone(), auth.as_ref());
+                                let request = authed_request(request.clone(), &auth);
                                 async move { client.splice_blob(request).await }
                             })
                             .await;
@@ -2002,7 +2019,10 @@ impl Remote {
         else {
             return false;
         };
-        let (metadata, _, ()) = self.authed(()).into_parts();
+        let Ok(authorization) = self.authed(()) else {
+            return false;
+        };
+        let (metadata, _, ()) = authorization.into_parts();
         request.headers_mut().extend(metadata.into_headers());
 
         runtime().block_on(async move {
@@ -2042,9 +2062,11 @@ impl Remote {
                 return false;
             };
             let mut client = CapabilitiesClient::new(channel);
-            let mut request = self.authed(reapi::GetCapabilitiesRequest {
+            let Ok(mut request) = self.authed(reapi::GetCapabilitiesRequest {
                 instance_name: self.config.instance.clone(),
-            });
+            }) else {
+                return false;
+            };
             request.set_timeout(Duration::from_secs(5));
             let Ok(Ok(response)) = runtime().block_on(async {
                 tokio::time::timeout(Duration::from_secs(5), client.get_capabilities(request)).await
@@ -2106,7 +2128,7 @@ impl Remote {
                 let response = retry_write(&self.write_pressure_backoff_until_ms, || {
                     self.uploaded_blob_bytes
                         .fetch_add(size as u64, Ordering::Relaxed);
-                    runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
+                    runtime().block_on(client.batch_update_blobs(self.authed(request.clone())?))
                 })
                 .map_err(|status| format!("batch_update: {status}"))?;
                 for entry in response.into_inner().responses {
@@ -2190,7 +2212,7 @@ impl Remote {
                     "x-tuist-branch",
                     "x-tuist-branch-bin",
                     branch,
-                );
+                )?;
                 if let Some(trunk) = trunk.filter(|trunk| !trunk.is_empty()) {
                     if let Ok(value) = tonic::metadata::MetadataValue::try_from(trunk) {
                         request.metadata_mut().insert("x-tuist-trunk-branch", value);
@@ -2269,8 +2291,24 @@ pub fn decode_frame(frame: &[u8]) -> Option<Node> {
     })
 }
 
-pub fn compress_frame(frame: &[u8]) -> Vec<u8> {
-    zstd::stream::encode_all(frame, 1).unwrap_or_default()
+pub fn compress_frame(mut frame: &[u8]) -> Vec<u8> {
+    thread_local! {
+        static CONTEXT: RefCell<zstd::zstd_safe::CCtx<'static>> =
+            RefCell::new(zstd::zstd_safe::CCtx::create());
+    }
+    CONTEXT.with(|context| {
+        let mut context = context.borrow_mut();
+        if context.init(1).is_err() {
+            return Vec::new();
+        }
+        // Preserve encode_all's streaming bytes: compressed content determines
+        // the remote digest, so bulk compression would change blob identities.
+        let mut encoder = zstd::stream::write::Encoder::with_context(Vec::new(), &mut context);
+        if io::copy(&mut frame, &mut encoder).is_err() {
+            return Vec::new();
+        }
+        encoder.finish().unwrap_or_default()
+    })
 }
 
 /// Small compressed outputs cannot reuse transfer chunks. Keep their original

@@ -4,13 +4,12 @@
 # the chart's release namespace (one Deployment + leader election);
 # Pods + SAs it materializes land in tuist-runners.
 
-ARG GO_VERSION=1.26.10
-ARG ALPINE_VERSION=3.23
+ARG ALPINE_VERSION=3.22
 
 FROM scratch AS certificate-trust
 COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 ENV GOTOOLCHAIN=local
 
 WORKDIR /src/runners-controller
@@ -27,7 +26,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/manager ./cmd/manager && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w" -o /out/cache-volumes ./cmd/cache-volumes
+    go build -trimpath -ldflags="-s -w" -o /out/cache-volumes ./cmd/cache-volumes && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/kvm-device-plugin ./cmd/kvm-device-plugin
 
 
 # The git-lfs the checkout populator runs, pinned and verified before it is
@@ -63,6 +64,9 @@ ENTRYPOINT ["/usr/local/bin/cache-volumes"]
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:516757106de35205efb70b91ba03f6f1298424a0678c603255cf2852a7000087
 
 COPY --from=builder /out/manager /usr/local/bin/manager
+# Run by the kvm-device-plugin DaemonSet as root, which kubelet's
+# device-plugin directory requires; see cmd/kvm-device-plugin.
+COPY --from=builder /out/kvm-device-plugin /usr/local/bin/kvm-device-plugin
 
 USER nonroot:nonroot
 

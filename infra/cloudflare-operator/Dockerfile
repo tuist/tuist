@@ -1,7 +1,4 @@
-ARG GO_VERSION=1.25
-ARG ALPINE_VERSION=3.22
-
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 
 WORKDIR /src
 COPY infra/cloudflare-operator/go.mod infra/cloudflare-operator/go.sum ./

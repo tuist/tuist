@@ -8,18 +8,26 @@ struct RemoteCacheProbeServiceTests {
     enum Consumer: CaseIterable {
         case probe, moduleCache
 
-        func validate(endpoint: GRPCEndpoint) async throws {
+        func validate(endpoint: GRPCEndpoint, token: String? = "token") async throws {
             switch self {
             case .probe:
                 try await RemoteCacheProbeService().probe(
-                    endpoint: endpoint, accountHandle: "account", instanceName: "project", token: "token"
+                    endpoint: endpoint, accountHandle: "account", instanceName: "project", token: token
                 )
             case .moduleCache:
                 let client = try await REAPICacheClient(
                     endpoint: endpoint, accountHandle: "account", instanceName: "project"
-                ) { "token" }
+                ) { token }
                 try await client.validateCapabilities()
             }
+        }
+    }
+
+    @Test(.withMockedEnvironment(), arguments: Consumer.allCases, [nil, "", "token"] as [String?])
+    func onlyAbsentTokensOmitAuthorization(consumer: Consumer, token: String?) async throws {
+        let state = ActivationProbeState(code: .unauthenticated, failures: 0, expectedToken: token)
+        try await withServer(state: state) { endpoint in
+            try await consumer.validate(endpoint: endpoint, token: token)
         }
     }
 
@@ -53,15 +61,31 @@ struct RemoteCacheProbeServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment(), arguments: Consumer.allCases)
-    func cancellationStopsActivationRetries(consumer: Consumer) async throws {
-        let state = ActivationProbeState(code: .unavailable, failures: .max)
+    @Test(.withMockedEnvironment(), arguments: Consumer.allCases, [false, true])
+    func cancellationStopsActivationRetries(consumer: Consumer, stalled: Bool) async throws {
+        let state = ActivationProbeState(
+            code: .unavailable, failures: .max, firstResponseDelay: stalled ? .seconds(5) : .zero
+        )
         try await withServer(state: state) { endpoint in
             let validation = Task { try await consumer.validate(endpoint: endpoint) }
             await state.waitForAttempt()
+            let started = ContinuousClock.now
             validation.cancel()
             await #expect(throws: (any Error).self) { try await validation.value }
+            #expect(ContinuousClock.now - started < .seconds(2))
             #expect(await state.attempts == 1)
+        }
+    }
+
+    @Test(.withMockedEnvironment())
+    func singleConnectionClientRetriesTransientErrors() async throws {
+        let state = ActivationProbeState(code: .unavailable, failures: 1)
+        try await withServer(state: state) { endpoint in
+            let client = try await REAPICacheClient(
+                endpoint: endpoint, accountHandle: "account", instanceName: "project", connectionCount: 1
+            ) { "token" }
+            try await client.validateCapabilities()
+            #expect(await state.attempts == 2)
         }
     }
 
@@ -87,12 +111,14 @@ private actor ActivationProbeState {
     var attempts = 0
     let failures: Int
     let firstResponseDelay: Duration
+    let expectedToken: String?
     private var started: CheckedContinuation<Void, Never>?
 
-    init(code: RPCError.Code, failures: Int, firstResponseDelay: Duration = .zero) {
+    init(code: RPCError.Code, failures: Int, firstResponseDelay: Duration = .zero, expectedToken: String? = "token") {
         self.code = code
         self.failures = failures
         self.firstResponseDelay = firstResponseDelay
+        self.expectedToken = expectedToken
     }
 
     func waitForAttempt() async {
@@ -115,7 +141,7 @@ private struct ActivationCapabilities: Build_Bazel_Remote_Execution_V2_Capabilit
         request: ServerRequest<Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest>, context _: ServerContext
     ) async throws -> ServerResponse<Build_Bazel_Remote_Execution_V2_ServerCapabilities> {
         #expect(request.message.instanceName == "project")
-        #expect(Array(request.metadata[stringValues: "authorization"]) == ["Bearer token"])
+        #expect(Array(request.metadata[stringValues: "authorization"]) == state.expectedToken.map { ["Bearer \($0)"] } ?? [])
         #expect(Array(request.metadata[stringValues: "x-tuist-account-handle"]) == ["account"])
         try await state.probe()
         return ServerResponse(message: .with { $0.cacheCapabilities.digestFunctions = [.sha256] }, metadata: [:])

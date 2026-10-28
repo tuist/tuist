@@ -34,7 +34,7 @@ defmodule TuistWeb.RunnerVolumesLive do
        selected: nil,
        selected_tab: "overview",
        storage_metric: "used_bytes",
-       detail_metric: "hit_rate",
+       detail_metric: "used_bytes",
        initialize_percentile: "avg",
        search: "",
        page: 1
@@ -115,7 +115,7 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   def handle_event("select_detail_metric", %{"widget" => metric}, socket)
-      when metric in ["hit_rate", "uses", "initialize"] do
+      when metric in ["used_bytes", "hit_rate", "uses", "initialize"] do
     {:noreply, assign(socket, :detail_metric, metric)}
   end
 
@@ -196,6 +196,7 @@ defmodule TuistWeb.RunnerVolumesLive do
               if tab == "overview" do
                 Map.merge(
                   %{
+                    saved_size_history: CacheVolumes.saved_size_history(account.id, selected.id, period),
                     activity: CacheVolumes.usage_analytics(account.id, selected.id, period),
                     previous_activity: CacheVolumes.usage_analytics(account.id, selected.id, previous_period(period))
                   },
@@ -339,6 +340,9 @@ defmodule TuistWeb.RunnerVolumesLive do
   def inventory_chart_series(data, "hit_rate"), do: detail_chart_series(data, "hit_rate")
   def inventory_chart_series(data, metric), do: storage_chart_series(data.storage_history, metric)
 
+  def detail_chart_data?(analytics, "used_bytes"),
+    do: Enum.any?(analytics.saved_size_history, &(not is_nil(&1.used_bytes)))
+
   def detail_chart_data?(analytics, "initialize"),
     do: is_map_key(analytics, :steps) and not is_nil(analytics.steps.reused.avg)
 
@@ -426,6 +430,12 @@ defmodule TuistWeb.RunnerVolumesLive do
 
   def step_duration(nil), do: "—"
   def step_duration(ms), do: DateFormatter.format_duration_from_milliseconds(ms)
+
+  def detail_chart_series(analytics, "used_bytes") do
+    analytics.saved_size_history
+    |> storage_chart_series("used_bytes")
+    |> Enum.map(&(&1 |> Map.delete(:smooth) |> Map.put(:step, "end")))
+  end
 
   def detail_chart_series(analytics, metric) do
     {field, label} =
