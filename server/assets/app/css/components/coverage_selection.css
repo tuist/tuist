@@ -1,0 +1,78 @@
+/* The coverage selection a test run's tests came from, in its Selective
+   Testing tab, and one test's part of it, in a test case run's Test
+   Selection tab: cards of facts and figures above tables, laid out as the
+   Code Coverage pages lay out theirs. */
+.tuist-coverage-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & [data-part="widgets"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+
+  /* A widget's tooltip opens inside the widget, so the section holding
+     widgets may not clip it. */
+  & .noora-card__section:has(> [data-part="widgets"]) {
+    overflow: visible;
+  }
+
+  & [data-part="selection-table-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+    overflow-x: hidden;
+
+    & > [data-part="filters"] {
+      display: flex;
+      gap: var(--noora-spacing-6);
+    }
+  }
+
+  /* The table and the buttons that page it are one block. */
+  & [data-part="selection-table"] {
+    display: flex;
+    flex-direction: column;
+
+    & .noora-pagination-group {
+      margin-top: var(--noora-spacing-7);
+    }
+  }
+
+  & [data-part="selection-verdict-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="details"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--noora-spacing-5);
+    margin: 0;
+
+    & dt {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & dd {
+      margin: var(--noora-spacing-2) 0 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      word-break: break-all;
+    }
+  }
+}

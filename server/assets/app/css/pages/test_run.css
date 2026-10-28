@@ -425,7 +425,8 @@
     }
   }
 
-  & > [data-part="overview"] {
+  & > [data-part="overview"],
+  & > [data-part="selective-testing"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
