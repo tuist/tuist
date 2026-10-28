@@ -4,11 +4,15 @@ on:
   pull_request:
     paths:
       - infra/certificate-trust/**
+      - infra/linux-runner-image/cmd/tuist-cache-volume/**
+      - infra/linux-runner-image/go.*
       - .github/workflows/certificate-trust.yml
   push:
     branches: [main]
     paths:
       - infra/certificate-trust/**
+      - infra/linux-runner-image/cmd/tuist-cache-volume/**
+      - infra/linux-runner-image/go.*
       - .github/workflows/certificate-trust.yml
   workflow_dispatch:
 
@@ -44,6 +48,8 @@ jobs:
           cache: false
       - name: Test policy evidence and public store contracts
         run: go test -count=1 ./...
+      - name: Race-test cache-volume HTTPS clients and wire controls
+        run: go -C ../linux-runner-image test -race -count=1 ./cmd/tuist-cache-volume
       - name: Qualify explicit-root Go verifier against eight intermediate keys
         run: go run .
       - name: Check shell syntax
