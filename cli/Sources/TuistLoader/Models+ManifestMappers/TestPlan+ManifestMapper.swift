@@ -26,6 +26,14 @@ extension XcodeGraph.TestPlan {
 
         var resolved: [XcodeGraph.TestPlan] = []
         for manifest in manifests {
+            // swiftlint:disable:next large_tuple
+            let generatedPlan: (
+                name: String,
+                testTargets: [ProjectDescription.TestableTarget],
+                path: ProjectDescription.Path?,
+                language: SchemeLanguage?,
+                region: String?
+            )
             switch manifest {
             case let .path(path):
                 try await appendPathEntry(
@@ -35,38 +43,44 @@ extension XcodeGraph.TestPlan {
                     fileSystem: fileSystem,
                     into: &resolved
                 )
+                continue
             case let .generated(name, testTargets, path):
-                let resolvedPath: AbsolutePath = if let explicitPath = path {
-                    try generatorPaths.resolve(path: explicitPath)
-                } else {
-                    derivedDirectory.appending(component: "\(name).xctestplan")
-                }
-                let targets = try testTargets.map {
-                    try TestableTarget.from(manifest: $0, generatorPaths: generatorPaths)
-                }
-                let coverageTargets = try (generatedOptions?.codeCoverageTargets ?? []).map {
-                    XcodeGraph.TargetReference(
-                        projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
-                        name: $0.targetName
-                    )
-                }
-                let coverage: Bool?
-                switch generatedOptions?.codeCoverage {
-                case .enabled: coverage = true
-                case .disabled: coverage = false
-                case .inherit, .none: coverage = nil
-                }
-                resolved.append(
-                    XcodeGraph.TestPlan(
-                        path: resolvedPath,
-                        testTargets: targets,
-                        isDefault: resolved.isEmpty,
-                        kind: .generated,
-                        coverage: coverage,
-                        codeCoverageTargets: coverageTargets
-                    )
+                generatedPlan = (name, testTargets, path, nil, nil)
+            case let .generatedWithLocale(name, testTargets, path, language, region):
+                generatedPlan = (name, testTargets, path, language, region)
+            }
+            let resolvedPath: AbsolutePath = if let explicitPath = generatedPlan.path {
+                try generatorPaths.resolve(path: explicitPath)
+            } else {
+                derivedDirectory.appending(component: "\(generatedPlan.name).xctestplan")
+            }
+            let targets = try generatedPlan.testTargets.map {
+                try TestableTarget.from(manifest: $0, generatorPaths: generatorPaths)
+            }
+            let coverageTargets = try (generatedOptions?.codeCoverageTargets ?? []).map {
+                XcodeGraph.TargetReference(
+                    projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
+                    name: $0.targetName
                 )
             }
+            let coverage: Bool?
+            switch generatedOptions?.codeCoverage {
+            case .enabled: coverage = true
+            case .disabled: coverage = false
+            case .inherit, .none: coverage = nil
+            }
+            resolved.append(
+                XcodeGraph.TestPlan(
+                    path: resolvedPath,
+                    testTargets: targets,
+                    isDefault: resolved.isEmpty,
+                    kind: .generated,
+                    coverage: coverage,
+                    codeCoverageTargets: coverageTargets,
+                    language: generatedPlan.language?.identifier,
+                    region: generatedPlan.region
+                )
+            )
         }
 
         return resolved

@@ -176,4 +176,37 @@ struct TestPlanDescriptorTests {
         #expect(try parallelizable(descriptor(parallelization: .none)) as? Bool == false)
         #expect(try parallelizable(descriptor(parallelization: .swiftTestingOnly)) == nil)
     }
+
+    @Test func encode_writes_language_and_region_into_default_options() throws {
+        // Given
+        func descriptor(language: String?, region: String?) throws -> TestPlanDescriptor {
+            TestPlanDescriptor(
+                path: try AbsolutePath(validating: "/tmp/Plan.xctestplan"),
+                testTargets: [
+                    .init(
+                        pbxTarget: PBXNativeTarget(name: "AppTests"),
+                        containerPath: "container:App.xcodeproj",
+                        isEnabled: true,
+                        parallelization: .swiftTestingOnly
+                    ),
+                ],
+                language: language,
+                region: region
+            )
+        }
+
+        func defaultOptions(_ plan: TestPlanDescriptor) throws -> [String: Any] {
+            let json = try JSONSerialization.jsonObject(with: try plan.encode()) as? [String: Any]
+            return try #require(json?["defaultOptions"] as? [String: Any])
+        }
+
+        // When
+        let pinned = try defaultOptions(descriptor(language: "en", region: "US"))
+        let unpinned = try defaultOptions(descriptor(language: nil, region: nil))
+
+        // Then
+        #expect(pinned["language"] as? String == "en")
+        #expect(pinned["region"] as? String == "US")
+        #expect(unpinned.isEmpty)
+    }
 }
