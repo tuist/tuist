@@ -25,7 +25,10 @@ Pass `--cover`, as you would to `mix test` without Tuist:
 mix test --cover
 ```
 
-The package uploads the coverage along with the run's test results. It also prints Mix's per-module summary when the suite finishes, and fails the run with exit status 3 when the total falls below the threshold your project sets:
+The package uploads the coverage along with the run's test results. When the suite finishes, it also does what Mix's coverage tool does, configured with the same `test_coverage` options:
+
+- **Summary.** It prints the coverage of each module and the total. `summary: false` turns it off.
+- **Threshold.** It fails the run with exit status 3 when the total falls below the threshold, which is 90% unless you set one:
 
 ```elixir
 def project do
@@ -35,7 +38,9 @@ def project do
 end
 ```
 
-The threshold is 90% unless you set one, as with Mix's own coverage tool, and `summary: false` turns off both the summary and the threshold. Modules listed in `test_coverage: [ignore_modules: [...]]` are left out of the summary and the upload.
+As in Mix, the threshold belongs to the summary, so `summary: false` turns off both. To print the summary without failing the run, set `threshold: 0`. Modules listed in `test_coverage: [ignore_modules: [...]]` are left out of the summary and the upload.
+
+Tuist tracks coverage per commit, so it needs your project in a Git repository: a run outside one uploads its test results but no coverage.
 
 Coverage relies on the <.localized_link href="/guides/features/test-insights/elixir#git-history">Git history</.localized_link> the package uploads, which places the commit on its branch. Runs on continuous integration always upload it, and `--cover` runs upload it on any machine. With `--cover`, the package also finds where a pull request branched off: it fetches the base branch and deepens a shallow clone as far as it needs. Set `TUIST_GIT_UNSHALLOW_ENABLED=false` to keep it from contacting the remote.
 
@@ -121,22 +126,13 @@ A variant is the label you pass with `--scheme`, such as a database version. Run
 
 ## Performance impact {#performance-impact}
 
-We measured native counting against Mix's coverage tool on Livebook and on generated projects of increasing size, on a 12-core Linux machine. These are those projects' numbers, not guarantees. Times are added to a run without coverage:
-
-| Project | Mix's coverage tool | First native run | Later native runs |
-| --- | --- | --- | --- |
-| Livebook (about 20,000 executable lines) | +6.3 s | +5.4 s | +0.4 s |
-| Generated, about 35,000 executable lines | +3 s | +2 s | |
-| Generated, about 140,000 executable lines | +31 s | +7 s | |
-| Generated, about 560,000 executable lines | +713 s | +30 s | |
-
-A first run recompiles the modules with the counters; later runs only recompile what changed. Mix's coverage tool reads its counters in time that grows faster than the number of executed lines, so the gap widens on larger projects.
+Collecting coverage adds overhead, so runs with `--cover` take longer than runs without it. The first run recompiles your modules with the line counters; later runs only recompile what changed, so they cost much less. On large projects, native counting is also much faster than Mix's coverage tool.
 
 ## Limitations {#limitations}
 
 - **No HTML report.** Counting natively writes no report to the `test_coverage: [output: ...]` directory, and the run warns when one is set. The dashboard's file pages show the covered lines instead.
-- **Retries don't add coverage.** With <.localized_link href="/guides/features/test-insights/flaky-tests/elixir#test-retries">test retries</.localized_link>, the coverage is the first run's; the retries of failed tests don't carry `--cover`.
-- **Signed runs only.** Coverage is uploaded only by runs that authenticate with Tuist. A run published without credentials to a self-hosted server sends its test results without coverage or Git history.
+- **Retries don't add coverage.** With <.localized_link href="/guides/features/test-insights/flaky-tests/elixir#test-retries">test retries</.localized_link>, the coverage is the first attempt's. That attempt already ran the failed tests, so the only lines missing are those a flaky test reaches on a retry but not on its first attempt.
+- **No coverage from pull requests from forks.** Coverage is uploaded only by runs that authenticate with Tuist, and CI usually withholds secrets and identity tokens from pull requests opened from forks, so those runs report no coverage. Once merged, the commit runs on your branch with credentials and reports its coverage as usual.
 
 ## Querying coverage {#querying}
 
