@@ -16,6 +16,7 @@ struct AtlasThread: Decodable, Identifiable, Hashable {
     let participants: [AtlasThreadPerson]
     let updatedAt: String
     let agentStatus: String?
+    var model: String?
 
     var updatedDate: Date? {
         (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(updatedAt))
@@ -118,6 +119,12 @@ struct AtlasOrbitAssistant: Decodable {
     let configured: Bool
 }
 
+struct AtlasModelChoice: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let provider: String
+}
+
 extension AtlasOrbit {
     struct Opened: Decodable {
         let connection: String
@@ -142,6 +149,9 @@ extension AtlasOrbit {
         let mentionCandidates: [AtlasThreadPerson]?
         let mentionLoading: Bool?
         let mentionError: String?
+        let models: [AtlasModelChoice]?
+        let modelsLoading: Bool?
+        let modelError: String?
         let draftAttachments: [AtlasThreadAttachment]?
         let attachmentBusy: Bool?
         let uploadPending: Bool?

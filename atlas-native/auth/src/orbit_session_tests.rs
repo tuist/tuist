@@ -35,6 +35,135 @@ fn opened() -> (String, Arc<Model>) {
 }
 
 #[test]
+fn model_choices_and_selection_preserve_history_drafts_and_optional_feature_failures() {
+    let (connection, model) = opened();
+    {
+        let mut state = model.state.lock().unwrap();
+        state.active = true;
+        state.snapshot.selection_id = Some(FIRST.into());
+        state.snapshot.selected = Some(thread(FIRST, "private"));
+        state.snapshot.messages =
+            serde_json::from_value(json!([message(FIRST, 1, "evidence")])).unwrap();
+    }
+    draft(&model, FIRST.into(), "Keep this draft".into()).unwrap();
+    models_using(&model, &InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
+        assert_eq!(url.path(), "/api/native/orbit/models");
+        Ok(json!({"models":[
+            {"id":"chatgpt:gpt-6.1-sol","name":"GPT-6.1 Sol","provider":"ChatGPT","instructions":"private"},
+            {"id":"../other","name":"Unsafe","provider":"ChatGPT"},
+            {"id":"workspace","name":"Workspace model","provider":"Atlas"}
+        ],"error":null}))
+    })).unwrap();
+    assert_eq!(
+        snapshot(&model).unwrap()["models"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(
+        snapshot(&model).unwrap()["models"][0]
+            .get("instructions")
+            .is_none()
+    );
+    for choice in [Some("chatgpt:gpt-6.1-sol".to_owned()), None] {
+        set_model_using(
+            &model,
+            FIRST.into(),
+            choice.clone(),
+            &InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+                assert_eq!(
+                    url.path(),
+                    format!("/api/native/orbit/threads/{FIRST}/model")
+                );
+                let crate::transport::Body::Api {
+                    method, payload, ..
+                } = body
+                else {
+                    panic!("Expected authenticated API request")
+                };
+                assert_eq!(method, reqwest::Method::PATCH);
+                assert_eq!(payload, Some(json!({"model":choice})));
+                let mut selected = thread(FIRST, "private");
+                selected.model = choice.clone();
+                Ok(json!({"thread":selected}))
+            }),
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot(&model).unwrap()["selected"]["model"],
+            json!(choice)
+        );
+    }
+    for status in [403, 404, 409, 501] {
+        set_model_using(
+            &model,
+            FIRST.into(),
+            Some("workspace".into()),
+            &InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+                let crate::transport::Body::Api { failure, .. } = body else {
+                    panic!("Expected authenticated API request")
+                };
+                Err(failure(status, b"private response"))
+            }),
+        )
+        .unwrap();
+        let value = snapshot(&model).unwrap();
+        assert_eq!(value["selected"]["id"], FIRST);
+        assert_eq!(value["draft"], "Keep this draft");
+        assert_eq!(value["messages"][0]["tool_output"], "evidence");
+        assert!(
+            !value["model_error"]
+                .as_str()
+                .unwrap()
+                .contains("private response")
+        );
+        assert_eq!(value["needs_session"], false);
+    }
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn late_or_mismatched_model_changes_cannot_replace_another_conversation() {
+    let (connection, model) = opened();
+    {
+        let mut state = model.state.lock().unwrap();
+        state.active = true;
+        state.snapshot.selection_id = Some(FIRST.into());
+        state.snapshot.selected = Some(thread(FIRST, "private"));
+    }
+    set_model_using(
+        &model,
+        FIRST.into(),
+        Some("workspace".into()),
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            Ok(json!({"thread":thread(SECOND,"shared")}))
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["selected"]["id"], FIRST);
+    assert!(snapshot(&model).unwrap()["model_error"].is_string());
+    set_model_using(
+        &model,
+        FIRST.into(),
+        Some("workspace".into()),
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            let mut state = model.state.lock().unwrap();
+            begin_selection(&mut state, Some(SECOND.into()));
+            state.snapshot.selected = Some(thread(SECOND, "shared"));
+            let mut selected = thread(FIRST, "private");
+            selected.model = Some("workspace".into());
+            Ok(json!({"thread":selected}))
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["selected"]["id"], SECOND);
+    assert!(snapshot(&model).unwrap()["selected"]["model"].is_null());
+    assert!(snapshot(&model).unwrap()["model_error"].is_null());
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
 fn agent_activity_is_updated_even_when_history_revision_is_unchanged() {
     let mut snapshot = Snapshot {
         selected: Some(thread(FIRST, "private")),

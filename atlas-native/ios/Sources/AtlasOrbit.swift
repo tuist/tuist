@@ -23,6 +23,9 @@ final class AtlasOrbit: ObservableObject {
     var draftMentions: [AtlasThreadPerson] { state?.draftMentions ?? [] }
     var mentionCandidates: [AtlasThreadPerson] { state?.mentionCandidates ?? [] }
     var mentionError: String? { state?.mentionError }
+    var models: [AtlasModelChoice] { state?.models ?? [] }
+    var modelsLoading: Bool { state?.modelsLoading == true }
+    var modelError: String? { adapterError ?? state?.modelError }
     var attachmentBusy: Bool { attaching || state?.attachmentBusy == true }
     var pendingUploadName: String? { state?.uploadPending == true ? state?.uploadFilename : nil }
     var loading: Bool { state?.loading ?? false }
@@ -280,6 +283,15 @@ final class AtlasOrbit: ObservableObject {
 }
 
 extension AtlasOrbit {
+    func loadModels() async { await perform(["action": "models"]) }
+
+    func setModel(_ choice: String?, threadId: String) async {
+        guard !saving, selected?.id == threadId else { return }
+        submitting = true
+        defer { submitting = false }
+        await perform(["action": "set_model", "id": threadId, "model": choice as Any? ?? NSNull()])
+    }
+
     private func decode<T: Decodable>(_ data: Data) throws -> T {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

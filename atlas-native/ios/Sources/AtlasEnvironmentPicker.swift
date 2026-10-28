@@ -18,44 +18,70 @@ struct AtlasEnvironmentPicker: View {
     @State private var selection: AtlasEnvironmentSelection.Thread?
     @State private var busy = false
     @State private var message: String?
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Form {
             Section {
                 choice("Atlas server", environment: nil, project: nil)
-                ForEach(overview?.environments.filter(\.enabled) ?? []) { environment in
-                    Section(environment.name + (environment.online ? "" : " · Offline")) {
-                        ForEach(environment.projects) { project in
-                            choice(project.name, environment: environment.id, project: project.id)
-                        }
-                    }
-                }
-            } header: { Text("Tool environment") } footer: {
-                Text("The conversation always runs on Atlas. This selection changes only where personal file and " +
-                     "terminal tools execute. Local files stay on that Mac. Already running commands stay there until stopped.")
+            } footer: {
+                Text("Pip always runs on Atlas. Choose where its file and terminal tools run.")
             }
-            if let message { Text(message).foregroundStyle(.red) }
-            if busy { ProgressView().controlSize(.small) }
+            ForEach(overview?.environments.filter(\.enabled) ?? []) { environment in
+                Section {
+                    ForEach(environment.projects) { project in
+                        choice(project.name, environment: environment.id, project: project.id)
+                    }
+                    if environment.projects.isEmpty {
+                        Text("No projects shared from this Mac.").foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text(environment.name + (environment.online ? "" : " · Offline"))
+                } footer: {
+                    Text("Files stay on this Mac. Running commands stay there until stopped.")
+                }
+            }
+            if overview?.environments.contains(where: \.enabled) == false {
+                Section {
+                    Text("To use files and terminal tools on your Mac, enable This Mac in Atlas for macOS Settings.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let message {
+                Section {
+                    Text(message).foregroundStyle(.secondary)
+                    Button("Try again") { Task { await load() } }.disabled(busy)
+                }
+            }
         }
         .formStyle(.grouped)
-        #if os(macOS)
+        .navigationTitle("Tool environment")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        #else
         .frame(width: 380, height: 360)
         #endif
+        .overlay { if busy { ProgressView().accessibilityLabel("Updating environment") } }
         .task(id: threadId) { await load() }
     }
 
     private func choice(_ name: String, environment: String?, project: String?) -> some View {
-        Button {
+        let selected = selection != nil && selection?.environmentId == environment && selection?.projectId == project
+        return Button {
             Task { await choose(environment: environment, project: project) }
         } label: {
             HStack {
                 Text(name)
                 Spacer()
-                if selection?.environmentId == environment, selection?.projectId == project, selection != nil {
-                    Image(systemName: "checkmark")
+                if selected {
+                    Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityHidden(true)
                 }
             }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }.buttonStyle(.plain).disabled(busy || selection == nil)
+            .accessibilityValue(selected ? "Selected" : "Not selected")
     }
 
     private func load() async {
