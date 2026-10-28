@@ -1,0 +1,63 @@
+<div id="project-integrations">
+  <h1 data-part="title">{@selected_project.name}</h1>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "General")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "Integrations")}
+      selected={true}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/integrations"}
+    />
+    <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
+      label={dgettext("dashboard_projects", "Notifications")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
+    />
+    <.tab_menu_horizontal_item
+      :if={
+        Tuist.Projects.Project.xcode_project?(@selected_project) or
+          Tuist.Projects.Project.bazel_project?(@selected_project) or
+          Tuist.Projects.Project.mix_project?(@selected_project)
+      }
+      label={dgettext("dashboard_projects", "Automations")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
+    />
+    <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.supports_bundles?(@selected_project)}
+      label={dgettext("dashboard_projects", "Bundles")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}
+    />
+  </.tab_menu_horizontal>
+
+  <h2 data-part="subtitle">{dgettext("dashboard_projects", "Integrations")}</h2>
+
+  <.card_section data-part="github-card-section">
+    <div data-part="header">
+      <span data-part="title">GitHub</span>
+      <span data-part="subtitle">
+        {dgettext("dashboard_projects", "Configure GitHub behavior for this project.")}
+      </span>
+    </div>
+    <div data-part="content">
+      <.toggle
+        id="vcs-comments-toggle"
+        label={dgettext("dashboard_projects", "Run report comments")}
+        description={
+          dgettext(
+            "dashboard_projects",
+            "Post and update Tuist run reports on pull or merge requests. Uploads and CI job summaries are unaffected."
+          )
+        }
+        checked={@selected_project.vcs_comments_enabled}
+        data-on-checked-change="toggle_vcs_comments"
+      />
+    </div>
+  </.card_section>
+</div>
