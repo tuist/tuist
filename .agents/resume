@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
-# Restarts the backing services an orb loses while paused. Fast and idempotent.
+# Restarts the backing services an orb loses while paused or after starting
+# from a project snapshot. Fast and idempotent.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../server"
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 
-# PostgreSQL is a systemd unit enabled by setup; only check it.
-pg_isready -q -h localhost || sudo systemctl start postgresql@16-main
+# PostgreSQL is a systemd unit where systemd is PID 1 (Amp-hosted orbs) and
+# a pg_ctlcluster cluster otherwise (Tuist-hosted orbs).
+if ! pg_isready -q -h localhost; then
+  if [[ -d /run/systemd/system ]]; then
+    sudo systemctl start postgresql@16-main
+  else
+    sudo pg_ctlcluster 16 main start
+  fi
+fi
 
 # ClickHouse runs detached from the repository's own launcher, which returns
 # immediately when it is already up.

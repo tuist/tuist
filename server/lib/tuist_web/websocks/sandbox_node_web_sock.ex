@@ -217,6 +217,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
       available_bytes: disk["available_bytes"],
       sandboxes_bytes: disk["sandboxes_bytes"],
       templates_bytes: disk["templates_bytes"],
+      snapshots_bytes: disk["snapshots_bytes"],
       budget_bytes: disk["budget_bytes"]
     }
   end

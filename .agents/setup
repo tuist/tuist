@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Prepares an Amp orb (Debian 12) for working on this monorepo: the root and
+# Prepares an Amp orb (Debian 12 on Amp, Ubuntu 24.04 on Tuist-hosted orbs,
+# which have no systemd) for working on this monorepo: the root and
 # server mise toolchains, PostgreSQL 16, ClickHouse, and a bootstrapped,
 # compiled server. Idempotent; warm runs only verify what is already there.
 set -euo pipefail
@@ -11,10 +12,20 @@ step() {
   printf '\n==> %s (%s)\n' "$1" "$(date +%T)"
 }
 
+# PostgreSQL runs as a systemd unit where systemd is PID 1 and through
+# postgresql-common's pg_ctlcluster otherwise.
+pg_service() {
+  if [[ -d /run/systemd/system ]]; then
+    sudo systemctl "$1" postgresql@16-main
+  else
+    sudo pg_ctlcluster 16 main "$1"
+  fi
+}
+
 # --- System packages -------------------------------------------------------
 # Erlang builds from source (mise.lock has no Linux URL for core:erlang), so
 # keep its build dependencies alongside PostgreSQL 16, which the server
-# requires and Debian 12 does not ship.
+# requires. PostgreSQL's repository matches the distribution's release.
 apt_packages=(
   autoconf build-essential libssl-dev libncurses-dev unzip
   inotify-tools postgresql-16 postgresql-client-16
@@ -26,12 +37,13 @@ for package in "${apt_packages[@]}"; do
 done
 if ((${#missing_packages[@]})); then
   step "Installing ${missing_packages[*]}"
-  if [[ ! -f /etc/apt/sources.list.d/pgdg.list ]]; then
+  codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+  pgdg="deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${codename}-pgdg main"
+  if [[ "$(cat /etc/apt/sources.list.d/pgdg.list 2>/dev/null)" != "$pgdg" ]]; then
     sudo install -d /usr/share/postgresql-common/pgdg
     sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
       https://www.postgresql.org/media/keys/ACCC4CF8.asc
-    echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" |
-      sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+    echo "$pgdg" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
   fi
   sudo apt-get update -q
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing_packages[@]}"
@@ -54,8 +66,8 @@ host  all all 127.0.0.1/32 trust
 host  all all ::1/128 trust
 EOF
 sudo chown postgres:postgres "$pg_conf/pg_hba.conf" "$pg_conf/conf.d/amp-orb.conf"
-sudo systemctl enable postgresql@16-main >/dev/null 2>&1
-sudo systemctl restart postgresql@16-main
+[[ ! -d /run/systemd/system ]] || sudo systemctl enable postgresql@16-main >/dev/null 2>&1
+pg_service restart
 for _ in $(seq 1 30); do
   pg_isready -q -h localhost && break
   sleep 1
@@ -140,10 +152,11 @@ else
   time mise run --no-deps install
 fi
 
-# Stop ClickHouse cleanly so its data directory is consistent in the
-# snapshot; .agents/resume starts it again.
-step "Stopping ClickHouse"
+# Stop the databases cleanly so their data directories are consistent in
+# the snapshot; .agents/resume starts them again.
+step "Stopping ClickHouse and PostgreSQL"
 mise run --no-deps clickhouse:stop
+pg_service stop
 
 cd "$repo_root"
 ((${#clean_lockfiles[@]} == 0)) || git checkout -- "${clean_lockfiles[@]}"
@@ -158,8 +171,8 @@ if ! grep -Fqx "$guidance_marker" "$guidance" 2>/dev/null; then
 # Tuist orb environment
 
 - `.agents/setup` installed the root and `server/` mise toolchains (shims on PATH),
-  PostgreSQL 16 (systemd, trust auth) and bootstrapped the server databases.
-- `.agents/resume` starts ClickHouse; rerun `mise run clickhouse:start` from `server/` if it is down.
+  PostgreSQL 16 (systemd or pg_ctlcluster, trust auth) and bootstrapped the server databases.
+- `.agents/resume` starts PostgreSQL and ClickHouse; rerun `mise run clickhouse:start` from `server/` if ClickHouse is down.
 - This checkout's dev instance is 100: server on port 8180, databases `tuist_development_100`.
 - Start the server with `amp orb services ensure` (service `server`).
   Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.

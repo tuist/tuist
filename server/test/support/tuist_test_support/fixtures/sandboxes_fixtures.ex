@@ -4,6 +4,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
   alias Tuist.Repo
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSession
+  alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.Sandbox
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -83,6 +84,22 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       last_active_at: opts |> Keyword.get(:last_active_at) |> truncate(),
       paused_at: opts |> Keyword.get(:paused_at) |> truncate(),
       error_message: Keyword.get(opts, :error_message)
+    })
+  end
+
+  def disk_snapshot_fixture(opts \\ []) do
+    account = Keyword.get_lazy(opts, :account, fn -> AccountsFixtures.account_fixture() end)
+
+    Repo.insert!(%DiskSnapshot{
+      account_id: account.id,
+      amp_snapshot_id: Keyword.get(opts, :amp_snapshot_id, "snapshot-#{TuistTestSupport.Utilities.unique_integer()}"),
+      source_sandbox_id: Keyword.get(opts, :source_sandbox_id),
+      node_name: Keyword.get(opts, :node_name, "node-a"),
+      template: Keyword.get(opts, :template, "default"),
+      template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
+      workspace_gb: Keyword.get(opts, :workspace_gb, 10),
+      state: Keyword.get(opts, :state, :ready),
+      last_used_at: opts |> Keyword.get(:last_used_at, DateTime.utc_now()) |> truncate()
     })
   end
 

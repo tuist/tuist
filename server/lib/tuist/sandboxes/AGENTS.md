@@ -115,6 +115,21 @@ consumer is Claude Managed Agents `self_hosted` environments.
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was
   enqueued with is still current, checked under the sandbox's lock.
+- `Tuist.Sandboxes.DiskSnapshots`: disk snapshots (`sandbox_disk_snapshots`)
+  of paused Amp Orbs, saved on the Orb's node by `save_disks` after a pause
+  with `sync_disks` and keyed by account and Amp's `snapshot_id`. A new Orb
+  spawned with that id goes to the snapshot's node (`Capacity.place_on_node/2`)
+  and is created with `from_disk_snapshot`; when that node cannot take it or
+  the clone fails, it boots the template instead. Each snapshot reserves its
+  rootfs and workspace ceiling in `Capacity.reserved_disk_bytes/1`, and the
+  save itself is admitted under the node's lock
+  (`Capacity.reserve_disk_snapshot/3`). A newer save replaces older copies
+  of the same id. Node reports reconcile them like sandboxes: copies no row
+  knows are deleted from the node, rows whose copy the node no longer lists
+  are dropped after a two-minute grace. A daemon that reports no
+  `disk_snapshots` key is left alone.
+  `Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker` (hourly) deletes
+  snapshots unused for 72 hours and saves stuck for 15 minutes.
 - `Tuist.Sandboxes.Workers.RetentionWorker`: daily cron (shared crons in
   `Tuist.Oban.RuntimeConfig`) that deletes sandboxes paused, or errored,
   for longer than 14 days (both still hold their disk), falling back to
