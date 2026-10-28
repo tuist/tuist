@@ -1467,8 +1467,11 @@ jobs:
             linux_runner_image_version="${LINUX_RUNNER_IMAGE_VERSION:-}"
           fi
           if [ -n "$linux_runner_image_version" ]; then
+            # Resolve manual pins too. The pool identity is content, so a new
+            # release tag serving the same manifest cannot churn idle runners.
+            linux_runner_image_digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "$linux_runner_image_version")"
             add_set "runnersFleetLinux.shapeRunnerImage" \
-              "ghcr.io/tuist/tuist-linux-runner:${linux_runner_image_version}"
+              "ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}"
           fi
 
           helm_values_args=(
@@ -1798,7 +1801,7 @@ jobs:
           # Prepare KVM without switching existing pools until every available
           # Linux host has the kernel and enough device allocations. Uses the
           # same resolved images and values as the final release below.
-          if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
+          if [ -f .github/scripts/runner-kvm-prepare.sh ] || [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
             kvm_render="$(mktemp)"
             helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
               --namespace "$NAMESPACE" \
@@ -1808,7 +1811,20 @@ jobs:
               --set registry.image.tag="$registry_image_tag" \
               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
               "${image_sets[@]}" | yq -o=json -I=0 'select(.kind != null)' | jq -s . > "$kvm_render"
-            bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+            if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
+              bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+            fi
+            # Like macOS, prepare in the background and check readiness once.
+            # Unprepared pools retain their current images for this deployment;
+            # a later deploy reevaluates them. Errors warn and move as before.
+            if [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
+              linux_staging_values="$(mktemp)"
+              if ! bash .github/scripts/linux-runner-image-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE" > "$linux_staging_values"; then
+                echo '::warning::Could not check Linux image staging; moving pools to the requested images.'
+                echo '{"runnersFleetLinux":{"imageHolds":{}}}' > "$linux_staging_values"
+              fi
+              helm_values_args+=(-f "$linux_staging_values")
+            fi
             rm -f "$kvm_render"
           fi
 
