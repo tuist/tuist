@@ -18,7 +18,7 @@ msgid "Add new project connection"
 msgstr ""
 
 #: lib/tuist_web/components/amp_integration.ex:233
-#: lib/tuist_web/components/amp_integration.ex:273
+#: lib/tuist_web/components/amp_integration.ex:276
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
 #: lib/tuist_web/live/integrations_live.html.heex:794
@@ -203,6 +203,8 @@ msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Job
 msgstr ""
 
 #: lib/tuist_web/components/amp_integration.ex:121
+#: lib/tuist_web/components/amp_integration.ex:249
+#: lib/tuist_web/components/amp_integration.ex:283
 #: lib/tuist_web/live/integrations_live.html.heex:504
 #: lib/tuist_web/live/integrations_live.html.heex:678
 #, elixir-autogen, elixir-format
@@ -422,12 +424,6 @@ msgstr ""
 #: lib/tuist_web/components/amp_integration.ex:51
 #, elixir-autogen, elixir-format
 msgid "Could not save the connection. Check your provider token, account permissions, and whether this provider is already connected to another account."
-msgstr ""
-
-#: lib/tuist_web/components/amp_integration.ex:249
-#: lib/tuist_web/components/amp_integration.ex:280
-#, elixir-autogen, elixir-format
-msgid "Disconnect Amp"
 msgstr ""
 
 #: lib/tuist_web/components/amp_integration.ex:201
