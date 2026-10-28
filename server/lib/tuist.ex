@@ -308,6 +308,7 @@ defmodule Tuist do
       Sandboxes.AgentEnvironment,
       Sandboxes.AgentSession,
       Sandboxes.Anthropic.Client,
+      Sandboxes.Concurrency,
       Sandboxes.Nodes,
       Sandboxes.Router,
       Sandboxes.Sandbox,

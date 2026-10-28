@@ -29,7 +29,10 @@ defmodule TuistWeb.AmpOrbsController do
         {:error, reason} when reason in [:unauthorized, :disabled] ->
           send_resp(conn, :forbidden, "Provider is not authorized")
 
-        {:error, :locked} ->
+        {:error, :sandbox_concurrency_limit} ->
+          send_resp(conn, :too_many_requests, "Account sandbox CPU or memory limit reached")
+
+        {:error, reason} when reason in [:locked, :sandbox_account_busy] ->
           send_resp(conn, :conflict, "Provider operation already in progress")
 
         _ ->

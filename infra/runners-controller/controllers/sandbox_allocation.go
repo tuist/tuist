@@ -18,21 +18,8 @@ import (
 // a node after its grant was revoked. The server also rejects older timestamps.
 var sandboxAllocationMu sync.Mutex
 
-func ciQueued(fleet *fleetAllocation) bool {
-	if fleet == nil {
-		return true
-	} // Unknown demand never grants sandbox capacity.
-	for _, member := range fleet.members {
-		if member.queued > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// Conservative CI-first admission: wait until all dispatchable CI has claimed
-// its runners before starting another turn. This also avoids treating a
-// fleet-wide byte grant as proof that a particular CI shape can fit a host.
+// Sandboxes and queued CI compete for uncommitted capacity. Host reservations
+// still protect a waiting CI shape; a queue elsewhere does not revoke all grants.
 func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, pool *tuistv1.RunnerPool, fleet *fleetAllocation) error {
 	if pool.Spec.OS != "linux" || r.SandboxesNamespace == "" || fleet == nil {
 		return nil
@@ -64,14 +51,13 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 	if err != nil {
 		return err
 	}
-	pressure := ciQueued(fleet)
 	for i := range nodes.Items {
 		node := &nodes.Items[i]
 		for _, daemon := range daemons {
 			if daemon.node != node.Name {
 				continue
 			}
-			allocation := planSandboxAllocation(node, daemon, pods.Items, fleet, pressure)
+			allocation := planSandboxAllocation(node, daemon, pods.Items, fleet)
 			allocation.ObservedAt = observed
 			if err := r.SignalsClient.PublishSandboxAllocation(ctx, allocation); err != nil {
 				return fmt.Errorf("publish sandbox allocation for %s: %w", node.Name, err)
@@ -82,8 +68,8 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 	return nil
 }
 
-func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev1.Pod, fleet *fleetAllocation, pressure bool) scaling.SandboxAllocation {
-	allocation := scaling.SandboxAllocation{Node: node.Name, Pod: daemon.name, Reclaim: pressure || isReserved(node) || node.Spec.Unschedulable || daemon.terminating}
+func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev1.Pod, fleet *fleetAllocation) scaling.SandboxAllocation {
+	allocation := scaling.SandboxAllocation{Node: node.Name, Pod: daemon.name, Reclaim: fleet == nil || isReserved(node) || node.Spec.Unschedulable || daemon.terminating}
 	ready := false
 	for _, condition := range node.Status.Conditions {
 		if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {

@@ -555,6 +555,18 @@ defmodule TuistWeb.API.SandboxesController do
     })
   end
 
+  defp sandbox_error(conn, :sandbox_concurrency_limit) do
+    conn
+    |> put_status(:too_many_requests)
+    |> json(%{
+      message: "The account has reached its sandbox CPU or memory limit. Pause a sandbox before starting more work."
+    })
+  end
+
+  defp sandbox_error(conn, :sandbox_account_busy) do
+    conn |> put_status(:conflict) |> json(%{message: "Another sandbox admission is in progress. Retry shortly."})
+  end
+
   defp sandbox_error(conn, :locked) do
     conn |> put_status(:conflict) |> json(%{message: "Another operation on the sandbox is in progress."})
   end

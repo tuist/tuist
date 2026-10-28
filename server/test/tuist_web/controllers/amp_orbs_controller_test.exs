@@ -7,6 +7,7 @@ defmodule TuistWeb.AmpOrbsControllerTest do
   alias Tuist.Kubernetes.Client
   alias Tuist.Sandboxes.AmpIntegrations
   alias Tuist.Sandboxes.AmpRuntime
+  alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Sandbox
   alias TuistTestSupport.Fixtures.SandboxesFixtures
 
@@ -48,6 +49,22 @@ defmodule TuistWeb.AmpOrbsControllerTest do
            ) == ""
 
     assert Tuist.Repo.get!(Sandbox, sandbox.id).state == :paused
+  end
+
+  test "reports account resource exhaustion separately from fleet capacity", %{
+    conn: conn,
+    integration: integration,
+    user: user
+  } do
+    identity(integration)
+
+    {:ok, _} =
+      Concurrency.update_limits(user.account, %{sandbox_vcpus_limit: 2, sandbox_memory_gb_limit: 4})
+
+    SandboxesFixtures.sandbox_fixture(account: user.account)
+
+    assert response(request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture"}), 429) ==
+             "Account sandbox CPU or memory limit reached"
   end
 
   test "requires workload authentication", %{conn: conn} do
