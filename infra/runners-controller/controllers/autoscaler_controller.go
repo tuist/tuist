@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -12,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -101,6 +103,20 @@ type AutoscalerReconciler struct {
 	// Defaults to defaultMemReserveFraction. 0 (unset) uses the
 	// default; set explicitly in tests.
 	MemReserveFraction float64
+
+	// SandboxesNamespace is where sandbox daemons run, whose memory is
+	// kept out of the Linux fleet's budget (see sandboxes.go). Empty
+	// when the chart runs no sandboxes.
+	SandboxesNamespace string
+
+	// APIReader is an uncached reader for the sandbox daemons, which live
+	// outside the namespace the manager caches. Nil falls back to Client.
+	APIReader client.Reader
+
+	// sandboxRetired remembers the runners retired for sandbox growths,
+	// per node, for preemptionSettle (see sandboxes.go).
+	sandboxMu      sync.Mutex
+	sandboxRetired map[string]map[types.UID]retiredRunner
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
@@ -156,9 +172,24 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		IgnoreRecentPeak: !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
 	}
 	desired, fleet := r.desiredForPool(ctx, pool, *signals, knobs, logger)
+	if err := r.publishSandboxAllocations(ctx, pool, fleet); err != nil {
+		// CI scaling continues. A failed publication cannot renew the server's
+		// short-lived grant, so sandbox admission fails closed independently.
+		logger.Error(err, "publish sandbox capacity allocation")
+	}
 
 	current := pool.Spec.Replicas
 	now := r.now()
+
+	// A sandbox carve-out's growth waiting for room on a node outranks the
+	// idle warm runners there, whatever the cooldown.
+	preempted, err := r.preemptForSandboxGrowth(ctx, pool, fleet, now, logger)
+	if err != nil {
+		logger.Error(err, "retire idle runners for a sandbox growth; will retry")
+	}
+	if preempted {
+		return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+	}
 
 	switch {
 	case desired == current:
@@ -425,12 +456,8 @@ func (s podShape) key() string {
 // memory-per-vCPU is richer than its host's. Per-node `min` answers the
 // question kube-scheduler will actually be asked.
 //
-// darwin only, deliberately. Linux runner Pods are kata microVMs that
-// pin memory per sandbox while CPU is intentionally oversubscribed, so a
-// CPU quotient there would cap a fleet that is not CPU-bound; and those
-// hosts are homogeneous, so the byte budget is already exact.
-//
-// An empty result (no nodes, or a non-darwin pool) disables the cap.
+// Both platforms schedule on CPU and memory requests. Linux sandbox daemon
+// allocations come off each node before computing its runner seats.
 func (r *AutoscalerReconciler) shapePlacementCaps(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -447,6 +474,21 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
 		return nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
 	}
+	nativeSlots := map[string]int32{}
+	if pool.Spec.OS == "linux" || pool.Spec.OS == "darwin" {
+		daemons, err := r.sandboxDaemons(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, daemon := range daemons {
+			if daemon.native {
+				nativeSlots[daemon.node]++
+			}
+		}
+		for i := range nodes.Items {
+			nodes.Items[i] = *nodeWithoutSandboxes(&nodes.Items[i], daemons)
+		}
+	}
 
 	caps := make(map[string]int32, len(shapes))
 	for key, shape := range shapes {
@@ -458,7 +500,11 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 			if nodeFilterReason(&nodes.Items[i]) != "" {
 				continue
 			}
-			seats += nodeSeatsForShape(&nodes.Items[i], shape)
+			available := nodeSeatsForShape(&nodes.Items[i], shape)
+			if nativeSlots[nodes.Items[i].Name] > 0 {
+				available = min(available, max(2-nativeSlots[nodes.Items[i].Name], 0))
+			}
+			seats += available
 		}
 		caps[key] = seats
 	}
@@ -657,10 +703,12 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	var total int64
 	ready, filtered := summarizeFleetNodes(nodes.Items)
 	metrics.RecordFleetNodes(fleetSelector, "linux", ready, filtered)
+	included := map[string]bool{}
 	for i := range nodes.Items {
 		if nodeFilterReason(&nodes.Items[i]) != "" {
 			continue
 		}
+		included[nodes.Items[i].Name] = true
 		if mem := nodes.Items[i].Status.Allocatable.Memory(); mem != nil {
 			total += mem.Value()
 		}
@@ -670,7 +718,16 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	if reserve <= 0 {
 		reserve = defaultMemReserveFraction
 	}
-	return int64(float64(total) * reserve), nil
+	// Sandbox daemons' carve-outs are Pod requests the reserve fraction does
+	// not cover, and they move: counting them here is what hands memory to
+	// the warm pools when a carve-out shrinks and takes it back when one
+	// grows.
+	daemons, err := r.sandboxDaemons(ctx)
+	if err != nil {
+		return 0, err
+	}
+	budget := int64(float64(total)*reserve) - sandboxMemoryOnNodes(daemons, included)
+	return max(budget, 0), nil
 }
 
 // macosFleetAllocatableMemory sums allocatable memory across the Mac
@@ -698,6 +755,13 @@ func (r *AutoscalerReconciler) macosFleetAllocatableMemory(ctx context.Context, 
 		nodeOSLabel:     macosNodeOSDarwin,
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
+	}
+	daemons, err := r.sandboxDaemons(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for i := range nodes.Items {
+		nodes.Items[i] = *nodeWithoutSandboxes(&nodes.Items[i], daemons)
 	}
 	ready, filtered := summarizeFleetNodes(nodes.Items)
 	metrics.RecordFleetNodes(fleetSelector, "darwin", ready, filtered)
