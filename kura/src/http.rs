@@ -1463,8 +1463,19 @@ async fn authorize_request(
     let authorization = req
         .headers()
         .get(axum::http::header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .map(ToOwned::to_owned);
+        .map(|value| {
+            if req
+                .headers()
+                .get_all(axum::http::header::AUTHORIZATION)
+                .iter()
+                .count()
+                == 1
+            {
+                value.to_str().unwrap_or_default().to_owned()
+            } else {
+                String::new()
+            }
+        });
     let context = request_context_from_http(
         &state,
         HttpRequestFacts {

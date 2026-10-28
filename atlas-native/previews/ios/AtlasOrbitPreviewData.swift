@@ -29,6 +29,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private var drafts: [String: String] = [:]
     private var attachmentsByThread: [String: [[String: Any]]] = [:]
     private var sentByThread: [String: [[String: Any]]] = [:]
+    private var modelsByThread: [String: String] = [:]
+    private var modelError: String?
     private var seededAttachments = false
     private var olderPromptsLoaded = false
     private let promptTime = Date()
@@ -47,6 +49,16 @@ final class AtlasOrbitPreviewData: ObservableObject {
         }
         let command = action["command"] as? [String: Any] ?? [:]
         switch command["action"] as? String {
+        case "models":
+            modelError = ProcessInfo.processInfo.arguments.contains("--fail-model-catalog")
+                ? "Reconnect ChatGPT in Settings → AI accounts to load its models." : nil
+        case "set_model":
+            if let id = command["id"] as? String, selected?["id"] as? String == id {
+                let choice = command["model"] as? String
+                modelsByThread[id] = choice
+                selected?["model"] = choice
+                modelError = nil
+            }
         case "load":
             if cached {
                 try await Task.sleep(for: .seconds(6))
@@ -294,6 +306,12 @@ final class AtlasOrbitPreviewData: ObservableObject {
             "people": selected?["kind"] as? String == "shared" ? [["id": "online", "name": "Alex", "typing": false]] : [],
             "draft": draft, "draft_mentions": draftMentions, "mention_candidates": mentionCandidates,
             "draft_attachments": draftAttachments, "attachment_busy": false,
+            "models": ProcessInfo.processInfo.arguments.contains("--fail-model-catalog") ? [] : [
+                ["id": "chatgpt:gpt-6.1-sol", "name": "GPT-6.1 Sol", "provider": "ChatGPT"],
+                ["id": "chatgpt:gpt-6-sol", "name": "GPT-6 Sol", "provider": "ChatGPT"],
+                ["id": "workspace", "name": "Workspace model", "provider": "Atlas"]
+            ],
+            "model_error": modelError as Any? ?? NSNull(), "models_loading": false,
             "has_drafts": !draft.isEmpty || !draftAttachments.isEmpty || drafts.values.contains(where: { !$0.isEmpty }),
             "loading": false, "history_loading": false, "saving": false,
             "has_more": false, "has_older": ProcessInfo.processInfo.arguments.contains("--orbit-prompts") && !olderPromptsLoaded,
@@ -389,6 +407,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
         let updated = id == secondPrivateID ? Calendar.current.date(byAdding: .day, value: -1, to: promptTime)! : promptTime
         return ["id": id, "title": title, "kind": promotedIDs.contains(id) ? "shared" : kind,
          "status": archivedIDs.contains(id) ? "archived" : "active",
+         "model": modelsByThread[id] as Any? ?? NSNull(),
          "summary": kind == "shared" ? "Comparing query plans across affected projects." : "",
          "origin": kind == "private" ? "manual" : "signal", "owner_id": "preview-self", "participants": [["id": "preview-self", "name": "Taylor"]],
          "updated_at": ISO8601DateFormatter().string(from: updated)]

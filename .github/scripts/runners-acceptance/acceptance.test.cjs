@@ -99,7 +99,7 @@ const successfulJobs = [
 ].map((job, index) => ({ ...job, id: index + 1, status: 'completed', labels: ['canary'],
   created_at: '2026-01-01T00:00:00Z', started_at: '2026-01-01T00:00:01Z' }));
 
-function runScript(script, jobs, conclusion = 'success') {
+function runScript(script, jobs, conclusion = 'success', env = {}) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-gate-'));
   try {
     fs.writeFileSync(path.join(work, 'jobs.json'), JSON.stringify({ jobs }));
@@ -121,7 +121,8 @@ esac
       env: { ...process.env, PATH: `${work}:${process.env.PATH}`, TEST_WORK: work,
         TEST_CONCLUSION: conclusion, GITHUB_REPOSITORY: 'tuist/tuist',
         GITHUB_RUN_ID: '42', GITHUB_RUN_ATTEMPT: '1', GITHUB_STEP_SUMMARY: path.join(work, 'summary'),
-        DOCKER_CACHE_PROBES: 'true', ENVIRONMENT: 'canary', EXPECTED_LINUX_IMAGE: 'ghcr.io/tuist/tuist-linux-runner@sha256:' + 'a'.repeat(64), EXPECTED_PROBE_JOBS: '9', MACOS_PICKUP_MINUTES: '15', LINUX_PICKUP_MINUTES: '10' },
+        DOCKER_CACHE_PROBES: 'true', ENVIRONMENT: 'canary', EXPECTED_LINUX_IMAGE: 'ghcr.io/tuist/tuist-linux-runner@sha256:' + 'a'.repeat(64), EXPECTED_PROBE_JOBS: '9', MACOS_PICKUP_MINUTES: '15', LINUX_PICKUP_MINUTES: '10',
+        EXPECTED_MACOS_IMAGES: JSON.stringify(['ghcr.io/tuist/tuist-runner@sha256:' + 'c'.repeat(64)]), ...env },
     });
     assert.equal(result.error, undefined, result.error?.message);
     return { ...result, cancelled: fs.existsSync(path.join(work, 'cancelled')) };
@@ -144,6 +145,13 @@ for (const prefix of ['Linux native ', 'Linux container ', ...dockerPhases.map(p
       assert.match(result.stdout, /Linux acceptance/);
     });
   }
+}
+for (const images of ['', '[]', '["ghcr.io/tuist/tuist-runner:macos-26-6-0.49.4"]']) {
+  test(`canary gate requires the deployed macOS digests (${images || 'unset'})`, () => {
+    const result = runScript('gate.sh', successfulJobs, 'success', { EXPECTED_MACOS_IMAGES: images });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stdout, /macOS acceptance/);
+  });
 }
 test('gate preserves aggregate workflow failures', () => {
   assert.notEqual(runScript('gate.sh', successfulJobs, 'failure').status, 0);
@@ -186,6 +194,66 @@ test('candidate digest flows from the intended deploy image through the gate', (
   assert.match(helm.run, /echo "linux_runner_image=ghcr.io\/tuist\/tuist-linux-runner@\$\{linux_runner_image_digest\}" >> "\$GITHUB_OUTPUT"/);
   const gate = cascade.jobs['runners-acceptance'].steps.find(step => step.run?.endsWith('gate.sh'));
   assert.equal(gate.env.EXPECTED_LINUX_IMAGE, '${{ needs.canary.outputs.linux_runner_image }}');
+});
+
+test('macOS digests flow from canary to the probe, which rejects any other image', () => {
+  assert.equal(deployment.on.workflow_call.outputs.macos_runner_images.value, '${{ jobs.deploy.outputs.macos_runner_images }}');
+  assert.equal(deployment.jobs.deploy.outputs.macos_runner_images, '${{ steps.macos-images.outputs.macos_runner_images }}');
+  const gate = cascade.jobs['runners-acceptance'].steps.find(step => step.run?.endsWith('gate.sh'));
+  assert.equal(gate.env.EXPECTED_MACOS_IMAGES, '${{ needs.canary.outputs.macos_runner_images }}');
+  const step = workflow.jobs.macos.steps.find(step => step.name === 'Runner');
+  assert.equal(step.env.EXPECTED_MACOS_IMAGES, '${{ inputs.expected_macos_images }}');
+  const deployed = JSON.stringify(['candidate@sha256:new', 'candidate@sha256:stacked']);
+  const run = (env) => spawnSync('bash', ['-c', step.run], { encoding: 'utf8', env: { ...process.env, ...env } });
+  for (const image of ['candidate@sha256:old', '']) {
+    const result = run({ EXPECTED_MACOS_IMAGES: deployed, TUIST_RUNNER_IMAGE: image });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stdout, /Acceptance ran on/);
+  }
+  assert.equal(run({ EXPECTED_MACOS_IMAGES: deployed, TUIST_RUNNER_IMAGE: 'candidate@sha256:stacked' }).status, 0);
+  // Scheduled production runs supply no expectation and only report the image.
+  assert.equal(run({ EXPECTED_MACOS_IMAGES: '', TUIST_RUNNER_IMAGE: 'anything' }).status, 0);
+});
+
+test('canary waits for staged macOS images instead of holding; other environments hold once', () => {
+  const step = deployment.jobs.deploy.steps.find(step => step.id === 'macos-images');
+  const digests = JSON.stringify({ '26.6': 'sha256:' + 'a'.repeat(64) });
+  const held = JSON.stringify({ digests: { '26.6': 'sha256:' + 'b'.repeat(64) }, stacked: {} });
+  const want = JSON.stringify({ digests: JSON.parse(digests), stacked: {} });
+  for (const environment of ['canary', 'production']) {
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'macos-staging-'));
+    try {
+      fs.mkdirSync(path.join(work, '.github/scripts'), { recursive: true });
+      fs.mkdirSync(path.join(work, 'bin'));
+      // Held twice, then staged. Records the age allowance each call used.
+      fs.writeFileSync(path.join(work, '.github/scripts/runner-image-staging-gate.sh'), `#!/usr/bin/env bash
+echo "\${RUNNER_IMAGE_STAGING_TIMEOUT_SECONDS:-default}" >> calls
+if [ "$(wc -l < calls)" -le 2 ]; then echo '${held}'; else echo '${want}'; fi
+`, { mode: 0o755 });
+      fs.writeFileSync(path.join(work, 'bin/sleep'), `#!/usr/bin/env bash
+[ "$TARGET_ENVIRONMENT" = canary ] || { echo 'production must not wait' >&2; exit 1; }
+`, { mode: 0o755 });
+      fs.writeFileSync(path.join(work, 'env'), '');
+      fs.writeFileSync(path.join(work, 'output'), '');
+      const result = spawnSync('bash', ['-e', '-c', step.run], { cwd: work, encoding: 'utf8', env: { ...process.env,
+        PATH: `${path.join(work, 'bin')}:${process.env.PATH}`, TARGET_ENVIRONMENT: environment,
+        RUNNER_IMAGE_DIGESTS: digests, GITHUB_ENV: path.join(work, 'env'), GITHUB_OUTPUT: path.join(work, 'output') } });
+      assert.equal(result.status, 0, result.stderr);
+      const calls = fs.readFileSync(path.join(work, 'calls'), 'utf8').trim().split('\n');
+      const env = fs.readFileSync(path.join(work, 'env'), 'utf8');
+      if (environment === 'canary') {
+        assert.equal(calls.length, 3);
+        assert.ok(calls.every(call => Number(call) >= 86400), 'canary must not accept announcement age');
+        assert.equal(env, '');
+      } else {
+        assert.deepEqual(calls, ['default']);
+        assert.match(env, /RUNNER_IMAGE_DIGESTS=\{"26.6":"sha256:b+"\}/);
+      }
+      assert.match(fs.readFileSync(path.join(work, 'output'), 'utf8'), /^macos_runner_images=\["ghcr.io\/tuist\/tuist-runner@sha256:a{64}"\]$/m);
+    } finally {
+      fs.rmSync(work, { recursive: true, force: true });
+    }
+  }
 });
 
 test('publication windows cannot make the watchdog finish before cache probes appear', () => {

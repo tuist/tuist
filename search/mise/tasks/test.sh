@@ -14,7 +14,7 @@ cleanup() { docker rm -f "$CONTAINER_NAME" 2>/dev/null || true; }
 trap cleanup EXIT
 
 echo "Building Docker image..."
-docker build -t "$IMAGE_NAME" .
+docker build --build-context certificate-trust=../infra/certificate-trust -t "$IMAGE_NAME" .
 
 echo "Starting container..."
 docker run -d --name "$CONTAINER_NAME" \

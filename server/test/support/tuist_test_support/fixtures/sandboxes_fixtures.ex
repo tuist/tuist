@@ -68,6 +68,8 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       account_id: account.id,
       agent_environment_id: Keyword.get(opts, :agent_environment_id),
       anthropic_session_id: Keyword.get(opts, :anthropic_session_id),
+      amp_orb_id: Keyword.get(opts, :amp_orb_id),
+      amp_integration_id: Keyword.get(opts, :amp_integration_id),
       template: Keyword.get(opts, :template, "default"),
       template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
       vcpus: Keyword.get(opts, :vcpus, 2),

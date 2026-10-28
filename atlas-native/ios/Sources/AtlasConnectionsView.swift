@@ -2,54 +2,26 @@ import SwiftUI
 
 struct AtlasConnectionsView: View {
     @ObservedObject var model: AtlasConnections
-    @State private var disconnecting: AtlasConnection?
     @Environment(\.atlasPresence) private var presence
-    @Environment(\.dynamicTypeSize) private var textSize
 
     var body: some View {
         Form {
             Section {
                 ForEach(model.connections) { connection in
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 12) {
-                            Image(systemName: connection.provider == "slack" ? "number" :
-                                    connection.provider == "github" ? "chevron.left.forwardslash.chevron.right" : "globe")
-                                .foregroundStyle(.tint).frame(width: 32).accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(connection.name).font(.headline)
-                                Text(connection.summary).font(.subheadline).foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        let actions = textSize.isAccessibilitySize
-                            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
-                            : AnyLayout(HStackLayout())
-                        actions {
-                            Button(connection.connected ? "Reconnect" : "Connect") {
-                                Task { await model.connect(connection.provider) }
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .modifier(AtlasPrimaryAction())
-                            .disabled(!connection.configured || model.busy)
-                            .accessibilityLabel("\(connection.connected ? "Reconnect" : "Connect") \(connection.name)")
-                            .accessibilityIdentifier("connection-\(connection.provider)")
-                            if connection.connected {
-                                if !textSize.isAccessibilitySize { Spacer() }
-                                Button("Disconnect", role: .destructive) { disconnecting = connection }
-                                    .buttonStyle(.bordered).tint(.red).disabled(model.busy)
-                                    .accessibilityLabel("Disconnect \(connection.name)")
-                            }
-                        }
-                        .frame(minHeight: 44)
-                        .controlSize(.large)
+                    NavigationLink {
+                        AtlasConnectionDetailView(provider: connection.provider, model: model)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(connection.name)
+                            Text(connection.summary).font(.subheadline).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }.padding(.vertical, 4)
                     }
-                    .padding(.vertical, 6)
+                    .accessibilityIdentifier("connection-\(connection.provider)")
                 }
             } footer: {
-                Text("Connect your personal GitHub, Slack and Google accounts. " +
-                     "Authorization opens securely in your browser and returns to Atlas.")
+                Text("Your personal account connections are separate from Atlas sign-in and shared workspace integrations.")
             }
-            if model.busy { Section { ProgressView("Updating connections…") } }
             if let message = model.message {
                 Section {
                     Text(message).foregroundStyle(.secondary)
@@ -61,17 +33,72 @@ struct AtlasConnectionsView: View {
         .navigationTitle("Connections")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
+        .toolbar(.hidden, for: .tabBar)
         #endif
+        .overlay { if model.busy && model.connections.isEmpty { ProgressView("Loading connections…") } }
         .modifier(AtlasThemedContent())
         .onAppear { presence?.show() }
         .task { await model.load() }
         .refreshable { await model.load() }
         .protectsAtlasNavigation(model.busy)
-        .confirmationDialog("Disconnect \(disconnecting?.name ?? "account")?", isPresented: Binding(
-            get: { disconnecting != nil }, set: { if !$0 { disconnecting = nil } }
-        ), titleVisibility: .visible) {
-            if let connection = disconnecting {
-                Button("Disconnect", role: .destructive) { Task { await model.disconnect(connection.provider) } }
+    }
+}
+
+private struct AtlasConnectionDetailView: View {
+    let provider: String
+    @ObservedObject var model: AtlasConnections
+    @State private var confirmingDisconnect = false
+
+    private var connection: AtlasConnection? { model.connections.first { $0.provider == provider } }
+
+    var body: some View {
+        Form {
+            if let connection {
+                Section {
+                    LabeledContent("Status", value: connection.status == "connected" ? "Connected" : connection.summary)
+                    if let account = connection.accountName {
+                        LabeledContent("Account", value: account).textSelection(.enabled)
+                    }
+                }
+                Section {
+                    if connection.configured {
+                        Button(connection.connected ? "Reconnect \(connection.name)" : "Connect \(connection.name)") {
+                            Task { await model.connect(provider) }
+                        }
+                        .disabled(model.busy)
+                    } else {
+                        Text("\(connection.name) connections aren’t available on this Atlas server.")
+                    }
+                } footer: {
+                    if connection.configured {
+                        Text("You’ll authorize access in your browser, then return to Atlas.")
+                    } else {
+                        Text("An administrator needs to configure \(connection.name) authorization before you can connect.")
+                    }
+                }
+                if connection.connected {
+                    Section {
+                        Button("Disconnect \(connection.name)", role: .destructive) { confirmingDisconnect = true }
+                            .disabled(model.busy)
+                    }
+                }
+            }
+            if let message = model.message {
+                Section { Text(message).foregroundStyle(.secondary) }
+            }
+        }
+        .navigationTitle(connection?.name ?? "Connection")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+        #endif
+        .toolbar { if model.busy { ProgressView().accessibilityLabel("Updating connection") } }
+        .modifier(AtlasThemedContent())
+        .protectsAtlasNavigation(model.busy)
+        .confirmationDialog("Disconnect \(connection?.name ?? "account")?", isPresented: $confirmingDisconnect,
+                            titleVisibility: .visible) {
+            Button("Disconnect", role: .destructive) {
+                Task { await model.disconnect(provider) }
             }
         } message: { Text("Atlas will no longer have access through this connection.") }
     }

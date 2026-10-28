@@ -54,6 +54,21 @@ defmodule AtlasWeb.NativeOrbitController do
     end
   end
 
+  def models(conn, _params), do: json(conn, Orbit.models_for(conn.assigns.current_user))
+
+  def model(conn, %{"id" => id}) do
+    user = conn.assigns.current_user
+
+    with %{"model" => model} when map_size(conn.body_params) == 1 <- conn.body_params,
+         {:ok, thread} <- Orbit.fetch(user, id),
+         {:ok, selected} <- Orbit.set_model(user, thread, model) do
+      json(conn, %{thread: thread(selected)})
+    else
+      {:error, reason} -> respond_error(conn, reason)
+      _ -> respond_error(conn, :invalid_params)
+    end
+  end
+
   def create(conn, %{"kind" => "private"} = params) do
     case Orbit.create_private(conn.assigns.current_user, Map.take(params, ["request_id"])) do
       {:ok, thread, :created} -> conn |> put_status(:created) |> json(%{thread: thread(thread)})
@@ -211,6 +226,7 @@ defmodule AtlasWeb.NativeOrbitController do
       summary: thread.summary || "",
       origin: thread.origin,
       owner_id: thread.owner_id,
+      model: thread.model,
       environment_id: thread.environment_id,
       environment_name: thread.environment_name,
       project_id: thread.project_id,
@@ -294,6 +310,7 @@ defmodule AtlasWeb.NativeOrbitController do
        when reason in [
               :personal_environment_history,
               :private_environment_required,
+              :model_run_active,
               :environment_run_active,
               :environment_disabled,
               :environment_project_unavailable

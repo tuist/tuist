@@ -6,6 +6,7 @@ struct AtlasMacOSPreview: App {
     @StateObject private var business = AtlasBusinessPreviewData()
     @StateObject private var threads = AtlasOrbitPreviewData()
     @StateObject private var environments = AtlasEnvironmentPreviewData()
+    @StateObject private var presence = AtlasPresencePreviewData()
     @StateObject private var navigation = AtlasNavigation()
     @StateObject private var updater = AtlasUpdater(startingUpdater: false)
     @StateObject private var authentication = AtlasAuthentication()
@@ -37,7 +38,7 @@ struct AtlasMacOSPreview: App {
                 } else {
                     AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request,
                                        orbitRequest: threads.request, orbitLocalRequest: threads.local,
-                                       navigation: navigation) {
+                                       presence: presence.model, navigation: navigation) {
                         AtlasSettingsView(server: server, accounts: accounts, signOut: {}, profileRequest: business.request)
                     }
                     .frame(minWidth: 820, minHeight: 580)

@@ -16,6 +16,7 @@ struct AtlasThreadDetail: View {
     @State private var pagingHistory = false
     @State private var showingInfo = false
     @State private var showingEnvironment = false
+    @State private var showingModels = false
     @State private var confirmingShare = false
     @StateObject private var voice = AtlasVoiceInput()
     @State private var startingVoice: Task<Void, Never>?
@@ -28,6 +29,7 @@ struct AtlasThreadDetail: View {
     @Environment(\.atlasPresence) private var presence
     @Environment(\.atlasEnvironmentRequest) private var environmentRequest
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var assistantName: String { model.assistant?.name ?? "Pip" }
     private var selectionMatches: Bool { model.selected?.id == thread.id }
@@ -59,9 +61,7 @@ struct AtlasThreadDetail: View {
                                     .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)
                             #endif
                             if showsWelcome {
-                                AtlasPipWelcome { prompt in
-                                    model.draft += (model.draft.isEmpty ? "" : "\n\n") + prompt
-                                }
+                                AtlasPipWelcome()
                             }
                         }
                         AtlasThreadTimeline(timeline: model.timeline, selfId: selfId, openAttachment: openAttachment) { id, event in
@@ -204,9 +204,18 @@ struct AtlasThreadDetail: View {
             NavigationStack {
                 if let environmentRequest { AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest) }
             }
-            .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+            .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.height(360), .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Color(uiColor: .systemGroupedBackground))
         }
         #endif
+        .sheet(isPresented: $showingModels) {
+            AtlasThreadModelPicker(model: model, threadId: thread.id)
+                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+                #if os(iOS)
+                .presentationBackground(Color(uiColor: .systemGroupedBackground))
+                #endif
+        }
         .alert("Share this conversation?", isPresented: $confirmingShare) {
             Button("Cancel", role: .cancel) {}
             Button("Share and send") { send() }
@@ -269,6 +278,7 @@ extension AtlasThreadDetail {
         pagingHistory = false
         showingInfo = false
         showingEnvironment = false
+        showingModels = false
         confirmingShare = false
         photosPresented = false
         filesPresented = false
@@ -328,6 +338,22 @@ extension AtlasThreadDetail {
             }
             AtlasThreadMentions(model: model, shared: current.kind != "private")
             AtlasDraftAttachments(model: model, open: openAttachment)
+            if showsWelcome, model.draft.isEmpty, model.draftAttachments.isEmpty, model.pendingUploadName == nil, !voice.busy {
+                AtlasThreadSuggestions { prompt in model.draft = prompt }
+            }
+            Button { showingModels = true } label: {
+                HStack(spacing: 6) {
+                    Text(model.models.first { $0.id == current.model }?.name
+                        ?? current.model?.replacingOccurrences(of: "chatgpt:", with: "") ?? "Automatic")
+                    Image(systemName: "chevron.up.chevron.down").imageScale(.small)
+                }
+                .font(.subheadline).frame(minHeight: 44)
+            }
+            .buttonStyle(.borderless).foregroundStyle(.secondary)
+            .accessibilityLabel("Model").accessibilityValue(current.model ?? "Automatic")
+            .accessibilityIdentifier("thread-model")
+            .disabled(!selectionMatches || current.ownerId != selfId || model.saving || voice.busy
+                || ["queued", "running", "compacting"].contains(current.agentStatus ?? ""))
             AtlasThreadComposer(draft: Binding(get: { model.draft }, set: { model.draft = $0 }),
                                 placeholder: current.kind == "private" ? "Ask \(assistantName)" : "Message the team",
                                 saving: model.saving || model.attachmentBusy || model.pendingUploadName != nil, phase: voice.phase,
@@ -358,35 +384,4 @@ extension AtlasThreadDetail {
         Task { await model.send(addressAgent: addressAgent) }
     }
 
-}
-
-struct AtlasThreadInfo: View {
-    let thread: AtlasThread
-    let assistantName: String
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Thread") {
-                    if thread.kind == "private" { Label("Only you and \(assistantName)", systemImage: "lock") }
-                    if !thread.summary.isEmpty { Text(thread.summary) }
-                    if !thread.origin.isEmpty { LabeledContent("Started from", value: thread.origin.capitalized) }
-                    LabeledContent("Status", value: thread.status.capitalized)
-                }
-                if thread.kind != "private" {
-                    Section("Participants") { ForEach(thread.participants) { Text($0.name) } }
-                }
-            }
-            .navigationTitle("Thread details")
-            #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-            #endif
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        }
-        #if os(macOS)
-        .frame(idealWidth: 440, idealHeight: 400)
-        #endif
-        .presentationDetents([.medium, .large])
-    }
 }
