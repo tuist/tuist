@@ -4148,33 +4148,12 @@ kuraActivation:
     canary: https://canary.tuist.dev
     staging: https://staging.tuist.dev
 
-# Amp's outgoing job consumer, deployed with the server and matching guest.
-# Disabled for self-hosters unless explicitly configured; no inbound Service/RBAC.
+# Account integrations provision isolated provider workloads in this namespace.
+# No shared provider token or human Tuist login is required.
 ampOrbProvider:
   enabled: false
+  namespace: tuist-amp-orbs
   url: ""
-  account: ""
   image:
     repository: ghcr.io/tuist/tuist-sandbox-template
-  existingSecret: ""
-  externalSecret:
-    enabled: false
-    storeRef:
-      name: onepassword
-      kind: ClusterSecretStore
-    ampToken: Amp Orb Provider/password
-    tuistCredentials: Amp Orb Tuist Credentials/password
-  persistence:
-    storageClass: ""
-    size: 1Gi
   nodeSelector: {}
-  template: default
-  vcpus: 2
-  memoryMB: 4096
-  workspaceGB: 10
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      memory: 1Gi

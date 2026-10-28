@@ -3,13 +3,13 @@
 set -euo pipefail
 
 : "${TUIST_URL:?Set the Tuist server URL}"
-: "${TUIST_ACCOUNT:?Set the account handle}"
+
 : "${ORB_ID:?Amp must supply ORB_ID}"
 : "${ORB_OPERATION:?Amp must supply ORB_OPERATION}"
 [[ "$TUIST_URL" == https://* || "$TUIST_URL" == http://localhost:* || "$TUIST_URL" == http://127.0.0.1:* ]] || {
     echo 'TUIST_URL must use HTTPS (HTTP is allowed only for local validation).' >&2; exit 1;
 }
-[[ "$TUIST_ACCOUNT" =~ ^[a-zA-Z0-9_-]+$ && "$ORB_ID" =~ ^[a-zA-Z0-9_-]+$ ]] || {
+[[ "$ORB_ID" =~ ^[a-zA-Z0-9_-]+$ ]] || {
     echo 'Invalid account handle or Orb ID.' >&2; exit 1;
 }
 case "$ORB_OPERATION" in
@@ -25,13 +25,21 @@ if [[ "$ORB_OPERATION" == spawn && "${ORB_IMAGE:-}" != "${TUIST_ORB_TEMPLATE:-de
     exit 1
 fi
 
-# Resolve a fresh administrator user token for each job. The Tuist CLI owns
-# refresh and its cross-process locking. A supplied token remains useful for
-# controlled deployments, whose operator must rotate it before expiry.
-if [[ -z "${TUIST_TOKEN:-}" ]]; then
-    TUIST_TOKEN=$(timeout 30 tuist auth token --url "$TUIST_URL")
-    export TUIST_TOKEN
+# Managed providers read their rotating workload identity for EVERY dispatch.
+# The server derives the account binding from its verified ServiceAccount.
+if [[ -n "${TUIST_WORKLOAD_TOKEN_FILE:-}" ]]; then
+    TUIST_TOKEN=$(cat "$TUIST_WORKLOAD_TOKEN_FILE")
+    endpoint="${TUIST_URL%/}/api/internal/amp-orbs/$ORB_ID"
+else
+    # Standalone adapters may still use the explicitly authorized account API.
+    : "${TUIST_ACCOUNT:?Set the account handle}"
+    [[ "$TUIST_ACCOUNT" =~ ^[a-zA-Z0-9_-]+$ ]] || exit 1
+    if [[ -z "${TUIST_TOKEN:-}" ]]; then
+        TUIST_TOKEN=$(timeout 30 tuist auth token --url "$TUIST_URL")
+    fi
+    endpoint="${TUIST_URL%/}/api/accounts/$TUIST_ACCOUNT/sandboxes/amp-orbs/$ORB_ID"
 fi
+export TUIST_TOKEN
 : "${TUIST_TOKEN:?Tuist authentication returned no token}"
 
 # Keep credentials out of curl's argv and logs. jq reads environment values;
@@ -55,7 +63,7 @@ status=$(jq -nr '"header = " + ("Authorization: Bearer " + env.TUIST_TOKEN | @js
     curl --config - --silent --show-error --max-time 240 --connect-timeout 10 \
         --output /dev/null --write-out '%{http_code}' \
         --header 'Content-Type: application/json' --data-binary "@$request" \
-        "${TUIST_URL%/}/api/accounts/$TUIST_ACCOUNT/sandboxes/amp-orbs/$ORB_ID")
+        "$endpoint")
 if [[ "$status" != 204 ]]; then
     echo "Tuist Orb $ORB_OPERATION failed (HTTP $status)." >&2
     exit 1

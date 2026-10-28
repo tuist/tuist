@@ -56,7 +56,7 @@ jobs:
           install_args: --locked helm yq
           env: false
       - name: Test provider runtime and chart
-        run: node --test infra/amp-orbs/provider.test.mjs infra/amp-orbs/store-credentials.test.mjs
+        run: node --test infra/amp-orbs/provider.test.mjs
       - name: Test sandbox deployment
         run: node --test .github/scripts/sandbox-deployment.test.mjs
       - uses: actions/setup-go@v5
@@ -93,7 +93,7 @@ jobs:
 
       - name: Exercise provider runtime
         run: |
-          docker run --rm --read-only --tmpfs /tmp:rw,exec,size=64m --tmpfs /state:rw,exec,uid=10001,gid=10001 --entrypoint bash amp-orb-provider:test -ec 'mkdir -p "$HOME"; amp --version; tuist version; tuist auth token --help'
+          docker run --rm --read-only --tmpfs /tmp:rw,exec,size=64m --tmpfs /state:rw,exec,uid=10001,gid=10001 --entrypoint bash amp-orb-provider:test -ec 'mkdir -p "$HOME"; amp --version; bash -n /opt/tuist-amp-orbs/*.sh'
           docker run --rm --read-only --tmpfs /tmp:rw,exec,size=64m --entrypoint bash -v "$PWD/infra/amp-orbs:/tests:ro" amp-orb-provider:test /tests/run-provider.test.sh
 
   build:

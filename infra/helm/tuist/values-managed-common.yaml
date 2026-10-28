@@ -614,13 +614,7 @@ runnersFleetLinux:
     enabled: true
     defaultEnabled: true
 
-# Each cluster's onepassword store reads only its own environment vault.
-# Provision both items before enabling the deployment in that environment.
+# Account-owned provider workloads run on the general pool.
 ampOrbProvider:
-  externalSecret:
-    enabled: true
-  account: tuist
-  persistence:
-    storageClass: hcloud-volumes
   nodeSelector:
     node.cluster.x-k8s.io/pool: general

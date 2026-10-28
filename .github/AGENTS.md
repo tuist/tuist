@@ -81,8 +81,8 @@ path gate, require publication before every deploy leg, and promote one source
 version through canary and production. Source tags must remain stable across
 unrelated server changes. Pre-built server deploys without a template override
 preserve the live template; never fall back to an old chart pin on rollback.
-Provider source changes also enter that version and deployment gate; the chart uses the selected template tag for both images. Test provider credential persistence/rotation in the unprivileged read-only container before publication.
-Validate with `mise exec -- node --test .github/scripts/sandbox-deployment.test.mjs infra/amp-orbs/provider.test.mjs infra/amp-orbs/store-credentials.test.mjs` and
+Provider source changes also enter that version and deployment gate; the chart uses the selected template tag for both images. Test provider workload identity requirements and graceful shutdown in the unprivileged read-only container before publication.
+Validate with `mise exec -- node --test .github/scripts/sandbox-deployment.test.mjs infra/amp-orbs/provider.test.mjs` and
 actionlint on the three workflows. PR image validation has read-only permissions.
 
 ## Atlas deployment validation

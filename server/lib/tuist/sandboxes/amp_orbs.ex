@@ -17,11 +17,20 @@ defmodule Tuist.Sandboxes.AmpOrbs do
       "amp:#{account.id}:#{orb_id}",
       fn ->
         sandbox = Repo.get_by(Sandbox, account_id: account.id, amp_orb_id: orb_id)
-        dispatch_operation(account, orb_id, sandbox, params)
+
+        if conflicting_integration?(sandbox, params) do
+          {:error, :orb_conflict}
+        else
+          dispatch_operation(account, orb_id, sandbox, params)
+        end
       end,
       wait: false
     )
   end
+
+  defp conflicting_integration?(nil, _params), do: false
+  defp conflicting_integration?(sandbox, %{amp_integration_id: id}), do: sandbox.amp_integration_id != id
+  defp conflicting_integration?(_sandbox, _params), do: false
 
   defp dispatch_operation(account, orb_id, sandbox, %{operation: "spawn"} = params) do
     with {:ok, sandbox} <- find_or_create(account, orb_id, sandbox, params),
@@ -51,7 +60,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp find_or_create(account, orb_id, nil, params) do
     attrs =
       params
-      |> Map.take([:template, :vcpus, :memory_mb, :workspace_gb])
+      |> Map.take([:template, :vcpus, :memory_mb, :workspace_gb, :amp_integration_id])
       |> Map.put(:amp_orb_id, orb_id)
 
     Sandboxes.create_sandbox(account, attrs)

@@ -117,3 +117,19 @@ test('resolves a refreshable Tuist user token for each job when no fixed token i
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('managed dispatch rereads the rotated workload token and ignores a requested account', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tuist-orb-identity-'));
+  const identity = join(directory, 'token');
+  try {
+    for (const token of ['identity-one', 'identity-two']) {
+      await writeFile(identity, token);
+      const { code, requests, output } = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, TUIST_ACCOUNT: 'another-account' });
+      assert.equal(code, 0, output);
+      assert.equal(requests[0].auth, `Bearer ${token}`);
+      assert.equal(requests[0].path, '/api/internal/amp-orbs/amp-thread');
+      assert(!JSON.stringify(requests[0].body).includes(token));
+      assert(!output.includes(token));
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});

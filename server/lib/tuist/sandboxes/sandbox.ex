@@ -43,6 +43,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :error_message, :string
 
     belongs_to :account, Account
+    belongs_to :amp_integration, Tuist.Sandboxes.AmpIntegration, type: :binary_id
     belongs_to :agent_environment, AgentEnvironment
 
     timestamps(type: :utc_datetime)
@@ -79,6 +80,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :agent_environment_id,
       :anthropic_session_id,
       :amp_orb_id,
+      :amp_integration_id,
       :template,
       :vcpus,
       :memory_mb,
