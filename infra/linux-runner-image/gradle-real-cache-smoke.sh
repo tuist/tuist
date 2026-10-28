@@ -2,7 +2,11 @@
 set -euo pipefail
 
 test "${TUIST_URL:?}" = https://staging.tuist.dev
-[[ "${TUIST_CACHE_ENDPOINT:?}" =~ ^http://kura-[a-z0-9-]+-eu-west-1(-m)?\.kura\.svc\.cluster\.local:4000$ ]]
+if [[ "${TUIST_CACHE_ENDPOINT:?}" != http://kura-tuist-ovh-gra-runners.kura.svc.cluster.local:4000 &&
+      ! "$TUIST_CACHE_ENDPOINT" =~ ^http://kura-[a-z0-9-]+-eu-west-1(-m)?\.kura\.svc\.cluster\.local:4000$ ]]; then
+    echo 'Expected the staging private runner cache or an EU-West regional cache endpoint.' >&2
+    exit 1
+fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fixture="${RUNNER_TEMP:?}/gradle-real-cache-smoke"
 mkdir -p "$fixture"

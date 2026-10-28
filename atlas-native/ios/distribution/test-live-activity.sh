@@ -118,9 +118,9 @@ case ${0##*/} in
     op)
         printf '%s\n' "$2" >> "$FIXTURE_OP_CALLS"
         case $2 in
-            'op://tuist/Atlas App Ad Hoc/Atlas_App_Ad_Hoc.mobileprovision') cp "$FIXTURE_HOST_PROFILE" "$4" ;;
+            'op://tuist/vs6k25m5i4ue7a4futc54kqlgi/Atlas_App_Ad_Hoc.mobileprovision') cp "$FIXTURE_HOST_PROFILE" "$4" ;;
             'op://tuist/Atlas Live Activity Ad Hoc/Atlas_Live_Activity_Ad_Hoc.mobileprovision') cp "$FIXTURE_ACTIVITY_PROFILE" "$4" ;;
-            'op://tuist/Atlas Share Ad Hoc/Atlas_Share_Ad_Hoc.mobileprovision') cp "$FIXTURE_SHARE_PROFILE" "$4" ;;
+            'op://tuist/odncvv6h4lm5ttnymazojjgng4/Atlas_Share_Ad_Hoc.mobileprovision') cp "$FIXTURE_SHARE_PROFILE" "$4" ;;
             *) echo 'Unexpected private credential read' >&2; exit 1 ;;
         esac ;;
     security)
@@ -253,7 +253,7 @@ cp "$profile" "$host_profile"
 export FIXTURE_HOST_PROFILE="$host_profile" FIXTURE_ACTIVITY_PROFILE="$profile"
 : > "$FIXTURE_OP_CALLS"
 deny 'profile validation precedes private certificate reads' bash "$bundle_root/ios/distribution/bundle.sh"
-printf '%s\n' 'op://tuist/Atlas App Ad Hoc/Atlas_App_Ad_Hoc.mobileprovision' \
+printf '%s\n' 'op://tuist/vs6k25m5i4ue7a4futc54kqlgi/Atlas_App_Ad_Hoc.mobileprovision' \
     'op://tuist/Atlas Live Activity Ad Hoc/Atlas_Live_Activity_Ad_Hoc.mobileprovision' > "$work/expected-op.log"
 diff -u "$work/expected-op.log" "$FIXTURE_OP_CALLS"
 pass 'invalid extension profile never retrieves private signing material'
@@ -321,9 +321,9 @@ cp "$profile" "$work/share-profile.plist"
 export FIXTURE_SHARE_PROFILE="$work/share-profile.plist"
 : > "$FIXTURE_OP_CALLS"
 deny 'Share group validation precedes private certificate reads' bash "$bundle_root/ios/distribution/bundle.sh"
-printf '%s\n' 'op://tuist/Atlas App Ad Hoc/Atlas_App_Ad_Hoc.mobileprovision' \
+printf '%s\n' 'op://tuist/vs6k25m5i4ue7a4futc54kqlgi/Atlas_App_Ad_Hoc.mobileprovision' \
     'op://tuist/Atlas Live Activity Ad Hoc/Atlas_Live_Activity_Ad_Hoc.mobileprovision' \
-    'op://tuist/Atlas Share Ad Hoc/Atlas_Share_Ad_Hoc.mobileprovision' > "$work/expected-op.log"
+    'op://tuist/odncvv6h4lm5ttnymazojjgng4/Atlas_Share_Ad_Hoc.mobileprovision' > "$work/expected-op.log"
 diff -u "$work/expected-op.log" "$FIXTURE_OP_CALLS"
 pass 'invalid Share profile never retrieves private signing material'
 

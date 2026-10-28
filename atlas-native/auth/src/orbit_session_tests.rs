@@ -11,6 +11,7 @@ fn saved() -> Session {
         access_token: "atlas-access".into(),
         refresh_token: "atlas-refresh".into(),
         expires_at: crate::now() + 3600,
+        cache_id: None,
     }
 }
 
@@ -19,7 +20,11 @@ fn thread(id: &str, kind: &str) -> Thread {
 }
 
 fn opened() -> (String, Arc<Model>) {
-    let opened = execute(Action::Open { session: saved() }).unwrap();
+    let opened = execute(Action::Open {
+        session: saved(),
+        cache_directory: None,
+    })
+    .unwrap();
     let id = opened["connection"].as_str().unwrap().to_owned();
     let model = get(&id).unwrap();
     {
@@ -1957,4 +1962,137 @@ fn only_upload_bridge_envelopes_may_exceed_one_mebibyte() {
     let upload = json!({"operation":"orbit_session","action":"request","connection":"not-open","session":saved(),"command":{"action":"upload_attachment","id":FIRST,"filename":"big.txt","content_type":"text/plain","data":large}});
     let result: Value = serde_json::from_str(&crate::bridge::execute(&upload.to_string())).unwrap();
     assert_eq!(result["error"]["kind"], "closed"); // Allowed through the bounded bridge; no handle means no HTTP.
+}
+
+#[test]
+fn inbox_reopens_locally_with_expired_credentials_then_refreshes_without_blanking() {
+    use crate::tests::{MockTransport, TestDirectory};
+    use std::sync::mpsc;
+    let directory = TestDirectory::new();
+    let mut session = crate::bootstrap(saved()).unwrap();
+    let overview = |id: &str| {
+        json!({"assistant":{"name":"Pip","configured":true,"can_create_private":true},
+        "threads":{"items":[thread(id, "private")],"page":1,"total_pages":2,"total_count":26}})
+    };
+    let open = |session: Session| {
+        execute(Action::Open {
+            session,
+            cache_directory: Some(directory.as_str().into()),
+        })
+        .unwrap()
+    };
+    {
+        let opened = open(session.clone());
+        let connection = opened["connection"].as_str().unwrap().to_owned();
+        let model = get(&connection).unwrap();
+        load_using(&model, false, &MockTransport::new(vec![overview(FIRST)])).unwrap();
+        assert_eq!(snapshot(&model).unwrap()["cached"], false);
+        execute(Action::Close { connection }).unwrap();
+    }
+    session.expires_at = 1;
+    let opened = open(session.clone()); // No HTTP or refresh-token exchange.
+    assert_eq!(opened["snapshot"]["threads"][0]["id"], FIRST);
+    assert_eq!(opened["snapshot"]["cached"], true);
+    assert_eq!(opened["snapshot"]["assistant"]["can_create_private"], false);
+    assert!(opened["snapshot"]["threads"][0]["owner_id"].is_null());
+    assert_eq!(opened["snapshot"]["has_more"], false);
+    assert!(opened["snapshot"]["selected"].is_null());
+    let connection = opened["connection"].as_str().unwrap().to_owned();
+    let model = get(&connection).unwrap();
+    set_active(&model, true).unwrap();
+    assert!(model.state.lock().unwrap().live.is_none()); // Local bootstrap never connects.
+    assert!(
+        execute(Action::Request {
+            connection: connection.clone(),
+            session,
+            command: Command::Archive {
+                id: FIRST.into(),
+                archived: true
+            },
+        })
+        .is_err()
+    );
+    model.state.lock().unwrap().session.expires_at = crate::now() + 3600;
+    let (started, waiting) = mpsc::channel();
+    let (release, released) = mpsc::channel();
+    let refreshing = model.clone();
+    let result = overview(SECOND);
+    let refresh = std::thread::spawn(move || {
+        load_using(
+            &refreshing,
+            false,
+            &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                started.send(()).unwrap();
+                released.recv_timeout(Duration::from_secs(5)).unwrap();
+                Ok(result.clone())
+            }),
+        )
+        .unwrap()
+    });
+    waiting.recv_timeout(Duration::from_secs(5)).unwrap();
+    let pending = snapshot(&model).unwrap();
+    assert_eq!(pending["threads"][0]["id"], FIRST);
+    assert_eq!(pending["loading"], true);
+    release.send(()).unwrap();
+    refresh.join().unwrap();
+    assert_eq!(snapshot(&model).unwrap()["threads"][0]["id"], SECOND);
+    assert_eq!(snapshot(&model).unwrap()["cached"], false);
+    load_using(
+        &model,
+        false,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            Err(error("network", "Offline."))
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["threads"][0]["id"], SECOND);
+    execute(Action::Close { connection }).unwrap();
+    drop(model);
+    let reopened = open(crate::bootstrap(saved()).unwrap());
+    assert_eq!(reopened["snapshot"]["threads"], json!([])); // New credential lifetime, same origin.
+    execute(Action::Close {
+        connection: reopened["connection"].as_str().unwrap().into(),
+    })
+    .unwrap();
+}
+
+#[test]
+fn logout_during_refresh_cannot_repopulate_the_durable_inbox() {
+    use crate::tests::{MockTransport, TestDirectory};
+    let directory = TestDirectory::new();
+    let session = crate::bootstrap(saved()).unwrap();
+    let opened = execute(Action::Open {
+        session: session.clone(),
+        cache_directory: Some(directory.as_str().into()),
+    })
+    .unwrap();
+    let connection = opened["connection"].as_str().unwrap().to_owned();
+    let model = get(&connection).unwrap();
+    let overview = json!({"assistant":{"name":"Pip","configured":true},
+        "threads":{"items":[thread(FIRST,"shared")],"page":1,"total_pages":1,"total_count":1}});
+    load_using(&model, false, &MockTransport::new(vec![overview.clone()])).unwrap();
+    load_using(
+        &model,
+        false,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            forget_cache(&session, directory.as_str()).unwrap();
+            Ok(overview.clone())
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["threads"], json!([]));
+    assert!(
+        execute(Action::Open {
+            session,
+            cache_directory: Some(directory.as_str().into())
+        })
+        .is_err()
+    );
+    let db = rusqlite::Connection::open(directory.path().join("reads.sqlite3")).unwrap();
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM read_snapshots", [], |row| row
+            .get::<_, u32>(0))
+            .unwrap(),
+        0
+    );
 }

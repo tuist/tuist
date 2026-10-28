@@ -5,6 +5,7 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias Tuist.Application.EndpointDrainer
+  alias Tuist.Application.FinchPools
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -377,6 +378,7 @@ defmodule Tuist.Application do
           TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
+          Tuist.Sandboxes.NodePresence,
           Tuist.KeyValueStore.Invalidator,
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
@@ -422,6 +424,7 @@ defmodule Tuist.Application do
       end
     )
     |> Kernel.++(kura_children())
+    |> Kernel.++(sandboxes_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s), and outside web
     # mode — see `RuntimeChildren.marketing_stats/1`.
@@ -526,6 +529,17 @@ defmodule Tuist.Application do
     end
   end
 
+  # Every web pod runs the manager; the pollers it starts are cluster
+  # singletons (`:global`), so the fleet polls each environment once.
+  # Tests drive the poller and manager directly.
+  defp sandboxes_children do
+    if Environment.web?() and not Environment.test?() do
+      [Tuist.Sandboxes.Anthropic.Supervisor]
+    else
+      []
+    end
+  end
+
   defp finch_pools do
     if Environment.test?() do
       %{:default => [size: 10]}
@@ -546,8 +560,8 @@ defmodule Tuist.Application do
           # pool, so the fallback pool must handle primary-storage-level load.
           :default => [
             size:
-              max(
-                TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+              FinchPools.default_pool_size(
+                Application.fetch_env!(:tuist, Oban)[:queues],
                 Environment.s3_pool_size()
               ),
             count: Environment.s3_pool_count(),
@@ -594,21 +608,6 @@ defmodule Tuist.Application do
         end)
 
       Map.merge(base_pools, additional_pools)
-    end
-  end
-
-  defp active_download_queue_concurrencies do
-    :tuist
-    |> Application.fetch_env!(Oban)
-    |> Keyword.get(:queues, [])
-    |> case do
-      queues when is_list(queues) ->
-        queues
-        |> Keyword.take([:process_build, :process_xcresult])
-        |> Keyword.values()
-
-      _ ->
-        []
     end
   end
 

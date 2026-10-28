@@ -2,6 +2,17 @@
 
 These independent Once targets render the production native Settings views with fixed, in-memory API responses. They make screenshots reproducible without real provider credentials, browser authentication, a public development server, or an Atlas-authorized ChatGPT client.
 
+`--workspace --cached-orbit` starts iOS with a saved inbox snapshot and delays its
+refresh; add `--offline-orbit` to retain it after a failed request and
+`--recover-orbit` to let Retry succeed. The Orbit UI test checks quiet startup,
+compact failure/Retry, retained rows and recovery in light/dark accessibility text.
+Android's `ThreadCardPreviewActivity` accepts
+`--ez saved-inbox true` and optional `--ez refreshed true` to render the production
+inbox states; the saved fixture fails after six seconds and recovers on Retry.
+Its startup adapter checks cover hydration before refresh. These
+are presentation fixtures, not SQLite durability or OAuth evidence; Rust tests
+exercise the actual database, migrations and invalidation fences.
+
 `--live-activity` renders the shared production ActivityKit view and requests real
 local activities through the preview's separately identified WidgetKit extension.
 Start/update/stale/end controls use fictional conversation titles, generic phases

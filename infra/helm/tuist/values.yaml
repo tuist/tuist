@@ -535,6 +535,7 @@ server:
   appUrl: http://tuist.local
   logLevel: info
   hosted: false
+  ssoRequireLoginDomainVerification: false
   # Cloudflare Turnstile protects self-service browser registration on hosted
   # deployments. When `enabled` is true, TUIST_TURNSTILE_ENABLED is set on the
   # deployment and the site/secret keys are synced from the TURNSTILE 1Password
@@ -1515,6 +1516,12 @@ capi:
     # Upgrade existing runtimes before qualifying an additional region.
     regions: {}
   ovhPrivateNetwork:
+    enabled: false
+    vrackID: ""
+    cidr: ""
+  # Disable first and wait for RunnerEgressReady to disappear before changing
+  # the block, removing this config, or rolling back to an older provider image.
+  ovhRunnerEgress:
     enabled: false
     vrackID: ""
     cidr: ""
@@ -2540,6 +2547,94 @@ macosFleet:
 # the runners namespace (templates/runners-namespace.yaml); a
 # default-deny NetworkPolicy + GitHub-only egress limits a
 # compromised runner's reachability into the cluster.
+# Firecracker microVM sandboxes for coding-agent sessions (Claude Managed
+# Agents self-hosted environments). A privileged `sandboxd` DaemonSet on the
+# selected bare-metal pools creates one persistent VM per agent session from a
+# golden template snapshot, pauses it to the node's NVMe when the session goes
+# idle and resumes it on the next turn. Runners stay on Kata; this is a
+# separate substrate on the same nodes. See infra/sandboxd/AGENTS.md.
+sandboxes:
+  enabled: false
+  namespace: tuist-sandboxes
+  # Both tags are `sha-<git-sha>` tags pushed by sandboxd-image.yml and
+  # sandbox-image.yml (workflow_dispatch). Empty is a render-time failure.
+  image:
+    repository: ghcr.io/tuist/sandboxd
+    tag: ""
+    pullPolicy: IfNotPresent
+  templateImage:
+    repository: ghcr.io/tuist/tuist-sandbox-template
+    tag: ""
+    pullPolicy: IfNotPresent
+  templateName: default
+  # Pull secrets for the two images, e.g. while a freshly created ghcr package
+  # is still private. Names of docker-registry Secrets in the sandboxes
+  # namespace.
+  imagePullSecrets: []
+  # `node.cluster.x-k8s.io/pool` values the DaemonSet may land on. Required.
+  nodePools: []
+  tolerations: []
+  # Memory the DaemonSet Pod starts at (request == limit): the floor of the
+  # node's carve-out. kube-scheduler keeps runner Pods out of it, so it is
+  # memory runners can never use. 1 GiB holds the daemon and a template
+  # build but no sandbox, so a node gives sandboxes nothing until one needs
+  # memory. The server places sandboxes against the current limit: each
+  # creating, resuming or running sandbox is charged its guest memory plus a
+  # fixed VMM overhead, with 512 MiB kept for the daemon. Paused sandboxes
+  # cost disk, not memory.
+  memoryGiB: 1
+  # The most the server may grow a node's carve-out to, in place and in whole
+  # GiB, when sandboxes need it: into memory no Pod requests right away, or
+  # into room the runners controller frees on that node by retiring idle
+  # warm runners (never ones running a job). A growth a node cannot take
+  # moves on to the next node. Once sandboxes pause the carve-out shrinks
+  # back to memoryGiB, and the runner pools' budget, which counts the
+  # daemon's memory, grows again. A ceiling not above memoryGiB keeps the
+  # carve-out fixed.
+  maxMemoryGiB: 16
+  # CPU the daemon requests. Guests have no CPU limit and run on idle cores;
+  # the request only sets their share when the node's CPU is contended, so
+  # it stays small and leaves runner Pods' scheduling capacity alone.
+  cpu: "250m"
+  # Share of the node's data filesystem sandboxes may reserve. Every file a
+  # sandbox writes is fixed-size (rootfs clone, sparse workspace of
+  # workspace_gb, memory image), so the server reserves each sandbox's
+  # ceiling (template rootfs + workspace + memory) at placement, running or
+  # paused, and stops placing on a node whose ceilings would exceed this.
+  # A default 2x4096 sandbox with a 10 GB workspace on an 8 GiB rootfs
+  # reserves about 22 GiB. The server also keeps one memory image plus
+  # headroom free for the next pause. 0 disables the budget and leaves only
+  # that free-space floor.
+  diskGiB: 200
+  # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
+  # startup instead of on the first create.
+  prebuildShapes: "2x4096"
+  # The only shapes a node accepts. Each shape costs a template build and a
+  # memory image on disk, so the list is short and matches the shapes the
+  # server lets accounts request (Tuist.Sandboxes.Sandbox.shapes/0).
+  allowedShapes: "2x4096,4x8192,8x16384"
+  metricsPort: 9470
+  # Unauthenticated HTTP API on the daemon for bring-up validation from Jobs
+  # labelled `tuist.dev/sandboxd-admin-client=true` in the sandboxes
+  # namespace. Off outside staging.
+  admin:
+    enabled: false
+    port: 9471
+  # Run Firecracker under the jailer (chroot, dedicated uid, seccomp). Only
+  # turn off to debug a jailer problem on a staging box.
+  jailer: true
+  logLevel: info
+  networkPolicy:
+    enabled: true
+    # Cluster ranges the guests must not reach; the public 80/443 allow
+    # carves these out. Match runnersFleet.networkPolicy.exceptCIDRs.
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+    # Let guests reach in-cluster Kura cache pods on :4000.
+    kuraEgress: true
+
 runnersFleet:
   customCacheVolumes:
     enabled: false
@@ -2951,6 +3046,19 @@ runnersFleetLinux:
     maxConcurrentPerNode: 6
     # Starts after the scheduler binds the Pod to a node. 0 disables.
     startTimeoutSeconds: 300
+  # Hardware-accelerated nested guests (x86_64 Android emulators) for pools
+  # that set `nestedVirtualization: true`. Enabling this deploys the
+  # kvm-device-plugin DaemonSet onto the hosts the CAPI provider has
+  # labelled `tuist.dev/kata-kvm=true`; it changes nothing for other pools.
+  # A nested pool's Pods boot the provider-installed KVM guest kernel and
+  # request `devices.tuist.dev/kvm`, which adds /dev/kvm to the runner
+  # container. See infra/runners-controller/AGENTS.md "Nested
+  # virtualization".
+  nestedVirtualization:
+    enabled: false
+    # Internal rollout/rollback switch. Requires enabled above. Applies to
+    # every Linux pool; pools may explicitly override nestedVirtualization.
+    defaultEnabled: false
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the
@@ -2974,7 +3082,7 @@ runnersFleetLinux:
     # Example entry:
     # - name: ubuntu-22-04
     #   replicas: 0          # static target; ignored when autoscaling is enabled.
-    #   runnerImage: ""      # Required. Digest-pinned in production.
+    #   runnerImage: ""      # Defaults to shapeRunnerImage. Digest-pinned in production.
     #   dispatchLabel: ""    # Required. The label customers put in `runs-on`.
     #   runnerLabels:
     #     - self-hosted
@@ -2988,6 +3096,10 @@ runnersFleetLinux:
     #   # the kata-qemu microVM is the safety boundary that keeps
     #   # the privileged sidecar off the bare-metal host kernel.
     #   runtimeClass: kata-qemu
+    #   # Optional. Gives the runner container /dev/kvm for nested guests
+    #   # such as Android emulators. Needs kata-qemu and
+    #   # `runnersFleetLinux.nestedVirtualization.enabled`.
+    #   nestedVirtualization: false
     #   provisioning:
     #     maxConcurrentPerNode: 6
     #     startTimeoutSeconds: 300
@@ -3008,6 +3120,10 @@ runnersFleetLinux:
   # shape can override autoscaling via its own `autoscaling:` block;
   # otherwise `shapeAutoscaling` defaults apply.
   shapeRunnerImage: ""
+  # Deployment-only map: full RunnerPool name -> current image while the
+  # desired image prepares in the background. Recomputed on every deploy;
+  # empty in source values so holds do not become permanent image pins.
+  imageHolds: {}
   shapeRuntimeClass: "kata-qemu"
   shapeAutoscaling:
     enabled: true

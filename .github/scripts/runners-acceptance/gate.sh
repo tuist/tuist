@@ -64,5 +64,10 @@ jq -r '.jobs[] | select(.conclusion != "skipped") | "\(.id)\t\(.name)"' <<< "${j
       done
   done
 
-[ "${conclusion}" = success ] && exit 0
-fail "Runners acceptance" "the runners or their cache are broken on ${ENVIRONMENT} (${conclusion}): ${url}"
+[ "${conclusion}" = success ] || fail "Runners acceptance" "the runners or their cache are broken on ${ENVIRONMENT} (${conclusion}): ${url}"
+# A successful workflow with a skipped/missing Linux probe must not promote.
+for probe in 'Linux native ' 'Linux container '; do
+  jq -e --arg prefix "$probe" '[.jobs[] | select(.name | startswith($prefix))]
+    | length > 0 and all(.[]; .conclusion == "success")' <<< "$jobs" >/dev/null ||
+    fail 'Linux acceptance' "${probe}coverage was missing, skipped, or unsuccessful: ${url}"
+done

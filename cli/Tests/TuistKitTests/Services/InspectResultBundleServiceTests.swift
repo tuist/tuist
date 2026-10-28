@@ -1210,6 +1210,46 @@ struct UploadResultBundleServiceTests {
             .called(0)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadTestSummary_resolvesCoverageAgainstTheSpellingTheBuildCompiledThrough() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        // The build ran in `/tmp/<checkout>`, which Git reports as `/private/tmp/<checkout>`. The
+        // checkout is not on this machine.
+        let checkout = "build-checkout-\(UUID().uuidString)"
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(["/tmp/\(checkout)/Sources/Feature/Checkout.swift"])
+        let tiedToTheRepository: Parameter<XcodeCoverageManifest> = .matching {
+            $0.files == [XcodeCoverageSourceFile(path: "Sources/Feature/Checkout.swift", gitBlobId: "compiled")]
+                && $0.rootDirectories.contains("/tmp/\(checkout)")
+        }
+        given(coverageUploadService)
+            .prepare(resultBundlePath: .any, manifest: .any, fullHandle: .any, serverURL: .any, testRunId: .any)
+            .willReturn(PreparedCoverage(coverage: TestRunCoverage(tool: "xccov", partial: false, files: []), testRunId: nil))
+
+        let storage = RunMetadataStorage()
+        await storage.update(coverageBuildSources: CoverageBuildSources(
+            rootDirectories: ["/private/tmp/\(checkout)", XcodeCoverageManifest.sourceRootPlaceholder],
+            files: ["Sources/Feature/Checkout.swift": "compiled"]
+        ))
+        try await RunMetadataStorage.$current.withValue(storage) {
+            _ = try await subject.uploadTestSummary(
+                testSummary: TestSummary(testPlanName: nil, status: .passed, duration: 10, testModules: []),
+                resultBundlePath: xcresultPath,
+                projectDerivedDataDirectory: nil,
+                config: .test(fullHandle: "tuist/tuist"),
+                shardPlanId: nil,
+                shardIndex: nil
+            )
+        }
+
+        verify(coverageUploadService)
+            .prepare(resultBundlePath: .any, manifest: tiedToTheRepository, fullHandle: .any, serverURL: .any, testRunId: .any)
+            .called(1)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies())
     func uploadTestSummary_warnsWhenNoCoveredFileIsInTheCheckout() async throws {
         Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"

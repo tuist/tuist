@@ -40,6 +40,23 @@ struct AtlasOrbitView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 }
+                if model.cached, model.errorMessage != nil, linkedThreadID == nil {
+                    HStack {
+                        Text("Couldn’t refresh").foregroundStyle(.secondary)
+                            .accessibilityIdentifier("orbit-refresh-error")
+                        Spacer()
+                        Button { Task { await model.load() } } label: {
+                            Text("Retry").frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                            .buttonStyle(.borderless)
+                            .disabled(model.loading)
+                            .accessibilityIdentifier("orbit-refresh-retry")
+                    }
+                    .font(.footnote)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
                 if let assistant = model.assistant {
                     if !assistant.configured {
                         Section {
@@ -71,7 +88,7 @@ struct AtlasOrbitView: View {
                         if model.loading { ProgressView().accessibilityLabel("Loading more threads") }
                     }
                 }
-                if let error = model.errorMessage {
+                if let error = model.errorMessage, !model.cached || linkedThreadID != nil {
                     Section {
                         Text(error).foregroundStyle(.red)
                         Button("Retry") {
@@ -98,7 +115,7 @@ struct AtlasOrbitView: View {
                     Button("New conversation", systemImage: "square.and.pencil") {
                         Task { await openPrivateThread() }
                     }
-                    .disabled(model.assistant == nil || model.creating || openingPrivate)
+                    .disabled(model.cached || model.assistant == nil || model.creating || openingPrivate)
                     .accessibilityIdentifier("orbit-create")
                 }
             }
@@ -202,7 +219,7 @@ struct AtlasOrbitView: View {
             }
         }
         .tint(.orange)
-        .disabled(model.saving || model.loading)
+        .disabled(model.cached || model.saving || model.loading)
     }
 
     private func openPrivateThread() async {

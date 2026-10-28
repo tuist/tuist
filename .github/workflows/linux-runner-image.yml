@@ -22,9 +22,21 @@ on:
   pull_request:
     paths:
       - infra/linux-runner-image/**
+      - .github/actions/setup-docker-builder/**
       - .github/workflows/linux-runner-image.yml
+      - .github/workflows/server-production-deployment.yml
+      - .github/scripts/linux-runner-image-*
+      - .github/scripts/ghcr-manifest-digest*
   workflow_dispatch:
     inputs:
+      benchmark:
+        description: Benchmark old/new release builds and isolated image pulls instead of the normal validation build
+        type: boolean
+        default: false
+      benchmark_base:
+        description: Full baseline commit for the release benchmark (required when benchmark is true)
+        type: string
+        default: ''
       runner_version:
         description: |
           Override the `RUNNER_VERSION` build-arg in the Dockerfile
@@ -44,9 +56,10 @@ env:
 
 jobs:
   cache-mounts:
+    if: inputs.benchmark != true
     name: Cache volume bind mounts
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -63,12 +76,48 @@ jobs:
             -e TUIST_TEST_BIND_MOUNTS=1 \
             -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
             ubuntu:22.04 /cache-volume.test -test.v
+      - name: Verify Docker layers and cache mounts across jobs
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          dind_digest=sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac
+          dind_image="public.ecr.aws/docker/library/docker:28-dind@$dind_digest"
+          if ! docker pull "$dind_image"; then
+            # Public ECR can throttle GitHub-hosted egress. Keep the exact
+            # same image digest when falling back to the upstream registry.
+            dind_image="docker.io/library/docker:28-dind@$dind_digest"
+            docker pull "$dind_image"
+          fi
+          docker run --rm --privileged \
+            -e TUIST_TEST_DOCKER_CACHE=1 \
+            -e TMPDIR=/var/lib/docker \
+            -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
+            --entrypoint sh \
+            "$dind_image" \
+            -c 'apk add --no-cache e2fsprogs coreutils util-linux >/dev/null && /cache-volume.test -test.v -test.run "TestDockerBuildCacheAcrossJobs|TestDockerTrimReclaimsDeletedBlocks" -test.timeout=14m' \
+            2>&1 | tee "$RUNNER_TEMP/docker-build-cache.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: docker-build-cache-evidence
+          path: ${{ runner.temp }}/docker-build-cache.log
   build:
     needs: cache-mounts
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: inputs.benchmark != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test Linux rollout gate and layer comparison
+        run: |
+          bash .github/scripts/linux-runner-image-prepare.test.sh
+          bash .github/scripts/ghcr-manifest-digest.test.sh
+          node --test infra/linux-runner-image/compare-layers.test.mjs
 
       - name: Syntax-check runner scripts
         run: |
@@ -143,11 +192,52 @@ jobs:
           # can land as an additive `platforms:` entry.
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
+          outputs: type=oci,dest=${{ runner.temp }}/linux-runner-baseline.tar
           tags: ${{ steps.tags.outputs.tags }}
           # Only forwarded when explicitly set via workflow_dispatch
           # input; empty leaves the Dockerfile's `ARG RUNNER_VERSION`
           # default in place (Renovate-managed).
           build-args: |
             ${{ inputs.runner_version && format('RUNNER_VERSION={0}', inputs.runner_version) || '' }}
-          cache-from: type=gha,scope=linux-runner-image
-          cache-to: type=gha,mode=max,scope=linux-runner-image
+          # Validation can read the release cache, but never overwrite it.
+          cache-from: |
+            type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache
+            type=gha,scope=linux-runner-image
+          cache-to: |
+            type=gha,mode=max,scope=linux-runner-image
+            type=local,dest=${{ runner.temp }}/linux-runner-cache,mode=max
+
+      - name: Verify a script-only release adds at most 10 MiB
+        env:
+          BASELINE: ${{ runner.temp }}/linux-runner-baseline.tar
+          BUILD_CACHE: ${{ runner.temp }}/linux-runner-cache
+          RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
+        run: bash infra/linux-runner-image/verify-layer-reuse.sh "$BASELINE" "$BUILD_CACHE" "$RUNNER_VERSION_OVERRIDE"
+
+  benchmark:
+    if: github.event_name == 'workflow_dispatch' && inputs.benchmark
+    runs-on: tuist-linux-large
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Benchmark release builds and pulls
+        env:
+          BENCHMARK_BASE_SHA: ${{ inputs.benchmark_base }}
+          BENCHMARK_EXPERIMENT: ${{ github.run_id }}-${{ github.run_attempt }}
+          BENCHMARK_OUTPUT: ${{ runner.temp }}/linux-image-benchmark
+        run: bash infra/linux-runner-image/benchmark-releases.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-image-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/linux-image-benchmark
+          if-no-files-found: error

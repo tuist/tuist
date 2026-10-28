@@ -478,6 +478,62 @@ spec:
                     per cooldown rather than per reconcile.
                   format: date-time
                   type: string
+                osUpdate:
+                  description: OSUpdate records an explicitly requested, serialized host update.
+                  properties:
+                    bootTimeBefore:
+                      description: |-
+                        BootTimeBefore is the host's boot time (Unix seconds), recorded before the
+                        install, erase or restart starts, so the reboot is detected by the boot
+                        time moving.
+                      format: int64
+                      type: integer
+                    completedAt:
+                      format: date-time
+                      type: string
+                    fromVersion:
+                      description: FromVersion is the macOS version the host ran when the update started.
+                      type: string
+                    id:
+                      description: |-
+                        ID names this update's job directory on the host, so a resumed update
+                        recognises the download and install it started and never one an earlier
+                        update left.
+                      type: string
+                    label:
+                      description: |-
+                        Label is the softwareupdate label resolved for Target, or for a
+                        reinstall the title of its full installer.
+                      type: string
+                    message:
+                      description: Message describes what the update is doing or why it stopped.
+                      type: string
+                    phase:
+                      description: |-
+                        Phase is one of Preparing, Draining, Downloading, Installing, Converging,
+                        Succeeded or Failed. A reinstall replaces Installing with Erasing,
+                        Enrolling, Bootstrapping and, when the SSH user has no secure token yet,
+                        Restarting.
+                      type: string
+                    phaseStartedAt:
+                      format: date-time
+                      type: string
+                    reason:
+                      description: Reason is a machine-readable cause when Phase is Failed.
+                      type: string
+                    reinstall:
+                      description: |-
+                        Reinstall is set when the host is erased and Target installed from the
+                        full installer, as the tuist.dev/os-reinstall annotation asks, rather
+                        than updated in place.
+                      type: boolean
+                    startedAt:
+                      format: date-time
+                      type: string
+                    target:
+                      description: Target is the requested macOS version, e.g. "26.7".
+                      type: string
+                  type: object
                 phase:
                   description: |-
                     Phase tracks lifecycle for operators: Pending | Adopting |

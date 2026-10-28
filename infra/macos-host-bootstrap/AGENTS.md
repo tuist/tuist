@@ -57,3 +57,12 @@ the pre-versioned `/usr/local/lib/tart.app`.
 - Tart's on-disk compatibility between versions is recorded in "Tart versions"
   in [`tart-kubelet/AGENTS.md`](../tart-kubelet/AGENTS.md). Read it before
   adding a release.
+
+## OS installer session
+
+In-place `softwareupdate --install` runs through `launchctl asuser` in the
+volume owner's existing console session. Direct SSH authentication succeeded
+but restart failed with `SUOSUErrorDomain 804` on the October 27 processor wave;
+`--force` alone did not resolve it. Check console ownership and a non-root UID
+before starting the detached job. Passwords remain on stdin, never argv or
+files. Both login-shell tests cover the guard and invocation.

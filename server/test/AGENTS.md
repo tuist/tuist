@@ -3,6 +3,8 @@
 - Automation batch/notification tests cover bounded dispatch, scoped watermark ordering, current-condition rechecks, ledger-based retries, stale alert cancellation, encrypted queued destinations, and Slack retry/discard results. Existing evaluation unit tests execute the transition step synchronously; exercise the real Oban dispatch boundary in `alert_evaluation_batch_worker_test.exs`.
 
 ## Testing Guidelines
+- `tuist/accounts/sso_login_domain_trust_test.exs` and Authentication settings/API/callback tests cover strict default-off DNS verification policy parsing, explicit opt-in independently of hosted mode, ordinary organization-administrator configuration, preserved UI/API authorization, domain-matched enrollment/linking, deterministic discovery and ambiguity, later requiring DNS, and recheck independence. `config/test.exs` opts into verification for the hosted regression baseline; stub `Environment.sso_require_login_domain_verification?/0` to false for no-DNS cases, never mutate global configuration. Retain query-count assertions under both policies, Google independence, rejected-save rendering, and successful administrator SSO before enforcement. Whole-account cross-organization email linking without DNS is deliberate for trusted instances.
+
 - Browser telemetry receipt tests use independent PostgreSQL connections to
   verify concurrent overlapping batches, acknowledgment/failure handling and
   stale-owner recovery. Keep pure identity and gateway error-path tests alongside
@@ -146,3 +148,5 @@
 - Linux runner tests preserve shared profile/legacy pool selection across accounts and direct regional Kura endpoint selection. Helm checks preserve one runner cohort with no relay or account-path configuration.
 
 - SSO switch regressions use `existing_sso_configuration` to seed already-enabled policies without writing the removed compatibility column. Historical migration tests recreate the old column only inside serialized sandbox transactions; the drop migration is tested against a connection-local temporary table. Cover member-only discovery, linked sign-in/enforcement, denied unverified enrollment/account creation, signed-in link confirmation, editable saved policies, and materialization of implicit memberships without overwriting explicit roles.
+
+- Saved-cache chart regressions must distinguish the published head from retained job copies, preserve unknown sizes, cover clear/expiry/capacity reset and stale/retried publication, and retain a range baseline after history pruning. Verify account scoping and transaction rollback with PostgreSQL; render the selectable Used space widget and byte chart separately from activity charts.

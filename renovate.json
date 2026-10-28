@@ -90,6 +90,12 @@
       "automerge": true
     },
     {
+      "description": "Refresh Linux runner base digests through the image release pipeline.",
+      "matchManagers": ["dockerfile"],
+      "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
+      "commitMessagePrefix": "fix(linux-runner-image):"
+    },
+    {
       "description": "Linux-runner-image ARG bumps (actions/runner, kubectl, helm, gh): route through the linux-runner-image release flow.",
       "matchManagers": ["custom.regex"],
       "matchFileNames": ["infra/linux-runner-image/Dockerfile"],

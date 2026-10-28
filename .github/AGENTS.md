@@ -4,6 +4,15 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+`actions/setup-docker-builder/` configures a persistent Buildx builder on Linux
+runners; see its `AGENTS.md`. Linux runner CI validates its persistence contract
+against real Docker 28 with isolated ext4 storage and retains timing evidence.
+`docker-build-cache-benchmark.yml` measures separate fleet jobs after deployment.
+Use one experiment key and revision for cold, warm-layer and changed-source phases,
+waiting for saved-cache publication between dispatches. Fail on unavailable cache,
+missing layer hits or missing prior-job cache-mount contents; never present a
+fallback or an unverified run as a warm-cache measurement.
+
 `mgmt-cluster-tests.yml` checks the management health gates, disruption budgets
 and reconciliation shell scripts without credentials on PRs and main.
 `mgmt-cluster-apply.yml` synchronizes Flannel arguments and verifies private
@@ -28,7 +37,10 @@ Helm CI also tests the runner macOS host-health rules with promtool, including
 fixed kernels, uptime thresholds, stale samples and failed collection.
 The Helm render job also runs `infra/helm/tuist/test-cluster-cookie.py` offline:
 check all managed environment cookie references and Secret ownership without
-reading 1Password or logging rendered cookie values.
+reading 1Password or logging rendered cookie values. It also runs
+`infra/helm/tuist/test-sso-domain-verification.py` to check the default-off DNS
+policy and explicit opt-in across managed server runtime modes. The hosted
+Docker smoke test explicitly enables and asserts the same DNS policy.
 
 The existing runner-image release workflow runs the portable TCC report tests
 on PRs with read-only permissions and without persisted checkout credentials
@@ -459,6 +471,8 @@ The macOS CLI unit-test job installs the stable Rust toolchain pinned by `cas-pl
 
 Cargo compilation caching is implemented in Swift inside `tuist`. Do not package a separate Cargo cache executable or import an external cache engine. The existing Xcode CAS plugin and proxy remain separate Rust artifacts.
 
+`cas-plugin.yml` dogfoods `tuist/cas-plugin` through the component's pinned Tuist CLI and mise build/test tasks. Trusted jobs authenticate with GitHub OIDC (`id-token: write`); the hosted project must remain linked to `tuist/tuist`. Fork pull requests use plain Cargo without Tuist credentials or OIDC permission. Check hosted build/test reports and actual cache transfer counters separately from job success; Cargo's experimental cache does not cover the entire build graph.
+
 ## CLI Linux builds
 
 The Linux release ships a static musl binary built with the Swift Static Linux SDK. The PR `Linux Build` job in `cli.yml` compiles against the same SDK, installed through `mise/utilities/install_static_linux_sdk.sh` (shared with `mise/tasks/cli/bundle-linux.sh`), so it catches code that only builds against glibc. Its `.build` cache key uses the `linux-cli-musl-` prefix to stay separate from the glibc cache used by `Linux Unit Tests`, which keeps running on glibc.
@@ -504,7 +518,7 @@ are rejected.
 ## CLI Linux release
 
 `release-cli-linux` in `workflows/cli-build-publish.yml` builds both Linux
-tarballs on `tuist-linux-large` inside `swift:6.2`. The fleet is amd64-only,
+tarballs on `tuist-linux-large` inside `swift:6.4.1-noble`. The fleet is amd64-only,
 so aarch64 is cross-compiled through the static Linux SDK and the bundle
 script checks the architecture and that the binary is static before packaging.
 The job builds `inputs.ref` with the bundler and SDK setup from the
@@ -545,6 +559,14 @@ covered only by the production schedule.
   that wait, so the in-run dispatch watchdog fails and cancels the run past the
   pickup bound. That is why the gate dispatches a separate run instead of
   calling the workflow: cancelling it must not cancel the cascade.
+- Each Linux target runs a native probe (image/toolchains, KVM, Docker, Go,
+  setup-beam, process file limits, and Kura) and a
+  real job-container probe (workspace/actions/externals mounts and environment
+  files). Count both in the dispatch watchdog. The cascade gate rejects missing,
+  skipped, or unsuccessful native/container Linux probes even if the workflow
+  conclusion is successful. Validate this contract with
+  `node --test .github/scripts/runners-acceptance/acceptance.test.cjs` after
+  `npm ci --ignore-scripts` at the repository root.
 - Health checks are not enough: a Kura that cannot reach the server's token
   introspection answers `/up` and degrades every lookup into a slow miss. Keep
   the authenticated blob round trip and the rebuild from an empty local CAS,
@@ -615,3 +637,20 @@ The Kura controller image workflow publishes the optional XFS disk allocator
 image alongside the controller. Both depend on the Linux Go tests; PR events
 never publish either image. Managed deployments do not enable shared disk by
 publishing this image.
+## Nested KVM runner acceptance
+
+`linux-runners-staging-smoke.yml` has a manual `nested_kvm` mode, isolated from
+its ordinary smoke and cache jobs. It targets `tuist-staging-linux-kvm` as a
+native, non-root job and requires working emulator acceleration before running
+an API 34 x86_64 Gradle Managed Device instrumented test and 15 cold-start
+Macrobenchmark iterations. The pinned fixture and its contract live in
+`infra/kata-kvm-kernel/android-smoke/AGENTS.md`. Retain test results and traces
+on failure too; do not accept a successful build that executed no tests.
+
+Managed server deployment prepares KVM before upgrading runner pools, using the same resolved provider/plugin images as Helm. `scripts/runner-kvm-prepare.sh` updates only the existing provider image and the four Helm-owned plugin resources; it waits for current-boot host proof and allocations covering Pod capacity. A failed gate leaves preparation in place and pools untouched. Rollback skips the gate. Validate with `bash scripts/runner-kvm-prepare.test.sh` from `.github`, or the Helm `nested-kvm` task.
+
+## macOS maintenance validation
+
+`macos-maintenance.test.sh` exercises the explicit host-maintenance request task
+with a fake kubectl and no credentials. The provider's macOS Go suite runs it;
+keep planning read-only and refuse a new request over active or failed status.
