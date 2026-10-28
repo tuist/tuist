@@ -29,7 +29,7 @@ final class AtlasEnvironmentPreviewData: ObservableObject {
             value = ["owner_id": owner, "environments": [[
                 "id": environment, "name": "Demo Mac", "enabled": true, "online": true,
                 "terminal": true, "display": false, "projects": [["id": project, "name": "Example project"]]
-            ]]]
+            ]].filter { _ in !ProcessInfo.processInfo.arguments.contains("--empty-environments") }]
         case "selection", "select":
             if action["action"] as? String == "select" { selected = action["environment_id"] as? String == environment }
             value = ["thread": ["id": action["thread_id"] as? String ?? "", "environment_id": selected ? environment as Any : NSNull(),

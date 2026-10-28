@@ -59,6 +59,11 @@ pub(crate) enum Action {
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Command {
+    Models,
+    SetModel {
+        id: String,
+        model: Option<String>,
+    },
     Load {
         #[serde(default)]
         kind: Option<String>,
@@ -161,6 +166,9 @@ struct Snapshot {
     mention_candidates: Vec<Person>,
     mention_loading: bool,
     mention_error: Option<String>,
+    models: Vec<orbit::ModelChoice>,
+    models_loading: bool,
+    model_error: Option<String>,
     attachment_busy: bool,
     upload_pending: bool,
     upload_filename: Option<String>,
@@ -555,6 +563,8 @@ fn publish(model: &Model, state: &mut State) {
 
 fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
     match command {
+        Command::Models => models_using(model, &Network),
+        Command::SetModel { id, model: choice } => set_model_using(model, id, choice, &Network),
         Command::Load { kind, status } => {
             set_list_filters(model, kind, status)?;
             load(model, false)?;
@@ -1014,6 +1024,126 @@ fn archive_using(
     Ok(())
 }
 
+fn models_using(model: &Arc<Model>, network: &impl Transport) -> Result<()> {
+    let (session, lifecycle) = {
+        let mut state = model.state.lock().map_err(|_| invalid())?;
+        if state.closed || !state.active || state.snapshot.models_loading {
+            return Ok(());
+        }
+        state.snapshot.models_loading = true;
+        state.snapshot.model_error = None;
+        publish(model, &mut state);
+        (state.session.clone(), state.lifecycle)
+    };
+    let result = orbit::request_using::<orbit::Models>(network, session, orbit::Action::Models);
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    state.snapshot.models_loading = false;
+    if state.closed || state.lifecycle != lifecycle {
+        return Ok(());
+    }
+    match result {
+        Ok(value) => {
+            state.snapshot.models = value
+                .models
+                .into_iter()
+                .filter(|choice| {
+                    orbit::validate_model(Some(&choice.id)).is_ok()
+                        && !choice.name.trim().is_empty()
+                        && choice.name.chars().count() <= 100
+                        && !choice.name.chars().any(char::is_control)
+                        && matches!(choice.provider.as_str(), "ChatGPT" | "Atlas")
+                })
+                .take(32)
+                .collect();
+            state.snapshot.model_error = value.error.map(|code| match code.as_str() {
+                "provider_auth" => {
+                    "Reconnect ChatGPT in Settings → AI accounts to load its models.".into()
+                }
+                _ => "ChatGPT models could not be loaded. Try again in a moment.".into(),
+            });
+        }
+        Err(failure) => {
+            state.snapshot.needs_session |= failure.kind == "sign_in_required";
+            state.snapshot.model_error = Some(failure.message.into());
+        }
+    }
+    publish(model, &mut state);
+    Ok(())
+}
+
+fn set_model_using(
+    model: &Arc<Model>,
+    id: String,
+    choice: Option<String>,
+    network: &impl Transport,
+) -> Result<()> {
+    crate::time_off::validate_id(&id)?;
+    orbit::validate_model(choice.as_deref())?;
+    let (session, generation, access_generation, lifecycle) = {
+        let mut state = model.state.lock().map_err(|_| invalid())?;
+        if !mention_access(&state, &id) || state.snapshot.saving || state.snapshot.attachment_busy {
+            return Err(error(
+                "busy",
+                "Wait for the current conversation request to finish.",
+            ));
+        }
+        state.snapshot.saving = true;
+        state.snapshot.model_error = None;
+        publish(model, &mut state);
+        (
+            state.session.clone(),
+            state.generation,
+            state.access_generation,
+            state.lifecycle,
+        )
+    };
+    let result = orbit::request_using::<Created>(
+        network,
+        session,
+        orbit::Action::SetModel {
+            id: id.clone(),
+            model: choice.clone(),
+        },
+    )
+    .and_then(|value| {
+        if value.thread.id == id && value.thread.model == choice {
+            Ok(value.thread)
+        } else {
+            Err(invalid())
+        }
+    });
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    state.snapshot.saving = false;
+    if state.closed || state.access_generation != access_generation || state.lifecycle != lifecycle
+    {
+        if !state.closed {
+            publish(model, &mut state);
+        }
+        return Ok(());
+    }
+    match result {
+        Ok(thread) => {
+            invalidate_cache(&state);
+            state.access_generation += 1;
+            merge_list_thread(&mut state, thread.clone());
+            if state.generation == generation && state.snapshot.selection_id.as_deref() == Some(&id)
+            {
+                state.generation += 1;
+                state.snapshot.history_loading = false;
+                state.history_pending = false;
+                state.snapshot.selected = Some(thread);
+            }
+        }
+        Err(failure) if state.generation == generation => {
+            state.snapshot.needs_session |= failure.kind == "sign_in_required";
+            state.snapshot.model_error = Some(failure.message.into());
+        }
+        Err(_) => {}
+    }
+    publish(model, &mut state);
+    Ok(())
+}
+
 fn select(model: &Arc<Model>, id: Option<String>, expected: Option<String>) -> Result<()> {
     select_using(model, id, expected, &Network)
 }
@@ -1054,6 +1184,7 @@ fn begin_selection(state: &mut State, id: Option<String>) -> Option<String> {
     state.snapshot.messages.clear();
     state.snapshot.people.clear();
     state.snapshot.error = None;
+    state.snapshot.model_error = None;
     state.snapshot.live_message = None;
     state.snapshot.has_older = false;
     state.history_page = 0;

@@ -4,12 +4,14 @@ use serde_json::Value;
 
 fn execute_using(network: &impl Transport, session: Session, action: Action) -> Result<Value> {
     match &action {
+        Action::Models => return request_using(network, session, action),
         Action::List { .. } => {
             serde_json::to_value(request_using::<Overview>(network, session, action)?)
         }
         Action::Private
         | Action::CreatePrivate { .. }
         | Action::Create { .. }
+        | Action::SetModel { .. }
         | Action::Archive { .. } => {
             serde_json::to_value(request_using::<Created>(network, session, action)?)
         }

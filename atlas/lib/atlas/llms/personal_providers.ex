@@ -2,7 +2,7 @@ defmodule Atlas.LLMs.PersonalProviders do
   @moduledoc """
   Subscription-account protocols, not OpenAI/Anthropic API-key endpoints.
   Translates the buffered OpenAI tool protocol used by Orbit to Codex Responses
-  and Claude Messages. Provider errors return only sanitized HTTP statuses;
+  and Claude Messages. Provider errors return sanitized statuses and categories;
   diagnostics contain fixed categories, never upstream messages or bodies.
   """
 
@@ -11,6 +11,49 @@ defmodule Atlas.LLMs.PersonalProviders do
   require Logger
 
   @timeout :timer.seconds(45)
+
+  def default_model("chatgpt"), do: "gpt-6-sol"
+  def default_model("claude"), do: "claude-sonnet-4-6"
+
+  @doc "Account-scoped Codex catalog, projected to model IDs and names only."
+  def models(token) do
+    result =
+      with {:ok, account_id} <- chatgpt_account_id(token),
+           {:ok, %{status: 200, body: %{"models" => models}}} when is_list(models) <-
+             Req.get(
+               url: "https://chatgpt.com/backend-api/codex/models",
+               # Catalog protocol version supported by this adapter, not a client identity.
+               params: [client_version: "0.159.2"],
+               headers: [{"authorization", "Bearer " <> token}, {"chatgpt-account-id", account_id}],
+               retry: false,
+               redirect: false,
+               receive_timeout: 15_000,
+               finch: [conn_opts: [transport_opts: [timeout: 5_000]]]
+             ) do
+        models =
+          models
+          |> Enum.filter(fn model ->
+            is_map(model) and model["visibility"] == "list" and valid_model_id?(model["slug"]) and
+              is_binary(model["display_name"]) and String.length(model["display_name"]) in 1..100 and
+              is_list(model["supported_reasoning_levels"]) and
+              Enum.any?(model["supported_reasoning_levels"], &match?(%{"effort" => "low"}, &1))
+          end)
+          |> Enum.uniq_by(& &1["slug"])
+          |> Enum.take(31)
+          |> Enum.map(&%{id: "chatgpt:" <> &1["slug"], name: &1["display_name"], provider: "ChatGPT"})
+
+        {:ok, models}
+      else
+        {:ok, %{status: status, body: body}} -> {:error, status, http_error_category(status, body)}
+        {:error, status, category} -> {:error, status, category}
+        _ -> {:error, 502, :invalid_response}
+      end
+
+    report_result("chatgpt", result)
+  end
+
+  def valid_model_id?(id) when is_binary(id), do: Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}\z/, id)
+  def valid_model_id?(_id), do: false
 
   def complete("chatgpt", token, params) do
     result =
@@ -59,7 +102,7 @@ defmodule Atlas.LLMs.PersonalProviders do
     })
 
     Logger.error("Orbit personal provider failed: provider=#{provider} category=#{category} status=#{status}")
-    {:error, status}
+    {:error, status, category}
   end
 
   defp report_result(_provider, result), do: result
@@ -81,6 +124,17 @@ defmodule Atlas.LLMs.PersonalProviders do
     end
   end
 
+  # A proxy may return JSON with a non-JSON content type. Decode only for the
+  # same fixed diagnostics; never log its body or infer categories from text.
+  defp http_error_category(status, body) when is_binary(body) do
+    case JSON.decode(body) do
+      {:ok, %{} = decoded} -> http_error_category(status, decoded)
+      _ -> :http_error
+    end
+  end
+
+  defp http_error_category(_status, %{"error" => %{"code" => "model_not_found"}}), do: :model_not_found
+  defp http_error_category(_status, %{"error" => %{"code" => "context_length_exceeded"}}), do: :context_length
   defp http_error_category(400, %{"error" => %{"param" => "reasoning.effort"}}), do: :unsupported_reasoning_effort
 
   defp http_error_category(400, %{"error" => %{"param" => "tools"}}), do: :invalid_tools
@@ -103,7 +157,7 @@ defmodule Atlas.LLMs.PersonalProviders do
 
   defp responses_request(params) do
     %{
-      "model" => "gpt-5.4",
+      "model" => params["model"] || default_model("chatgpt"),
       "reasoning" => %{"effort" => "low"},
       "include" => ["reasoning.encrypted_content"],
       "store" => false,
@@ -223,8 +277,10 @@ defmodule Atlas.LLMs.PersonalProviders do
               "project_spend_limit_exceeded"
             ], do: {:error, 402, :billing}
 
-  defp upstream_error(%{"code" => code}) when code in ["context_length_exceeded", "invalid_prompt"],
-    do: {:error, 400, :invalid_request}
+  defp upstream_error(%{"code" => "model_not_found"}), do: {:error, 400, :model_not_found}
+  defp upstream_error(%{"code" => "context_length_exceeded"}), do: {:error, 400, :context_length}
+
+  defp upstream_error(%{"code" => "invalid_prompt"}), do: {:error, 400, :invalid_request}
 
   defp upstream_error(%{"type" => "invalid_request_error"}), do: {:error, 400, :invalid_request}
   defp upstream_error(%{"type" => "usage_limit_reached"}), do: {:error, 429, :rate_limited}
