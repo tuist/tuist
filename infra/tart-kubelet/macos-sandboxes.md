@@ -59,7 +59,10 @@ pause retains the full Pod charge. The host repairs missing reservation Pods
 from its journals before CI launches; uncertain ownership fails closed.
 
 The background controller checkpoints idle residents when CI revokes admission,
-or after the bounded 30-second idle grace. It does not interrupt an active managed
+or after the bounded 30-second idle grace. Ownership reconciliation and eviction
+run independently of image downloads and control connection preparation, so a
+failed or slow image update cannot delay returning idle capacity to CI.
+It does not interrupt an active managed
 worker or exec command. CI may therefore wait for active native work to finish
 and for the checkpoint to complete. A failed checkpoint or process fence retains
 its reservation. No capacity is released merely because a save was requested.
