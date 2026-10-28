@@ -4,6 +4,156 @@ This record concerns the disposable prototype in this directory. It is not
 approval to enroll hosted nodes, ship the experimental segment layout, remove
 per-device backing, or declare the production sharing backend implemented.
 
+## Recovery follow-up and second matched comparison
+
+[Run 40736770879](https://github.com/tuist/tuist/actions/runs/40736770879), source
+`74f0000d4dd5eb982c8bf896b2ec93862cb0ad33`, passed in **761.85 seconds** with
+**94 assertions**, **30,400 comparison requests**, zero reported failures and
+verified cleanup. It includes all child API checks described below plus:
+
+- A capacity-denied create can be cancelled after CSI reconstruction; its
+  cryptographic identity remains retired and the parent can grant another unit.
+- Seven children plus their parent fill the eight-device profile. A ninth device
+  is refused without increasing commitments. All eight filesystems received
+  2,048 scattered 4 KiB writes at 512 KiB spacing, deliberately amplifying thin
+  allocation relative to quota usage.
+- The full snapshot retained **9,294,577,664 mapped bytes** (8.66 GiB),
+  **17,186,816 metadata bytes** (16.39 MiB) and **22,011,707,392 committed bytes**
+  (20.5 GiB). Checksums survived CSI reconstruction. Normal parent deletion,
+  without an allocator-side drain, removed all eight detached devices and
+  returned commitments to zero.
+
+The second VM repeated the same five-layout forward/reverse comparison with
+13 GiB aggregate virtual size. Do not combine its absolute throughput with the
+first VM's values; the shared baseline differs substantially between VMs.
+
+| Measurement | Shared XFS | Thick LUKS/XFS | Thin LUKS/XFS | Two thick units | Two thin units |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 6 GiB upload churn, MiB/s | 241.54–242.20 | 241.41–242.31 | 165.65–166.71 | 241.54–241.99 | 165.28–166.86 |
+| 4 MiB PUT p95, ms | 199.10–233.62 | 192.28–203.62 | 297.82–301.98 | 197.30–199.87 | 293.72–293.92 |
+| 1 GiB checksum reads, MiB/s | 341.57–359.45 | 351.92–353.04 | 356.76–361.83 | 341.02–344.24 | 340.30–350.42 |
+| Runtime CPU seconds, ordinary run | 18.71–19.06 | 19.26–19.33 | 19.37–19.58 | 19.27–19.33 | 19.68–19.83 |
+
+Thick units overlap the shared baseline in this VM; thin units are approximately
+31% below thick units during upload churn. This strengthens the case for measuring
+thick units on the intended hardware before choosing thin provisioning. It is
+still a loop-backed mechanism/application experiment, not a staging NVMe result.
+
+A subsequent code review found an additional interruption point: a mount can
+succeed before quota setup persists its staging path. Recovery now resolves the
+CSI-owned deterministic child path instead of treating an empty record field as
+proof of no mount. A targeted real-stack rerun injects this quota failure and
+checks cancellation only credits backing after verified detach/delete. That
+follow-up passed in [40741254572](https://github.com/tuist/tuist/actions/runs/40741254572),
+source `d6ec6223007`, in **110.38 seconds**: **71 assertions**, zero failures,
+verified container and backing cleanup. It deliberately skipped benchmarks;
+performance numbers above still refer to the earlier matched run.
+
+## Configured device-count and cold-pool recovery qualification
+
+[Run 40739087937](https://github.com/tuist/tuist/actions/runs/40739087937), source
+`c96dedee9e1fa059d79f850a5d44c2597dda4a43`, passed in **1,569.31 seconds** with
+12 aggregate assertions and verified cleanup. It used a private 384 GiB thin
+pool, 512 MiB metadata and 128 fully backed 256 MiB useful-cache devices. Each
+received 64 scattered 4 KiB writes at 8 MiB spacing. A 129th device was refused
+despite spare data commitment; an injected metadata-reserve crossing withdrew
+healthy admission and refused further allocation.
+
+All 128 closed mappings and the deactivated pool recovered their LV identities
+and file checksums after cold pool activation. The cold activation/restaging
+phase took **91.99 seconds**. The full snapshot charged **15,569,256,448 mapped
+bytes**, **17,575,936 metadata bytes**, and **352,187,318,272 committed bytes**.
+Normal deletion returned data usage and commitments to zero; the empty pool
+retained its normal metadata baseline. This does not test a fully mapped 384 GiB
+pool, worst-case fragmentation, physical power loss or a Kubernetes node reboot.
+
+A full mounted observation took **22.55 seconds** at 128 devices in this VM.
+That is a scalability limitation: the current implementation invokes host tools
+per device while holding its pool lock. Do not infer low-latency allocation or
+suitable pressure-control cadence from the passing metadata/recovery checks.
+The staging fixture uses an eight-device profile; production scale needs an
+explicit observation/operation latency budget and qualification against it.
+Source `170e555be89` avoids reactivating already-active LVs during accounting
+(the kernel status query does not need device-node repair). Inactive volumes
+still activate normally; missing status fails closed. Local Go tests and vet
+passed. Separate metadata and child-lifecycle runs are checking the change,
+including a five-second full-observation gate; results remain pending.
+
+## Child API and matched thick/thin comparison — October 28
+
+[Run 40733165768](https://github.com/tuist/tuist/actions/runs/40733165768), source
+`ce0cb6914e9e6cd0ac43629428e88b376b2035b7`, passed the patched runtime's Clippy/build
+and the actual CSI/LUKS/XFS stack test in **1,052.90 seconds**. All **65 assertions**
+passed. Ten comparison samples made **30,400 authenticated HTTP requests**, with
+zero reported failures. The report contains no failure, all fixture containers
+were removed, and the driver log confirms `BORROWED_CLEANUP_COMPLETE=true`.
+
+Unlike the earlier fixture, this run uses the actual fenced `POST /v1/units`
+implementation and durable parent/child identities. CSI owns control-file writes,
+encryption, child publication and deletion. It passed hot publication into a
+running runtime, response replay without duplicate allocation, stale-generation
+rejection, closing/reopening parent and child mappings with stable LV identities,
+replacement-pod fencing, checksum recovery, open-unlinked-reader release refusal,
+CSI reconstruction during incomplete release, exact retry after close, prevention
+of released-ID reuse, and transfer to another tenant's independently keyed child.
+Both base identities survived and final commitment returned to zero. The restart
+is reconstruction of the driver object plus real mapping close/reopen, not a
+kubelet, containerd or node reboot. Keys remain fixture-derived: this run does not
+qualify Kubernetes ownership or OpenBao integration.
+
+All five layouts now have **13 GiB aggregate virtual size**, the same experimental
+runtime binary, 4 GiB cache budget, one CPU, 768 MiB memory, and the same forward/
+reverse workload. Multiple-volume layouts use two 6.5 GiB devices. Thin layouts
+retain the existing project-quota/sizing profile; thick controls use the real
+legacy thick CSI path without project quotas. This compares deployable storage
+paths, not encryption in isolation or identical enforcement configurations.
+
+| Measurement | Shared XFS | Thick LUKS/XFS | Thin LUKS/XFS | Two thick units | Two thin units |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 6 GiB upload churn, MiB/s | 109.70–125.23 | 113.98–114.50 | 86.26–90.91 | 107.97–108.28 | 83.66–89.60 |
+| 16 KiB PUT p95, ms | 7.07–7.41 | 8.00–8.31 | 7.43–8.97 | 7.74–8.71 | 8.18–8.55 |
+| 4 MiB PUT p95, ms | 359.31–385.60 | 306.14–315.19 | 512.40–524.44 | 451.70–468.98 | 613.05–643.27 |
+| 1 GiB checksum reads, MiB/s | 432.29–434.70 | 433.30–433.92 | 427.37–428.02 | 435.89–437.11 | 424.52–429.43 |
+| Runtime CPU seconds, ordinary run | 16.00–16.56 | 16.41–16.43 | 16.55–16.85 | 16.51–16.71 | 16.62–17.06 |
+
+Churn means upload throughput while filling beyond the cache budget and evicting;
+it is not download throughput or whole-build duration. At sample midpoints,
+thin units are about **20% slower than thick units**, while thick units are about
+**8% below shared XFS**. Shared-XFS throughput varied substantially between its
+two samples. These loop-backed VM results justify retaining the thick-unit option;
+they do not select a production winner or establish hosted performance, memory
+cost, hit rate or regional density. Paris NVMe measurements are still required.
+
+Follow-up source `74f0000d4dd5eb982c8bf896b2ec93862cb0ad33` adds cancellation of
+unadvertised failed creates, detached-child cleanup on parent deletion, durable
+unstage completion, recovery-record validation and an enforced seven-child limit.
+Local driver tests, Linux compilation and `go vet` passed. Its separate VM run
+also passed eight-device scattered-write/recovery qualification, recorded above.
+The configured 128-device metadata profile passed the separate qualification below.
+Do not infer these newer checks passed from run 40733165768.
+
+The child key-authorization tests passed locally: **35 ExUnit tests** across the
+issuance controller and key management, including separate child keys, sealed AAD,
+explicit parent opt-in, live PVC UID replacement and malformed identities. They
+use mocked Kubernetes/HTTP dependencies and do not replace the staging test.
+
+Staging-only StorageClass and TokenReview reviewer identity prerequisites were
+installed by [40737753180](https://github.com/tuist/tuist/actions/runs/40737753180).
+The prior attempt [40737492748](https://github.com/tuist/tuist/actions/runs/40737492748)
+selected the wrong GitHub deployment environment and failed before resource apply.
+The corrected workflow uses the existing `server-k8s-staging` environment and
+normal deployment lane. No hosted application image or enrollment changed.
+Server/CSI images were built as downloadable artifacts in
+[40734563091](https://github.com/tuist/tuist/actions/runs/40734563091); local fixture
+runtime/CSI images were subsequently published under dedicated `kura-child-fixture-*`
+tags after explicit user approval. The alternate host-containerd socket importer
+was rejected and was not used. Native amd64 server release boot passed in
+[40740703970](https://github.com/tuist/tuist/actions/runs/40740703970); this is not
+full web-server readiness. An isolated three-voter OpenBao fixture and compiled
+key endpoint are being qualified on staging; hardware measurements remain pending.
+
+## Earlier fixture-only prototype (historical evidence)
+
 ## Method
 
 The harness calls the actual CSI driver against its own private loop-backed VG,

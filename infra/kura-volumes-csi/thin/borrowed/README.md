@@ -97,4 +97,7 @@ cleanup closes children first. PVC deletion removes detached children without
 requiring a live allocator, including non-empty children, but refuses active or
 ambiguous mappings. It removes only empty host mountpoint directories, never
 recursively deleting uncertain mount trees. This does not qualify kubelet mount
-propagation, node reboot, maximum configured metadata scale or hosted throughput.
+propagation, node reboot or hosted throughput. The separate 128-device
+qualification covers bounded scattered writes and cold activation, with the
+observation-latency limitation recorded in the validation report; it is not
+worst-case metadata mapping qualification.

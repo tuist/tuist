@@ -86,6 +86,14 @@ the same per-volume lock, covering creation, quotas, trimming and deletion.
   decrease. `commitment_released_bytes` is always zero in this mode. A failed
   trim returns an error; successful trim with no decrease returns zero release.
 
+The experimental `borrowed_units: v1` parent additionally exposes
+`POST /v1/units` for fenced create/drain/release/abort operations. CSI owns the
+child lifecycle, mount propagation and control-file publication under these same
+locks. See the [child contract](borrowed/README.md#child-lifecycle-contract) and
+[qualification limits](borrowed/validation.md). Whole-device deletion can release
+a child's backing; lowering its quota or trimming alone cannot. Ordinary runtime
+builds and enrollment do not enable this prototype.
+
 Example grant request (identities come from the fresh node observation):
 
 ```json
