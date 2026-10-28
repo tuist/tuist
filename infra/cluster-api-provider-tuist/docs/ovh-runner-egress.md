@@ -2,8 +2,9 @@
 
 `capi.ovhRunnerEgress` gives Linux runner jobs one OVH Additional IP block per
 environment while preserving each host's primary management IP and private-cache
-connection. Checked-in values enable **staging and canary**; **production remains
-disabled** until its allowlist migration and rollout gates are complete. The
+connection. Checked-in values enable **staging, canary and production**. Production
+activation must follow the cutover prerequisites below; a values change alone
+does not establish that the block is attached or traffic is using it. The
 provider configures existing blocks; it does not order them or move a NIC between
 vRacks. Public egress alone does not enroll a runner into private-cache routing:
 that still requires explicit Machine `spec.vRackID` enrollment.
@@ -199,9 +200,29 @@ removed.
 | [Enabled](https://github.com/tuist/tuist/actions/runs/40512653629) | Exact `5.196.103.233` from the job container; the same remote upload/restore passed. |
 | [Full canary runner acceptance](https://github.com/tuist/tuist/actions/runs/40512658030) | Passed Linux and macOS probes, cache round trips, and cache-volume verification. |
 
-Production remains disabled. Publish the advance allowlist notice and allow time
-for updates before its separately authorized switch; retain the existing /32s
-through the rollback window.
+## Production cutover
+
+The advance allowlist notice was published on 2026-10-27. On 2026-10-28 the
+operator authorized production activation after receiving confirmation that the
+new Linux range was allowlisted. All ten production Linux Machines were already
+explicitly enrolled in `pn-2024093`, with `PrivateNetworkReady=True` and Ready
+Nodes. The live egress configuration was still disabled and named `pn-2025483`.
+
+The production values now target `pn-2024093` and enable the existing
+`5.135.7.160/27` block. Before deployment, confirm OVH has moved the **block** to
+that vRack, coordinate other deployments, cordon the ten runner hosts, and wait
+for their runner jobs to finish. Do not move their NICs or interrupt active jobs.
+After activation, verify a unique reserved IP and current-boot revision on each
+host, private-cache readiness, and real runner public-IP/cache probes before
+declaring the switch complete. Record the deployment and probe results here and
+update the public network guide only after traffic verification.
+
+The earlier staging qualification limits above remain relevant: replacement and
+address reuse have not been live-tested, the reboot delay is unexplained, and
+alert definitions still require provisioning. The public guide retains the old
+/32s through the rollback window. At least one allowlist now contains only the
+new range, so rollback to primary IPs requires coordinating restoration of those
+old addresses; it is not transparent to that allowlist.
 
 ## Monitoring and local checks
 
