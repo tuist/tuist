@@ -18,14 +18,20 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
     {:ok, view, _} = live(conn, "/#{account.name}/settings/integrations")
     assert has_element?(view, "#amp-integration button", "Connect Amp")
     view |> element("#amp-integration button", "Connect Amp") |> render_click()
+    assert_push_event(view, "open-modal", %{id: "connect-amp-modal"})
     token = "aop_live_fixture_secret"
-    view |> form("#amp-token-form-0", provider_token: token) |> render_submit()
+    view |> with_target("#amp-integration") |> render_submit("save", %{"provider_token" => token})
+    assert_push_event(view, "close-modal", %{id: "connect-amp-modal"})
     assert has_element?(view, "#amp-integration", "Starting provider")
     refute render(view) =~ token
     assert AmpIntegrations.get(account.id).provider_token == token
     view |> element("#amp-integration button", "Replace token") |> render_click()
     refute render(view) =~ token
-    view |> form("#amp-token-form-1", provider_token: "aop_live_replaced") |> render_submit()
+
+    view
+    |> with_target("#amp-integration")
+    |> render_submit("save", %{"provider_token" => "aop_live_replaced"})
+
     view |> element("#amp-integration button", "Disconnect") |> render_click()
     assert has_element?(view, "#amp-integration", "Saved disks remain")
     view |> element("#amp-integration button", "Disconnect Amp") |> render_click()

@@ -367,22 +367,21 @@
   color: var(--noora-surface-label-secondary);
   font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
 
-  [data-part="header"],
-  [data-part="content"],
-  [data-part="form"] {
+  & > [data-part="header"],
+  & > [data-part="content"],
+  & > [data-part="content"] > [data-part="form"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);
     min-width: 0;
   }
-  [data-part="heading"],
-  [data-part="actions"] {
+  & > [data-part="header"] > [data-part="heading"] {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--noora-spacing-4);
   }
-  [data-part="title"] {
+  & > [data-part="header"] [data-part="title"] {
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
   }
@@ -390,21 +389,13 @@
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
   }
   [data-part="actions"] {
+    display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
+    gap: var(--noora-spacing-4);
   }
   p {
     margin: 0;
-  }
-  ol {
-    margin: 0;
-    padding-left: var(--noora-spacing-7);
-  }
-  li + li {
-    margin-top: var(--noora-spacing-3);
-  }
-  a {
-    color: var(--noora-surface-label-primary);
-    text-decoration: underline;
   }
   @media (max-width: 768px) {
     grid-template-columns: minmax(0, 1fr);
@@ -413,4 +404,33 @@
 
 #integrations > [data-part="amp-card-section"][hidden] {
   display: none;
+}
+
+#connect-amp-modal > [data-part="positioner"] > [data-part="content"] {
+  width: min(560px, 90vw);
+}
+
+#connect-amp-modal [data-part="amp-form"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+  padding: var(--noora-spacing-6) var(--noora-spacing-4);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+  ol {
+    margin: 0;
+    padding-left: var(--noora-spacing-7);
+  }
+  li + li {
+    margin-top: var(--noora-spacing-3);
+  }
+  p {
+    margin: 0;
+  }
+  [data-part="actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-4);
+  }
 }

@@ -17,8 +17,8 @@ msgstr ""
 msgid "Add new project connection"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:222
-#: lib/tuist_web/components/amp_integration.ex:243
+#: lib/tuist_web/components/amp_integration.ex:244
+#: lib/tuist_web/components/amp_integration.ex:266
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
 #: lib/tuist_web/live/integrations_live.html.heex:794
@@ -200,7 +200,7 @@ msgstr ""
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:157
+#: lib/tuist_web/components/amp_integration.ex:165
 #: lib/tuist_web/live/integrations_live.html.heex:504
 #: lib/tuist_web/live/integrations_live.html.heex:678
 #, elixir-autogen, elixir-format
@@ -405,22 +405,18 @@ msgstr ""
 msgid "Lets merge request pipelines save cache volumes. Needs the read_api scope."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:98
-#, elixir-autogen, elixir-format
-msgid "Amp setup guide"
-msgstr ""
-
-#: lib/tuist_web/components/amp_integration.ex:214
+#: lib/tuist_web/components/amp_integration.ex:236
 #, elixir-autogen, elixir-format
 msgid "Anyone who can use this provider in your Amp workspace can run Orbs under this Tuist account."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:167
+#: lib/tuist_web/components/amp_integration.ex:175
+#: lib/tuist_web/components/amp_integration.ex:188
 #, elixir-autogen, elixir-format
 msgid "Connect Amp"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:190
+#: lib/tuist_web/components/amp_integration.ex:212
 #, elixir-autogen, elixir-format
 msgid "Copy the provider token and paste it below. Tuist will run the provider for this account."
 msgstr ""
@@ -430,102 +426,103 @@ msgstr ""
 msgid "Could not save the connection. Check your provider token, account permissions, and whether this provider is already connected to another account."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:249
+#: lib/tuist_web/components/amp_integration.ex:272
 #, elixir-autogen, elixir-format
 msgid "Disconnect Amp"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:236
+#: lib/tuist_web/components/amp_integration.ex:259
 #, elixir-autogen, elixir-format
 msgid "Disconnect Amp? This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:75
+#: lib/tuist_web/components/amp_integration.ex:81
 #, elixir-autogen, elixir-format
 msgid "Disconnected"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:74
+#: lib/tuist_web/components/amp_integration.ex:80
 #, elixir-autogen, elixir-format
 msgid "Disconnecting"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:184
+#: lib/tuist_web/components/amp_integration.ex:206
 #, elixir-autogen, elixir-format
 msgid "In Amp, open Workspace Settings → Orbs and add an Orb provider."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:73
+#: lib/tuist_web/components/amp_integration.ex:79
 #, elixir-autogen, elixir-format
 msgid "Needs attention"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:201
+#: lib/tuist_web/components/amp_integration.ex:223
 #, elixir-autogen, elixir-format
 msgid "Orb provider token"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:136
+#: lib/tuist_web/components/amp_integration.ex:144
 #, elixir-autogen, elixir-format
 msgid "Provider access has been revoked and Orbs are paused. Their saved disks are retained. You can manage or delete them from Sandboxes."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:130
+#: lib/tuist_web/components/amp_integration.ex:138
 #, elixir-autogen, elixir-format
 msgid "Provider access has been revoked. Orbs are being paused and their saved disks are retained. You can manage or delete them from Sandboxes."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:72
+#: lib/tuist_web/components/amp_integration.ex:78
 #, elixir-autogen, elixir-format
 msgid "Provider running"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:150
+#: lib/tuist_web/components/amp_integration.ex:158
 #, elixir-autogen, elixir-format
 msgid "Refresh status"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:166
+#: lib/tuist_web/components/amp_integration.ex:174
+#: lib/tuist_web/components/amp_integration.ex:187
 #, elixir-autogen, elixir-format
 msgid "Replace token"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:93
+#: lib/tuist_web/components/amp_integration.ex:99
 #, elixir-autogen, elixir-format
 msgid "Run your Amp workspace’s Orbs on Tuist sandboxes. Your files and processes are preserved when an Orb pauses."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:142
+#: lib/tuist_web/components/amp_integration.ex:150
 #, elixir-autogen, elixir-format
 msgid "Sandboxes are not enabled for this account. New Orb sessions are unavailable."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:229
+#: lib/tuist_web/components/amp_integration.ex:251
 #, elixir-autogen, elixir-format
 msgid "Save connection"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:71
+#: lib/tuist_web/components/amp_integration.ex:77
 #, elixir-autogen, elixir-format
 msgid "Starting provider"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:207
+#: lib/tuist_web/components/amp_integration.ex:229
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again. No Tuist login or API token is needed."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:76
+#: lib/tuist_web/components/amp_integration.ex:82
 #, elixir-autogen, elixir-format
 msgid "Suspended"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:124
+#: lib/tuist_web/components/amp_integration.ex:132
 #, elixir-autogen, elixir-format
 msgid "The provider process is running. Check its connection in Amp’s workspace settings, then select it when starting a thread."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:111
+#: lib/tuist_web/components/amp_integration.ex:119
 #, elixir-autogen, elixir-format
 msgid "Tuist could not prepare or stop the provider. Retrying automatically; refresh to check its status."
 msgstr ""
@@ -535,7 +532,7 @@ msgstr ""
 msgid "You no longer have permission to disconnect this integration."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:118
+#: lib/tuist_web/components/amp_integration.ex:126
 #, elixir-autogen, elixir-format
 msgid "Your token is saved. Tuist is preparing the provider. Once it connects, choose it under Self-Hosted in Amp."
 msgstr ""
