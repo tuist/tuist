@@ -85,6 +85,37 @@ jobs:
             /tmp/kura-thin-driver.log
             /tmp/kura-thin-stack.json
 
+  fscrypt-experiment:
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch'
+    # Independent storage-primitive experiment; no deployed driver change.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install disposable VM prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby build-essential e2fsprogs quota xfsprogs lvm2 cryptsetup thin-provisioning-tools fio
+          sudo modprobe dm_thin_pool
+          git clone https://github.com/google/fscryptctl /tmp/fscryptctl
+          git -C /tmp/fscryptctl checkout --detach 361a040c0f50c2440d51347b5eb48482ae1a41b7
+          make -C /tmp/fscryptctl fscryptctl
+          sudo install /tmp/fscryptctl/fscryptctl /usr/local/bin/fscryptctl
+      - name: Qualify encrypted shared filesystem and compare layouts
+        run: |
+          # The unprivileged runner intentionally owns the report artifact.
+          # shellcheck disable=SC2024
+          sudo env KURA_FSCRYPT_DISPOSABLE_VM=1 ruby infra/kura-volumes-csi/fscrypt/stack_test.rb > /tmp/kura-fscrypt-stack.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fscrypt-experiment
+          path: /tmp/kura-fscrypt-stack.json
+
   # Builds on every run (a Dockerfile broken on a PR must not surface only
   # after merge on main); pushes to ghcr only outside pull_request events,
   # which also keeps fork PRs away from the registry.
