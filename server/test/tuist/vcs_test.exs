@@ -1455,6 +1455,95 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "keeps distinct Gradle invocations and only the latest retry of each" do
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github])
+
+      [outdated, guard_build, retried] =
+        for {tasks, status, inserted_at} <- [
+              {[":app:assemble", ":lib:assemble"], "failure", ~N[2026-10-27 10:00:00]},
+              {[":app:dependencyGuard"], "failure", ~N[2026-10-27 10:01:00]},
+              {[":lib:assemble", ":app:assemble"], "success", ~N[2026-10-27 10:02:00]}
+            ] do
+          GradleFixtures.build_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            root_project_name: "Android-Merchant",
+            requested_tasks: tasks,
+            status: status,
+            git_commit_sha: @git_commit_sha,
+            git_ref: @git_ref,
+            inserted_at: inserted_at
+          )
+        end
+
+      expect(Client, :get_comments, fn _ -> {:ok, []} end)
+
+      expect(Client, :create_comment, fn %{body: body} ->
+        assert body =~ "https://tuist.dev/build-runs/#{guard_build}"
+        assert body =~ "https://tuist.dev/build-runs/#{retried}"
+        refute body =~ "https://tuist.dev/build-runs/#{outdated}"
+        assert body =~ ":app:dependencyGuard"
+        assert body =~ ":lib:assemble :app:assemble"
+        {:ok, %{id: 123}}
+      end)
+
+      assert {:ok, %{id: 123}} =
+               VCS.post_vcs_pull_request_comment(%{
+                 project: project,
+                 git_commit_sha: @git_commit_sha,
+                 git_ref: @git_ref,
+                 git_remote_url_origin: @git_remote_url_origin,
+                 preview_url: fn _ -> "" end,
+                 preview_qr_code_url: fn _ -> "" end,
+                 command_run_url: fn _ -> "" end,
+                 test_run_url: fn _ -> "" end,
+                 bundle_url: fn _ -> "" end,
+                 build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
+               })
+    end
+
+    test "comments are enabled by default and can be disabled and reenabled for a project" do
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github])
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: project.account_id,
+        root_project_name: "Merchant",
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref
+      )
+
+      assert project.vcs_comments_enabled
+
+      expect(Client, :get_comments, 2, fn _ -> {:ok, []} end)
+      expect(Client, :create_comment, 2, fn _ -> {:ok, %{id: 123}} end)
+      reject(Client, :update_comment, 1)
+
+      for enabled <- [true, false, false, true] do
+        {:ok, project} =
+          Tuist.Projects.update_project(Tuist.Repo.reload!(project), %{vcs_comments_enabled: enabled})
+
+        result =
+          VCS.post_vcs_pull_request_comment(%{
+            project: project,
+            git_commit_sha: @git_commit_sha,
+            git_ref: @git_ref,
+            git_remote_url_origin: @git_remote_url_origin,
+            preview_url: fn _ -> "" end,
+            preview_qr_code_url: fn _ -> "" end,
+            command_run_url: fn _ -> "" end,
+            test_run_url: fn _ -> "" end,
+            bundle_url: fn _ -> "" end,
+            build_url: fn _ -> "" end
+          })
+
+        assert Tuist.Projects.has_vcs_connection?(Tuist.Repo.preload(project, :vcs_connection))
+        assert result == if(enabled, do: {:ok, %{id: 123}}, else: :ok)
+      end
+    end
+
     test "creates a comment with gradle builds" do
       # Given
       project =
@@ -1470,6 +1559,7 @@ defmodule Tuist.VCSTest do
           project_id: project.id,
           account_id: project.account_id,
           root_project_name: "MyAndroidApp",
+          requested_tasks: [":app:assembleDebug"],
           status: "success",
           duration_ms: 30_000,
           git_commit_sha: @git_commit_sha,
@@ -1488,9 +1578,9 @@ defmodule Tuist.VCSTest do
 
         #### Builds 🔨
 
-        | Project | Status | Duration | Commit |
-        |:-:|:-:|:-:|:-:|
-        | [MyAndroidApp](https://tuist.dev/build-runs/#{gradle_build_id}) | ✅ | 30.0s | #{commit_link} |
+        | Project | Requested tasks | Status | Duration | Commit |
+        |:-:|:-:|:-:|:-:|:-:|
+        | [MyAndroidApp](https://tuist.dev/build-runs/#{gradle_build_id}) | :app:assembleDebug | ✅ | 30.0s | #{commit_link} |
 
         """
 

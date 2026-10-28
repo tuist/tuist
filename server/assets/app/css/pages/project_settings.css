@@ -1,4 +1,5 @@
-#project-settings {
+#project-settings,
+#project-integrations {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-9);
@@ -85,6 +86,7 @@
   & > [data-part="rename-card-section"],
   & > [data-part="delete-project-card-section"],
   & > [data-part="preview-access-card-section"],
+  & > [data-part="github-card-section"],
   & > [data-part="default-branch-card-section"],
   & > [data-part="logo-card-section"] {
     display: flex;
@@ -103,6 +105,42 @@
       & > [data-part="subtitle"] {
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  & > [data-part="github-card-section"] {
+    align-items: flex-start;
+    gap: var(--noora-spacing-7);
+
+    & > [data-part="header"] {
+      flex-basis: 0;
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-5);
+      width: 45%;
+    }
+
+    & [data-part="label"],
+    & [data-part="description"] {
+      display: block;
+    }
+
+    & [data-part="description"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: stretch;
+
+      & > [data-part="content"] {
+        width: auto;
       }
     }
   }
@@ -221,4 +259,10 @@
       }
     }
   }
+}
+
+:is(#project-settings, #project-integrations, #project-notifications, #project-automations, #project-bundle-settings)
+  > .noora-tab-menu-horizontal {
+  row-gap: 0;
+  flex-wrap: wrap;
 }

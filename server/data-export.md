@@ -182,6 +182,7 @@ operations; retain them until an administrator removes them.
 
 ### Projects & Development
 - Project information (account relationship, handle/name, build system, default branch, visibility/settings, repositories, and timestamps)
+- Run report comment preference (`projects.vcs_comments_enabled`, PostgreSQL): non-null boolean, enabled by default, controlling whether Tuist may post or update comments for the project. Included in project exports through `SELECT * FROM projects WHERE account_id = <account_id>`; retained with the project until deletion.
 - Workload OIDC trust policies (`account_oidc_trust_policies`, PostgreSQL): account-owned display name, exact issuer URL, JWKS URL, expected audience, required identity claims (a JSON object containing string, integer or boolean values), and creation/update timestamps. Each policy grants CI access to all current and future projects owned by its account; there is no project-grant association table. Policies remain until removed or the account is deleted. Deleting or transferring a project does not remove the reusable identity; access follows current account ownership, including for already-issued account-wide tokens. Export policies by `account_id`. Identity tokens and verified token claims are processed transiently and are not stored; public signing keys are cached for up to 15 minutes. Issued Tuist JWTs follow the existing one-hour access-token lifetime and are not revoked by removing a policy.
 - Command events (CLI usage, build data, performance metrics)
 - Cache events and cache action items

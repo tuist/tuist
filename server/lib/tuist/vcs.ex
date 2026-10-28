@@ -596,7 +596,8 @@ defmodule Tuist.VCS do
         bundle_url: bundle_url,
         build_url: build_url
       }) do
-    with true <- is_binary(git_commit_sha) and git_commit_sha != "",
+    with true <- project.vcs_comments_enabled,
+         true <- is_binary(git_commit_sha) and git_commit_sha != "",
          true <- is_binary(git_ref) and git_ref != "",
          {:ok, repository_full_handle} <-
            get_repository_full_handle_from_url(git_remote_url_origin),
@@ -1368,22 +1369,7 @@ defmodule Tuist.VCS do
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.filter(&(&1.root_project_name != ""))
-    |> Enum.reduce(%{}, fn build, acc ->
-      name = build.root_project_name
-
-      current_build = Map.get(acc, name)
-
-      if current_build == nil or
-           NaiveDateTime.after?(
-             build.inserted_at,
-             current_build.inserted_at
-           ) do
-        Map.put(acc, name, build)
-      else
-        acc
-      end
-    end)
-    |> Map.values()
+    |> Enum.uniq_by(fn build -> {build.root_project_name, Enum.sort(build.requested_tasks)} end)
   end
 
   defp get_latest_test_runs(%{git_ref: git_ref, project: project}) do
@@ -1490,11 +1476,14 @@ defmodule Tuist.VCS do
         url = build_url.(%{project: project, build: %{id: build.id}})
         duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
 
-        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
+        tasks =
+          build.requested_tasks |> Enum.join(" ") |> String.replace("|", "&#124;") |> String.replace(~r/[\r\n]+/, " ")
+
+        "| [#{build.root_project_name}](#{url}) | #{tasks} | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
-    "| Project | Status | Duration | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|\n" <>
+    "| Project | Requested tasks | Status | Duration | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|:-:|\n" <>
       rows
   end
 
