@@ -113,7 +113,22 @@ func TestBorrowedRealStack(t *testing.T) {
 			}
 		}
 		if safe {
-			_ = os.RemoveAll(root)
+			// Ruby also owns a plain-XFS comparison loop. Failed setup or cleanup
+			// there must not let us unlink its still-attached backing file.
+			images, err := filepath.Glob(filepath.Join(root, "*.img"))
+			safe = err == nil
+			for _, image := range images {
+				b, err := (ExecRunner{}).Run(context.Background(), nil, "losetup", "-j", image)
+				if err != nil || len(strings.TrimSpace(string(b))) != 0 {
+					safe = false
+				}
+			}
+		}
+		if safe {
+			if err := os.RemoveAll(root); err != nil {
+				t.Errorf("cleanup directory: %v", err)
+				return
+			}
 			t.Log("BORROWED_CLEANUP_COMPLETE=true")
 		} else {
 			t.Errorf("cleanup incomplete; retained %s", root)

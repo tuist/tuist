@@ -205,6 +205,27 @@ Benchmark several sizes before choosing one; do not blindly repeat the current
 2 GiB workspace allowance for every unit. Workspace, LUKS headers, XFS metadata,
 logs, inode limits and rotation headroom need a new explicit sizing profile.
 
+### Bounded prototype result — 2026-10-28
+
+The [real CSI/Kura prototype](borrowed/README.md) now demonstrates the allocation
+transfer in an isolated Linux VM. [Qualification and raw-evidence links](borrowed/validation.md)
+record 53 passing assertions, retained charges across failed discard/open readers
+and CSI reconstruction, exactly one winner for competing creates, and unchanged
+base identities. The unchanged #14825 `Targets` function selected 8/4 then
+4/8 GiB; its production agent/backend was not integrated.
+
+The comparison completed 18,240 HTTP requests without reported failures, but
+borrowed-volume upload churn was 73.91–74.88 MiB/s versus 79.99–80.24 for one
+thin LUKS/XFS volume and 96.89–98.87 for shared XFS. This supports feasibility,
+not performance acceptance or a production layout decision. Publication used
+Docker mount propagation and fixture keys; real Kubernetes child authorization,
+OpenBao, reboot/fencing and metadata-scale qualification remain outstanding.
+The later production acceptance list below is not wholly covered by this test.
+
+Whole-unit backing/deletion also works with thick LUKS/XFS devices. Thin storage
+is not required for the demonstrated granularity of sharing; compare thick units
+before committing to the backend. The shipping CSI contract remains unchanged.
+
 ### Compatibility costs that must be accepted explicitly
 
 This is a change to the original single-large-filesystem requirement: the

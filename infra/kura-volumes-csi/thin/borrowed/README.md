@@ -1,7 +1,8 @@
 # Borrowed encrypted volume prototype
 
 This is an experiment, not an implemented CSI capacity mode or release image.
-The shipping driver remains `ceiling-backed-v1`. See the candidate design in
+The shipping driver remains `ceiling-backed-v1`. Measurements, failed attempts and qualification limits are recorded in
+[validation.md](validation.md). See the candidate design in
 [sharing-compatibility.md](../sharing-compatibility.md).
 
 Dispatch `kura-volumes-csi-image.yml` with `borrowed_only=true`. It builds an
