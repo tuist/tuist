@@ -1737,7 +1737,7 @@ jobs:
     needs: [check-releases, canary]
     if: ${{ always() && needs.canary.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     permissions:
       actions: write
       contents: read
@@ -1752,7 +1752,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ENVIRONMENT: canary
           REF: ${{ github.ref_name }}
-          GATE_MINUTES: 35
+          GATE_MINUTES: 55
+          EXPECTED_LINUX_IMAGE: ${{ needs.canary.outputs.linux_runner_image }}
         run: .github/scripts/runners-acceptance/gate.sh
 
   # Production leg - standard path: canary ready + tests green. Promotes the

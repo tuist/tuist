@@ -444,7 +444,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			})
 			dindPackages := "e2fsprogs"
 			if pool.Spec.DockerCache {
-				dindPackages += " coreutils util-linux"
+				dindPackages += " coreutils"
 			}
 			initContainers = append(initContainers, corev1.Container{
 				Name:  "dind",
@@ -650,6 +650,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// its _diag log is the only record, and it dies with the reaped Pod.
 	// Streaming _diag makes that exit reason durable.
 	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT", Value: "1"})
+	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "TUIST_RUNNER_IMAGE", Value: pool.Spec.Image})
 
 	// Idle-runner reaping: the runner image's idle watchdog terminates a
 	// runner that registered but never had a job assigned once this many

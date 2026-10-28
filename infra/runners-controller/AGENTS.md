@@ -1485,7 +1485,7 @@ runner gets `TUIST_DOCKER_CACHE=1`. It needs cache volumes. With the field off t
 sidecar's command is byte for byte what it was (`TestDockerCacheOffKeepsTheSidecarCommand`):
 any change to it replaces every Pod of the pools it covers. Staging and production
 enable it on every Linux pool and keep it as the off switch, while the per-account
-`:runner_docker_cache` flag decides who gets a cache (canary has no cache volumes).
+`:runner_docker_cache` flag decides who gets a cache (canary qualifies its default Linux shape before production enablement).
 The agent serves `/docker`, `/docker-seen` and `/docker-merge`; see [Docker cache volumes](cache-volumes.md#docker-cache-volumes).
 
 Managed production enables custom volumes on normal deployment. The agent image

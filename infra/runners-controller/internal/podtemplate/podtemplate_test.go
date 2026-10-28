@@ -1193,7 +1193,17 @@ func TestDockerCacheRunsDockerdUnderTheSupervisor(t *testing.T) {
 	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
 	pool.Spec.CacheVolumeURL = "http://agent:8090"
 	pool.Spec.DockerCache = true
-	dind := initContainer(t, build(t, pool), "dind")
+	pod := build(t, pool)
+	reportedImage := ""
+	for _, env := range pod.Spec.Containers[0].Env {
+		if env.Name == "TUIST_RUNNER_IMAGE" {
+			reportedImage = env.Value
+		}
+	}
+	if reportedImage == "" || reportedImage != pod.Spec.Containers[0].Image {
+		t.Fatalf("acceptance image %q does not identify the actual runner image %q", reportedImage, pod.Spec.Containers[0].Image)
+	}
+	dind := initContainer(t, pod, "dind")
 	command := dind.Args[0]
 	want := "exec /home/runner/actions-runner/externals/tuist-cache-volume dind " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache /mnt/dind-disk/disk.img -- dockerd --host=unix:///var/run/docker.sock --group=123 --default-ulimit nofile=1048576:1048576 --max-concurrent-downloads=8"
 	if !strings.HasSuffix(command, want) {
@@ -1202,7 +1212,10 @@ func TestDockerCacheRunsDockerdUnderTheSupervisor(t *testing.T) {
 	if strings.Contains(command, "mount-server") {
 		t.Fatal("a second mount broker would race the supervisor's socket")
 	}
-	if !strings.Contains(command, "apk add --no-cache e2fsprogs coreutils util-linux") {
+	if strings.Contains(command, "util-linux") {
+		t.Fatal("util-linux replaces the BusyBox loop mount used in Kata")
+	}
+	if !strings.Contains(command, "apk add --no-cache e2fsprogs coreutils") {
 		t.Fatal("BuildKit merges need GNU cp to preserve overlay xattrs")
 	}
 	if !strings.Contains(strings.Join(dind.StartupProbe.Exec.Command, " "), "test -S "+workPath+"/.tuist-cache-mount.sock") {

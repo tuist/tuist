@@ -530,9 +530,10 @@ timestamps live in `tuist/builders.json` inside the image and travel with copied
 builder state. Missing history is treated as oldest. A single oversized builder
 can be evicted in full. These are disposable caches, not durable job output.
 
-After stopping dockerd, the guest runs `fstrim` before unmounting so deleted ext4
-blocks release the sparse image's backing extents. Cache-enabled DinD installs
-`util-linux` for this command. Usage, eviction, GC or trim errors withhold the
+After stopping dockerd, the guest calls `syncfs` and the Linux `FITRIM` ioctl
+before unmounting so deleted ext4 blocks release the sparse image's backing
+extents. It deliberately keeps BusyBox mount: installing `util-linux` replaced
+that utility and prevented loop-device setup in Kata, before jobs could start. Usage, eviction, GC or trim errors withhold the
 snapshot. The host still enforces the 30 GB allocated-byte limit, leaving 4 GB
 above the guest target for metadata/shutdown writes; it never mounts or parses
 the guest filesystem. Roll out the controller/agent and runner images together.
@@ -540,3 +541,35 @@ the guest filesystem. Roll out the controller/agent and runner images together.
 Staging enables it on every Linux pool (`values-managed-staging.yaml`). The
 server gates it per account with `:runner_docker_cache` on canary and
 production, and each runner profile can turn it off.
+
+### Canary qualification before production enablement
+
+Production's Docker cache pool flag remains off during recovery. Canary enables
+cache volumes and Docker caching only for its default `2vcpu-8gb` pool, using a
+bounded 200 GB host store with the 40 GB admission reserve. The server's
+`runner_docker_cache` account flag and runner-profile opt-out still apply; the
+acceptance probe fails if either prevents mounting. Do not bypass that failure.
+
+The normal production cascade runs native and actual job-container Linux probes,
+then five separate jobs on that canary pool: cold, warm layers, changed source,
+same-size write, and final reuse. Each job checks both the embedded Docker driver
+and a stable-key docker-container builder, sequentially in one snapshot to avoid
+their seed jobs overwriting each other's state. An experiment key is unique to
+the workflow run and attempt. The compile vertex must be cached for unchanged
+source; changed-source jobs must read the previous job's mutable-cache marker
+and produce the expected executable. The final job proves the last mutation
+survived teardown too. No assertion is retried or treated as inconclusive.
+
+The 120-second pause between jobs is a publication allowance, not proof that the
+host published. Successful reuse by the following job supplies that proof; a
+slow publication fails the gate rather than silently passing. Artifacts retain
+build logs, assertions and build durations. This single-host check does not
+establish immediate cross-host freshness, merge of BuildKit database records,
+or the production allocated-byte publication cap under realistic pressure.
+
+The cascade passes the intended runner-image digest before staging holds to the
+probe, which compares it with the Pod's declared image. Running on a held older
+image cannot qualify a candidate. Hotfix deployment still bypasses acceptance;
+use the normal cascade for this recovery. After canary passes, separately qualify
+one production pool and its host publication/allocation evidence before widening
+enablement. Keeping the production pool flag off is the immediate rollback.
