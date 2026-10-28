@@ -447,6 +447,26 @@ defmodule Tuist.Automations do
     })
   end
 
+  @doc """
+  Maps each of `test_case_ids` whose latest event for the alert is `recovered`
+  to its `recovered_at`.
+  """
+  def latest_alert_recoveries(%Alert{} = alert, test_case_ids) do
+    test_case_ids
+    |> Enum.uniq()
+    |> Enum.chunk_every(@active_alert_events_batch_size)
+    |> Enum.flat_map(fn ids_chunk ->
+      AlertEvent
+      |> where(alert_id: ^alert.id, baseline_generation: ^Alert.event_generation(alert))
+      |> filter_alert_events_by_test_case_ids(ids_chunk)
+      |> group_by([event], event.test_case_id)
+      |> having([event], fragment("argMax(?, ?) = 'recovered'", event.status, event.inserted_at))
+      |> select([event], {event.test_case_id, fragment("argMax(?, ?)", event.recovered_at, event.inserted_at)})
+      |> ClickHouseRepo.all(multipart: true)
+    end)
+    |> Map.new()
+  end
+
   defp filter_alert_events_by_test_case_ids(query, nil), do: query
 
   defp filter_alert_events_by_test_case_ids(query, test_case_ids) do
