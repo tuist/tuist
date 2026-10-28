@@ -282,6 +282,13 @@ defmodule Tuist.Environment do
     not hosted and enabled == true
   end
 
+  def network_trusted_cache_access_enabled?(
+        hosted \\ tuist_hosted?(),
+        enabled \\ Application.get_env(:tuist, :network_trusted_cache_access, false)
+      ) do
+    not hosted and enabled == true
+  end
+
   def sso_require_login_domain_verification?(
         enabled \\ Application.get_env(:tuist, :sso_require_login_domain_verification, false)
       ) do
