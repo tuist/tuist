@@ -10,12 +10,12 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: server-deploy-staging-server
+  group: server-deploy-staging-deploy
   cancel-in-progress: false
 jobs:
   fixture:
     runs-on: tuist-linux
-    environment: staging
+    environment: server-k8s-staging
     timeout-minutes: 10
     env:
       KUBECONFIG: /tmp/kura-child-fixture-kubeconfig
