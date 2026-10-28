@@ -6,9 +6,9 @@
 # own tailscaled. The rack's boot server runs from the operator's image instead
 # (infra/cluster-api-provider-tuist/cmd/rack-boot).
 ARG ALPINE_VERSION=3.22
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26.10
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS tor-console
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine3.23 AS tor-console
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src

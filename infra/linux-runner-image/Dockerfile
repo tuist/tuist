@@ -16,7 +16,7 @@
 # Renovate auto-bumps RUNNER_VERSION via `renovate.json` config
 # matching the same pattern as the macOS image.
 
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26.10
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS runner-shell-agent-builder
 

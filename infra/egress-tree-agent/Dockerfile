@@ -6,10 +6,10 @@
 # sysctls. The DaemonSet runs it privileged — see the Helm manifest's
 # securityContext comment: the container runtime's read-only /proc/sys mask
 # breaks the sysctl writes under a capabilities-only NET_ADMIN/BPF grant.
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26.10
 ARG ALPINE_VERSION=3.22
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine3.23 AS builder
 
 # clang + libbpf headers: the BPF bindings are generated here (bpf2go), not
 # committed. The bytecode targets the bpf pseudo-arch, so generating on the

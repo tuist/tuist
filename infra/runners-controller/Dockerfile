@@ -4,10 +4,10 @@
 # the chart's release namespace (one Deployment + leader election);
 # Pods + SAs it materializes land in tuist-runners.
 
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26.10
 ARG ALPINE_VERSION=3.22
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine3.23 AS builder
 
 WORKDIR /src/runners-controller
 COPY infra/runner-cache /src/runner-cache
