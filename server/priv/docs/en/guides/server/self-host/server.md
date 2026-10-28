@@ -150,6 +150,23 @@ The server generates report IDs; repeat submissions may produce duplicate report
 
 Set `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false` (or remove it) and restart or redeploy **every relevant server replica** to stop credential-free publishing across the instance. During a rolling deployment, replicas still running with the old setting can continue accepting unsigned reports until replaced; block publishing at the private ingress first if immediate revocation is required. Bazel's uncached control-plane checks and queued analytics ingestion observe each replica's startup configuration. Clients without credentials stop publishing when discovery or report submission observes the disabled policy. The former client opt-in/opt-out setting no longer controls publication. Existing reports remain subject to ordinary project visibility and retention. To suppress the claimed actor independently, set `TUIST_ACTOR_ID=""` (for Bazel, regenerate `.bazelrc.tuist` with that environment or use `--build_metadata=TUIST_ACTOR_ID=` per invocation); this does not remove verified credential identity. Do not delete rejected credentials as an automatic fallback: sign in again or explicitly sign out/remove them as a deliberate recovery action.
 
+## Appcircle builds {#appcircle}
+
+[Appcircle](https://appcircle.io) builds can use your self-hosted server the same way they use `https://tuist.dev`. Install Tuist and set up authentication as described in the <.localized_link href="/guides/integrations/continuous-integration#appcircle">continuous integration guide</.localized_link>, then point the builds at your instance:
+
+1. Set `url` to your server's `TUIST_APP_URL` in the project's <.localized_link href="/references/tuist-toml">`tuist.toml`</.localized_link> and commit it, so every Appcircle workflow reports to your instance:
+
+   ```toml
+   project = "my-organization/my-project"
+   url = "https://tuist.example.com"
+   ```
+
+2. Create the <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> on your self-hosted instance, not on `https://tuist.dev`, and add it as a secret variable named `TUIST_TOKEN` to an [environment variable group](https://docs.appcircle.io/build/build-environment-variables) selected in your build configuration.
+3. Make sure Appcircle runners can reach the server. Appcircle cloud runners connect over the public internet, so a server that is only reachable from your private network needs [Appcircle self-hosted runners](https://docs.appcircle.io/self-hosted-appcircle/self-hosted-runner) inside that network.
+4. If the server uses a certificate signed by a private CA, upload the CA bundle as a file variable named `TUIST_CA_CERTIFICATE` to the same environment variable group. Appcircle sets the variable to the uploaded file's path, which Tuist reads. See <.localized_link href="/cli/debugging#trusting-a-custom-ca-certificate">trusting a custom CA certificate</.localized_link>.
+
+When [network-trusted report publishing](#network-trusted-report-publishing) is enabled and your Appcircle self-hosted runners are inside the trusted network, those runners can publish build and test reports without `TUIST_TOKEN`. Features beyond reporting, such as remote cache access and test sharding, still require the token.
+
 ## Runtime requirements {#runtime-requirements}
 
 This section outlines the requirements for hosting the Tuist server on your infrastructure.
@@ -613,6 +630,8 @@ Your Tuist server also needs outbound access to your CI provider's OIDC issuer t
 | GitHub Actions | `token.actions.githubusercontent.com` |
 | CircleCI | `oidc.circleci.com` |
 | Bitrise | `token.builds.bitrise.io` |
+
+Appcircle builds don't support OIDC authentication. Authenticate them with an account token as described in [Appcircle builds](#appcircle).
 
 ##### GitHub Enterprise Server {#platform-github-enterprise-server}
 

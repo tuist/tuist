@@ -79,7 +79,7 @@ Tuist automatically detects the following CI providers:
 - [Codemagic](#codemagic)
 - [Bitrise](#bitrise)
 
-For other providers, refer to the `.tuist-shard-matrix.json` file to set up parallel jobs.
+For other providers, refer to the `.tuist-shard-matrix.json` file to set up parallel jobs. On [Appcircle](#appcircle), set the shard reference explicitly and start one build per shard as shown below.
 
 ### GitHub Actions {#github-actions}
 
@@ -387,4 +387,45 @@ workflows:
 
 > [!TIP]
 > Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
+
+### Appcircle {#appcircle}
+
+Tuist does not detect [Appcircle](https://appcircle.io) automatically, and Appcircle does not support dynamic matrix jobs. Derive the shard reference from the commit with `TUIST_SHARD_REFERENCE`, so the build workflow and every shard workflow resolve the same shard plan, and start one build per shard with the [Appcircle CLI](https://github.com/appcircleio/appcircle-cli).
+
+Create the following [workflows](https://docs.appcircle.io/build/build-process-management/build-workflows) in the same build profile, each with a **Custom Script** step after the **Git Clone** step:
+
+- **Tuist Build Shards**: creates the shard plan and starts one shard workflow per shard. Attach your [trigger](https://docs.appcircle.io/build/build-process-management/build-manually-or-with-triggers) to this workflow only.
+- **Tuist Shard 0** to **Tuist Shard 4**: each one runs a single shard. Define as many shard workflows as the value of `-PtuistShardMax`.
+
+```bash
+# Tuist Build Shards
+cd $AC_REPOSITORY_DIR
+export TUIST_SHARD_REFERENCE="appcircle-$AC_GIT_COMMIT"
+./gradlew tuistPrepareTestShards -PtuistShardMax=5
+
+SHARD_COUNT=$(node -p "require('./.tuist-shard-matrix.json').shard_count")
+
+npm install -g @appcircle/cli
+appcircle login personal-access-key --secret="$APPCIRCLE_PERSONAL_ACCESS_KEY"
+for ((index = 0; index < SHARD_COUNT; index++)); do
+  appcircle build start \
+    --profileId "$AC_BUILD_PROFILE_ID" \
+    --workflow "Tuist Shard $index" \
+    --commitHash "$AC_GIT_COMMIT" \
+    --no-wait
+done
+```
+
+```bash
+# Tuist Shard 0 (set TUIST_SHARD_INDEX to 1, 2, ... in the other shard workflows)
+cd $AC_REPOSITORY_DIR
+export TUIST_SHARD_REFERENCE="appcircle-$AC_GIT_COMMIT"
+export TUIST_SHARD_INDEX=0
+./gradlew test
+```
+
+The Tuist Gradle plugin reads `TUIST_TOKEN` directly, so the workflows don't need the Tuist CLI. Add `TUIST_TOKEN` and an Appcircle [personal access key](https://docs.appcircle.io/appcircle-api-and-cli/cli-authentication) named `APPCIRCLE_PERSONAL_ACCESS_KEY` as secret variables to an [environment variable group](https://docs.appcircle.io/build/build-environment-variables), and select that group in the build configuration so every workflow can read them.
+
+> [!TIP]
+> Shard builds run in parallel up to your Appcircle plan's concurrent build limit; the rest wait in the build queue. The plan has fewer shards than `-PtuistShardMax` when there is little timing history, so the build workflow starts only as many shard workflows as the plan contains.
 
