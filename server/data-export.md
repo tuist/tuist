@@ -435,6 +435,7 @@ Release metadata diagnostics record bounded provider names and durations in appl
 
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
+- Managed Amp provider credentials: each environment stores its Amp provider token and a dedicated Tuist administrator login seed in the `Amp Orb Provider` and `Amp Orb Tuist Credentials` Password items in its 1Password vault. ESO projects them into the provider Secret. Refreshed Tuist access/refresh credentials, including an optional OAuth client identifier, are retained under `/state/config/tuist/credentials/<host>.json` on the provider PVC; the PVC also records the configured Tuist origin/account and the seed hash. These operational bearer credentials are outside account exports, do not enter sandbox rows, and are not automatically deleted with the account. Helm retains the PVC on provider removal; decommissioning requires revoking the dedicated session, removing the secret items and explicitly deleting the credential volume. Private provider output and token-refresh diagnostics are suppressed rather than exported to cluster logs.
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
 - Agent registration claim token hashes, claim-view token hashes, OTP hashes, issued API key values, and signed JWT values
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers

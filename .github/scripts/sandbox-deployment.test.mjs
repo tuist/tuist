@@ -57,7 +57,7 @@ test('unrelated server changes reuse the published template version', (t) => {
 
 test('image, bootstrap and publisher changes each select a new template', (t) => {
   const dir = repository(t);
-  for (const path of ['infra/sandbox-image/Dockerfile', 'infra/sandbox-image/orb-bootstrap.sh',
+  for (const path of ['infra/sandbox-image/Dockerfile', 'infra/sandbox-image/orb-bootstrap.sh', 'infra/amp-orbs/Dockerfile',
     '.github/workflows/sandbox-image.yml', '.github/scripts/sandbox-image-version.sh']) {
     const sha = commit(dir, path, path);
     assert.equal(version(dir), `sha-${sha.slice(0, 12)}`);
@@ -133,7 +133,7 @@ test('template-only changes enter the same deployable-path gate as server change
   const workflow = readFileSync(join(scripts, '../workflows/server-production-deployment.yml'), 'utf8');
   const filter = workflow.match(/deployable_paths=.*?grep -E '([^']+)'/s)?.[1];
   assert.ok(filter, 'production deployment path filter exists');
-  for (const path of ['infra/sandbox-image/Dockerfile', 'infra/sandbox-image/orb-bootstrap.sh',
+  for (const path of ['infra/sandbox-image/Dockerfile', 'infra/sandbox-image/orb-bootstrap.sh', 'infra/amp-orbs/Dockerfile',
     '.github/workflows/sandbox-image.yml', '.github/scripts/sandbox-image-version.sh',
     '.github/scripts/sandbox-template-tag.sh', '.github/scripts/sandbox-image-exists.sh', 'server/app.ex']) {
     const result = spawnSync('grep', ['-E', filter], { input: `${path}\n`, encoding: 'utf8' });
@@ -215,7 +215,7 @@ for (const environment of ['staging', 'canary', 'production', 'disabled']) {
     const args = ['template', 'custom', chart, '--namespace', `tuist-${overlay}`,
       '-f', `${chart}/values-managed-common.yaml`, '-f', `${chart}/values-managed-${overlay}.yaml`,
       '-f', `${chart}/values-ci.yaml`];
-    if (environment === 'disabled') args.push('--set', 'sandboxes.enabled=false');
+    if (environment === 'disabled') args.push('--set', 'sandboxes.enabled=false', '--set', 'ampOrbProvider.enabled=false');
     const initial = spawnSync('helm', args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
     assert.equal(initial.status, 0, initial.stderr);
     writeFileSync(rendered, initial.stdout);

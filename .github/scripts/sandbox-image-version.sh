@@ -5,6 +5,7 @@ set -euo pipefail
 # not the server commit: unrelated deploys must not replace every sandboxd Pod.
 source_sha=$(git log -1 --format=%H HEAD -- \
   infra/sandbox-image \
+  infra/amp-orbs \
   .github/workflows/sandbox-image.yml \
   .github/scripts/sandbox-image-version.sh)
 if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then

@@ -899,3 +899,7 @@ runnersFleetLinux:
 # rate limiter falls back to the per-pod InMemory bucket.
 redis:
   enabled: true
+
+ampOrbProvider:
+  enabled: true
+  url: https://canary.tuist.dev

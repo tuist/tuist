@@ -2,10 +2,44 @@
 
 This adapter implements [Amp's self-hosted Orb dispatch contract](https://ampcode.com/docs/orbs/self-hosted) using the account-admin Tuist sandbox API. Run `amp orb provider` on an always-on Linux controller with Bash, curl, jq, GNU coreutils (`timeout`), and outbound access to Amp and Tuist. Amp supplies spawn/pause/delete jobs; Tuist places each Orb in a Firecracker VM on the shared Linux fleet. No inbound connection from Amp or direct access to sandboxd's admin API is needed.
 
-## Install
+## Managed staging, canary and production
+
+The managed Helm overlays deploy one outgoing provider per environment as part of the server release. It uses `https://staging.tuist.dev`, `https://canary.tuist.dev`, or `https://tuist.dev`, and the `tuist` organization (`ampOrbProvider.account`). This account owns the sandbox rows, quota and administrator access; it is separate from the Amp user creating a thread. This managed deployment serves our internal organization only: enabling another organization’s sandbox flag does not register an Amp provider or route jobs to that organization. Other organizations can run the standalone adapter with their own provider/account credentials; managed account onboarding is not implemented here. Canary and production still require that account's `sandboxes` feature flag. Staging defaults to enabled.
+
+Before merging/enabling the provider, provision these two Password items in **each** corresponding `tuist-k8s-staging`, `tuist-k8s-canary`, and `tuist-k8s-production` vault:
+
+| Item | `password` contents |
+| --- | --- |
+| `Amp Orb Provider` | The token from a distinct Amp provider registered for that environment |
+| `Amp Orb Tuist Credentials` | A dedicated Tuist account-admin CLI login, stored as credential JSON by the helper below |
+
+The existing `tuist-orbs` registration can be used for staging; register separate canary/production providers. Never run two environments or an isolated test with the same Amp provider token. The environment-local `onepassword` ClusterSecretStore syncs the two items through an ExternalSecret. Missing items block provider readiness and therefore the waited Helm rollout; provision them before deployment, or explicitly keep `ampOrbProvider.enabled=false` until ready.
+
+From a checkout with `tuist`, `op`, Bash and jq available, run these interactively, signing in as an administrator of the configured organization:
+
+```sh
+bash infra/amp-orbs/store-credentials.sh staging
+bash infra/amp-orbs/store-credentials.sh canary
+bash infra/amp-orbs/store-credentials.sh production
+```
+
+The helper creates an isolated CLI login, saves it directly into the correct vault without printing credentials or passing them as command arguments, and removes the temporary local session. It creates or updates only the `Amp Orb Tuist Credentials` item. Do not copy a session actively used by a developer CLI: its rotating refresh token would be shared by two independent stores. Run the helper again to replace revoked or expired authorization with a fresh dedicated login.
+
+The provider image pins and verifies Amp and Tuist CLI downloads. The provider runs as UID 10001 on the general amd64 node pool, with a read-only root filesystem, no Kubernetes API token or RBAC, and no inbound Service. Amp needs executable temporary storage for its bundled native modules. Only outbound HTTPS/WSS to Amp and HTTPS to the configured Tuist origin are needed by this controller.
+
+A single-replica `Recreate` Deployment stops the old consumer before starting a replacement; the PVC also has a process lock. Do not scale it up or force-delete a pod on an unreachable node without first fencing that node's process. A 300-second termination grace period allows dispatch shutdown. Tuist credentials are refreshed via the existing CLI at startup, every 15 minutes while idle, and for each dispatch. The writable 1 GiB PVC retains rotated credentials across pod restarts. The initial Secret is copied only once or when a new login changes its hash; restarting never overwrites a rotated session with the spent seed. The volume is bound to its origin and organization and is retained when Helm disables/removes the provider. Lost credential storage requires a **fresh login**, not restoring the original seed from 1Password. Treat the PVC as sensitive and delete it explicitly when decommissioning the provider after handling its Orbs.
+
+Secret projections are checked every five seconds; after ESO and kubelet propagate a token/login change, the supervisor stops the consumer and Kubernetes starts it with the new values. Private Amp output and token-refresh diagnostics are not shipped to cluster logs. Generic authentication/restart errors remain visible. Readiness means a recent successful Tuist token resolution, not proof of an Amp WebSocket connection: verify the selected provider is connected in Amp and execute a real thread for initial qualification. Normal pod availability/restart monitoring applies; an unavailable provider can leave active Orbs retaining RAM.
+
+The reusable sandbox publisher builds and validates the provider container alongside the guest, then publishes both immutable images before deployment can proceed. The provider is published in the existing `ghcr.io/tuist/tuist-sandbox-template` package with the `-provider` tag suffix, reusing that package’s pull visibility and permissions instead of introducing a new private-by-default package. Helm derives both image tags from the selected `sandboxes.templateImage.tag`. Provider source changes participate in that version and in the server deploy path filter. Canary and production promote the pair together; a fresh staging server deployment publishes/selects it too. A server-only rollback preserves the selected pair. Do not enable this provider against an older template tag that predates paired publication.
+
+After rollout, use a fresh disposable thread in each selected Amp provider. Verify setup succeeds, write a marker, **Archive** the thread to pause, confirm residency/RAM release, restart the provider, reopen the same thread and verify its file and background process before writing the second marker. Archive again after observing the second marker. Check the same sandbox ID and repeat deletion. Pause/delete Orbs **before** disabling the account flag: the flag also gates cleanup requests and does not terminate existing VMs.
+
+## Standalone installation
+
 
 1. Deploy the sandbox substrate and matching controller introduced by #12886, apply the `amp_orb_id` migration, and deploy this server. Normal server deployments publish the updated `infra/sandbox-image` template and select its immutable tag automatically (see below). Existing VMs keep their original rootfs; they do not gain Amp through a template upgrade.
-2. Enable the account's `sandboxes` feature flag. The existing five-live-sandbox limit includes paused Orbs. Arrange disk capacity before increasing that limit; long-lived Orbs continue to reserve their full disk ceiling.
+2. Enable the account's `sandboxes` feature flag on canary or production; staging defaults to enabled. The existing five-live-sandbox limit includes paused Orbs. Arrange disk capacity before increasing that limit; long-lived Orbs continue to reserve their full disk ceiling.
 3. Install Amp and Tuist on the controller, together with Bash, curl and jq. Create the `amp-provider` service user with a writable home and authenticate it with `tuist auth login --url <Tuist URL>` as an account administrator. With `TUIST_TOKEN` unset, each dispatch uses `tuist auth token --url` to refresh credentials through the CLI; revoked authorization still requires a new login. In Amp workspace Settings → Orbs, add a provider and store its token in the controller's secret environment. Use an account administrator's Tuist bearer token for the API, not a project/CI credential.
 4. Install `dispatch.sh` at `/opt/tuist-amp-orbs/dispatch.sh`, executable. Supply the following environment through your service manager's protected environment file:
 
@@ -30,7 +64,7 @@ Choose this provider in Amp's new-thread Orb picker, or run `amp -ox 'your promp
 
 `server-production-deployment.yml` treats guest image and publisher changes as deployable. Before canary, it calls `sandbox-image.yml` to test and publish the template, then passes the same `sandbox_template_image_tag` to canary and production through the existing acceptance gates. The existing hotfix path also requires a successfully published template. Staging is an independently dispatched server deployment; a fresh deployment builds/selects its template automatically too.
 
-The tag is `sha-<12-character source commit>`, resolved from the last guest image, publisher workflow or version-resolver change reachable from the deployment commit. Unrelated server changes reuse the published image and do not roll sandboxd merely to change the template tag. Publication is serialized, existing tags are reused, and registry authentication/network failures stop the publisher. A new template tag changes the DaemonSet's init image and template directory; its rollout installs the image on each sandbox node. Existing Orb disks remain on their original guest image.
+The tag is `sha-<12-character source commit>`, resolved from the last guest image, provider source, publisher workflow or version-resolver change reachable from the deployment commit. Unrelated server changes reuse the published image and do not roll sandboxd merely to change the template tag. Publication is serialized, existing tags are reused, and registry authentication/network failures stop the publisher. A new template tag changes the DaemonSet's init image and template directory; its rollout installs the image on each sandbox node. Existing Orb disks remain on their original guest image.
 
 For a server-only rollback or re-promotion (`image_tag` supplied), the workflow preserves the template currently configured on sandboxd unless `sandbox_template_image_tag` is explicitly supplied. It fails if it cannot determine that live version; a first installation with a pre-built server must supply the template tag. The fixed template tags in managed Helm values are bootstrap defaults for direct chart users, overridden by normal deployments. The sandboxd daemon image remains separately pinned.
 
@@ -57,7 +91,7 @@ Allow outbound HTTPS/WSS to `ampcode.com`, `static.ampcode.com`, `tunnel.ampcode
 
 Before enabling a real workspace, use staging to run a thread that writes a file and starts a background counter, pause it, restart the provider, and continue the thread. Verify the same sandbox ID, retained file and process, released RAM while paused, admission refusal under queued CI, and repeatable deletion. Exercise daemon restart separately. Local fake-node and container checks do not establish KVM, full Amp handshake or multi-host behavior.
 
-Rollback: stop the provider, explicitly pause active Orbs, and retain their rows and jail directories. **Do not roll back to a server without the Amp retention exemption while Orbs exist**, because its sweeper would delete old Orbs. Keep the additive column/index until all Orbs are explicitly removed. No cluster overlay enables this provider automatically.
+Rollback: stop the provider, explicitly pause active Orbs, and retain their rows and jail directories. **Do not roll back to a server without the Amp retention exemption while Orbs exist**, because its sweeper would delete old Orbs. Keep the additive column/index until all Orbs are explicitly removed. Managed overlays enable the provider; standalone chart defaults keep it disabled. Provision the managed credentials before deployment as described above.
 
 ## Isolated KVM validation
 
@@ -73,7 +107,7 @@ Manually dispatch the same workflow with `live_amp=true` and a dedicated provide
 
 This mode starts disposable PostgreSQL/ClickHouse databases, the actual Tuist HTTP endpoint in test configuration, a kind Kubernetes API for genuine ServiceAccount TokenReview, and sandboxd with real Firecracker. The daemon runs outside kind with a token bound to its temporary identity Pod. It uses fixed memory capacity; the managed runner controller and elastic fleet admission are outside this check. No shared cluster is contacted and no images are published. Only the manually dispatched live step receives the Amp secret.
 
-When the job prints `READY`, select that provider explicitly in Amp and start one disposable thread. Send `Run echo first-turn > /workspace/amp/from-amp-first and report success`, then pause the Orb. The job verifies released residency and no remaining VMM, restarts the provider, and prints the second `READY`. Continue the same thread with `Read /workspace/amp/from-amp-first, then run echo second-turn > /workspace/amp/from-amp-second and report success`; leave it running until the job confirms both markers, then pause it. The observer checks the same PostgreSQL mapping and an independently started process's PID, start time and advancing counter across resume. It deletes the test sandbox twice through the production adapter, checks the mapping is gone, and removes its local infrastructure. Delete the disposable Amp thread afterwards; its VM no longer exists.
+When the job prints `READY`, select that provider explicitly in Amp and start one disposable thread. Send `Run echo first-turn > /workspace/amp/from-amp-first and report success`, then Archive the thread to pause its Orb. The job verifies released residency and no remaining VMM, restarts the provider, and prints the second `READY`. Continue the same thread with `Read /workspace/amp/from-amp-first, then run echo second-turn > /workspace/amp/from-amp-second and report success`; leave it running until the job confirms both markers, then Archive it. The observer checks the same PostgreSQL mapping and an independently started process's PID, start time and advancing counter across resume. It deletes the test sandbox twice through the production adapter, checks the mapping is gone, and removes its local infrastructure. Delete the disposable Amp thread afterwards; its VM no longer exists.
 
 The interactive phase times out after 30 minutes and cleans up on exit. Logs/artifacts contain selected lifecycle metadata, not provider logs, guest consoles, environment files, kubeconfigs or credentials. This does not validate the production build/configuration, multi-replica behavior, fleet-controller admission or a Kubernetes rollout. The normal PR job remains credential-free.
 

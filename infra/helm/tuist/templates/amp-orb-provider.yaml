@@ -1,0 +1,157 @@
+{{- if .Values.ampOrbProvider.enabled }}
+{{- $p := .Values.ampOrbProvider }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "amp-orb-provider") }}
+{{- $secret := $p.existingSecret | default $name }}
+{{- if not .Values.sandboxes.enabled }}
+{{- fail "ampOrbProvider requires sandboxes.enabled" }}
+{{- end }}
+{{- if and $p.externalSecret.enabled (not .Values.server.managedSecrets) }}
+{{- fail "ampOrbProvider.externalSecret requires server.managedSecrets; self-hosters should supply existingSecret" }}
+{{- end }}
+{{- if and (not $p.externalSecret.enabled) (not $p.existingSecret) }}
+{{- fail "ampOrbProvider requires existingSecret or externalSecret.enabled" }}
+{{- end }}
+{{- if $p.externalSecret.enabled }}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: amp-orb-provider
+spec:
+  refreshInterval: 1m
+  secretStoreRef:
+    name: {{ $p.externalSecret.storeRef.name }}
+    kind: {{ $p.externalSecret.storeRef.kind }}
+  target:
+    name: {{ $secret }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        amp-token: '{{ `{{ .amp_token | trim }}` }}'
+        tuist-credentials.json: '{{ `{{ .tuist_credentials | trim }}` }}'
+  data:
+    - secretKey: amp_token
+      remoteRef:
+        key: {{ $p.externalSecret.ampToken | quote }}
+    - secretKey: tuist_credentials
+      remoteRef:
+        key: {{ $p.externalSecret.tuistCredentials | quote }}
+---
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: amp-orb-provider
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with $p.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $p.persistence.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: amp-orb-provider
+spec:
+  replicas: 1
+  # Amp permits one provider per token. No surge; the old process must stop
+  # before its replacement can consume jobs or rotate the shared credentials.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: amp-orb-provider
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: amp-orb-provider
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 300
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        {{- with $p.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: provider
+          # Provider and guest are published as a pair by sandbox-image.yml.
+          image: {{ printf "%s:%s-provider" $p.image.repository .Values.sandboxes.templateImage.tag | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: TUIST_URL
+              value: {{ required "ampOrbProvider.url is required" $p.url | quote }}
+            - name: TUIST_ACCOUNT
+              value: {{ required "ampOrbProvider.account is required" $p.account | quote }}
+            - name: ORB_IMAGE
+              value: {{ $p.template | quote }}
+            - name: TUIST_ORB_TEMPLATE
+              value: {{ $p.template | quote }}
+            - name: TUIST_ORB_VCPUS
+              value: {{ $p.vcpus | quote }}
+            - name: TUIST_ORB_MEMORY_MB
+              value: {{ $p.memoryMB | quote }}
+            - name: TUIST_ORB_WORKSPACE_GB
+              value: {{ $p.workspaceGB | quote }}
+          resources:
+            {{- toYaml $p.resources | nindent 12 }}
+          # Readiness proves recent Tuist token resolution plus a live supervisor, not an
+          # Amp handshake. Confirm connected state in Amp during qualification.
+          readinessProbe:
+            exec:
+              command: [bash, -ec, 'test -n "$(find /state/auth-ready -mmin -20 -print 2>/dev/null)"']
+            periodSeconds: 30
+          volumeMounts:
+            - name: credentials
+              mountPath: /secrets
+              readOnly: true
+            - name: state
+              mountPath: /state
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: credentials
+          secret:
+            secretName: {{ $secret }}
+            defaultMode: 0440
+        - name: state
+          persistentVolumeClaim:
+            claimName: {{ $name }}
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+{{- end }}
