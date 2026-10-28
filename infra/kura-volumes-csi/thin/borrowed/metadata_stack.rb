@@ -19,6 +19,7 @@ class MetadataProbe < BorrowedProbe
     end
     full=snapshot
     check('all configured devices are present and physically backed',full['volumes'].size==128 && full['available_commitment_bytes']>0)
+    check('128-device observation fits five-second control budget',full['duration_ms']<5000,{duration_ms:full['duration_ms']})
     _,ok=rpc('create',id:129,owner:'bench',kind:'unit',bytes:256<<20)
     check('device 129 is refused despite spare data commitment',!ok && snapshot['volumes'].size==128)
     check('128-device metadata remains below conservative reserve',full['metadata_used_bytes']<full['metadata_total_bytes']-full['metadata_reserve_bytes'])
@@ -30,6 +31,7 @@ class MetadataProbe < BorrowedProbe
     started=Process.clock_gettime(Process::CLOCK_MONOTONIC)
     recovered=call('cold-pool')
     seconds=Process.clock_gettime(Process::CLOCK_MONOTONIC)-started
+    check('recovered observation fits five-second control budget',recovered['duration_ms']<5000,{duration_ms:recovered['duration_ms']})
     check('closed mappings and deactivated pool recover all identities',full['volumes'].to_h{|v|[v['volume_id'],v['lv_uuid']]}==recovered['volumes'].to_h{|v|[v['volume_id'],v['lv_uuid']]})
     paths.each do |path|
       File.open(path,'rb'){|f|f.seek(63*(8<<20));raise 'recovered checksum mismatch' unless f.read(4096)==payload}

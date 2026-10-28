@@ -151,6 +151,7 @@ type thinLV struct {
 	Segment  string `json:"segtype"`
 	Origin   string `json:"origin"`
 	Attr     string `json:"lv_attr"`
+	Active   string `json:"lv_active"`
 	Chunk    string `json:"chunk_size"`
 	Metadata string `json:"lv_metadata_size"`
 }
@@ -170,7 +171,7 @@ func exactBytes(s string) (int64, error) {
 	return n, nil
 }
 func (d *Driver) thinLVs(ctx context.Context) ([]thinLV, error) {
-	out, err := d.lvm(ctx, "lvs", "--reportformat", "json", "--units", "b", "--nosuffix", "-o", "lv_name,lv_uuid,pool_lv,lv_size,segtype,origin,lv_attr,chunk_size,lv_metadata_size", d.volumeGroup)
+	out, err := d.lvm(ctx, "lvs", "--reportformat", "json", "--units", "b", "--nosuffix", "-o", "lv_name,lv_uuid,pool_lv,lv_size,segtype,origin,lv_attr,lv_active,chunk_size,lv_metadata_size", d.volumeGroup)
 	if err != nil {
 		return nil, err
 	}
@@ -335,8 +336,14 @@ func (d *Driver) observeThin(ctx context.Context) (*ThinSnapshot, error) {
 		seen[v.id] = true
 		// Activation of the thin block device needs no encryption key and does
 		// not mount it; this keeps retained/unstaged allocation observable.
-		if _, err = d.activateLV(ctx, v); err != nil {
-			return nil, err
+		// An active device's kernel counters need no /dev node repair. Avoid
+		// two redundant VG-wide LVM operations per device on every observation.
+		// Inactive or unrecognized state still takes the full activation path;
+		// a device disappearing after inventory fails the status read below.
+		if strings.TrimSpace(lv.Active) != "active" {
+			if _, err = d.activateLV(ctx, v); err != nil {
+				return nil, err
+			}
 		}
 		out, err := d.run(ctx, nil, "dmsetup", "status", dmName(d.volumeGroup, lv.Name))
 		if err != nil {
