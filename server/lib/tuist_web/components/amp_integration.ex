@@ -232,12 +232,6 @@ defmodule TuistWeb.Components.AmpIntegration do
                 )
               }
             />
-            <p>
-              {dgettext(
-                "dashboard_integrations",
-                "Anyone who can use this provider in your Amp workspace can run Orbs under this Tuist account."
-              )}
-            </p>
             <div data-part="actions">
               <.button
                 type="button"
@@ -248,7 +242,7 @@ defmodule TuistWeb.Components.AmpIntegration do
               />
               <.button
                 type="submit"
-                label={dgettext("dashboard_integrations", "Save connection")}
+                label={dgettext("dashboard_integrations", "Connect")}
                 variant="primary"
               />
             </div>

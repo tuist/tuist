@@ -17,8 +17,8 @@ msgstr ""
 msgid "Add new project connection"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:244
-#: lib/tuist_web/components/amp_integration.ex:266
+#: lib/tuist_web/components/amp_integration.ex:238
+#: lib/tuist_web/components/amp_integration.ex:260
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
 #: lib/tuist_web/live/integrations_live.html.heex:794
@@ -183,6 +183,7 @@ msgid "Cluster agent token"
 msgstr ""
 
 #: lib/tuist_web/components/amp_integration.ex:175
+#: lib/tuist_web/components/amp_integration.ex:245
 #: lib/tuist_web/live/integrations_live.html.heex:526
 #: lib/tuist_web/live/integrations_live.html.heex:578
 #: lib/tuist_web/live/integrations_live.html.heex:749
@@ -407,11 +408,6 @@ msgstr ""
 msgid "Lets merge request pipelines save cache volumes. Needs the read_api scope."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:236
-#, elixir-autogen, elixir-format
-msgid "Anyone who can use this provider in your Amp workspace can run Orbs under this Tuist account."
-msgstr ""
-
 #: lib/tuist_web/components/amp_integration.ex:188
 #, elixir-autogen, elixir-format
 msgid "Connect Amp"
@@ -427,12 +423,12 @@ msgstr ""
 msgid "Could not save the connection. Check your provider token, account permissions, and whether this provider is already connected to another account."
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:272
+#: lib/tuist_web/components/amp_integration.ex:266
 #, elixir-autogen, elixir-format
 msgid "Disconnect Amp"
 msgstr ""
 
-#: lib/tuist_web/components/amp_integration.ex:259
+#: lib/tuist_web/components/amp_integration.ex:253
 #, elixir-autogen, elixir-format
 msgid "Disconnect Amp? This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
 msgstr ""
@@ -491,11 +487,6 @@ msgstr ""
 #: lib/tuist_web/components/amp_integration.ex:150
 #, elixir-autogen, elixir-format
 msgid "Sandboxes are not enabled for this account. New Orb sessions are unavailable."
-msgstr ""
-
-#: lib/tuist_web/components/amp_integration.ex:251
-#, elixir-autogen, elixir-format
-msgid "Save connection"
 msgstr ""
 
 #: lib/tuist_web/components/amp_integration.ex:77
