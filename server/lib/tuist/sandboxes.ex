@@ -18,6 +18,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
@@ -188,8 +189,15 @@ defmodule Tuist.Sandboxes do
       |> Map.merge(attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new())
       |> Map.put(:account_id, account_id)
 
-    with :ok <- check_sandbox_limit(account_id),
-         {:ok, sandbox} <- %Sandbox{} |> Sandbox.create_changeset(attrs) |> Repo.insert() do
+    changeset = Sandbox.create_changeset(%Sandbox{}, attrs)
+
+    with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
+         {:ok, sandbox} <-
+           Concurrency.admit(account_id, requested, fn ->
+             with :ok <- check_sandbox_limit(account_id) do
+               Repo.insert(changeset)
+             end
+           end) do
       boot(sandbox)
     end
   end

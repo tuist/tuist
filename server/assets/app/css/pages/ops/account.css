@@ -172,7 +172,8 @@
     }
   }
 
-  & #runner-concurrency-form {
+  & #runner-concurrency-form,
+  & #sandbox-concurrency-form {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);

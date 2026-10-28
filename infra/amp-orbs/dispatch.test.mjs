@@ -18,7 +18,12 @@ async function dispatch(overrides = {}, status = 204, executable = script) {
     if (request.url.endsWith('/exec')) {
       response.writeHead(200, { 'content-type': 'application/json' }).end('{"exit_code":0}');
     } else {
-      response.writeHead(status).end();
+      const result = typeof status === 'function' ? await status(requests.length) : { status };
+      if (result.disconnect) {
+        request.socket.destroy();
+        return;
+      }
+      response.writeHead(result.status, result.headers).end(result.body ?? 'private-response-body');
     }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -34,7 +39,7 @@ async function dispatch(overrides = {}, status = 204, executable = script) {
     child.stdout.on('data', data => output += data);
     child.stderr.on('data', data => output += data);
     const code = await new Promise(resolve => child.on('close', resolve));
-    assert(!output.includes('orb-secret') && !output.includes('api-secret'));
+    assert(!output.includes('orb-secret') && !output.includes('api-secret') && !output.includes('private-response-body'));
     return { code, output, requests };
   } finally {
     await new Promise(resolve => server.close(resolve));
@@ -89,8 +94,8 @@ test('refuses unsafe path components, missing tokens, unsupported images and unk
   }
 });
 
-test('propagates capacity and authentication failures without retrying or logging the response', async () => {
-  for (const status of [401, 403, 409, 503]) {
+test('does not retry unmarked HTTP errors or log private response bodies', async () => {
+  for (const status of [400, 401, 403, 409, 429, 500, 502, 503]) {
     const { code, output, requests } = await dispatch({}, status);
     assert.notEqual(code, 0);
     assert.match(output, new RegExp(`HTTP ${status}`));
@@ -131,5 +136,91 @@ test('managed dispatch rereads the rotated workload token and ignores a requeste
       assert(!JSON.stringify(requests[0].body).includes(token));
       assert(!output.includes(token));
     }
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+const admission = status => ({ status, headers: { 'X-Tuist-Orb-Retry': 'admission' } });
+
+test('never retries an ambiguous transport failure', async () => {
+  const { code, output, requests } = await dispatch({}, () => ({ disconnect: true }));
+  assert.notEqual(code, 0);
+  assert.equal(requests.length, 1);
+  assert(!output.includes('Waiting for sandbox capacity'));
+});
+
+test('does not reuse a retry hint from a previous HTTP response', async () => {
+  const { code, output, requests } = await dispatch({}, attempt => attempt === 1 ? admission(503) : { status: 503 });
+  assert.equal(code, 1);
+  assert.equal(requests.length, 2);
+  assert.match(output, /failed \(HTTP 503\)/);
+});
+
+test('retries explicit admission refusals with the same Orb identity and body', async () => {
+  for (const status of [409, 429, 503]) {
+    const { code, output, requests } = await dispatch({}, attempt => attempt === 1 ? admission(status) : { status: 204 });
+    assert.equal(code, 0, output);
+    assert.equal(requests.length, 2);
+    assert.deepEqual(requests[0], requests[1]);
+    assert.match(output, /Waiting for sandbox capacity/);
+  }
+});
+
+test('stops at the admission deadline instead of making another request', async () => {
+  const { code, output, requests } = await dispatch({ TUIST_ORB_CAPACITY_WAIT_SECONDS: '2' }, () => admission(503));
+  assert.equal(code, 1);
+  assert.equal(requests.length, 1);
+  assert.match(output, /Timed out waiting for sandbox capacity/);
+});
+
+test('HTTP time counts against the wait deadline', async () => {
+  const { code, output, requests } = await dispatch({ TUIST_ORB_CAPACITY_WAIT_SECONDS: '1' }, async () => {
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    return admission(503);
+  });
+  assert.equal(code, 1);
+  assert.equal(requests.length, 1);
+  assert.match(output, /Timed out waiting/);
+  assert(!output.includes('Waiting for sandbox capacity'));
+});
+
+test('allows disabling waiting and rejects invalid or extended wait budgets', async () => {
+  const { code, requests } = await dispatch({ TUIST_ORB_CAPACITY_WAIT_SECONDS: '0' }, () => admission(429));
+  assert.equal(code, 1);
+  assert.equal(requests.length, 1);
+  for (const value of ['151', '-1', '1.5', 'forever', '99999999999999999', '08']) {
+    const result = await dispatch({ TUIST_ORB_CAPACITY_WAIT_SECONDS: value });
+    assert.equal(result.code, 1);
+    assert.equal(result.requests.length, 0);
+  }
+});
+
+test('never retries pause/delete or non-admission status codes even with a hint', async () => {
+  for (const operation of ['pause', 'delete']) {
+    const result = await dispatch({ ORB_OPERATION: operation }, () => admission(503));
+    assert.equal(result.code, 1);
+    assert.equal(result.requests.length, 1);
+  }
+  for (const status of [400, 401, 403, 500, 502]) {
+    const result = await dispatch({}, () => admission(status));
+    assert.equal(result.code, 1);
+    assert.equal(result.requests.length, 1);
+  }
+});
+
+test('reauthenticates each retry with the current workload token', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tuist-orb-retry-identity-'));
+  const identity = join(directory, 'token');
+  try {
+    await writeFile(identity, 'identity-one');
+    const { code, requests, output } = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity }, async attempt => {
+      if (attempt === 1) {
+        await writeFile(identity, 'identity-two');
+        return admission(503);
+      }
+      return { status: 204 };
+    });
+    assert.equal(code, 0, output);
+    assert.deepEqual(requests.map(request => request.auth), ['Bearer identity-one', 'Bearer identity-two']);
+    assert(!output.includes('identity-one') && !output.includes('identity-two'));
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

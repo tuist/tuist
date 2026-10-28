@@ -45,6 +45,28 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   end
 
   describe "Amp Orb dispatch" do
+    test "marks only admission refusals as retryable", %{conn: conn, account: account} do
+      for {reason, status, hint} <- [
+            {:no_capacity, 503, ["admission"]},
+            {:sandbox_concurrency_limit, 429, ["admission"]},
+            {:sandbox_account_busy, 409, ["admission"]},
+            {:locked, 409, ["admission"]},
+            {:orb_bootstrap_failed, 502, []},
+            {:node_disconnected, 503, []}
+          ] do
+        expect(Tuist.Sandboxes, :dispatch_amp_orb, fn _, _, _ -> {:error, reason} end)
+
+        result =
+          post(conn, ~p"/api/accounts/#{account.name}/sandboxes/amp-orbs/amp-thread", %{
+            operation: "spawn",
+            orb_token: "orb-fixture"
+          })
+
+        assert response(result, status)
+        assert get_resp_header(result, "x-tuist-orb-retry") == hint
+      end
+    end
+
     test "requires a spawn token and validates the operation", %{conn: conn, account: account} do
       for params <- [
             %{operation: "spawn"},
