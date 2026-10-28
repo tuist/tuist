@@ -1,0 +1,122 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "4afaaa89b67fabf4bd34092ab75dae7194dd480bc3be94be7a23e1971853b5f4",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "hash": "42ee36cbd956e73fae38e9810ce8d5ed857b9bd42ebefa7f129e77b140223a57",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/get-started/existing-xcode-project.md",
+          "metadata": {
+            "content_hash": "57ff76560d796b6f3dc9c0f88a5e6f04d7c5ff7d6b66519362aa7b2644f1ec42"
+          }
+        },
+        {
+          "children": [],
+          "hash": "22cd7e3fb3c54e6b2e71ee7021ec4c3bf3b349eeaab1593ccb4d416fe8217862",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "preserve",
+            "language": "Spanish",
+            "locale": "es",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+              }
+            },
+            {
+              "children": [],
+              "hash": "971bd2e703d1808e563b5e080e6cc74676f8b07f109adfbddc4c3a51ba93297c",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "ab0896980525bb1cce34defdf4a74be1c02f8790addfd3363a65949f46eeccbb"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "hash": "3fecda6a7ac862b4314b2c9effe680ffda22ec113c48be0dcc732364a0a54802",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "hash": "4afaaa89b67fabf4bd34092ab75dae7194dd480bc3be94be7a23e1971853b5f4",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/get-started/existing-xcode-project.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "f194ae6baebb931a1d2c7862fa446092bb800ea793a988d30a33aef6df2ddbf0",
+  "output_path": "server/priv/docs/es/guides/get-started/existing-xcode-project.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "a341b43cd8ffe0d4f30bc492fbdde41215d99451",
+  "source_path": "server/priv/docs/en/guides/get-started/existing-xcode-project.md",
+  "translated_at": "2026-10-28T11:03:55.122074Z",
+  "translation_session_id": "01a18206-c5b9-7fa7-8475-f16a8b4263cd"
+}
