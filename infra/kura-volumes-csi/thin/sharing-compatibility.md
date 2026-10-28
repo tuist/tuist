@@ -11,6 +11,15 @@ An API adapter alone cannot make the current layout deliver sharing's admission
 benefit. Keep the encryption PR draft rather than promise that a later change
 can safely remove full-ceiling reservations.
 
+The subsequent [ext4/fscrypt experiment](../fscrypt/validation.md) demonstrates
+physical grant transfer with the unchanged #14825 policy on a shared encrypted
+filesystem. That bounded alternative passes its mechanism and policy checks,
+but currently loses about 32% of cache churn throughput against shared XFS and
+roughly doubles runtime CPU in the VM comparison. It is not implemented in CSI
+and does not change the conclusions about the existing thin layout below.
+See its [integration gates](../fscrypt/integration.md) for key lifecycle,
+confinement, admission and migration requirements before a replacement.
+
 ## What can be reused, and what must change
 
 | Area | Current implementation | Consequence for the later sharing PR |
