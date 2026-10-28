@@ -20,21 +20,34 @@ struct CargoProcess {
         environment: [String: String],
         directory: AbsolutePath
     ) async throws -> String {
-        var data = Data()
+        let output = try await captureOutput(executable, arguments: arguments, environment: environment, directory: directory)
+        guard let result = String(data: output.stdout, encoding: .utf8)
+        else { throw CargoReportError(message: "Cargo metadata is not UTF-8.") }
+        return result
+    }
+
+    func captureOutput(
+        _ executable: String, arguments: [String], environment: [String: String], directory: AbsolutePath
+    ) async throws -> (stdout: Data, stderr: Data) {
+        var stdout = Data()
+        var stderr = Data()
         for try await event in runner.run(
             arguments: ["/usr/bin/env", executable] + arguments,
             environment: environment,
             workingDirectory: directory
         ) {
-            if case let .standardOutput(bytes) = event {
-                guard data.count + bytes.count <= 64_000_000
+            switch event {
+            case let .standardOutput(bytes):
+                guard stdout.count + bytes.count <= 64_000_000
                 else { throw CargoReportError(message: "Cargo metadata exceeds 64 MB.") }
-                data.append(contentsOf: bytes)
+                stdout.append(contentsOf: bytes)
+            case let .standardError(bytes):
+                guard stderr.count + bytes.count <= 1_000_000
+                else { throw CargoReportError(message: "Cargo compiler diagnostics exceed 1 MB.") }
+                stderr.append(contentsOf: bytes)
             }
         }
-        guard let result = String(data: data, encoding: .utf8)
-        else { throw CargoReportError(message: "Cargo metadata is not UTF-8.") }
-        return result
+        return (stdout, stderr)
     }
 
     func executable(

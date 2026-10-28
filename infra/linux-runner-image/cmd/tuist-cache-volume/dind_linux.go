@@ -77,10 +77,12 @@ type daemon struct {
 	source string
 	// reset is set when the saved data root could not be mounted and the
 	// job's branch was formatted empty instead.
-	reset  bool
-	base   dockerSnapshot
-	ledger dockerLedger
-	run    func(context.Context, string, ...string) ([]byte, error)
+	reset     bool
+	base      dockerSnapshot
+	ledger    dockerLedger
+	run       func(context.Context, string, ...string) ([]byte, error)
+	usedBytes func(string) (int64, error)
+	trim      func(string) error // test seam; production uses syncfs + FITRIM
 	// pipe runs the docker command from with its output as the docker command to's input.
 	pipe func(ctx context.Context, from, to []string) error
 }
@@ -275,6 +277,7 @@ func (d *daemon) teardown(merge string, generation int64) error {
 	}
 	d.stop()
 	unix.Sync()
+	cleanErr = errors.Join(cleanErr, d.trimDocker(ctx, d.dataRoot))
 	if out, err := d.run(ctx, "umount", d.dataRoot); err != nil {
 		cleanErr = errors.Join(cleanErr, fmt.Errorf("unmount: %s", strings.TrimSpace(string(out))))
 	} else {
@@ -315,6 +318,11 @@ func (d *daemon) merge(ctx context.Context, source string, report *dockerTeardow
 	}
 	defer func() {
 		// The host publishes the head's clone only after a clean unmount.
+		if into == "head" {
+			if trimErr := d.trimDocker(ctx, d.mergeRoot); trimErr != nil {
+				into, err = "", trimErr
+			}
+		}
 		if out, unmountErr := d.run(context.Background(), "umount", d.mergeRoot); unmountErr != nil && into == "head" {
 			into, err = "", fmt.Errorf("unmount saved head: %s", strings.TrimSpace(string(out)))
 		}
@@ -374,6 +382,13 @@ func (d *daemon) merge(ctx context.Context, source string, report *dockerTeardow
 	}
 	ledger := mergeDockerLedgers(readDockerLedger(ledgerPath), readDockerLedger(otherLedgerPath), plan.Move)
 	if err := writeDockerLedger(ledgerPath, ledger); err != nil {
+		return "", err
+	}
+	root := d.mergeRoot
+	if plan.Into == "branch" {
+		root = d.dataRoot
+	}
+	if err := d.retainDocker(ctx, to, root, ledger, dockerRetainedBytes); err != nil {
 		return "", err
 	}
 	images, err := d.images(ctx, to)
@@ -480,6 +495,9 @@ func (d *daemon) clean(ctx context.Context, report *dockerTeardownReport) error 
 	if _, err := d.buildkitVolumes(ctx, "", d.dataRoot); err != nil {
 		return err
 	}
+	if err := d.recordBuilderUse(ctx); err != nil {
+		return err
+	}
 	if out, err := d.run(ctx, "docker", "volume", "prune", "-af", "--filter", "label!="+buildkitVolumeLabel); err != nil {
 		return fmt.Errorf("remove volumes: %s", strings.TrimSpace(string(out)))
 	}
@@ -505,8 +523,13 @@ func (d *daemon) clean(ctx context.Context, report *dockerTeardownReport) error 
 		_, _ = d.run(ctx, "docker", "image", "rm", "-f", id)
 	}
 	_, _ = d.run(ctx, "docker", "image", "prune", "-f")
-	_, _ = d.run(ctx, "docker", "builder", "prune", "-f", "--keep-storage", dockerBuildCacheBudget)
+	if out, err := d.run(ctx, "docker", "builder", "prune", "-af", "--keep-storage", dockerBuildCacheBudget); err != nil {
+		return fmt.Errorf("prune Docker build cache: %s: %w", strings.TrimSpace(string(out)), err)
+	}
 	if err := writeDockerLedger(dockerLedgerFile(d.dataRoot), plan.Keep); err != nil {
+		return err
+	}
+	if err := d.retainDocker(ctx, "", d.dataRoot, plan.Keep, dockerRetainedBytes); err != nil {
 		return err
 	}
 	final, err := d.snapshot(ctx, "")

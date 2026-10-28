@@ -471,6 +471,8 @@ The macOS CLI unit-test job installs the stable Rust toolchain pinned by `cas-pl
 
 Cargo compilation caching is implemented in Swift inside `tuist`. Do not package a separate Cargo cache executable or import an external cache engine. The existing Xcode CAS plugin and proxy remain separate Rust artifacts.
 
+`cas-plugin.yml` dogfoods `tuist/cas-plugin` through the component's pinned Tuist CLI and mise build/test tasks. Trusted jobs authenticate with GitHub OIDC (`id-token: write`); the hosted project must remain linked to `tuist/tuist`. Fork pull requests use plain Cargo without Tuist credentials or OIDC permission. Check hosted build/test reports and actual cache transfer counters separately from job success; Cargo's experimental cache does not cover the entire build graph.
+
 ## CLI Linux builds
 
 The Linux release ships a static musl binary built with the Swift Static Linux SDK. The PR `Linux Build` job in `cli.yml` compiles against the same SDK, installed through `mise/utilities/install_static_linux_sdk.sh` (shared with `mise/tasks/cli/bundle-linux.sh`), so it catches code that only builds against glibc. Its `.build` cache key uses the `linux-cli-musl-` prefix to stay separate from the glibc cache used by `Linux Unit Tests`, which keeps running on glibc.
@@ -516,7 +518,7 @@ are rejected.
 ## CLI Linux release
 
 `release-cli-linux` in `workflows/cli-build-publish.yml` builds both Linux
-tarballs on `tuist-linux-large` inside `swift:6.2`. The fleet is amd64-only,
+tarballs on `tuist-linux-large` inside `swift:6.4.1-noble`. The fleet is amd64-only,
 so aarch64 is cross-compiled through the static Linux SDK and the bundle
 script checks the architecture and that the binary is static before packaging.
 The job builds `inputs.ref` with the bundler and SDK setup from the
@@ -557,6 +559,23 @@ covered only by the production schedule.
   that wait, so the in-run dispatch watchdog fails and cancels the run past the
   pickup bound. That is why the gate dispatches a separate run instead of
   calling the workflow: cancelling it must not cancel the cascade.
+- Each Linux target runs a native probe (image/toolchains, KVM, Docker, Go,
+  setup-beam, process file limits, and Kura) and a
+  real job-container probe (workspace/actions/externals mounts and environment
+  files). Count both in the dispatch watchdog. The cascade gate rejects missing,
+  skipped, or unsuccessful native/container Linux probes even if the workflow
+  conclusion is successful. Validate this contract with
+  `node --test .github/scripts/runners-acceptance/acceptance.test.cjs` after
+  `npm ci --ignore-scripts` at the repository root.
+- Canary also runs five sequential Docker-cache phases through
+  `runners-docker-cache-probe.yml` after both ordinary Linux probes. Count the
+  five `Linux Docker cache ... / Build` jobs in the watchdog; exclude their
+  GitHub-hosted publication-window jobs. Require every phase in `gate.sh`,
+  including final reuse, and pass the deploy's intended Linux image digest
+  before staging holds. A mounted cache, correct compile output and actual
+  cross-job layer/mutable-cache reuse are mandatory. The 120-second pauses are
+  allowances, not publication proof; slow publication fails rather than retries.
+  Keep production's scheduled probes usable while its Docker cache is disabled.
 - Health checks are not enough: a Kura that cannot reach the server's token
   introspection answers `/up` and degrades every lookup into a slow miss. Keep
   the authenticated blob round trip and the rebuild from an empty local CAS,

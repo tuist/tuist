@@ -56,6 +56,47 @@ person out. Preview-only `--connections` (iOS) and `--ez connections true`
 (Android Settings preview) render fictional connected/disconnected/reconnect states
 without contacting providers or changing accounts.
 
+## Durable read cache
+
+Orbit's first inbox page uses stale-while-revalidate: Rust reads a bounded SQLite
+projection before OAuth renewal or HTTP, then replaces it after a protected read.
+Returning to the tab retains the in-memory model. Startup and background refresh
+show no cache banner. A failed refresh keeps the saved rows and shows a compact
+“Couldn’t refresh” with Retry, cleared on recovery. Thread history, attachments,
+drafts and live activity are not persisted; opening a saved row still requires a
+protected server read.
+Other feature lists are not yet backed by this cache.
+
+`auth/src/cache.rs` uses bundled SQLite through `rusqlite` on every platform. The
+adapters supply only a private, backup-excluded directory: Application Support's
+`Atlas/ReadCache` on iOS (device file protection), or Android's `noBackupFilesDir/reads`.
+The database is `reads.sqlite3`. Credentials remain in the existing secure stores,
+never SQLite. This is sandbox/file-protected storage, not application-level encrypted
+SQLite. Snapshots retain titles, summaries and display metadata, but strip participant
+identities, ownership, mutation capabilities and live agent status. Cached rows
+cannot authorize mutations.
+
+Keys bind the canonical server origin, a random credential-lifetime namespace,
+projection version and kind/status filters. Token rotation retains the namespace;
+a new login replaces it. Logout retires it and deletes its rows; generation checks
+reject late writes after mutations, revocation or logout. Reads expire after seven
+days, with pruning on open, at most 32 snapshots and 1 MiB per snapshot. The default
+4 KiB SQLite pages are capped at 4096 pages. Storage failures disable caching without
+blocking online use. Remote revocation cannot erase an offline device's already
+saved display metadata until it reconnects or the local retention limit is reached.
+
+### SQLite migrations
+
+Append numbered SQL files under `auth/src/cache_migrations/` and append each
+`include_str!` to `MIGRATIONS` in `cache.rs`. Never edit a migration shipped in a
+release. `PRAGMA user_version` tracks the applied version. All pending migrations
+and the version change commit in one immediate transaction; failures roll back
+schema and data together. A downgraded app refuses a newer schema without resetting
+it and uses the network instead. Change the projection key version when JSON shape
+or meaning changes; schema migrations are for actual SQLite layout/data changes.
+Keep SQL files in all three production and host-test Once source lists. Tests cover
+reopen, data-preserving upgrade, rollback, downgrade, isolation and late-write fences.
+
 ## Object navigation
 
 Both clients accept server-bound native object links for Orbit, Tasks, Accounts, Finance,

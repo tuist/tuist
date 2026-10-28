@@ -1,6 +1,41 @@
 import XCTest
 
 final class AtlasOrbitUITests: XCTestCase {
+    @MainActor func testSavedInboxRemainsReadableOfflineAndRefreshRestoresActions() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        defer { app.terminate() }
+        for appearance in [[], ["--dark", "--large-text"]] {
+            let mode = appearance.isEmpty ? "light" : "dark-large"
+            app.launchArguments = ["--workspace", "--cached-orbit", "--offline-orbit", "--recover-orbit"] + appearance
+            app.launch()
+            XCUIDevice.shared.orientation = .portrait
+            let thread = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+            XCTAssertTrue(thread.waitForExistence(timeout: 10))
+            XCTAssertTrue(thread.isHittable)
+            XCTAssertFalse(app.staticTexts["Showing saved conversations. Connect to refresh."].exists)
+            let error = app.staticTexts["orbit-refresh-error"]
+            XCTAssertFalse(error.exists)
+            XCTAssertFalse(app.buttons["orbit-create"].isEnabled)
+            capture(app, "ios-orbit-quiet-startup-\(mode)-preview")
+            XCTAssertTrue(error.waitForExistence(timeout: 10))
+            XCTAssertTrue(thread.isHittable)
+            XCTAssertFalse(app.staticTexts["Could not connect securely to Atlas. Try again."].exists)
+            let retry = app.buttons["orbit-refresh-retry"]
+            XCTAssertTrue(retry.isHittable)
+            XCTAssertGreaterThanOrEqual(retry.frame.height + 0.01, 44) // Allow floating-point frame rounding.
+            capture(app, "ios-orbit-refresh-failure-\(mode)-preview")
+            retry.tap()
+            let compose = app.buttons["orbit-create"]
+            expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: compose)
+            waitForExpectations(timeout: 15)
+            XCTAssertFalse(error.exists)
+            XCTAssertFalse(app.buttons["orbit-refresh-retry"].exists)
+            XCTAssertTrue(thread.exists)
+            capture(app, "ios-orbit-retry-recovered-\(mode)-preview")
+            app.terminate()
+        }
+    }
+
     @MainActor func testPrivateThreadAndSharedToolEvidence() throws {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--workspace"]

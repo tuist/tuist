@@ -1397,6 +1397,16 @@ KVM with nesting on). Three pieces close that:
   cannot open; the CDI spec sets 0666 on the container's node and leaves
   the host's `/dev/kvm` untouched.
 
+Docker's sidecar has a separate `/dev`. For nested pools its existing
+privileged entrypoint creates the guest's 10:232 device with mode 0666
+before starting dockerd (including the cache-volume supervisor path).
+`docker run --device /dev/kvm` and job-container `options` can then forward
+it to unprivileged containers. Do not allocate a second plugin resource to
+the sidecar: both containers share the Kata guest kernel and a second
+allocation would halve effective Pod capacity. KVM setup failure must
+prevent dockerd startup. The nested runtime revision includes this change
+so bounded idle rollout replaces old templates without stopping active jobs.
+
 Managed environments enable KVM on every Linux pool through
 `runnersFleetLinux.nestedVirtualization.defaultEnabled`; ordinary Runner
 Profiles need no special capability or dispatch label. The self-hosted default
@@ -1475,7 +1485,7 @@ runner gets `TUIST_DOCKER_CACHE=1`. It needs cache volumes. With the field off t
 sidecar's command is byte for byte what it was (`TestDockerCacheOffKeepsTheSidecarCommand`):
 any change to it replaces every Pod of the pools it covers. Staging and production
 enable it on every Linux pool and keep it as the off switch, while the per-account
-`:runner_docker_cache` flag decides who gets a cache (canary has no cache volumes).
+`:runner_docker_cache` flag decides who gets a cache (canary qualifies its default Linux shape before production enablement).
 The agent serves `/docker`, `/docker-seen` and `/docker-merge`; see [Docker cache volumes](cache-volumes.md#docker-cache-volumes).
 
 Managed production enables custom volumes on normal deployment. The agent image

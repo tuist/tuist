@@ -18,6 +18,8 @@ use std::time::{Duration, Instant};
 pub(crate) enum Action {
     Open {
         session: Session,
+        #[serde(default)]
+        cache_directory: Option<String>,
     },
     Request {
         connection: String,
@@ -145,6 +147,7 @@ impl StatusFilter {
 struct Snapshot {
     sequence: u64,
     status_filter: StatusFilter,
+    cached: bool,
     assistant: Option<Assistant>,
     threads: Vec<Thread>,
     // An untrusted navigation target, not thread metadata or permission to mutate.
@@ -199,6 +202,8 @@ struct UploadAttempt {
 struct State {
     snapshot: Snapshot,
     session: Session,
+    cache: Option<crate::cache::Cache>,
+    authenticated: bool,
     drafts: BTreeMap<String, Draft>,
     outbox: BTreeMap<String, Draft>,
     generation: u64,
@@ -231,16 +236,27 @@ fn models() -> &'static Mutex<HashMap<String, Arc<Model>>> {
 
 pub(crate) fn execute(action: Action) -> Result<Value> {
     match action {
-        Action::Open { session } => {
+        Action::Open {
+            session,
+            cache_directory,
+        } => {
             crate::validate_registration(&session.registration)?;
-            if session.expires_at <= crate::now() || session.access_token.is_empty() {
+            if session.access_token.is_empty()
+                || (cache_directory.is_none() && session.expires_at <= crate::now())
+            {
                 return Err(error("sign_in_required", "Sign in to Atlas again."));
             }
+            let authenticated = cache_directory.is_none();
+            let cache = cache_directory
+                .as_deref()
+                .and_then(|directory| crate::cache::Cache::open(directory, &session));
             let connection = random_id()?;
             let model = Arc::new(Model {
                 state: Mutex::new(State {
                     snapshot: Snapshot::default(),
                     session,
+                    cache,
+                    authenticated,
                     drafts: BTreeMap::new(),
                     outbox: BTreeMap::new(),
                     generation: 0,
@@ -266,8 +282,21 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
             if models.len() >= 8 {
                 return Err(error("internal", "Too many thread sessions."));
             }
+            let initial = {
+                let mut state = model.state.lock().map_err(|_| invalid())?;
+                if state
+                    .cache
+                    .as_ref()
+                    .is_some_and(|cache| cache.generation().is_none())
+                {
+                    return Err(error("closed", "This Atlas session has ended."));
+                }
+                hydrate_inbox(&mut state);
+                publish(&model, &mut state);
+                serde_json::to_value(&state.snapshot).map_err(|_| invalid())?
+            };
             models.insert(connection.clone(), model);
-            Ok(json!({"connection":connection}))
+            Ok(json!({"connection":connection, "snapshot":initial}))
         }
         Action::Request {
             connection,
@@ -279,10 +308,23 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                 let mut state = model.state.lock().map_err(|_| invalid())?;
                 if session.registration.server != state.session.registration.server
                     || session.registration.client_id != state.session.registration.client_id
+                    || session.cache_id != state.session.cache_id
                 {
                     return Err(invalid());
                 }
+                if state.closed
+                    || state
+                        .cache
+                        .as_ref()
+                        .is_some_and(|cache| cache.generation().is_none())
+                {
+                    return Err(error("closed", "This Atlas session has ended."));
+                }
+                if session.expires_at <= crate::now() || session.access_token.is_empty() {
+                    return Err(error("sign_in_required", "Sign in to Atlas again."));
+                }
                 state.session = session;
+                state.authenticated = true;
             }
             if let Command::DownloadAttachment { id, attachment_id } = command {
                 return download_using(&model, id, attachment_id, &Network);
@@ -389,6 +431,82 @@ fn get(id: &str) -> Result<Arc<Model>> {
         .ok_or_else(|| error("closed", "This Orbit session is closed."))
 }
 
+pub(crate) fn forget_cache(session: &Session, directory: &str) -> Result<Value> {
+    if let Some(cache) = crate::cache::Cache::open(directory, session) {
+        cache.invalidate(true);
+    }
+    let connections = models()
+        .lock()
+        .map_err(|_| invalid())?
+        .iter()
+        .filter_map(|(id, model)| {
+            let state = model.state.lock().ok()?;
+            (session.cache_id.is_some()
+                && state.session.cache_id == session.cache_id
+                && state.session.registration.server == session.registration.server)
+                .then(|| id.clone())
+        })
+        .collect::<Vec<_>>();
+    for connection in connections {
+        execute(Action::Close { connection })?;
+    }
+    Ok(json!({"forgotten":true}))
+}
+
+#[derive(Deserialize, Serialize)]
+struct SavedInbox {
+    assistant: Assistant,
+    threads: Vec<Thread>,
+}
+
+fn inbox_key(state: &State) -> String {
+    format!(
+        "orbit/inbox/v1/{}/{}",
+        state.list_kind.as_deref().unwrap_or("all"),
+        state.snapshot.status_filter.as_str()
+    )
+}
+
+fn hydrate_inbox(state: &mut State) {
+    let saved = state
+        .cache
+        .as_ref()
+        .and_then(|cache| cache.read(&inbox_key(state)))
+        .and_then(|payload| serde_json::from_str::<SavedInbox>(&payload).ok());
+    if let Some(saved) = saved.filter(|saved| saved.threads.len() <= 25) {
+        state.snapshot.assistant = Some(saved.assistant);
+        state.snapshot.threads = saved.threads;
+        state.snapshot.cached = true;
+        // Pagination and permissions must come from a fresh protected read.
+        state.snapshot.has_more = false;
+    }
+}
+
+fn saved_inbox(value: &Overview) -> SavedInbox {
+    let mut assistant = value.assistant.clone();
+    assistant.can_create_private = false;
+    let threads = value
+        .threads
+        .items
+        .iter()
+        .take(25)
+        .cloned()
+        .map(|mut thread| {
+            thread.agent_status = None;
+            thread.owner_id = None;
+            thread.participants.clear();
+            thread
+        })
+        .collect();
+    SavedInbox { assistant, threads }
+}
+
+fn invalidate_cache(state: &State) {
+    if let Some(cache) = &state.cache {
+        cache.invalidate(false);
+    }
+}
+
 fn snapshot(model: &Model) -> Result<Value> {
     serde_json::to_value(&model.state.lock().map_err(|_| invalid())?.snapshot)
         .map_err(|_| invalid())
@@ -439,7 +557,8 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
     match command {
         Command::Load { kind, status } => {
             set_list_filters(model, kind, status)?;
-            load(model, false)
+            load(model, false)?;
+            start_live(model)
         }
         Command::LoadMore => load(model, true),
         command @ (Command::Private | Command::CreatePrivate | Command::Create { .. }) => {
@@ -617,11 +736,13 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
             state.generation == generation && state.access_generation == access_generation;
         let selected = match result {
             Ok(Some(value)) => {
+                invalidate_cache(&state);
+                state.access_generation += 1;
                 if new_private {
                     state.private_request_id = None;
                 }
                 let id = value.thread.id.clone();
-                if state.access_generation == access_generation {
+                if current {
                     merge_list_thread(&mut state, value.thread);
                 }
                 if current {
@@ -676,6 +797,9 @@ fn set_list_filters(
         state.access_generation += 1;
         state.snapshot.threads.clear();
         state.snapshot.has_more = false;
+        state.snapshot.cached = false;
+        state.snapshot.assistant = None;
+        hydrate_inbox(&mut state);
         publish(model, &mut state);
     }
     Ok(())
@@ -686,7 +810,7 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
 }
 
 fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Result<()> {
-    let (session, page, kind, status, access_generation) = {
+    let (session, page, kind, status, access_generation, cache_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -703,6 +827,10 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
             state.list_kind.clone(),
             Some(state.snapshot.status_filter.as_str().into()),
             state.access_generation,
+            state
+                .cache
+                .as_ref()
+                .and_then(crate::cache::Cache::generation),
         )
     };
     let result = orbit::request_using::<Overview>(
@@ -727,7 +855,14 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
     }
     match result {
         Ok(value) => {
+            if !more
+                && let (Some(cache), Some(generation)) = (&state.cache, cache_generation)
+                && let Ok(payload) = serde_json::to_string(&saved_inbox(&value))
+            {
+                cache.write(&inbox_key(&state), &payload, generation);
+            }
             state.snapshot.assistant = Some(value.assistant);
+            state.snapshot.cached = false;
             if !more {
                 state.snapshot.threads.clear();
             }
@@ -742,7 +877,10 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
         }
         Err(failure) => {
             if failure.kind == "unavailable" {
+                invalidate_cache(&state);
                 state.snapshot.threads.clear();
+                state.snapshot.assistant = None;
+                state.snapshot.cached = false;
             }
             if state.snapshot.selection_id.is_none() {
                 note_failure(&mut state, failure);
@@ -839,6 +977,7 @@ fn archive_using(
     match result {
         Ok(thread) => {
             // A list or protected-history read begun before this mutation must not undo it.
+            invalidate_cache(&state);
             state.access_generation += 1;
             merge_list_thread(&mut state, thread.clone());
             refresh_list = state.list_page > 0;
@@ -1618,6 +1757,8 @@ fn send_using(
         let success = result.is_ok();
         match result {
             Ok(_) => {
+                invalidate_cache(&state);
+                state.access_generation += 1;
                 if state.generation == generation {
                     state.snapshot.error = None;
                 }
@@ -1676,6 +1817,7 @@ fn note_failure(state: &mut State, failure: crate::AuthError) {
 }
 
 fn revoke(state: &mut State, id: &str) {
+    invalidate_cache(state);
     clear_candidates(state);
     state.snapshot.messages.clear();
     state.snapshot.people.clear();
@@ -1824,6 +1966,7 @@ fn start_live(model: &Arc<Model>) -> Result<()> {
     let mut state = model.state.lock().map_err(|_| invalid())?;
     if !state.active
         || state.closed
+        || !state.authenticated
         || state.live.is_some()
         || (state.snapshot.selection_id.is_some() && state.snapshot.selected.is_none())
     {

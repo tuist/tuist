@@ -6,8 +6,6 @@ import SwiftUI
 /// reconciliation, drafts, idempotency keys and live thread lifecycle.
 @MainActor
 final class AtlasOrbit: ObservableObject {
-    private struct Opened: Decodable { let connection: String }
-
     @Published private var state: Snapshot?
     @Published private var adapterError: String?
     @Published private var submitting = false
@@ -28,6 +26,7 @@ final class AtlasOrbit: ObservableObject {
     var attachmentBusy: Bool { attaching || state?.attachmentBusy == true }
     var pendingUploadName: String? { state?.uploadPending == true ? state?.uploadFilename : nil }
     var loading: Bool { state?.loading ?? false }
+    var cached: Bool { state?.cached == true }
     var loadingHistory: Bool { state?.historyLoading ?? false }
     var saving: Bool { submitting || (state?.saving ?? false) }
     var creating: Bool { loading }
@@ -199,6 +198,7 @@ final class AtlasOrbit: ObservableObject {
         if let opening { return try await opening.value }
         let task = Task {
             let opened: Opened = try decode(await request(["action": "open"]))
+            if let snapshot = opened.snapshot { apply(snapshot) }
             return opened.connection
         }
         opening = task

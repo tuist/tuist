@@ -39,8 +39,14 @@ omitting it preserves generic browser login, including self-hosted providers.
 - C inputs are borrowed NUL-terminated strings. Outputs are owned allocations and
   must be freed exactly once using `atlas_auth_free`. JNI uses VM-managed strings.
 - The calling native coordinator owns secure storage and serializes credential
-  mutations. Rust does not persist anything or call platform APIs. This keeps
-  platform SDKs out of host tests and avoids a global runtime/session lock.
+  mutations. Rust never persists credentials or calls platform APIs. Its optional
+  `cache.rs` persists sanitized read projections to an adapter-supplied private
+  directory; see [Durable read cache](../README.md#durable-read-cache) for key,
+  retention, invalidation and append-only transactional SQLite migration rules.
+  Local `bootstrap` validates/upgrades the opaque session without networking;
+  native adapters persist it before publishing the shell. Protected requests
+  still restore/rotate credentials first. Keep platform SDKs out of host tests
+  and never hold the SQLite mutex during networking.
 - iOS presents ASWebAuthenticationSession; Android presents the system browser
   and receives its registered custom-scheme callback. Rust validates the complete
   callback destination, state, duplicate parameters, and ten-minute login lifetime.
