@@ -18,6 +18,19 @@ public struct TestPlanDescriptor: Equatable {
     /// Test targets included in the plan.
     public let testTargets: [TestTarget]
 
+    public let coverage: Bool?
+    public let codeCoverageTargets: [CodeCoverageTarget]
+
+    public struct CodeCoverageTarget: Equatable {
+        public let pbxTarget: PBXTarget
+        public let containerPath: String
+
+        public init(pbxTarget: PBXTarget, containerPath: String) {
+            self.pbxTarget = pbxTarget
+            self.containerPath = containerPath
+        }
+    }
+
     public struct TestTarget: Equatable {
         /// Reference to the PBX target. Its `uuid` becomes the `identifier` in the test plan.
         public let pbxTarget: PBXTarget
@@ -51,14 +64,40 @@ public struct TestPlanDescriptor: Equatable {
     /// Region the tests run in, written as the plan's default `region` option.
     public let region: String?
 
+    public init(path: AbsolutePath, testTargets: [TestTarget]) {
+        self.init(path: path, testTargets: testTargets, coverage: nil)
+    }
+
+    @_disfavoredOverload
     public init(
         path: AbsolutePath,
         testTargets: [TestTarget],
-        language: String? = nil,
-        region: String? = nil
+        coverage: Bool?,
+        codeCoverageTargets: [CodeCoverageTarget] = []
+    ) {
+        self.init(
+            path: path,
+            testTargets: testTargets,
+            coverage: coverage,
+            codeCoverageTargets: codeCoverageTargets,
+            language: nil,
+            region: nil
+        )
+    }
+
+    @_disfavoredOverload
+    public init(
+        path: AbsolutePath,
+        testTargets: [TestTarget],
+        coverage: Bool? = nil,
+        codeCoverageTargets: [CodeCoverageTarget] = [],
+        language: String?,
+        region: String?
     ) {
         self.path = path
         self.testTargets = testTargets
+        self.coverage = coverage
+        self.codeCoverageTargets = codeCoverageTargets
         self.language = language
         self.region = region
     }
@@ -68,6 +107,23 @@ public struct TestPlanDescriptor: Equatable {
     /// - Note: Must be called after the owning `.xcodeproj` has been written so that
     ///   `pbxTarget.uuid` returns stable blueprint identifiers.
     public func encode() throws -> Data {
+        var defaultOptions = [
+            "language": language,
+            "region": region,
+        ].compactMapValues { $0 }.mapValues { AnyCodable($0) }
+        var coverageOptions: [String: Any] = [:]
+        if !codeCoverageTargets.isEmpty {
+            coverageOptions["targets"] = codeCoverageTargets.map { target in
+                [
+                    "containerPath": target.containerPath,
+                    "identifier": target.pbxTarget.uuid,
+                    "name": target.pbxTarget.name,
+                ]
+            }
+        }
+        if let coverage {
+            defaultOptions["codeCoverage"] = coverage ? AnyCodable(coverageOptions) : AnyCodable(false)
+        }
         let plan = XCTestPlan(
             testTargets: testTargets.map { target in
                 XCTestPlan.TestTarget(
@@ -90,13 +146,6 @@ public struct TestPlanDescriptor: Equatable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(plan)
-    }
-
-    private var defaultOptions: [String: AnyCodable] {
-        [
-            "language": language,
-            "region": region,
-        ].compactMapValues { $0 }.mapValues { AnyCodable($0) }
     }
 
     /// Deterministic UUID derived from the plan's absolute path.

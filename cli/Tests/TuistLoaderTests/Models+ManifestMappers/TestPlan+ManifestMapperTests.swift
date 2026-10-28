@@ -109,12 +109,15 @@ struct TestPlanManifestMapperTests {
                 rootDirectory: temporaryDirectory
             ),
             schemeName: nil,
-            fileSystem: fileSystem
+            fileSystem: fileSystem,
+            generatedOptions: .options(coverage: true, codeCoverageTargets: ["App"])
         )
 
         // Then
         #expect(got.map(\.language) == ["en"])
         #expect(got.map(\.region) == ["US"])
+        #expect(got.map(\.coverage) == [true])
+        #expect(got.first?.codeCoverageTargets == [TargetReference(projectPath: temporaryDirectory, name: "App")])
     }
 
     @Test(.inTemporaryDirectory) func plan_with_bare_container_path_resolves_to_manifest_directory() async throws {
@@ -164,5 +167,35 @@ struct TestPlanManifestMapperTests {
                 isDefault: false
             )
         )
+    }
+}
+
+struct GeneratedTestPlanCompatibilityTests {
+    @Test func legacy_patterns_factories_and_json_are_preserved() throws {
+        let factory: (String, [ProjectDescription.TestableTarget], ProjectDescription.Path?) -> ProjectDescription.TestPlan =
+            ProjectDescription.TestPlan.generated
+        let plan = factory("Legacy", [], nil)
+        switch plan {
+        case .path, .generatedWithLocale:
+            Issue.record("Expected the generated case")
+        case let .generated(name, targets, path):
+            #expect(name == "Legacy")
+            #expect(targets.isEmpty)
+            #expect(path == nil)
+        }
+        let oldPayload = Data(#"{"generated":{"name":"Legacy","testTargets":[]}}"#.utf8)
+        #expect(try JSONDecoder().decode(ProjectDescription.TestPlan.self, from: oldPayload) == plan)
+
+        let inferredFactory = ProjectDescription.TestAction.testPlans
+        let actionFactory: (
+            [ProjectDescription.TestPlan], ProjectDescription.ConfigurationName, Bool,
+            [ProjectDescription.ExecutionAction], [ProjectDescription.ExecutionAction]
+        ) -> ProjectDescription.TestAction = inferredFactory
+        let action = actionFactory([plan], .debug, true, [], [])
+        #expect(action.generatedTestPlanOptions == nil)
+        let data = try JSONEncoder().encode(action)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(json["generatedTestPlanOptions"] == nil)
+        #expect(try JSONDecoder().decode(ProjectDescription.TestAction.self, from: data) == action)
     }
 }

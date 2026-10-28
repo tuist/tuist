@@ -382,11 +382,17 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         if testTargets.isEmpty {
             return nil
         } else {
+            let codeCoverageTargets = testPlan.codeCoverageTargets.filter(sourceTargets.contains)
+            let coverage = testPlan.coverage.map {
+                $0 && (testPlan.codeCoverageTargets.isEmpty || !codeCoverageTargets.isEmpty)
+            }
             return TestPlan(
                 path: testPlan.path,
                 testTargets: testTargets,
                 isDefault: testPlan.isDefault,
                 kind: testPlan.kind,
+                coverage: coverage,
+                codeCoverageTargets: codeCoverageTargets,
                 language: testPlan.language,
                 region: testPlan.region
             )

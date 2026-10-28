@@ -1403,3 +1403,42 @@ struct TreeShakePrunedTargetsGraphMapperExecutableTests {
         )
     }
 }
+
+struct GeneratedTestPlanCoveragePruningTests {
+    @Test(arguments: [([], true, []), (["Cached"], false, []), (["Cached", "Source"], true, ["Source"])])
+    func pruning_does_not_broaden_coverage(
+        selection: [String], expectedCoverage: Bool, expectedSelection: [String]
+    ) throws {
+        let path = try AbsolutePath(validating: "/Project")
+        let cached = Target.test(name: "Cached", metadata: .metadata(tags: ["tuist:prunable"]))
+        let source = Target.test(name: "Source")
+        let tests = Target.test(name: "Tests", product: .unitTests)
+        let plan = TestPlan(
+            path: path.appending(component: "Plan.xctestplan"),
+            testTargets: [.init(target: .init(projectPath: path, name: "Tests"))],
+            isDefault: true,
+            kind: .generated,
+            coverage: true,
+            codeCoverageTargets: selection.map { .init(projectPath: path, name: $0) },
+            language: "fr",
+            region: "NZ"
+        )
+        let project = Project.test(
+            path: path,
+            targets: [cached, source, tests],
+            schemes: [Scheme(name: "Scheme", testAction: .test(testPlans: [plan]))]
+        )
+
+        let (graph, _, _) = try TreeShakePrunedTargetsGraphMapper().map(
+            graph: .test(projects: [path: project]), environment: MapperEnvironment()
+        )
+
+        let survivingPlan = try #require(graph.projects[path]?.schemes.first?.testAction?.testPlans?.first)
+        #expect(survivingPlan.testTargets.map(\.target.name) == ["Tests"])
+        #expect(survivingPlan.kind == .generated)
+        #expect(survivingPlan.coverage == expectedCoverage)
+        #expect(survivingPlan.codeCoverageTargets.map(\.name) == expectedSelection)
+        #expect(survivingPlan.language == "fr")
+        #expect(survivingPlan.region == "NZ")
+    }
+}

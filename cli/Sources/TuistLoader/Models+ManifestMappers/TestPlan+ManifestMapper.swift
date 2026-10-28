@@ -15,7 +15,8 @@ extension XcodeGraph.TestPlan {
         manifests: [ProjectDescription.TestPlan],
         generatorPaths: GeneratorPaths,
         schemeName: String?,
-        fileSystem: FileSystem
+        fileSystem: FileSystem,
+        generatedOptions: ProjectDescription.TestActionOptions? = nil
     ) async throws -> [XcodeGraph.TestPlan] {
         let derivedDirectory = generatorPaths.manifestDirectory
             .appending(
@@ -56,12 +57,26 @@ extension XcodeGraph.TestPlan {
             let targets = try generatedPlan.testTargets.map {
                 try TestableTarget.from(manifest: $0, generatorPaths: generatorPaths)
             }
+            let coverageTargets = try (generatedOptions?.codeCoverageTargets ?? []).map {
+                XcodeGraph.TargetReference(
+                    projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
+                    name: $0.targetName
+                )
+            }
+            let coverage: Bool?
+            switch generatedOptions?.codeCoverage {
+            case .enabled: coverage = true
+            case .disabled: coverage = false
+            case .inherit, .none: coverage = nil
+            }
             resolved.append(
                 XcodeGraph.TestPlan(
                     path: resolvedPath,
                     testTargets: targets,
                     isDefault: resolved.isEmpty,
                     kind: .generated,
+                    coverage: coverage,
+                    codeCoverageTargets: coverageTargets,
                     language: generatedPlan.language?.identifier,
                     region: generatedPlan.region
                 )

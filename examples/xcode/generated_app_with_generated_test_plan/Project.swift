@@ -47,7 +47,7 @@ let project = Project(
                     language: "en",
                     region: "US"
                 ),
-            ]),
+            ], coverage: true, codeCoverageTargets: ["App"]),
             runAction: .runAction(configuration: .debug, executable: "App")
         ),
     ]
