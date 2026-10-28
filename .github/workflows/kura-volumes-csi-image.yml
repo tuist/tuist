@@ -108,6 +108,18 @@ jobs:
       - name: Build bounded cache benchmark
         working-directory: infra/kura-volumes-csi
         run: go build -o /tmp/kura-fscrypt-cache-bench ./cmd/cache-bench
+      - name: Check out the pinned sharing policy for compatibility qualification
+        uses: actions/checkout@v4
+        with:
+          ref: 34956ca681a3dc0dc257ee5b4d0d65814bd5f23d
+          path: sharing-reference
+          sparse-checkout: infra/kura-controller
+          persist-credentials: false
+      - name: Build the adapter proof against unchanged sharing policy
+        run: |
+          cp infra/kura-volumes-csi/fscrypt/allocator_test.go.fixture sharing-reference/infra/kura-controller/internal/diskallocator/fscrypt_probe_test.go
+          cd sharing-reference/infra/kura-controller
+          go test -c -o /tmp/kura-fscrypt-allocator.test ./internal/diskallocator
       - name: Install disposable VM prerequisites
         run: |
           sudo apt-get update
@@ -125,7 +137,7 @@ jobs:
         run: |
           # The unprivileged runner intentionally owns the report artifact.
           # shellcheck disable=SC2024
-          sudo env KURA_FSCRYPT_DISPOSABLE_VM=1 KURA_FSCRYPT_CACHE_BENCH=/tmp/kura-fscrypt-cache-bench ruby infra/kura-volumes-csi/fscrypt/stack_test.rb > /tmp/kura-fscrypt-stack.json
+          sudo env KURA_FSCRYPT_DISPOSABLE_VM=1 KURA_FSCRYPT_CACHE_BENCH=/tmp/kura-fscrypt-cache-bench KURA_FSCRYPT_ALLOCATOR_TEST=/tmp/kura-fscrypt-allocator.test ruby infra/kura-volumes-csi/fscrypt/stack_test.rb > /tmp/kura-fscrypt-stack.json
       - name: Preserve disposable VM kernel diagnostics
         if: failure()
         run: sudo dmesg | tail -100

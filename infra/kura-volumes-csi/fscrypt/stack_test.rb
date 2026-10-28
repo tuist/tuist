@@ -59,7 +59,7 @@ class FscryptFixture
   def setup
     @result[:environment] = {kernel: run('uname', '-r').strip, fscryptctl: run('fscryptctl', '--version').strip,
       backing: 'private loop files in disposable VM; no hosted storage', uid: 1000}
-    @device = image('ext4', 8 << 30)
+    @device = image('ext4', 16 << 30)
     run('mkfs.ext4', '-q', '-F', '-m', '0', '-O', 'encrypt,project,quota', '-E', 'lazy_itable_init=0,lazy_journal_init=0', @device)
     run('tune2fs', '-Q', 'prjquota', @device)
     @ext = mount(@device, 'ext4', 'ext4', 'nodev,nosuid,noatime,prjquota')
@@ -245,6 +245,15 @@ class FscryptFixture
     end
     cache_benchmarks(layouts, devices, projects) if ENV['KURA_FSCRYPT_CACHE_BENCH']
   end
+  def allocator_policy
+    return unless ENV['KURA_FSCRYPT_ALLOCATOR_TEST']
+    out = run('env', "KURA_FSCRYPT_MOUNT=#{@ext}", "KURA_FSCRYPT_DEVICE=#{@device}", "KURA_FSCRYPT_HELPER=#{@helper}",
+      ENV.fetch('KURA_FSCRYPT_ALLOCATOR_TEST'), '-test.run', '^TestFscryptPolicyIntegration$', '-test.v', '-test.timeout', '5m')
+    @result[:observations][:sharing_policy] = out
+    check('unchanged sharing policy transfers a physically released grant', true)
+    limit('a', 768)
+    limit('b', 768)
+  end
   def cache_benchmarks(layouts, devices, projects)
     executable = ENV.fetch('KURA_FSCRYPT_CACHE_BENCH')
     raise 'benchmark binary must exist' unless File.executable?(executable)
@@ -341,6 +350,7 @@ begin
   fixture.reclamation
   fixture.pressure
   fixture.keys_and_restart
+  fixture.allocator_policy
   fixture.benchmarks
 ensure
   fixture.cleanup

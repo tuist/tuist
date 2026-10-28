@@ -13,6 +13,14 @@ e2fsprogs, quota support, fscryptctl 1.2.0, xfsprogs, LVM, cryptsetup and fio.
 No generated keys are written to disk or included in reports. Quota writes run
 as UID 1000 without capabilities. Failed detach retains backing files.
 
+File ownership without a separate user namespace can permit changing project
+IDs and inheritance. The harness records this negative control, then installs
+an additional seccomp filter rejecting filesystem project/flag mutation ioctls
+for test writers. The same filter is inherited by the benchmark Kura process,
+in addition to Docker's normal confinement. This is test code, not a shipped
+pod security contract. A production implementation must qualify equivalent
+confinement and fail closed when it is missing.
+
 The harness checks distinct fscrypt v2 policies, dynamic kernel quotas, physical
 space recovery, held unlinked files, concurrent quota exhaustion, inode limits,
 independent key removal, wrong keys, mmap reads and cold remount. Aggregate
@@ -34,6 +42,20 @@ directory each time. Every layout has a 6 GiB project quota. Authenticated,
 checksum-checked HTTP workloads include eviction churn and a 1 GiB working set.
 The temporary auth token is fixture-only, kept out of artifacts and deleted
 with the fixture. This remains VM testing, not Kubernetes/CSI or OpenBao E2E.
+
+`allocator_test.go.fixture` is compiled against the exact #14825 policy revision
+`34956ca681a3dc0dc257ee5b4d0d65814bd5f23d` in a separate CI checkout. Set
+`KURA_FSCRYPT_ALLOCATOR_TEST` to that test binary to exercise its unchanged
+`Agent.Reconcile` against the two encrypted projects. A 10 GiB admission cap
+and a 2 GiB physical reserve protect the test. A held 5 GiB donor allocation
+blocks the recipient's increase; after closure, the restarted agent transfers
+quotas from 6/4 GiB to 4/6 GiB and the recipient writes beyond its old allowance.
+The adapter's complete inventory is known only because the filesystem is private
+to this test. It is not a deployable inventory or substitute for CSI serialization.
+
+Buffered fio write rates include repeated page-cache overwrites; even with a
+final fsync they are not sustained durable device bandwidth. Prefer the actual
+Kura workload for this experiment, and hosted staging for a rollout decision.
 
 fscrypt encrypts file contents and filenames, not other filesystem metadata.
 Unlocked files still rely on normal host permissions and pod isolation. Keys
