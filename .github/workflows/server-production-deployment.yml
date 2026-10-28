@@ -474,6 +474,8 @@ jobs:
 
           INCLUDE_PATHS=(
             --include-path "infra/runners-controller/**/*"
+            --include-path "infra/certificate-trust/policy.json"
+            --include-path "infra/certificate-trust/pem-store.sh"
           )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
