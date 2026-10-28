@@ -218,6 +218,8 @@ class FscryptFixture
       run(@helper, 'project', path, projects[name])
       run(@helper, 'set', devices[name], projects[name], (2048*MIB).to_s, '65536')
     end
+    cache_benchmarks(layouts, devices, projects) if ENV['KURA_FSCRYPT_CACHE_BENCH']
+    layouts.each_key { |name| run(@helper, 'set', devices[name], projects[name], (2048*MIB).to_s, '65536') }
     order = %w[xfs ext4 fscrypt thick thin thin thick fscrypt ext4 xfs]
     order.each_with_index do |layout, round|
       path = File.join(layouts.fetch(layout), 'bench')
@@ -243,7 +245,6 @@ class FscryptFixture
       @result[:benchmarks] << {layout: layout, round: round, workload: '16x64MiB_write_delete_reclaim',
         seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC)-started}
     end
-    cache_benchmarks(layouts, devices, projects) if ENV['KURA_FSCRYPT_CACHE_BENCH']
   end
   def allocator_policy
     return unless ENV['KURA_FSCRYPT_ALLOCATOR_TEST']
@@ -273,7 +274,8 @@ class FscryptFixture
       KURA_PEERS: 'http://127.0.0.1:7443', KURA_TENANT_ID: 'default', KURA_REGION: 'qualification',
       KURA_DATA_DIR: '/var/cache/kura', KURA_TMP_DIR: '/var/cache/kura/tmp', KURA_TMP_DIR_MAX_BYTES: 2048*MIB,
       KURA_CAS_CAPACITY_BYTES: 4096*MIB, KURA_MEMORY_LIMIT_BYTES: 768*MIB,
-      KURA_AUTH_JWT_SECRET: secret, RUST_LOG: 'warn', KURA_OTEL_SERVICE_NAME: 'fscrypt-qualification'}
+      KURA_AUTH_JWT_SECRET: secret, RUST_LOG: 'warn', KURA_OTEL_SERVICE_NAME: 'fscrypt-qualification',
+      KURA_OTEL_DEPLOYMENT_ENVIRONMENT: 'qualification'}
     File.write(env_file, env.map { |k,v| "#{k}=#{v}" }.join("\n")+"\n", mode: 'w', perm: 0600)
     @result[:cache_benchmarks] = []
     %w[xfs ext4 fscrypt thin thin fscrypt ext4 xfs].each_with_index do |layout, round|
@@ -288,7 +290,12 @@ class FscryptFixture
         '--pids-limit=256', '--env-file', env_file, '-p', '127.0.0.1::4000', '-v', "#{path}:/var/cache/kura",
         '-v', "#{@helper}:/qualification/probe:ro", '--entrypoint', '/qualification/probe', image,
         'confined', '/usr/bin/tini', '--', '/usr/local/bin/kura')
-      endpoint = 'http://' + run('docker', 'port', name, '4000/tcp').strip
+      published = cmd('docker', 'port', name, '4000/tcp', failure: true)
+      unless published[2]
+        @result[:runtime_failure] = run('docker', 'logs', name)
+        raise "runtime exited before publishing port: #{@result[:runtime_failure]}"
+      end
+      endpoint = 'http://' + published[0].strip
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC)+90
       loop do
         begin
@@ -329,7 +336,13 @@ class FscryptFixture
     if safe
       @loops.reverse_each do |d|
         detached = cmd('losetup', '-d', d, failure: true)[2]
-        detached &&= run('losetup', '-j', @backings.fetch(d)).strip.empty?
+        if detached
+          20.times do
+            break if run('losetup', '-j', @backings.fetch(d)).strip.empty?
+            sleep 0.25
+          end
+          detached = run('losetup', '-j', @backings.fetch(d)).strip.empty?
+        end
         safe = detached && safe
       end
     end
