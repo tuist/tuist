@@ -143,14 +143,14 @@ final class AtlasOrbit: ObservableObject {
         }
     }
 
-    func send(addressAgent: Bool) async {
+    func send() async {
         guard !saving, !attachmentBusy, let id = selected?.id else { return }
         submitting = true
         defer { submitting = false }
         let body = draft
         let mentions = draftMentions.map(\.id)
         await draftTask?.value
-        await perform(["action": "send", "id": id, "body": body, "address_agent": addressAgent, "mention_ids": mentions])
+        await perform(["action": "send", "id": id, "body": body, "address_agent": true, "mention_ids": mentions])
     }
 
     func upload(filename: String, contentType: String, data: Data) async {

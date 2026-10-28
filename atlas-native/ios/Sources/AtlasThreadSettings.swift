@@ -84,7 +84,10 @@ struct AtlasThreadInfo: View {
                     LabeledContent("Status", value: thread.status.capitalized)
                 }
                 if thread.kind != "private" {
-                    Section("Participants") { ForEach(thread.participants) { Text($0.name) } }
+                    Section("Participants") {
+                        Label(assistantName, systemImage: "sparkles")
+                        ForEach(thread.participants) { Text($0.name) }
+                    }
                 }
             }
             .navigationTitle("Thread details")

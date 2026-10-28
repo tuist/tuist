@@ -17,6 +17,16 @@ struct AtlasThread: Decodable, Identifiable, Hashable {
     let updatedAt: String
     let agentStatus: String?
     var model: String?
+    var priority: String?
+
+    var priorityTitle: String? {
+        switch priority {
+        case "now": "Now"
+        case "today": "Today"
+        case "later": "Later"
+        default: nil
+        }
+    }
 
     var updatedDate: Date? {
         (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(updatedAt))

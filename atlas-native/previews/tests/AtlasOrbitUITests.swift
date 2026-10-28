@@ -1,6 +1,52 @@
 import XCTest
 
 final class AtlasOrbitUITests: XCTestCase {
+    @MainActor func testSignalsQueueAndRecipientCatchUp() throws {
+        for arguments in [[], ["--dark", "--large-text"]] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace", "--orbit-signals"] + arguments
+            app.launch()
+            defer { app.terminate() }
+            XCUIDevice.shared.orientation = .portrait
+            let now = app.buttons["thread-01922cc0-0000-7000-8000-000000000002"]
+            let today = app.buttons["thread-01922cc0-0000-7000-8000-000000000003"]
+            let later = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+            XCTAssertTrue(now.waitForExistence(timeout: 10))
+            XCTAssertLessThan(now.frame.minY, today.frame.minY)
+            if later.exists {
+                XCTAssertLessThan(today.frame.minY, later.frame.minY)
+            } else {
+                // Accessibility-sized rows are virtualized below the viewport.
+                _ = try app.visibleElement("thread-01922cc0-0000-7000-8000-000000000001", type: .button)
+                _ = try app.visibleElement("thread-01922cc0-0000-7000-8000-000000000002", type: .button, up: false)
+            }
+            XCTAssertGreaterThanOrEqual(now.frame.height, 44)
+            XCTAssertFalse(app.staticTexts["Now · Signals"].exists)
+            capture(app, "ios-signals-queue-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            now.tap()
+            XCTAssertTrue(app.navigationBars["Build listing errors"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["thread-address-agent"].exists)
+            XCTAssertTrue(app.staticTexts["Taylor joins the conversation."].waitForExistence(timeout: 5))
+            _ = try app.visibleElement("Your catch-up", type: .staticText, up: false)
+            XCTAssertTrue(app.staticTexts["Only visible to you"].exists)
+            capture(app, "ios-signals-catch-up-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            let composer = app.textFields["thread-composer"]
+            composer.tap()
+            composer.typeText("Compare the query plans.")
+            XCTAssertTrue(app.buttons["thread-send"].isHittable)
+            XCTAssertGreaterThanOrEqual(app.buttons["thread-send"].frame.height, 44)
+            capture(app, "ios-signals-keyboard-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            app.buttons["thread-send"].tap()
+            let cleared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Message"),
+                                                    object: composer)
+            XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 5), .completed)
+            XCTAssertTrue(app.keyboards.firstMatch.exists)
+            XCTAssertTrue(try app.visibleElement("Compare the query plans.", type: .staticText).isHittable)
+            capture(app, "ios-signals-sent-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            app.terminate()
+        }
+    }
+
     @MainActor func testSavedInboxRemainsReadableOfflineAndRefreshRestoresActions() throws {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         defer { app.terminate() }
@@ -83,12 +129,7 @@ final class AtlasOrbitUITests: XCTestCase {
         source.tap()
         XCTAssertTrue(app.staticTexts["Result"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.tabBars.firstMatch.isHittable)
-        let ask = app.buttons["thread-address-agent"]
-        XCTAssertTrue(ask.exists)
-        XCTAssertEqual(ask.value as? String, "Off")
-        XCTAssertGreaterThanOrEqual(ask.frame.height, 44)
-        ask.tap()
-        XCTAssertEqual(ask.value as? String, "On")
+        XCTAssertFalse(app.buttons["thread-address-agent"].exists)
         capture(app, "ios-orbit-tools-preview")
         app.buttons["thread-info"].tap()
         XCTAssertTrue(app.staticTexts["Comparing query plans across affected projects."].waitForExistence(timeout: 5))
@@ -406,7 +447,7 @@ final class AtlasOrbitUITests: XCTestCase {
             XCTAssertTrue(compose.waitForExistence(timeout: 5))
             compose.tap()
             XCTAssertTrue(mascot.waitForExistence(timeout: 5))
-            XCTAssertEqual(draft.value as? String, "Ask Pip")
+            XCTAssertEqual(draft.value as? String, "Message")
             XCTAssertFalse(app.staticTexts[editedDraft].exists)
             app.terminate()
         }
@@ -459,7 +500,7 @@ final class AtlasOrbitUITests: XCTestCase {
         }
     }
 
-    @MainActor func testMentionSharesOnlyAfterConfirmationAndShowsConversationRecap() throws {
+    @MainActor func testMentionSharesOnlyAfterConfirmationAndShowsJoinWithoutPrivateRecap() throws {
         for arguments in [[], ["--dark", "--large-text"]] {
             let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
             app.launchArguments = ["--workspace"] + arguments
@@ -489,15 +530,18 @@ final class AtlasOrbitUITests: XCTestCase {
             let confirmation = app.alerts["Share this conversation?"]
             XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
             confirmation.buttons["Cancel"].tap()
-            XCTAssertTrue(app.staticTexts["Private · Only you and Pip"].exists)
+            // The private banner is above the virtualized transcript with the keyboard open.
+            XCTAssertTrue(app.navigationBars["Pip"].exists)
+            XCTAssertTrue((composer.value as? String)?.contains("@Alex Morgan") == true)
+            XCTAssertFalse(app.staticTexts["Alex Morgan joins the conversation."].exists)
             XCTAssertFalse(app.staticTexts["Conversation recap"].exists)
             app.buttons["thread-send"].tap()
             confirmation.buttons["Share and send"].tap()
             XCTAssertTrue(app.navigationBars["Build listing latency"].waitForExistence(timeout: 5))
             XCTAssertFalse(app.staticTexts["Private · Only you and Pip"].exists)
-            XCTAssertTrue(app.staticTexts["Conversation recap"].waitForExistence(timeout: 5))
-            _ = try app.visibleElement("Conversation recap", type: .staticText, up: false)
-            capture(app, "ios-orbit-mention-handoff-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            XCTAssertTrue(app.staticTexts["Alex Morgan joins the conversation."].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.staticTexts["Your catch-up"].exists)
+            capture(app, "ios-orbit-mention-joined-\(arguments.isEmpty ? "light" : "dark-large")-preview")
         }
     }
 
@@ -736,7 +780,8 @@ final class AtlasOrbitUITests: XCTestCase {
             XCTAssertTrue(restore.waitForExistence(timeout: 5))
             XCTAssertFalse(app.buttons["thread-address-agent"].exists)
             restore.tap()
-            XCTAssertTrue(app.buttons["thread-address-agent"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["thread-address-agent"].exists)
             app.terminate()
         }
     }

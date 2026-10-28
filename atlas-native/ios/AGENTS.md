@@ -74,8 +74,10 @@ WebView, remote images, custom-scheme links or executable fenced content.
 Orbit's welcome and empty private thread use the bundled `AtlasPipView` mascot and
 draft suggestions. Touch duration and tap cadence vary its expressions; never claim
 pressure sensing. Reduce Motion preserves expression changes without movement.
-Orbit lists authorized private and shared conversations in a native plain inbox with
-Today/Yesterday/Earlier sections, title, available summary and private/shared metadata.
+Orbit uses a native Messages-style inbox with conversation icons, titles and short previews.
+Signal priorities appear inline as Now/Today/Later, without one-row sections or repeated
+Shared/Signal badges; ordinary conversations retain Today/Yesterday/Earlier sections.
+Keep private/shared audience information accessible and available in thread details.
 Use static localized times/dates, not a ticking relative-time label. Active/Archived is a
 native segmented picker; eligible owners get swipe/context Archive and Restore actions.
 Confirm shared archive because it makes the conversation read-only for everyone. Archived

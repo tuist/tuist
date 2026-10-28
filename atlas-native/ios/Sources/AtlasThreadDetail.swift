@@ -6,7 +6,6 @@ struct AtlasThreadDetail: View {
     @ObservedObject var model: AtlasOrbit
     let thread: AtlasThread
     let selfId: String?
-    @State private var addressAgent = false
     @StateObject private var scrolling = AtlasThreadScrollState()
     @State private var visibleMessageID: String?
     @State private var scrollAnchor = UnitPoint.bottom
@@ -271,7 +270,6 @@ extension AtlasThreadDetail {
         scrolling.reset()
         visibleMessageID = nil
         scrollAnchor = .bottom
-        addressAgent = false
         jumpingToPrompt = false
         hasShownMessages = false
         openingHistory = true
@@ -320,17 +318,11 @@ extension AtlasThreadDetail {
                 let viewers = model.viewers.filter { $0.id != selfId }
                 if !viewers.isEmpty {
                     Text(viewers.map { $0.name + ($0.typing ? " is typing…" : " is here") }.joined(separator: " · "))
-                        .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("thread-presence")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(.regularMaterial, in: Capsule())
+                        .accessibilityIdentifier("thread-presence")
                 }
-            }
-            if current.kind != "private" {
-                Button { addressAgent.toggle() } label: {
-                    Label("Ask \(assistantName)", systemImage: addressAgent ? "checkmark.circle.fill" : "sparkles")
-                        .font(.subheadline.weight(.medium)).frame(minHeight: 44)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityValue(addressAgent ? "On" : "Off")
-                .accessibilityIdentifier("thread-address-agent")
             }
             if let error = voice.errorMessage {
                 Text(error).font(.caption).foregroundStyle(.secondary)
@@ -348,6 +340,8 @@ extension AtlasThreadDetail {
                     Image(systemName: "chevron.up.chevron.down").imageScale(.small)
                 }
                 .font(.subheadline).frame(minHeight: 44)
+                .padding(.horizontal, 12)
+                .background(.regularMaterial, in: Capsule())
             }
             .buttonStyle(.borderless).foregroundStyle(.secondary)
             .accessibilityLabel("Model").accessibilityValue(current.model ?? "Automatic")
@@ -355,7 +349,7 @@ extension AtlasThreadDetail {
             .disabled(!selectionMatches || current.ownerId != selfId || model.saving || voice.busy
                 || ["queued", "running", "compacting"].contains(current.agentStatus ?? ""))
             AtlasThreadComposer(draft: Binding(get: { model.draft }, set: { model.draft = $0 }),
-                                placeholder: current.kind == "private" ? "Ask \(assistantName)" : "Message the team",
+                                placeholder: "Message",
                                 saving: model.saving || model.attachmentBusy || model.pendingUploadName != nil, phase: voice.phase,
                                 levels: voice.levels, hasAttachments: !model.draftAttachments.isEmpty,
                                 addPhotos: { photosPresented = true }, addFiles: { filesPresented = true },
@@ -381,7 +375,7 @@ extension AtlasThreadDetail {
 
     private func send() {
         scrolling.following = true
-        Task { await model.send(addressAgent: addressAgent) }
+        Task { await model.send() }
     }
 
 }
