@@ -45,7 +45,7 @@ let project = Project(
                     name: "SnapshotTests",
                     testTargets: [.testableTarget(target: "AppSnapshotTests")]
                 ),
-            ]),
+            ], coverage: true, codeCoverageTargets: ["App"]),
             runAction: .runAction(configuration: .debug, executable: "App")
         ),
     ]
