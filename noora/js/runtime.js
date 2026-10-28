@@ -5,6 +5,7 @@ import NooraCheckbox from "./Checkbox.js";
 import NooraCollapsible from "./Collapsible.js";
 import NooraDatePicker from "./DatePicker/index.js";
 import NooraDigitInput from "./DigitInput.js";
+import NooraDitherWave from "./DitherWave.js";
 import NooraDropdown from "./Dropdown.js";
 import NooraDropdownCheckbox from "./DropdownCheckbox.js";
 import NooraIconTransition from "./IconTransition.js";
@@ -26,6 +27,7 @@ const Hooks = {
   NooraCollapsible,
   NooraDatePicker,
   NooraDigitInput,
+  NooraDitherWave,
   NooraDropdown,
   NooraDropdownCheckbox,
   NooraIconTransition,
