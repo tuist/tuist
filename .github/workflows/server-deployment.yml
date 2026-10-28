@@ -5,7 +5,7 @@ on:
       operation:
         description: Apply or remove only the disposable child-volume StorageClass and TokenReview identity
         type: choice
-        options: [apply, remove]
+        options: [apply, remove, smoke]
         default: apply
 permissions:
   contents: read
@@ -14,6 +14,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   fixture:
+    if: inputs.operation != 'smoke'
     runs-on: tuist-linux
     environment: server-k8s-staging
     timeout-minutes: 10
@@ -51,3 +52,26 @@ jobs:
       - name: Remove temporary deployment credential
         if: always()
         run: rm -f "$KUBECONFIG"
+
+  server-smoke:
+    if: inputs.operation == 'smoke'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: borrowed-server-image
+          run-id: 40734563091
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/server-image
+      - name: Boot the exact downloadable release on native amd64
+        run: |
+          docker load -i /tmp/server-image/kura-borrowed-server.tar
+          docker run --rm --entrypoint /app/bin/tuist \
+            -e DATABASE_URL=ecto://fixture:fixture@127.0.0.1/fixture \
+            -e TUIST_DEPLOY_ENV=stag -e TUIST_HOSTED=1 \
+            kura-borrowed-server:fixture-339fea900c053209b07cb4a21243ee7a253839e6 \
+            eval 'IO.puts("FIXTURE_RELEASE_BOOT_OK")'
