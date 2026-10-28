@@ -12,18 +12,23 @@
 - Audit actions record the actor, interface, provider and settings path, never credentials or provider responses. Personal settings are `/settings/llm-providers`; API endpoints are under `/api/me/llm-providers`. The MCP surface supports metadata reads, Claude create/update, ChatGPT start/poll/cancel, and disconnect. Claude setup tokens are input-only and require explicit user approval because MCP clients/models may retain them; prefer the browser form. Omit the entire argument payload of the credential-entry and device-login tools from Atlas's MCP audits, including failed calls and malformed inputs. Start returns only the owner-scoped login handle and user-facing authorization instructions, never the upstream device ID or tokens.
 - Data inventory and deletion/export guidance are in `atlas/data-export.md`.
 
-ChatGPT explicitly uses GPT-5.4's supported non-reasoning mode (`reasoning.effort: none`)
-because Condukt's buffered chat protocol cannot retain opaque Responses reasoning items.
-An empty reasoning envelope (`summary: []`, without nonempty content or encrypted state)
-does not invalidate a completed response. Nonempty reasoning still fails closed rather
-than losing required state between tools. Public model documentation is not proof that
-a particular subscription account or the Codex backend accepts the request.
+ChatGPT uses GPT-5.4 with `reasoning.effort: low`, matching Codex's advertised
+reasoning levels, typed input text and explicit non-strict function tools unless the
+caller requested strict validation. Public API support for `none` does not establish
+subscription-backend support. Complete reasoning items, including opaque encrypted
+state, travel through ReqLLM `reasoning_details` and Condukt protocol blocks and are
+replayed before the associated assistant/tool output. They are not reply text and
+must survive encrypted checkpoints and restore. This requires Condukt's reasoning
+continuity support; the old 1.13.1 translator drops these blocks. Strip personal
+reasoning state before workspace-provider fallback. Fixture tests do not establish
+live compatibility or the exact field rejected by a historical HTTP 400.
 Treat SSE `response.failed`, `error`, and `response.incomplete` as failures even with
 HTTP 200. Codex may send complete items in `response.output_item.done` and omit
 output/status from the terminal metadata. Buffer done items, but never accept them
 without successful completion or substitute text/argument deltas for complete items.
-Only allowlisted structured codes/types can select a more specific status;
-never classify message text. Personal-provider failures emit fixed provider/category/status
+Only allowlisted structured codes/types can select a more specific status; HTTP 400
+parameter paths can select fixed reasoning/tool-schema diagnostic categories.
+Never classify or log message text. Personal-provider failures emit fixed provider/category/status
 diagnostics at Logger's error level and to the current OpenTelemetry span, never bodies
 or credentials. Error severity allows Atlas's native self-monitor to capture them;
 terminal Orbit run failures also log only their fixed category at error level.

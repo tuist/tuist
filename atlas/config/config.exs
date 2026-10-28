@@ -285,7 +285,12 @@ config :phoenix, :filter_parameters, [
   "payload",
   "outputs",
   "source",
-  "webhook_url"
+  "webhook_url",
+  "arguments",
+  "command",
+  "output",
+  "path",
+  "projects"
 ]
 
 # Use Jason for JSON parsing in Phoenix

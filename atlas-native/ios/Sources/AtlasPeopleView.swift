@@ -34,7 +34,7 @@ struct AtlasPeopleView: View {
         .navigationTitle("People")
         .toolbar {
             AtlasPresenceToolbar()
-            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "people") }
+            ToolbarItem(placement: .primaryAction) { AtlasBrowserButton(screen: "people") }
         }
         .onAppear { presence.show(resource: "people") }
     }
@@ -44,7 +44,7 @@ struct AtlasPresenceToolbar: ToolbarContent {
     @Environment(\.atlasPresence) private var presence
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
+        ToolbarItem(placement: .navigation) {
             if let presence { AtlasAlsoHere(presence: presence) }
         }
     }

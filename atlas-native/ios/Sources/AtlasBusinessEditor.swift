@@ -35,7 +35,11 @@ struct AtlasBusinessEditor: View {
             .disabled(saving)
             .modifier(AtlasThemedContent())
             .navigationTitle("\(editing == nil ? "New" : "Edit") \(model.resource.singular.lowercased())")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #else
+            .formStyle(.grouped)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { if dirty { discarding = true } else { dismiss() } }.disabled(saving)
@@ -55,6 +59,9 @@ struct AtlasBusinessEditor: View {
                 Button("Discard changes", role: .destructive) { dismiss() }
             }
         }
+        #if os(macOS)
+        .frame(width: 540, height: 640)
+        #endif
         .protectsAtlasNavigation()
     }
 
@@ -95,17 +102,17 @@ struct AtlasBusinessEditor: View {
         Group {
             Section("Company") {
                 text("Name", "name")
-                text("Domain", "primary_domain", keyboard: .URL)
+                text("Domain", "primary_domain")
                 text("Legal name", "legal_name")
-                text("Website", "url", keyboard: .URL)
+                text("Website", "url")
                 TextField("Notes", text: binding("description"), axis: .vertical).lineLimit(3...8)
             }
             Section("Sales") {
                 choice("Lifecycle", "segment", values: model.page?.options.segments ?? [], optional: false)
                 choice("Status", "status", values: model.page?.options.statuses ?? [])
                 choice("Deal stage", "deal_stage", values: model.page?.options.dealStages ?? [])
-                text("Value", "current_value", keyboard: .decimalPad)
-                text("Currency (ISO code)", "currency", keyboard: .asciiCapable)
+                text("Value", "current_value")
+                text("Currency (ISO code)", "currency")
                 optionalDate("Next renewal", "next_renewal_date")
             }
             Section("Product") {
@@ -127,8 +134,8 @@ struct AtlasBusinessEditor: View {
                 optionalDate("Due date", "due_date")
             }
             Section("Total") {
-                text("Amount", "total_amount_value", keyboard: .numbersAndPunctuation)
-                text("Currency (ISO code)", "total_amount_currency", keyboard: .asciiCapable)
+                text("Amount", "total_amount_value")
+                text("Currency (ISO code)", "total_amount_currency")
                 choice("Review status", "status", values: model.page?.options.statuses ?? [], optional: false)
             }
             Section {
@@ -142,15 +149,30 @@ struct AtlasBusinessEditor: View {
         Binding(get: { fields[key] ?? "" }, set: { fields[key] = $0; dirty = true })
     }
 
-    private func text(_ label: String, _ key: String, keyboard: UIKeyboardType = .default) -> some View {
+    private func text(_ label: String, _ key: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.caption).foregroundStyle(.secondary)
-            TextField(label, text: binding(key)).keyboardType(keyboard)
-                .textInputAutocapitalization(keyboard == .default ? .sentences : .never)
-                .autocorrectionDisabled(keyboard != .default)
+            TextField(label, text: binding(key))
+                #if os(iOS)
+                .keyboardType(keyboard(for: key))
+                .textInputAutocapitalization(keyboard(for: key) == .default ? .sentences : .never)
+                .autocorrectionDisabled(keyboard(for: key) != .default)
+                #endif
                 .accessibilityIdentifier("business-field-\(key)")
         }
     }
+
+    #if os(iOS)
+    private func keyboard(for key: String) -> UIKeyboardType {
+        switch key {
+        case "primary_domain", "url": .URL
+        case "current_value": .decimalPad
+        case "total_amount_value": .numbersAndPunctuation
+        case "currency", "total_amount_currency": .asciiCapable
+        default: .default
+        }
+    }
+    #endif
 
     private func choice(_ label: String, _ key: String, values: [String], optional: Bool = true) -> some View {
         Picker(label, selection: binding(key)) {

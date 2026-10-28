@@ -57,6 +57,112 @@ The presence socket (`/presence/websocket`, bearer subprotocol) also routes:
 
 Coverage lives in `test/atlas_web/controllers/native_orbit_controller_test.exs` and `test/atlas_web/orbit_thread_channel_test.exs`.
 
+## Personal execution environments
+
+All endpoints are bearer-only and `no-store`; browser sessions are not accepted.
+`GET /api/me/environments` returns exactly `{owner_id: UUID, environments: [{id,
+name, enabled, online, terminal, display, projects: [{id, name}]}]}` for the caller.
+There is no server environment row: null/absent selection means server execution.
+The Orbit list's additive `assistant.environments: true` advertises support.
+
+All following `/api/me/environments/:id` operations additionally require the
+existing native OAuth callback-shape gate (`native_client_required`, 403).
+Owner/client binding is immutable; no body field can override either.
+
+- `PUT` accepts exactly `{name: string, enabled: boolean, terminal: boolean,
+  display: boolean, projects: [{id: UUID, name: string}]}`. At most 32 registrations
+  per owner and 100 distinct projects per registration; names are nonblank, at
+  most 100 Unicode characters / 400 UTF-8 bytes, without path separators or NUL.
+  Missing/unknown keys, nested values and wrong booleans are rejected. Success
+  is **200 `{environment: {id, name, enabled, online, terminal, display, projects}}`**,
+  using exactly the same environment projection as GET, no synthetic ack fields.
+- `DELETE` disables only the matching owner/client registration and is idempotent
+  for valid UUIDs, including missing/foreign records. Success is **200
+  `{disabled: true}`**. Old socket renewals cannot re-enable it.
+- `GET /commands` refreshes a 20-second online lease and returns exactly
+  `{commands: [{id: UUID, tool: string, arguments: object,
+  execution_timeout_seconds: integer, digest: string}]}`.
+  Timeout is 1,800 for terminal, 60 for files. Only unclaimed, unexpired, currently authorized
+  calls are returned. `arguments.project_id` is the run's frozen project UUID.
+  Digest is an opaque 64-character lowercase SHA-256 value, copied back exactly;
+  it binds command ID, environment ID/version, project, arguments and policy timeout.
+  Terminal is delivered only while the owner's per-Mac terminal permission is enabled.
+- `POST /commands/:command_id/claim` accepts exactly `{digest: string}`.
+  A successful atomic claim returns 200 `{command: {id, tool, arguments,
+  execution_timeout_seconds, digest, claim_token: UUID}}`.
+  Extra fields, including `approved`, are rejected.
+  Repeated claims return 409
+  `command_claimed_or_settled`, never a second lease/token.
+- `POST /commands/:command_id/progress` accepts exactly `{claim_token: UUID,
+  sequence: integer >= 1, output: UTF-8 string <= 49,152 bytes}` and returns 200
+  `{received: true, cancel_requested: boolean}`. Output is an encrypted bounded
+  tail, not an append log. Increasing sequences update it; stale sequences do not
+  overwrite, identical duplicates succeed, changed same-sequence payloads conflict.
+  Neither progress nor retry extends the fixed execution deadline.
+- `POST /commands/:command_id/result` accepts exactly `{claim_token: UUID,
+  success: boolean, output: string}` with valid UTF-8 output at most 65,536 bytes.
+  Success is **200 `{received: true}`**, including identical payload replay.
+  Changed replay returns 409 `command_result_conflict`. Late new results after
+  expiry/cancellation/configuration changes are rejected. Previously stored
+  acknowledgements do not revive a run or make a cancelled result usable.
+
+Terminal reserves immediately with a queued durable model ticket, without per-command prompts.
+Dispatch expires ten minutes from first reservation. Claim starts a fixed
+1,800-second execution deadline and separate five-minute result-delivery grace;
+it can outlive a succeeded model run but never cancellation/archive/revocation.
+File calls retain synchronous bounded 60-second waits and known-result recovery.
+
+`GET /api/native/orbit/threads/:thread_id/environment-commands` is owner-readable
+private history and returns `{commands: [...]}`, terminal-only. All active items
+come first, then recent settled items, at most 32 total; no pagination. Entries
+have exactly `id`, `message_id`, `environment_id`, `environment_name`, `project_id`,
+`project_name`, `digest`, `command`, `status`, `output`, `success`, `cancel_requested`,
+`progress_sequence`, `execution_timeout_seconds` (1,800). UUIDs are lowercase;
+name labels are at most 120 characters. No claim tokens or local project roots.
+Statuses are `queued`, `claimed`, `settled`,
+`cancelled`, `expired`, `unknown`. `success` is boolean only for settled, otherwise
+null. Output is a valid UTF-8 tail at most 48 KiB each and 256 KiB aggregate;
+encoded JSON is additionally bounded below the native 1 MiB reader, preserving
+exact command text while trimming tails/older settled entries if necessary.
+
+The same owner on any native OAuth installation may `POST
+/:thread_id/environment-commands/:command_id/cancel` with exactly `{digest}`.
+It returns exactly 200 `{received: true}`. There is no command decision endpoint;
+execution requires the explicit per-Mac terminal opt-in.
+Queued cancellation becomes cancelled immediately. Claimed cancellation
+only persists `cancel_requested`: disconnected execution is not presumed stopped.
+Only the device's actual result confirms its outcome; cancellation prevents
+automatic inference. Missing claimed outcomes become unknown and never redispatch.
+One active or unknown terminal per thread prevents duplicate dispatch across runs.
+Confirmed completion atomically records encrypted evidence/a generic addressed
+notice and uses existing Orbit follow-up/Oban recovery, behind any active run.
+
+`PATCH /api/native/orbit/threads/:id/environment` accepts exactly
+`{environment_id: UUID|null, project_id: UUID|null}` and returns 200 `{thread}`.
+Only a currently readable private owner, active thread and no active run may
+change it. A project requires an environment and must be in its current enabled
+owned registration. Thread projection adds nullable `environment_id`,
+`environment_name`, `project_id`; older clients may ignore them. Selection alone
+does not block promotion; once a device command is reserved, sharing is blocked
+permanently by `personal_environment_history` (409).
+
+Other fixed errors: 404 `not_found` for missing/foreign bindings; 422
+`invalid_params`; 409 `environment_limit`, `environment_disabled`,
+`environment_offline`, `environment_terminal_disabled`,
+`environment_project_unavailable`, `environment_run_active`,
+`private_environment_required`, `command_digest_mismatch`,
+`command_claim_mismatch`, `command_expired`, `command_cancelled`,
+`command_progress_conflict`.
+
+The existing presence socket also accepts `environment:<UUID>` for that bound
+native client/owner. Join replies with `{commands: [...]}` and changes push event
+`snapshot` with the same envelope. Authoritative reconciliation runs every two
+seconds, rechecking grant, client binding, enabled/version state and audience;
+renewals keep the 20-second lease alive. Closing clears that connection's lease.
+HTTP commands is the authoritative fallback; clients need no new server loop.
+No command/result payload is logged. DB state, not delivery hints, determines
+whether a claim can succeed. Display permissions configure no tools in this slice.
+
 ## Push devices
 
 `AtlasWeb.PushDevicesController` serves `PUT` and `DELETE /api/me/push-devices/:installation_id` behind `MCPAuth` plus `AtlasWeb.Plugs.NativeOAuthClient`, which accepts only tokens whose OAuth client registered exactly `dev.tuist.atlas://oauth-callback` (otherwise 403 `native_client_required`). Responses are `no-store`. `installation_id` is a lowercase UUID.

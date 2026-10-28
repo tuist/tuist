@@ -73,11 +73,18 @@ struct AtlasTimeOffView: View {
         .navigationTitle(title)
         .toolbar {
             AtlasPresenceToolbar()
-            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "time-off") }
+            ToolbarItem(placement: .primaryAction) { AtlasBrowserButton(screen: "time-off") }
+            #if os(macOS)
+            ToolbarItem(placement: .primaryAction) {
+                Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.load() } }.keyboardShortcut("r")
+            }
+            #endif
         }
         .disabled(model.busy)
         .protectsAtlasNavigation(model.mutating && editor == nil)
+        #if os(iOS)
         .toolbar(model.mutating ? .hidden : .visible, for: .tabBar)
+        #endif
         .refreshable { await model.load() }
         .task { await model.load() }
         .sheet(item: $editor) {
@@ -156,6 +163,10 @@ private struct AtlasHolidayForm: View {
             .modifier(AtlasThemedContent())
             .environment(\.calendar, AtlasHolidayDates.calendar)
             .navigationTitle(editing == nil ? "Request holiday" : "Edit request")
+            #if os(macOS)
+            .formStyle(.grouped)
+            .frame(width: 540, height: 480)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.disabled(model.busy)
