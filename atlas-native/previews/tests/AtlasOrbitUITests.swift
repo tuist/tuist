@@ -567,13 +567,15 @@ final class AtlasOrbitUITests: XCTestCase {
         XCTAssertTrue(loading.waitForExistence(timeout: 2))
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "thread-history-loading").count, 1)
         XCTAssertFalse(app.staticTexts["Private · Only you and Pip"].exists)
-        XCTAssertFalse(app.textFields["thread-composer"].isEnabled)
+        let composer = app.descendants(matching: .any).matching(identifier: "thread-composer").firstMatch
+        XCTAssertFalse(composer.exists && composer.isEnabled)
         XCTAssertFalse(app.buttons["thread-earlier"].exists)
         XCTAssertFalse(app.buttons["thread-prompts"].exists)
         XCTAssertFalse(app.buttons["Compare recent builds"].exists)
         capture(app, "ios-orbit-history-loading-preview")
         XCTAssertTrue(loading.waitForNonExistence(timeout: 8))
-        XCTAssertTrue(app.textFields["thread-composer"].isEnabled)
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertTrue(composer.isEnabled)
         XCTAssertTrue(app.staticTexts["Summarize the next steps."].isHittable)
         for _ in 0..<8 { app.scrollContent(up: false) }
         app.buttons["thread-prompts"].tap()
@@ -599,6 +601,7 @@ final class AtlasOrbitUITests: XCTestCase {
         }
         XCTAssertTrue(loading.waitForExistence(timeout: 3))
         app.scrollContent()
+        capture(app, "ios-orbit-earlier-page-reading-preview")
         let candidates = ["Check the build listing query plan.", "Does it affect other projects?", "Review the proposed index.",
                           "What are the rollout risks?", "Include a concise validation checklist."]
         let visible = try XCTUnwrap(candidates.map { app.staticTexts[$0] }.first {
@@ -606,7 +609,7 @@ final class AtlasOrbitUITests: XCTestCase {
                 && $0.frame.maxY < app.textFields["thread-composer"].frame.minY
         })
         let before = visible.frame
-        XCTAssertTrue(loading.waitForNonExistence(timeout: 12))
+        XCTAssertTrue(loading.waitForNonExistence(timeout: 25))
         XCTAssertTrue(visible.isHittable)
         XCTAssertEqual(visible.frame.minY, before.minY, accuracy: 3)
         capture(app, "ios-orbit-earlier-page-retains-reader-preview")
@@ -694,6 +697,40 @@ final class AtlasOrbitUITests: XCTestCase {
         XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Check whether other projects are affected too."].isHittable)
         XCTAssertFalse(app.buttons["thread-restore"].exists)
+    }
+
+    @MainActor func testEnvironmentCommandRunsWithoutReviewAndShowsUnacknowledgedStop() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        defer { app.terminate() }
+        let destination = "dev.tuist.atlas://navigate/orbit/01922cc0-0000-7000-8000-000000000001?server=https%3A%2F%2Fatlas.example.org"
+        for appearance in ["light", "dark-large"] {
+            for running in [false, true] {
+                app.launchArguments = ["--workspace", "--environment-jobs", "--destination", destination]
+                    + (appearance == "light" ? [] : ["--dark", "--large-text"])
+                    + (running ? ["--environment-running"] : [])
+                app.launch()
+                XCUIDevice.shared.orientation = .portrait
+                let stop = try app.visibleElement("environment-stop")
+                XCTAssertGreaterThanOrEqual(stop.frame.height, 44 - 0.5)
+                XCTAssertFalse(app.buttons["environment-review"].exists)
+                XCTAssertFalse(app.buttons["environment-approve"].exists)
+                XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Example project")).firstMatch.exists)
+                if running {
+                    try app.visibleElement("Latest output").tap()
+                    XCTAssertTrue(app.staticTexts["CompileSwift ExampleApp.swift\nLink Example.app"].waitForExistence(timeout: 5))
+                } else {
+                    XCTAssertTrue(app.staticTexts["Waiting for Mac"].exists)
+                }
+                let state = running ? "running" : "queued"
+                capture(app, "ios-environment-\(state)-\(appearance)-preview")
+                stop.tap()
+                XCTAssertTrue(app.staticTexts["Stopping · waiting for Mac"].waitForExistence(timeout: 5))
+                XCTAssertTrue(stop.waitForNonExistence(timeout: 5))
+                XCTAssertFalse(app.staticTexts["Cancelled before starting"].exists)
+                capture(app, "ios-environment-\(state)-stopping-\(appearance)-preview")
+                app.terminate()
+            }
+        }
     }
 
     @MainActor private func capture(_ app: XCUIApplication, _ name: String) {

@@ -101,8 +101,8 @@ defmodule Atlas.Push.Workers.Deliver do
 
   defp notification_alert(_args, _installation), do: {:ok, %{title: Message.title(), body: Message.body()}}
 
-  defp send_message(%Installation{platform: "ios"} = installation, message, alert, opts),
-    do: APNs.deliver(installation, Message.apns_payload(message, alert), opts)
+  defp send_message(%Installation{platform: platform} = installation, message, alert, opts)
+       when platform in ["ios", "macos"], do: APNs.deliver(installation, Message.apns_payload(message, alert), opts)
 
   defp send_message(%Installation{platform: "android"} = installation, message, alert, opts),
     do: FCM.deliver(installation, Message.fcm_data(message, alert), opts)

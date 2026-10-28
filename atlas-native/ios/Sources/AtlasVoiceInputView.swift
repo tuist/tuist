@@ -1,4 +1,23 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
+
+private enum AtlasComposerColors {
+    #if os(macOS)
+    static let fill = Color(nsColor: .quaternaryLabelColor)
+    static let surface = Color(nsColor: .controlBackgroundColor)
+    static let background = Color(nsColor: .windowBackgroundColor)
+    static let separator = Color(nsColor: .separatorColor)
+    #else
+    static let fill = Color(uiColor: .tertiarySystemFill)
+    static let surface = Color(uiColor: .secondarySystemBackground)
+    static let background = Color(uiColor: .systemBackground)
+    static let separator = Color(uiColor: .separator)
+    #endif
+}
 
 struct AtlasThreadComposer: View {
     @Binding var draft: String
@@ -33,7 +52,7 @@ struct AtlasThreadComposer: View {
                     } label: {
                         Image(systemName: "plus").font(.system(size: 20)).frame(width: 44, height: 44)
                             .foregroundStyle(.secondary)
-                            .background { Circle().fill(Color(uiColor: .tertiarySystemFill)).padding(4) }
+                            .background { Circle().fill(AtlasComposerColors.fill).padding(4) }
                     }
                     .buttonStyle(.plain)
                     .disabled(saving).accessibilityLabel("Attach images or files")
@@ -71,7 +90,7 @@ struct AtlasThreadComposer: View {
                     Button(action: cancel) {
                         Image(systemName: "xmark").font(.system(size: 20)).frame(width: 44, height: 44)
                             .foregroundStyle(.secondary)
-                            .background { Circle().fill(Color(uiColor: .tertiarySystemFill)).padding(4) }
+                            .background { Circle().fill(AtlasComposerColors.fill).padding(4) }
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -95,7 +114,7 @@ struct AtlasThreadComposer: View {
                 }
             }
             .overlay(alignment: recording ? .bottomLeading : .bottomTrailing) {
-                // Keep one UIKit target alive as it moves, so a held microphone still receives its release.
+                // Keep one native target alive as it moves, so a held microphone still receives its release.
                 AtlasMicrophoneButton(active: recording, start: start, stop: stop, cancel: cancel)
                     .disabled(saving)
                     .padding(.trailing, recording ? 0 : 48)
@@ -110,13 +129,13 @@ struct AtlasThreadComposer: View {
     @ViewBuilder private var surface: some View {
         let shape = RoundedRectangle(cornerRadius: 28)
         if reduceTransparency || contrast == .increased {
-            shape.fill(Color(uiColor: .secondarySystemBackground))
-                .overlay { shape.strokeBorder(Color(uiColor: .separator), lineWidth: 1) }
-        } else if #available(iOS 26.0, *) {
+            shape.fill(AtlasComposerColors.surface)
+                .overlay { shape.strokeBorder(AtlasComposerColors.separator, lineWidth: 1) }
+        } else if #available(iOS 26.0, macOS 26.0, *) {
             shape.fill(.clear).glassEffect(.regular, in: shape)
         } else {
             shape.fill(.regularMaterial)
-                .overlay { shape.strokeBorder(Color(uiColor: .separator).opacity(0.4), lineWidth: 0.5) }
+                .overlay { shape.strokeBorder(AtlasComposerColors.separator.opacity(0.4), lineWidth: 0.5) }
                 .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
         }
     }
@@ -129,7 +148,7 @@ struct AtlasComposerSendStyle: ButtonStyle {
     @Environment(\.colorSchemeContrast) private var contrast
 
     func makeBody(configuration: Configuration) -> some View {
-        let onAccent = contrast == .increased ? Color(uiColor: .systemBackground)
+        let onAccent = contrast == .increased ? AtlasComposerColors.background
             : theme.map { Color(atlasHex: $0.palette(scheme).onAccent) } ?? AtlasSettingsStyle.onTint
         configuration.label
             .foregroundStyle(onAccent)
@@ -148,7 +167,7 @@ private struct AtlasMicrophoneButton: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(active ? Color.red.opacity(0.1) : Color(uiColor: .tertiarySystemFill)).padding(4)
+            Circle().fill(active ? Color.red.opacity(0.1) : AtlasComposerColors.fill).padding(4)
             Image(systemName: active ? "stop.fill" : "mic.fill")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(active ? Color.red : Color.secondary)
@@ -160,6 +179,79 @@ private struct AtlasMicrophoneButton: View {
     }
 }
 
+#if os(macOS)
+private struct AtlasMicrophoneTouchTarget: NSViewRepresentable {
+    let active: Bool
+    let enabled: Bool
+    let start: () -> Void
+    let stop: () -> Void
+    let cancel: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(title: "", target: context.coordinator, action: #selector(Coordinator.tap))
+        button.isBordered = false
+        let hold = NSPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.hold))
+        hold.minimumPressDuration = 0.5
+        hold.allowableMovement = 60
+        // Delay button events until the hold fails, so a recognized hold never also clicks.
+        hold.delaysPrimaryMouseButtonEvents = true
+        button.addGestureRecognizer(hold)
+        updateNSView(button, context: context)
+        return button
+    }
+
+    func updateNSView(_ button: NSButton, context: Context) {
+        context.coordinator.parent = self
+        if button.isEnabled != enabled {
+            button.isEnabled = enabled
+            button.gestureRecognizers.forEach { $0.isEnabled = enabled }
+        }
+        button.setAccessibilityLabel(active ? "Stop dictation" : "Transcribe a voice message")
+        button.setAccessibilityHelp(active ? "Adds editable text to your draft. Does not send a message."
+            : "Hold while speaking and release to add editable text. "
+                + "Click to start or stop hands-free dictation. Nothing is sent automatically.")
+        button.setAccessibilityIdentifier("thread-microphone")
+    }
+
+    static func dismantleNSView(_ button: NSButton, coordinator: Coordinator) {
+        coordinator.endHold(cancelled: true)
+        button.target = nil
+    }
+
+    final class Coordinator: NSObject {
+        var parent: AtlasMicrophoneTouchTarget
+        private var holding = false
+
+        init(_ parent: AtlasMicrophoneTouchTarget) { self.parent = parent }
+
+        @objc func tap() {
+            guard parent.enabled else { return }
+            if parent.active { parent.stop() } else { parent.start() }
+        }
+
+        @objc func hold(_ recognizer: NSPressGestureRecognizer) {
+            switch recognizer.state {
+            case .began:
+                guard parent.enabled else { return }
+                if parent.active { parent.stop(); return }
+                holding = true
+                parent.start()
+            case .ended: endHold(cancelled: false)
+            case .cancelled, .failed: endHold(cancelled: true)
+            default: break
+            }
+        }
+
+        func endHold(cancelled: Bool) {
+            guard holding else { return }
+            holding = false
+            if cancelled { parent.cancel() } else { parent.stop() }
+        }
+    }
+}
+#else
 private struct AtlasMicrophoneTouchTarget: UIViewRepresentable {
     let active: Bool
     let enabled: Bool
@@ -226,3 +318,4 @@ private struct AtlasMicrophoneTouchTarget: UIViewRepresentable {
         }
     }
 }
+#endif

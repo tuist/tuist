@@ -427,6 +427,7 @@ defmodule Atlas.Orbit do
       Repo.transaction(fn ->
         thread = lock!(thread.id)
         ensure_active_reader!(thread, actor)
+        ensure_shareable!(thread)
 
         cond do
           thread.kind != "shared" or thread.owner_id != actor.id ->
@@ -465,6 +466,10 @@ defmodule Atlas.Orbit do
     else
       _ -> {:error, {:invalid_field, :user_id}}
     end
+  end
+
+  defp ensure_shareable!(thread) do
+    if thread.personal_environment_dispatched, do: Repo.rollback(:personal_environment_history)
   end
 
   @doc "Owners remove others; members remove themselves. Owners cannot leave."
@@ -592,6 +597,7 @@ defmodule Atlas.Orbit do
     if newcomers == [] do
       {thread, []}
     else
+      ensure_shareable!(thread)
       if thread.owner_id != actor.id, do: Repo.rollback(:forbidden)
       count = Repo.aggregate(from(p in Participant, where: p.thread_id == ^thread.id), :count)
       if count + length(newcomers) > @max_participants + 1, do: Repo.rollback({:invalid_field, :mention_ids})
@@ -599,7 +605,15 @@ defmodule Atlas.Orbit do
       promoted? = thread.kind == "private"
 
       thread =
-        thread |> Ecto.Changeset.change(kind: "shared", title: promotion_title(thread, attrs["body"])) |> Repo.update!()
+        thread
+        |> Ecto.Changeset.change(
+          kind: "shared",
+          title: promotion_title(thread, attrs["body"]),
+          environment_id: nil,
+          environment_name: nil,
+          project_id: nil
+        )
+        |> Repo.update!()
 
       :ok = insert_members(thread, newcomers)
       cancel_active_runs(thread, "participants_changed")
@@ -781,6 +795,8 @@ defmodule Atlas.Orbit do
         initiator_id: initiator && initiator.id,
         acting_user_id: acting_user.id,
         model_binding_id: model_binding_id,
+        environment_id: if(thread.kind == "private", do: thread.environment_id),
+        project_id: if(thread.kind == "private", do: thread.project_id),
         trigger_seq: trigger_seq,
         status: "queued"
       })

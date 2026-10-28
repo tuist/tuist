@@ -203,7 +203,14 @@ defmodule AtlasWeb.Router do
     get "/orbit/threads", NativeOrbitController, :index
     post "/orbit/threads", NativeOrbitController, :create
     post "/orbit/threads/private", NativeOrbitController, :private
+    get "/orbit/threads/:thread_id/environment-commands", NativeEnvironmentCommandsController, :index
+
+    post "/orbit/threads/:thread_id/environment-commands/:command_id/cancel",
+         NativeEnvironmentCommandsController,
+         :cancel
+
     patch "/orbit/threads/:id", NativeOrbitController, :update
+    patch "/orbit/threads/:id/environment", NativeOrbitController, :environment
     get "/orbit/threads/:id/people", NativeOrbitController, :people
     get "/orbit/threads/:id/messages", NativeOrbitController, :messages
     post "/orbit/threads/:id/messages", NativeOrbitController, :post_message
@@ -233,6 +240,14 @@ defmodule AtlasWeb.Router do
     get "/connections", ConnectionController, :index, log: false
     delete "/connections/:provider", ConnectionController, :delete, log: false
     post "/connections/:provider/authorize", ConnectionController, :prepare, log: false
+
+    get "/environments", EnvironmentsController, :index
+    put "/environments/:id", EnvironmentsController, :update
+    delete "/environments/:id", EnvironmentsController, :delete
+    get "/environments/:id/commands", EnvironmentsController, :commands
+    post "/environments/:id/commands/:command_id/claim", EnvironmentsController, :claim
+    post "/environments/:id/commands/:command_id/result", EnvironmentsController, :result
+    post "/environments/:id/commands/:command_id/progress", EnvironmentsController, :progress
 
     get "/orbit-live-activity", OrbitLiveActivityController, :show
     put "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :update

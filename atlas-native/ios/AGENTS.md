@@ -49,6 +49,9 @@ between text and voice input, with regular Material on older systems and an opaq
 system surface for Reduce Transparency/increased contrast. Keep its input/gesture
 hierarchy stable when accessibility changes, and let the transcript show through rather
 than adding an opaque full-width plate. Utility controls use neutral circular fills.
+macOS uses AVCaptureDevice microphone consent and an AppKit press target; keep
+AVAudioSession and UIKit gesture handling iOS-only. Protected attachment previews
+use owner-only temporary directories/files on macOS and complete file protection on iOS.
 During dictation, show measured audio levels between a stop microphone and a separate discard control.
 Release/tap-stop synchronously adds the current hypothesis as editable text; there is no
 review/Done phase or visible live transcript. Only the idle composer's send action sends a message. The stable
@@ -84,6 +87,25 @@ append to the existing draft and never send. Notification links select an author
 thread by UUID through Rust before showing its detail; tab returns must not replay them.
 Push settings disclose that completion alerts contain a title and reply preview.
 
+`AtlasEnvironmentPicker` selects only the tool environment, never the conversation
+host. `AtlasEnvironmentActivity` reconciles the bounded owner-private terminal-job
+projection while foregrounded. Stop polling on departure/background without
+cancelling remote work. Fence late reads/actions and clear revoked projections.
+Show the exact persisted command, Mac, project and its queued/running state without
+a per-command review. The Mac's explicit terminal opt-in authorizes execution;
+Stop sends the unchanged command digest. Show cancellation as
+requested until device acknowledgement and unknown outcomes as never retried.
+
+`AtlasPushNotifications` shares notification payloads, actions, origin-scoped secure
+bookkeeping and serialized registration across iOS and macOS. The shell installs
+the real UIKit/AppKit application delegate and routes cold-start notification actions
+through `AtlasNavigation`, never directly into feature state. Profile exposes only the
+current platform's advertised capability; omitted `macos` means unavailable. APNs
+registration requires `AtlasPushEnvironment` stamped from the signed provisioning
+profile, never a debug/release default. Keep ActivityKit iOS-only. Inject the push
+system boundary and a per-test Keychain in unhosted tests: never request OS permission,
+register the test agent or mutate shared notification-center state.
+
 `AtlasThreadMentions` offers bounded eligible-person suggestions for a trailing `@query`.
 Only choosing a person records an identity through Rust; typing a name alone grants no
 access. Rust retains mentions with per-thread drafts and send retry identities. Sending
@@ -110,9 +132,14 @@ phases distinguish user scrolling/deceleration on iOS 18+; iOS 17 rebases geomet
 layout changes, tracks genuine drags and accumulates slow movement after corrections settle.
 Only follow-intent changes publish view updates, not every offset sample. Bottom settlement
 requires proximity to the viewport's bottom edge in both directions; accepting an overscrolled
-content bottom can leave every message above the screen. Preserve row-position binding only while
-reading history; it must not compete with the bottom anchor. Coalesce bottom requests
-after layout and keep correcting until geometry reaches the bottom, including content insets.
+content bottom can leave every message above the screen. One continuous `scrollPosition(id:)`
+binding owns both explicit jumps and visible-message retention when history is prepended.
+Do not combine it with `ScrollViewReader` or condition its getter/setter on follow intent:
+competing position controllers can loop lazy layout. Coalesce bottom requests in a
+non-published task after layout, never a view-state counter written by geometry callbacks.
+Re-arm an already-selected footer by clearing and restoring its target only while following,
+not during history reading or prompt jumps. Keep correcting until geometry reaches the bottom,
+including content insets and keyboard/composer resizing.
 Prepare timeline groups once per changed message snapshot, never inside lazy row builders.
 Unchanged Markdown avoids reparsing during scroll, presence and draft updates.
 Ignore repeated Orbit snapshot sequences and unchanged presence values rather than
@@ -120,10 +147,10 @@ invalidating the navigation stack on idle long-poll responses. Theme arrival mus
 scroll-container styling without replacing its structural identity.
 Show loading feedback before the first protected history
 request completes. Approaching the top automatically loads one earlier page, retaining the
-current visible message through SwiftUI scroll-position binding, not a forced jump to the
-old first row after the response. The timeline's lazy stack owns stable group IDs and the
-scroll-target layout; the fixed header/footer stack must not mark the whole timeline as one
-target. Keep manual retry and never loop failed requests.
+current visible message through the lazy stack's native anchoring, not a forced jump to the
+old first row after the response. The scroll content has one lazy stack with stable group IDs;
+do not wrap the entire transcript in another scroll target.
+Keep manual retry and never loop failed requests.
 Keep the latest-message action beside the index
 and reserve transcript space so these controls do not cover message content.
 

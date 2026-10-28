@@ -25,6 +25,61 @@ struct AtlasBusinessView: View {
     }
 
     private var list: some View {
+        Group {
+            #if os(macOS)
+            AtlasDesktopBusinessTable(model: model, activeFilters: activeFilters)
+            #else
+            mobileList
+            #endif
+        }
+        .modifier(AtlasThemedContent())
+        .overlay {
+            if model.loading, model.page == nil {
+                ProgressView("Loading \(model.resource.title.lowercased())")
+            }
+        }
+        .navigationTitle(model.resource.title)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.large)
+        #endif
+        .searchable(text: $query, prompt: "Search \(model.resource.title.lowercased())")
+        .onSubmit(of: .search) { Task { await model.load(query: query) } }
+        .onChange(of: query) { _, value in
+            if value.isEmpty, !model.query.isEmpty { Task { await model.load(query: "") } }
+        }
+        .refreshable { await model.load(query: query) }
+        .task(id: loadList) { if loadList, model.page == nil { await model.load() } }
+        .navigationDestination(for: AtlasRecordRoute.self) { route in
+            AtlasLinkedBusinessDetail(model: model, id: route.id).id(route.identity)
+        }
+        .onAppear { presence?.show(resource: model.resource.rawValue) }
+        .toolbar {
+            AtlasPresenceToolbar()
+            ToolbarItem(placement: .primaryAction) { AtlasBrowserButton(screen: model.resource.rawValue) }
+            #if os(macOS)
+            ToolbarItem(placement: .primaryAction) {
+                Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.load(query: query) } }
+                    .keyboardShortcut("r").disabled(model.busy)
+            }
+            #endif
+            ToolbarItem(placement: .primaryAction) {
+                filterMenu.disabled(model.busy && !model.loading)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                if model.page?.canWrite == true {
+                    Button("New \(model.resource.singular)", systemImage: "plus") { creating = true }
+                        .disabled(model.busy).accessibilityIdentifier("business-create")
+                        #if os(macOS)
+                        .keyboardShortcut("n")
+                        #endif
+                }
+            }
+        }
+        .sheet(isPresented: $creating) { AtlasBusinessEditor(model: model, editing: nil) }
+    }
+
+    #if os(iOS)
+    private var mobileList: some View {
         List {
             if model.forbidden {
                 ContentUnavailableView("Access required", systemImage: "lock", description: Text("Ask an Atlas administrator for access."))
@@ -85,41 +140,9 @@ struct AtlasBusinessView: View {
         .id(model.query)
         .id(model.filters)
         .id(listRevision)
-        .modifier(AtlasThemedContent())
-        .overlay {
-            if model.loading, model.page == nil {
-                ProgressView("Loading \(model.resource.title.lowercased())")
-            }
-        }
         .defaultScrollAnchor(.top)
-        .navigationTitle(model.resource.title)
-        .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $query, prompt: "Search \(model.resource.title.lowercased())")
-        .onSubmit(of: .search) { Task { await model.load(query: query) } }
-        .onChange(of: query) { _, value in
-            if value.isEmpty, !model.query.isEmpty { Task { await model.load(query: "") } }
-        }
-        .refreshable { await model.load(query: query) }
-        .task(id: loadList) { if loadList, model.page == nil { await model.load() } }
-        .navigationDestination(for: AtlasRecordRoute.self) { route in
-            AtlasLinkedBusinessDetail(model: model, id: route.id).id(route.identity)
-        }
-        .onAppear { presence?.show(resource: model.resource.rawValue) }
-        .toolbar {
-            AtlasPresenceToolbar()
-            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: model.resource.rawValue) }
-            ToolbarItem(placement: .topBarTrailing) {
-                filterMenu.disabled(model.busy && !model.loading)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                if model.page?.canWrite == true {
-                    Button("New \(model.resource.singular)", systemImage: "plus") { creating = true }
-                        .disabled(model.busy).accessibilityIdentifier("business-create")
-                }
-            }
-        }
-        .sheet(isPresented: $creating) { AtlasBusinessEditor(model: model, editing: nil) }
     }
+    #endif
 
     private func rows(_ items: [AtlasBusinessRecord]) -> some View {
         ForEach(items) { original in
@@ -241,6 +264,7 @@ private struct AtlasBusinessRow: View {
 
 struct AtlasAccountLogo: View {
     let item: AtlasBusinessRecord
+    var size: CGFloat = 40
 
     private var url: URL? {
         guard !item["primary_domain"].isEmpty else { return nil }
@@ -256,7 +280,7 @@ struct AtlasAccountLogo: View {
             Text(String(item["name"].prefix(1)).uppercased()).font(.headline).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity).background(.quaternary)
         }
-        .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 8))
+        .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size / 5))
         .accessibilityHidden(true)
     }
 }
@@ -314,16 +338,23 @@ struct AtlasBusinessDetail: View {
             if model.busy { ProgressView() }
         }
         .modifier(AtlasThemedContent())
-        .navigationTitle(model.resource.singular).navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(model.resource.singular)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #else
+        .formStyle(.grouped)
+        #endif
         .toolbar {
             AtlasPresenceToolbar()
-            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: model.resource.rawValue, recordID: item.id) }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .primaryAction) { AtlasBrowserButton(screen: model.resource.rawValue, recordID: item.id) }
+            ToolbarItem(placement: .primaryAction) {
                 if item.canEdit { Button("Edit") { editing = true }.disabled(model.busy || model.page == nil) }
             }
         }
         .protectsAtlasNavigation(model.mutating && !editing)
+        #if os(iOS)
         .toolbar(model.mutating ? .hidden : .visible, for: .tabBar)
+        #endif
         .sheet(isPresented: $editing, onDismiss: { Task { await model.show(original) } }, content: {
             AtlasBusinessEditor(model: model, editing: item)
         })

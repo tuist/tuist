@@ -13,6 +13,69 @@ Its startup adapter checks cover hydration before refresh. These
 are presentation fixtures, not SQLite durability or OAuth evidence; Rust tests
 exercise the actual database, migrations and invalidation fences.
 
+Before each `xcodebuild test-without-building` rerun, explicitly install the newly
+built preview with `xcrun simctl install <UDID> .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app`.
+Verify the installed executable's SHA-256 against the build output. The runner can
+otherwise launch an older installed target while using the newest test bundle.
+
+`AtlasMacOSPreview` renders the shared production workspace with the existing
+fictional business, Orbit and time-off fixtures, without authentication, push or
+Sparkle startup. Its own plist and resource list include the production `Atlas.icns`
+so Finder and Dock resolve the same artwork without changing the preview identity.
+Build with `ONCE_CACHE_PROVIDER=local mise exec -- once build AtlasMacOSPreview`,
+then prepare a new runnable copy using
+`bash macos/distribution/prepare-app.sh .once/out/AtlasMacOSPreview/AtlasMacOSPreview.app .once/macos-preview/AtlasMacOSPreview.app`.
+Launch with `--social-screenshots`, optionally `--dark` and
+`--destination https://atlas.example.org/open/accounts` (or another supported
+fixture destination). `--login` renders the production sign-in screen without
+restoring credentials; `--updates` renders the production update settings with a
+stopped Sparkle controller, never a feed request. `--press business-create`
+dispatches the production Command-N shortcut inside the fixture window before capture, including its
+native editor sheet. `--capture /absolute/path.png` captures only the app's own
+window through ScreenCaptureKit's current-process API on macOS 14.4+, not the
+person's desktop, and exits. Do not substitute AppKit's cached view bitmap:
+layer-backed sidebar content can be omitted. Captures remain fixture-backed
+presentation evidence, not real OAuth, microphone, provider or signed-update proof.
+`--compact` requests the 820pt minimum width. `--sort-column N` and
+`--select-row N` exercise the actual NSTableView's sort descriptors and keyboard row selection
+with zero-based indices before capturing; combine row selection with
+`--press business-open-selection` to dispatch Return through the production detail route.
+`--press business-open-command` uses Command-O instead. `--select-thread N`
+uses native arrow keys in Orbit's inbox (row indices include section headings),
+keeping the list visible beside the selected conversation.
+`--press orbit-draft-switch` types a fixture draft in the native composer, attempts
+the next row, dismisses the protected-work alert and checks selection/text retention.
+`--scroll-column N` exercises native horizontal scrolling when a compact window
+cannot fit every business column. Truncated headings retain resizable columns.
+`--scroll-row N` scrolls the native table before selecting, so
+`--business-pagination --scroll-row 24 --select-row 29` exercises automatic
+pagination beyond the first 25 records. `--press orbit-archived` dispatches the
+actual toolbar segmented control; `--press orbit-create` uses Command-N.
+The fixture fails rather than substituting a model write when an action is unavailable.
+`--scroll-content top|bottom` scrolls the first overflowing non-table native scroll
+view in the sheet, or workspace when no sheet is open. Use it to check that lower
+editor fields and the Finance overview's chart remain reachable in bounded viewports.
+`--measure-interactions /absolute/path.json` alongside `--capture` measures repeated
+native conversation selection, typing and window resizing, checks selection changes
+and draft text, and records native toolbar-item replacements. `settle_ms` includes
+a 16ms main-loop wait and the next layout/display pass, not pixel latency or FPS.
+Compare preserved before/after bundles back-to-back because host builds affect timing.
+`--press orbit-info` opens the production details sheet. `--press workspace-round-trip`
+uses sidebar keys to visit Accounts and return to the loaded Orbit inbox; combine it
+with `--fail-orbit-refresh` to catch accidental model recreation.
+`--settings` renders the production native Settings tabs with fictional profile
+data and in-memory environment storage. `--press settings-this-mac` selects the
+native This Mac tab; `--scroll-content bottom` exposes the lower permissions and
+save controls. `--press orbit-environment` opens the production tool-environment
+popover for the selected private fixture thread. These fixtures neither enroll
+this Mac nor access a real Keychain, microphone, display or live Atlas session.
+
+`--environment-jobs` adds a fictional queued job to the selected private conversation
+on iOS/macOS. `--environment-running`, `--environment-completed` and
+`--environment-unknown` render the corresponding authoritative-shaped states.
+Mac `--press environment-stop` exercises the Stop action without claiming the Mac has
+acknowledged it. Fixtures never execute the displayed xcodebuild command.
+
 `--live-activity` renders the shared production ActivityKit view and requests real
 local activities through the preview's separately identified WidgetKit extension.
 Start/update/stale/end controls use fictional conversation titles, generic phases

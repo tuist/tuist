@@ -9,6 +9,7 @@ struct AtlasSettingsPreview: App {
     @StateObject private var holidays = AtlasTimeOffPreviewData()
     @StateObject private var business = AtlasBusinessPreviewData()
     @StateObject private var threads = AtlasOrbitPreviewData()
+    @StateObject private var environments = AtlasEnvironmentPreviewData()
     @StateObject private var presence = AtlasPresencePreviewData()
     @StateObject private var navigation = AtlasNavigation()
     @StateObject private var notifications = AtlasPushNotifications()
@@ -101,6 +102,7 @@ struct AtlasSettingsPreview: App {
             }
             .environment(\.atlasNavigation, navigation)
             .environment(\.atlasServer, previewServer)
+            .environment(\.atlasEnvironmentRequest, environments.request)
             .onChange(of: scenePhase) { _, phase in
                 if phase == .background { backgrounded = true }
                 if phase == .active, backgrounded {
