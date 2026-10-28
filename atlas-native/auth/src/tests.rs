@@ -180,6 +180,7 @@ fn invalid_callbacks_and_fresh_sessions_do_not_use_the_network() {
         access_token: "access".into(),
         refresh_token: "refresh".into(),
         expires_at: now() + 3600,
+        cache_id: None,
     };
     assert!(restore_using(&network, session).is_ok());
     assert!(network.requests.borrow().is_empty());
@@ -419,4 +420,48 @@ fn invalid_commands_return_sanitized_errors_and_owned_strings() {
         bridge::atlas_auth_free(output);
         bridge::atlas_auth_free(std::ptr::null_mut());
     }
+}
+
+pub(crate) struct TestDirectory(std::path::PathBuf);
+
+impl TestDirectory {
+    pub(crate) fn new() -> Self {
+        let path = std::env::temp_dir().join(format!("atlas-cache-{}", random_string().unwrap()));
+        std::fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+
+    pub(crate) fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+    pub(crate) fn as_str(&self) -> &str {
+        self.0.to_str().unwrap()
+    }
+}
+
+impl Drop for TestDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn local_bootstrap_upgrades_legacy_sessions_and_rotation_preserves_cache_identity() {
+    let legacy = serde_json::json!({
+        "registration": registration(), "access_token":"expired", "refresh_token":"refresh", "expires_at":1
+    });
+    let request = json!({"operation":"bootstrap", "session":legacy});
+    let response: Value = serde_json::from_str(&bridge::execute(&request.to_string())).unwrap();
+    let saved: Session = serde_json::from_value(response["ok"].clone()).unwrap();
+    assert_eq!(saved.cache_id.as_ref().unwrap().len(), 43);
+    assert_eq!(saved.expires_at, 1); // Bootstrap must not claim renewed authorization.
+    let network = MockTransport::new(vec![
+        json!({"access_token":"rotated", "token_type":"Bearer", "expires_in":3600}),
+    ]);
+    let restored = restore_using(&network, saved.clone()).unwrap();
+    assert_eq!(restored.cache_id, saved.cache_id);
+    assert_eq!(restored.refresh_token, "refresh");
+    assert_eq!(restored.access_token, "rotated");
+    let another = bootstrap(serde_json::from_value(legacy).unwrap()).unwrap();
+    assert_ne!(another.cache_id, saved.cache_id);
 }

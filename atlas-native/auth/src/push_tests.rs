@@ -9,6 +9,7 @@ fn session() -> Session {
         access_token: "atlas-access".into(),
         refresh_token: "atlas-refresh".into(),
         expires_at: now() + 3600,
+        cache_id: None,
     }
 }
 
@@ -38,6 +39,48 @@ fn registration_uses_fixed_bearer_route_and_filters_response() {
     assert_eq!(requests[0].1["method"], "PUT");
     assert_eq!(requests[0].1["token"], "atlas-access");
     assert_eq!(requests[0].1["payload"]["platform"], "ios");
+}
+
+#[test]
+fn macos_registration_uses_apns_tokens_and_its_own_platform() {
+    for (environment, token) in [
+        ("sandbox", "ab".repeat(16)),
+        ("production", "AB".repeat(256)),
+    ] {
+        let network = MockTransport::new(vec![json!({"registered":true,"registration_id":ID})]);
+        let action = serde_json::from_value::<Action>(json!({
+            "action":"register", "installation_id":ID, "platform":"macos",
+            "token":token, "environment":environment
+        }))
+        .unwrap();
+        execute_using(&network, session(), action).unwrap();
+        let requests = network.requests.borrow();
+        assert_eq!(
+            requests[0].0,
+            format!("https://atlas.example/api/me/push-devices/{ID}")
+        );
+        assert_eq!(
+            requests[0].1["payload"],
+            json!({
+                "platform":"macos", "token":token, "environment":environment
+            })
+        );
+    }
+    let network = MockTransport::new(vec![]);
+    for token in [
+        "a".repeat(31),
+        "a".repeat(33),
+        "a".repeat(514),
+        "firebase:token_value-123".into(),
+    ] {
+        let action = serde_json::from_value::<Action>(json!({
+            "action":"register", "installation_id":ID, "platform":"macos",
+            "token":token, "environment":"production"
+        }))
+        .unwrap();
+        assert!(execute_using(&network, session(), action).is_err());
+    }
+    assert!(network.requests.borrow().is_empty());
 }
 
 #[test]

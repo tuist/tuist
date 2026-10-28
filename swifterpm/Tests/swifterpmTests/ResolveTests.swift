@@ -5,6 +5,116 @@ import Testing
 @testable import SwifterPMCore
 
 struct ResolveTests {
+    @Test(.inTemporaryDirectory, arguments: [false, true], [false, true])
+    func forcedRegistryInstallReplacesRetainedVersion(downgrade: Bool, warmCache: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        try await withLocalHTTPServer { server in
+            // A unique scope keeps native SwiftPM's registry fingerprints isolated.
+            let scope = "test" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+            let identity = "\(scope).dependency"
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            let manifest = try await fileSystem.readFile(at: dependency.appendingPathComponent("Package.swift").absolutePath)
+            server.respond(to: "/availability", with: [.ok("")])
+            server.respond(to: "/\(scope)/dependency", with: [.init(
+                statusCode: 200,
+                headers: ["Content-Type": "application/json", "Content-Version": "1"],
+                body: #"{"releases":{"1.0.0":{},"2.0.0":{}}}"#
+            )])
+            for version in ["1.0.0", "2.0.0"] {
+                try await fileSystem.atomicWrite(version, to: dependency.appendingPathComponent("version.txt"))
+                let archive = root.appendingPathComponent("dependency-\(version).zip")
+                try await SystemProcess.run("zip", ["-qr", archive.path, "."], workingDirectory: dependency)
+                let archiveData = try await fileSystem.readFile(at: archive.absolutePath)
+                let checksum = Hashing.sha256Hex(archiveData)
+                let path = "/\(scope)/dependency/\(version)"
+                server.respond(to: path, with: [.init(
+                    statusCode: 200,
+                    headers: ["Content-Type": "application/json", "Content-Version": "1"],
+                    body: """
+                    {"id":"\(identity)","version":"\(version)","resources":[
+                        {"name":"source-archive","type":"application/zip","checksum":"\(checksum)"}
+                    ]}
+                    """
+                )])
+                server.respond(to: path + "/Package.swift", with: [.init(
+                    statusCode: 200,
+                    headers: ["Content-Type": "text/x-swift", "Content-Version": "1"],
+                    data: manifest
+                )])
+                server.respond(to: path + ".zip", with: [.init(
+                    statusCode: 200,
+                    headers: ["Content-Type": "application/zip", "Content-Version": "1"],
+                    data: archiveData
+                )])
+            }
+            let package = root.appendingPathComponent("App")
+            let oldVersion = downgrade ? "2.0.0" : "1.0.0"
+            let newVersion = downgrade ? "1.0.0" : "2.0.0"
+            func writeManifest(version: String) async throws {
+                try await fileSystem.atomicWrite(
+                    """
+                    // swift-tools-version: 6.0
+                    import PackageDescription
+                    let package = Package(name: "App", dependencies: [
+                        .package(id: "\(identity)", exact: "\(version)"),
+                    ])
+                    """,
+                    to: package.appendingPathComponent("Package.swift")
+                )
+            }
+            var request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: root.appendingPathComponent("cache"),
+                defaultRegistryURL: server.url(path: "").absoluteString,
+                disableSandbox: true,
+                quiet: true
+            )
+            try await writeManifest(version: oldVersion)
+            _ = try await SwifterPM().resolve(request)
+
+            // Produce a valid new lockfile in a separate workspace, as another
+            // developer would, while keeping CI's previous workspace intact.
+            try await writeManifest(version: newVersion)
+            let lockfile = package.appendingPathComponent("Package.resolved")
+            try await fileSystem.remove(lockfile.absolutePath)
+            var updated = request
+            updated.scratchDirectory = root.appendingPathComponent("fresh-workspace")
+            if !warmCache { updated.cacheDirectory = root.appendingPathComponent("fresh-cache") }
+            _ = try await SwifterPM().resolve(updated)
+            let originalLockfile = try await fileSystem.readFile(at: lockfile.absolutePath)
+            let statePath = package.appendingPathComponent(".build/workspace-state.json")
+            #expect(try await fileSystem.readTextFile(at: statePath.absolutePath).contains(oldVersion))
+
+            request.forceResolvedVersions = true
+            let result = try await SwifterPM().resolve(request)
+            #expect(result.pins.first?.version == newVersion)
+            #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+            let state = try JSONSerialization.jsonObject(with: await fileSystem.readFile(at: statePath.absolutePath))
+                as? [String: Any]
+            let dependencies = (state?["object"] as? [String: Any])?["dependencies"] as? [[String: Any]]
+            #expect((dependencies?.first?["state"] as? [String: Any])?["version"] as? String == newVersion)
+            let restoredSource = package.appendingPathComponent(".build/registry/downloads/\(scope)/dependency/\(newVersion)")
+            #expect(try await fileSystem.readTextFile(at: restoredSource.appendingPathComponent("version.txt").absolutePath) == newVersion)
+
+            // An empty cache and scratch must follow the same locked-install contract.
+            request.cacheDirectory = root.appendingPathComponent("empty-cache")
+            request.scratchDirectory = root.appendingPathComponent("empty-workspace")
+            let fresh = try await SwifterPM().resolve(request)
+            #expect(fresh.pins == result.pins)
+            #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+
+            // Repairing derived state must never make an actually stale lockfile valid.
+            try await writeManifest(version: oldVersion)
+            request.cacheDirectory = root.appendingPathComponent("invalid-cache")
+            let error = await #expect(throws: ToolError.self) {
+                try await SwifterPM().resolve(request)
+            }
+            #expect(error?.description.contains("out-of-date") == true)
+            #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+        }
+    }
+
     @Test(.inTemporaryDirectory)
     func warmValidationReusesManifestsWhenFetchCredentialsRotate() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory).fileURL
@@ -128,8 +238,8 @@ struct ResolveTests {
         #expect(error?.description.contains("out-of-date") == true)
     }
 
-    @Test(.inTemporaryDirectory, arguments: [false, true])
-    func dependencyCacheSupportsRetainedAndFreshWorkspaces(retainWorkspace: Bool) async throws {
+    @Test(.inTemporaryDirectory, arguments: [false, true], [false, true])
+    func dependencyCacheSupportsRetainedAndFreshWorkspaces(retainWorkspace: Bool, warmCache: Bool) async throws {
         let root = try #require(FileSystem.temporaryTestDirectory).fileURL
         let dependency = root.appendingPathComponent("Dependency")
         try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
@@ -137,7 +247,7 @@ struct ResolveTests {
         let package = root.appendingPathComponent("App")
         try await writeAppPackageManifest(at: package, dependencyURL: dependency.absoluteString)
         let scratch = package.appendingPathComponent(".build")
-        let sharedCache = (retainWorkspace ? scratch : root).appendingPathComponent("shared cache")
+        var sharedCache = (retainWorkspace ? scratch : root).appendingPathComponent("shared cache")
         var request = SwifterPMResolutionRequest(
             packageDirectory: package,
             cacheDirectory: sharedCache,
@@ -151,6 +261,10 @@ struct ResolveTests {
 
         if !retainWorkspace {
             try await fileSystem.remove(scratch.absolutePath)
+        }
+        if !warmCache {
+            sharedCache = root.appendingPathComponent("cold cache")
+            request.cacheDirectory = sharedCache
         }
         request.forceResolvedVersions = true
         let warm = try await SwifterPM().resolve(request)
@@ -230,6 +344,40 @@ struct ResolveTests {
                     .path
                     == root.path)
         }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func forcedInstallWithoutLockfileRequiresOnlyLocalDependencies(unpinnedSourceControl: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent("Dependency")
+        try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+        let package = root.appendingPathComponent("App")
+        if unpinnedSourceControl {
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.absoluteString)
+        } else {
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "App", dependencies: [.package(path: "../Dependency")])
+                """,
+                to: package.appendingPathComponent("Package.swift")
+            )
+        }
+        let request = SwifterPMResolutionRequest(
+            packageDirectory: package,
+            cacheDirectory: root.appendingPathComponent("cache"),
+            disableSandbox: true,
+            forceResolvedVersions: true,
+            quiet: true
+        )
+        if unpinnedSourceControl {
+            await #expect(throws: ToolError.self) { try await SwifterPM().resolve(request) }
+        } else {
+            #expect(try await SwifterPM().resolve(request).pins.isEmpty)
+        }
+        #expect(try await !fileSystem.exists(package.appendingPathComponent("Package.resolved").absolutePath))
     }
 
     @Test

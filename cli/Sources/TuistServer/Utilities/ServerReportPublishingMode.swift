@@ -40,6 +40,7 @@ public enum ServerReportPublishingMode {
 
     static func discover(
         _ serverURL: URL,
+        capability: String = "network_trusted_report_publishing",
         perform: @Sendable (URLRequest) async throws -> (Data, URLResponse) = performDiscovery
     ) async throws -> Bool {
         let url = serverURL.appendingPathComponent(".well-known/tuist.json")
@@ -49,10 +50,14 @@ public enum ServerReportPublishingMode {
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else { return false }
         struct Capabilities: Decodable {
             let networkTrustedReportPublishing: Bool?
+            let networkTrustedCacheAccess: Bool?
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return (try? decoder.decode(Capabilities.self, from: data))?.networkTrustedReportPublishing == true
+        let capabilities = try? decoder.decode(Capabilities.self, from: data)
+        return capability == "network_trusted_cache_access"
+            ? capabilities?.networkTrustedCacheAccess == true
+            : capabilities?.networkTrustedReportPublishing == true
     }
 
     private static func performDiscovery(_ request: URLRequest) async throws -> (Data, URLResponse) {

@@ -119,7 +119,7 @@ struct CargoShardService {
         )
     }
 
-    private static func emit(_ plan: Components.Schemas.ShardPlan, environment: [String: String]) throws {
+    static func emit(_ plan: Components.Schemas.ShardPlan, environment: [String: String]) throws {
         let shards = Array(0 ..< plan.shard_count)
         let data = try JSONSerialization.data(
             withJSONObject: ["shard_plan_id": plan.id, "shards": shards],

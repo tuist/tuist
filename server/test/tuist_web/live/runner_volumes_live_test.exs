@@ -48,6 +48,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       previous_activity: %{hit_rate: 50.0},
       activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
       analytics: %{
+        saved_size_history: [%{at: ~U[2026-09-22 10:00:00Z], used_bytes: 512}],
         activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
         previous_activity: %{uses: 4, hit_rate: 75.0, points: []}
       },
@@ -352,10 +353,36 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
 
     socket = %Socket{assigns: %{__changed__: %{}, detail_metric: "hit_rate"}}
 
-    for metric <- ["hit_rate", "uses"] do
+    for metric <- ["used_bytes", "hit_rate", "uses"] do
       assert {:noreply, updated} = RunnerVolumesLive.handle_event("select_detail_metric", %{"widget" => metric}, socket)
       assert updated.assigns.detail_metric == metric
     end
+  end
+
+  test "saved size is selectable with a stepped byte chart and unknown gaps" do
+    assigns = %{assigns(true) | detail_metric: "used_bytes"}
+    html = render_component(&RunnerVolumesLive.render/1, assigns)
+    assert html |> Floki.parse_document!() |> Floki.find("[phx-value-widget=used_bytes][data-selected]") != []
+    assert html =~ "volume-analytics-chart"
+
+    analytics = %{
+      assigns.data.result.analytics
+      | saved_size_history: [
+          %{at: ~U[2026-09-22 08:00:00Z], used_bytes: 512},
+          %{at: ~U[2026-09-22 09:00:00Z], used_bytes: nil},
+          %{at: ~U[2026-09-22 10:00:00Z], used_bytes: 0}
+        ]
+    }
+
+    assert [%{step: "end", connectNulls: false, data: [[_, 512], [_, nil], [_, 0]]}] =
+             RunnerVolumesLive.detail_chart_series(analytics, "used_bytes")
+
+    assert RunnerVolumesLive.detail_chart_options("used_bytes", assigns.analytics_period).tooltip.valueFormat ==
+             "fn:formatBytes"
+
+    refute RunnerVolumesLive.detail_chart_data?(%{analytics | saved_size_history: []}, "used_bytes")
+    refute RunnerVolumesLive.detail_chart_data?(%{analytics | saved_size_history: [%{used_bytes: nil}]}, "used_bytes")
+    assert RunnerVolumesLive.detail_chart_data?(%{analytics | saved_size_history: [%{used_bytes: 0}]}, "used_bytes")
   end
 
   test "detail range changes stay on the volume and tab navigation preserves the range" do
@@ -442,7 +469,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
 
       assert document |> Floki.find("#volume-used [data-part=value]") |> Floki.text() == expected
       assert Floki.find(document, "#volume-used [data-part=trend]") == []
-      assert Floki.find(document, "[phx-click=select_detail_metric][phx-value-widget=used_bytes]") == []
+      assert Floki.find(document, "[phx-click=select_detail_metric][phx-value-widget=used_bytes]") != []
       assert Floki.find(document, "[phx-value-widget=hit_rate][data-selected]") != []
     end
   end

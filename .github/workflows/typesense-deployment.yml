@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - search/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - infra/helm/typesense/**
       - .github/workflows/typesense-deployment.yml
   workflow_dispatch:
@@ -61,6 +63,7 @@ jobs:
         with:
           context: ./search
           file: ./search/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}

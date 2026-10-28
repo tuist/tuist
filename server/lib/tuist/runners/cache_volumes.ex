@@ -17,6 +17,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
   alias Tuist.Runners.CacheVolumes.Measurement
+  alias Tuist.Runners.CacheVolumes.SavedSize
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.JobCompletion
@@ -207,7 +208,7 @@ defmodule Tuist.Runners.CacheVolumes do
   def mark_docker_seen(params) do
     with {:ok, job, attrs} <- docker_job(params, &executed_job/2),
          {:ok, identity} <- docker_identity(job) do
-      insert_volume!(job, Identity.storage_scope(identity), attrs)
+      {:ok, _} = Repo.transaction(fn -> insert_volume!(job, Identity.storage_scope(identity), attrs) end)
       :ok
     else
       _ -> {:error, :unavailable}
@@ -431,10 +432,14 @@ defmodule Tuist.Runners.CacheVolumes do
         updated_at: timestamp
       })
 
-    Repo.insert_all(Volume, [row],
-      on_conflict: :nothing,
-      conflict_target: [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :architecture, :uid]
-    )
+    {_, inserted} =
+      Repo.insert_all(Volume, [row],
+        on_conflict: :nothing,
+        returning: true,
+        conflict_target: [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :architecture, :uid]
+      )
+
+    Enum.each(inserted, &record_saved_size/1)
   end
 
   # Picks the capacity of the job's copy. It grows within a lineage and shrinks
@@ -457,7 +462,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
     if reset? do
       Runners.clear_volume_master(volume.account_id, storage_name(volume))
-      {Repo.update!(Ecto.Changeset.change(volume, generation: volume.generation + 1, head_id: nil)), nil, volume_bytes}
+      {update_saved_head(volume, generation: volume.generation + 1, head_id: nil), nil, volume_bytes}
     else
       {volume, saved_head, volume_bytes}
     end
@@ -691,13 +696,7 @@ defmodule Tuist.Runners.CacheVolumes do
          DateTime.compare(volume.last_used_at, DateTime.add(now, -@retention_seconds)) != :gt do
       Runners.clear_volume_master(volume.account_id, storage_name(volume))
 
-      Repo.update!(
-        Ecto.Changeset.change(volume,
-          generation: volume.generation + 1,
-          head_id: nil,
-          deleted_at: now
-        )
-      )
+      update_saved_head(volume, [generation: volume.generation + 1, head_id: nil, deleted_at: now], now)
     else
       volume
     end
@@ -761,7 +760,7 @@ defmodule Tuist.Runners.CacheVolumes do
   defp report_locked(volume, usage, %{"state" => "deleted"}) do
     now = DateTime.utc_now()
     mark_deleted!(usage, now, last_reported_at: now)
-    if volume.head_id == usage.id, do: Repo.update!(Ecto.Changeset.change(volume, head_id: nil))
+    if volume.head_id == usage.id, do: update_saved_head(volume, [head_id: nil], now)
     %{action: "forget"}
   end
 
@@ -778,7 +777,9 @@ defmodule Tuist.Runners.CacheVolumes do
       Repo.update!(Ecto.Changeset.change(volume, last_used_at: now))
     end
 
+    saved_size_changed? = volume.head_id == usage.id and usage.size_bytes != metrics.size_bytes
     usage = update_reported_usage(usage, params, metrics, now, docker_images(volume, params))
+    if saved_size_changed?, do: record_saved_size(volume, now)
     report_action(volume, usage, params, valid, now)
   end
 
@@ -1396,7 +1397,7 @@ defmodule Tuist.Runners.CacheVolumes do
           )
         )
 
-        Repo.update!(Ecto.Changeset.change(volume, head_id: usage.id))
+        update_saved_head(volume, head_id: usage.id)
         %{generation: generation}
 
       :conflict ->
@@ -1500,6 +1501,54 @@ defmodule Tuist.Runners.CacheVolumes do
     })
   end
 
+  # Call while holding the volume lock, in the same transaction as the HEAD change.
+  defp update_saved_head(volume, changes, now \\ DateTime.utc_now()) do
+    updated = Repo.update!(Ecto.Changeset.change(volume, changes))
+    record_saved_size(updated, now)
+    updated
+  end
+
+  defp record_saved_size(volume, now \\ DateTime.utc_now()) do
+    size = if volume.head_id, do: Repo.get!(Usage, volume.head_id).size_bytes, else: 0
+
+    previous =
+      Repo.one(
+        from(s in SavedSize, where: s.volume_id == ^volume.id, order_by: [desc: s.observed_at, desc: s.id], limit: 1)
+      )
+
+    if is_nil(previous) or previous.size_bytes != size do
+      Repo.insert!(%SavedSize{volume_id: volume.id, size_bytes: size, observed_at: now})
+    end
+  end
+
+  @doc "Hourly saved-cache sizes, seeded by the last observation before the range."
+  def saved_size_history(account_id, volume_id, {start, finish}) do
+    # At most 2,162 indexed lookups for the dashboard's maximum 90-day range.
+    # Missing history stays absent; a recorded unknown size stays NULL.
+    %{rows: rows} =
+      Repo.query!(
+        """
+        WITH points AS (
+          SELECT generate_series($3::timestamptz, $4::timestamptz, interval '1 hour') AS at
+          UNION SELECT $4::timestamptz
+        )
+        SELECT p.at, s.size_bytes
+        FROM runner_cache_volumes v
+        CROSS JOIN points p
+        JOIN LATERAL (
+          SELECT size_bytes FROM runner_cache_volume_saved_sizes
+          WHERE volume_id = v.id AND observed_at <= p.at
+          ORDER BY observed_at DESC, id DESC LIMIT 1
+        ) s ON true
+        WHERE v.account_id = $1 AND v.id = $2
+        ORDER BY p.at
+        """,
+        [account_id, Ecto.UUID.dump!(volume_id), start, finish]
+      )
+
+    Enum.map(rows, fn [at, size] -> %{at: at, used_bytes: size} end)
+  end
+
   def get(account_id, id) do
     case Ecto.UUID.cast(id) do
       {:ok, id} -> Repo.get_by(Volume, id: id, account_id: account_id)
@@ -1520,7 +1569,7 @@ defmodule Tuist.Runners.CacheVolumes do
         Repo.transaction(fn ->
           case Repo.one(from(v in Volume, where: v.id == ^id and v.account_id == ^account_id, lock: "FOR UPDATE")) do
             nil -> Repo.rollback(:not_found)
-            volume -> Repo.update!(Ecto.Changeset.change(volume, changes.(volume)))
+            volume -> update_saved_head(volume, changes.(volume))
           end
         end)
 
@@ -1841,6 +1890,18 @@ defmodule Tuist.Runners.CacheVolumes do
   def prune_history do
     threshold = DateTime.add(DateTime.utc_now(), -90 * 24 * 60 * 60)
     Repo.delete_all(from(u in Usage, where: u.deleted_at < ^threshold))
+    # Keep one baseline per volume so an unchanged cache survives the retention boundary.
+    Repo.query!(
+      """
+      DELETE FROM runner_cache_volume_saved_sizes s
+      WHERE s.observed_at < $1 AND s.id NOT IN (
+        SELECT DISTINCT ON (volume_id) id FROM runner_cache_volume_saved_sizes
+        WHERE observed_at < $1 ORDER BY volume_id, observed_at DESC, id DESC
+      )
+      """,
+      [threshold]
+    )
+
     :ok
   end
 

@@ -25,7 +25,7 @@
     },
     {
       "customType": "regex",
-      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm, gh). Bumps land as `fix(linux-runner-image): …` commits which server-production-deployment.yml's release-linux-runner-image flow picks up to rebuild the image and push a new `linux-runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
+      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm, gh). Bumps land as `fix(linux-runner-image): …` commits which linux-runner-image-release.yml picks up to rebuild the image and push a new `linux-runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
       "fileMatch": ["^infra/linux-runner-image/Dockerfile$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ARG\\s+[A-Z_]+=(?<currentValue>[^\\s]+)"
@@ -88,6 +88,12 @@
       "commitMessageTopic": "GitHub Actions runner",
       "prPriority": 10,
       "automerge": true
+    },
+    {
+      "description": "Refresh Linux runner base digests through the image release pipeline.",
+      "matchManagers": ["dockerfile"],
+      "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
+      "commitMessagePrefix": "fix(linux-runner-image):"
     },
     {
       "description": "Linux-runner-image ARG bumps (actions/runner, kubectl, helm, gh): route through the linux-runner-image release flow.",

@@ -1,0 +1,39 @@
+name: Tuist Docker builder
+description: Set up Buildx with persistent layers and cache mounts on Tuist Linux runners.
+inputs:
+  cache-key:
+    description: Stable key for this build workload, such as services/api/Dockerfile. Share only between builds that reuse each other's layers.
+    required: true
+  buildkitd-config-inline:
+    description: Optional BuildKit configuration. By default, BuildKit garbage collection keeps approximately 10 GB per builder.
+    required: false
+    default: |
+      [worker.oci]
+        gc = true
+        reservedSpace = "2GB"
+        maxUsedSpace = "10GB"
+        minFreeSpace = "5GB"
+outputs:
+  name:
+    description: Configured Buildx builder name.
+    value: ${{ steps.builder.outputs.name }}
+runs:
+  using: composite
+  steps:
+    - id: cache
+      shell: bash
+      env:
+        TUIST_BUILDER_KEY: ${{ inputs.cache-key }}
+      run: |
+        set -euo pipefail
+        test -n "$TUIST_BUILDER_KEY" || { echo 'cache-key must not be empty' >&2; exit 1; }
+        name="tuist-$(printf '%s' "$TUIST_BUILDER_KEY" | sha256sum | cut -c1-32)"
+        docker volume create --label dev.tuist.cache=buildkit "buildx_buildkit_${name}0_state"
+        echo "name=$name" >> "$GITHUB_OUTPUT"
+    - id: builder
+      uses: docker/setup-buildx-action@v3
+      with:
+        name: ${{ steps.cache.outputs.name }}
+        driver: docker-container
+        keep-state: true
+        buildkitd-config-inline: ${{ inputs.buildkitd-config-inline }}

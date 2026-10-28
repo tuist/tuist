@@ -29,6 +29,28 @@ struct AtlasSystemKeychain: AtlasKeychainAccess {
 }
 
 enum AtlasSecureStorage {
+    static var readCacheURL: URL {
+        URL.applicationSupportDirectory.appending(path: "Atlas/ReadCache", directoryHint: .isDirectory)
+    }
+
+    static func prepareReadCache() async -> String {
+        await Task.detached {
+            do {
+                var directory = readCacheURL
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [
+                    .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication, .posixPermissions: 0o700
+                ])
+                var values = URLResourceValues()
+                values.isExcludedFromBackup = true
+                try directory.setResourceValues(values)
+                return directory.path
+            } catch {
+                // An unavailable private directory disables caching, not online use.
+                return ""
+            }
+        }.value
+    }
+
     static func load(_ key: String, keychain: any AtlasKeychainAccess = AtlasSystemKeychain()) throws -> String? {
         var query = attributes(key)
         query[kSecReturnData] = true

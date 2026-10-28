@@ -1,5 +1,5 @@
 {
-  "originHash" : "6555a46cb78f7d511e1baf4dc0c5243803682276ce3861ae407d8afd325dc769",
+  "originHash" : "b5cd46b6ab05d2755fccd67787149b846e1dadd1eab7bd404509159e479375f4",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -68,7 +68,7 @@
       "identity" : "apple.swift-collections",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-collections",
+      "originalLocation" : "https://github.com/apple/swift-collections.git",
       "state" : {
         "version" : "1.2.1"
       }
@@ -113,7 +113,7 @@
       "identity" : "apple.swift-nio",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-nio.git",
+      "originalLocation" : "https://github.com/apple/swift-nio",
       "state" : {
         "version" : "2.102.0"
       }
@@ -202,7 +202,7 @@
       "identity" : "apple.swift-system",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-system",
+      "originalLocation" : "https://github.com/apple/swift-system.git",
       "state" : {
         "version" : "1.8.1"
       }
@@ -353,7 +353,6 @@
       "identity" : "kolos65.Mockable",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/Kolos65/Mockable",
       "state" : {
         "version" : "0.6.4"
       }
@@ -443,7 +442,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.2.49"
+        "version" : "0.2.50"
       }
     },
     {
@@ -690,7 +689,7 @@
       "identity" : "tuist.Path",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/path",
+      "originalLocation" : "https://github.com/tuist/Path",
       "state" : {
         "version" : "0.3.8"
       }

@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -16,11 +18,18 @@ import (
 
 var testEgress = Egress{Namespace: "tailscale-operator", ProxyGroup: "macmini-egress"}
 
-// withEgress dials through testEgress, whose Service names resolve nowhere
-// outside a cluster, so a dial gives up quickly.
+// withEgress keeps failed Service lookups local even on a cluster runner.
 func (h *harness) withEgress() {
 	h.r.Egress = testEgress
 	h.r.PicOS.Dialer.Timeout = 200 * time.Millisecond
+	resolver := net.DefaultResolver
+	h.t.Cleanup(func() { net.DefaultResolver = resolver })
+	net.DefaultResolver = &net.Resolver{
+		PreferGo: true,
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			return nil, errors.New("test egress DNS unavailable")
+		},
+	}
 }
 
 func (h *harness) egressService(name string) (*corev1.Service, error) {
@@ -50,8 +59,7 @@ func TestPicOSSwitchIsDialledThroughItsEgressService(t *testing.T) {
 	if !controllerutil.ContainsFinalizer(rs, EgressFinalizer) {
 		t.Fatalf("finalizers = %v", rs.Finalizers)
 	}
-	// The Service's name is what was dialled, not the address: nothing
-	// resolves it outside a cluster, so the switch was never reached.
+	// The failed lookup names the Service, not the switch's address.
 	c := condition(rs, v1alpha1.ConditionAdopted)
 	if c.Reason != "NotProvisioned" || !strings.Contains(c.Message, "rackswitch-larch-tor-a.tailscale-operator.svc.cluster.local") {
 		t.Fatalf("Adopted = %+v", c)
