@@ -1,5 +1,36 @@
 # Thin stack qualification
 
+## Decision — retain shared XFS, 2026-10-28
+
+The thin-LVM migration in #14152 is parked. Continue disk sharing in #14825
+on shared XFS; it no longer depends on this CSI implementation. Preserve this
+branch and the evidence below as an experiment, not as a rollout candidate.
+
+The final measurements did not meet the performance gate: tuned thin random
+reads at QD32 remained 25.6% below encrypted thick LVM. In the separate
+production-style staging comparison, small PUT p95 was 28.99–29.84 ms on
+main/shared XFS versus 34.87–35.82 ms on candidate/encrypted thin. These compare
+different baselines and must not be combined into one attributed overhead.
+The qualified mode also requires complete virtual-ceiling backing, so it does
+not deliver the proposed disk-sharing admission gains.
+
+This decision defers per-tenant encryption at rest. Shared XFS alone does not
+provide it; host-wide encryption would not provide equivalent tenant key
+isolation. Application-level encryption remains an unqualified alternative.
+Any future proposal must qualify key custody/recovery, authenticated reads,
+range access and serving performance, rotation, disk overhead and eviction
+churn before becoming a migration prerequisite.
+
+The prior rehearsal fixtures and thin pool were removed. A read-only check on
+2026-10-28 found four existing encrypted CSI PVs still Bound on staging. Retain
+their driver, key service and state until a separately verified migration;
+parking this PR does not authorize deleting their storage dependencies.
+Production is unchanged. Shared-XFS sharing still needs its own staging and
+rollout qualification; the following thin tests cannot qualify it.
+
+All release-status statements below describe the experiment at the time of
+measurement. They do not supersede this decision.
+
 ## Destination-bound handoff qualification — 2026-10-27
 
 **The live-write handoff defect is corrected and its repeated staged migration
@@ -151,7 +182,9 @@ present on both one-CPU fixtures; these are workload comparisons under the same
 limits, not storage-only latency measurements. Each served 543,424,512 measured
 artifact bytes. Retained cache directories were 3.24–3.78 GB as segment eviction
 rotated; request bytes and cache budget matched, not the incidental ring phase.
-CPU/memory figures describe the runtime cgroup, not total host, CSI or OpenBao\ncost. They do not establish a tenant-density or regional-memory projection.\nShort ranges and page-cache hits do not prove statistical equivalence. These
+CPU/memory figures describe the runtime cgroup, not total host, CSI or OpenBao
+cost. They do not establish a tenant-density or regional-memory projection.
+Short ranges and page-cache hits do not prove statistical equivalence. These
 results replace the earlier runtime `532db7a28be5` application results as the
 current candidate comparison.
 
