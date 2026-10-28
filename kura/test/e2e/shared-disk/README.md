@@ -45,3 +45,35 @@ leases while keeping the effective ring at 3 GiB, so workload and cache size
 match. This measures runtime memory, disk, CPU and egress overhead; it does not
 measure the host agent or establish physical quota safety. Use the XFS test
 above for the latter.
+
+## Staging qualification and benchmark
+
+The [validation record](validation.md) separates the local fixture from the
+isolated staging Kubernetes run. Staging uses real local-path PVCs and the actual
+node allocator; it does not enable a region or replace existing workloads.
+
+`benchmark.go` is a dependency-free HTTP cache client for explicitly authorized
+fixtures. Build it for the client host, mount a fixture-scoped bearer-token file,
+and supply the fixture URL and tenant:
+
+```sh
+GOOS=linux GOARCH=amd64 go build -o /tmp/cache-bench benchmark.go
+/tmp/cache-bench -base http://FIXTURE:4000 -account default \
+  -token-file /run/fixture-token -out /tmp/result.json
+```
+
+It uses namespace `shared`, eight workers, 400 16 KiB PUTs/GETs, 64 4 MiB
+PUTs/GETs, 24 batches of 64 unique 4 MiB eviction writes, then 64 verified reads.
+Every GET verifies the returned bytes. A non-2xx response or checksum mismatch
+fails the run; evictions of older churn objects are expected. The object prefix
+`thin-bench-` is retained from the earlier benchmark so workload construction
+stays comparable; this client does not require thin storage or encryption.
+
+Compare identical CPU/memory limits, cache sizes, XFS quotas and placement using
+baseline/candidate/candidate/baseline order. Scrape `/metrics` throughout load
+and at least 20 seconds afterward, and capture cgroup CPU, anonymous memory,
+pressure/OOM counters, physical data-directory bytes and network counters. Keep
+allocator costs separate from runtime costs. The harness reports per-phase
+percentiles; an average of batch p95s is not a whole-run p95. Use at least a
+working set larger than memory for read-throughput qualification; the default
+256 MiB immediate-read phases can be warm-cache measurements.

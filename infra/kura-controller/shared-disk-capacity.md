@@ -156,8 +156,8 @@ The allocation files are transient node operational state, not new account data
 or database records. No new telemetry series are introduced. Existing runtime
 pressure counters and agent decision logs expose allocation/reclaim behavior.
 Fleet dashboards, inode pressure policy, automatic migration and preflight
-qualification of production reserves remain rollout work; this PR does not
-claim they were exercised against a live cluster.
+qualification of production reserves remain rollout work; the isolated staging
+fixture does not qualify those fleet rollout gates.
 
 ## Local qualification
 
@@ -186,3 +186,10 @@ image. That mode publishes synthetic expiring leases at the same effective
 3 GiB ring size, isolating runtime overhead; it does not enforce kernel quotas
 or benchmark the host agent. The real-XFS test establishes physical enforcement.
 Neither replaces qualification of the intended host's reserve before enabling it.
+
+The [2026-10-28 staging record](../../kura/test/e2e/shared-disk/validation.md)
+qualifies real local-path PVCs, the bind-mounted provisioner root, packaged agent,
+quota reclaim, restarts and cleanup. It records a small write/CPU overhead and a
+remaining read-throughput reduction against main; it is not a no-regression
+sign-off or a production enablement. Shared XFS does not use OpenBao or provide
+the parked per-tenant LUKS boundary. Keep encryption qualification separate.
