@@ -628,6 +628,28 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       refute Map.has_key?(automation.recovery_config, "window")
     end
 
+    test "no-new-flaky-runs recovery persists the condition and survives an edit", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Quiet recovery"})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      render_hook(lv, "update_create_automation_form_recovery_condition", %{"data" => "no_new_matches"})
+      render_hook(lv, "save_automation", %{})
+
+      expected = %{"window_type" => "last_days", "window" => "14d", "condition" => "no_new_matches"}
+      assert [%{recovery_config: ^expected} = automation] = Automations.list_alerts(project.id)
+
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      render_hook(lv, "save_automation", %{})
+
+      assert [%{recovery_config: ^expected}] = Automations.list_alerts(project.id)
+    end
+
     test "last_days recovery window persists window string", %{
       conn: conn,
       organization: organization,
