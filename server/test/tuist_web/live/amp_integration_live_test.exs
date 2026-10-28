@@ -16,8 +16,8 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
 
   test "connects, replaces and disconnects without rendering saved credentials", %{conn: conn, account: account} do
     {:ok, view, _} = live(conn, "/#{account.name}/settings/integrations")
-    assert has_element?(view, "#amp-integration button", "Connect Amp")
-    view |> element("#amp-integration button", "Connect Amp") |> render_click()
+    assert has_element?(view, "#amp-integration button", "Connect")
+    view |> element("#amp-integration button", "Connect") |> render_click()
     assert_push_event(view, "open-modal", %{id: "connect-amp-modal"})
     token = "aop_live_fixture_secret"
     view |> with_target("#amp-integration") |> render_submit("save", %{"provider_token" => token})
@@ -43,5 +43,14 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
     stub(Tuist.FeatureFlags, :sandboxes_enabled?, fn _ -> false end)
     {:ok, view, _} = live(conn, "/#{account.name}/settings/integrations")
     assert has_element?(view, "#amp-integration[hidden]")
+    refute has_element?(view, "#connect-amp-modal")
+  end
+
+  test "existing connection is hidden when sandbox access is disabled", %{conn: conn, account: account, user: user} do
+    assert {:ok, _} = AmpIntegrations.connect(account.id, user, "aop_live_existing")
+    stub(Tuist.FeatureFlags, :sandboxes_enabled?, fn _ -> false end)
+    {:ok, view, _} = live(conn, "/#{account.name}/settings/integrations")
+    assert has_element?(view, "#amp-integration[hidden]")
+    refute has_element?(view, "#connect-amp-modal")
   end
 end

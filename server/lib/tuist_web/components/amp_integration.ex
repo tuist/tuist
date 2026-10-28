@@ -85,7 +85,7 @@ defmodule TuistWeb.Components.AmpIntegration do
   def render(assigns) do
     ~H"""
     <section
-      hidden={not @available and is_nil(@integration)}
+      hidden={not @available}
       id={@id}
       data-part="amp-card-section"
       class="noora-card__section"
@@ -98,7 +98,7 @@ defmodule TuistWeb.Components.AmpIntegration do
         <p data-part="subtitle">
           {dgettext(
             "dashboard_integrations",
-            "Run your Amp workspace’s Orbs on Tuist sandboxes. Your files and processes are preserved when an Orb pauses."
+            "Run your Amp workspace’s Orbs on Tuist sandboxes."
           )}
         </p>
       </div>
@@ -172,7 +172,7 @@ defmodule TuistWeb.Components.AmpIntegration do
             label={
               if @integration && @integration.enabled,
                 do: dgettext("dashboard_integrations", "Replace token"),
-                else: dgettext("dashboard_integrations", "Connect Amp")
+                else: dgettext("dashboard_integrations", "Connect")
             }
             variant="primary"
             phx-click="edit"
@@ -228,7 +228,7 @@ defmodule TuistWeb.Components.AmpIntegration do
               hint={
                 dgettext(
                   "dashboard_integrations",
-                  "Stored encrypted and never shown again. No Tuist login or API token is needed."
+                  "Stored encrypted and never shown again."
                 )
               }
             />
