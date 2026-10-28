@@ -1,0 +1,311 @@
+<div id="test-selections">
+  <div data-part="filters">
+    <.date_picker
+      id="test-selections-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_tests", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_tests", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_tests", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_tests", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "test-selections-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_tests", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "test-selections-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_tests", "Test Selection")}
+    icon="filter"
+    data-part="analytics"
+  >
+    <.async_section :let={ready?} results={[@analytics]}>
+      <div data-part="analytics-content">
+        <div data-part="widgets">
+          <.widget
+            id="widget-selected"
+            loading={!ready?}
+            title={dgettext("dashboard_tests", "Selected")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Tests (or test targets) the period's plans had to run: their evidence executed a changed file, or they had no evidence to skip them with."
+              )
+            }
+            value={if ready?, do: format_number(@analytics.result.totals.selected)}
+            legend_color="primary"
+            trend_value={if ready?, do: @analytics.result.trends.selected}
+            trend_type={:neutral}
+            trend_label={@analytics_trend_label}
+            phx_click="select_widget"
+            phx_value_widget="selected"
+            selected={@selected_widget in ["selected", "skipped"]}
+            empty={ready? and @analytics.result.totals.selections == 0}
+          />
+          <.widget
+            id="widget-skipped"
+            loading={!ready?}
+            title={dgettext("dashboard_tests", "Skipped")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Tests (or test targets) the period's plans could skip: they passed in the baseline and none of the files they executed changed since."
+              )
+            }
+            value={if ready?, do: format_number(@analytics.result.totals.skipped)}
+            legend_color="secondary"
+            trend_value={if ready?, do: @analytics.result.trends.skipped}
+            trend_label={@analytics_trend_label}
+            phx_click="select_widget"
+            phx_value_widget="skipped"
+            selected={@selected_widget in ["selected", "skipped"]}
+            empty={ready? and @analytics.result.totals.selections == 0}
+          />
+          <.widget
+            id="widget-skip-rate"
+            loading={!ready?}
+            title={dgettext("dashboard_tests", "Skip rate")}
+            description={
+              dgettext("dashboard_tests", "The share of the period's decisions that skipped.")
+            }
+            value={if ready?, do: "#{@analytics.result.totals.skip_rate}%"}
+            legend_color="tertiary"
+            trend_value={if ready?, do: @analytics.result.trends.skip_rate}
+            trend_label={@analytics_trend_label}
+            phx_click="select_widget"
+            phx_value_widget="skip_rate"
+            selected={@selected_widget == "skip_rate"}
+            empty={ready? and @analytics.result.totals.selections == 0}
+          />
+          <.widget
+            id="widget-selections"
+            loading={!ready?}
+            title={dgettext("dashboard_tests", "Plans")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Commits Tuist planned a test selection for. A commit planned again keeps its latest plan."
+              )
+            }
+            value={if ready?, do: format_number(@analytics.result.totals.selections)}
+            legend_color="p50"
+            trend_value={if ready?, do: @analytics.result.trends.selections}
+            trend_type={:neutral}
+            trend_label={@analytics_trend_label}
+            phx_click="select_widget"
+            phx_value_widget="selections"
+            selected={@selected_widget == "selections"}
+            empty={ready? and @analytics.result.totals.selections == 0}
+          />
+        </div>
+        <.card_section :if={!ready?} data-chart-frame="standard">
+          <div data-part="analytics-chart"><.skeleton_chart /></div>
+        </.card_section>
+        <.card_section
+          :if={ready? and not empty_chart?(@analytics.result)}
+          data-chart-frame="standard"
+        >
+          <div data-part="analytics-chart">
+            <.chart
+              id="test-selections-analytics-chart"
+              type={if @selected_widget in ["selected", "skipped"], do: "bar", else: "line"}
+              extra_options={
+                %{
+                  grid: %{width: "93%", left: "0.4%", right: "7%", height: "88%", top: "5%"},
+                  xAxis: %{
+                    boundaryGap: @selected_widget in ["selected", "skipped"],
+                    type: "category",
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "fn:toLocaleDate",
+                      customValues: [
+                        List.first(@analytics.result.dates),
+                        List.last(@analytics.result.dates)
+                      ],
+                      padding: [10, 0, 0, 0]
+                    }
+                  },
+                  yAxis: %{
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter:
+                        if(@selected_widget == "skip_rate", do: "{value}%", else: "{value}")
+                    }
+                  },
+                  legend: %{show: false},
+                  tooltip:
+                    if(@analytics_preset == "last-24-hours", do: %{dateFormat: "hour"}, else: %{})
+                }
+              }
+              series={chart_series(@selected_widget, @analytics.result)}
+              y_axis_min={0}
+            />
+          </div>
+        </.card_section>
+        <.empty_card_section
+          :if={ready? and empty_chart?(@analytics.result)}
+          title={dgettext("dashboard_tests", "No test selection plans in this period")}
+          data-chart-frame="standard"
+        >
+          <:image>
+            <img
+              src={~p"/images/empty_line_chart_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_line_chart_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.async_section>
+  </.card>
+
+  <.card title={dgettext("dashboard_tests", "Commits")} icon="git_commit" data-part="commits">
+    <.card_section data-part="commits-section">
+      <div data-part="filters">
+        <.form
+          for={%{}}
+          id="search-test-selections-form"
+          phx-change="search-selections"
+          phx-debounce="200"
+        >
+          <.text_input
+            type="search"
+            id="search-test-selections"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search by commit or branch...")}
+            show_suffix={false}
+            data-part="search"
+            value={@search}
+          />
+        </.form>
+        <.dropdown
+          id="test-selections-scope-dropdown"
+          label={scope_filter_label(@scope)}
+          secondary_text={dgettext("dashboard_tests", "Scope:")}
+        >
+          <.dropdown_item
+            :for={scope <- ~w(any test target)}
+            value={scope}
+            label={scope_filter_label(scope)}
+            patch={"?#{@uri.query |> Query.put("scope", scope) |> Query.drop("page")}"}
+            data-selected={@scope == scope}
+          >
+            <:right_icon :if={@scope == scope}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+
+      <div :if={@selections != []} data-part="commits-table">
+        <.table
+          id="test-selections-table"
+          rows={@selections}
+          row_key={& &1.id}
+          row_navigate={&commit_href(assigns, &1.git_commit_sha)}
+        >
+          <:col :let={selection} label={dgettext("dashboard_tests", "Commit")}>
+            <.text_and_description_cell
+              label={short_sha(selection.git_commit_sha)}
+              description={selection.git_branch}
+            />
+          </:col>
+          <:col :let={selection} label={dgettext("dashboard_tests", "Scope")}>
+            <.text_cell label={scope_label(selection.scope)} />
+          </:col>
+          <:col :let={selection} label={dgettext("dashboard_tests", "Mode")}>
+            <.badge_cell
+              label={mode_label(selection.mode)}
+              color={mode_color(selection.mode)}
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={selection} label={dgettext("dashboard_tests", "Selected")}>
+            <.text_cell label={format_number(selection.selected_count)} />
+          </:col>
+          <:col :let={selection} label={dgettext("dashboard_tests", "Skipped")}>
+            <.text_cell label={format_number(selection.skipped_count)} />
+          </:col>
+          <:col :let={selection} label={dgettext("dashboard_tests", "Skip rate")}>
+            <.text_cell
+              :if={selection.fallback_reason == ""}
+              label={"#{Selections.skip_rate(selection.selected_count, selection.skipped_count)}%"}
+            />
+            <.badge_cell
+              :if={selection.fallback_reason != ""}
+              label={dgettext("dashboard_tests", "Ran everything")}
+              color="warning"
+              style="light-fill"
+              icon="alert_triangle"
+            />
+          </:col>
+          <:col :let={selection} label={dgettext("dashboard_tests", "Test runs")}>
+            <.text_cell label={format_number(selection.test_runs_count)} />
+          </:col>
+          <:col :let={selection} label={dgettext("dashboard_tests", "Planned")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(selection.inserted_at)} />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@selections_meta.total_pages > 1}
+          current_page={@selections_meta.current_page}
+          number_of_pages={@selections_meta.total_pages}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+        />
+      </div>
+
+      <.coverage_empty
+        :if={@selections == []}
+        title={dgettext("dashboard_tests", "No test selection plans yet")}
+        image="table"
+        data-part="empty-commits"
+      />
+    </.card_section>
+  </.card>
+</div>

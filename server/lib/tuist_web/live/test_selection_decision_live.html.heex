@@ -1,0 +1,213 @@
+<div id="test-selection-decision">
+  <.button
+    label={
+      dgettext("dashboard_tests", "Commit %{sha}", sha: short_sha(@selection.git_commit_sha))
+    }
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={commit_href(assigns)}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div data-part="kind">
+          <div data-part="icon">
+            <.icon name={if @decision.scope_kind == "target", do: "stack_2", else: "subtask"} />
+          </div>
+        </div>
+        <h1 data-part="label">{decision_title(@decision)}</h1>
+      </div>
+      <div data-part="badges">
+        <.decision_badge decision={@decision.decision} />
+        <.badge
+          :if={@decision.scope_kind == "test"}
+          label={"#{module_label(@selected_project)}: #{@decision.module_name}"}
+          color="primary"
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          :if={@decision.suite_name != ""}
+          label={"#{suite_label(@selected_project)}: #{@decision.suite_name}"}
+          color="primary"
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          label={"#{scheme_label(@selected_project)}: #{@decision.scheme}"}
+          color="neutral"
+          style="light-fill"
+          size="large"
+        />
+      </div>
+    </div>
+    <div data-part="actions">
+      <.button
+        :if={@test_case_exists?}
+        label={dgettext("dashboard_tests", "View test case")}
+        variant="secondary"
+        size="medium"
+        navigate={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases/#{@decision.test_case_id}"
+        }
+        data-part="test-case-link"
+      >
+        <:icon_left><.icon name="exchange" /></:icon_left>
+      </.button>
+    </div>
+  </div>
+
+  <.card
+    title={
+      if @decision.decision == "selected",
+        do: dgettext("dashboard_tests", "Why it was selected"),
+        else: dgettext("dashboard_tests", "Why it was skipped")
+    }
+    icon="filter_question"
+    data-part="reason-card"
+  >
+    <.card_section data-part="file-summary-section">
+      <.alert
+        id="test-selection-decision-reason"
+        type="secondary"
+        status={if @decision.decision == "selected", do: "information", else: "success"}
+        size="large"
+        title={reason_label(@decision.reason)}
+        description={reason_description(@decision.reason, length(@decision.changed_paths))}
+      />
+      <dl data-part="file-details">
+        <div>
+          <dt>
+            {if @decision.scope_kind == "target",
+              do: dgettext("dashboard_tests", "Declared in"),
+              else: dgettext("dashboard_tests", "Defined in")}
+          </dt>
+          <dd>{@decision.source_path}</dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard_tests", "Commit")}</dt>
+          <dd>
+            <.link_button
+              navigate={commit_href(assigns)}
+              label={short_sha(@selection.git_commit_sha)}
+              variant="secondary"
+              size="large"
+              underline
+            />
+          </dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard_tests", "Baseline")}</dt>
+          <dd>{short_sha(@selection.baseline_commit_sha)}</dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard_tests", "Evidence from")}</dt>
+          <dd>
+            <.link_button
+              :if={@decision.evidence_test_run_id}
+              navigate={
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{@decision.evidence_test_run_id}"
+              }
+              label={dgettext("dashboard_tests", "Baseline test run")}
+              variant="secondary"
+              size="large"
+              underline
+            />
+            <span :if={is_nil(@decision.evidence_test_run_id)}>
+              {dgettext("dashboard_tests", "None")}
+            </span>
+          </dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard_tests", "Baseline duration")}</dt>
+          <dd>{format_duration(@decision.duration)}</dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard_tests", "Changed files it executed")}</dt>
+          <dd>
+            {dgettext("dashboard_tests", "%{changed} of %{total}",
+              changed: changed_count(assigns),
+              total: length(@all_files)
+            )}
+          </dd>
+        </div>
+      </dl>
+    </.card_section>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_tests", "Source files")}
+    icon="file"
+    data-part="files-card"
+  >
+    <.card_section data-part="file-functions-section">
+      <div data-part="filters">
+        <.form
+          for={%{}}
+          id="search-test-selection-decision-files-form"
+          phx-change="search-files"
+          phx-debounce="200"
+        >
+          <.text_input
+            type="search"
+            id="search-test-selection-decision-files"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search by path...")}
+            show_suffix={false}
+            data-part="search"
+            value={@files_search}
+          />
+        </.form>
+      </div>
+      <div :if={@files != []} data-part="functions-table">
+        <.table id="test-selection-decision-files-table" rows={@files} row_key={& &1.path}>
+          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+            <.text_and_description_cell
+              label={Path.basename(file.path)}
+              description={parent_dir(file.path)}
+            />
+          </:col>
+          <:col :let={file} label={dgettext("dashboard_tests", "Since the baseline")}>
+            <.status_badge_cell
+              :if={file.changed}
+              status={file_status(file.status)}
+              label={file_status_label(file.status)}
+            />
+            <.status_badge_cell
+              :if={!file.changed}
+              status="disabled"
+              label={dgettext("dashboard_tests", "Unchanged")}
+            />
+          </:col>
+          <:col :let={file} label={dgettext("dashboard_tests", "Kind")}>
+            <.badge_cell
+              label={file_kind_label(file.kind)}
+              color={file_kind_color(file.kind)}
+              style="light-fill"
+            />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@files_total_pages > 1}
+          current_page={@files_page}
+          number_of_pages={@files_total_pages}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+        />
+      </div>
+      <.coverage_empty
+        :if={@files == []}
+        title={
+          if @all_files == [],
+            do: dgettext("dashboard_tests", "The baseline recorded no files for it"),
+            else: dgettext("dashboard_tests", "No file matches")
+        }
+        image="table"
+        data-part="empty-files"
+      />
+    </.card_section>
+  </.card>
+</div>
