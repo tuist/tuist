@@ -97,7 +97,7 @@ msgstr "არტეფაქტის ტრანსფორმაციე�
 #: lib/tuist_web/live/gradle_build_live.html.heex:668
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms recorded for this build."
-msgstr "ამ აწყობისთვის ჩაიწერა არტეფაქტების ტრანსფორმაციები."
+msgstr "ამ ბილდისთვის ჩაწერილი არტიფაქტების ტრანსფორმაციები."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:324
 #: lib/tuist_web/live/gradle_cache_live.html.heex:399
@@ -113,7 +113,7 @@ msgstr "საშუალო"
 #: lib/tuist_web/live/mix_overview_live.html.heex:629
 #, elixir-autogen, elixir-format
 msgid "Average build time"
-msgstr "აწყობის საშუალო დრო"
+msgstr "ბილდის საშუალო დრო"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1042
 #, elixir-autogen, elixir-format
@@ -123,17 +123,17 @@ msgstr "ჩამოტვირთვის საშუალო სიჩქ�
 #: lib/tuist_web/live/gradle_overview_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Average test time"
-msgstr "ტესტირების საშუალო დრო"
+msgstr "ტესტების საშუალო დრო"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to complete a Gradle build during the selected period."
-msgstr "Gradle-ის აწყობის დასრულების საშუალო დრო შერჩეული პერიოდის განმავლობაში."
+msgstr "Gradle-ის ბილდის დასრულების საშუალო დრო შერჩეულ პერიოდში."
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to run tests during the selected period."
-msgstr "ტესტების გაშვების საშუალო დრო შერჩეული პერიოდის განმავლობაში."
+msgstr "ტესტების გაშვების საშუალო დრო შერჩეულ პერიოდში."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1060
 #, elixir-autogen, elixir-format
@@ -144,12 +144,12 @@ msgstr "ატვირთვის საშუალო სიჩქარე 
 #: lib/tuist_web/live/mix_builds_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Avg. build duration"
-msgstr "საშ. აგების ხანგრძლივობა"
+msgstr "საშუალო აგების ხანგრძლივობა"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Avg. cache hit rate"
-msgstr "საშ. ქეშის მოხვედრის მაჩვენებელი"
+msgstr "კეშის საშუალო მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:157
 #: lib/tuist_web/live/gradle_build_runs_live.ex:249
@@ -230,7 +230,7 @@ msgstr "აგებულია"
 #: lib/tuist_web/live/mix_builds_live.html.heex:700
 #, elixir-autogen, elixir-format
 msgid "Built by"
-msgstr "აგებულია"
+msgstr "აგებულია მიერ"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:31
 #: lib/tuist_web/live/gradle_build_runs_live.ex:269
@@ -255,7 +255,7 @@ msgstr "CI"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:632
 #, elixir-autogen, elixir-format
 msgid "Cache Hit Rate"
-msgstr "ქეშის მოხვედრის მაჩვენებელი"
+msgstr "ქეშის გამოყენების მაჩვენებელი"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:843
 #, elixir-autogen, elixir-format
@@ -272,7 +272,7 @@ msgstr "ქეშის ჩამოტვირთვები"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
-msgstr "ქეშის ჩამოტვირთვები წარმოადგენს ქეშიდან ჩამოტვირთული არტიფაქტების საერთო ზომას მოცემულ პერიოდში."
+msgstr "ქეშის ჩამოტვირთვები წარმოადგენს მოცემულ პერიოდში დისტანციური საცავიდან ჩამოტვირთული ქეშის არტიფაქტების საერთო ზომას."
 
 #: lib/tuist_web/live/gradle_cache_live.ex:210
 #: lib/tuist_web/live/gradle_cache_live.html.heex:145
@@ -283,13 +283,13 @@ msgstr "ქეშის ჩამოტვირთვები წარმო�
 #: lib/tuist_web/live/gradle_tasks_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
-msgstr "ქეშის წარმატების მაჩვენებელი"
+msgstr "ქეშის მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:157
 #: lib/tuist_web/live/gradle_overview_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
-msgstr "ქეშის წარმატების მაჩვენებელი წარმოადგენს იმ ქეშირებადი ამოცანების პროცენტულ რაოდენობას, რომლებიც შესრულების ნაცვლად ქეშიდან ამოიღეს."
+msgstr "ქეშის მოხვედრის მაჩვენებელი წარმოადგენს იმ ქეშირებადი ამოცანების პროცენტულ რაოდენობას, რომლებიც შესრულების ნაცვლად ქეშიდან ამოიღეს."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1208
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:103
@@ -307,7 +307,7 @@ msgstr "ქეშის ატვირთვები"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
-msgstr "ქეშის ატვირთვები წარმოადგენს ქეშში ატვირთული არტიფაქტების საერთო ზომას მოცემულ პერიოდში."
+msgstr "ქეშის ატვირთვები წარმოადგენს მოცემულ პერიოდში დისტანციურ საცავში ატვირთული ქეშის არტიფაქტების საერთო ზომას."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:904
 #, elixir-autogen, elixir-format
@@ -322,12 +322,12 @@ msgstr "ქეშირებადი ამოცანები"
 #: lib/tuist_web/live/gradle_build_live.html.heex:862
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
-msgstr "ქეშირებადი ამოცანები, რომლებიც ქეშში არ იყო ნაპოვნი."
+msgstr "ქეშირებადი ამოცანები, რომლებიც ქეშში ვერ მოიძებნა."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:851
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "ქეშირებადი ამოცანები, რომლებიც ქეშიდან (ლოკალური + დისტანციური) იქნა მიღებული."
+msgstr "ქეშირებადი ამოცანები, რომლებიც ქეშიდან (ლოკალური + დისტანციური) ამოღებული იყო."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:915
 #, elixir-autogen, elixir-format
@@ -490,7 +490,7 @@ msgstr "ვერ მოხერხდა"
 #: lib/tuist_web/live/mix_overview_live.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
-msgstr "ვერ მოხერხებული ბილდები"
+msgstr "ვერ მოხერხებული აწყობები"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:338
 #: lib/tuist_web/live/mix_overview_live.html.heex:288
@@ -519,7 +519,7 @@ msgstr "Gradle ბილდი"
 #: lib/tuist_web/live/gradle_cache_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
-msgstr "Gradle კეში"
+msgstr "Gradle ქეში"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:210
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:170
@@ -654,7 +654,7 @@ msgstr "ლოკალური"
 #: lib/tuist_web/live/gradle_task_execution_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Local hit"
-msgstr "ლოკალური დამთხვევა"
+msgstr "ლოკალური მოხვედრა"
 
 #: lib/tuist_web/live/gradle_build_live.ex:771
 #: lib/tuist_web/live/gradle_build_live.html.heex:1016
@@ -677,12 +677,12 @@ msgstr "არტიფაქტების ტრანსფორმაც�
 #: lib/tuist_web/live/mix_overview_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "No builds yet"
-msgstr "ჯერ არ არის ბილდები"
+msgstr "ჯერ კიდევ არ არის ბილდები"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1214
 #, elixir-autogen, elixir-format
 msgid "No cacheable tasks"
-msgstr "ქეშირებადი ამოცანები არ არის"
+msgstr "ქეშირებადი დავალებები არ არის"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:641
 #, elixir-autogen, elixir-format
@@ -720,7 +720,7 @@ msgstr "ჩანაწერი არ არის"
 #: lib/tuist_web/live/mix_overview_live.html.heex:525
 #, elixir-autogen, elixir-format
 msgid "No recent builds yet"
-msgstr "ბოლო აწყობები ჯერ არ არის"
+msgstr "ბოლო ბილდები ჯერ არ არის"
 
 #: lib/tuist_web/live/gradle_build_live.ex:806
 #, elixir-autogen, elixir-format
@@ -730,7 +730,7 @@ msgstr "დაშორებული ჩანაწერი არ არი
 #: lib/tuist_web/live/gradle_build_live.ex:802
 #, elixir-autogen, elixir-format
 msgid "No remote entry, then stored"
-msgstr "დაშორებული ჩანაწერი არ არის, შემდეგ შენახული"
+msgstr "დაშორებული ჩანაწერი არ არის, შემდეგ შენახულია"
 
 #: lib/tuist_web/helpers/gradle_task.ex:20
 #: lib/tuist_web/live/gradle_build_live.ex:730
@@ -746,12 +746,12 @@ msgstr "ამოცანები არ არის"
 #: lib/tuist_web/live/gradle_build_live.html.heex:400
 #, elixir-autogen, elixir-format
 msgid "Not requested"
-msgstr "არ არის მოთხოვნილი"
+msgstr "მოთხოვნილი არ არის"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:473
 #, elixir-autogen, elixir-format
 msgid "Operations can overlap. Build timing includes its settings and project configuration."
-msgstr "ოპერაციები შეიძლება გადაფარონ ერთმანეთს. აგების დრო მოიცავს მის პარამეტრებსა და პროექტის კონფიგურაციას."
+msgstr "ოპერაციები შეიძლება გადაიფაროს. აგების დრო მოიცავს მის პარამეტრებსა და პროექტის კონფიგურაციას."
 
 #: lib/tuist_web/live/gradle_build_live.ex:719
 #: lib/tuist_web/live/gradle_build_live.html.heex:321
@@ -777,7 +777,7 @@ msgstr "ნაწილობრივ არასწორი"
 #: lib/tuist_web/live/mix_builds_live.html.heex:686
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "გავლილი"
+msgstr "გავლილია"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:524
 #: lib/tuist_web/live/mix_overview_live.html.heex:463
@@ -850,7 +850,7 @@ msgstr "დაშორებული"
 #: lib/tuist_web/live/gradle_build_live.ex:725
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
-msgstr "დაშორებულზე მოხვედრა"
+msgstr "დაშორებულში მოხვედრა"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:175
 #: lib/tuist_web/live/gradle_build_runs_live.ex:257
@@ -862,14 +862,14 @@ msgstr "მოთხოვნილი ამოცანები"
 #: lib/tuist_web/live/gradle_build_live.ex:811
 #, elixir-autogen, elixir-format
 msgid "Reused"
-msgstr "გამოყენებული"
+msgstr "ხელახლა გამოყენებული"
 
 #: lib/tuist_web/live/gradle_build_live.ex:563
 #: lib/tuist_web/live/gradle_build_live.html.heex:595
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Root build"
-msgstr "ძირითადი აწყობა"
+msgstr "ძირითადი აგება"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:396
 #: lib/tuist_web/live/mix_overview_live.html.heex:346
@@ -880,7 +880,7 @@ msgstr "გაშვებები: მონაცემები ჯერ �
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Search project..."
-msgstr "პროექტის ძებნა..."
+msgstr "პროექტის ძიება..."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:231
 #: lib/tuist_web/live/gradle_build_live.html.heex:494
@@ -889,12 +889,12 @@ msgstr "პროექტის ძებნა..."
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "ძებნა..."
+msgstr "ძიება..."
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Set up Gradle cache for your project"
-msgstr "Gradle ქეშის კონფიგურაცია თქვენი პროექტისთვის"
+msgstr "Gradle-ის ქეშის დაყენება თქვენი პროექტისთვის"
 
 #: lib/tuist_web/live/gradle_build_live.ex:652
 #: lib/tuist_web/live/gradle_build_live.ex:819
@@ -948,7 +948,7 @@ msgstr "სტატუსი"
 #: lib/tuist_web/live/gradle_build_live.html.heex:392
 #, elixir-autogen, elixir-format
 msgid "Status of Gradle's configuration cache for this build."
-msgstr "Gradle-ის კონფიგურაციის ქეშის სტატუსი ამ აწყობისთვის."
+msgstr "Gradle-ის კონფიგურაციის ქეშის სტატუსი ამ ბილდისთვის."
 
 #: lib/tuist_web/live/gradle_build_live.ex:616
 #: lib/tuist_web/live/gradle_build_live.ex:698
@@ -962,7 +962,7 @@ msgstr "თემა"
 #: lib/tuist_web/live/mix_builds_live.html.heex:610
 #, elixir-autogen, elixir-format
 msgid "Successful builds"
-msgstr "წარმატებული აწყობები"
+msgstr "წარმატებული ბილდები"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:328
 #, elixir-autogen, elixir-format
@@ -981,12 +981,12 @@ msgstr "ამოცანა"
 #: lib/tuist_web/live/gradle_build_live.html.heex:849
 #, elixir-autogen, elixir-format
 msgid "Task hits"
-msgstr "ამოცანის წარმატებები"
+msgstr "ამოცანის მოხვედრა"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:860
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr "ამოცანის შეცდომები"
+msgstr "ამოცანის გამოტოვება"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:215
 #: lib/tuist_web/live/gradle_tasks_live.ex:45
@@ -1011,7 +1011,7 @@ msgstr "ტესტები"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "10 000 ჩანაწერის ლიმიტი მიღწეულია, მონაცემები შეტანილია მხოლოდ %{date}-მდე. სცადეთ ფილტრაცია მონაცემთა ნაკრების შესამცირებლად."
+msgstr "მიღწეულია 10,000 ჩანაწერის ლიმიტი, მონაცემები შეტანილია მხოლოდ %{date}-მდე. სცადეთ ფილტრაცია მონაცემთა ნაკრების შესამცირებლად."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:172
 #: lib/tuist_web/live/mix_builds_live.html.heex:163
@@ -1023,7 +1023,7 @@ msgstr "საშუალო აგების ხანგრძლივო�
 #: lib/tuist_web/live/mix_builds_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "The number of builds that failed."
-msgstr "აგების რაოდენობა, რომელიც ჩავარდა."
+msgstr "აგების რაოდენობა, რომლებიც ვერ შესრულდა."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:121
 #: lib/tuist_web/live/mix_builds_live.html.heex:110
@@ -1059,28 +1059,28 @@ msgstr "დრო, რომელიც Gradle-მა დახარჯა ა
 #: lib/tuist_web/live/gradle_build_live.html.heex:405
 #, elixir-autogen, elixir-format
 msgid "Time spent loading a reused configuration cache entry."
-msgstr "დრო, რომელიც დაიხარჯა ხელახლა გამოყენებული კონფიგურაციის ქეშის ელემენტის ჩატვირთვაზე."
+msgstr "დრო, რომელიც დაიხარჯა ხელახლა გამოყენებული კონფიგურაციის ქეშის ჩანაწერის ჩატვირთვაზე."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:104
 #: lib/tuist_web/live/mix_builds_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Total builds"
-msgstr "ბილდების ჯამური რაოდენობა"
+msgstr "ბილდების რაოდენობა"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:882
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded from remote cache."
-msgstr "დაშორებული ქეშიდან ჩამოტვირთული ქეშის არტიფაქტების ჯამური ზომა."
+msgstr "დაშორებული ქეშიდან ჩამოტვირთული ქეშის არტიფაქტების საერთო ზომა."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:893
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded to remote cache."
-msgstr "დაშორებულ ქეშში ატვირთული ქეშის არტიფაქტების ჯამური ზომა."
+msgstr "დაშორებულ ქეშზე ატვირთული ქეშის არტიფაქტების საერთო ზომა."
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:676
 #, elixir-autogen, elixir-format
 msgid "Total time spent in recorded artifact transforms."
-msgstr "ჩაწერილი არტიფაქტების ტრანსფორმაციებში გატარებული ჯამური დრო."
+msgstr "ჩაწერილ არტიფაქტთა ტრანსფორმაციებში გატარებული დრო."
 
 #: lib/tuist_web/live/gradle_build_live.ex:614
 #: lib/tuist_web/live/gradle_build_live.ex:682
@@ -1104,7 +1104,7 @@ msgstr "ტრანსფორმაციები"
 #: lib/tuist_web/live/gradle_build_live.html.heex:822
 #, elixir-autogen, elixir-format
 msgid "Try adjusting your search or filters."
-msgstr "სცადეთ ძიების ან ფილტრების კორექტირება."
+msgstr "სცადეთ შეცვალოთ თქვენი ძებნის პარამეტრები ან ფილტრები."
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:29
 #, elixir-autogen, elixir-format
@@ -1151,17 +1151,17 @@ msgstr "მოქმედი"
 #: lib/tuist_web/live/mix_overview_live.html.heex:554
 #, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "სხვა დეტალები"
+msgstr "ვრცლად"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:1205
 #, elixir-autogen, elixir-format
 msgid "Why it missed"
-msgstr "მიზეზები"
+msgstr "რატომ გამოტოვა"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Gradle cache for your project by running:"
-msgstr "Gradle-ის ქეშის თქვენი პროექტისთვის დასაყენებლად, გაუშვით:"
+msgstr "Gradle-ის ქეშის დაყენება თქვენი პროექტისთვის შესაძლებელია შემდეგი ბრძანების გაშვებით:"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:366
 #: lib/tuist_web/live/gradle_cache_live.html.heex:438
@@ -1180,7 +1180,7 @@ msgstr "p50 აგების ხანგრძლივობა"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "p50 cache hit rate"
-msgstr "p50 ქეშში მოხვედრის მაჩვენებელი"
+msgstr "p50 ქეშში მოხვედრის სიხშირე"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:352
 #: lib/tuist_web/live/gradle_cache_live.html.heex:425
@@ -1199,7 +1199,7 @@ msgstr "p90 აგების ხანგრძლივობა"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "p90 cache hit rate"
-msgstr "p90 ქეშში მოხვედრის მაჩვენებელი"
+msgstr "p90 ქეშში მოხვედრის სიხშირე"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:338
 #: lib/tuist_web/live/gradle_cache_live.html.heex:412
@@ -1227,7 +1227,7 @@ msgstr "p99 ქეშის მოხვედრის მაჩვენებ
 #: lib/tuist_web/live/gradle_tasks_live.ex:91
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "გასული თვის შემდეგ"
+msgstr "ბოლო თვის განმავლობაში"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:37
 #: lib/tuist_web/live/gradle_builds_live.ex:182
@@ -1236,7 +1236,7 @@ msgstr "გასული თვის შემდეგ"
 #: lib/tuist_web/live/gradle_tasks_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "წინა პერიოდის შემდეგ"
+msgstr "ბოლო პერიოდის განმავლობაში"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:35
 #: lib/tuist_web/live/gradle_builds_live.ex:180
@@ -1245,7 +1245,7 @@ msgstr "წინა პერიოდის შემდეგ"
 #: lib/tuist_web/live/gradle_tasks_live.ex:88
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "გასული კვირის შემდეგ"
+msgstr "ბოლო კვირის განმავლობაში"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:36
 #: lib/tuist_web/live/gradle_builds_live.ex:181
@@ -1254,7 +1254,7 @@ msgstr "გასული კვირის შემდეგ"
 #: lib/tuist_web/live/gradle_tasks_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "გასული წლის შემდეგ"
+msgstr "ბოლო წლის განმავლობაში"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:34
 #: lib/tuist_web/live/gradle_builds_live.ex:179
@@ -1263,7 +1263,7 @@ msgstr "გასული წლის შემდეგ"
 #: lib/tuist_web/live/gradle_tasks_live.ex:87
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "გუშინდელი დღის შემდეგ"
+msgstr "გუშინდელი დღიდან"
 
 #: lib/tuist_web/live/gradle_build_live.ex:809
 #: lib/tuist_web/live/gradle_build_live.ex:832
@@ -1290,7 +1290,7 @@ msgstr "ჯამური დრო"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:300
 #, elixir-autogen, elixir-format
 msgid "Executions"
-msgstr "შესრულებები"
+msgstr "გაშვებები"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:89
 #, elixir-autogen, elixir-format
@@ -1300,17 +1300,17 @@ msgstr "ინკრემენტული"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "No builds in this period"
-msgstr "ამ პერიოდში აგებები არ არის"
+msgstr "ამ პერიოდში ბილდები არ არის"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:275
 #, elixir-autogen, elixir-format
 msgid "No matching paths"
-msgstr "დამთხვევადი გზები არ არის"
+msgstr "მსგავსი გზები არ არის"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Refresh the page to try again."
-msgstr "სცადეთ გვერდის განახლება."
+msgstr "გვერდის განახლება სცადეთ ხელახლა."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:232
 #, elixir-autogen, elixir-format
@@ -1320,7 +1320,7 @@ msgstr "ძებნა გზით"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Showing the 10,000 entities with the most execution time. Narrow the filters to see more."
-msgstr "აჩვენებს 10,000 ერთეულს ყველაზე მეტი შესრულების დროით. შეავიწროეთ ფილტრები მეტი ნახვისთვის."
+msgstr "ნაჩვენებია 10,000 ერთეული ყველაზე დიდი შესრულების დროით. შეავიწროეთ ფილტრები მეტი ნახვისთვის."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:356
 #, elixir-autogen, elixir-format
@@ -1335,7 +1335,7 @@ msgstr "სცადეთ სხვა თარიღის დიაპაზ
 #: lib/tuist_web/live/gradle_tasks_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks observed in matching builds. Each chart point counts distinct tasks in that interval."
-msgstr "დამთხვევ აგებებში დაფიქსირებული განსხვავებული ამოცანები. თითოეული დიაგრამის წერტილი ითვლის განსხვავებულ ამოცანებს ამ ინტერვალში."
+msgstr "დამთხვევ აწყობებში აღმოჩენილი განსხვავებული ამოცანები. თითოეული დიაგრამის წერტილი ითვლის განსხვავებულ ამოცანებს მოცემულ ინტერვალში."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:198
 #, elixir-autogen, elixir-format
@@ -1346,13 +1346,13 @@ msgstr "მონაცემები არ არის ამ პერი�
 #: lib/tuist_web/live/gradle_tasks_live.ex:523
 #, elixir-autogen, elixir-format
 msgid "Not cacheable"
-msgstr "არ არის ქეშირებადი"
+msgstr "არ არის კეშირებადი"
 
 #: lib/tuist_web/live/gradle_task_execution_live.ex:57
 #: lib/tuist_web/live/gradle_tasks_live.ex:524
 #, elixir-autogen, elixir-format
 msgid "Unknown cacheability"
-msgstr "უცნობი ქეშირებადობა"
+msgstr "უცნობი კეშირებადობა"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:517
 #, elixir-autogen, elixir-format
@@ -1378,27 +1378,27 @@ msgstr "გამოტოვებები"
 #: lib/tuist_web/live/gradle_tasks_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Task duration percentile across executions in the selected period."
-msgstr "ამოცანის ხანგრძლივობის პერცენტილი შესრულებების მიხედვით შერჩეულ პერიოდში."
+msgstr "დავალების ხანგრძლივობის პროცენტილი შესრულებების მიხედვით არჩეულ პერიოდში."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "p50 task duration"
-msgstr "p50 ამოცანის ხანგრძლივობა"
+msgstr "p50 დავალების ხანგრძლივობა"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "p90 task duration"
-msgstr "p90 ამოცანის ხანგრძლივობა"
+msgstr "p90 დავალების ხანგრძლივობა"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "p99 task duration"
-msgstr "p99 ამოცანის ხანგრძლივობა"
+msgstr "p99 დავალების ხანგრძლივობა"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Average task duration across executions in the selected period."
-msgstr "საშუალო ამოცანის ხანგრძლივობა შესრულებების მიხედვით შერჩეულ პერიოდში."
+msgstr "საშუალო დავალების ხანგრძლივობა შესრულებების მიხედვით არჩეულ პერიოდში."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:377
 #, elixir-autogen, elixir-format
@@ -1408,7 +1408,7 @@ msgstr "საშუალო დავალების ხანგრძლ�
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "No task executions found"
-msgstr "დავალების შესრულებები ვერ მოიძებნა"
+msgstr "დავალების შესრულებები არ არის ნაპოვნი"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:370
 #, elixir-autogen, elixir-format
@@ -1418,7 +1418,7 @@ msgstr "დავალების შესრულებები"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
-msgstr "სცადეთ ძიების პარამეტრების განახლება"
+msgstr "სცადეთ ძიების განახლება"
 
 #: lib/tuist_web/helpers/gradle_task.ex:17
 #, elixir-autogen, elixir-format
@@ -1433,17 +1433,17 @@ msgstr "%{change} pp"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate does not apply to this task."
-msgstr "ქეშის გამოყენების მაჩვენებელი ამ დავალებაზე არ ვრცელდება."
+msgstr "ქეშის მოხვედრის მაჩვენებელი ამ დავალებაზე არ ვრცელდება."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Remote cache hits divided by hits and confirmed misses. Local cache hits and up-to-date tasks are excluded."
-msgstr "დაშორებული ქეშიდან მიღებული შედეგები გაყოფილია დადასტურებულ წარმატებულ და წარუმატებელ შედეგებზე. ადგილობრივი ქეშის გამოყენება და უცვლელი დავალებები გამორიცხულია."
+msgstr "დაშორებული ქეშის მოხვედრები გაყოფილია მოხვედრებად და დადასტურებულ გამოტოვებებზე. ადგილობრივი ქეშის მოხვედრები და განახლებული დავალებები გამორიცხულია."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "These builds did not report enough cache information to calculate a hit rate."
-msgstr "ამ ბილდებმა არ მოგვაწოდეს საკმარისი ქეშის ინფორმაცია hit rate-ის გამოსათვლელად."
+msgstr "ამ აგებულებმა არ მოიწოდეს საკმარისი ინფორმაცია ქეშის შესახებ, რათა გამოითვალოს მოხვედრის მაჩვენებელი."
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -1453,7 +1453,7 @@ msgstr "არტეფაქტის ზომა"
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Build path"
-msgstr "ბილდის გზა"
+msgstr "აგების გზა"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:49
 #, elixir-autogen, elixir-format
@@ -1474,12 +1474,12 @@ msgstr "შესრულების დეტალები"
 #: lib/tuist_web/live/gradle_task_execution_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Hit"
-msgstr "Hit"
+msgstr "მოხვედრა"
 
 #: lib/tuist_web/live/gradle_task_execution_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "Miss"
+msgstr "გამოტოვება"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:93
 #, elixir-autogen, elixir-format
@@ -1499,7 +1499,7 @@ msgstr "ამოცანის ტიპი"
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Yes"
-msgstr "კი"
+msgstr "დიახ"
 
 #: lib/tuist_web/live/gradle_task_execution_live.ex:50
 #, elixir-autogen, elixir-format
@@ -1516,7 +1516,7 @@ msgstr "ამოცანა: %{name}"
 #: lib/tuist_web/live/gradle_build_live.ex:769
 #, elixir-autogen, elixir-format
 msgid "Cache hit"
-msgstr "ქეშში პოვნა"
+msgstr "ქეშის მოხვედრა"
 
 #: lib/tuist_web/live/mix_builds_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -1532,24 +1532,24 @@ msgstr "არ არის მოხსენებული"
 #: lib/tuist_web/components/build_health.ex:34
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved. Only builds with a reported estimate are included."
-msgstr "ქეშში მოხვედრით დაზოგილი სავარაუდო ამოცანების შესრულების დრო. პარალელური ამოცანები შეიძლება ერთმანეთს ემთხვეოდეს, ამიტომ ეს არ არის აგების პროცესის რეალურად დაზოგილი დრო. შეტანილია მხოლოდ ის აგებები, რომლებსაც აქვთ მოხსენებული შეფასება."
+msgstr "ქეშის გამოყენებით დაზოგილი სავარაუდო დრო. პარალელური ამოცანები შეიძლება ერთმანეთს ემთხვეოდეს, ამიტომ ეს არ არის აგების რეალურად დაზოგილი დრო. შეტანილია მხოლოდ ის აგებები, რომლებსაც აქვთ მოხსენებული შეფასება."
 
 #: lib/tuist_web/components/build_health.ex:133
 #, elixir-autogen, elixir-format
 msgid "No task time estimates reported for this period."
-msgstr "ამ პერიოდისთვის ამოცანების დროის შეფასებები არ არის მოხსენებული."
+msgstr "ამ პერიოდისთვის ამოცანის დროის შეფასებები არ არის მოხსენებული."
 
 #: lib/tuist_web/components/build_health.ex:31
 #: lib/tuist_web/components/build_health.ex:112
 #: lib/tuist_web/live/gradle_build_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Cumulative task time saved"
-msgstr "დაზოგილი ამოცანების ჯამური დრო"
+msgstr "დაზოგილი ჯამური დრო"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved."
-msgstr "ქეშში მოხვედრით დაზოგილი სავარაუდო ამოცანების შესრულების დრო. პარალელური ამოცანები შეიძლება ერთმანეთს ემთხვეოდეს, ამიტომ ეს არ არის აგების პროცესის რეალურად დაზოგილი დრო."
+msgstr "ქეშის გამოყენებით დაზოგილი სავარაუდო დრო. პარალელური ამოცანები შეიძლება ერთმანეთს ემთხვეოდეს, ამიტომ ეს არ არის აგების რეალურად დაზოგილი დრო."
 
 #: lib/tuist_web/components/build_health.ex:66
 #, elixir-autogen, elixir-format

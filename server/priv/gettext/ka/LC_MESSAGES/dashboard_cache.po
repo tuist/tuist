@@ -20,7 +20,7 @@ msgstr "%{duplicates_count} დუბლიკატი"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:898
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
-msgstr "%{duration}წმ"
+msgstr "%{duration} წმ"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:74
 #: lib/tuist_web/live/module_cache_live.html.heex:166
@@ -44,7 +44,7 @@ msgstr "%{hit_rate}%"
 #: lib/tuist_web/live/cache_runs_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "%{run_duration}s"
-msgstr "%{run_duration}წმ"
+msgstr "%{run_duration} წმ"
 
 #: lib/tuist_web/live/bundle_live.html.heex:384
 #, elixir-autogen, elixir-format
@@ -99,7 +99,7 @@ msgstr "ნებისმიერი"
 #: lib/tuist_web/live/bundles_live.ex:997
 #, elixir-autogen, elixir-format
 msgid "App bundle"
-msgstr "აპლიკაციის ბუნდლი"
+msgstr "აპლიკაციის ბანდი"
 
 #: lib/tuist_web/live/bundles_live.html.heex:22
 #, elixir-autogen, elixir-format
@@ -128,12 +128,12 @@ msgstr "საშუალო"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Avg. cache hit rate"
-msgstr "ქეშის მოხვედრის საშუალო მაჩვენებელი"
+msgstr "ქეშის საშუალო წარმატების მაჩვენებელი"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Avg. hit rate"
-msgstr "საშუალო მოხვედრის მაჩვენებელი"
+msgstr "საშ. მოხმარების მაჩვენებელი"
 
 #: lib/tuist_web/live/bundle_live.html.heex:206
 #, elixir-autogen, elixir-format
@@ -171,7 +171,7 @@ msgstr "ბანდლი"
 #: lib/tuist_web/live/bundle_live.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Bundle ID"
-msgstr "ბანდლის ID"
+msgstr "Bundle ID"
 
 #: lib/tuist_web/live/bundles_live.html.heex:131
 #, elixir-autogen, elixir-format
@@ -212,7 +212,7 @@ msgstr "CI"
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
-msgstr "ქეშის გაშვებები"
+msgstr "ქეშირებული გაშვებები"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:259
 #: lib/tuist_web/live/xcode_cache_live.ex:242
@@ -240,12 +240,12 @@ msgstr "ქეშის მოხვედრის მაჩვენებე�
 #: lib/tuist_web/live/module_cache_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "ქეშის მოხვედრის მაჩვენებელი წარმოადგენს იმ ქეშირებადი მიზნების პროცენტულ რაოდენობას, რომლებიც ამოღებული იქნა ქეშიდან (ლოკალური ან დისტანციური) ხელახლა აწყობის ნაცვლად."
+msgstr "ქეშის მოხვედრის მაჩვენებელი წარმოადგენს იმ ქეშირებადი მიზნების პროცენტულ რაოდენობას, რომლებიც ამოღებულ იქნა ქეშიდან (ლოკალური ან დისტანციური) ხელახლა აგების ნაცვლად."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "კეშის მოხვედრის მაჩვენებელი წარმოადგენს იმ კეშირებადი ამოცანების პროცენტულ რაოდენობას, რომლებიც გადაწყდა კეშიდან (ლოკალური ან დისტანციური) ხელახლა აგების ნაცვლად."
+msgstr "კეშის მოხვედრის მაჩვენებელი წარმოადგენს კეშირებადი ამოცანების იმ პროცენტულ რაოდენობას, რომლებიც გადაწყდა კეშიდან (ლოკალური ან დისტანციური) ხელახლა აგების ნაცვლად."
 
 #: lib/tuist_web/live/module_cache_live.ex:380
 #, elixir-autogen, elixir-format
@@ -265,7 +265,7 @@ msgstr "კეშის გამოტოვებები"
 #: lib/tuist_web/live/module_cache_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
-msgstr "კეშის გამოტოვებები წარმოადგენს იმ კეშირებადი სამიზნეების საერთო რაოდენობას, რომლებიც ხელახლა უნდა აგებულიყო, რადგან ისინი არ იქნა ნაპოვნი კეშში მითითებული პერიოდის განმავლობაში."
+msgstr "კეშის გამოტოვებები წარმოადგენს კეშირებადი სამიზნეების საერთო რაოდენობას, რომლებიც ხელახლა უნდა აგებულიყო, რადგან ისინი ვერ მოიძებნა კეშში მითითებული პერიოდის განმავლობაში."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:260
 #: lib/tuist_web/live/xcode_cache_live.ex:247
@@ -299,7 +299,7 @@ msgstr "შექმნილია"
 #: lib/tuist_web/live/bundle_live.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "Delete bundle"
-msgstr "პაკეტის წაშლა"
+msgstr "ბანდლის წაშლა"
 
 #: lib/tuist_web/live/bundle_live.ex:1048
 #: lib/tuist_web/live/bundle_live.html.heex:202
@@ -327,7 +327,7 @@ msgstr "ჩამოტვირთვის ზომა"
 #: lib/tuist_web/live/bundles_live.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "Download size (MB)"
-msgstr "ჩამოტვირთვის ზომა (MB)"
+msgstr "ჩამოტვირთვის ზომა (მბ)"
 
 #: lib/tuist_web/live/bundle_live.html.heex:222
 #, elixir-autogen, elixir-format
@@ -354,7 +354,7 @@ msgstr "გარემო:"
 #: lib/tuist_web/live/bundles_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Explore bundle analysis"
-msgstr "ბანდლის ანალიზის დათვალიერება"
+msgstr "ბანდლის ანალიზის შესწავლა"
 
 #: lib/tuist_web/live/cache_runs_live.ex:57
 #: lib/tuist_web/live/cache_runs_live.html.heex:90
@@ -374,7 +374,7 @@ msgstr "ფაილი"
 #: lib/tuist_web/live/bundle_live.html.heex:497
 #, elixir-autogen, elixir-format
 msgid "File Breakdown"
-msgstr "ფაილების დეტალური მიმოხილვა"
+msgstr "ფაილების დეტალური ანალიზი"
 
 #: lib/tuist_web/live/bundle_live.html.heex:543
 #: lib/tuist_web/live/bundles_live.html.heex:346
@@ -399,7 +399,7 @@ msgstr "შრიფტები"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:879
 #, elixir-autogen, elixir-format
 msgid "Hit Rate"
-msgstr "მოხვედრის მაჩვენებელი"
+msgstr "წარმატების მაჩვენებელი"
 
 #: lib/tuist_web/live/cache_runs_live.ex:73
 #: lib/tuist_web/live/cache_runs_live.html.heex:10
@@ -407,7 +407,7 @@ msgstr "მოხვედრის მაჩვენებელი"
 #: lib/tuist_web/live/cache_runs_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
-msgstr "მოხვედრის მაჩვენებელი"
+msgstr "წარმატების მაჩვენებელი"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:233
 #: lib/tuist_web/live/module_cache_module_live.html.heex:119
@@ -416,7 +416,7 @@ msgstr "მოხვედრის მაჩვენებელი"
 #: lib/tuist_web/live/modules_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Hits"
-msgstr "მოხვედრები"
+msgstr "მოთხოვნები"
 
 #: lib/tuist_web/live/bundle_live.ex:1027
 #: lib/tuist_web/live/bundles_live.ex:398
@@ -485,7 +485,7 @@ msgstr "გამოტოვებები"
 #: lib/tuist_web/live/bundle_live.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "Module Breakdown"
-msgstr "მოდულების დაშლა"
+msgstr "მოდულის დეტალური ანალიზი"
 
 #: lib/tuist_web/live/module_cache_live.ex:29
 #: lib/tuist_web/live/module_cache_live.ex:32
@@ -529,7 +529,7 @@ msgstr "ფაილები ვერ მოიძებნა"
 #: lib/tuist_web/live/bundle_live.html.heex:345
 #, elixir-autogen, elixir-format
 msgid "No insights yet"
-msgstr "ინფორმაცია ჯერ არ არის"
+msgstr "ინსაიტები ჯერ არ არის"
 
 #: lib/tuist_web/live/bundle_live.html.heex:701
 #, elixir-autogen, elixir-format
@@ -558,14 +558,14 @@ msgstr "მიმოხილვა"
 #: lib/tuist_web/live/xcode_cache_live.ex:436
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "გავლილი"
+msgstr "გავლილია"
 
 #: lib/tuist_web/live/bundle_live.html.heex:519
 #: lib/tuist_web/live/bundle_live.html.heex:526
 #: lib/tuist_web/live/bundle_live.html.heex:554
 #, elixir-autogen, elixir-format
 msgid "Path"
-msgstr "ბილიკი"
+msgstr "გზა"
 
 #: lib/tuist_web/live/bundle_live.html.heex:77
 #: lib/tuist_web/live/bundles_live.ex:976
@@ -618,17 +618,17 @@ msgstr "დუბლიკატური ფაილების წაშლ�
 #: lib/tuist_web/live/bundle_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the compressed app bundle that gets downloaded by a user over the network."
-msgstr "წარმოადგენს შეკუმშული აპლიკაციის ბანდლის ზომას, რომელსაც მომხმარებელი ჩამოტვირთავს ქსელის საშუალებით."
+msgstr "წარმოადგენს შეკუმშული აპლიკაციის პაკეტის ზომას, რომელსაც მომხმარებელი ჩამოტვირთავს ქსელის საშუალებით."
 
 #: lib/tuist_web/live/bundle_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
-msgstr "წარმოადგენს შეკუმშული აპლიკაციის ბანდლის ზომას, რომელიც მომხმარებელმა უნდა დააინსტალიროს. ეს არის რიცხვი, რომელიც ჩანს App Store-ში."
+msgstr "წარმოადგენს არაკომპრესირებული აპლიკაციის ბანდლის ზომას, რომელსაც მომხმარებელი აინსტალირებს. ეს არის რიცხვი, რომელიც ჩანს App Store-ში."
 
 #: lib/tuist_web/live/bundles_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to analyze a bundle."
-msgstr "ბანდლის ანალიზისთვის გაუშვით შემდეგი ბრძანება."
+msgstr "ბანდლის გასაანალიზებლად შეასრულეთ შემდეგი ბრძანება."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:519
 #: lib/tuist_web/live/xcode_cache_live.ex:424
@@ -678,18 +678,18 @@ msgstr "სტატუსი"
 #: lib/tuist_web/live/bundles_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
-msgstr "ბანდლის ჩამოტვირთვის ზომა. ეს არის შეკუმშული აპლიკაციის ზომა, რომელსაც მომხმარებელი App Store-დან ჩამოტვირთავს."
+msgstr "ბანდლის ჩამოტვირთვის ზომა. ეს არის შეკუმშული აპლიკაციის ზომა, რომელსაც მომხმარებელი App Store-დან იწერს."
 
 #: lib/tuist_web/live/bundles_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
-msgstr "ბანდლის ინსტალაციის ზომა. ეს არის გაუკუმშავი აპლიკაციის ზომა და წარმოადგენს იმ სივრცეს, რასაც აპლიკაცია იკავებს მოწყობილობაზე."
+msgstr "ბანდლის ინსტალაციის ზომა. ეს არის გაუკუმშავი აპლიკაციის ზომა და გვიჩვენებს, თუ რამდენ ადგილს იკავებს აპლიკაცია მოწყობილობაზე."
 
 #: lib/tuist_web/live/bundle_live.html.heex:609
 #: lib/tuist_web/live/bundle_live.html.heex:702
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "ცადეთ საძიებო ტერმინის შეცვლა"
+msgstr "სცადეთ საძიებო სიტყვის შეცვლა"
 
 #: lib/tuist_web/live/bundle_live.ex:1039
 #: lib/tuist_web/live/bundle_live.html.heex:53
@@ -743,7 +743,7 @@ msgstr "XCArchive"
 #: lib/tuist_web/live/xcode_cache_live.ex:31
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
-msgstr "Xcode-ის ქეში"
+msgstr "Xcode კეში"
 
 #: lib/tuist_web/live/bundle_live.html.heex:44
 #, elixir-autogen, elixir-format
@@ -760,12 +760,12 @@ msgstr "p50"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "p50 cache hit rate"
-msgstr "p50 ქეშის მოხვედრის მაჩვენებელი"
+msgstr "p50 კეშის მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "p50 hit rate"
-msgstr "მოხვედრის მაჩვენებელი p50"
+msgstr "p50 მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:483
 #: lib/tuist_web/live/xcode_cache_live.html.heex:620
@@ -777,7 +777,7 @@ msgstr "p90"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "p90 cache hit rate"
-msgstr "p90 ქეშის მოხვედრის მაჩვენებელი"
+msgstr "p90 კეშის მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:145
 #, elixir-autogen, elixir-format
@@ -794,7 +794,7 @@ msgstr "p99"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "p99 cache hit rate"
-msgstr "p99 ქეშის მოხვედრის მაჩვენებელი"
+msgstr "p99 კეშის მოხვედრის მაჩვენებელი"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:144
 #, elixir-autogen, elixir-format
@@ -904,7 +904,7 @@ msgstr "გუშინდელი დღიდან"
 #: lib/tuist_web/live/cache_runs_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
-msgstr "ქეშირების წერტილი (Cache Endpoint)"
+msgstr "ქეშის წერტილი (Endpoint)"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -914,7 +914,7 @@ msgstr "დააყენეთ Xcode ქეში თქვენი პრო
 #: lib/tuist_web/live/xcode_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Xcode cache for your project by running:"
-msgstr "Xcode ქეშის დასაყენებლად თქვენს პროექტში, გაუშვით:"
+msgstr "Xcode ქეშის დაყენება თქვენი პროექტისთვის შეგიძლიათ შემდეგი ბრძანების გაშვებით:"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:29
 #, elixir-autogen, elixir-format
@@ -968,12 +968,12 @@ msgstr "მიღწეულია 10,000 ჩანაწერის ლიმ
 #: lib/tuist_web/live/xcode_cache_live.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data."
-msgstr "მიღწეულია 10,000 ჩანაწერის ლიმიტი, მონაცემები შეტანილია მხოლოდ %{date}-მდე. სცადეთ თარიღების დიაპაზონის შევიწროება უფრო ახალი მონაცემების სანახავად."
+msgstr "მიღწეულია 10,000 ჩანაწერის ლიმიტი, მონაცემები შეტანილია მხოლოდ %{date}-მდე. სცადეთ თარიღის დიაპაზონის შევიწროება უფრო ახალი მონაცემების სანახავად."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Average latency of read (download) and write (upload) operations against remote cache storage during the given period."
-msgstr "საშუალო დაყოვნება წაკითხვის (ჩამოტვირთვის) და ჩაწერის (ატვირთვის) ოპერაციებისთვის დისტანციური ქეშის საცავთან მოცემულ პერიოდში."
+msgstr "საშუალო ლატენტობა წაკითხვის (ჩამოტვირთვა) და ჩაწერის (ატვირთვა) ოპერაციებისთვის დაშორებული ქეშის საცავთან მოცემულ პერიოდში."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:261
 #: lib/tuist_web/live/xcode_cache_live.ex:261
@@ -981,7 +981,7 @@ msgstr "საშუალო დაყოვნება წაკითხვ�
 #: lib/tuist_web/live/xcode_cache_live.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Cache latency"
-msgstr "ქეშის დაყოვნება"
+msgstr "ქეშის ლატენტობა"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:264
 #: lib/tuist_web/live/xcode_cache_live.ex:285
@@ -1002,25 +1002,25 @@ msgstr "კეშის გადაცემა"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Cache transfer represents the total size of cache artifacts downloaded from and uploaded to remote storage during the given period."
-msgstr "კეშის გადაცემა წარმოადგენს კეშის არტეფაქტების საერთო ზომას, რომლებიც ჩამოიტვირთა და აიტვირთა დისტანციურ საცავში მითითებულ პერიოდში."
+msgstr "კეშის გადაცემა წარმოადგენს კეშის არტიფაქტების საერთო ზომას, რომლებიც ჩამოიტვირთა და აიტვირთა დისტანციურ საცავში მითითებული პერიოდის განმავლობაში."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Combined download and upload throughput against remote cache storage during the given period, derived from bytes transferred over time."
-msgstr "დისტანციური კეშის საცავთან კომბინირებული ჩამოტვირთვისა და ატვირთვის გამტარუნარიანობა მოცემულ პერიოდში, გამოყვანილი დროის განმავლობაში გადაცემული ბაიტებიდან."
+msgstr "დისტანციური კეშის საცავთან გადმოწერისა და ატვირთვის გაერთიანებული სიჩქარე მითითებული პერიოდის განმავლობაში, გამოთვლილი დროში გადაცემული ბაიტების მიხედვით."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:265
 #: lib/tuist_web/live/xcode_cache_live.ex:290
 #: lib/tuist_web/live/xcode_cache_live.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
-msgstr "ჩამოტვირთვის გამტარუნარიანობა"
+msgstr "გადმოწერის სიჩქარე"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:260
 #: lib/tuist_web/live/xcode_cache_live.html.heex:444
 #, elixir-autogen, elixir-format
 msgid "Downloads"
-msgstr "ჩამოტვირთვები"
+msgstr "გადმოწერები"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:349
 #, elixir-autogen, elixir-format
@@ -1039,7 +1039,7 @@ msgstr "წაკითხვის დაყოვნება"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
-msgstr "ატვირთვის გამტარუნარიანობა"
+msgstr "ატვირთვის სიჩქარე"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:277
 #: lib/tuist_web/live/xcode_cache_live.html.heex:464
@@ -1057,7 +1057,7 @@ msgstr "ჩაწერა"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Write latency"
-msgstr "ჩაწერის დაყოვნება"
+msgstr "ჩაწერის ლატენტურობა"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:142
 #, elixir-autogen, elixir-format
@@ -1106,7 +1106,7 @@ msgstr "დამოკიდებულებები"
 #: lib/tuist_web/live/module_cache_module_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "How many modules this one invalidates downstream when it changes."
-msgstr "რამდენ მოდულს აუქმებს ეს მოდული ქვემოთ ნაკადში, როცა იცვლება."
+msgstr "რამდენი მოდული ხდება არასწორი ქვემოთ ნაკადში, როცა ეს იცვლება."
 
 #: lib/tuist_web/components/module_invalidations_table.ex:28
 #, elixir-autogen, elixir-format
@@ -1149,12 +1149,12 @@ msgstr "საჭიროა CLI გრაფის კიდეები"
 #: lib/tuist_web/live/modules_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "No cache misses yet"
-msgstr "კეშის გამოტოვება ჯერ არ ფიქსირდება"
+msgstr "კეშის გამოტოვება ჯერ არ ყოფილა"
 
 #: lib/tuist_web/live/modules_live.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "No modules match your search"
-msgstr "თქვენს ძებნას არცერთი მოდული არ შეესაბამება"
+msgstr "მოძებნილ კრიტერიუმებს არცერთი მოდული არ შეესაბამება"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:24
 #, elixir-autogen, elixir-format
@@ -1169,17 +1169,17 @@ msgstr "მოდულების ძებნა"
 #: lib/tuist_web/live/module_cache_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Share of invalidations caused only by an upstream dependency changing rather than the module's own code (upstream ÷ changed + upstream). This is the fraction better module boundaries can remove."
-msgstr "ინვალიდაციების წილი, რომელიც გამოწვეულია მხოლოდ აღმავალი დამოკიდებულების ცვლილებით და არა მოდულის საკუთარი კოდით (აღმავალი ÷ ცვლილება + აღმავალი). ეს არის ის ნაწილი, რომლის შემცირებაც შესაძლებელია მოდულის საზღვრების გაუმჯობესებით."
+msgstr "ინვალიდაციების წილი, რომელიც გამოწვეულია მხოლოდ ზემოდინების დამოკიდებულების ცვლილებით და არა თავად მოდულის კოდით (ზემოდინება ÷ ცვლილება + ზემოდინება). ეს არის ის ნაწილი, რომლის აღმოფხვრა შესაძლებელია მოდულის საზღვრების გაუმჯობესებით."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Share of this module's builds that were served from cache instead of rebuilt."
-msgstr "ამ მოდულის ბილდების წილი, რომლებიც კეშიდან იქნა მიწოდებული ხელახლა აწყობის ნაცვლად."
+msgstr "ამ მოდულის ბილდების წილი, რომლებიც აიღეს კეშიდან ხელახლა აწყობის ნაცვლად."
 
 #: lib/tuist_web/live/module_cache_live.html.heex:585
 #, elixir-autogen, elixir-format
 msgid "The module that was a cache miss most often during the period. Reducing how often it rebuilds has the largest direct payoff."
-msgstr "მოდული, რომელმაც ყველაზე ხშირად განიცადა კეშის გამოტოვება მოცემულ პერიოდში. მისი ხელახლა აწყობის სიხშირის შემცირებას აქვს უდიდესი პირდაპირი ეფექტი."
+msgstr "მოდული, რომელსაც ყველაზე ხშირად გამოეტოვა კეში მოცემულ პერიოდში. მისი ხელახლა აწყობის სიხშირის შემცირება უდიდეს პირდაპირ სარგებელს მოიტანს."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:325
 #: lib/tuist_web/live/module_cache_module_live.ex:349
@@ -1189,18 +1189,18 @@ msgstr "მოდული, რომელმაც ყველაზე ხ�
 #: lib/tuist_web/live/modules_live.html.heex:315
 #, elixir-autogen, elixir-format
 msgid "Upstream"
-msgstr "აღმავალი"
+msgstr "ზემოდინება"
 
 #: lib/tuist_web/live/module_cache_module_live.ex:337
 #: lib/tuist_web/live/modules_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "Upstream misses"
-msgstr "ზემოწევითი გამოტოვებები"
+msgstr "Upstream-ის გამოტოვებები"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Upstream share"
-msgstr "ზემოწევითი გაზიარება"
+msgstr "Upstream-ის გაზიარება"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:557
 #, elixir-autogen, elixir-format
@@ -1210,7 +1210,7 @@ msgstr "ყველა მოდულის ნახვა"
 #: lib/tuist_web/live/module_cache_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "The module that invalidates the most other modules when it changes. It is the highest-impact target for better boundaries."
-msgstr "მოდული, რომელიც ცვლილებისას ყველაზე მეტ სხვა მოდულს აუქმებს. ეს არის უმაღლესი გავლენის მქონე სამიზნე საზღვრების გაუმჯობესებისთვის."
+msgstr "მოდული, რომელიც ცვლილებისას ყველაზე მეტ სხვა მოდულს აუქმებს. ეს არის საზღვრების გაუმჯობესებისთვის უმაღლესი გავლენის მქონე სამიზნე."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:429
 #, elixir-autogen, elixir-format
@@ -1232,22 +1232,22 @@ msgstr "კეშირებული"
 #: lib/tuist_web/live/module_cache_module_live.html.heex:501
 #, elixir-autogen, elixir-format
 msgid "No builds match these filters"
-msgstr "ამ ფილტრებს არ შეესაბამება აწყობები"
+msgstr "ამ ფილტრებს არ შეესაბამება არცერთი აწყობა"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:441
 #, elixir-autogen, elixir-format
 msgid "Search commit sha"
-msgstr "მოძებნეთ კომიტის sha"
+msgstr "კომიტის SHA-ს ძიება"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "Hit"
-msgstr "წარმატება"
+msgstr "მოხვედრა"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "გამოტოვებული"
+msgstr "გამოტოვება"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:527
 #, elixir-autogen, elixir-format
@@ -1267,7 +1267,7 @@ msgstr "მიზეზი:"
 #: lib/tuist_web/live/modules_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Modules in the project, from the latest commit on its default branch."
-msgstr "პროექტის მოდულები, მათი ნაგულისხმევი შტოს ბოლო კომიტიდან."
+msgstr "პროექტის მოდულები, მისი ნაგულისხმები შტოს ბოლო კომიტიდან."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:182
 #: lib/tuist_web/live/modules_live.html.heex:148
@@ -1299,32 +1299,32 @@ msgstr "და კიდევ %{count}"
 #: lib/tuist_web/helpers/module_cache.ex:59
 #, elixir-autogen, elixir-format
 msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
-msgstr "ამ ზუსტმა გასაღებმა წარსულში დაფიქსირდა დაშორებული ქეშის წარმატება იმავე ქეშის ბოლოწერტილზე, მაგრამ ახლა არის გამოტოვება. ქეშირებული არტიფაქტი, სავარაუდოდ, ამოღებულ იქნა."
+msgstr "ამ კონკრეტულ გასაღებს ადრე ჰქონდა დაშორებული წარმატება იმავე ქეშის ბოლოწერტილზე, მაგრამ ახლა გამოტოვებს. ქეშირებული არტეფაქტი სავარაუდოდ ამოიღეს."
 
 #: lib/tuist_web/helpers/module_cache.ex:38
 #, elixir-autogen, elixir-format
 msgid "The module's reported inputs changed, such as its files, build settings, configuration, or compiler version."
-msgstr "მოდულის შეტყობინებულმა შემავალ მონაცემებმა განიცადა ცვლილება, როგორიცაა მისი ფაილები, აგების პარამეტრები, კონფიგურაცია ან კომპილატორის ვერსია."
+msgstr "მოდულის შეტყობინებული შემავალი მონაცემები შეიცვალა, როგორიცაა მისი ფაილები, აგების პარამეტრები, კონფიგურაცია ან კომპილატორის ვერსია."
 
 #: lib/tuist_web/helpers/module_cache.ex:52
 #, elixir-autogen, elixir-format
 msgid "No earlier comparison is available, or the reported inputs and remote-hit history do not explain this miss."
-msgstr "ადრეული შედარება არ არის ხელმისაწვდომი, ან შეტყობინებული შემავალი მონაცემები და დაშორებული ქეშის წარმატების ისტორია ვერ ხსნის ამ გამოტოვებას."
+msgstr "ადრეული შედარება არ არის ხელმისაწვდომი, ან შეტყობინებული შემავალი მონაცემები და დაშორებული წარმატების ისტორია არ ხსნის ამ გამოტოვებას."
 
 #: lib/tuist_web/helpers/module_cache.ex:66
 #, elixir-autogen, elixir-format
 msgid "This observation reports a local or remote cache hit."
-msgstr "ეს დაკვირვება აღწერს ადგილობრივ ან დაშორებულ ქეშის წარმატებას."
+msgstr "ეს დაკვირვება აცხადებს ადგილობრივ ან დაშორებულ ქეშის წარმატებას."
 
 #: lib/tuist_web/helpers/module_cache.ex:45
 #, elixir-autogen, elixir-format
 msgid "The module's own reported inputs stayed the same, but a dependency or external package hash changed."
-msgstr "მოდულის მიერ შეტყობინებული შემავალი მონაცემები უცვლელი დარჩა, მაგრამ დამოკიდებულების ან გარე პაკეტის ჰეში შეიცვალა."
+msgstr "მოდულის საკუთარი შეტანილი მონაცემები უცვლელი დარჩა, მაგრამ დამოკიდებულების ან გარე პაკეტის ჰეში შეიცვალა."
 
 #: lib/tuist_web/helpers/module_cache.ex:70
 #, elixir-autogen, elixir-format
 msgid "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Evicted: a previously served key now misses."
-msgstr "შეიცვალა: მოდულის შემავალი მონაცემები შეიცვალა. ზედა ნაკადი: დამოკიდებულებები შეიცვალა. ცივი: არასაკმარისი მტკიცებულება. გასუფთავებული: ადრე მოწოდებული გასაღები ახლა აღარ არის."
+msgstr "შეიცვალა: მოდულის შეტანილი მონაცემები შეიცვალა. ზედა ნაკადი: დამოკიდებულებები შეიცვალა. ცივი: არასაკმარისი მტკიცებულება. ამოღებული: ადრე მოწოდებული გასაღები ახლა ვერ მოიძებნა."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:327
 #: lib/tuist_web/live/module_cache_module_live.ex:351
@@ -1334,13 +1334,13 @@ msgstr "შეიცვალა: მოდულის შემავალი
 #: lib/tuist_web/live/modules_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Evicted"
-msgstr "გასუფთავებული"
+msgstr "ამოღებული"
 
 #: lib/tuist_web/live/module_cache_module_live.ex:339
 #: lib/tuist_web/live/modules_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "Evicted misses"
-msgstr "გასუფთავების გამო გამოტოვება"
+msgstr "ამოღებული გამოტოვებები"
 
 #: lib/tuist_web/live/modules_live.html.heex:109
 #, elixir-autogen, elixir-format
@@ -1360,20 +1360,20 @@ msgstr "გამოტოვება"
 #: lib/tuist_web/live/mix_build_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "Remote hit"
-msgstr "დაშორებული თანხვედრა"
+msgstr "შორეული თანხვედრა"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:383
 #, elixir-autogen, elixir-format
 msgid "Cache results recorded for %{measured} of %{total} recent build. Builds without recorded cache results are excluded from the hit rate."
 msgid_plural "Cache results recorded for %{measured} of %{total} recent builds. Builds without recorded cache results are excluded from the hit rate."
-msgstr[0] "კეშირების შედეგები ჩაიწერა %{measured}-დან %{total} ბოლო ბილდისთვის. ბილდები, რომლებსაც არ აქვთ ჩაწერილი კეშირების შედეგები, გამორიცხულია მოხვედრის მაჩვენებლიდან."
+msgstr[0] "კეშირების შედეგები ჩაიწერა %{measured}-დან %{total} ბოლო აწყობისთვის. აწყობები, რომლებსაც არ აქვთ ჩაწერილი კეშირების შედეგები, გამოირიცხება მოხვედრის მაჩვენებლიდან."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Average and percentiles of individual build cache hit rates. Hits reuse cached outputs; misses include lookup misses, cold compilations, and verification rebuilds. Prefetches are excluded."
-msgstr "ინდივიდუალური ბილდების კეშის მოხვედრის საშუალო და პროცენტილები. მოხვედრები ხელახლა იყენებენ კეშირებულ შედეგებს; გამოტოვებები მოიცავს ძიების ვერმოხვედრას, ცივ კომპილაციებს და გადამოწმების გადაბილდვებს. წინასწარი მიღებები გამორიცხულია."
+msgstr "ინდივიდუალური აწყობის კეშის მოხვედრის მაჩვენებლების საშუალო და პერცენტილები. მოხვედრები ხელახლა იყენებენ კეშირებულ გამომავალ მონაცემებს; გამოტოვებები მოიცავს ძებნის გამოტოვებებს, ცივ კომპილაციებს და გადამოწმების გადაწყობებს. წინასწარი მიღებები გამოირიცხება."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:182
 #, elixir-autogen, elixir-format
 msgid "Experimental Cargo cache measurements. Transfer totals use build-wide byte counters. Latency measures recorded per-key index operations, not compilation or artifact transfer time. Throughput uses successful measured CAS transfers only; failed and already-present operations are excluded. Inspection records may be partial."
-msgstr "ექსპერიმენტული Cargo კეშის გაზომვები. გადაცემის ჯამები იყენებს ბილდის მასშტაბით ბაიტების მრიცხველებს. ლატენტობა იზომება თითოეული გასაღებით ინდექსის ოპერაციებისთვის და არა კომპილაციის ან არტეფაქტების გადაცემის დროისთვის. გამტარუნარიანობა იყენებს მხოლოდ წარმატებით გაზომილ CAS გადაცემებს; წარუმატებელი და უკვე არსებული ოპერაციები გამორიცხულია. ინსპექციის ჩანაწერები შეიძლება იყოს ნაწილობრივი."
+msgstr "ექსპერიმენტული Cargo კეშის გაზომვები. გადაცემის ჯამები იყენებს აწყობის მასშტაბის ბაიტების მრიცხველებს. ლატენტურობა იზომება თითოეული გასაღების ინდექსის ოპერაციებისთვის და არა კომპილაციის ან არტიფაქტების გადაცემის დროისთვის. პროდუქტიულობა იყენებს მხოლოდ წარმატებით გაზომილ CAS გადაცემებს; წარუმატებელი და უკვე არსებული ოპერაციები გამოირიცხება. ინსპექციის ჩანაწერები შეიძლება იყოს ნაწილობრივი."
