@@ -55,10 +55,16 @@ RUN aube run build
 # Stage: Elixir builder
 # ========================================
 FROM ${BUILDER_IMAGE} AS builder
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /opt/tuist/certificate-trust/
 
-RUN apt-get update -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get install -y build-essential git ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN bash /opt/tuist/certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
+ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
+ENV REBAR_OFFLINE=1
 WORKDIR /app
 
 RUN mix local.hex --force && \
@@ -120,6 +126,7 @@ RUN mix compile.app --force && mix release
 # Stage: Runner
 # ========================================
 FROM ${RUNNER_IMAGE}
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /opt/tuist/certificate-trust/
 
 # The release passes its version as APT_CACHE_BUST so a cached layer never
 # holds back Debian security patches. CI leaves the default and reuses it.
@@ -127,9 +134,12 @@ ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates poppler-utils pandoc chromium fonts-liberation \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_* \
   && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
   && mkdir -p /app && chown nobody /app
+RUN bash /opt/tuist/certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 # Chromium binary path used by browse_chrome to start headless instances for
 # the `browse_url` MCP tool. Set here so the pool boots automatically.
