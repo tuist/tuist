@@ -108,3 +108,33 @@ struct TestPlanManifestMapperTests {
         )
     }
 }
+
+struct GeneratedTestPlanCompatibilityTests {
+    @Test func legacy_patterns_factories_and_json_are_preserved() throws {
+        let factory: (String, [ProjectDescription.TestableTarget], ProjectDescription.Path?) -> ProjectDescription.TestPlan =
+            ProjectDescription.TestPlan.generated
+        let plan = factory("Legacy", [], nil)
+        switch plan {
+        case .path:
+            Issue.record("Expected the generated case")
+        case let .generated(name, targets, path):
+            #expect(name == "Legacy")
+            #expect(targets.isEmpty)
+            #expect(path == nil)
+        }
+        let oldPayload = Data(#"{"generated":{"name":"Legacy","testTargets":[]}}"#.utf8)
+        #expect(try JSONDecoder().decode(ProjectDescription.TestPlan.self, from: oldPayload) == plan)
+
+        let inferredFactory = ProjectDescription.TestAction.testPlans
+        let actionFactory: (
+            [ProjectDescription.TestPlan], ProjectDescription.ConfigurationName, Bool,
+            [ProjectDescription.ExecutionAction], [ProjectDescription.ExecutionAction]
+        ) -> ProjectDescription.TestAction = inferredFactory
+        let action = actionFactory([plan], .debug, true, [], [])
+        #expect(action.generatedTestPlanOptions == nil)
+        let data = try JSONEncoder().encode(action)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(json["generatedTestPlanOptions"] == nil)
+        #expect(try JSONDecoder().decode(ProjectDescription.TestAction.self, from: data) == action)
+    }
+}

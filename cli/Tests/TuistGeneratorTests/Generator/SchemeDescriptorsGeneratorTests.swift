@@ -2872,3 +2872,81 @@ struct SchemeDescriptorsGeneratorBuildForTests {
         #expect(result.buildActionEntries[1].buildFor == [.testing])
     }
 }
+
+struct GeneratedTestPlanCoverageSchemeTests {
+    @Test(arguments: [false, true])
+    func coverage_resolves_actual_targets_and_rejects_unavailable_projects(external: Bool) throws {
+        let root = try AbsolutePath(validating: "/Project")
+        let otherPath = root.appending(component: "Framework")
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let coverageReference = TargetReference(projectPath: external ? otherPath : root, name: external ? "Framework" : "App")
+        let plan = TestPlan(
+            path: root.appending(component: "Plan.xctestplan"),
+            testTargets: [.init(target: .init(projectPath: root, name: "AppTests"))],
+            isDefault: true,
+            kind: .generated,
+            coverage: true,
+            codeCoverageTargets: [coverageReference]
+        )
+        let scheme = Scheme(name: "Scheme", testAction: .test(testPlans: [plan]))
+        let project = Project.test(
+            path: root, xcodeProjPath: root.appending(component: "App.xcodeproj"), targets: [app, tests], schemes: [scheme]
+        )
+        let otherProject = Project.test(
+            path: otherPath, xcodeProjPath: otherPath.appending(component: "Framework.xcodeproj"), targets: [framework]
+        )
+        let workspace = Workspace.test(
+            path: root,
+            xcWorkspacePath: root.appending(component: "App.xcworkspace"),
+            projects: [root, otherPath],
+            schemes: [scheme]
+        )
+        let traverser = GraphTraverser(graph: .test(
+            path: root, workspace: workspace, projects: [root: project, otherPath: otherProject]
+        ))
+        let appPBX = PBXNativeTarget(name: "App")
+        let frameworkPBX = PBXNativeTarget(name: "Framework")
+        let generated = GeneratedProject.test(
+            path: project.xcodeProjPath,
+            targets: ["App": appPBX, "AppTests": PBXNativeTarget(name: "AppTests")]
+        )
+        let generator = SchemeDescriptorsGenerator()
+        if external {
+            #expect(throws: SchemeDescriptorsGeneratorError.unresolvedTestPlanCoverageTarget(
+                plan: plan.path, target: coverageReference
+            )) {
+                try generator.generateProjectSchemes(project: project, generatedProject: generated, graphTraverser: traverser)
+            }
+        } else {
+            let (_, effects) = try generator.generateProjectSchemes(
+                project: project, generatedProject: generated, graphTraverser: traverser
+            )
+            #expect(effects.count == 1)
+        }
+
+        let (_, effects) = try generator.generateWorkspaceSchemes(
+            workspace: workspace,
+            generatedProjects: [
+                project.xcodeProjPath: generated,
+                otherProject.xcodeProjPath: .test(path: otherProject.xcodeProjPath, targets: ["Framework": frameworkPBX]),
+            ],
+            graphTraverser: traverser
+        )
+        let descriptor = try #require(effects.compactMap { effect -> TestPlanDescriptor? in
+            guard case let .testPlan(descriptor) = effect else { return nil }
+            return descriptor
+        }.first)
+        let json = try #require(JSONSerialization.jsonObject(with: descriptor.encode()) as? [String: Any])
+        let options = try #require(json["defaultOptions"] as? [String: Any])
+        let coverage = try #require(options["codeCoverage"] as? [String: Any])
+        let targets = try #require(coverage["targets"] as? [[String: String]])
+        let expectedProject = external ? otherProject : project
+        #expect(targets == [[
+            "name": external ? "Framework" : "App",
+            "identifier": external ? frameworkPBX.uuid : appPBX.uuid,
+            "containerPath": "container:\(expectedProject.xcodeProjPath.relative(to: root).pathString)",
+        ]])
+    }
+}

@@ -15,6 +15,8 @@ public struct TestPlan: Hashable, Codable, Sendable {
     public let testTargets: [TestableTarget]
     public let isDefault: Bool
     public let kind: Kind
+    public let coverage: Bool?
+    public let codeCoverageTargets: [TargetReference]
 
     public init(
         path: AbsolutePath,
@@ -22,10 +24,38 @@ public struct TestPlan: Hashable, Codable, Sendable {
         isDefault: Bool,
         kind: Kind = .referenced
     ) {
+        self.init(path: path, testTargets: testTargets, isDefault: isDefault, kind: kind, coverage: nil)
+    }
+
+    public init(
+        path: AbsolutePath,
+        testTargets: [TestableTarget],
+        isDefault: Bool,
+        kind: Kind = .referenced,
+        coverage: Bool?,
+        codeCoverageTargets: [TargetReference] = []
+    ) {
         name = path.basenameWithoutExt
         self.path = path
         self.testTargets = testTargets
         self.isDefault = isDefault
         self.kind = kind
+        self.coverage = coverage
+        self.codeCoverageTargets = codeCoverageTargets
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, path, testTargets, isDefault, kind, coverage, codeCoverageTargets
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        path = try container.decode(AbsolutePath.self, forKey: .path)
+        testTargets = try container.decode([TestableTarget].self, forKey: .testTargets)
+        isDefault = try container.decode(Bool.self, forKey: .isDefault)
+        kind = try container.decode(Kind.self, forKey: .kind)
+        coverage = try container.decodeIfPresent(Bool.self, forKey: .coverage)
+        codeCoverageTargets = try container.decodeIfPresent([TargetReference].self, forKey: .codeCoverageTargets) ?? []
     }
 }
