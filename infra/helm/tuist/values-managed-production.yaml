@@ -1532,16 +1532,32 @@ rackFleet:
   # count.
   #
   # Warm floors follow demand. Only a warm runner claims a job in under 10 s:
-  # a cold one is the scale-up and the boot, 10 to 75 s even with the image on
-  # the host. A floor on an image without jobs holds a slot a burst for
-  # another image then waits for (warm runners give theirs up after 30 s,
-  # infra/runners-controller/AGENTS.md), so the rack's 28 production slots
-  # keep floors only for the images that had a job in most working hours of
-  # the week to 2026-10-22 (07:00 to 18:00 UTC, weekdays): 27.0 in 60 of 60
-  # hours, 26.6 in 50, 26.3 in 36, 26.0.1 in 29. 27.0 keeps two, since its
-  # jobs arrive in fan-outs. The other images had a job in at most 7 of those
-  # hours (26.1.1) or none (27.1, 27.2-beta, 26.4.1), and start cold. The
-  # 12 vCPU shape stays cold: an idle one would hold a whole host.
+  # a cold one is the scale-up and the boot, a median 20 to 26 s on the rack.
+  # A pool's floor covers the first jobs of a fan-out, so it is sized to the
+  # fan-outs its jobs arrive in (jobs enqueued within 30 s of each other);
+  # jobs past the floor wait for a boot unless the pool still holds the last
+  # hour's peak. Measured 2026-10-24 to 10-28, leaving out jobs their account's
+  # concurrency limit held:
+  #
+  # - 27.0 keeps two and 26.6 one: 91 to 93% of the customer jobs their
+  #   floors cover claim within 10 s.
+  # - 27.1 keeps three: its customers' jobs arrive three at a time, and 35% of
+  #   them waited over 10 s with no floor (modeled 17% with three; the rest
+  #   are fan-outs of 4 to 19 that a floor would only cover by holding that
+  #   many slots).
+  # - 26.1.1 keeps three: one account's jobs, in fan-outs of three, 61% over
+  #   10 s with no floor (modeled 8%).
+  # - 26.0.1 keeps one for the CLI release workflows.
+  # - 26.3 has none: its jobs came in fan-outs of four and more, and 73 of 77
+  #   waited over 10 s with a floor of one.
+  #
+  # Floors sum to 13 of the 28 production slots, counting the 12 vCPU 27.1
+  # pool's whole host below and the `ber1` smoke pool's one. Load alone
+  # reached 13 slots in 0.5% of those minutes and peaked at 19, and the
+  # fleet allocator funds every pool's load before any floor
+  # (infra/runners-controller/AGENTS.md), so a floor gives way to another
+  # image's queued jobs rather than holding them. What the floors take is the
+  # hourly-peak headroom above them, mostly the 27.0 pool's.
   #
   # Every image's golden fits beside the cache: about 60 GiB each, 9 images
   # in the 540 GiB allowance above, and a release pulls only the overlay on
@@ -1558,6 +1574,20 @@ rackFleet:
       minWarmPoolFloor: 0
       maxReplicas: 32
     xcodeOverrides:
+      "27.1":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 3
+          maxReplicas: 32
+        # One account's 12 vCPU jobs, which arrive one at a time: 19% waited
+        # over 10 s with no floor (modeled 8% with one). The floor holds a
+        # whole host, two of the 28 slots.
+        shapes:
+          12vcpu-28gb:
+            autoscaling:
+              enabled: true
+              minWarmPoolFloor: 1
+              maxReplicas: 16
       "27.0":
         autoscaling:
           enabled: true
@@ -1568,10 +1598,10 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 1
           maxReplicas: 32
-      "26.3":
+      "26.1.1":
         autoscaling:
           enabled: true
-          minWarmPoolFloor: 1
+          minWarmPoolFloor: 3
           maxReplicas: 32
       "26.0.1":
         autoscaling:
@@ -2161,11 +2191,15 @@ runnersFleet:
   # would be silently discarded, because YAML resolves duplicate keys last-wins
   # and Helm never warns.
   #
-  # It autoscales from zero so it shares the rack's guest slots with the
-  # catalog's rack pools through the fleet allocator, which only counts
-  # autoscaling pools: a fixed count would hold slots the allocator believes
-  # free. Thirty-two is every guest slot in the rack, so a load run still reaches
-  # all of them when nothing else is running.
+  # It autoscales so it shares the rack's guest slots with the catalog's rack
+  # pools through the fleet allocator, which only counts autoscaling pools: a
+  # fixed count would hold slots the allocator believes free. Thirty-two is
+  # every guest slot in the rack, so a load run still reaches all of them when
+  # nothing else is running.
+  #
+  # The hourly runners acceptance probe lands here, one job at a time, and
+  # every one of its 105 jobs from 2026-10-24 to 10-28 waited for a boot
+  # (median 21 s). One warm runner covers it for one slot.
   #
   # The image is the catalog's 26.6 runner, so it follows runner releases.
   pools:
@@ -2179,7 +2213,7 @@ runnersFleet:
       fleetSelector: tuist-tuist-rack-fleet
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 1
         maxReplicas: 32
         # Smoke runs are dispatched by hand, so the last hour's peak does not
         # predict the next one.
@@ -2337,13 +2371,26 @@ runnersFleetLinux:
     # of a small job. Revisit alongside decoupling the scheduler request
     # from the shape limit, which is what would let the floor be a slot
     # count again.
+    #
+    # A higher floor does not bring this pool's waits under 10 s. Its jobs
+    # arrive in fan-outs of up to 40 within a minute, and from 2026-10-24 to
+    # 10-28 26% of the jobs the account's limit did not hold waited over 10 s.
+    # Modeled from those arrivals, a floor of 8 leaves 24%, 16 leaves 19% and
+    # 24 (252 GiB) still 16%.
     - vcpus: 2
       memoryGb: 8
       default: true
       autoscaling:
         minWarmPoolFloor: 4
     - { vcpus: 4, memoryGb: 8 }
-    - { vcpus: 4, memoryGb: 16 }
+    # Our own CI's jobs, in fan-outs of four. From 2026-10-24 to 10-28, 30% of
+    # the jobs the account's limit did not hold waited over 10 s for a boot
+    # (median 16 s). Four warm runners cover the fan-out (modeled 17%, the
+    # rest are fan-outs of 5 to 8) and reserve 74 GiB (4 x 18.5 GiB).
+    - vcpus: 4
+      memoryGb: 16
+      autoscaling:
+        minWarmPoolFloor: 4
     # 8vcpu-16gb and 16vcpu-32gb have jobs in most weekday working hours,
     # arriving in fan-outs that take two and one runners respectively.
     - vcpus: 8
