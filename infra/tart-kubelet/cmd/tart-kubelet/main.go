@@ -515,6 +515,8 @@ func main() {
 		Heartbeat:      30 * time.Second,
 		PrewarmGate:    prewarmGate,
 		RuntimeVersion: tartClient.Version,
+		MemoryPressure: nodeagent.HostMemoryPressure,
+		PIDPressure:    nodeagent.HostPIDPressure,
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
 			// Host root volume first: it holds every Tart golden + clone,
 			// and a fill there silently breaks the operator's SSH config

@@ -67,6 +67,11 @@ type Maintainer struct {
 	// a full guest disk from the scheduler and from alerting. nil keeps
 	// the condition at its False default.
 	DiskPressure DiskPressureProbe
+	// Host pressure probes refresh conditions the node lifecycle controller
+	// otherwise leaves Unknown after a heartbeat gap. Failures report Unknown;
+	// native sandbox admission must not reuse a previous healthy reading.
+	MemoryPressure DiskPressureProbe
+	PIDPressure    DiskPressureProbe
 
 	// DynamicLabels are the agent-owned label sets that change at runtime,
 	// each evaluated every heartbeat: the `tuist.dev/golden-<hash>`
@@ -158,6 +163,7 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 		}
 		m.readRuntimeVersion(ctx)
 		m.configureNode(node, m.evalDynamicLabels(ctx))
+		m.applyHostPressure(ctx, node)
 		return m.Client.Create(ctx, node)
 	}
 	if err != nil {
@@ -216,6 +222,7 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	node.Status = *desiredStatus
 
 	m.applyDiskPressure(ctx, node)
+	m.applyHostPressure(ctx, node)
 	for i, c := range node.Status.Conditions {
 		if c.Type == corev1.NodeReady {
 			node.Status.Conditions[i].LastHeartbeatTime = metav1.Now()
@@ -268,6 +275,25 @@ func (m *Maintainer) applyDiskPressure(ctx context.Context, node *corev1.Node) {
 		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionTrue, "TartKubeletHasDiskPressure", detail)
 	} else {
 		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionFalse, "TartKubeletHasSufficientDisk", detail)
+	}
+}
+
+func (m *Maintainer) applyHostPressure(ctx context.Context, node *corev1.Node) {
+	for _, check := range []struct {
+		condition corev1.NodeConditionType
+		probe     DiskPressureProbe
+	}{{corev1.NodeMemoryPressure, m.MemoryPressure}, {corev1.NodePIDPressure, m.PIDPressure}} {
+		if check.probe == nil {
+			continue
+		}
+		pressured, detail, err := check.probe(ctx)
+		status, reason := corev1.ConditionFalse, "TartKubeletPressureNormal"
+		if err != nil {
+			status, reason, detail = corev1.ConditionUnknown, "TartKubeletPressureProbeFailed", err.Error()
+		} else if pressured {
+			status, reason = corev1.ConditionTrue, "TartKubeletHostPressure"
+		}
+		setCondition(&node.Status.Conditions, check.condition, status, reason, detail)
 	}
 }
 
