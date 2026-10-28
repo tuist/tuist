@@ -1,6 +1,8 @@
 defmodule TuistWeb.TestSelection.Components do
   @moduledoc """
-  The cells and words the Test Selection pages share: a decision as a badge,
+  The cells and words test selection shares across the Test Selection page,
+  a test run's Selective Testing tab and a test case run's Test Selection
+  tab: a decision as a badge,
   the reasons behind it, a test's outcome, whether a selection run's skips
   were applied and why it fell back to running everything, and the kinds of
   changed files.
@@ -9,11 +11,12 @@ defmodule TuistWeb.TestSelection.Components do
   use Noora
 
   attr :decision, :string, required: true
+  attr :mode, :string, default: "enabled"
 
   def decision_cell(assigns) do
     ~H"""
     <.badge_cell
-      label={decision_label(@decision)}
+      label={decision_label(@decision, @mode)}
       color={decision_color(@decision)}
       icon={decision_icon(@decision)}
       style="light-fill"
@@ -22,12 +25,13 @@ defmodule TuistWeb.TestSelection.Components do
   end
 
   attr :decision, :string, required: true
+  attr :mode, :string, default: "enabled"
   attr :size, :string, default: "large"
 
   def decision_badge(assigns) do
     ~H"""
     <.badge
-      label={decision_label(@decision)}
+      label={decision_label(@decision, @mode)}
       color={decision_color(@decision)}
       style="light-fill"
       size={@size}
@@ -37,9 +41,13 @@ defmodule TuistWeb.TestSelection.Components do
     """
   end
 
-  def decision_label("selected"), do: dgettext("dashboard_tests", "Selected")
-  def decision_label("skipped"), do: dgettext("dashboard_tests", "Skipped")
-  def decision_label(_decision), do: dgettext("dashboard_tests", "Unknown")
+  @doc "A decision, worded as a hypothetical in dry run, where every test ran."
+  def decision_label(decision, mode \\ "enabled")
+  def decision_label("selected", "dry_run"), do: dgettext("dashboard_tests", "Would run")
+  def decision_label("skipped", "dry_run"), do: dgettext("dashboard_tests", "Would skip")
+  def decision_label("selected", _mode), do: dgettext("dashboard_tests", "Selected")
+  def decision_label("skipped", _mode), do: dgettext("dashboard_tests", "Skipped")
+  def decision_label(_decision, _mode), do: dgettext("dashboard_tests", "Unknown")
 
   defp decision_color("selected"), do: "primary"
   defp decision_color(_decision), do: "neutral"

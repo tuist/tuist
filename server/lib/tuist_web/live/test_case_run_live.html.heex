@@ -60,6 +60,13 @@
           style="light-fill"
           size="large"
         />
+        <.badge
+          :if={@selection && @selection.missed?}
+          label={dgettext("dashboard_tests", "Selection miss")}
+          color="destructive"
+          style="light-fill"
+          size="large"
+        />
       </div>
       <.link_button
         :if={@test_case}
@@ -108,7 +115,28 @@
       patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
       replace={true}
     />
+    <.tab_menu_horizontal_item
+      :if={@selection}
+      label={dgettext("dashboard_tests", "Test Selection")}
+      selected={@selected_tab == "test-selection"}
+      patch={"?#{Query.put(@uri.query, "tab", "test-selection")}"}
+      replace={true}
+    />
   </.tab_menu_horizontal>
+
+  <TestCaseRunTab.test_selection
+    :if={@selected_tab == "test-selection"}
+    selection={@selection}
+    all_files={@selection_all_files}
+    files={@selection_files}
+    search={@selection_files_search}
+    page={@selection_files_page}
+    total_pages={@selection_files_total_pages}
+    uri={@uri}
+    project={@selected_project}
+    account={@selected_account}
+    test_run_id={@test_case_run.test_run_id}
+  />
 
   <div :if={@selected_tab == "overview"} data-part="overview">
     <.card

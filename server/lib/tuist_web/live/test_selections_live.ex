@@ -5,9 +5,9 @@ defmodule TuistWeb.TestSelectionsLive do
   selected and skipped, the skip rate, the dry-run misses (would-skip tests
   that failed, the number that decides when to enforce) and the runs. Then
   two tabs: the selection runs, one per invocation, newest first
-  (`Selections.list_runs/2`), each opening its page
-  (`TuistWeb.TestSelectionRunLive`) and linking to its commit's
-  (`TuistWeb.TestSelectionCommitLive`); and the baselines, the
+  (`Selections.list_runs/2`), each opening the Selective Testing tab of the
+  test run that reported its results (`TuistWeb.TestSelection.RunTab`);
+  and the baselines, the
   default-branch commits that measured coverage and whether each can serve
   as one (`Selections.baselines/2`).
   """
@@ -126,13 +126,19 @@ defmodule TuistWeb.TestSelectionsLive do
   def tab_label("runs"), do: dgettext("dashboard_tests", "Selection runs")
   def tab_label("baselines"), do: dgettext("dashboard_tests", "Baselines")
 
-  @doc false
-  def run_href(%{selected_account: account, selected_project: project}, run),
-    do: "/#{account.name}/#{project.name}/tests/test-selection/runs/#{run.id}"
+  @doc """
+  A selection run opens the Selective Testing tab of the test run that
+  reported its results; one whose results never arrived has nowhere to go
+  and stays on this page.
+  """
+  def run_href(%{selected_account: account, selected_project: project}, %{test_run_id: test_run_id})
+      when not is_nil(test_run_id),
+      do: "/#{account.name}/#{project.name}/tests/test-runs/#{test_run_id}?tab=test-optimizations"
 
-  @doc false
-  def commit_href(%{selected_account: account, selected_project: project}, sha),
-    do: "/#{account.name}/#{project.name}/tests/test-selection/commits/#{sha}"
+  def run_href(%{uri: uri} = assigns, _run), do: "#{path_from_assigns(assigns)}?#{uri.query}"
+
+  defp path_from_assigns(%{selected_account: account, selected_project: project}),
+    do: "/#{account.name}/#{project.name}/tests/test-selection"
 
   @doc false
   def coverage_href(%{selected_account: account, selected_project: project}, sha),

@@ -1,13 +1,10 @@
 /* The coverage pages — a branch's glance, one subject in
    detail, and a file — are page roots laid out like every other dashboard
-   page. The Test Selection pages (the project's plans, a commit's plan and
-   one decision) are laid out the same way. */
+   page. The Test Selection page is laid out the same way. */
 #coverage,
 #coverage-detail,
 #coverage-file-page,
-#test-selections,
-#test-selection,
-#test-selection-decision {
+#test-selections {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
@@ -48,8 +45,7 @@
   & [data-part="commits-table"],
   & [data-part="files-table"],
   & [data-part="targets-table"],
-  & [data-part="runs-table"],
-  & [data-part="decisions-table"] {
+  & [data-part="runs-table"] {
     display: flex;
     flex-direction: column;
   }
@@ -57,8 +53,7 @@
   & [data-part="commits-section"] [data-part="filters"],
   & [data-part="targets-section"] [data-part="filters"],
   & [data-part="files-section"] [data-part="filters"],
-  & [data-part="runs-section"] [data-part="filters"],
-  & [data-part="decisions-section"] [data-part="filters"] {
+  & [data-part="runs-section"] [data-part="filters"] {
     display: flex;
     gap: var(--noora-spacing-6);
   }
@@ -80,8 +75,7 @@
   & [data-part="commits-section"],
   & [data-part="runs-section"],
   & [data-part="targets-section"],
-  & [data-part="files-section"],
-  & [data-part="decisions-section"] {
+  & [data-part="files-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-8);
@@ -126,9 +120,7 @@
 /* A branch, a commit or a file: a title block above the tabs, as the test
    run detail page has. */
 #coverage-detail,
-#coverage-file-page,
-#test-selection,
-#test-selection-decision {
+#coverage-file-page {
   & > [data-part="back-button"] {
     align-self: flex-start;
   }
@@ -226,12 +218,8 @@
   }
 }
 
-/* One file's page: its figures above a list of what it is made of. One
-   test selection decision's page reads the same way: its facts above the
-   files it executed, and a commit's plan its facts above its decisions. */
-#coverage-file-page,
-#test-selection,
-#test-selection-decision {
+/* One file's page: its figures above a list of what it is made of. */
+#coverage-file-page {
   & > [data-part="header"] > [data-part="filters"] {
     display: flex;
     flex-wrap: wrap;

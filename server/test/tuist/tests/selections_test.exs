@@ -2,6 +2,7 @@ defmodule Tuist.Tests.SelectionsTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Tests.Selections
+  alias Tuist.Tests.TestSelectionRun
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.TestSelectionFixtures
@@ -191,7 +192,7 @@ defmodule Tuist.Tests.SelectionsTest do
   end
 
   describe "impacts" do
-    test "list a commit's impacts and their changed files and affected tests", %{project: project} do
+    test "find a run's impact and list its changed files", %{project: project} do
       TestSelectionFixtures.impact_fixture(
         project_id: project.id,
         baseline_sha: "older",
@@ -206,15 +207,16 @@ defmodule Tuist.Tests.SelectionsTest do
             %{path: "docs/README.md", kind: "ignored"},
             %{path: "Sources/Search/Search.swift", impacted_tests_count: 2},
             %{path: "Sources/Auth/Session.swift", impacted_tests_count: 1}
-          ],
-          tests: [
-            %{test_case_id: UUIDv7.generate(), name: "test_load()", reason: "impacted"},
-            %{test_case_id: UUIDv7.generate(), name: "test_body()", reason: "target_changed"},
-            %{test_case_id: UUIDv7.generate(), name: "test_flaky()", reason: "failed_at_baseline"}
           ]
         )
 
-      assert Enum.map(Selections.impacts_for_commit(project.id, "a1b2c3d4e5f6"), & &1.baseline_sha) == ["newer", "older"]
+      run_with = fn baseline ->
+        %TestSelectionRun{project_id: project.id, git_commit_sha: "a1b2c3d4e5f6", baseline_sha: baseline}
+      end
+
+      assert %{baseline_sha: "newer", changed_files_count: 3} = Selections.get_impact(run_with.("newer"))
+      assert %{baseline_sha: "older"} = Selections.get_impact(run_with.("older"))
+      assert Selections.get_impact(run_with.("")) == nil
 
       {rows, meta} = Selections.impact_changed_files(impact)
 
@@ -226,8 +228,6 @@ defmodule Tuist.Tests.SelectionsTest do
 
       assert meta.total_count == 3
       assert {[%{path: "docs/README.md"}], _meta} = Selections.impact_changed_files(impact, kind: "ignored")
-      assert {[%{name: "test_body()"}], _meta} = Selections.impact_tests(impact, reason: "target_changed")
-      assert Selections.impact_reasons(impact) == %{"impacted" => 1, "target_changed" => 1, "failed_at_baseline" => 1}
     end
   end
 
