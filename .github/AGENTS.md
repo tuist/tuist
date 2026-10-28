@@ -516,7 +516,7 @@ are rejected.
 ## CLI Linux release
 
 `release-cli-linux` in `workflows/cli-build-publish.yml` builds both Linux
-tarballs on `tuist-linux-large` inside `swift:6.2`. The fleet is amd64-only,
+tarballs on `tuist-linux-large` inside `swift:6.4.1-noble`. The fleet is amd64-only,
 so aarch64 is cross-compiled through the static Linux SDK and the bundle
 script checks the architecture and that the binary is static before packaging.
 The job builds `inputs.ref` with the bundler and SDK setup from the
