@@ -192,7 +192,9 @@ public struct GeneratorFactory: GeneratorFactorying {
             includedTargets: includedTargets,
             excludedTargets: []
         )
-        if sdkSelection == .simulators { graphMappers.append(SimulatorOnlyGraphMapper()) }
+        if sdkSelection == .simulators || sdkSelection == .devices {
+            graphMappers.append(CacheDestinationGraphMapper(simulator: sdkSelection == .simulators))
+        }
         let workspaceMappers = workspaceMapperFactory.default(
             tuist: config
         )
@@ -360,7 +362,9 @@ public struct GeneratorFactory: GeneratorFactorying {
                 cacheStorage: cacheStorage,
                 sdkSelection: sdkSelection
             )
-            if sdkSelection == .simulators { graphMappers.append(SimulatorOnlyGraphMapper()) }
+            if sdkSelection == .simulators || sdkSelection == .devices {
+                graphMappers.append(CacheDestinationGraphMapper(simulator: sdkSelection == .simulators))
+            }
             let workspaceMappers = workspaceMapperFactory.default(tuist: config)
             return Generator(
                 manifestGraphLoader: ManifestGraphLoader(

@@ -30,12 +30,12 @@ import XcodeGraph
         case uploadsFailed(failures: [CacheUploadFailure], storedCount: Int)
         case sourcesChangedDuringBuild(target: String)
         case coverageWithoutProject(AbsolutePath)
-        case simulatorOnlyRequiresModernCache
+        case restrictedDestinationRequiresModernCache
 
         var errorDescription: String? {
             switch self {
-            case .simulatorOnlyRequiresModernCache:
-                return "--simulator-only requires modern per-SDK caching. Disable TUIST_LEGACY_MODULE_CACHE or omit the flag."
+            case .restrictedDestinationRequiresModernCache:
+                return "Restricted destinations require modern per-SDK caching. Disable TUIST_LEGACY_MODULE_CACHE or use --destination all."
             case let .sourcesChangedDuringBuild(target):
                 return "Sources for \(target) changed while warming the cache. Run the warm again with stable inputs."
             case let .coverageWithoutProject(path):
@@ -172,10 +172,10 @@ import XcodeGraph
             noUpload: Bool,
             cacheProfile: String?,
             scratchDirectory: String?,
-            simulatorOnly: Bool = false
+            destination: CacheDestination = .all
         ) async throws {
-            if simulatorOnly, Environment.current.isLegacyModuleCacheEnabled {
-                throw CacheWarmCommandServiceError.simulatorOnlyRequiresModernCache
+            if destination != .all, Environment.current.isLegacyModuleCacheEnabled {
+                throw CacheWarmCommandServiceError.restrictedDestinationRequiresModernCache
             }
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let scratchDirectoryPath: AbsolutePath?
@@ -250,7 +250,7 @@ import XcodeGraph
                 cacheProfile: profile,
                 cacheStorage: cacheStorage,
                 coverage: coverage,
-                sdkSelection: simulatorOnly ? .simulators : .all
+                sdkSelection: destination.sdkSelection
             )
             let cacheableTargets = hashedGraph.targetsToBuild
 
@@ -275,7 +275,7 @@ import XcodeGraph
             let plan = try await CacheWarmPlan.make(
                 targets: cacheableTargets,
                 fingerprints: hashedGraph.fingerprints,
-                simulatorOnly: simulatorOnly,
+                sdkSelection: destination.sdkSelection,
                 generateOnly: generateOnly,
                 useSDKs: !Environment.current.isLegacyModuleCacheEnabled,
                 storage: cacheStorage,

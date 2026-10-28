@@ -82,7 +82,7 @@ public struct HashCacheCommandService: HashCacheServicing {
     public func run(
         path: String?,
         configuration: String?,
-        simulatorOnly: Bool = false
+        destination: CacheDestination = .all
     ) async throws {
         let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
@@ -129,8 +129,8 @@ public struct HashCacheCommandService: HashCacheServicing {
         } else {
             for (target, targetContentHash) in sortedHashes {
                 Logger.current.info("\(target.target.name) - \(targetContentHash.hash)")
-                if simulatorOnly {
-                    for (variant, fingerprint) in BinaryCacheSDKSelection.simulators
+                if destination != .all {
+                    for (variant, fingerprint) in destination.sdkSelection
                         .fingerprints(targetContentHash.binaryCacheFingerprints).sorted(by: { $0.key < $1.key })
                     {
                         Logger.current.info("\(target.target.name) [\(variant)] - \(fingerprint)")

@@ -17,7 +17,7 @@ public struct CacheWarmPlan {
     public static func make(
         targets: [(GraphTarget, String)],
         fingerprints: [String: [String: String]],
-        simulatorOnly: Bool,
+        sdkSelection: BinaryCacheSDKSelection = .all,
         generateOnly: Bool = false,
         useSDKs: Bool = true,
         storage: CacheStoring,
@@ -28,11 +28,10 @@ public struct CacheWarmPlan {
                 batches: targets.isEmpty ? [] : [Batch(variant: nil, targets: targets, fingerprints: fingerprints)], localHits: []
             )
         }
-        let selection: BinaryCacheSDKSelection = simulatorOnly ? .simulators : .all
         var batches: [Batch] = []
         var localHits: [[CacheStorableItem: AbsolutePath]] = []
         var foundSlice = false
-        for variant in BinaryCacheVariant.allCases where selection.includes(variant) {
+        for variant in BinaryCacheVariant.allCases where sdkSelection.includes(variant) {
             let candidates = targets.filter { fingerprints[$0.1]?[variant.rawValue] != nil }
             guard !candidates.isEmpty else { continue }
             let requested = Set(candidates.map { target, hash in
@@ -59,7 +58,7 @@ public struct CacheWarmPlan {
                 }))
             }
         }
-        if !simulatorOnly, !foundSlice {
+        if sdkSelection == .all, !foundSlice {
             return CacheWarmPlan(
                 batches: targets.isEmpty ? [] : [Batch(variant: nil, targets: targets, fingerprints: fingerprints)], localHits: []
             )

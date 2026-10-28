@@ -1552,6 +1552,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistExtension",
         dependencies: [
+            argumentParserDependency,
             "TuistCache",
             "TuistCore",
             "TuistGenerator",

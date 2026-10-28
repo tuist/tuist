@@ -36,20 +36,23 @@ The command re-uses binaries to speed up the process.
 
 If a binary fails to upload, the command still uploads the rest, then exits with a non-zero status and lists the targets that weren't uploaded. Binaries in a machine's local cache count as cached, so to upload them again from the same machine, run `tuist clean binaries` before warming. Pass `--no-upload` to only store binaries in the local cache.
 
-### Simulator-only warming {#simulator-only-warming}
+### Destination selection {#destination-selection}
 
-To cache only iOS simulator binaries for supported modules, use `--simulator-only` when warming and generating:
+Use `--destination simulator` or `--destination device` to cache and generate for one destination:
 
 ```bash
-tuist cache --simulator-only
-tuist generate --simulator-only
+tuist cache --destination simulator
+tuist generate --destination simulator
+
+tuist cache --destination device
+tuist generate --destination device
 ```
 
-Run `tuist cache` later to add missing device or Mac Catalyst slices without rebuilding cached simulator slices. Normal generation keeps a module's sources if any required slices are missing.
+The default is `all`, which preserves every destination supported by your targets, including Mac Catalyst. A later `tuist cache` reuses cached slices and builds only the missing SDKs. Normal generation keeps a module's sources if any required slices are missing.
 
-Simulator-only generation limits source targets to simulator destinations and preserves native macOS targets, including macros. Regenerate without the flag before building for a device or Mac Catalyst.
+Restricted generation limits source targets to the selected destination and preserves native macOS targets, including macros. Neither restricted mode includes Mac Catalyst. Regenerate with `--destination all` to restore all destinations.
 
-Slice-by-slice caching supports iOS and macOS with standard architectures. Other platforms, custom architectures, and unsupported products keep full-artifact caching. Legacy module caching does not support `--simulator-only`.
+Slice-by-slice caching supports iOS and macOS with standard architectures. Other platforms, custom architectures, and unsupported products keep full-artifact caching. Legacy module caching requires `--destination all`.
 
 ### Remote upload admission {#remote-upload-admission}
 

@@ -71,8 +71,8 @@
         )
         var configuration: String?
 
-        @Flag(name: .long, help: "Generate a simulator-only workspace that can use independently warmed simulator slices.")
-        var simulatorOnly: Bool = false
+        @Option(name: .long, help: "Destinations to generate: all, simulator, or device. Native macOS targets remain supported.")
+        var destination: CacheDestination = .all
 
         public func run() async throws {
             if !binaryCache {
@@ -92,7 +92,7 @@
                 configuration: configuration,
                 ignoreBinaryCache: !binaryCache,
                 cacheProfile: cacheProfile,
-                simulatorOnly: simulatorOnly
+                destination: destination
             )
         }
     }

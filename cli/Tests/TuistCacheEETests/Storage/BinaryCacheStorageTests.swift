@@ -75,44 +75,51 @@ struct BinaryCacheStorageTests {
         }
     }
 
-    @Test(.inTemporaryDirectory) func simulatorWarmAndFullWarmShareSDKKeysAndOnlyPlanMissingBuilds() async throws {
+    @Test(.inTemporaryDirectory, arguments: [BinaryCacheVariant.iosSimulator, .iosDevice])
+    func partialWarmAndFullWarmShareSDKKeysAndOnlyPlanMissingBuilds(firstVariant: BinaryCacheVariant) async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let cache = subject(directory.appending(component: "cache"))
         let target = GraphTarget.test(target: .test(name: "Shared", product: .framework))
         let sdkHashes = fingerprints.filter { $0.key != "macos-device" }
         let inputs = ["same-target-hash": sdkHashes]
         let targets = [(target, "same-target-hash")]
+        let selection: BinaryCacheSDKSelection = firstVariant == .iosSimulator ? .simulators : .devices
+        let missingVariant: BinaryCacheVariant = firstVariant == .iosSimulator ? .iosDevice : .iosSimulator
+        let withCatalyst = fingerprints.merging(["ios-maccatalyst": "catalyst-inputs"]) { _, new in new }
+        #expect(selection.fingerprints(withCatalyst) == [
+            firstVariant.rawValue: sdkHashes[firstVariant.rawValue]!, "macos-device": "mac-inputs",
+        ])
         let cold = try await CacheWarmPlan.make(
-            targets: targets, fingerprints: inputs, simulatorOnly: false, storage: cache, preserving: []
+            targets: targets, fingerprints: inputs, storage: cache, preserving: []
         ).batches
         #expect(cold.count == 1 && cold[0].variant == nil)
         #expect(cold[0].fingerprints == inputs)
-        let simulator = try await CacheWarmPlan.make(
-            targets: targets, fingerprints: inputs, simulatorOnly: true, storage: cache, preserving: []
+        let partial = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, sdkSelection: selection, storage: cache, preserving: []
         ).batches
-        #expect(simulator.map(\.variant) == [.iosSimulator])
-        let simulatorArtifact = directory.appending(components: "simulator", "Shared.xcframework")
-        try await makeArtifact(at: simulatorArtifact, variants: ["ios-simulator"])
-        let simulatorItem = CacheStorableItem(name: "Shared", hash: "same-target-hash", metadata: .init(
-            binaryCacheFingerprints: simulator[0].fingerprints["same-target-hash"]!, requiresSDKSlices: true
+        #expect(partial.map(\.variant) == [firstVariant])
+        let partialArtifact = directory.appending(components: "partial", "Shared.xcframework")
+        try await makeArtifact(at: partialArtifact, variants: [firstVariant.rawValue])
+        let partialItem = CacheStorableItem(name: "Shared", hash: "same-target-hash", metadata: .init(
+            binaryCacheFingerprints: partial[0].fingerprints["same-target-hash"]!, requiresSDKSlices: true
         ))
-        _ = try await cache.store([simulatorItem: [simulatorArtifact]], cacheCategory: .binaries)
+        _ = try await cache.store([partialItem: [partialArtifact]], cacheCategory: .binaries)
         #expect(try await cache.fetch([item("same-target-hash", sdkHashes)], cacheCategory: .binaries).isEmpty)
         let remaining = try await CacheWarmPlan.make(
-            targets: targets, fingerprints: inputs, simulatorOnly: false, storage: cache, preserving: []
+            targets: targets, fingerprints: inputs, storage: cache, preserving: []
         ).batches
-        #expect(remaining.map(\.variant) == [.iosDevice])
-        let deviceArtifact = directory.appending(components: "device", "Shared.xcframework")
-        try await makeArtifact(at: deviceArtifact, variants: ["ios-device"])
+        #expect(remaining.map(\.variant) == [missingVariant])
+        let remainingArtifact = directory.appending(components: "remaining", "Shared.xcframework")
+        try await makeArtifact(at: remainingArtifact, variants: [missingVariant.rawValue])
         _ = try await cache.store([CacheStorableItem(name: "Shared", hash: "same-target-hash", metadata: .init(
             binaryCacheFingerprints: remaining[0].fingerprints["same-target-hash"]!, requiresSDKSlices: true
-        )): [deviceArtifact]], cacheCategory: .binaries)
+        )): [remainingArtifact]], cacheCategory: .binaries)
         let restored = try #require(try await cache.fetch([item("same-target-hash", sdkHashes)], cacheCategory: .binaries).values
             .first)
         #expect(try await XCFrameworkCoverageService().coverage(at: restored).keys.sorted() == ["ios-device", "ios-simulator"])
-        for simulatorOnly in [false, true] {
+        for selection in [BinaryCacheSDKSelection.all, .simulators, .devices] {
             #expect(try await CacheWarmPlan.make(
-                targets: targets, fingerprints: inputs, simulatorOnly: simulatorOnly, storage: cache, preserving: []
+                targets: targets, fingerprints: inputs, sdkSelection: selection, storage: cache, preserving: []
             ).batches.isEmpty)
         }
     }
@@ -138,14 +145,14 @@ struct BinaryCacheStorageTests {
         let remote = MemoryREAPICache()
         let cache = subject(root, remote: remote)
         let plan = try await CacheWarmPlan.make(
-            targets: targets, fingerprints: inputs, simulatorOnly: false, storage: cache, preserving: []
+            targets: targets, fingerprints: inputs, storage: cache, preserving: []
         )
         #expect(plan.batches.map(\.variant) == [.iosDevice, .iosSimulator])
         #expect(plan.batches[0].targets.map(\.0.target.name) == ["Dependency"])
         #expect(plan.batches[1].targets.map(\.0.target.name) == ["Consumer"])
         #expect(plan.localHits.flatMap(\.keys).count == 2)
         let debugPlan = try await CacheWarmPlan.make(
-            targets: targets, fingerprints: inputs, simulatorOnly: false, generateOnly: true, storage: cache, preserving: []
+            targets: targets, fingerprints: inputs, generateOnly: true, storage: cache, preserving: []
         )
         #expect(debugPlan.batches.count == 1)
         let debugBatch = try #require(debugPlan.batches.first)

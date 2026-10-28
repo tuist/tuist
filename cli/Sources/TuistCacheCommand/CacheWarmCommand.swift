@@ -68,11 +68,11 @@
 
         var noUpload: Bool { !upload }
 
-        @Flag(
+        @Option(
             name: .long,
-            help: "Warm only simulator slices for per-SDK cacheable targets. Native macOS tools and exact-target products retain complete caching."
+            help: "Destinations to warm: all, simulator, or device. Native macOS targets and exact-target products retain complete caching."
         )
-        var simulatorOnly: Bool = false
+        var destination: CacheDestination = .all
 
         @Option(
             name: .long,
@@ -98,7 +98,7 @@
                     "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
                     takeaway: "Use \(.command("tuist hash cache")) instead."
                 ))
-                try await Extension.hashCacheService.run(path: path, configuration: configuration, simulatorOnly: simulatorOnly)
+                try await Extension.hashCacheService.run(path: path, configuration: configuration, destination: destination)
                 return
             }
 
@@ -118,7 +118,7 @@
                 noUpload: noUpload,
                 cacheProfile: cacheProfile,
                 scratchDirectory: scratchDirectory,
-                simulatorOnly: simulatorOnly
+                destination: destination
             )
         }
     }

@@ -2,23 +2,27 @@ import TuistCore
 import TuistLogging
 import XcodeGraph
 
-enum SimulatorOnlyGraphMapperError: FatalError, Equatable {
-    case missingSimulatorDestination(target: String)
+enum CacheDestinationGraphMapperError: FatalError, Equatable {
+    case missingDestination(target: String, simulator: Bool)
 
     var type: ErrorType { .abort }
 
     var description: String {
         switch self {
-        case let .missingSimulatorDestination(target):
-            return "Target '\(target)' has no simulator or native macOS destination. Regenerate without --simulator-only."
+        case let .missingDestination(target, simulator):
+            return "Target '\(target)' has no \(simulator ? "simulator" : "device") or native macOS destination. Regenerate with --destination all."
         }
     }
 }
 
-/// Restricts an explicitly simulator-only workspace after source hashing and binary replacement.
+/// Restricts an explicitly selected workspace after source hashing and binary replacement.
 /// Native macOS targets, including macros and their dependencies, retain their normal SDKs.
-public struct SimulatorOnlyGraphMapper: GraphMapping {
-    public init() {}
+public struct CacheDestinationGraphMapper: GraphMapping {
+    private let simulator: Bool
+
+    public init(simulator: Bool) {
+        self.simulator = simulator
+    }
 
     // swiftlint:disable large_tuple
     public func map(
@@ -37,14 +41,16 @@ public struct SimulatorOnlyGraphMapper: GraphMapping {
                 target.destinations.remove(.macWithiPadDesign)
                 target.destinations.remove(.appleVisionWithiPadDesign)
                 guard !target.destinations.isEmpty else {
-                    throw SimulatorOnlyGraphMapperError.missingSimulatorDestination(target: target.name)
+                    throw CacheDestinationGraphMapperError.missingDestination(target: target.name, simulator: simulator)
                 }
-                let simulatorSDKs = target.supportedPlatforms.compactMap(\.xcodeSimulatorSDK).sorted()
+                let sdks = target.supportedPlatforms.filter(\.hasSimulators).compactMap {
+                    simulator ? $0.xcodeSimulatorSDK : $0.xcodeDeviceSDK
+                }.sorted()
                 let settings = target.settings ?? .default
                 let restrictions: SettingsDictionary = [
-                    "SUPPORTED_PLATFORMS": .string((simulatorSDKs + (target.supports(.macOS) ? ["macosx"] : []))
+                    "SUPPORTED_PLATFORMS": .string((sdks + (target.supports(.macOS) ? ["macosx"] : []))
                         .joined(separator: " ")),
-                    "SDKROOT": .string(target.supports(.macOS) || simulatorSDKs.count > 1 ? "auto" : simulatorSDKs[0]),
+                    "SDKROOT": .string(target.supports(.macOS) || sdks.count > 1 ? "auto" : sdks[0]),
                     "SUPPORTS_MACCATALYST": "NO",
                     "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
                     "SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD": "NO",
