@@ -1822,12 +1822,20 @@ jobs:
             if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
               bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
             fi
-            # Like macOS, prepare in the background and check readiness once.
-            # Unprepared pools retain their current images for this deployment;
-            # a later deploy reevaluates them. Errors warn and move as before.
+            # Canary must qualify the candidate in this deployment, so wait for
+            # preparation and fail closed. Other environments retain background
+            # staging with per-pool holds and the existing warning-only fallback.
             if [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
               linux_staging_values="$(mktemp)"
+              export LINUX_IMAGE_STAGING_WAIT_SECONDS=0
+              if [ "$TARGET_ENVIRONMENT" = "canary" ]; then
+                export LINUX_IMAGE_STAGING_WAIT_SECONDS=300
+              fi
               if ! bash .github/scripts/linux-runner-image-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE" > "$linux_staging_values"; then
+                if [ "$TARGET_ENVIRONMENT" = "canary" ]; then
+                  echo '::error::Cannot qualify the candidate Linux image; stopping before the Helm upgrade.'
+                  exit 1
+                fi
                 echo '::warning::Could not check Linux image staging; moving pools to the requested images.'
                 echo '{"runnersFleetLinux":{"imageHolds":{}}}' > "$linux_staging_values"
               fi
