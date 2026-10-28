@@ -1,0 +1,4 @@
+{"cpus":8,"cycles":10,"memory_mb":24576,"mode":"workload","phase":"configuration","tart_version":"2.41.1"}
+{"phase":"cold_boot","vm":"sbx-bench-68b36c73e454d8f4","memory_mb":24576,"capacity_wait_ms":5,"launch_ms":41,"first_command_ms":9922,"warm_command_ms":0,"build_ms":18089,"suspend_ms":0,"between_ms":0,"snapshot_bytes":0,"snapshot_allocated_bytes":0,"memory_preserved":false}
+{"cpus":8,"cycles":10,"memory_mb":24576,"mode":"workload","phase":"configuration","tart_version":"2.41.1"}
+{"phase":"cold_boot","vm":"sbx-bench-ed36c4447758cce4","memory_mb":24576,"capacity_wait_ms":5,"launch_ms":41,"first_command_ms":10404,"warm_command_ms":0,"build_ms":19896,"suspend_ms":0,"between_ms":0,"snapshot_bytes":0,"snapshot_allocated_bytes":0,"memory_preserved":false}

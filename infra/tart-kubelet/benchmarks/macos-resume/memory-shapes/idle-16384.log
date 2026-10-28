@@ -1,0 +1,91 @@
+cold boot sbx-bench-6010d3b9b45862a7 (16384 MiB)
+TUIST_MEMORY_PROFILE_BEGIN
+observed_at=2026-10-28T09:31:55Z
+hw.memsize: 17179869184
+vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                   276152.
+Pages active:                                 349214.
+Pages inactive:                               195639.
+Pages speculative:                            154159.
+Pages throttled:                                   0.
+Pages wired down:                              72323.
+Pages purgeable:                                7933.
+"Translation faults":                        2037313.
+Pages copy-on-write:                           96664.
+Pages zero filled:                            743631.
+Pages reactivated:                                68.
+Pages purged:                                    540.
+File-backed pages:                            385459.
+Anonymous pages:                              313553.
+Pages stored in compressor:                        0.
+Pages occupied by compressor:                      0.
+Decompressions:                                    0.
+Compressions:                                      0.
+Pageins:                                      272793.
+Pageouts:                                          0.
+Swapins:                                           0.
+Swapouts:                                          0.
+process_rss_sum_kib=13601520
+TUIST_MEMORY_PROFILE_END
+cycle 1: suspended; guest slot is free
+TUIST_MEMORY_PROFILE_BEGIN
+observed_at=2026-10-28T09:31:56Z
+hw.memsize: 17179869184
+vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                   276298.
+Pages active:                                 351367.
+Pages inactive:                               195987.
+Pages speculative:                            154406.
+Pages throttled:                                   0.
+Pages wired down:                              69333.
+Pages purgeable:                                7968.
+"Translation faults":                        2048258.
+Pages copy-on-write:                           98224.
+Pages zero filled:                            746829.
+Pages reactivated:                                69.
+Pages purged:                                    540.
+File-backed pages:                            385757.
+Anonymous pages:                              316003.
+Pages stored in compressor:                        0.
+Pages occupied by compressor:                      0.
+Decompressions:                                    0.
+Compressions:                                      0.
+Pageins:                                      272844.
+Pageouts:                                          0.
+Swapins:                                           0.
+Swapouts:                                          0.
+process_rss_sum_kib=13606384
+TUIST_MEMORY_PROFILE_END
+cycle 2: suspended; guest slot is free
+TUIST_MEMORY_PROFILE_BEGIN
+observed_at=2026-10-28T09:31:57Z
+hw.memsize: 17179869184
+vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                   275981.
+Pages active:                                 352381.
+Pages inactive:                               196772.
+Pages speculative:                            155995.
+Pages throttled:                                   0.
+Pages wired down:                              66037.
+Pages purgeable:                               10848.
+"Translation faults":                        2057774.
+Pages copy-on-write:                           99631.
+Pages zero filled:                            748659.
+Pages reactivated:                                73.
+Pages purged:                                    540.
+File-backed pages:                            387369.
+Anonymous pages:                              317779.
+Pages stored in compressor:                        0.
+Pages occupied by compressor:                      0.
+Decompressions:                                    0.
+Compressions:                                      0.
+Pageins:                                      272894.
+Pageouts:                                          0.
+Swapins:                                           0.
+Swapouts:                                          0.
+process_rss_sum_kib=13572992
+TUIST_MEMORY_PROFILE_END
+cycle 3: suspended; guest slot is free

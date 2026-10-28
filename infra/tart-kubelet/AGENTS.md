@@ -326,6 +326,12 @@ workflow code runs in the guest. Never expose host credentials or masters.
 
 ## Tart versions
 
+The opt-in [macOS sandbox resume experiment](macos-sandbox-resume.md) uses an
+isolated Tart store and the asynchronous launcher. Keep its save/restore work
+outside the single Pod reconcile worker, and never treat a suspend CLI exit or
+snapshot file alone as released capacity. Its admission evaluator is shadow-only;
+it must not authorize VM launches on the shared runner fleet.
+
 The operator installs Tart in place (see
 [`macos-host-bootstrap/AGENTS.md`](../macos-host-bootstrap/AGENTS.md)), so a host
 runs VMs started by the previous version beside new invocations of the current

@@ -1,0 +1,5 @@
+{"cpus":8,"cycles":3,"memory_mb":8192,"mode":"resume","phase":"configuration","tart_version":"2.41.1"}
+{"phase":"cold_boot","vm":"sbx-bench-2f7eb097666cede8","memory_mb":8192,"capacity_wait_ms":4,"launch_ms":10,"first_command_ms":8475,"build_ms":33513,"suspend_ms":0,"between_ms":0,"snapshot_bytes":0,"memory_preserved":false}
+{"phase":"resume","vm":"sbx-bench-2f7eb097666cede8","memory_mb":8192,"cycle":1,"cache_condition":"immediate","capacity_wait_ms":6,"launch_ms":28,"first_command_ms":5051,"build_ms":6937,"suspend_ms":1727,"between_ms":0,"snapshot_bytes":3758100480,"memory_preserved":true}
+{"phase":"resume","vm":"sbx-bench-2f7eb097666cede8","memory_mb":8192,"cycle":2,"cache_condition":"immediate","capacity_wait_ms":6,"launch_ms":27,"first_command_ms":4985,"build_ms":1205,"suspend_ms":1686,"between_ms":0,"snapshot_bytes":3825209344,"memory_preserved":true}
+{"phase":"resume","vm":"sbx-bench-2f7eb097666cede8","memory_mb":8192,"cycle":3,"cache_condition":"immediate","capacity_wait_ms":5,"launch_ms":27,"first_command_ms":4898,"build_ms":1060,"suspend_ms":1711,"between_ms":0,"snapshot_bytes":3825209344,"memory_preserved":true}

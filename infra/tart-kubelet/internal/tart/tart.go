@@ -34,6 +34,11 @@ type Client struct {
 	// tart.app bundle at /usr/local/lib/tart/<version>.
 	Binary string
 
+	// HomeDir overrides TART_HOME for an isolated VM store. Empty inherits the
+	// process environment. Sandbox experiments must not share the kubelet's
+	// store: its orphan collector owns all non-Pod VMs there.
+	HomeDir string
+
 	// UserDataDir is the host directory where per-VM env files live.
 	// Defaults to /var/lib/tart-userdata. The kubelet stages
 	// /var/lib/tart-userdata/<vm>/tuist.env before `tart run` and
@@ -353,6 +358,10 @@ func (h *RunHandle) closeVNCInfo() {
 
 // RunOptions controls how Tart boots a VM.
 type RunOptions struct {
+	// Suspendable selects the device configuration required by Apple's save/restore
+	// API. Keep this and all disk/share attachments identical across resumptions.
+	Suspendable bool
+
 	// SharedDirs are Tart --dir mounts, for example env:/path:ro.
 	SharedDirs []string
 
@@ -403,6 +412,30 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) (*Ru
 
 // RunWithOptions is Run with explicit boot options.
 func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOptions) (*RunHandle, error) {
+	handle, err := c.StartWithOptions(ctx, name, opts)
+	if err != nil {
+		return nil, err
+	}
+	// Preserve the runner launch contract. Sandboxes use StartWithOptions and
+	// WaitReady instead: a restored guest must not wait out this fixed window.
+	select {
+	case <-handle.done:
+		return nil, fmt.Errorf("tart run %s exited immediately: %w (see %s)\n--- tart log tail ---\n%s", name, handle.exitErr, handle.LogPath, tailFile(handle.LogPath, 20))
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(5 * time.Second):
+		return handle, nil
+	}
+}
+
+// StartWithOptions starts the process without waiting for guest readiness. A
+// returned handle is NOT admission or readiness evidence. The caller must keep
+// the capacity charged, monitor Done, and run WaitReady outside the kubelet's
+// reconcile worker. Cancellation never kills a VM started successfully.
+func (c *Client) StartWithOptions(ctx context.Context, name string, opts RunOptions) (*RunHandle, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(c.LogDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir log dir: %w", err)
 	}
@@ -411,13 +444,16 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// `tart run` exits in <1s with `VZErrorDomain Code=-9 / Failed
 	// to create new HostKey` and the Pod stalls in
 	// TartCreateFailed. Verify (and reanimate) the session here
-	// rather than after the fact — the 5s sanity window below
+	// rather than after the fact — the runner's 5s sanity window
 	// would otherwise just observe the immediate exit on every
 	// retry forever.
 	if c.EnsureGUISession != nil {
 		if err := c.EnsureGUISession(ctx); err != nil {
 			return nil, fmt.Errorf("ensure gui session: %w", err)
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	// Host-cache the VM's disk-image reads. Tart's default (caching=automatic)
@@ -427,6 +463,9 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// (7.7 vs 4.2 GB/s) and no durability tradeoff — these VMs are ephemeral
 	// (cloned per Pod, discarded on exit), so host caching is pure upside.
 	args := []string{"run", name}
+	if opts.Suspendable {
+		args = append(args, "--suspendable")
+	}
 	if opts.VNC {
 		// Keep Tart's generated-password VNC server, but attach the VM view so
 		// Virtualization.framework has a real display surface to mirror after
@@ -460,11 +499,12 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// SIGKILL the VM. Setsid + cmd.Start (no Wait) leaves tart
 	// running independently.
 	cmd := exec.Command(c.Binary, args...)
+	cmd.Env = c.environment()
 	if opts.VNC {
 		// Tart otherwise opens the VNC URL via NSWorkspace when --graphics is
 		// present. CI=1 keeps the URL on stdout where copyTartOutput can parse
 		// and redact the generated password.
-		cmd.Env = append(os.Environ(), "CI=1")
+		cmd.Env = append(cmd.Env, "CI=1")
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
@@ -517,28 +557,7 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 		close(handle.done)
 	}()
 
-	// Watch the process briefly so an immediate failure (missing
-	// image, malformed --dir, Tart admission error) surfaces here
-	// instead of stranding the Pod in Pending while podStatus polls
-	// an IP that will never come. 5s is long enough to catch the
-	// fast-fail cases (<1s in practice) without delaying the happy
-	// path meaningfully — the guest will be cold-booting for minutes
-	// either way. Slower exits are caught by the reconciler via
-	// handle.Exited() on subsequent passes.
-	select {
-	case <-handle.done:
-		// Fold the tail of the tart log into the error so the actual tart
-		// failure (unknown --disk option, admission refusal, bad image)
-		// reaches `kubectl describe` / the Pod event instead of only
-		// "exit status 1" with a host-local logpath we can't read remotely.
-		return nil, fmt.Errorf("tart run %s exited immediately: %w (see %s)\n--- tart log tail ---\n%s", name, handle.exitErr, logPath, tailFile(logPath, 20))
-	case <-ctx.Done():
-		// Parent ctx cancelled. The Setsid-detached process keeps
-		// running; recoverState rebinds it after a kubelet restart.
-		return nil, ctx.Err()
-	case <-time.After(5 * time.Second):
-		return handle, nil
-	}
+	return handle, nil
 }
 
 // tailFile returns the last n non-empty lines of a file, best-effort.
@@ -833,6 +852,7 @@ func (c *Client) CleanupVMUserData(name string) error {
 
 func (c *Client) run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = c.environment()
 	// Bound how long Wait blocks after the timeout context kills the
 	// process. A hung `tart` that spawned children which inherited the
 	// stdout/stderr pipe would otherwise keep Wait — and the single
@@ -844,10 +864,18 @@ func (c *Client) run(ctx context.Context, name string, args ...string) ([]byte, 
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("%s %s: %w (stderr: %s)",
+		return stdout.Bytes(), fmt.Errorf("%s %s: %w (stderr: %s)",
 			name, strings.Join(args, " "), err, stderr.String())
 	}
 	return stdout.Bytes(), nil
+}
+
+func (c *Client) environment() []string {
+	env := os.Environ()
+	if c.HomeDir != "" {
+		env = append(env, "TART_HOME="+c.HomeDir)
+	}
+	return env
 }
 
 // isNotFound recognizes Tart's absent-VM error strings. `tart get` on a VM

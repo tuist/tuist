@@ -1,0 +1,2 @@
+{"cpus":8,"cycles":10,"memory_mb":24576,"mode":"workload","phase":"configuration","tart_version":"2.41.1"}
+{"phase":"cold_boot","vm":"sbx-bench-af778120489432e7","memory_mb":24576,"capacity_wait_ms":4,"launch_ms":34,"first_command_ms":9511,"warm_command_ms":0,"build_ms":17875,"suspend_ms":0,"between_ms":0,"snapshot_bytes":0,"snapshot_allocated_bytes":0,"memory_preserved":false}

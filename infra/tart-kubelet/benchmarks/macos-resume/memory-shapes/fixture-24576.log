@@ -1,0 +1,192 @@
+cold boot sbx-bench-28307a74f5f53e1c (24576 MiB)
+Xcode 26.6
+Build version 17F113
+Monitoring boot status for TuistResumeBenchmark (2C296934-829B-422D-B967-26BECB812B11).
+[2026-10-28 09:38:25 +0000] Status=2, isTerminal=NO, Elapsed=00:06.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:04 seconds
+
+[2026-10-28 09:38:26 +0000] Status=2, isTerminal=NO, Elapsed=00:07.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:05 seconds
+
+[2026-10-28 09:38:27 +0000] Status=2, isTerminal=NO, Elapsed=00:08.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:06 seconds
+
+[2026-10-28 09:38:28 +0000] Status=2, isTerminal=NO, Elapsed=00:09.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:07 seconds
+
+[2026-10-28 09:38:29 +0000] Status=2, isTerminal=NO, Elapsed=00:10.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:08 seconds
+
+[2026-10-28 09:38:30 +0000] Status=2, isTerminal=NO, Elapsed=00:11.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:09 seconds
+
+[2026-10-28 09:38:31 +0000] Status=2, isTerminal=NO, Elapsed=00:12.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:10 seconds
+
+[2026-10-28 09:38:32 +0000] Status=2, isTerminal=NO, Elapsed=00:13.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:11 seconds
+
+[2026-10-28 09:38:33 +0000] Status=2, isTerminal=NO, Elapsed=00:14.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:12 seconds
+
+[2026-10-28 09:38:34 +0000] Status=2, isTerminal=NO, Elapsed=00:15.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:13 seconds
+
+[2026-10-28 09:38:35 +0000] Status=2, isTerminal=NO, Elapsed=00:16.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:14 seconds
+
+[2026-10-28 09:38:36 +0000] Status=2, isTerminal=NO, Elapsed=00:17.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:15 seconds
+
+[2026-10-28 09:38:38 +0000] Status=2, isTerminal=NO, Elapsed=00:18.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:00:16 seconds
+
+[2026-10-28 09:38:38 +0000] Status=2, isTerminal=NO, Elapsed=00:19.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.MobileSafari.migrator (MobileSafari.migrator)
+		Migration Elapsed:00:17 seconds
+
+[2026-10-28 09:38:40 +0000] Status=4, isTerminal=NO, Elapsed=00:20.
+	Waiting on System App
+
+[2026-10-28 09:38:40 +0000] Status=4, isTerminal=NO, Elapsed=00:21.
+	Waiting on System App
+
+[2026-10-28 09:38:42 +0000] Status=4, isTerminal=NO, Elapsed=00:22.
+	Waiting on System App
+
+[2026-10-28 09:38:43 +0000] Status=4294967295, isTerminal=YES, Elapsed=00:23.
+	Finished
+
+/tmp/tuist-resume-fixture/Frameworks/iOS/iOS.swift:3:20: warning: public class 'iOS.iOS' shadows module 'iOS', which may cause failures when importing 'iOS' or its clients in some configurations; please rename either the class 'iOS.iOS' or the module 'iOS', or see https://github.com/apple/swift/issues/56573 for workarounds
+public final class iOS {
+                   ^
+/tmp/tuist-resume-fixture/Frameworks/iOS/iOS.swift:3:20: warning: public class 'iOS.iOS' shadows module 'iOS', which may cause failures when importing 'iOS' or its clients in some configurations; please rename either the class 'iOS.iOS' or the module 'iOS', or see https://github.com/apple/swift/issues/56573 for workarounds
+public final class iOS {
+                   ^
+/tmp/tuist-resume-fixture/Frameworks/iOS/iOS.swift:3:20: warning: public class 'iOS.iOS' shadows module 'iOS', which may cause failures when importing 'iOS' or its clients in some configurations; please rename either the class 'iOS.iOS' or the module 'iOS', or see https://github.com/apple/swift/issues/56573 for workarounds
+public final class iOS {
+                   ^
+/tmp/tuist-resume-fixture/Frameworks/iOS/iOS.swift:3:20: warning: public class 'iOS.iOS' shadows module 'iOS', which may cause failures when importing 'iOS' or its clients in some configurations; please rename either the class 'iOS.iOS' or the module 'iOS', or see https://github.com/apple/swift/issues/56573 for workarounds
+public final class iOS {
+                   ^
+warning: Run script build phase '[Tuist] Create file to locate the built products directory' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'iOS' from project 'Frameworks')
+TUIST_MEMORY_PROFILE_BEGIN
+observed_at=2026-10-28T09:39:11Z
+hw.memsize: 25769803776
+vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                    12321.
+Pages active:                                 680780.
+Pages inactive:                               482640.
+Pages speculative:                            245367.
+Pages throttled:                                   0.
+Pages wired down:                             150472.
+Pages purgeable:                               16293.
+"Translation faults":                        7318746.
+Pages copy-on-write:                          462241.
+Pages zero filled:                           2098518.
+Pages reactivated:                               187.
+Pages purged:                                    694.
+File-backed pages:                            719214.
+Anonymous pages:                              689573.
+Pages stored in compressor:                        0.
+Pages occupied by compressor:                      0.
+Decompressions:                                    0.
+Compressions:                                      0.
+Pageins:                                      506219.
+Pageouts:                                          0.
+Swapins:                                           0.
+Swapouts:                                          0.
+process_rss_sum_kib=48021920
+TUIST_MEMORY_PROFILE_END
+cycle 1: suspended; guest slot is free
+warning: Run script build phase '[Tuist] Create file to locate the built products directory' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'iOS' from project 'Frameworks')
+TUIST_MEMORY_PROFILE_BEGIN
+observed_at=2026-10-28T09:39:28Z
+hw.memsize: 25769803776
+vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                     3897.
+Pages active:                                 689120.
+Pages inactive:                               481982.
+Pages speculative:                            248677.
+Pages throttled:                                   0.
+Pages wired down:                             147875.
+Pages purgeable:                               16308.
+"Translation faults":                        7454368.
+Pages copy-on-write:                          470988.
+Pages zero filled:                           2136379.
+Pages reactivated:                               214.
+Pages purged:                                    754.
+File-backed pages:                            730481.
+Anonymous pages:                              689298.
+Pages stored in compressor:                        0.
+Pages occupied by compressor:                      0.
+Decompressions:                                    0.
+Compressions:                                      0.
+Pageins:                                      513507.
+Pageouts:                                          0.
+Swapins:                                           0.
+Swapouts:                                          0.
+process_rss_sum_kib=48120080
+TUIST_MEMORY_PROFILE_END
+cycle 2: suspended; guest slot is free
+warning: Run script build phase '[Tuist] Create file to locate the built products directory' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'iOS' from project 'Frameworks')
+TUIST_MEMORY_PROFILE_BEGIN
+observed_at=2026-10-28T09:39:30Z
+hw.memsize: 25769803776
+vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                     4293.
+Pages active:                                 703589.
+Pages inactive:                               483037.
+Pages speculative:                            232535.
+Pages throttled:                                   0.
+Pages wired down:                             148250.
+Pages purgeable:                               15919.
+"Translation faults":                        7544060.
+Pages copy-on-write:                          475773.
+Pages zero filled:                           2178277.
+Pages reactivated:                               384.
+Pages purged:                                    770.
+File-backed pages:                            718467.
+Anonymous pages:                              700694.
+Pages stored in compressor:                        0.
+Pages occupied by compressor:                      0.
+Decompressions:                                    0.
+Compressions:                                      0.
+Pageins:                                      517660.
+Pageouts:                                          1.
+Swapins:                                           0.
+Swapouts:                                          0.
+process_rss_sum_kib=48521152
+TUIST_MEMORY_PROFILE_END
+cycle 3: suspended; guest slot is free
+warning: Run script build phase '[Tuist] Create file to locate the built products directory' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'iOS' from project 'Frameworks')
