@@ -613,3 +613,8 @@ runnersFleetLinux:
   nestedVirtualization:
     enabled: true
     defaultEnabled: true
+
+# Account-owned provider workloads run on the general pool.
+ampOrbProvider:
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general

@@ -788,6 +788,7 @@ defmodule TuistWeb.Router do
       # The literal agent-environments and agent-sessions routes must
       # precede `/:sandbox_id`.
       scope "/sandboxes" do
+        post "/amp-orbs/:orb_id", SandboxesController, :dispatch_amp_orb
         post "/agent-environments", SandboxesController, :create_agent_environment
         get "/agent-environments", SandboxesController, :index_agent_environments
         patch "/agent-environments/:agent_environment_id", SandboxesController, :update_agent_environment
@@ -1144,6 +1145,7 @@ defmodule TuistWeb.Router do
     post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
     post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
     post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
+    post "/amp-orbs/:orb_id", AmpOrbsController, :dispatch
     get "/sandboxes/nodes/connect", SandboxNodesController, :connect
     post "/sandboxes/allocation", SandboxAllocationsController, :update
   end
