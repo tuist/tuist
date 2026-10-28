@@ -5,8 +5,9 @@ defmodule TuistWeb.TestSelectionsLive do
   selected and skipped, the skip rate, the dry-run misses (would-skip tests
   that failed, the number that decides when to enforce) and the runs. Then
   two tabs: the selection runs, one per invocation, newest first
-  (`Selections.list_runs/2`), each opening the Selective Testing tab of the
-  test run that reported its results (`TuistWeb.TestSelection.RunTab`);
+  (`Selections.list_runs/2`), each opening the Selective Testing tab (or,
+  in dry run, the Selective Testing - Dry Run tab) of the test run that
+  reported its results (`TuistWeb.TestSelection.RunTab`);
   and the baselines, the
   default-branch commits that measured coverage and whether each can serve
   as one (`Selections.baselines/2`).
@@ -23,9 +24,11 @@ defmodule TuistWeb.TestSelectionsLive do
   alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
   alias Tuist.Tests.Selections
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.TestSelection.RunTab
   alias TuistWeb.Utilities.Query
 
   @widgets ~w(selected skipped skip_rate missed runs)
@@ -127,13 +130,13 @@ defmodule TuistWeb.TestSelectionsLive do
   def tab_label("baselines"), do: dgettext("dashboard_tests", "Baselines")
 
   @doc """
-  A selection run opens the Selective Testing tab of the test run that
+  A selection run opens the tab that shows it on the test run that
   reported its results; one whose results never arrived has nowhere to go
   and stays on this page.
   """
-  def run_href(%{selected_account: account, selected_project: project}, %{test_run_id: test_run_id})
+  def run_href(%{selected_account: account, selected_project: project}, %{test_run_id: test_run_id} = run)
       when not is_nil(test_run_id),
-      do: "/#{account.name}/#{project.name}/tests/test-runs/#{test_run_id}?tab=test-optimizations"
+      do: "/#{account.name}/#{project.name}/tests/test-runs/#{test_run_id}?tab=#{RunTab.page_tab(run)}"
 
   def run_href(%{uri: uri} = assigns, _run), do: "#{path_from_assigns(assigns)}?#{uri.query}"
 
@@ -206,7 +209,7 @@ defmodule TuistWeb.TestSelectionsLive do
   def empty_chart?(analytics), do: analytics.totals.runs == 0
 
   @doc false
-  def format_duration(duration), do: Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(duration)
+  def format_duration(duration), do: DateFormatter.format_duration_from_milliseconds(duration)
 
   defp parse_page(page) do
     case Integer.parse(page || "") do

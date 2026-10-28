@@ -216,10 +216,17 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@has_selective_testing_data || @selection_run}
+      :if={@has_selective_testing_data || @selection_page_tab == "test-optimizations"}
       label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      :if={@selection_page_tab == "selective-testing-dry-run"}
+      label={dgettext("dashboard_tests", "Selective Testing - Dry Run")}
+      selected={@selected_tab == "selective-testing-dry-run"}
+      patch={"?#{Query.put(@uri.query, "tab", "selective-testing-dry-run")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
@@ -484,7 +491,7 @@
           label={dgettext("dashboard_tests", "View selection")}
           variant="secondary"
           size="small"
-          patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
+          patch={"?#{Query.put(@uri.query, "tab", @selection_page_tab)}"}
         />
       </:actions>
       <.card_section data-part="test-details-section">
@@ -1841,11 +1848,11 @@
   </div>
 
   <div
-    :if={@selected_tab == "test-optimizations" && (@has_selective_testing_data || @selection_run)}
+    :if={@selected_tab in ["test-optimizations", "selective-testing-dry-run"]}
     data-part="selective-testing"
   >
     <RunTab.coverage_selection
-      :if={@selection_run}
+      :if={@selected_tab == @selection_page_tab}
       selection_run={@selection_run}
       summary={@selection_summary}
       impact={@selection_impact}
@@ -1861,9 +1868,35 @@
       files_meta={@selection_files_meta}
       targets={@selection_targets}
       shards={@selection_shards}
-    />
+      modules_count={
+        if @has_selective_testing_data, do: @selective_testing_analytics[:total_modules_count]
+      }
+    >
+      <:modules :if={@has_selective_testing_data}>
+        <.selective_testing_tab
+          title={dgettext("dashboard_tests", "Modules")}
+          selection_targets={Map.new(@selection_targets, &{&1.module_name, &1})}
+          selection_mode={@selection_run.mode}
+          project={@selected_project}
+          selective_testing_analytics={@selective_testing_analytics}
+          selective_testing_filter={@selective_testing_filter}
+          selective_testing_page={@selective_testing_page}
+          selective_testing_page_count={@selective_testing_page_count}
+          selective_testing_sort_by={@selective_testing_sort_by}
+          selective_testing_sort_order={@selective_testing_sort_order}
+          expanded_target_names={@expanded_target_names}
+          uri={@uri}
+          run={@command_event}
+          available_filters={@selective_testing_available_filters}
+          selective_testing_active_filters={@selective_testing_active_filters}
+        />
+      </:modules>
+    </RunTab.coverage_selection>
     <.selective_testing_tab
-      :if={@has_selective_testing_data}
+      :if={
+        @selected_tab == "test-optimizations" && @has_selective_testing_data &&
+          @selection_page_tab != "test-optimizations"
+      }
       project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}
