@@ -8,6 +8,10 @@ The final encryption layout must preserve safe, efficient reclamation and
 accounting interfaces for that separate work without implementing its full
 allocator. See [validation.md](validation.md) for the current scope and evidence.
 
+The [cross-PR compatibility review](sharing-compatibility.md) identifies which
+#14825 components can be reused and why the current backing mode still blocks
+its admission benefit. An allocator API alone does not satisfy that gate.
+
 Status: conservative thin CSI implementation, 2026-10-27. The implemented
 `ceiling-backed-v1` API and rollout contract are in [interface.md](interface.md).
 This document also records requirements for a future shared admission mode;

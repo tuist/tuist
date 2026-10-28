@@ -15,6 +15,95 @@ permanent full-ceiling backing. Reopening the encryption draft does not waive
 those gates or establish permanent OpenBao custody. The shared-XFS benchmarks
 and no-node-reboot rollout in #14825 do not qualify an encrypted implementation.
 
+## Fresh qualification and sharing compatibility — 2026-10-28
+
+**Safety regression tests passed; compatibility and performance release gates
+remain open.** The [cross-PR review](sharing-compatibility.md) checks encryption
+head `33ad1b6c2cf` against sharing head `34956ca681a3`. The policy and runtime
+budget mechanism can be retained, but the latter's shared-XFS accounting cannot
+be applied to an encrypted thin pool. Full-ceiling backing remains necessary
+for the implemented safety model. It is not established that #14825 can follow
+this layout with only small changes.
+
+### New execution and physical evidence
+
+[Qualification run 40673030463](https://github.com/tuist/tuist/actions/runs/40673030463)
+reran the actual CSI driver and mechanism harness on separate disposable Linux
+VMs for both 64 and 512 KiB pools. Both driver tests and all 12 mechanism
+assertions per geometry passed. The workflow's Go tests and vet passed; local
+`go test -race ./...` and `go vet ./...` also passed. The unchanged #14825
+`internal/diskallocator` policy tests passed locally; its Linux-only agent was
+not exercised on macOS. This is not a combined allocator/CSI integration pass.
+
+The real CSI run verified open-deleted charging, failed discard, quota
+enforcement, durable intent recovery, process restart, stale pod rejection,
+concurrent creates, reserve refusal, retained claims and deletion safeguards.
+Reserve-refusal injection does not qualify recovery after actual metadata
+exhaustion. Physical A-to-B recycling measured:
+
+| Pool chunk | Observed A release | B pool growth | Admission commitment released by reclaim |
+| --- | ---: | ---: | ---: |
+| 64 KiB | 805,371,904 bytes | 805,371,904 bytes | 0 |
+| 512 KiB | 805,830,656 bytes | 805,830,656 bytes | 0 |
+
+Both runs reproduced the negative allocation test: a **256 MiB project quota**
+permitted **1,073,741,824 additional mapped bytes** during fragmented writes
+with ignored discard. After restoring working trim, the tested volume still
+mapped **1,158,676,480 bytes (64 KiB)** or **1,162,346,496 bytes (512 KiB)**.
+Live blocks prevented whole-chunk reclamation. This is concrete evidence against
+replacing complete backing with quota-based admission; a successful safety test
+does not mean physical overcommit passed.
+
+### New VM benchmark results
+
+Each VM ran thick/thin/thin/thick with the same encryption settings as the
+existing harness: 512 MiB fio files, direct/libaio, QD32, eight-second phases,
+1 MiB sequential and 4 KiB random I/O. The following is the **512 KiB** candidate
+on kernel `6.17.0-1022-azure`, LVM 2.03.16, cryptsetup 2.7.0 and XFS tools 6.6.0.
+Backing was a private 24 GiB sparse file on the VM disk, not hosted NVMe.
+
+| Measurement | Encrypted thick | Encrypted thin, 512 KiB |
+| --- | ---: | ---: |
+| Sequential read | 407.38–407.53 MiB/s | 407.19–407.38 MiB/s |
+| Sequential write | 407.27–408.35 MiB/s | 343.63–344.92 MiB/s |
+| Random read | 19.63–19.66k IOPS | 19.58–19.67k IOPS |
+| Random write | 19.58–19.64k IOPS | 19.57–19.61k IOPS |
+| 16 × 64 MiB write/delete/TRIM | 2.33–2.36 s | 4.95–4.96 s |
+
+All fio jobs completed without I/O errors. Sequential writes were about 15.6%
+lower and the small churn sequence took about 2.12 times as long on thin in
+this VM. Other phases overlap. Similar read IOPS here do not overturn the
+hosted NVMe random-read regression: VM storage can hide that difference.
+The 64 KiB VM produced overlapping read/write IOPS and sequential rates near
+406–409 MiB/s; churn took 2.33–2.38 s thick and 2.38–2.39 s thin. It ran a
+different kernel (`7.0.0-1017-azure`) on a separate VM, so comparing those two
+jobs cannot attribute differences to chunk size. No geometry change is justified
+by this run. Raw JSON and driver logs are the workflow's `thin-stack-64` and
+`thin-stack-512` artifacts.
+
+### Relationship to existing staging benchmarks
+
+This run did **not** recreate the hosted staging benchmark or deploy OpenBao.
+A read-only staging inventory found the original workloads and CSI pods running.
+No staging or production resources were changed. The prior encrypted staging
+evidence below remains relevant: the current Kura source matches tested runtime
+`04e128167d80`; CSI driver/Dockerfile source matches packaged `e13640b0fc04`;
+controller executable source matches `6e17641d4fac`. Subsequent changes in
+those directories are documentation and the rollout-probe verification tool.
+
+Keep the baseline distinctions explicit. Main/shared-XFS versus encrypted thin
+measured 16 KiB PUT p95 **28.99–29.84 → 34.87–35.82 ms** and eviction churn
+**159.36–164.16 → 156.55–157.45 MiB/s**. The separate encrypted-thick versus
+encrypted-thin NVMe test measured **25.6% lower QD32 random-read IOPS**.
+Neither result is a fresh measurement of today's production deployment. The
+plaintext sharing benchmarks in #14825 cannot replace either comparison.
+
+The release decision remains **hold**: establish a physically bounded,
+transferable grant model before committing to this layout, then benchmark and
+rehearse that final encrypted implementation with OpenBao on staging. Do not
+move this unresolved storage problem into #14825 or relax pool containment to
+make its admission policy appear compatible.
+
 ## Superseded scope decision — 2026-10-28
 
 The thin-LVM migration in #14152 is parked. Continue disk sharing in #14825
