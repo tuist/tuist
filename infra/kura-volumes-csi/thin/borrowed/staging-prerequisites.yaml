@@ -1,0 +1,48 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: kura-borrowed-qualification
+  labels: {tuist.dev/qualification: borrowed-20261028}
+provisioner: kura-volumes.tuist.dev
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false
+parameters:
+  encryption: luks2
+  layout: thin-luks-xfs-v1
+  borrowed_units: v1
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: topology.kura-volumes.tuist.dev/node
+        values: [tuist-tuist-kura-fleet-fm4h8-qmkn8]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kura-borrowed-reviewer
+  namespace: tuist-staging
+  labels: {tuist.dev/qualification: borrowed-20261028}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kura-borrowed-reviewer
+  labels: {tuist.dev/qualification: borrowed-20261028}
+rules:
+  - apiGroups: [authentication.k8s.io]
+    resources: [tokenreviews]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kura-borrowed-reviewer
+  labels: {tuist.dev/qualification: borrowed-20261028}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kura-borrowed-reviewer
+subjects:
+  - kind: ServiceAccount
+    name: kura-borrowed-reviewer
+    namespace: tuist-staging
