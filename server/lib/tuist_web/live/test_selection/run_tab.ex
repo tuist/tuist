@@ -1,17 +1,22 @@
 defmodule TuistWeb.TestSelection.RunTab do
   @moduledoc """
-  The coverage selection a test run's tests came from, in the run's
-  Selective Testing tab: the mode, the baseline, the counts and, in dry run,
-  whether the skips would have hidden a failure; then four tabs:
+  The coverage selection a test run's tests came from: the mode, the
+  baseline, the counts and, in dry run, whether the skips would have hidden
+  a failure; then four tabs:
 
   - Tests: every requested test with its decision, reason, shard, estimated
     duration and outcome, the dry-run misses and the selected tests that
-    never reported flagged; each opens its test case run's Test Selection
+    never reported flagged; each opens its test case run's Selective Testing
     tab (`TuistWeb.TestSelection.TestCaseRunTab`).
+  - Modules: the requested tests per test module. The test run page fills
+    it with its module-level selective testing table instead when it has one.
   - Changed files: what changed since the baseline and how many tests each
     file reaches.
-  - Targets: the requested tests per test target.
   - Shards: per shard, what was planned and what ran.
+
+  An enforced selection is shown in the test run's Selective Testing tab; a
+  dry run, whose skips weren't applied, in a Selective Testing - Dry Run tab
+  of its own, next to the module-level selection that did apply.
 
   Its query parameters are prefixed with `selection-` so they don't clash
   with the test run page's own.
@@ -27,9 +32,13 @@ defmodule TuistWeb.TestSelection.RunTab do
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
 
-  @tabs ~w(tests files targets shards)
+  @tabs ~w(tests modules files shards)
   @sort_fields ~w(decision name shard duration)
   @kinds ~w(source test resource tracked ignored)
+
+  @doc "The test run tab that shows `selection_run`."
+  def page_tab(%{mode: "dry_run"}), do: "selective-testing-dry-run"
+  def page_tab(_selection_run), do: "test-optimizations"
 
   @doc "What the tab shows before its data is loaded."
   def assign_defaults(socket) do
@@ -135,7 +144,7 @@ defmodule TuistWeb.TestSelection.RunTab do
     )
   end
 
-  defp assign_tab(socket, "targets", run, _params),
+  defp assign_tab(socket, "modules", run, _params),
     do: Phoenix.Component.assign(socket, :selection_targets, Selections.run_targets(run))
 
   defp assign_tab(socket, "shards", run, _params),
@@ -162,6 +171,10 @@ defmodule TuistWeb.TestSelection.RunTab do
   attr :files_meta, :map, default: %{}
   attr :targets, :list, default: []
   attr :shards, :list, default: []
+  attr :modules_count, :integer, default: nil
+
+  slot :modules,
+    doc: "Replaces the Modules tab's table, for a test run with module-level selective testing data."
 
   def coverage_selection(assigns) do
     ~H"""
@@ -452,7 +465,8 @@ defmodule TuistWeb.TestSelection.RunTab do
 
   defp tab_card(%{tab: "tests"} = assigns), do: tests_card(assigns)
   defp tab_card(%{tab: "files"} = assigns), do: files_card(assigns)
-  defp tab_card(%{tab: "targets"} = assigns), do: targets_card(assigns)
+  defp tab_card(%{tab: "modules", modules: [_ | _]} = assigns), do: ~H"{render_slot(@modules)}"
+  defp tab_card(%{tab: "modules"} = assigns), do: modules_card(assigns)
   defp tab_card(%{tab: "shards"} = assigns), do: shards_card(assigns)
 
   defp tests_card(assigns) do
@@ -709,17 +723,17 @@ defmodule TuistWeb.TestSelection.RunTab do
     """
   end
 
-  defp targets_card(assigns) do
+  defp modules_card(assigns) do
     ~H"""
     <.card
-      title={dgettext("dashboard_tests", "Targets")}
+      title={dgettext("dashboard_tests", "Modules")}
       icon="stack_2"
-      data-part="selection-targets-card"
+      data-part="selection-modules-card"
     >
       <.card_section data-part="selection-table-section">
         <div :if={@targets != []} data-part="selection-table">
           <.table
-            id="selection-targets-table"
+            id="selection-modules-table"
             rows={@targets}
             row_key={& &1.module_name}
             row_navigate={
@@ -728,7 +742,7 @@ defmodule TuistWeb.TestSelection.RunTab do
               end
             }
           >
-            <:col :let={target} label={dgettext("dashboard_tests", "Test target")}>
+            <:col :let={target} label={dgettext("dashboard_tests", "Module")}>
               <.text_cell label={target.module_name} />
             </:col>
             <:col
@@ -835,16 +849,19 @@ defmodule TuistWeb.TestSelection.RunTab do
         count: format_number((impact && impact.changed_files_count) || 0)
       )
 
-  defp tab_label("targets", %{selection_run: run}),
-    do: dgettext("dashboard_tests", "Targets (%{count})", count: format_number(length(run.requested_targets)))
+  defp tab_label("modules", %{selection_run: run} = assigns),
+    do:
+      dgettext("dashboard_tests", "Modules (%{count})",
+        count: format_number(assigns.modules_count || length(run.requested_targets))
+      )
 
   defp tab_label("shards", %{selection_run: run}),
     do: dgettext("dashboard_tests", "Shards (%{count})", count: format_number(run.shard_count))
 
-  # A test that ran opens its test case run's Test Selection tab; one the
+  # A test that ran opens its test case run's Selective Testing tab; one the
   # selection skipped never ran, so it opens the test case.
   defp test_href(account, project, %{test_case_run_id: id}) when is_binary(id) and id != "",
-    do: "/#{account.name}/#{project.name}/tests/test-cases/runs/#{id}?tab=test-selection"
+    do: "/#{account.name}/#{project.name}/tests/test-cases/runs/#{id}?tab=selective-testing"
 
   defp test_href(account, project, test), do: "/#{account.name}/#{project.name}/tests/test-cases/#{test.test_case_id}"
 

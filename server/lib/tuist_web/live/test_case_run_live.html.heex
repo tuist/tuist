@@ -117,15 +117,15 @@
     />
     <.tab_menu_horizontal_item
       :if={@selection}
-      label={dgettext("dashboard_tests", "Test Selection")}
-      selected={@selected_tab == "test-selection"}
-      patch={"?#{Query.put(@uri.query, "tab", "test-selection")}"}
+      label={dgettext("dashboard_tests", "Selective Testing")}
+      selected={@selected_tab == "selective-testing"}
+      patch={"?#{Query.put(@uri.query, "tab", "selective-testing")}"}
       replace={true}
     />
   </.tab_menu_horizontal>
 
   <TestCaseRunTab.test_selection
-    :if={@selected_tab == "test-selection"}
+    :if={@selected_tab == "selective-testing"}
     selection={@selection}
     all_files={@selection_all_files}
     files={@selection_files}

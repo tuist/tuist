@@ -1,7 +1,7 @@
 defmodule TuistWeb.TestSelection.TestCaseRunTab do
   @moduledoc """
   One test's part in the coverage selection of the test run it ran in, in
-  the test case run's Test Selection tab: whether the selection kept it or
+  the test case run's Selective Testing tab: whether the selection kept it or
   would have skipped it and why (the reason and the changed path that
   matched), whether that skip would have hidden this failure, the shard it
   was planned on, and the repository files the baseline's per-test evidence
@@ -19,6 +19,7 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
   alias Tuist.Tests.Selections
   alias Tuist.Tests.TestImpact
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.TestSelection.RunTab
   alias TuistWeb.Utilities.Query
 
   @page_size 20
@@ -131,7 +132,7 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
             variant="secondary"
             size="small"
             navigate={
-              "/#{@account.name}/#{@project.name}/tests/test-runs/#{@test_run_id}?tab=test-optimizations"
+              "/#{@account.name}/#{@project.name}/tests/test-runs/#{@test_run_id}?tab=#{RunTab.page_tab(@run)}"
             }
           />
         </:actions>
