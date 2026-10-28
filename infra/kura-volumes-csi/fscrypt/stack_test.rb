@@ -24,7 +24,7 @@ class FscryptFixture
     @backings = {}
     @result = {schema: 1, assertions: [], observations: {}, benchmarks: []}
     @helper = File.join(@root, 'probe')
-    run('cc', '-O2', '-Wall', '-Wextra', '-Werror', File.join(__dir__, 'probe.c'), '-o', @helper)
+    run('cc', '-static', '-O2', '-Wall', '-Wextra', '-Werror', File.join(__dir__, 'probe.c'), '-o', @helper)
   end
   def cmd(*args, input: '', failure: false)
     out, err, status = Open3.capture3(*args, stdin_data: input)
@@ -38,7 +38,7 @@ class FscryptFixture
     warn "PASS #{name}"
   end
   def user(*args, **opts)
-    cmd('setpriv', '--reuid=1000', '--regid=1000', '--clear-groups', '--', *args, **opts)
+    cmd('setpriv', '--reuid=1000', '--regid=1000', '--clear-groups', '--', @helper, 'confined', *args, **opts)
   end
   def image(name, size)
     f = File.join(@root, "#{name}.img")
@@ -75,6 +75,14 @@ class FscryptFixture
       limit(name, 768)
     end
     check('distinct tenant encryption policies', @ids['a'] != @ids['b'])
+    attempted = cmd('setpriv', '--reuid=1000', '--regid=1000', '--clear-groups', '--', @helper,
+      'project', tenant('a'), '0', failure: true)
+    @result[:observations][:unconfined_owner_can_change_project] = attempted[2]
+    run(@helper, 'project', tenant('a'), '1')
+    denied = user(@helper, 'project', tenant('a'), '0', failure: true)
+    check('confined owner cannot escape project quota', !denied[2] && denied[1].include?('Operation not permitted'))
+    denied_flags = user('chattr', '-P', tenant('a'), failure: true)
+    check('confined owner cannot disable project inheritance', !denied_flags[2] && denied_flags[1].include?('Operation not permitted'))
     @result[:observations][:policies] = %w[a b].to_h { |n| [n, run('fscryptctl', 'get_policy', tenant(n))] }
     @result[:observations][:virtual_ceilings] = {a: 8 << 30, b: 8 << 30, physical_filesystem: space['total']}
     check('aggregate logical ceilings exceed physical filesystem', 16 << 30 > space['total'])
@@ -268,7 +276,9 @@ class FscryptFixture
       @container = name
       run('docker', 'run', '-d', '--name', name, '--user', '1000:1000', '--cap-drop=ALL',
         '--security-opt=no-new-privileges', '--cpus=1', '--memory=768m', '--memory-swap=768m',
-        '--pids-limit=256', '--env-file', env_file, '-p', '127.0.0.1::4000', '-v', "#{path}:/var/cache/kura", image)
+        '--pids-limit=256', '--env-file', env_file, '-p', '127.0.0.1::4000', '-v', "#{path}:/var/cache/kura",
+        '-v', "#{@helper}:/qualification/probe:ro", '--entrypoint', '/qualification/probe', image,
+        'confined', '/usr/bin/tini', '--', '/usr/local/bin/kura')
       endpoint = 'http://' + run('docker', 'port', name, '4000/tcp').strip
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC)+90
       loop do

@@ -3,6 +3,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/fs.h>
+#include <linux/audit.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,12 +15,48 @@
 #include <sys/quota.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 static void fail(const char *s) { perror(s); exit(1); }
+// Test confinement only. Production needs an independently qualified node/pod
+// profile or user-namespace contract; dropping capabilities alone is insufficient.
+static void confine(void) {
+#if defined(__x86_64__)
+  const unsigned int arch = AUDIT_ARCH_X86_64;
+#elif defined(__aarch64__)
+  const unsigned int arch = AUDIT_ARCH_AARCH64;
+#else
+#error Unsupported qualification architecture
+#endif
+  struct sock_filter code[] = {
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, arch, 1, 0),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+    BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 0x40000000, 0, 1), // reject x32 ABI
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_ioctl, 0, 7),
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[1])),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, FS_IOC_FSSETXATTR, 4, 0),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, FS_IOC_SETFLAGS, 3, 0),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, _IOW('f', 2, int), 2, 0),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+  };
+  struct sock_fprog program = {.len = sizeof(code)/sizeof(code[0]), .filter = code};
+  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) || prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &program)) fail("seccomp");
+}
 int main(int argc, char **argv) {
   if (argc < 3) return 2;
-  if (!strcmp(argv[1], "get") && argc == 4) {
+  if (!strcmp(argv[1], "confined")) {
+    confine();
+    execvp(argv[2], argv+2);
+    fail("exec");
+  } else if (!strcmp(argv[1], "get") && argc == 4) {
     struct dqblk q = {0};
     if (quotactl(QCMD(Q_GETQUOTA, PRJQUOTA), argv[2], atoi(argv[3]), (void *)&q)) fail("getquota");
     printf("{\"used\":%llu,\"hard\":%llu,\"inodes\":%llu,\"inode_hard\":%llu}\n",
