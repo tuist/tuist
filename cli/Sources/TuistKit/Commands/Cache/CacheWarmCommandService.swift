@@ -782,22 +782,38 @@ import XcodeGraph
             ) { cacheableTarget in
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
                 let platformBinaryArtifacts = platforms.flatMap { Array(binaryArtifactDirectories[$0, default: Set()]) }
-                let slices = try await platformBinaryArtifacts.concurrentCompactMap { artifactDirectory -> XCFrameworkSlice? in
-                    let artifactPath = artifactDirectory.appending(
-                        components: [cacheableTarget.0.target.productNameWithExtension]
-                    )
-                    guard try await fileSystem.exists(artifactPath) else { return nil }
-                    let debugSymbolsPath = artifactDirectory.appending(
-                        component: "\(cacheableTarget.0.target.productNameWithExtension).dSYM"
-                    )
-                    return XCFrameworkSlice(
-                        artifactPath: artifactPath,
-                        publicHeadersPath: try await libraryPublicHeadersPath(
-                            for: cacheableTarget.0.target,
-                            artifactDirectory: artifactDirectory
-                        ),
-                        debugSymbolsPath: try await fileSystem.exists(debugSymbolsPath) ? debugSymbolsPath : nil
-                    )
+                let slices: [XCFrameworkSlice]
+                do {
+                    slices = try await platformBinaryArtifacts.concurrentCompactMap { artifactDirectory -> XCFrameworkSlice? in
+                        let artifactPath = artifactDirectory.appending(
+                            components: [cacheableTarget.0.target.productNameWithExtension]
+                        )
+                        guard try await fileSystem.exists(artifactPath) else { return nil }
+                        let debugSymbolsPath = artifactDirectory.appending(
+                            component: "\(cacheableTarget.0.target.productNameWithExtension).dSYM"
+                        )
+                        let exportedHeaders = try await SwiftPackageHeadersExporter(fileSystem: fileSystem).export(
+                            target: cacheableTarget.0.target, artifact: artifactPath
+                        )
+                        let publicHeaders: AbsolutePath?
+                        if let exportedHeaders {
+                            publicHeaders = exportedHeaders
+                        } else {
+                            publicHeaders = try await libraryPublicHeadersPath(
+                                for: cacheableTarget.0.target, artifactDirectory: artifactDirectory
+                            )
+                        }
+                        return XCFrameworkSlice(
+                            artifactPath: artifactPath,
+                            publicHeadersPath: publicHeaders,
+                            debugSymbolsPath: try await fileSystem.exists(debugSymbolsPath) ? debugSymbolsPath : nil
+                        )
+                    }
+                } catch let error as SwiftPackageHeadersExportError {
+                    AlertController.current.warning(.alert(
+                        "Skipping \(cacheableTarget.0.target.name): \(error.localizedDescription)"
+                    ))
+                    return nil
                 }
 
                 let xcframeworkPath = scratchDirectory.appending(components: [
