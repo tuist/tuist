@@ -45,7 +45,7 @@ Tuist only connects to your infrastructure over HTTPS, so you only need to allow
 
 ### Tuist Runners {#tuist-runners}
 
-Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> reach the internet directly from the machine they run on, not through the addresses above. If a job needs to reach infrastructure that restricts traffic by IP address, for example to check out a repository from a GitHub organization with an IP allow list, also allowlist the addresses for every platform your workflows run on.
+Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> use the outbound addresses below. If a job needs to reach infrastructure that restricts traffic by IP address, for example to check out a repository from a GitHub organization with an IP allow list, allowlist the addresses or ranges for every platform your workflows run on.
 
 #### macOS {#tuist-runners-macos}
 
@@ -68,32 +68,14 @@ macOS jobs on Tuist's own racks reach the internet from the [Tuist IP range](#tu
 
 #### Linux {#tuist-runners-linux}
 
-Linux runners are moving to a reserved IPv4 range. **Add `5.135.7.160/27` to your allowlist now**, alongside every current address listed below, so your workflows can continue connecting when the switch happens.
+Linux runner jobs reach the internet from the following reserved IPv4 range. Allowlist the entire range so your workflows continue connecting as the fleet grows or hosts are replaced.
 
-| Upcoming production range | Status |
+| IP version | CIDR notation |
 |---|---|
-| `5.135.7.160/27` | Reserved for Linux runner egress; production has not switched yet. |
-
-> [!IMPORTANT]
-> Keep the current Linux addresses allowlisted throughout the transition. Do not replace them with the new range yet. This page will be updated after the production switch is complete and the old addresses can be removed. The macOS and server allowlists are unchanged.
-
-Current production Linux runner addresses:
-
-| IP address | CIDR notation |
-|---|---|
-| 51.255.75.64 | `51.255.75.64/32` |
-| 51.255.75.145 | `51.255.75.145/32` |
-| 51.255.75.147 | `51.255.75.147/32` |
-| 51.255.75.149 | `51.255.75.149/32` |
-| 51.255.75.186 | `51.255.75.186/32` |
-| 51.255.93.93 | `51.255.93.93/32` |
-| 217.182.192.213 | `217.182.192.213/32` |
-| 217.182.192.222 | `217.182.192.222/32` |
-| 217.182.192.227 | `217.182.192.227/32` |
-| 217.182.193.152 | `217.182.193.152/32` |
+| IPv4 | `5.135.7.160/27` |
 
 > [!NOTE]
-> Current per-machine lists can change as the fleets grow. The upcoming Linux range above is allocated through OVHcloud and is separate from the [Tuist IP range](#tuist-ip-range) used by rack-hosted macOS jobs.
+> This range is allocated through OVHcloud and is separate from the [Tuist IP range](#tuist-ip-range) used by rack-hosted macOS jobs.
 
 <!--
 MAINTAINERS: the server table is the customer-facing contract for the reserved
@@ -114,11 +96,10 @@ the RIPE Database with a route/route6 object and a ROA for AS218377.
 Add it to server/priv/static/geofeed.csv too, with the location of the site
 that announces it.
 
-The upcoming Linux range must match `capi.ovhRunnerEgress.cidr` in
-infra/helm/tuist/values-managed-production.yaml. Publish it before enabling
-production egress so allowlists can be updated in advance. Keep the current
-Linux /32s through the rollout and rollback window; remove them only after all
-production runners have been verified on the new block and rollback no longer
-requires the primary IPs. This OVH allocation is not an AS218377 announcement
+The Linux range must match `capi.ovhRunnerEgress.cidr` in
+infra/helm/tuist/values-managed-production.yaml. Publish this range-only guide
+with the production cutover after verifying every runner on the new block.
+Rollback to primary IPs requires restoring the old allowlist entries; see the
+internal OVH runner egress runbook. This OVH allocation is not an AS218377 announcement
 and must not be added to the Tuist-owned range table or geofeed.
 -->

@@ -98,11 +98,12 @@ means configuration was applied; a real job must prove the resulting public IP.
    the normal deployment workflow or human elevation for writes.
 8. Publish `5.135.7.160/27` as the **upcoming** production Linux range in
    `server/priv/docs/en/guides/server/network.md` before switching production.
-   Retain every current Linux /32 so both the transition and rollback remain
+   Keep the existing Linux /32s in the advance notice so both paths can be
    allowlisted. Keep production disabled until users have had time to update
    their allowlists and the remaining qualification gates are complete. After
-   separately authorized production activation, verify every host and retain the
-   old /32s through the rollback window before announcing their removal. The
+   separately authorized production activation, verify every host before
+   publishing the range-only guide. Coordinate restoration of the old /32s
+   before any rollback to primary-IP egress. The
    macOS range `95.130.119.0/24` is unchanged.
 
 ## Rollback and deletion
@@ -214,15 +215,21 @@ that vRack, coordinate other deployments, cordon the ten runner hosts, and wait
 for their runner jobs to finish. Do not move their NICs or interrupt active jobs.
 After activation, verify a unique reserved IP and current-boot revision on each
 host, private-cache readiness, and real runner public-IP/cache probes before
-declaring the switch complete. Record the deployment and probe results here and
-update the public network guide only after traffic verification.
+declaring the switch complete. Record the deployment and probe results here.
+The range-only public network guide is prepared in the cutover PR; publish it
+only after traffic verification.
 
 The earlier staging qualification limits above remain relevant: replacement and
 address reuse have not been live-tested, the reboot delay is unexplained, and
-alert definitions still require provisioning. The public guide retains the old
-/32s through the rollback window. At least one allowlist now contains only the
+alert definitions still require provisioning. At least one allowlist now contains only the
 new range, so rollback to primary IPs requires coordinating restoration of those
 old addresses; it is not transparent to that allowlist.
+
+Primary-IP rollback inventory (removed from the public guide with the cutover):
+`51.255.75.64/32`, `51.255.75.145/32`, `51.255.75.147/32`,
+`51.255.75.149/32`, `51.255.75.186/32`, `51.255.93.93/32`,
+`217.182.192.213/32`, `217.182.192.222/32`, `217.182.192.227/32`,
+`217.182.193.152/32`.
 
 ## Monitoring and local checks
 
