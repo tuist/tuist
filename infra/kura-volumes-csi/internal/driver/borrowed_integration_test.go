@@ -290,6 +290,9 @@ func TestBorrowedRealStack(t *testing.T) {
 		case "fail-trim":
 			runner.failTrim.Store(q.Fail)
 			value = true
+		case "fail-quota":
+			runner.failQuota.Store(true)
+			value = true
 		case "pressure":
 			var s *ThinSnapshot
 			s, e = d.ThinStatus(ctx)

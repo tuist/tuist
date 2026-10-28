@@ -250,6 +250,18 @@ func (d *Driver) stageBorrowedChild(ctx context.Context, parent, child *ThinVolu
 	_, err = d.NodePublishVolume(ctx, &csi.NodePublishVolumeRequest{VolumeId: child.VolumeID, StagingTargetPath: staging, TargetPath: filepath.Join(parent.StagingPath, "units", child.VolumeID), VolumeCapability: unitCapability(), VolumeContext: map[string]string{"csi.storage.k8s.io/pod.uid": parent.PodUID}})
 	return err
 }
+
+// Staging can fail after the mount succeeds but before finishThinStage persists
+// its path (for example quota read-back fails). Recover that deterministic path
+// instead of treating an empty record field as evidence that nothing is mounted.
+func (d *Driver) unstageBorrowedChild(ctx context.Context, child *ThinVolume) error {
+	staging := filepath.Join(d.stateDir, "unit-staging", child.VolumeID)
+	if child.StagingPath != "" && child.StagingPath != staging {
+		return fmt.Errorf("unexpected child staging path")
+	}
+	_, err := d.NodeUnstageVolume(ctx, &csi.NodeUnstageVolumeRequest{VolumeId: child.VolumeID, StagingTargetPath: staging})
+	return err
+}
 func (d *Driver) restoreBorrowedChildren(ctx context.Context, parent *ThinVolume) error {
 	if parent == nil || !parent.BorrowedUnits {
 		return nil
@@ -288,10 +300,8 @@ func (d *Driver) unpublishBorrowedChildren(ctx context.Context, parent *ThinVolu
 				return err
 			}
 		}
-		if child.StagingPath != "" {
-			if _, err = d.NodeUnstageVolume(ctx, &csi.NodeUnstageVolumeRequest{VolumeId: child.VolumeID, StagingTargetPath: child.StagingPath}); err != nil {
-				return err
-			}
+		if err = d.unstageBorrowedChild(ctx, child); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -491,10 +501,8 @@ func (d *Driver) ChangeBorrowedUnit(ctx context.Context, req BorrowedRequest) (*
 					return nil, err
 				}
 			}
-			if child.StagingPath != "" {
-				if _, err = d.NodeUnstageVolume(ctx, &csi.NodeUnstageVolumeRequest{VolumeId: childID, StagingTargetPath: child.StagingPath}); err != nil {
-					return nil, err
-				}
+			if err = d.unstageBorrowedChild(ctx, child); err != nil {
+				return nil, err
 			}
 			if err = writeMarker(filepath.Join(d.stateDir, childID+".released")); err != nil {
 				return nil, err

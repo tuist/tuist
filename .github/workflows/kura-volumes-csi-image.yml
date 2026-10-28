@@ -26,6 +26,10 @@ on:
         description: Build downloadable server and CSI test images only; never publish or deploy
         type: boolean
         default: false
+      borrowed_skip_bench:
+        description: With borrowed_only, rerun lifecycle and scale safety without repeating unchanged benchmarks
+        type: boolean
+        default: false
       borrowed_only:
         description: Run only the disposable borrowed-volume prototype; publish no images
         type: boolean
@@ -198,8 +202,8 @@ jobs:
       - name: Exercise real CSI and Kura with transferable encrypted units
         shell: bash
         run: |
-          sudo env KURA_BORROWED_DISPOSABLE_VM=1 KURA_BORROWED_SCRIPT="$PWD/infra/kura-volumes-csi/thin/borrowed/child_stack.rb" KURA_BORROWED_BENCH=/tmp/kura-borrowed-cache-bench KURA_BORROWED_POLICY=/tmp/kura-borrowed-allocator.test KURA_BORROWED_SOURCE="$GITHUB_SHA" /tmp/kura-borrowed-driver.test -test.run '^TestBorrowedRealStack$' -test.v -test.timeout 60m | tee /tmp/kura-borrowed-driver.log
-          ruby -rjson -e 'r=JSON.parse(File.read("/tmp/kura-borrowed-results.json")); abort "prototype failed" if r["failure"] || r.fetch("assertions").size < 20 || r.fetch("assertions").any? { |a| !a.fetch("passed") }; abort "incomplete benchmark" unless r.fetch("benchmarks").size == 10; abort "cleanup incomplete" unless r["containers_cleaned"] && File.read("/tmp/kura-borrowed-driver.log").include?("BORROWED_CLEANUP_COMPLETE=true")'
+          sudo env KURA_BORROWED_DISPOSABLE_VM=1 KURA_BORROWED_SKIP_BENCH=${{ inputs.borrowed_skip_bench }} KURA_BORROWED_SCRIPT="$PWD/infra/kura-volumes-csi/thin/borrowed/child_stack.rb" KURA_BORROWED_BENCH=/tmp/kura-borrowed-cache-bench KURA_BORROWED_POLICY=/tmp/kura-borrowed-allocator.test KURA_BORROWED_SOURCE="$GITHUB_SHA" /tmp/kura-borrowed-driver.test -test.run '^TestBorrowedRealStack$' -test.v -test.timeout 60m | tee /tmp/kura-borrowed-driver.log
+          ruby -rjson -e 'r=JSON.parse(File.read("/tmp/kura-borrowed-results.json")); abort "prototype failed" if r["failure"] || r.fetch("assertions").size < 20 || r.fetch("assertions").any? { |a| !a.fetch("passed") }; abort "incomplete benchmark" unless r.fetch("benchmarks").size == ("${{ inputs.borrowed_skip_bench }}" == "true" ? 0 : 10); abort "cleanup incomplete" unless r["containers_cleaned"] && File.read("/tmp/kura-borrowed-driver.log").include?("BORROWED_CLEANUP_COMPLETE=true")'
       - name: Preserve diagnostics
         if: failure()
         run: sudo dmesg | tail -100

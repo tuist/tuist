@@ -17,6 +17,16 @@ class ChildProbe < BorrowedProbe
     call('unit',unit:request_for(3,failed,'abort'))
     _,ok=rpc('unit',unit:request_for(3,failed,'create',bytes:256<<20))
     check('cancelled create identity remains retired',!ok)
+    partial=SecureRandom.uuid
+    before_partial=snapshot
+    call('fail-quota')
+    _,ok=rpc('unit',unit:request_for(3,partial,'create',bytes:256<<20))
+    check('quota failure interrupts child stage after mounting',!ok)
+    charged=snapshot
+    check('partially staged child retains its full commitment',charged['volumes'].size==2 && charged['committed_bytes']>before_partial['committed_bytes'])
+    call('restart')
+    aborted=call('unit',unit:request_for(3,partial,'abort'))
+    check('abort closes an unrecorded mount before returning backing',aborted['volumes'].size==1 && aborted['committed_bytes']==before_partial['committed_bytes'])
     units=7.times.map do
       u=SecureRandom.uuid;call('unit',unit:request_for(3,u,'create',bytes:256<<20));u
     end
@@ -107,7 +117,7 @@ probe=ChildProbe.new(ARGV.fetch(0))
 begin
   probe.transfer
   probe.scale_and_recovery
-  probe.benchmarks
+  probe.benchmarks unless ENV['KURA_BORROWED_SKIP_BENCH']=='true'
 rescue Exception=>e
   probe.report[:failure]="#{e.class}: #{e.message}"
   raise
