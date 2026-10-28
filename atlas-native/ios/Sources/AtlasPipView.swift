@@ -299,15 +299,7 @@ private struct PipPressStyle: ButtonStyle {
 }
 
 struct AtlasPipWelcome: View {
-    let prompt: (String) -> Void
-
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private let suggestions = [
-        "What needs my attention?",
-        "Summarize my open tasks",
-        "Find an account"
-    ]
 
     var body: some View {
         VStack(spacing: 16) {
@@ -329,32 +321,11 @@ struct AtlasPipWelcome: View {
             }
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
-
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(suggestions, id: \.self) { suggestion in
-                    Button { prompt(suggestion) } label: {
-                        Text(suggestion)
-                            .font(.subheadline.weight(.medium))
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 16))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Adds this suggestion to your draft. Does not send a message.")
-                }
-            }
         }
         .frame(maxWidth: 560)
         .padding(.horizontal, 20)
         .padding(.vertical, 20)
         .frame(maxWidth: .infinity)
-    }
-
-    private var columns: [GridItem] {
-        [GridItem(dynamicTypeSize.isAccessibilitySize ? .flexible() : .adaptive(minimum: 140), spacing: 10)]
     }
 }
 

@@ -19,6 +19,43 @@ private enum AtlasComposerColors {
     #endif
 }
 
+struct AtlasThreadSuggestions: View {
+    let prompt: (String) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private let suggestions = ["What needs my attention?", "Summarize my open tasks", "Find an account"]
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 6) { buttons }
+            } else {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) { buttons }
+                }.scrollIndicators(.hidden)
+            }
+        }
+        .accessibilityIdentifier("thread-suggestions")
+    }
+
+    private var buttons: some View {
+        ForEach(suggestions, id: \.self) { suggestion in
+            Button { prompt(suggestion) } label: {
+                Text(suggestion)
+                    .font(.subheadline)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .frame(minHeight: 44)
+                    .background(.regularMaterial, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Adds this suggestion to your draft. Does not send a message.")
+        }
+    }
+}
+
 struct AtlasThreadComposer: View {
     @Binding var draft: String
     let placeholder: String

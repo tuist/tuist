@@ -385,17 +385,77 @@ final class AtlasOrbitUITests: XCTestCase {
             mascot.tap()
             mascot.press(forDuration: 0.8)
             let draft = app.textFields["thread-composer"]
+            let suggestion = app.buttons["What needs my attention?"]
+            XCTAssertTrue(suggestion.isHittable)
+            XCTAssertGreaterThanOrEqual(suggestion.frame.height, 44)
+            XCTAssertLessThanOrEqual(suggestion.frame.maxY, draft.frame.minY)
+            suggestion.tap()
+            XCTAssertEqual(draft.value as? String, "What needs my attention?")
+            XCTAssertFalse(app.staticTexts["What needs my attention?"].exists)
+            XCTAssertFalse(suggestion.exists)
+            capture(app, "ios-orbit-suggestion-draft-\(arguments.isEmpty ? "light" : "dark-large")-preview")
             draft.tap()
-            draft.typeText("Prepare an October release.")
+            draft.typeText(" Please.")
+            let editedDraft = try XCTUnwrap(draft.value as? String)
+            XCTAssertTrue(editedDraft.contains("What needs my attention?"))
+            XCTAssertTrue(editedDraft.contains(" Please."))
+            XCTAssertFalse(suggestion.exists)
             app.buttons["thread-send"].tap()
-            XCTAssertTrue(app.staticTexts["Prepare an October release."].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts[editedDraft].waitForExistence(timeout: 5))
             app.navigationBars.buttons.element(boundBy: 0).tap()
             XCTAssertTrue(compose.waitForExistence(timeout: 5))
             compose.tap()
             XCTAssertTrue(mascot.waitForExistence(timeout: 5))
             XCTAssertEqual(draft.value as? String, "Ask Pip")
-            XCTAssertFalse(app.staticTexts["Prepare an October release."].exists)
+            XCTAssertFalse(app.staticTexts[editedDraft].exists)
             app.terminate()
+        }
+    }
+
+    @MainActor func testEnvironmentPickerSelectionAndEmptyState() throws {
+        for appearance in [[String](), ["--dark", "--large-text"]] {
+            for empty in [false, true] {
+                let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+                app.launchArguments = ["--workspace", "--destination",
+                    "https://atlas.example.org/open/orbit/01922cc0-0000-7000-8000-000000000001"]
+                    + appearance + (empty ? ["--empty-environments"] : [])
+                app.launch()
+                XCUIDevice.shared.orientation = .portrait
+                let environment = app.buttons["thread-environment"]
+                XCTAssertTrue(environment.waitForExistence(timeout: 10))
+                environment.tap()
+                XCTAssertTrue(app.navigationBars["Tool environment"].waitForExistence(timeout: 5))
+                let server = app.buttons["Atlas server"]
+                expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: server)
+                waitForExpectations(timeout: 5)
+                XCTAssertEqual(server.value as? String, "Selected")
+                XCTAssertGreaterThanOrEqual(server.frame.height, 44)
+                if empty {
+                    XCTAssertFalse(app.buttons["Example project"].exists)
+                    XCTAssertTrue(app.staticTexts[
+                        "To use files and terminal tools on your Mac, enable This Mac in Atlas for macOS Settings."].exists)
+                } else {
+                    let project = app.buttons["Example project"]
+                    XCTAssertTrue(project.isHittable)
+                    XCTAssertGreaterThanOrEqual(project.frame.height, 44)
+                    project.tap()
+                    expectation(for: NSPredicate(format: "value == 'Selected'"), evaluatedWith: project)
+                    waitForExpectations(timeout: 5)
+                    XCTAssertEqual(server.value as? String, "Not selected")
+                    app.buttons["Done"].tap()
+                    XCTAssertTrue(app.navigationBars["Tool environment"].waitForNonExistence(timeout: 5))
+                    environment.tap()
+                    XCTAssertTrue(project.waitForExistence(timeout: 5))
+                    expectation(for: NSPredicate(format: "value == 'Selected'"), evaluatedWith: project)
+                    waitForExpectations(timeout: 5)
+                }
+                let mode = appearance.isEmpty ? "light" : "dark-large"
+                capture(app, "ios-environment-picker-\(empty ? "empty" : "selected")-\(mode)-preview")
+                app.buttons["Done"].tap()
+                XCTAssertTrue(app.navigationBars["Tool environment"].waitForNonExistence(timeout: 5))
+                XCTAssertTrue(app.textFields["thread-composer"].isHittable)
+                app.terminate()
+            }
         }
     }
 
@@ -728,6 +788,50 @@ final class AtlasOrbitUITests: XCTestCase {
                 XCTAssertTrue(stop.waitForNonExistence(timeout: 5))
                 XCTAssertFalse(app.staticTexts["Cancelled before starting"].exists)
                 capture(app, "ios-environment-\(state)-stopping-\(appearance)-preview")
+                app.terminate()
+            }
+        }
+    }
+
+    @MainActor func testModelSelectionRetainsDraftAndExplainsCatalogFailure() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        defer { app.terminate() }
+        for appearance in ["light", "dark-large"] {
+            for failing in [false, true] {
+                app.launchArguments = ["--workspace"]
+                    + (appearance == "light" ? [] : ["--dark", "--large-text"])
+                    + (failing ? ["--fail-model-catalog"] : [])
+                app.launch()
+                XCUIDevice.shared.orientation = .portrait
+                let conversation = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+                XCTAssertTrue(conversation.waitForExistence(timeout: 10))
+                conversation.tap()
+                let composer = app.textFields["thread-composer"]
+                XCTAssertTrue(composer.waitForExistence(timeout: 5))
+                composer.tap()
+                composer.typeText("Keep this draft")
+                let picker = app.buttons["thread-model"]
+                XCTAssertGreaterThanOrEqual(picker.frame.height, 44 - 0.5)
+                picker.tap()
+                let automatic = app.buttons["thread-model-automatic"]
+                XCTAssertTrue(automatic.waitForExistence(timeout: 5))
+                if failing {
+                    let error = try app.visibleElement("thread-model-error")
+                    XCTAssertTrue(error.label.contains("Reconnect ChatGPT"))
+                    XCTAssertTrue(app.buttons["Try again"].exists)
+                    capture(app, "ios-model-error-\(appearance)-preview")
+                } else {
+                    let choice = try app.visibleElement("thread-model-chatgpt:gpt-6.1-sol")
+                    XCTAssertGreaterThanOrEqual(choice.frame.height, 44 - 0.5)
+                    choice.tap()
+                    XCTAssertTrue(choice.isSelected)
+                    capture(app, "ios-model-picker-\(appearance)-preview")
+                }
+                app.buttons["Done"].tap()
+                XCTAssertTrue(picker.waitForExistence(timeout: 5))
+                XCTAssertEqual(composer.value as? String, "Keep this draft")
+                XCTAssertEqual(picker.value as? String, failing ? "Automatic" : "chatgpt:gpt-6.1-sol")
+                capture(app, "ios-model-composer-\(failing ? "failed" : "selected")-\(appearance)-preview")
                 app.terminate()
             }
         }

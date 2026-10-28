@@ -17,10 +17,12 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
 
     for api <- [conn, session],
         {method, path} <- [
+          {:get, "/api/native/orbit/models"},
           {:get, "/api/native/orbit/threads"},
           {:post, "/api/native/orbit/threads"},
           {:post, "/api/native/orbit/threads/private"},
           {:patch, "/api/native/orbit/threads/#{id}"},
+          {:patch, "/api/native/orbit/threads/#{id}/model"},
           {:patch, "/api/native/orbit/threads/#{id}/environment"},
           {:get, "/api/native/orbit/threads/#{id}/people"},
           {:get, "/api/native/orbit/threads/#{id}/messages"},
@@ -70,13 +72,51 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert second["kind"] == "shared" and second["title"] == "Team"
 
     assert Map.keys(first) |> Enum.sort() ==
-             ~w(agent_status environment_id environment_name id kind latest_seq origin owner_id participants project_id status summary title updated_at)
+             ~w(agent_status environment_id environment_name id kind latest_seq model origin owner_id participants project_id status summary title updated_at)
 
     assert is_nil(first["environment_id"]) and is_nil(first["environment_name"]) and is_nil(first["project_id"])
     assert first["participants"] == [%{"id" => user.id, "name" => user.name}]
     assert first["status"] == "active" and first["origin"] == "manual" and first["summary"] == ""
 
     assert api |> get("/api/native/orbit/threads?page=0") |> json_response(422) == %{"error" => "invalid_params"}
+  end
+
+  test "model choices are owner-authorized, durable, and frozen on each run" do
+    owner = user_fixture()
+    member = user_fixture()
+    api = bearer(owner)
+    orbit_profile_fixture()
+
+    assert %{"models" => [%{"id" => "workspace"}], "error" => nil} =
+             api |> get("/api/native/orbit/models") |> json_response(200)
+
+    {:ok, thread} = Orbit.create_shared(owner, %{"title" => "Models", "participant_ids" => [member.id]})
+    path = "/api/native/orbit/threads/#{thread.id}/model"
+    choice = "chatgpt:gpt-6.1-sol"
+    assert %{"thread" => %{"model" => ^choice}} = api |> patch(path, %{model: choice}) |> json_response(200)
+    revision = Repo.reload!(thread).last_seq
+    assert %{"thread" => %{"model" => ^choice}} = api |> patch(path, %{model: choice}) |> json_response(200)
+    assert Repo.reload!(thread).last_seq == revision
+    assert bearer(member) |> patch(path, %{model: nil}) |> json_response(403) == %{"error" => "forbidden"}
+    assert bearer(user_fixture()) |> patch(path, %{model: nil}) |> json_response(404) == %{"error" => "not_found"}
+
+    for params <- [%{}, %{model: "chatgpt:../other"}, %{model: %{}}, %{model: choice, owner_id: member.id}] do
+      assert api |> patch(path, params) |> json_response(422)
+    end
+
+    api
+    |> post("/api/native/orbit/threads/#{thread.id}/messages", %{body: "Hi", client_id: Ecto.UUID.generate()})
+    |> json_response(201)
+
+    run = Orbit.active_run(thread)
+    assert run.model == choice
+    assert api |> patch(path, %{model: "workspace"}) |> json_response(409) == %{"error" => "model_run_active"}
+    assert Repo.reload!(run).model == choice
+    Repo.update!(Ecto.Changeset.change(run, status: "failed"))
+    assert %{"thread" => %{"model" => nil}} = api |> patch(path, %{model: nil}) |> json_response(200)
+    assert Repo.reload!(run).model == choice
+    assert {:ok, _} = Orbit.set_status(owner, thread, "archived")
+    assert api |> patch(path, %{model: choice}) |> json_response(409) == %{"error" => "archived"}
   end
 
   test "creates distinct private conversations, replays creation, and keeps histories owner-only" do
