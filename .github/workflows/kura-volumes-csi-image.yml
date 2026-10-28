@@ -18,6 +18,10 @@ on:
       - .github/workflows/kura-volumes-csi-image.yml
   workflow_dispatch:
     inputs:
+      metadata_only:
+        description: Qualify 128 encrypted XFS devices in a disposable VM; no images or deployment
+        type: boolean
+        default: false
       fixture_images_only:
         description: Build downloadable server and CSI test images only; never publish or deploy
         type: boolean
@@ -45,7 +49,7 @@ env:
 
 jobs:
   test:
-    if: github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && inputs.fscrypt_only != true && inputs.borrowed_only != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && inputs.fscrypt_only != true && inputs.borrowed_only != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -64,7 +68,7 @@ jobs:
         run: go vet ./...
 
   thin-stack:
-    if: github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true && inputs.borrowed_only != true
+    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true && inputs.borrowed_only != true
     # Device-mapper fault tests need their own disposable VM, never a shared
     # staging host or a container with access to a runner host's block devices.
     runs-on: ubuntu-24.04
@@ -105,7 +109,7 @@ jobs:
             /tmp/kura-thin-stack.json
 
   borrowed-build:
-    if: github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
+    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -149,7 +153,7 @@ jobs:
 
   borrowed-stack:
     needs: borrowed-build
-    if: github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
+    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
     runs-on: ubuntu-24.04
     timeout-minutes: 70
     permissions:
@@ -208,7 +212,7 @@ jobs:
             /tmp/kura-borrowed-driver.log
 
   fscrypt-experiment:
-    if: github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only != true
+    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only != true
     # Independent storage-primitive experiment; no deployed driver change.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -285,7 +289,7 @@ jobs:
     needs: [test, thin-stack]
     # The VM qualification is dispatch-only; a PR still builds its image.
     # A failed or cancelled qualification must never publish a candidate.
-    if: always() && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && needs.test.result == 'success' && (needs.thin-stack.result == 'success' || needs.thin-stack.result == 'skipped')
+    if: always() && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && needs.test.result == 'success' && (needs.thin-stack.result == 'success' || needs.thin-stack.result == 'skipped')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -320,7 +324,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=kura-volumes-csi
 
   borrowed-server-artifact:
-    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
+    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
     permissions:
       contents: read
       packages: read
@@ -355,7 +359,7 @@ jobs:
           compression-level: 0
           retention-days: 3
   borrowed-csi-artifact:
-    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
+    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
     permissions:
       contents: read
       packages: read
@@ -385,3 +389,37 @@ jobs:
           path: /tmp/kura-borrowed-csi.tar
           compression-level: 0
           retention-days: 3
+
+  metadata-scale:
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.metadata_only == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Build real driver qualification
+        working-directory: infra/kura-volumes-csi
+        run: go test -c -o /tmp/kura-borrowed-driver.test ./internal/driver
+      - name: Install disposable VM prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby lvm2 cryptsetup xfsprogs thin-provisioning-tools
+          sudo modprobe dm_thin_pool
+          test "$(df --output=avail -B1 /var/tmp | tail -1)" -gt 25000000000
+      - name: Qualify configured metadata device count and cold activation
+        shell: bash
+        run: |
+          sudo env KURA_BORROWED_DISPOSABLE_VM=1 KURA_BORROWED_METADATA_SCALE=128 KURA_BORROWED_SCRIPT="$PWD/infra/kura-volumes-csi/thin/borrowed/metadata_stack.rb" KURA_BORROWED_BENCH=/bin/false KURA_BORROWED_SOURCE="$GITHUB_SHA" /tmp/kura-borrowed-driver.test -test.run '^TestBorrowedRealStack$' -test.v -test.timeout 60m | tee /tmp/kura-borrowed-driver.log
+          ruby -rjson -e 'r=JSON.parse(File.read("/tmp/kura-borrowed-results.json")); abort "scale failed" if r["failure"] || r.fetch("assertions").any? { |a| !a.fetch("passed") }; abort "wrong scale" unless r.dig("observations", "metadata_scale", "devices") == 128; abort "cleanup incomplete" unless r["containers_cleaned"] && File.read("/tmp/kura-borrowed-driver.log").include?("BORROWED_CLEANUP_COMPLETE=true")'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metadata-scale
+          path: |
+            /tmp/kura-borrowed-results.json
+            /tmp/kura-borrowed-driver.log

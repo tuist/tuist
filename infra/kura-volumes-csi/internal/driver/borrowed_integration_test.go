@@ -32,8 +32,8 @@ func (k borrowedKeys) Fetch(_ context.Context, id string, _ int) ([]byte, int, e
 	return h.Sum(nil), 1, nil
 }
 
-// Experiment-only control plane around the REAL driver. There is no new shipped
-// CSI API, child-key authorization or Kubernetes discovery in this prototype.
+// Experiment-only control plane around the REAL driver. The disposable harness
+// uses fixture keys, not OpenBao or Kubernetes authorization.
 func TestBorrowedRealStack(t *testing.T) {
 	if os.Getenv("KURA_BORROWED_DISPOSABLE_VM") != "1" {
 		t.Skip("private disposable Linux VM only")
@@ -57,7 +57,14 @@ func TestBorrowedRealStack(t *testing.T) {
 		return strings.TrimSpace(string(b))
 	}
 	backing := filepath.Join(root, "disk.img")
-	run("truncate", "-s", "48G", backing)
+	backingSize, poolSize, slots, maxID := "48G", "24G", 8, 12
+	metadataScale := os.Getenv("KURA_BORROWED_METADATA_SCALE") == "128"
+	if metadataScale {
+		// Sparse virtual backing; the scale script bounds actual writes to
+		// 32 MiB of mapped data plus formatting overhead per device.
+		backingSize, poolSize, slots, maxID = "400G", "384G", 128, 129
+	}
+	run("truncate", "-s", backingSize, backing)
 	loop := run("losetup", "--direct-io=on", "--find", "--show", backing)
 	exports := filepath.Join(root, "exports")
 	id := func(n int) string { return fmt.Sprintf("pvc-00000000-0000-0000-0001-%012d", n) }
@@ -95,7 +102,7 @@ func TestBorrowedRealStack(t *testing.T) {
 				_, _ = (ExecRunner{}).Run(context.Background(), nil, "cryptsetup", "close", "kura-"+child)
 			}
 		}
-		for n := 1; n <= 12; n++ {
+		for n := 1; n <= maxID; n++ {
 			_, _ = (ExecRunner{}).Run(context.Background(), nil, "cryptsetup", "close", "kura-"+id(n))
 		}
 		if safe {
@@ -143,7 +150,7 @@ func TestBorrowedRealStack(t *testing.T) {
 	})
 	run("pvcreate", "--yes", loop)
 	run("vgcreate", vg, loop)
-	run("lvcreate", "--yes", "--type", "thin-pool", "--size", "24G", "--poolmetadatasize", "512M", "--chunksize", "512K", "--discards", "passdown", "--name", "pool", vg)
+	run("lvcreate", "--yes", "--type", "thin-pool", "--size", poolSize, "--poolmetadatasize", "512M", "--chunksize", "512K", "--discards", "passdown", "--name", "pool", vg)
 	run("lvchange", "--errorwhenfull", "y", vg+"/pool")
 	if err = os.MkdirAll(exports, 0755); err != nil {
 		t.Fatal(err)
@@ -161,7 +168,7 @@ func TestBorrowedRealStack(t *testing.T) {
 	}
 	defer clear(secret)
 	runner := &thinFaultRunner{}
-	cfg := Config{NodeID: "borrowed-test", StateDir: state, VolumeGroup: vg, Thin: ThinConfig{Pool: "pool", DataReserveBytes: 256 << 20, MetadataReserveBytes: 32 << 20, MaxVolumes: 8}, Keys: borrowedKeys{secret}, Runner: runner, Host: OSHost{}, Mounts: ProcMountTable{Path: "/proc/self/mountinfo"}}
+	cfg := Config{NodeID: "borrowed-test", StateDir: state, VolumeGroup: vg, Thin: ThinConfig{Pool: "pool", DataReserveBytes: 256 << 20, MetadataReserveBytes: 32 << 20, MaxVolumes: slots}, Keys: borrowedKeys{secret}, Runner: runner, Host: OSHost{}, Mounts: ProcMountTable{Path: "/proc/self/mountinfo"}}
 	d, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -203,6 +210,46 @@ func TestBorrowedRealStack(t *testing.T) {
 		var value any
 		var e error
 		switch q.Op {
+		case "cold-pool":
+			if !metadataScale {
+				e = fmt.Errorf("cold pool restart requires private metadata-scale profile")
+				break
+			}
+			for n, a := range allocations {
+				if _, e = d.NodeUnpublishVolume(ctx, &csi.NodeUnpublishVolumeRequest{VolumeId: id(n), TargetPath: a.Target}); e != nil {
+					break
+				}
+				if _, e = d.NodeUnstageVolume(ctx, &csi.NodeUnstageVolumeRequest{VolumeId: id(n), StagingTargetPath: filepath.Join(root, "stage", id(n))}); e != nil {
+					break
+				}
+			}
+			if e != nil {
+				break
+			}
+			for _, state := range []string{"n", "y"} {
+				if _, e = d.run(ctx, nil, "vgchange", "--activate", state, vg); e != nil {
+					break
+				}
+			}
+			if e != nil {
+				break
+			}
+			d, e = New(cfg)
+			if e != nil {
+				break
+			}
+			for n, a := range allocations {
+				stage := filepath.Join(root, "stage", id(n))
+				if _, e = d.NodeStageVolume(ctx, &csi.NodeStageVolumeRequest{VolumeId: id(n), StagingTargetPath: stage, VolumeCapability: capability, VolumeContext: a.Volume.VolumeContext}); e != nil {
+					break
+				}
+				if _, e = d.NodePublishVolume(ctx, &csi.NodePublishVolumeRequest{VolumeId: id(n), StagingTargetPath: stage, TargetPath: a.Target, VolumeCapability: capability, VolumeContext: map[string]string{"csi.storage.k8s.io/pod.uid": "11111111-1111-1111-1111-111111111111"}}); e != nil {
+					break
+				}
+			}
+			if e == nil {
+				value, e = d.ThinStatus(ctx)
+			}
 		case "unit":
 			if q.Unit == nil {
 				e = fmt.Errorf("unit request required")
@@ -282,7 +329,7 @@ func TestBorrowedRealStack(t *testing.T) {
 			value = []result{<-results, <-results}
 		case "create":
 
-			if q.ID < 1 || q.ID > 12 || (q.Owner != "a" && q.Owner != "b" && q.Owner != "bench") || (q.Kind != "base" && q.Kind != "unit" && q.Kind != "parent") || q.Bytes < 256<<20 || q.Bytes > 16<<30 {
+			if q.ID < 1 || q.ID > maxID || (q.Owner != "a" && q.Owner != "b" && q.Owner != "bench") || (q.Kind != "base" && q.Kind != "unit" && q.Kind != "parent") || q.Bytes < 256<<20 || q.Bytes > 16<<30 {
 				e = fmt.Errorf("invalid fixture request")
 				break
 			}

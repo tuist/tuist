@@ -38,7 +38,8 @@ class BorrowedProbe
   end
   def rpc(op,**q)
     uri=URI(@cfg.fetch('endpoint')); req=Net::HTTP::Post.new(uri);req['Authorization']='Bearer '+@cfg.fetch('token');req['Content-Type']='application/json';req.body=JSON.generate(q.merge(op:op))
-    res=Net::HTTP.start(uri.host,uri.port,read_timeout:120){|h|h.request(req)}
+    timeout=ENV['KURA_BORROWED_METADATA_SCALE']=='128' ? 600 : 120
+    res=Net::HTTP.start(uri.host,uri.port,read_timeout:timeout){|h|h.request(req)}
     [JSON.parse(res.body),res.code=='200']
   end
   def call(op,**q)
