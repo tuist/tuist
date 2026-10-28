@@ -32,24 +32,12 @@ Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners<
 
 #### macOS {#tuist-runners-macos}
 
-Allowlist the following ranges and addresses for macOS runner jobs:
+Allowlist the following ranges for macOS runner jobs:
 
 | IP version | CIDR notation |
 |---|---|
 | IPv4 | `95.130.119.0/24` |
 | IPv6 | `2a11:83c0::/29` |
-| IPv4 | `62.210.150.71/32` |
-| IPv4 | `62.210.150.138/32` |
-| IPv4 | `62.210.150.147/32` |
-| IPv4 | `62.210.150.178/32` |
-| IPv4 | `62.210.193.23/32` |
-| IPv4 | `62.210.193.35/32` |
-| IPv4 | `62.210.193.45/32` |
-| IPv4 | `62.210.194.9/32` |
-| IPv4 | `62.210.194.25/32` |
-| IPv4 | `62.210.194.125/32` |
-| IPv4 | `62.210.194.173/32` |
-| IPv4 | `62.210.195.116/32` |
 
 > [!NOTE]
 > Add the IPv6 range if your allowlist supports IPv6 entries.
@@ -70,8 +58,9 @@ active Floating IP is outside that allowlist). When reserving additional
 Floating IPs in the tuist-workloads project, add their /32s to BOTH places
 *before* they are ever used as egress.
 
-Keep the macOS ranges and addresses aligned with all serving fleets. The BER1
-range is configured in infra/rack-switch-fleet/sites/ber1.json.
+The macOS IPv4 range is configured in infra/rack-switch-fleet/sites/ber1.json.
+The public allowlist excludes Scaleway hosts; reassess it before using them
+for runner jobs again.
 
 The Linux range must match `capi.ovhRunnerEgress.cidr` in
 infra/helm/tuist/values-managed-production.yaml. Publish this range-only guide
