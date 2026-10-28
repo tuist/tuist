@@ -72,6 +72,6 @@ jobs:
           docker load -i /tmp/server-image/kura-borrowed-server.tar
           docker run --rm --entrypoint /app/bin/tuist \
             -e DATABASE_URL=ecto://fixture:fixture@127.0.0.1/fixture \
-            -e TUIST_DEPLOY_ENV=stag -e TUIST_HOSTED=1 \
+            -e TUIST_DEPLOY_ENV=stag -e TUIST_HOSTED=1 -e TUIST_S3_ENDPOINT=http://127.0.0.1:9000 \
             kura-borrowed-server:fixture-339fea900c053209b07cb4a21243ee7a253839e6 \
             eval 'IO.puts("FIXTURE_RELEASE_BOOT_OK")'
