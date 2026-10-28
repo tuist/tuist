@@ -64,6 +64,16 @@ func (s *Service) Start(ctx context.Context) error {
 		return errors.New("another sandbox host service owns this store")
 	}
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	// Image preparation and control reconnection may take minutes. Keep recovery
+	// and CI-driven eviction independent, and finish them before releasing the
+	// exclusive store lock during shutdown.
+	reconcileCtx, stopReconcile := context.WithCancel(ctx)
+	reconcileDone := make(chan struct{})
+	go func() {
+		defer close(reconcileDone)
+		s.reconcile(reconcileCtx)
+	}()
+	defer func() { stopReconcile(); <-reconcileDone }()
 	var cancel context.CancelFunc
 	var controlUID string
 	defer func() {
@@ -87,6 +97,30 @@ func (s *Service) Start(ctx context.Context) error {
 		}
 	}
 }
+
+func (s *Service) reconcile(ctx context.Context) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		s.mu.Lock()
+		m := s.manager
+		s.mu.Unlock()
+		if m != nil {
+			opCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			err := m.Reconcile(opCtx)
+			cancel()
+			if err != nil {
+				slog.Warn("macOS sandbox ownership reconcile", "error", err)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
 func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *context.CancelFunc) error {
 	node, err := s.Kube.CoreV1().Nodes().Get(ctx, s.Node, metav1.GetOptions{})
 	if err != nil {
@@ -190,11 +224,6 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		if err = os.MkdirAll(c.UserDataDir, 0700); err != nil {
 			return err
 		}
-		if control != nil {
-			if err = ensureImage(ctx, c, cfg.Image); err != nil {
-				return err
-			}
-		}
 		controlID := ""
 		if control != nil {
 			controlID = string(control.UID)
@@ -279,9 +308,6 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		m.Emit = client.Emit
 		m.Gate.Unlock()
 		go client.Run(clientCtx)
-	}
-	if err = m.Reconcile(ctx); err != nil {
-		return err
 	}
 	for i := range pods.Items {
 		pod := &pods.Items[i]
