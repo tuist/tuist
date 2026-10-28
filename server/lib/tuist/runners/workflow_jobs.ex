@@ -47,6 +47,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   alias Tuist.Runners.Claim
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobTransitionEvent
@@ -563,8 +564,15 @@ defmodule Tuist.Runners.WorkflowJobs do
   executed job's own row, and `executed_workflow_job_id` on the
   row(s) whose claim minted that runner (matched by `runner_name`,
   mirroring `Tuist.Runners.Claims.record_execution/3`). Not a status
-  transition — no outbox event. Scoped to the webhook's account, and
-  idempotent under redelivery.
+  transition. Scoped to the webhook's account, and idempotent under
+  redelivery.
+
+  It also stamps `executor_claimed_at`, the claim time of that runner's
+  session, on the executed job's row, and emits the outbox event that
+  carries it to ClickHouse when the value changes. Queue time is measured
+  to it: `claimed_at` moves with the job as the runner shuffle hands it
+  between claims, so it reports when a job last changed hands rather than
+  when a runner was there for it.
   """
   def record_execution(runner_name, executed_workflow_job_id, account_id)
       when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
@@ -573,6 +581,8 @@ defmodule Tuist.Runners.WorkflowJobs do
       from(j in WorkflowJob, where: j.workflow_job_id == ^executed_workflow_job_id and j.account_id == ^account_id),
       set: [runner_name: runner_name]
     )
+
+    record_executor_claimed_at(runner_name, executed_workflow_job_id, account_id)
 
     # Restricted to live rows: a runner name is unique per account only
     # by 32 bits of randomness, and a terminal row has nothing left to
@@ -589,6 +599,45 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :ok
+
+  # A session opens with its claim's timestamp and outlives the claim, so it
+  # still answers for a runner whose claim was released before GitHub named
+  # it. A runner name is unique per account only probabilistically, so the
+  # newest session carrying it is the one that can be running a job now.
+  defp record_executor_claimed_at(runner_name, executed_workflow_job_id, account_id) do
+    executor_claimed_at =
+      Repo.one(
+        from(s in RunnerSession,
+          where: s.runner_name == ^runner_name and s.account_id == ^account_id,
+          order_by: [desc: s.started_at],
+          limit: 1,
+          select: s.started_at
+        )
+      )
+
+    if executor_claimed_at do
+      {:ok, :ok} =
+        Repo.transaction(fn ->
+          {_count, rows} =
+            Repo.update_all(
+              from(j in WorkflowJob,
+                where:
+                  j.workflow_job_id == ^executed_workflow_job_id and j.account_id == ^account_id and
+                    (is_nil(j.executor_claimed_at) or j.executor_claimed_at != ^executor_claimed_at),
+                select: j
+              ),
+              set: [
+                executor_claimed_at: executor_claimed_at,
+                updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+              ]
+            )
+
+          emit_transition_events(rows)
+        end)
+    end
+
+    :ok
+  end
 
   @doc """
   Postgres twin of `Tuist.Runners.Jobs.pick_queued_top_k/5`, returning
@@ -866,6 +915,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       runner_name: payload["runner_name"],
       requested_dispatch_label: payload["requested_dispatch_label"],
       log_archived_at: parse_datetime(payload["log_archived_at"]),
+      executor_claimed_at: parse_datetime(payload["executor_claimed_at"]),
       updated_at: parse_datetime(payload["updated_at"])
     }
   end
@@ -1032,6 +1082,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       runner_name: row.runner_name || "",
       requested_dispatch_label: row.requested_dispatch_label,
       log_archived_at: row.log_archived_at,
+      executor_claimed_at: row.executor_claimed_at,
       updated_at: transition_at
     }
   end
