@@ -18,6 +18,10 @@ on:
       - .github/workflows/kura-volumes-csi-image.yml
   workflow_dispatch:
     inputs:
+      fixture_images_only:
+        description: Build downloadable server and CSI test images only; never publish or deploy
+        type: boolean
+        default: false
       borrowed_only:
         description: Run only the disposable borrowed-volume prototype; publish no images
         type: boolean
@@ -41,7 +45,7 @@ env:
 
 jobs:
   test:
-    if: github.repository == 'tuist/tuist' && inputs.fscrypt_only != true && inputs.borrowed_only != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    if: github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && inputs.fscrypt_only != true && inputs.borrowed_only != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +64,7 @@ jobs:
         run: go vet ./...
 
   thin-stack:
-    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true && inputs.borrowed_only != true
+    if: github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true && inputs.borrowed_only != true
     # Device-mapper fault tests need their own disposable VM, never a shared
     # staging host or a container with access to a runner host's block devices.
     runs-on: ubuntu-24.04
@@ -101,7 +105,7 @@ jobs:
             /tmp/kura-thin-stack.json
 
   borrowed-build:
-    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
+    if: github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -145,7 +149,7 @@ jobs:
 
   borrowed-stack:
     needs: borrowed-build
-    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
+    if: github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
     runs-on: ubuntu-24.04
     timeout-minutes: 70
     permissions:
@@ -204,7 +208,7 @@ jobs:
             /tmp/kura-borrowed-driver.log
 
   fscrypt-experiment:
-    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.borrowed_only != true
+    if: github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only != true
     # Independent storage-primitive experiment; no deployed driver change.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -281,7 +285,7 @@ jobs:
     needs: [test, thin-stack]
     # The VM qualification is dispatch-only; a PR still builds its image.
     # A failed or cancelled qualification must never publish a candidate.
-    if: always() && github.repository == 'tuist/tuist' && needs.test.result == 'success' && (needs.thin-stack.result == 'success' || needs.thin-stack.result == 'skipped')
+    if: always() && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && needs.test.result == 'success' && (needs.thin-stack.result == 'success' || needs.thin-stack.result == 'skipped')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -314,3 +318,70 @@ jobs:
           build-args: VERSION=${{ steps.tags.outputs.version }}
           cache-from: type=gha,scope=kura-volumes-csi
           cache-to: type=gha,mode=max,scope=kura-volumes-csi
+
+  borrowed-server-artifact:
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
+    permissions:
+      contents: read
+      packages: read
+    runs-on: tuist-linux-large
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: server/Dockerfile
+          target: runner
+          push: false
+          tags: kura-borrowed-server:fixture-${{ github.sha }}
+          outputs: type=docker,dest=/tmp/kura-borrowed-server.tar
+          secrets: github_token=${{ secrets.GITHUB_TOKEN }}
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-buildcache:server
+          build-args: |
+            TUIST_HOSTED=1
+            TUIST_VERSION=borrowed-fixture-${{ github.sha }}
+            MIX_ENV=prod
+      - uses: actions/upload-artifact@v4
+        with:
+          name: borrowed-server-image
+          path: /tmp/kura-borrowed-server.tar
+          compression-level: 0
+          retention-days: 3
+  borrowed-csi-artifact:
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
+    permissions:
+      contents: read
+      packages: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/kura-volumes-csi/Dockerfile
+          push: false
+          tags: kura-borrowed-csi:fixture-${{ github.sha }}
+          outputs: type=docker,dest=/tmp/kura-borrowed-csi.tar
+          build-args: |
+            GO_VERSION=1.26
+            VERSION=borrowed-fixture-${{ github.sha }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: borrowed-csi-image
+          path: /tmp/kura-borrowed-csi.tar
+          compression-level: 0
+          retention-days: 3
