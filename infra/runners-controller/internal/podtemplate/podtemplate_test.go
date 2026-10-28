@@ -1193,7 +1193,17 @@ func TestDockerCacheRunsDockerdUnderTheSupervisor(t *testing.T) {
 	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
 	pool.Spec.CacheVolumeURL = "http://agent:8090"
 	pool.Spec.DockerCache = true
-	dind := initContainer(t, build(t, pool), "dind")
+	pod := build(t, pool)
+	reportedImage := ""
+	for _, env := range pod.Spec.Containers[0].Env {
+		if env.Name == "TUIST_RUNNER_IMAGE" {
+			reportedImage = env.Value
+		}
+	}
+	if reportedImage == "" || reportedImage != pod.Spec.Containers[0].Image {
+		t.Fatalf("acceptance image %q does not identify the actual runner image %q", reportedImage, pod.Spec.Containers[0].Image)
+	}
+	dind := initContainer(t, pod, "dind")
 	command := dind.Args[0]
 	want := "exec /home/runner/actions-runner/externals/tuist-cache-volume dind " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache /mnt/dind-disk/disk.img -- dockerd --host=unix:///var/run/docker.sock --group=123 --default-ulimit nofile=1048576:1048576 --max-concurrent-downloads=8"
 	if !strings.HasSuffix(command, want) {
