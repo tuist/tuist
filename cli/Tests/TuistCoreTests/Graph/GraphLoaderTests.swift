@@ -962,11 +962,14 @@ struct GraphLoaderXCFrameworkSignatureTests {
     }
 
     @Test(arguments: [
-        (.when([.macos]), nil, .when([.ios, .macos])),
-        (nil, nil, nil),
-        (.when([.macos]), .when([.ios]), .when([.ios])),
-    ] as [(PlatformCondition?, PlatformCondition?, PlatformCondition?)])
+        (.staticFramework, .when([.macos]), nil, .when([.ios, .macos])),
+        (.staticFramework, nil, nil, nil),
+        (.staticFramework, .when([.macos]), .when([.ios]), .when([.ios])),
+        (.framework, .when([.macos]), nil, .when([.ios])),
+        (.framework, nil, nil, .when([.ios])),
+    ] as [(Product, PlatformCondition?, PlatformCondition?, PlatformCondition?)])
     func preservesDirectAndTransitiveLinkConditions(
+        featureProduct: Product,
         featureCondition: PlatformCondition?, frameworkCondition: PlatformCondition?, expectedCondition: PlatformCondition?
     ) async throws {
         let project = Project.test(targets: [
@@ -974,7 +977,7 @@ struct GraphLoaderXCFrameworkSignatureTests {
                 .xcframework(path: path, expectedSignature: signature, status: .required, condition: .when([.ios])),
                 .target(name: "Feature", condition: featureCondition),
             ]),
-            .test(name: "Feature", destinations: [.iPhone, .mac], product: .staticFramework, dependencies: [
+            .test(name: "Feature", destinations: [.iPhone, .mac], product: featureProduct, dependencies: [
                 .xcframework(path: path, expectedSignature: nil, status: .required, condition: frameworkCondition),
             ]),
         ])

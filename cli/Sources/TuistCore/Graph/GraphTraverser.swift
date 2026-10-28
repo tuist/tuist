@@ -1832,12 +1832,13 @@ public class GraphTraverser: GraphTraversing {
         guard let dependencies = graph.dependencies[rootDependency] else { return .incompatible }
 
         let result: PlatformCondition.CombinationResult
-        let isXCFramework = if case .xcframework = transitiveDependency { true } else { false }
+        let xcframework = transitiveDependency.xcframeworkDependency
+        let hasDirectDependency = dependencies.contains(transitiveDependency)
 
         // Signature normalization can coalesce direct and transitive XCFramework references.
         // Preserve direct-edge precedence for other dependency kinds.
-        if dependencies.contains(transitiveDependency),
-           !isXCFramework || graph.dependencyConditions[(rootDependency, transitiveDependency)] == nil
+        if hasDirectDependency,
+           xcframework == nil || graph.dependencyConditions[(rootDependency, transitiveDependency)] == nil
         {
             result = .condition(graph.dependencyConditions[(rootDependency, transitiveDependency)])
         } else {
@@ -1847,6 +1848,14 @@ public class GraphTraverser: GraphTraversing {
                 let currentCondition = graph.dependencyConditions[(rootDependency, node)]
                 if node == transitiveDependency {
                     return .condition(currentCondition)
+                }
+                // Dynamic linkers absorb static dependencies; source dynamic targets also link their own frameworks.
+                // Precompiled dynamic frameworks still propagate their dynamic dependencies to the consumer.
+                if hasDirectDependency,
+                   canDependencyLinkStaticProducts(dependency: node),
+                   node.isTarget || xcframework?.linking == .static
+                {
+                    return .incompatible
                 }
                 let transitive = combinedCondition(to: transitiveDependency, from: node)
                 switch transitive {
