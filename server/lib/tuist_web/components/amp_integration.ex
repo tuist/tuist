@@ -12,7 +12,9 @@ defmodule TuistWeb.Components.AmpIntegration do
 
   @impl true
   def update(assigns, socket) do
-    socket = socket |> assign(assigns) |> assign(error: nil, confirm_disconnect: false, form_version: 0)
+    socket =
+      socket |> assign(assigns) |> assign(error: nil, confirm_disconnect: false, form_version: 0, token_changed: false)
+
     {:ok, load(socket)}
   end
 
@@ -23,7 +25,10 @@ defmodule TuistWeb.Components.AmpIntegration do
   def handle_event("cancel", _, socket),
     do: {:noreply, socket |> assign(confirm_disconnect: false, error: nil) |> close_connection_modal()}
 
-  def handle_event("refresh", _, socket), do: {:noreply, load(socket)}
+  def handle_event("validate", %{"provider_token" => token}, socket),
+    do: {:noreply, assign(socket, token_changed: String.trim(token) != "")}
+
+  def handle_event("save", %{"provider_token" => ""}, socket), do: {:noreply, socket}
   def handle_event("confirm-disconnect", _, socket), do: {:noreply, socket |> load() |> assign(confirm_disconnect: true)}
 
   def handle_event("save", %{"provider_token" => token}, socket) do
@@ -60,7 +65,7 @@ defmodule TuistWeb.Components.AmpIntegration do
   defp close_connection_modal(socket) do
     socket
     |> push_event("close-modal", %{id: "connect-amp-modal"})
-    |> assign(form_version: socket.assigns.form_version + 1)
+    |> assign(form_version: socket.assigns.form_version + 1, token_changed: false)
   end
 
   defp load(socket) do
@@ -74,13 +79,6 @@ defmodule TuistWeb.Components.AmpIntegration do
     assign(socket, account: account, integration: integration, available: FeatureFlags.sandboxes_enabled?(account))
   end
 
-  defp status(%{status: :pending}), do: dgettext("dashboard_integrations", "Starting provider")
-  defp status(%{status: :running}), do: dgettext("dashboard_integrations", "Provider running")
-  defp status(%{status: :error}), do: dgettext("dashboard_integrations", "Needs attention")
-  defp status(%{status: :disconnecting}), do: dgettext("dashboard_integrations", "Disconnecting")
-  defp status(%{status: :disconnected}), do: dgettext("dashboard_integrations", "Disconnected")
-  defp status(%{status: :suspended}), do: dgettext("dashboard_integrations", "Suspended")
-
   @impl true
   def render(assigns) do
     ~H"""
@@ -90,21 +88,41 @@ defmodule TuistWeb.Components.AmpIntegration do
       data-part="amp-card-section"
       class="noora-card__section"
     >
-      <div data-part="header">
-        <div data-part="heading">
-          <span data-part="title">Amp</span>
-          <span :if={@integration} data-part="status">{status(@integration)}</span>
+      <form
+        id={"amp-settings-form-#{@form_version}"}
+        phx-change="validate"
+        phx-submit="save"
+        phx-target={@myself}
+        autocomplete="off"
+      >
+        <div data-part="header-row">
+          <div data-part="header">
+            <span data-part="title">Amp</span>
+            <span data-part="subtitle">
+              {dgettext("dashboard_integrations", "Run your Amp workspace’s Orbs on Tuist sandboxes.")}
+            </span>
+          </div>
+          <div :if={not @confirm_disconnect} data-part="actions">
+            <.button
+              :if={@integration && @integration.enabled}
+              type="button"
+              label={dgettext("dashboard_integrations", "Disconnect")}
+              variant="secondary"
+              phx-click="confirm-disconnect"
+              phx-target={@myself}
+            />
+            <.button
+              :if={@available && !(@integration && @integration.enabled)}
+              type="button"
+              label={dgettext("dashboard_integrations", "Connect")}
+              variant="primary"
+              phx-click="edit"
+              phx-target={@myself}
+            />
+          </div>
         </div>
-        <p data-part="subtitle">
-          {dgettext(
-            "dashboard_integrations",
-            "Run your Amp workspace’s Orbs on Tuist sandboxes."
-          )}
-        </p>
-      </div>
-      <div data-part="content">
         <.alert
-          :if={@error && @confirm_disconnect}
+          :if={@error && (@confirm_disconnect || (@integration && @integration.enabled))}
           status="error"
           type="secondary"
           size="small"
@@ -118,136 +136,29 @@ defmodule TuistWeb.Components.AmpIntegration do
           title={
             dgettext(
               "dashboard_integrations",
-              "Tuist could not prepare or stop the provider. Retrying automatically; refresh to check its status."
+              "Tuist could not prepare or stop the provider. Retrying automatically."
             )
           }
         />
-        <p :if={@integration && @integration.status == :pending}>
-          {dgettext(
-            "dashboard_integrations",
-            "Your token is saved. Tuist is preparing the provider. Once it connects, choose it under Self-Hosted in Amp."
-          )}
-        </p>
-        <p :if={@integration && @integration.status == :running}>
-          {dgettext(
-            "dashboard_integrations",
-            "The provider process is running. Check its connection in Amp’s workspace settings, then select it when starting a thread."
-          )}
-        </p>
-        <p :if={@integration && @integration.status == :disconnecting}>
-          {dgettext(
-            "dashboard_integrations",
-            "Provider access has been revoked. Orbs are being paused and their saved disks are retained. You can manage or delete them from Sandboxes."
-          )}
-        </p>
-        <p :if={@integration && @integration.status == :disconnected}>
-          {dgettext(
-            "dashboard_integrations",
-            "Provider access has been revoked and Orbs are paused. Their saved disks are retained. You can manage or delete them from Sandboxes."
-          )}
-        </p>
-        <p :if={not @available}>
-          {dgettext(
-            "dashboard_integrations",
-            "Sandboxes are not enabled for this account. New Orb sessions are unavailable."
-          )}
-        </p>
-        <div :if={not @confirm_disconnect} data-part="actions">
-          <.button
-            :if={@integration}
-            label={dgettext("dashboard_integrations", "Refresh status")}
-            variant="secondary"
-            phx-click="refresh"
-            phx-target={@myself}
-          />
-          <.button
-            :if={@integration && @integration.enabled}
-            label={dgettext("dashboard_integrations", "Disconnect")}
-            variant="secondary"
-            phx-click="confirm-disconnect"
-            phx-target={@myself}
-          />
-          <.button
-            :if={@available}
-            label={
-              if @integration && @integration.enabled,
-                do: dgettext("dashboard_integrations", "Replace token"),
-                else: dgettext("dashboard_integrations", "Connect")
-            }
-            variant="primary"
-            phx-click="edit"
-            phx-target={@myself}
+        <div :if={@integration && @integration.enabled && !@confirm_disconnect} data-part="fields">
+          <.text_input
+            id={"amp-saved-provider-token-#{@form_version}"}
+            name="provider_token"
+            type="password"
+            input_type="password"
+            label={dgettext("dashboard_integrations", "Orb provider token")}
+            placeholder="••••••••••••"
+            value=""
           />
         </div>
-        <.modal
-          :if={@available}
-          id="connect-amp-modal"
-          title={
-            if @integration && @integration.enabled,
-              do: dgettext("dashboard_integrations", "Replace token"),
-              else: dgettext("dashboard_integrations", "Connect Amp")
-          }
-          header_size="large"
-        >
-          <:trigger :let={attrs}>
-            <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
-          </:trigger>
-          <.line_divider />
-          <form
-            id={"amp-token-form-#{@form_version}"}
-            phx-submit="save"
-            phx-target={@myself}
-            data-part="amp-form"
-            autocomplete="off"
-          >
-            <.alert :if={@error} status="error" type="secondary" size="small" title={@error} />
-            <ol>
-              <li>
-                {dgettext(
-                  "dashboard_integrations",
-                  "In Amp, open Workspace Settings → Orbs and add an Orb provider."
-                )}
-              </li>
-              <li>
-                {dgettext(
-                  "dashboard_integrations",
-                  "Copy the provider token and paste it below. Tuist will run the provider for this account."
-                )}
-              </li>
-            </ol>
-            <.text_input
-              id={"amp-provider-token-#{@form_version}"}
-              name="provider_token"
-              type="password"
-              input_type="password"
-              label={dgettext("dashboard_integrations", "Orb provider token")}
-              placeholder="aop_live_…"
-              value=""
-              required
-              show_required
-              hint={
-                dgettext(
-                  "dashboard_integrations",
-                  "Stored encrypted and never shown again."
-                )
-              }
-            />
-            <div data-part="actions">
-              <.button
-                type="button"
-                label={dgettext("dashboard_integrations", "Cancel")}
-                variant="secondary"
-                phx-click="cancel"
-                phx-target={@myself}
-              />
-              <.button
-                type="submit"
-                label={dgettext("dashboard_integrations", "Connect")}
-                variant="primary"
-              />
-            </div>
-          </form>
-        </.modal>
+        <div :if={@integration && @integration.enabled && !@confirm_disconnect} data-part="actions">
+          <.button
+            type="submit"
+            label={dgettext("dashboard_integrations", "Save changes")}
+            variant="primary"
+            disabled={not @token_changed}
+          />
+        </div>
         <div :if={@confirm_disconnect} data-part="form">
           <p>
             {dgettext(
@@ -257,12 +168,14 @@ defmodule TuistWeb.Components.AmpIntegration do
           </p>
           <div data-part="actions">
             <.button
+              type="button"
               label={dgettext("dashboard_integrations", "Cancel")}
               variant="secondary"
               phx-click="cancel"
               phx-target={@myself}
             />
             <.button
+              type="button"
               label={dgettext("dashboard_integrations", "Disconnect Amp")}
               variant="primary"
               phx-click="disconnect"
@@ -270,7 +183,78 @@ defmodule TuistWeb.Components.AmpIntegration do
             />
           </div>
         </div>
-      </div>
+      </form>
+      <.modal
+        :if={@available}
+        id="connect-amp-modal"
+        title={dgettext("dashboard_integrations", "Connect Amp")}
+        header_size="large"
+      >
+        <:trigger :let={attrs}>
+          <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+        </:trigger>
+        <.line_divider />
+        <form
+          id={"amp-token-form-#{@form_version}"}
+          phx-submit="save"
+          phx-target={@myself}
+          data-part="amp-form"
+          autocomplete="off"
+        >
+          <.alert
+            :if={@error && !(@integration && @integration.enabled)}
+            status="error"
+            type="secondary"
+            size="small"
+            title={@error}
+          />
+          <ol>
+            <li>
+              {dgettext(
+                "dashboard_integrations",
+                "In Amp, open Workspace Settings → Orbs and add an Orb provider."
+              )}
+            </li>
+            <li>
+              {dgettext(
+                "dashboard_integrations",
+                "Copy the provider token and paste it below. Tuist will run the provider for this account."
+              )}
+            </li>
+          </ol>
+          <.text_input
+            id={"amp-provider-token-#{@form_version}"}
+            name="provider_token"
+            type="password"
+            input_type="password"
+            label={dgettext("dashboard_integrations", "Orb provider token")}
+            placeholder="aop_live_…"
+            value=""
+            required
+            show_required
+            hint={
+              dgettext(
+                "dashboard_integrations",
+                "Stored encrypted and never shown again."
+              )
+            }
+          />
+          <div data-part="actions">
+            <.button
+              type="button"
+              label={dgettext("dashboard_integrations", "Cancel")}
+              variant="secondary"
+              phx-click="cancel"
+              phx-target={@myself}
+            />
+            <.button
+              type="submit"
+              label={dgettext("dashboard_integrations", "Connect")}
+              variant="primary"
+            />
+          </div>
+        </form>
+      </.modal>
     </section>
     """
   end

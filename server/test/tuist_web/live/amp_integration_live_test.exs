@@ -22,20 +22,33 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
     token = "aop_live_fixture_secret"
     view |> with_target("#amp-integration") |> render_submit("save", %{"provider_token" => token})
     assert_push_event(view, "close-modal", %{id: "connect-amp-modal"})
-    assert has_element?(view, "#amp-integration", "Starting provider")
+    refute has_element?(view, "#amp-integration", "Starting provider")
+    refute has_element?(view, "#amp-integration button", "Refresh status")
+    refute has_element?(view, "#amp-integration", "Your token is saved.")
+    assert has_element?(view, "#amp-settings-form-1 button[disabled]", "Save changes")
+    assert has_element?(view, "#amp-settings-form-1 input[name=provider_token][value='']")
     refute render(view) =~ token
     assert AmpIntegrations.get(account.id).provider_token == token
-    view |> element("#amp-integration button", "Replace token") |> render_click()
-    refute render(view) =~ token
+    view |> form("#amp-settings-form-1", provider_token: "") |> render_submit()
+    assert AmpIntegrations.get(account.id).provider_token == token
 
     view
-    |> with_target("#amp-integration")
-    |> render_submit("save", %{"provider_token" => "aop_live_replaced"})
+    |> form("#amp-settings-form-1", provider_token: "aop_live_replaced")
+    |> render_change()
+
+    refute has_element?(view, "#amp-settings-form-1 button[disabled]", "Save changes")
+    refute render(view) =~ "aop_live_replaced"
+
+    view |> form("#amp-settings-form-1", provider_token: "aop_live_replaced") |> render_submit()
+    assert AmpIntegrations.get(account.id).provider_token == "aop_live_replaced"
+    assert has_element?(view, "#amp-settings-form-2 button[disabled]", "Save changes")
+    refute render(view) =~ "aop_live_replaced"
 
     view |> element("#amp-integration button", "Disconnect") |> render_click()
     assert has_element?(view, "#amp-integration", "Saved disks remain")
     view |> element("#amp-integration button", "Disconnect Amp") |> render_click()
-    assert has_element?(view, "#amp-integration", "Disconnecting")
+    assert has_element?(view, "#amp-integration button", "Connect")
+    refute has_element?(view, "#amp-integration input[name=provider_token]")
     assert is_nil(AmpIntegrations.get(account.id).provider_token)
   end
 
