@@ -90,8 +90,10 @@ defmodule Tuist.DocsTest do
       refute getting_started =~ "## Coverage and selective testing"
       refute getting_started =~ "compiler-invocation timings"
       sharding = Docs.get_page("/en/guides/features/test-sharding/rust").markdown
-      assert sharding =~ "does not shard plain `cargo test` runs"
-      assert sharding =~ "tuist cargo test --workspace"
+      assert sharding =~ "tuist cargo test -p store --no-run --shard-max 4"
+      assert sharding =~ "TUIST_SHARD_PLAN_ID=<plan-id> TUIST_SHARD_INDEX=0 tuist cargo test -p store"
+      assert sharding =~ "Multi-package sharding is not supported"
+      assert sharding =~ "target-level sharding, not build-once distribution"
       refute sharding =~ "test-build"
       assert Docs.get_page("/en/guides/features/test-sharding").markdown =~ "test-sharding/rust"
       tests = Docs.get_page("/en/guides/features/test-insights/rust").markdown
@@ -112,7 +114,10 @@ defmodule Tuist.DocsTest do
 
       assert flaky =~ "Cargo does not automatically retry failed tests"
       assert flaky =~ "CI runs on the same commit"
-      assert flaky =~ "does not apply quarantine yet"
+      assert flaky =~ "**Muted** tests still run and report their actual results"
+      assert flaky =~ "**Skipped** tests are excluded from execution and reported as quarantined skips"
+      assert flaky =~ "Skip quarantine requires one selected package"
+      assert flaky =~ "TUIST_TEST_SKIP_QUARANTINE=1 tuist cargo test --workspace"
       refute flaky =~ "Quarantine boundaries"
     end
 
