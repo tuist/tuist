@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "5f9ca5439ed1196be033f79dd9fce9ceb416c63e27985e651999c1c566bbcb33",
+  "hash": "2f48972e64fda443ac60dda6226f8b763445544484cb44f8b941caf96c29188d",
   "hash_tree": {
     "root": {
       "children": [
@@ -38,11 +38,11 @@
           "children": [
             {
               "children": [],
-              "hash": "00e0cd97c8c4aaf6e83d3e5200dc6652cc1753062e1b504dc7c47ba18e305f19",
+              "hash": "7f98cb91bee63604ea0b8d44a3a6f52eddfa348c963a2ea26580837c9fb393c9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "9579643f45897a82884d1b30480694e6029202260f47529196bebbf4a44d9065"
+                "content_hash": "7e1f5bd4849319b49d8c5172045b096a7212c77cd6ff5ebc53191a2889759ec3"
               }
             },
             {
@@ -84,20 +84,20 @@
               }
             }
           ],
-          "hash": "fea3279804e35d936743ee5c23117d91b8aa72744bbf37cae78976e44bec487c",
+          "hash": "6fd8fbdbe2fefcad14c6ed9c0a214511bdc9f174f2fecd3d7156e6e42db189f4",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
-      "hash": "5f9ca5439ed1196be033f79dd9fce9ceb416c63e27985e651999c1c566bbcb33",
+      "hash": "2f48972e64fda443ac60dda6226f8b763445544484cb44f8b941caf96c29188d",
       "kind": "translation_input",
       "label": "server/priv/gettext/dashboard.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b8ab5185c3bffb347298c1feacd00818dd033eff17b0dab1f6266323653cdbac",
+  "output_hash": "59ea26e42825ebea48b39af40ebb5a0c89862e927e9c839c26570bf70424421e",
   "output_path": "server/priv/gettext/ko/LC_MESSAGES/dashboard.po",
   "po_units": {
     "0005126fb5409cd2dcabef45976e06a618d170d8e761ee7a682db8a7c64bb2fa": "a00bfb76eb697fcd1cb2b3f9067dae91a541ce9a764c85682102c6a705a1786a",
@@ -724,8 +724,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "f251a0fa7c610dc33c0161256b34dba1b0bbc54c",
+  "source_commit_sha": "a341b43cd8ffe0d4f30bc492fbdde41215d99451",
   "source_path": "server/priv/gettext/dashboard.pot",
-  "translated_at": "2026-10-26T17:05:36.273213Z",
-  "translation_session_id": "01a1792b-2adf-70ed-9044-6da241aba135"
+  "translated_at": "2026-10-28T11:25:59.785484Z",
+  "translation_session_id": "01a18206-c5b9-7fa7-8475-f16a8b4263cd"
 }
