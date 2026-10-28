@@ -190,4 +190,117 @@ defmodule Tuist.Runners.SitesTest do
       refute Sites.available?(site_pool)
     end
   end
+
+  describe "claim_site/2" do
+    # The Node's site is cached by Node name, so each test reads its own Node.
+    setup do
+      %{node: "larch-runner-#{System.unique_integer([:positive])}"}
+    end
+
+    test "is the claiming Node's rack site", %{site_pool: site_pool, node: node} do
+      expect(Client, :get_node, fn ^node, _opts ->
+        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
+      end)
+
+      assert Sites.claim_site(site_pool, node) == "larch"
+    end
+
+    test "reads each Node once", %{site_pool: site_pool, node: node} do
+      expect(Client, :get_node, 1, fn ^node, _opts ->
+        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
+      end)
+
+      assert Sites.claim_site(site_pool, node) == "larch"
+      assert Sites.claim_site(site_pool, node) == "larch"
+    end
+
+    test "is the pool's site for a Node without the label", %{site_pool: site_pool, node: node} do
+      expect(Client, :get_node, fn ^node, _opts -> {:ok, %{"metadata" => %{"labels" => %{}}}} end)
+
+      assert Sites.claim_site(site_pool, node) == "ber1"
+    end
+
+    test "is the pool's site while the Node cannot be read, and reads it again next time", %{
+      site_pool: site_pool,
+      node: node
+    } do
+      expect(Client, :get_node, fn ^node, _opts -> {:error, :timeout} end)
+
+      assert Sites.claim_site(site_pool, node) == "ber1"
+
+      expect(Client, :get_node, fn ^node, _opts ->
+        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
+      end)
+
+      assert Sites.claim_site(site_pool, node) == "larch"
+    end
+
+    test "is the pool's site when the Pod's Node is unknown", %{site_pool: site_pool} do
+      reject(&Client.get_node/2)
+
+      assert Sites.claim_site(site_pool, nil) == "ber1"
+    end
+
+    test "is nil off the rack without reading the Node" do
+      reject(&Client.get_node/2)
+
+      assert Sites.claim_site("tuist-runner-pool-linux-4vcpu-16gb", "linux-node-1") == nil
+    end
+  end
+
+  describe "prefer_cache_site/3" do
+    setup %{account: account} do
+      now = ~U[2026-10-26 12:00:00Z]
+      warm_elsewhere = account_fixture()
+
+      young = %{workflow_job_id: 1, account_id: warm_elsewhere.id, enqueued_at: DateTime.add(now, -59, :second)}
+      old = %{workflow_job_id: 2, account_id: warm_elsewhere.id, enqueued_at: DateTime.add(now, -60, :second)}
+      other = %{workflow_job_id: 3, account_id: account.id, enqueued_at: DateTime.add(now, -1, :second)}
+
+      %{now: now, warm_elsewhere: warm_elsewhere, young: young, old: old, other: other}
+    end
+
+    test "leaves a young job of an account whose runner cache is warm at another site to that site", %{
+      now: now,
+      warm_elsewhere: warm_elsewhere,
+      young: young,
+      old: old,
+      other: other
+    } do
+      expect(Tuist.Kura, :runner_cache_elsewhere, fn account_ids, "larch" ->
+        assert Enum.sort(account_ids) == Enum.sort([warm_elsewhere.id, other.account_id])
+        MapSet.new([warm_elsewhere.id])
+      end)
+
+      assert Sites.prefer_cache_site([young, old, other], "larch", now) == [old, other]
+    end
+
+    test "keeps every job when no account's cache is warm elsewhere", %{now: now, young: young, other: other} do
+      expect(Tuist.Kura, :runner_cache_elsewhere, fn _account_ids, "ber1" -> MapSet.new() end)
+
+      assert Sites.prefer_cache_site([young, other], "ber1", now) == [young, other]
+    end
+
+    test "passes over every job, so the runner waits, when all are young and warm elsewhere", %{
+      now: now,
+      warm_elsewhere: warm_elsewhere,
+      young: young
+    } do
+      expect(Tuist.Kura, :runner_cache_elsewhere, fn _account_ids, "larch" -> MapSet.new([warm_elsewhere.id]) end)
+
+      assert Sites.prefer_cache_site([young], "larch", now) == []
+    end
+
+    test "keeps every job for a runner off the rack", %{now: now, young: young} do
+      reject(&Tuist.Kura.runner_cache_elsewhere/2)
+
+      assert Sites.prefer_cache_site([young], nil, now) == [young]
+    end
+
+    test "reads nothing for an empty queue" do
+      reject(&Tuist.Kura.runner_cache_elsewhere/2)
+
+      assert Sites.prefer_cache_site([], "ber1") == []
+    end
+  end
 end

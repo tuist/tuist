@@ -49,6 +49,19 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether the account may use agent sandboxes: the sandbox and agent
+  session API, and the work pollers of its agent environments. Canary and
+  production require an explicit `:sandboxes` FunWithFlags toggle for the
+  account, since every sandbox runs on shared bare-metal nodes.
+  Development, test, and staging default to enabled.
+  """
+  def sandboxes_enabled?(account) do
+    not sandboxes_flag_required?() or FunWithFlags.enabled?(:sandboxes, for: account)
+  end
+
+  defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
+
+  @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
   for the given account. Canary and production require an explicit
   `:runners` FunWithFlags toggle for the actor. Development, test, and
@@ -67,6 +80,16 @@ defmodule Tuist.FeatureFlags do
   end
 
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
+
+  @doc """
+  Whether the account's Linux jobs get a persistent Docker data root per
+  repository (`Tuist.Runners.CacheVolumes.allocate_docker/1`). Canary and
+  production require the `:runner_docker_cache` flag for the account during the
+  rollout; development, test and staging default to enabled.
+  """
+  def runner_docker_cache_enabled?(account) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_docker_cache, for: account)
+  end
 
   @doc """
   Whether the account gets a node in the runner-cache region of each site its

@@ -17,7 +17,7 @@ Allowlist the Tuist IP range and the server addresses below. If your workflows r
 
 ### Tuist IP range {#tuist-ip-range}
 
-Tuist operates its own network under [AS218377](https://stat.ripe.net/AS218377), registered to Tuist GmbH in the RIPE Database. Traffic from Tuist, including Tuist Runners, is moving to the following ranges. Add them to your allowlist now so the move requires no changes on your side.
+Tuist operates its own network under [AS218377](https://stat.ripe.net/AS218377), registered to Tuist GmbH in the RIPE Database. macOS jobs on Tuist Runners hosted in Tuist's own racks already reach the internet from this range, and the rest of Tuist's traffic is moving to it. Add it to your allowlist so the move requires no changes on your side.
 
 | IP version | CIDR notation |
 |---|---|
@@ -49,6 +49,8 @@ Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners<
 
 #### macOS {#tuist-runners-macos}
 
+macOS jobs on Tuist's own racks reach the internet from the [Tuist IP range](#tuist-ip-range). Jobs on other macOS hosts use the following addresses.
+
 | IP address | CIDR notation |
 |---|---|
 | 62.210.150.71 | `62.210.150.71/32` |
@@ -63,9 +65,19 @@ Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners<
 | 62.210.194.125 | `62.210.194.125/32` |
 | 62.210.194.173 | `62.210.194.173/32` |
 | 62.210.195.116 | `62.210.195.116/32` |
-| 149.6.170.31 | `149.6.170.31/32` |
 
 #### Linux {#tuist-runners-linux}
+
+Linux runners are moving to a reserved IPv4 range. **Add `5.135.7.160/27` to your allowlist now**, alongside every current address listed below, so your workflows can continue connecting when the switch happens.
+
+| Upcoming production range | Status |
+|---|---|
+| `5.135.7.160/27` | Reserved for Linux runner egress; production has not switched yet. |
+
+> [!IMPORTANT]
+> Keep the current Linux addresses allowlisted throughout the transition. Do not replace them with the new range yet. This page will be updated after the production switch is complete and the old addresses can be removed. The macOS and server allowlists are unchanged.
+
+Current production Linux runner addresses:
 
 | IP address | CIDR notation |
 |---|---|
@@ -81,7 +93,7 @@ Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners<
 | 217.182.193.152 | `217.182.193.152/32` |
 
 > [!NOTE]
-> These lists change when we add machines to the fleets. Runners are moving to the [Tuist IP range](#tuist-ip-range), after which these per-machine addresses are no longer needed.
+> Current per-machine lists can change as the fleets grow. The upcoming Linux range above is allocated through OVHcloud and is separate from the [Tuist IP range](#tuist-ip-range) used by rack-hosted macOS jobs.
 
 <!--
 MAINTAINERS: the server table is the customer-facing contract for the reserved
@@ -91,13 +103,22 @@ active Floating IP is outside that allowlist). When reserving additional
 Floating IPs in the tuist-workloads project, add their /32s to BOTH places
 *before* they are ever used as egress.
 
-The macOS runner table includes the rack's single WAN address, which is
-`management.edge.wan.address` in infra/rack-switch-fleet/sites/ber1.json.
-Update both when a rack's upstream address changes or a new rack site is added.
+The rack's Mac minis leave from `management.edge.wan.egress.prefix` in
+infra/rack-switch-fleet/sites/ber1.json, inside the Tuist IP range, so the
+macOS table lists only the rented hosts. A new rack site has to egress from
+the range too, or its address has to be added to the table.
 
 The Tuist IP range is registered to ORG-TG278-RIPE (LIR de.tuist) and announced
 from AS218377. Only list a prefix here once it is registered to Tuist GmbH in
 the RIPE Database with a route/route6 object and a ROA for AS218377.
 Add it to server/priv/static/geofeed.csv too, with the location of the site
 that announces it.
+
+The upcoming Linux range must match `capi.ovhRunnerEgress.cidr` in
+infra/helm/tuist/values-managed-production.yaml. Publish it before enabling
+production egress so allowlists can be updated in advance. Keep the current
+Linux /32s through the rollout and rollback window; remove them only after all
+production runners have been verified on the new block and rollback no longer
+requires the primary IPs. This OVH allocation is not an AS218377 announcement
+and must not be added to the Tuist-owned range table or geofeed.
 -->

@@ -99,10 +99,16 @@ jobs:
           echo "environments=$environments" >> "$GITHUB_OUTPUT"
 
       # The committed configs are the reviewed artefact. If they no longer match
-      # what the site definition renders, the diff a reviewer read is not the
+      # what the site definitions render, the diff a reviewer read is not the
       # one that would be applied.
-      - name: The rendered configs match the site definition
-        run: mise run rack:fleet render --check
+      - name: The rendered configs match the site definitions
+        run: |
+          set -euo pipefail
+          for site in infra/rack-switch-fleet/sites/*.json; do
+            echo "::group::$(basename "$site" .json)"
+            mise run rack:fleet --site "$(basename "$site" .json)" render --check
+            echo "::endgroup::"
+          done
 
       - name: Test the fleet configuration
         run: mise run rack:fleet-test

@@ -171,10 +171,12 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             var filesByFunction: [String: [String: Set<String>]] = [:]
             var mappings: [String: VerifiedCoverageMapping] = [:]
             let profileCounts = await profileCounts(profile: profile)
-            for image in Set(outputs.flatMap { $0.images.values.map(\.path) }) {
+            let images = Set(outputs.flatMap { $0.images.values.map(\.path) })
+            let architecture = CoverageExportService.architecture(ofImages: images.sorted())
+            for image in images {
                 let target = CompilationPrefixMaps.targetName(ofProduct: image)
                 let remap: (String) -> String = { prefixMaps.remap($0, target: target) }
-                let table = await lcovTable(image: image, profile: profile, remap: remap)
+                let table = await lcovTable(image: image, profile: profile, architecture: architecture, remap: remap)
                 filesByFunction[image] = table.filesByFunction
                 if let mapping = CoverageMapping(imagePath: image)?.remappingFiles(remap) {
                     mappings[image] = VerifiedCoverageMapping(mapping: mapping, report: table, profileCounts: profileCounts)
@@ -328,7 +330,12 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
 
     // MARK: - Tools and files
 
-    private func lcovTable(image: String, profile: AbsolutePath, remap: @escaping (String) -> String) async -> LCOVFunctionTable {
+    private func lcovTable(
+        image: String,
+        profile: AbsolutePath,
+        architecture: String,
+        remap: @escaping (String) -> String
+    ) async -> LCOVFunctionTable {
         var table = LCOVFunctionTable()
         table.remap = remap
         do {
@@ -339,7 +346,7 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             let command = [
                 "/usr/bin/xcrun", "llvm-cov", "export", "-format=lcov",
                 "-ignore-filename-regex=/(\\.build|DerivedData|SourcePackages|Pods|Carthage)/",
-                "-instr-profile", profile.pathString, image,
+                "-instr-profile", profile.pathString, "-arch", architecture, image,
             ]
             for try await event in commandRunner.run(arguments: command, environment: Environment.current.variables) {
                 guard case let .standardOutput(bytes) = event else { continue }

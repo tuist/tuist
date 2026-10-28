@@ -19,7 +19,7 @@ validate_live_activity_bundle() {
         return 1
     }
     for other in "$app"/PlugIns/*.appex; do
-        if [[ "$other" != "$activity" && ( -e "$other" || -L "$other" ) ]]; then
+        if [[ "$other" != "$activity" && "$other" != "$app/PlugIns/AtlasShare.appex" && ( -e "$other" || -L "$other" ) ]]; then
             echo "Unexpected extension in the distribution app: $other" >&2
             return 1
         fi
@@ -28,9 +28,10 @@ validate_live_activity_bundle() {
 
 validate_live_activity_profile() {
     local profile="$1" host_profile="$2" identity="$3" expires expiration
+    local bundle_id=${4:-dev.tuist.atlas.live-activity}
     local devices device candidate index=0 other_index found encoded fingerprint
-    [[ $(live_activity_plist -c 'Print :Entitlements:application-identifier' "$profile") = U6LC622NKF.dev.tuist.atlas.live-activity ]] || {
-        echo "Expected the Atlas Live Activity provisioning profile" >&2
+    [[ $(live_activity_plist -c 'Print :Entitlements:application-identifier' "$profile") = "U6LC622NKF.$bundle_id" ]] || {
+        echo "Expected the $bundle_id provisioning profile" >&2
         return 1
     }
     [[ $(live_activity_plist -c 'Print :Entitlements:com.apple.developer.team-identifier' "$profile") = U6LC622NKF ]] || {
@@ -85,7 +86,8 @@ validate_live_activity_profile() {
 }
 
 prepare_live_activity_distribution() {
-    local app="$1" profile="$2" entitlements="$3" activity="$1/PlugIns/AtlasLiveActivity.appex" version
+    local app="$1" profile="$2" entitlements="$3" product=${4:-AtlasLiveActivity} version
+    local activity="$app/PlugIns/$product.appex"
     cp "$profile" "$activity/embedded.mobileprovision" || return 1
     for version in CFBundleVersion CFBundleShortVersionString; do
         live_activity_plist -c "Set :$version $(live_activity_plist -c "Print :$version" "$app/Info.plist")" "$activity/Info.plist" || return 1
@@ -101,15 +103,23 @@ prepare_live_activity_distribution() {
 <key>get-task-allow</key><false/>
 </dict></plist>
 PLIST
+    if [[ "$product" = AtlasShare ]]; then
+        live_activity_plist -c 'Set :application-identifier U6LC622NKF.dev.tuist.atlas.share' "$entitlements" || return 1
+    fi
 }
 
 sign_live_activity_distribution() {
     local app="$1" identity="$2" keychain="$3" host_entitlements="$4" activity_entitlements="$5"
+    local share_entitlements=${6:-} share="$1/PlugIns/AtlasShare.appex"
     local activity="$1/PlugIns/AtlasLiveActivity.appex" library framework
     local framework_dirs=("$app/Frameworks")
+    local scans=(--scan-executable "$app/Atlas" --scan-executable "$activity/AtlasLiveActivity")
+    if [[ -n "$share_entitlements" ]]; then
+        scans+=(--scan-executable "$share/AtlasShare")
+        if [[ -d "$share/Frameworks" ]]; then framework_dirs+=("$share/Frameworks"); fi
+    fi
     mkdir -p "$app/Frameworks" || return 1
-    xcrun swift-stdlib-tool --copy --scan-executable "$app/Atlas" \
-        --scan-executable "$activity/AtlasLiveActivity" --platform iphoneos --destination "$app/Frameworks" || return 1
+    xcrun swift-stdlib-tool --copy "${scans[@]}" --platform iphoneos --destination "$app/Frameworks" || return 1
     if [[ -d "$activity/Frameworks" ]]; then framework_dirs+=("$activity/Frameworks"); fi
     while IFS= read -r -d '' library; do
         codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none "$library" || return 1
@@ -120,6 +130,11 @@ sign_live_activity_distribution() {
     codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none \
         --generate-entitlement-der --entitlements "$activity_entitlements" "$activity" || return 1
     codesign --verify --deep --strict "$activity" || return 1
+    if [[ -n "$share_entitlements" ]]; then
+        codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none \
+            --generate-entitlement-der --entitlements "$share_entitlements" "$share" || return 1
+        codesign --verify --deep --strict "$share" || return 1
+    fi
     codesign --force --sign "$identity" --keychain "$keychain" --timestamp=none \
         --generate-entitlement-der --entitlements "$host_entitlements" "$app" || return 1
     codesign --verify --deep --strict "$app"

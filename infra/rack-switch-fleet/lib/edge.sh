@@ -59,11 +59,24 @@ fleet_edge_check() {
     echo "error: management.edge.netboot serves the provisioning range, and the site has none" >&2
     return 1
   fi
+  if fleet_edge_management_on_uplinks "$site_file" && [ "$interface" != mgmt0 ]; then
+    echo "error: the management VLAN rides the edges' uplinks, so management.edge.interface is mgmt0, the bond the edge builds for it, not '$interface'" >&2
+    return 1
+  fi
   fleet_edge_check_vrrp "$site_file" || return 1
   fleet_edge_check_machines "$site_file" || return 1
   fleet_edge_check_rack_caches "$site_file" || return 1
   fleet_edge_check_wan "$site_file" || return 1
+  fleet_edge_check_tor_management "$site_file" || return 1
   fleet_edge_check_power "$site_file"
+}
+
+# Whether the management VLAN rides the edges' uplinks rather than a port of
+# their own on a management switch: a site with no management switch, whose
+# management ports are on its ToRs, carries it to the edges with their other
+# VLANs, and they reach it as mgmt0, a bond like machines0.
+fleet_edge_management_on_uplinks() {
+  jq -e '.management.vlan as $v | any(.vlans[]?; .id == $v and .carried_by == "edges")' "$1" >/dev/null
 }
 
 # The site's own way to the internet, when it has one: an address with its
@@ -269,7 +282,8 @@ fleet_edge_power() {
 fleet_edge_power_devices() {
   local site_file="$1"
   jq -r '
-    [.devices[]? | select(.behind_edge) | .name] as $behind |
+    (.management.vlan as $v | any(.vlans[]?; .id == $v and .carried_by == "edges")) as $on_uplinks |
+    [.devices[]? | select(.behind_edge or $on_uplinks) | .name] as $behind |
     .nodes[]? | select(.role == "power" and .status == "installed" and (.mgmt_address // "") != "") |
     select(any(.links[]?; .purpose == "management" and (.switch as $s | $behind | index($s)))) |
     [.name, (.mac // ""), .mgmt_address] | join("|")
@@ -398,6 +412,9 @@ fleet_edge_check_rack_caches() {
   local site_file="$1" values="${2:-}" storage linux bad="" node address cidr
   [ -n "$values" ] || values="$(fleet_rack_values "$site_file")" || return 1
   [ -f "$values" ] || return 0
+  # The caches are rackFleet's, which serves one site: another site's are not
+  # this one's to check.
+  [ "$(yq -r '.rackFleet.site // ""' "$values" 2>/dev/null)" = "$(jq -r '.site' "$site_file")" ] || return 0
   storage="$(jq -c '[.nodes[]? | select(.role == "storage" and .status != "planned") | .name]' "$site_file")"
   linux="$(yq -o=json '[.rackLinuxFleet.hosts[]? | {"key": .hostname, "value": (.address // "")}] | from_entries' "$values" 2>/dev/null)" || linux=''
   [ -n "$linux" ] || linux='{}'
@@ -524,17 +541,26 @@ if [ "\$(cat /proc/sys/net/ipv4/ip_forward)" != 1 ]; then
   echo "net.ipv4.ip_forward is off; the node's converge turns it on" >&2
   exit 1
 fi
-ip link set $interface up
 SCRIPT
+  # On a site with no management switch the management VLAN rides the
+  # uplinks, and mgmt0 is built below with the other edge VLANs.
+  local on_uplinks=""
+  fleet_edge_management_on_uplinks "$site_file" && on_uplinks=1
+  [ -n "$on_uplinks" ] || echo "ip link set $interface up"
   # This node's own end of VRRP. Each edge VLAN rides an active-backup bond
   # over one VLAN interface per uplink, so it survives losing either ToR, and
   # the edges never both believe the other is gone while both are up.
   # The uplinks' rings are 4096 descriptors rather than i40e's 512, which
   # overflow on the WAN's line-rate bursts and drop packets the NIC counts as
   # rx_missed_errors. Setting the counts a ring already has changes nothing.
+  # A NIC whose rings hold fewer gets its most (`ring_max` in node_models.json):
+  # ethtool refuses a count above it, which would stop this script.
   local node address uplink_names vrrp_length machines peer member
   vrrp_length="$(fleet_prefix_length "$vrrp_prefix")"
   mapfile -t members < <(fleet_edge_members "$site_file")
+  local limited ring=""
+  limited="$(jq -r --slurpfile hw "$FLEET_NODE_MODELS" '[.nodes[]? | select(.role == "edge") | . as $n | .links[] |
+    select(.purpose == "data") | $hw[0][$n.hardware // ""].interfaces[.nic].ring_max // empty] | length' "$site_file")"
   cat <<'SCRIPT'
 case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
 SCRIPT
@@ -548,14 +574,30 @@ SCRIPT
     if [ -n "$wan_vlan" ]; then
       peer=" peer_address=$(printf '%s\n' "${members[@]}" | awk -F'\t' -v n="$node" '$1 != n {print $2; exit}')"
     fi
-    printf '  %s) vrrp_address=%s%s%s uplinks="%s" ;;\n' "$node" "$address/$vrrp_length" "$machines" "$peer" "$uplink_names"
+    if (( limited > 0 )); then
+      ring=" ring=$(jq -r --slurpfile hw "$FLEET_NODE_MODELS" --arg n "$node" '.nodes[] | select(.name == $n) | . as $n |
+        [4096, (.links[] | select(.purpose == "data") | $hw[0][$n.hardware // ""].interfaces[.nic].ring_max // empty)] | min' "$site_file")"
+    fi
+    printf '  %s) vrrp_address=%s%s%s%s uplinks="%s" ;;\n' "$node" "$address/$vrrp_length" "$machines" "$peer" "$ring" "$uplink_names"
   done
   cat <<'SCRIPT'
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
 esac
+SCRIPT
+  if (( limited > 0 )); then
+    cat <<'SCRIPT'
+for uplink in $uplinks; do
+  ethtool -G "$uplink" rx "$ring" tx "$ring"
+done
+SCRIPT
+  else
+    cat <<'SCRIPT'
 for uplink in $uplinks; do
   ethtool -G "$uplink" rx 4096 tx 4096
 done
+SCRIPT
+  fi
+  cat <<'SCRIPT'
 edge_vlan_bond() {
   bond=$1 vlan=$2 i=0
   ip link show "$bond" >/dev/null 2>&1 || ip link add "$bond" type bond mode active-backup miimon 100
@@ -573,6 +615,7 @@ edge_vlan_bond() {
 }
 SCRIPT
   echo "edge_vlan_bond vrrp0 $vrrp_vlan"
+  [ -n "$on_uplinks" ] && echo "edge_vlan_bond $interface $(jq -r '.management.vlan' "$site_file")"
   cat <<'SCRIPT'
 ip addr replace "$vrrp_address" dev vrrp0
 SCRIPT
@@ -588,6 +631,26 @@ SCRIPT
   fi
   if [ -n "$wan_vlan" ]; then
     echo "edge_vlan_bond wan0 $wan_vlan"
+    # What the edge's install took on its own while no pod ran here (its
+    # first-boot WAN, rackinstall.EdgeFirstWANPath), given up before keepalived
+    # starts, so the WAN is keepalived's alone from here on: an address on
+    # wan0, or a macvlan of an uplink, which goes with its address.
+    local first_wan_address first_wan_gateway
+    IFS=$'\x1f' read -r first_wan_address first_wan_gateway < <(jq -r '.management.edge.wan |
+      [(.address // ""), (.gateway // "")] | join("\u001f")' "$site_file")
+    if [ -n "$first_wan_address" ]; then
+      cat <<SCRIPT
+if [ -s /run/rack-edge/first-wan ]; then
+  read -r first_wan </run/rack-edge/first-wan
+  case "\$first_wan" in
+    wan0) ip route del default via $first_wan_gateway dev wan0 metric 50 2>/dev/null || true
+      ip addr del $first_wan_address dev wan0 2>/dev/null || true ;;
+    *) ip link del "\$first_wan" 2>/dev/null || true ;;
+  esac
+  rm -f /run/rack-edge/first-wan
+fi
+SCRIPT
+    fi
     # The WAN address and the default route through it are keepalived's, on
     # the master. Every edge also routes out through the other one, at a
     # higher metric: that is the standby's only way out, and the master's
@@ -603,7 +666,8 @@ SCRIPT
     echo 'ip route replace default via "$peer_address" dev vrrp0 metric 200 proto static'
     # shellcheck disable=SC2016  # expanded by the rendered script, per edge
     echo 'nexthops=""; for uplink in $uplinks; do nexthops="$nexthops nexthop dev $uplink"; done'
-    jq -r '.devices[] | select(.behind_edge | not) | "ip route replace \(.mgmt_address)/32 $nexthops"' "$site_file"
+    # Not a PicOS ToR: its management port is out of band, cabled to an edge.
+    jq -r --slurpfile models "$FLEET_MODELS" '.devices[] | select((.behind_edge | not) and ($models[0][.model].os // "omada") != "picos") | "ip route replace \(.mgmt_address)/32 $nexthops"' "$site_file"
   fi
   # The floating addresses, and the routes that use them as their source, are
   # keepalived's, on whichever edge holds them. On the switch port they are
@@ -1033,6 +1097,16 @@ if ip -4 -o addr show dev $interface 2>/dev/null | grep -qF ' $edge_address/'; t
 fi
 SCRIPT
   fi
+  # A PicOS ToR's management address, from the edge whose link reaches it:
+  # the one holding its end of that link.
+  local node link_interface link_address tor_address
+  while IFS=$'\t' read -r node link_interface link_address _ _ tor_address; do
+    cat <<SCRIPT
+if ip -4 -o addr show dev $link_interface 2>/dev/null | grep -qF ' $link_address'; then
+  routes="\${routes:+\$routes,}$tor_address/32"
+fi
+SCRIPT
+  done < <(fleet_edge_tor_links "$site_file")
   cat <<'SCRIPT'
 exec tailscale --socket=/run/tailscale/tailscaled.sock set --advertise-routes="$routes"
 SCRIPT
@@ -1047,12 +1121,16 @@ SCRIPT
 # management VLAN, so without it a reinstalled edge reaches nothing, the
 # tailnet included. A site with no WAN lists no edges, and its edges' installs
 # keep DHCP on their uplinks.
+# With the WAN's address known, each edge also carries the site's static WAN
+# (its VLAN, address and gateway), which an edge takes on its own while no
+# rack-edge pod runs on it and nobody else holds the address: the first edge
+# of a site has no other edge to go out through.
 fleet_edge_install() {
-  local site_file="$1" vrrp_prefix vrrp_vlan wan_vlan vrrp_length node address uplink_names peer member
+  local site_file="$1" vrrp_prefix vrrp_vlan wan_vlan wan_address wan_gateway vrrp_length node address uplink_names peer member wan=""
   local -a members
   fleet_edge_check "$site_file" || return 1
-  IFS=$'\x1f' read -r vrrp_prefix vrrp_vlan wan_vlan < <(jq -r '.management.edge as $e | [
-      $e.vrrp.prefix, $e.vrrp.vlan, ($e.wan.vlan // "")
+  IFS=$'\x1f' read -r vrrp_prefix vrrp_vlan wan_vlan wan_address wan_gateway < <(jq -r '.management.edge as $e | [
+      $e.vrrp.prefix, $e.vrrp.vlan, ($e.wan.vlan // ""), ($e.wan.address // ""), ($e.wan.gateway // "")
     ] | map(tostring) | join("\u001f")' "$site_file")
   vrrp_length="$(fleet_prefix_length "$vrrp_prefix")"
   echo "# generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")"
@@ -1060,12 +1138,203 @@ fleet_edge_install() {
     echo "edges: {}"
     return 0
   fi
+  if [ -n "$wan_address" ]; then
+    wan="$(printf '    wan:\n      vlan: %s\n      address: %s\n      gateway: %s\n' "$wan_vlan" "$wan_address" "$wan_gateway")"$'\n'
+  fi
   echo "edges:"
   mapfile -t members < <(fleet_edge_members "$site_file")
   for member in "${members[@]}"; do
     IFS=$'\t' read -r node address _ uplink_names <<<"$member"
     peer="$(printf '%s\n' "${members[@]}" | awk -F'\t' -v n="$node" '$1 != n {print $2; exit}')"
-    printf '  %s:\n    uplinks: [%s]\n    vrrp:\n      vlan: %s\n      address: %s/%s\n      peer: %s\n' \
-      "$node" "${uplink_names// /, }" "$vrrp_vlan" "$address" "$vrrp_length" "$peer"
+    printf '  %s:\n    uplinks: [%s]\n    vrrp:\n      vlan: %s\n      address: %s/%s\n      peer: %s\n%s' \
+      "$node" "${uplink_names// /, }" "$vrrp_vlan" "$address" "$vrrp_length" "$peer" "$wan"
   done
+}
+
+# --- a PicOS ToR's zero-touch provisioning -----------------------------------
+#
+# A PicOS ToR's management port (eth0) is cabled straight to an edge, which
+# provisions it: `tor_management` on the edge node names the ToR, the edge's
+# NIC on the link and the edge's address on it (a /30, the ToR's mgmt_address
+# being the other host). The edge answers DHCP there for the ToR's MAC alone,
+# with options 66 and 67 naming the bootstrap and 7 itself for ZTP's syslog,
+# serves the bootstrap over TFTP, and forwards the ToR's NTP and nothing else
+# it starts. See AGENTS.md, "PicOS switches".
+
+# One line per edge that provisions a ToR: node, OS interface, the edge's
+# address with its prefix, and the ToR's name, MAC and address.
+fleet_edge_tor_links() {
+  jq -r --slurpfile hw "$FLEET_NODE_MODELS" '
+    . as $s | .nodes[]? | select(.role == "edge" and .tor_management != null) |
+    . as $n | .tor_management as $t |
+    ([$s.devices[] | select(.name == $t.switch)] | first // {}) as $tor |
+    [$n.name, ($hw[0][$n.hardware // ""].interfaces[$t.nic].os_name // ""),
+     $t.address, $t.switch, ($tor.mac // ""), ($tor.mgmt_address // "")] | join("\t")' "$1"
+}
+
+fleet_edge_check_tor_management() {
+  local site_file="$1" bad node interface address tor mac tor_address
+  bad="$(jq -r --slurpfile hw "$FLEET_NODE_MODELS" --slurpfile models "$FLEET_MODELS" '
+    . as $s | [.nodes[]? | select(.role == "edge" and .tor_management != null)] as $edges |
+    (
+      ($edges[] | . as $n | .tor_management as $t |
+        ([$s.devices[] | select(.name == $t.switch)] | first) as $tor |
+        if $tor == null then "\($n.name): tor_management names \($t.switch), which is not one of the site'\''s switches"
+        elif ($models[0][$tor.model].os // "omada") != "picos" then "\($n.name): \($tor.name) is not a PicOS switch, and only those are provisioned from an edge"
+        elif ($tor.mac // "") == "" then "\($tor.name) has no mac, and its edge answers DHCP for that MAC alone"
+        elif ($tor.mgmt_address // "") == "" then "\($tor.name) has no mgmt_address"
+        elif ($hw[0][$n.hardware // ""].interfaces[$t.nic // ""].os_name // "") == "" then "\($n.name): \($t.nic) is not an interface of a \($n.hardware // "node of no hardware") that has an OS name"
+        elif ($t.address | test("^[0-9]+([.][0-9]+){3}/30$") | not) then "\($n.name): tor_management.address \($t.address) is not an address on a /30"
+        else empty end),
+      ($edges | group_by(.tor_management.switch)[] | select(length > 1) |
+        "\(.[0].tor_management.switch) is provisioned from \(length) edges; one link, one edge")
+    )' "$site_file" | head -1)"
+  if [ -n "$bad" ]; then
+    echo "error: $bad" >&2
+    return 1
+  fi
+  while IFS=$'\t' read -r node interface address tor mac tor_address; do
+    if [ "$tor_address" = "${address%/*}" ] || ! fleet_in_network "$tor_address" "$address"; then
+      echo "error: $tor's mgmt_address $tor_address is not the other host on $node's link $address" >&2
+      return 1
+    fi
+  done < <(fleet_edge_tor_links "$site_file")
+}
+
+# ztp.sh: the edge's address on its ToR's link, the forwarding the ToR gets,
+# then dnsmasq with that edge's configuration; `ztp.sh console` instead
+# watches the ToR and reboots it over its console when ZTP missed it
+# (edge/tor-console). An edge that provisions no ToR sleeps, so neither
+# container restarts.
+fleet_edge_ztp_run() {
+  local site_file="$1" node interface address tor_address
+  fleet_edge_check_tor_management "$site_file" || return 1
+  cat <<SCRIPT
+#!/bin/sh
+# generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
+SCRIPT
+  cat <<'SCRIPT'
+case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
+SCRIPT
+  while IFS=$'\t' read -r node interface address _ _ tor_address; do
+    printf '  %s) interface=%s address=%s tor_address=%s ;;\n' "$node" "$interface" "$address" "$tor_address"
+  done < <(fleet_edge_tor_links "$site_file")
+  cat <<'SCRIPT'
+  *) echo "$NODE_NAME provisions no ToR"; exec sleep infinity ;;
+esac
+if [ "${1:-}" = console ]; then
+  exec rack-tor-console -address "$tor_address"
+fi
+ip link set "$interface" up
+ip addr replace "$address" dev "$interface"
+network=$(ip -4 -o route show dev "$interface" proto kernel scope link | awk '{print $1; exit}')
+# The ToR reaches NTP through the edge and nothing else it starts; the
+# controller's connections to it, from the tailnet, come back as replies.
+nft -f - <<NFT
+table inet tuist_rack_ztp
+delete table inet tuist_rack_ztp
+table inet tuist_rack_ztp {
+  chain forward {
+    type filter hook forward priority filter;
+    iifname "$interface" ct state established,related accept
+    iifname "$interface" udp dport 123 accept
+    iifname "$interface" drop
+  }
+  chain clamp {
+    type filter hook forward priority mangle;
+    oifname "tailscale0" ip saddr $network tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
+  }
+  chain postrouting {
+    type nat hook postrouting priority srcnat;
+    ip saddr $network udp dport 123 masquerade
+  }
+}
+NFT
+exec dnsmasq --no-daemon --conf-file="/etc/rack-edge/ztp-$NODE_NAME.conf"
+SCRIPT
+}
+
+# ztp-<node>.conf: DHCP for the ToR's MAC alone, and the bootstrap over TFTP,
+# on that edge's link only.
+fleet_edge_ztp_dhcp() {
+  local site_file="$1" want="$2" node interface address tor mac tor_address
+  fleet_edge_check_tor_management "$site_file" || return 1
+  while IFS=$'\t' read -r node interface address tor mac tor_address; do
+    [ "$node" = "$want" ] || continue
+    cat <<CONF
+# generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
+# $tor's zero-touch provisioning, on $node's link to its management port.
+port=0
+interface=$interface
+bind-interfaces
+no-hosts
+no-resolv
+dhcp-authoritative
+dhcp-leasefile=/var/lib/misc/tuist-rack-ztp.leases
+log-facility=-
+log-dhcp
+dhcp-range=$(fleet_network "$address" | cut -d/ -f1),static,255.255.255.252,1h
+dhcp-host=$mac,$tor_address,$tor
+dhcp-ignore=tag:!known
+dhcp-option=option:router,${address%/*}
+dhcp-option=66,${address%/*}
+dhcp-option=67,"picos-bootstrap.sh"
+dhcp-option=7,${address%/*}
+enable-tftp
+tftp-root=/etc/rack-edge
+CONF
+    return 0
+  done < <(fleet_edge_tor_links "$site_file")
+  echo "error: $want provisions no ToR" >&2
+  return 1
+}
+
+# picos-bootstrap.sh: what a factory PicOS ToR runs from ZTP, from the
+# template in picos/ with the site's parameters. Public data only.
+fleet_picos_bootstrap() {
+  local site_file="$1" user keys ntp template
+  user="$(jq -r '.credentials.username' "$site_file")"
+  keys="$(jq -r '.management.picos.authorized_keys // [] | join("\n")' "$site_file")"
+  ntp="$(jq -r '.management.picos.ntp // [] | join(" ")' "$site_file")"
+  if [ -z "$keys" ] || [ -z "$ntp" ]; then
+    echo "error: management.picos needs authorized_keys (the rack switch controller's public key) and ntp servers" >&2
+    return 1
+  fi
+  if grep -q "'" <<<"$keys$ntp$user"; then
+    echo "error: management.picos and credentials.username cannot hold a single quote" >&2
+    return 1
+  fi
+  template="$(cat "$FLEET_ROOT/picos/bootstrap.sh.tmpl")"
+  template="${template//@USER@/$user}"
+  template="${template//@NTP_SERVERS@/$ntp}"
+  template="${template//@WAN_VLAN@/$(fleet_picos_wan_vlan "$site_file")}"
+  template="${template//@WAN_PATHS@/$(fleet_picos_wan_paths "$site_file")}"
+  printf '%s\n' "${template//@AUTHORIZED_KEYS@/$keys}"
+}
+
+# The site's WAN VLAN as the bootstrap names it, "<id> <name>", or nothing at a
+# site whose edges carry no WAN.
+fleet_picos_wan_vlan() {
+  jq -r '.management.edge.wan.vlan as $v | select($v) |
+    (.vlans[]? | select(.id == $v) | "\(.id) \(.name)") // empty' "$1" | head -n 1
+}
+
+# The WAN path each PicOS ToR sets up for itself from zero-touch provisioning,
+# one "<mac> <wan port> <edge ports, comma separated>" per ToR with a recorded
+# MAC and a live WAN port: the carrier's port untagged on the WAN VLAN and every
+# port an edge's data link lands on tagged with it. A factory ToR passes the
+# carrier untagged, and only the controller, reached over that same WAN, would
+# otherwise configure the VLAN, so the first edge at a WAN-only site would lose
+# its way out the moment its rack-edge pod moved the WAN onto the VLAN.
+fleet_picos_wan_paths() {
+  [ -n "$(fleet_picos_wan_vlan "$1")" ] || return 0
+  jq -r --slurpfile models "$FLEET_MODELS" '
+    .nodes as $nodes |
+    .devices[]? | select($models[0][.model].os == "picos" and (.mac // "") != "") | .name as $s | .mac as $mac |
+    ([(.ports // {}) | to_entries[] | select(.value.purpose == "wan" and (.value.status // "") != "planned") | .key] | first) as $wan |
+    select($wan) |
+    ([$nodes[]? | select(.role == "edge") | .links[] | select(.switch == $s and .purpose == "data") | .port] | sort | map(tostring) | join(",")) as $legs |
+    select($legs != "") |
+    "\($mac | gsub("[:-]"; "") | ascii_downcase) \($wan) \($legs)"
+  ' "$1"
 }

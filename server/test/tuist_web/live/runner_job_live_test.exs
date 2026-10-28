@@ -27,6 +27,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Errors.NotFoundError
 
+  # Step logs run real ClickHouse queries, which can exceed the default 100ms under CI load.
+  @render_async_timeout 5_000
+
   setup %{conn: conn} do
     stub(K8sClient, :patch_pod, fn _namespace, _pod_name, _patch -> {:ok, %{}} end)
 
@@ -107,6 +110,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     assert html =~ "CLI · Unit Tests"
     assert html =~ "Linux"
+    assert html =~ "tuist-runner-x"
     # status_badge_props maps conclusion=success → "Passed"
     assert html =~ "Passed"
   end
@@ -440,7 +444,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     end
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="1"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
     expanded = lv |> element(~s{[data-part="step-expanded"]}) |> render()
 
     refute expanded =~ ~s(data-part="step-insight-detail")
@@ -1098,7 +1102,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     # Expanding the Build step (number 2) shows the in-step lines
     # but not the teardown content.
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "inside the build step"
@@ -1122,7 +1126,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316030/jobs/31603")
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert has_element?(lv, ~s{[data-kind="action"][open] [data-part="log-action-name"]}, "Apply workaround")
@@ -1149,7 +1153,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316040/jobs/31604")
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "be separated from the rest of the job"
@@ -1175,7 +1179,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert Floki.find(step_logs, ~s{[data-part="step-logs-loading"]}) != []
     refute Floki.text(step_logs) =~ "inside the build step"
 
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     refute has_element?(lv, ~s{[data-part="step-logs-loading"]})
     assert has_element?(lv, ~s{[data-part="step-logs"]}, "inside the build step")
@@ -1203,7 +1207,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert has_element?(lv, ~s|#runner-step-1[data-expanded="false"]|)
     assert has_element?(lv, ~s|#runner-step-2[data-expanded="true"]|)
 
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     assert has_element?(lv, ~s{#runner-step-2 [data-part="step-logs"]}, "Process completed with exit code 65.")
     assert has_element?(lv, ~s{#runner-step-2 [data-part="step-logs"][data-scroll-to-tail-active="true"]})
@@ -1224,7 +1228,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316060/jobs/31606")
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     displayed = fn ->
       lv
@@ -1247,7 +1251,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv, ~s{[data-part="log-group-label"]}, "Run build.sh")
 
     lv |> element(~s{[data-part="step-logs-load-earlier"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     all = displayed.()
     assert length(all) == 1_005

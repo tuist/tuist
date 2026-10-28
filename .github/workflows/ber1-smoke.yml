@@ -69,6 +69,8 @@ jobs:
           echo "macOS     : $(sw_vers -productVersion)"
           echo "arch      : $(uname -m)"
           echo "uptime    : $(uptime)"
+          # management.edge.wan.egress.prefix in infra/rack-switch-fleet/sites/ber1.json
+          echo "egress    : $(curl -fsS -m 10 https://api.ipify.org || echo unknown)"
 
       - name: Do actual work
         run: |

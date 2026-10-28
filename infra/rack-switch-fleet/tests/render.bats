@@ -425,11 +425,11 @@ load helpers
     jq '(.nodes[] | select(.name == "ber1-edge-b")) |= del(.pdu)' "$SITE_FILE" > "$site"
     run fleet_check_power "$site"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ber1-edge-b: one of the edge pair, but names no ats or pdu"* ]]
+    [[ "$output" == *"ber1-edge-b: one of the edge pair, but names no ats, pdu or feeds"* ]]
     jq '(.nodes[] | select(.name == "ber1-store-b")) |= del(.pdu)' "$SITE_FILE" > "$site"
     run fleet_check_power "$site"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ber1-store-b: one of the storage pair, but names no ats or pdu"* ]]
+    [[ "$output" == *"ber1-store-b: one of the storage pair, but names no ats, pdu or feeds"* ]]
 }
 
 @test "a cord goes into one power device, and a PDU hangs off a transfer switch" {
@@ -816,6 +816,9 @@ mini_referencing() {
 }
 
 @test "the rack switch controller and the edge take the rack from the site definition" {
+    # The env's other sites are larch alone: not the copies of ber1 other tests
+    # run against, each with an Omada controller of its own.
+    rm -f "$FLEET_ROOT/sites/ber1-standalone.json"
     run "$FLEET_ROOT/fleet.sh" --site ber1 helm-values rack-switch-controller
     [ "$status" -eq 0 ]
     [ "$(jq -r '.watchNamespace' <<<"$output")" = "$(jq -r '.kubernetes.namespace' "$SITE_FILE")" ]
@@ -1066,6 +1069,45 @@ mini_referencing() {
     run fleet_check_contracted_power "$site"
     [ "$status" -ne 0 ]
     [[ "$output" == *"2026-10-05 has more than one step"* ]]
+}
+
+@test "the RackSite carries the site's power budget" {
+    run fleet_render_site "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [ "$(yq '.spec.powerBudget.chainAmps' <<<"$output")" = "13" ]
+    # a string, which the CRD's quantity takes for 11.5 as well as 13
+    [[ "$output" == *'chainAmps: "13"'* ]]
+    [ "$(yq '.spec.powerBudget | has("otherWatts")' <<<"$output")" = "false" ]
+
+    jq '.power_budget = {chain_amps: 11.5, other_watts: 600}' "$SITE_FILE" > "$BATS_TEST_TMPDIR/budget.json"
+    run fleet_render_site "$BATS_TEST_TMPDIR/budget.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'chainAmps: "11.5"'* ]]
+    [ "$(yq '.spec.powerBudget.otherWatts' <<<"$output")" = "600" ]
+
+    jq 'del(.power_budget)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nobudget.json"
+    run fleet_render_site "$BATS_TEST_TMPDIR/nobudget.json"
+    [ "$status" -eq 0 ]
+    [ "$(yq '.spec | has("powerBudget")' <<<"$output")" = "false" ]
+}
+
+@test "a power budget without a current, or one that leaves a step nothing, is rejected" {
+    local site="$BATS_TEST_TMPDIR/budget.json"
+    jq '.power_budget = {other_watts: 600}' "$SITE_FILE" > "$site"
+    run fleet_render_site "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'chain_amps null is not a current in amperes above 0'* ]]
+    jq '.power_budget = {chain_amps: "13"}' "$SITE_FILE" > "$site"
+    run fleet_check_power_budget "$site"
+    [ "$status" -ne 0 ]
+    jq '.power_budget = {chain_amps: 13, other_watts: 0.5}' "$SITE_FILE" > "$site"
+    run fleet_check_power_budget "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'other_watts 0.5 is not a whole number of watts, 0 or more'* ]]
+    jq '.power_budget = {chain_amps: 13, other_watts: 3000}' "$SITE_FILE" > "$site"
+    run fleet_check_power_budget "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'other_watts 3000 leaves the chains nothing of the 3000 W contracted from 2026-10-05'* ]]
 }
 
 @test "render --check notices a RackSite object that no longer matches the site" {

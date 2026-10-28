@@ -1,6 +1,4 @@
-# Rate Limit (Web Layer)
-
-This area owns request rate limiting helpers.
+# Rate Limiting
 
 ## Shared-store failure policy
 
@@ -19,13 +17,3 @@ This area owns request rate limiting helpers.
 - Installations without Valkey retain the existing approximate, eventually consistent in-memory admission. PubSub does not make that a strict shared budget.
 - Redis clients start before the endpoint, Oban and gRPC ingress, and stop after them. This is lifecycle ordering, not a backend-readiness gate. Both limiter pools together open eight backend connections per process instead of two; the unrelated general Redis client is unchanged. Each pool retains the previous client's five-second shutdown budget rather than multiplying it across connections. Missing pools and client-generation races must follow the existing unavailable policy, never become uncoordinated admissions.
 - Compute keys using trusted client addresses and authenticated subjects. Account subjects use `AuthenticatedAccount.account.id`, not a nonexistent wrapper `id`.
-
-## Boundaries
-
-- Domain logic belongs in `server/lib/tuist` contexts.
-- Frontend assets are in `server/assets`.
-
-## Related Context
-
-- Web layer overview: `server/lib/tuist_web/AGENTS.md`
-- Business logic: `server/lib/tuist/AGENTS.md`

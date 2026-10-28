@@ -103,7 +103,7 @@ these schemas persist volume identities and per-job uses.
 
 - Volume-count history includes unmeasured allocations and counts each volume only once across its concurrent retained copies. Byte history remains unknown until measured. Gauge trends compare the selected period end with its start (the previous period end). Require a recorded baseline at the boundary for a calculated comparison; never substitute the first later measurement for missing history. The UI follows Jobs by rendering unavailable comparisons with the shared zero-trend fallback.
 
-- Detail analytics scope storage and activity to both account and volume. Aggregate uses by attachment time (hourly up to two days, daily otherwise), count each mount once, and calculate hit rate from known outcomes only. Empty buckets have zero uses and unknown hit rate. Detail widgets compare with the previous period like the account widgets: used space through the same boundary-baseline rule, hit rate as a relative change, and job runs as a percentage (absolute "+N" from zero). Recent jobs use a bounded five-row query; the Jobs tab retains pagination.
+- Detail Used space reads the current head's `statistics/1` `saved_bytes`, with zero when there is no head and unknown when its size is unmeasured. It is independent of the date range and has no trend; its selectable hourly chart reads `saved_size_history/3`, never per-copy storage totals; retained-copy totals remain inventory metrics. Detail activity is scoped to both account and volume. Aggregate uses by attachment time (hourly up to two days, daily otherwise), count each mount once, and calculate hit rate from known outcomes only. Empty buckets have zero uses and unknown hit rate. Compare hit rate with the previous period as a relative change, and job runs as a percentage (absolute "+N" from zero). Recent jobs use a bounded five-row query; the Jobs tab retains pagination.
 
 - Job detail references require account, workflow run and job IDs. Return only attached uses, keeping the latest mount per volume; acknowledged deletion does not remove the historical reference before normal history retention.
 
@@ -185,3 +185,32 @@ these schemas persist volume identities and per-job uses.
   the volume identity carries the session's platform, architecture and UID, so a
   repository has separate macOS and Linux checkout volumes, published and
   restored through the same `image/3` clauses.
+
+- `docker` is a reserved key: `allocate/1` refuses it, and only
+  `allocate_docker/1` (host agent, `/runners/cache-volumes/docker`) allocates it,
+  for GitHub jobs of the same repository (`same_repository`; forks never get one)
+  on Linux sessions, when `FeatureFlags.runner_docker_cache_enabled?/1` and the job's
+  runner profile `docker_cache` (default true; a legacy label follows the account)
+  allow it. The volume holds the repository's Docker data root; the guest mounts
+  its image, so the host never mounts it (runner-cache `KindDocker`). Its UID is 0
+  (the sidecar's root dockerd) and its capacity is always 100 GB
+  (`@managed_volume_bytes`); the agent sends `max_volume_bytes` of 100 GB for it.
+  A repository gets one only once a volume row exists: `mark_docker_seen/1`
+  (`/runners/cache-volumes/docker-seen`) inserts the row, with no use, when a job
+  without a data root reports that it used Docker, and it binds through the open
+  runner session whatever the job's status, since the report comes after the job.
+  Until then `allocate_docker/1` answers `{:error, :unseen}` (404). Publication
+  follows the profile's writer policy like any custom volume. A report for a
+  `docker` use may carry `docker` (`images`, `build_cache_bytes`): the guest-written
+  inventory is validated and stored on the use as `docker_images`, describes the
+  volume page's Images tab on the dashboard (`Tuist.Runners.DockerCache`) and
+  decides nothing. `reserved_bytes` for `docker` is the saved head plus 20 GB,
+  runner-cache's `DockerGrowthBytes`. Docker cache storage is not billed: when
+  volume storage becomes a billing meter, exclude the `docker` and `checkout` keys.
+- `image/3` with the `rebase` operation (Docker volumes only) moves a successful
+  job's use that may still publish onto the lineage's current HEAD, named by
+  `generation` and its `content_digest`, once its host reports the guest merged
+  the job's images with that HEAD; publication then fast-forwards it. Anything
+  but the current HEAD is a conflict.
+
+- Saved-size observations (`runner_cache_volume_saved_sizes`) are recorded under the volume lock in the same transaction as publication, clear, expiry, saved-head deletion or a changed head measurement. New volumes start at zero; unmeasured saved heads stay null. Duplicate sizes do not append rows. Migration seeds only the current observation, never fabricated past history. Account/volume-scoped hourly reads carry the latest earlier observation forward and preserve gaps. Retention keeps 90 days plus the last older baseline per volume, independent of usage deletion.

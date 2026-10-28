@@ -196,6 +196,12 @@
               </span>
             </div>
           </div>
+          <div :if={@job.runner_name not in [nil, ""]} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Runner")}</div>
+              <span data-part="command-label">{@job.runner_name}</span>
+            </div>
+          </div>
         </div>
       </.card_section>
     </.card>

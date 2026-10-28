@@ -278,7 +278,7 @@ func TestRackPowerRetriesAFailedReadOfAConnectedHost(t *testing.T) {
 // site's other hosts are looked at again at once.
 func TestRackPowerLooksAtTheSiteAgainWhenAnEdgeJoins(t *testing.T) {
 	store := otherEdge("ber1-store-a", rackTestNamespace, "ber1", "storage", false)
-	elsewhere := otherEdge("ber2-store-a", rackTestNamespace, "ber2", "storage", false)
+	elsewhere := otherEdge("larch-store-a", rackTestNamespace, "larch", "storage", false)
 	h := newInstallHarness(t, edgeHost(), store, elsewhere)
 
 	edge := edgeHost()

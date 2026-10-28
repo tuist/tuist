@@ -4,14 +4,43 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+`actions/setup-docker-builder/` configures a persistent Buildx builder on Linux
+runners; see its `AGENTS.md`. Linux runner CI validates its persistence contract
+against real Docker 28 with isolated ext4 storage and retains timing evidence.
+`docker-build-cache-benchmark.yml` measures separate fleet jobs after deployment.
+Use one experiment key and revision for cold, warm-layer and changed-source phases,
+waiting for saved-cache publication between dispatches. Fail on unavailable cache,
+missing layer hits or missing prior-job cache-mount contents; never present a
+fallback or an unverified run as a warm-cache measurement.
+
+`mgmt-cluster-tests.yml` checks the management health gates, disruption budgets
+and reconciliation shell scripts without credentials on PRs and main.
+`mgmt-cluster-apply.yml` synchronizes Flannel arguments and verifies private
+endpoints plus cross-node pod traffic after Talos patches; webhook PDBs apply
+after the replicas and External Secrets release. Keep public firewall removal
+and the private API-target switch after that network rollout, as documented in
+`infra/k8s/mgmt/talos/README.md`.
+
+Management backup changes must pass `test-ha-followups.cjs`. After the Talos
+API-access patch, the apply workflow deploys the backup-only Talos ServiceAccount
+and verifies a real snapshot upload from every control-plane node. It never
+deletes the old static credential automatically; the operator verification task
+can do so only after all uploads succeed. Keep failure paths and Secret cleanup
+guards covered without credentials.
+
 Helm CI also watches hosted dashboard changes. Monitoring cost-control tests
 start the production Alloy image to compile log selectors, exercise rendered
 remote-write rules against a local Prometheus receiver, and check all migrated
 latency queries across mixed-version rollout states. These checks need no cloud
 credentials and must never write to the production telemetry destinations.
+Helm CI also tests the runner macOS host-health rules with promtool, including
+fixed kernels, uptime thresholds, stale samples and failed collection.
 The Helm render job also runs `infra/helm/tuist/test-cluster-cookie.py` offline:
 check all managed environment cookie references and Secret ownership without
-reading 1Password or logging rendered cookie values.
+reading 1Password or logging rendered cookie values. It also runs
+`infra/helm/tuist/test-sso-domain-verification.py` to check the default-off DNS
+policy and explicit opt-in across managed server runtime modes. The hosted
+Docker smoke test explicitly enables and asserts the same DNS policy.
 
 The existing runner-image release workflow runs the portable TCC report tests
 on PRs with read-only permissions and without persisted checkout credentials
@@ -254,6 +283,10 @@ time separately, and distinguish actual attachment/hits from empty-directory
 fallback. Retaining only an external source/native-manifest cache is possible,
 but rebuilds workspace state and manifest JSON; benchmark it separately before
 changing the retained layout.
+
+The SwiftPM build job runs `e2e/global_flags.bats` against its newly built CLI.
+Resolve the products directory with `--show-bin-path` and test its unmodified
+outputs, including manifest loading and ProjectDescription helper compilation.
 
 ## Server deploy cascade volumes
 
@@ -589,3 +622,21 @@ relevant main changes through the `install-action` release component after tests
 pass. Bootstrap the distribution repository and release credential first.
 Recover an unrecorded distribution from its original SOURCE_COMMIT before
 publishing newer source; never replace an immutable version.
+
+## Nested KVM runner acceptance
+
+`linux-runners-staging-smoke.yml` has a manual `nested_kvm` mode, isolated from
+its ordinary smoke and cache jobs. It targets `tuist-staging-linux-kvm` as a
+native, non-root job and requires working emulator acceleration before running
+an API 34 x86_64 Gradle Managed Device instrumented test and 15 cold-start
+Macrobenchmark iterations. The pinned fixture and its contract live in
+`infra/kata-kvm-kernel/android-smoke/AGENTS.md`. Retain test results and traces
+on failure too; do not accept a successful build that executed no tests.
+
+Managed server deployment prepares KVM before upgrading runner pools, using the same resolved provider/plugin images as Helm. `scripts/runner-kvm-prepare.sh` updates only the existing provider image and the four Helm-owned plugin resources; it waits for current-boot host proof and allocations covering Pod capacity. A failed gate leaves preparation in place and pools untouched. Rollback skips the gate. Validate with `bash scripts/runner-kvm-prepare.test.sh` from `.github`, or the Helm `nested-kvm` task.
+
+## macOS maintenance validation
+
+`macos-maintenance.test.sh` exercises the explicit host-maintenance request task
+with a fake kubectl and no credentials. The provider's macOS Go suite runs it;
+keep planning read-only and refuse a new request over active or failed status.

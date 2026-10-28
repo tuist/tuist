@@ -21,7 +21,7 @@ defmodule Atlas.Engineering.Alerts.Destinations.Slack do
   def deliver(%Rule{} = rule, %Issue{} = issue, reason, opts \\ []) do
     environment = Keyword.get(opts, :environment)
     fallback = fallback_text(rule, issue, reason, environment)
-    blocks = blocks(rule, issue, reason, environment)
+    blocks = blocks(rule, issue, reason, environment, Keyword.get(opts, :signal, %{}))
 
     case SlackAPI.post_message(@app_key, rule.slack_channel_id, fallback, blocks) do
       {:ok, _} -> :ok
@@ -36,7 +36,7 @@ defmodule Atlas.Engineering.Alerts.Destinations.Slack do
       "#{level_label(issue.level)}#{env_part} · #{single_line(issue.title)}"
   end
 
-  defp blocks(%Rule{} = rule, %Issue{} = issue, reason, environment) do
+  defp blocks(%Rule{} = rule, %Issue{} = issue, reason, environment, signal) do
     prefix = mention_prefix(rule.slack_mention)
     header = "#{tier_emoji(rule.tier)} #{tier_label(rule.tier)}: #{reason_label(reason)}"
 
@@ -49,7 +49,7 @@ defmodule Atlas.Engineering.Alerts.Destinations.Slack do
     |> maybe_prepend_mention(prefix)
     |> Kernel.++([
       title_block(issue),
-      severity_fields_block(issue, environment),
+      severity_fields_block(issue, environment, signal),
       %{"type" => "divider"},
       context_block(rule, issue),
       actions_block(issue)
@@ -83,13 +83,19 @@ defmodule Atlas.Engineering.Alerts.Destinations.Slack do
     }
   end
 
-  defp severity_fields_block(%Issue{} = issue, environment) do
+  defp severity_fields_block(%Issue{} = issue, environment, signal) do
+    events =
+      case signal do
+        %{"event_count" => count, "window_minutes" => minutes} -> "#{format_count(count)} in #{minutes} min"
+        _ -> format_count(issue.event_count)
+      end
+
     %{
       "type" => "section",
       "fields" => [
         field("Level", level_field(issue.level)),
         field("Environment", environment_field(environment)),
-        field("Events", format_count(issue.event_count)),
+        field("Events", events),
         field("Last seen", relative_time(issue.last_seen)),
         field("First seen", relative_time(issue.first_seen)),
         field("Status", status_field(issue.status))
@@ -135,6 +141,7 @@ defmodule Atlas.Engineering.Alerts.Destinations.Slack do
   defp tier_label(_attention), do: "Attention"
 
   defp reason_label(:event_rate), do: "Issue crossed event rate"
+  defp reason_label(:event_spike), do: "Error spike in a time window"
   defp reason_label(:regression), do: "Regression"
   defp reason_label(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp reason_label(reason) when is_binary(reason), do: reason

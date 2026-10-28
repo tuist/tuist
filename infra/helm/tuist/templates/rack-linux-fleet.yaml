@@ -5,10 +5,11 @@ Rack-owned Linux machines: one RackLinuxHost per box, rendered from
 `rackLinuxFleet.hosts` and named after the machine's SMBIOS UUID, which
 `kubectl get rlc` lists once the box's install stick has announced it. The
 operator keeps a CAPI Machine for each host, which makes it a node. A role's
-labels and taints come from `rackLinuxFleet.roles.<role>` and reach the Node at
-its first registration. A host with an `address` on the site's machines segment
-also labels its Node `tuist.dev/pn-ipv4` with it: the address the segment's
-clients reach a host-network gateway on.
+labels and taints come from `rackLinuxFleet.sites.<site>.roles.<role>`, else
+`rackLinuxFleet.roles.<role>`, and reach the Node at its first registration. A
+host with an `address` on the site's machines segment also labels its Node
+`tuist.dev/pn-ipv4` with it: the address the segment's clients reach a
+host-network gateway on.
 An edge takes `spec.edge`, its way out on the first boot of an install, from
 `rack-sites/<site>.yaml`, which `rack:fleet render` writes from the site
 definition.
@@ -36,7 +37,8 @@ does not wait on.
 {{- end }}
 {{- end }}
 {{- end }}
-{{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
+{{- $siteRoles := (get ($.Values.rackLinuxFleet.sites | default dict) $site | default dict).roles | default dict }}
+{{- $roleConfig := get $siteRoles $role | default (get $.Values.rackLinuxFleet.roles $role) | default dict }}
 {{- $tags := $host.tailnetTags | default $roleConfig.tailnetTags | default $.Values.rackLinuxFleet.tailnetTags }}
 {{- $nodeLabels := deepCopy ($roleConfig.nodeLabels | default dict) }}
 {{- with $host.address }}

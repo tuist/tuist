@@ -1,6 +1,7 @@
 // Command rack-bmc adopts and drives a rack x86 server through its BMC's
-// Redfish: what the box is, its BIOS against the rack's baseline, its BMC
-// passwords, its virtual CD, its next boot and its power.
+// Redfish: what the box is, its BIOS and BMC against the rack's baseline (the
+// IPMI part through ipmitool), its BMC passwords, its virtual CD, its next
+// boot and its power.
 //
 //	rack-bmc -bmc https://192.168.1.248 inventory
 //	rack-bmc -bmc https://192.168.1.248 check
@@ -22,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -74,25 +76,11 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		}
 		return writeSheet(stdout, inv)
 	case "check", "apply":
-		drift, err := c.Check(ctx, redfish.Baseline)
+		u, err := url.Parse(*endpoint)
 		if err != nil {
 			return err
 		}
-		for _, d := range drift {
-			fmt.Fprintf(stdout, "%s: have %v\n", d.What, d.Have)
-		}
-		if len(drift) == 0 {
-			fmt.Fprintln(stdout, "the BIOS matches the baseline")
-			return nil
-		}
-		if cmd == "check" {
-			return driftError(len(drift))
-		}
-		if err := c.Apply(ctx, drift); err != nil {
-			return err
-		}
-		fmt.Fprintln(stdout, "written; the BIOS applies it at its next POST")
-		return nil
+		return baseline(ctx, c, u.Hostname(), *user, cmd == "apply", stdout)
 	case "rotate":
 		if len(rest) != 1 {
 			return errors.New("usage: rack-bmc rotate <account> <new-password")
@@ -128,6 +116,53 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return power(ctx, c, rest[0], stdout)
 	}
 	return fmt.Errorf("unknown command %q", cmd)
+}
+
+// baseline compares the BIOS, the BMC and IPMI over LAN with the rack's
+// baseline and, for apply, writes what differs. The BMC and IPMI settings
+// apply at once; the BIOS ones at the next POST, with the host off.
+func baseline(ctx context.Context, c *redfish.Client, host, user string, apply bool, stdout io.Writer) error {
+	bios, err := c.Check(ctx, redfish.Baseline)
+	if err != nil {
+		return err
+	}
+	bmc, err := c.CheckBMC(ctx, redfish.BMCBaseline)
+	if err != nil {
+		return err
+	}
+	ipmi, err := checkIPMI(ctx, host, user)
+	if err != nil {
+		return err
+	}
+	for _, d := range append(bios, bmc...) {
+		fmt.Fprintf(stdout, "%s: have %v\n", d.What, d.Have)
+	}
+	for _, d := range ipmi {
+		fmt.Fprintf(stdout, "%s: have %s\n", d.what, d.have)
+	}
+	n := len(bios) + len(bmc) + len(ipmi)
+	if n == 0 {
+		fmt.Fprintln(stdout, "the BIOS, BMC and IPMI match the baseline")
+		return nil
+	}
+	if !apply {
+		return driftError(n)
+	}
+	if err := c.ApplyBMC(ctx, bmc); err != nil {
+		return err
+	}
+	if err := applyIPMI(ctx, host, user, ipmi); err != nil {
+		return err
+	}
+	if len(bios) == 0 {
+		fmt.Fprintln(stdout, "written")
+		return nil
+	}
+	if err := c.Apply(ctx, bios); err != nil {
+		return err
+	}
+	fmt.Fprintln(stdout, "written; the BIOS applies its part at its next POST")
+	return nil
 }
 
 func power(ctx context.Context, c *redfish.Client, action string, stdout io.Writer) error {

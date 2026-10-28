@@ -180,9 +180,9 @@
 		//   :22         tart-kubelet drift updates. The CAPI controller
 		//               rolls host config to already-bootstrapped minis
 		//               over the tailnet because a running runner mini
-		//               filters inbound :22 on its public interface. Also
-		//               `tailscale ssh admin@<vm>` into the xcresult VMs
-		//               (see the ssh block).
+		//               filters inbound :22 on its public interface. The
+		//               ssh block grants the cluster no Tailscale SSH, so
+		//               on an xcresult VM this port is refused.
 		//   :8080       controller-runtime metrics on tart-kubelet, scraped
 		//               by alloy-metrics.
 		//   :9091       PromEx on the xcresult-processor Tart VM, fronted by
@@ -503,6 +503,26 @@
 			"ip":  ["tcp:443"],
 		},
 
+		// Production cluster -> rack 2's PDU and ATS cards (larch-pdu-a,
+		// larch-pdu-b, larch-ats-a, larch-ats-b), the same path as BER1's above,
+		// on rack 2's management VLAN. HTTPS only.
+		{
+			"src": ["tag:tuist-k8s-production"],
+			"dst": ["192.168.60.14/32", "192.168.60.15/32", "192.168.60.16/32", "192.168.60.17/32"],
+			"ip":  ["tcp:443"],
+		},
+
+		// Production cluster -> rack 2's PicOS ToRs (larch-tor-a, larch-tor-b),
+		// which the rack switch controller configures (the RackSwitch objects
+		// with driver picos): SSH for its CLI and NETCONF over SSH, through the
+		// macmini-egress ProxyGroup. Each ToR's management port is a link of
+		// its own to the edge that provisions it, which advertises its /32.
+		{
+			"src": ["tag:tuist-k8s-production"],
+			"dst": ["192.168.61.2/32", "192.168.61.6/32"],
+			"ip":  ["tcp:22", "tcp:830"],
+		},
+
 		// Production cluster -> the BER1 rack's Linux nodes. SSH: the operator
 		// joins each one over its own tailnet address and keeps it converged
 		// (RackLinuxMachine), through the macmini-egress ProxyGroup. 10250: the
@@ -603,6 +623,21 @@
 			"src": ["autogroup:owner", "autogroup:admin"],
 			"dst": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
 			"ip":  ["tcp:22"],
+		},
+
+		// Admins -> :22 on the macOS fleet's tailnet addresses. The network
+		// half of the `check` SSH rule into the xcresult-processor VMs (see
+		// the ssh block). Admins already reach the minis' own sshd on a
+		// rented mini's public address or through a rack edge, so this
+		// adds no reach to the hosts they don't have.
+		{
+			"src": ["autogroup:owner", "autogroup:admin"],
+			"dst": [
+				"tag:tuist-macmini-staging",
+				"tag:tuist-macmini-canary",
+				"tag:tuist-macmini-production",
+			],
+			"ip": ["tcp:22"],
 		},
 
 		// tag:tuist-ops -> SSH into any Mac mini. No device carries
@@ -728,6 +763,11 @@
 	// On the management LAN, only the installed power devices' addresses
 	// are approved: ber1-ats-1, ber1-ats-2, ber1-ats-3, ber1-pdu-a and
 	// ber1-pdu-b.
+	//
+	// Rack 2 (infra/rack-switch-fleet/sites/larch.json) the same way: its
+	// machines segment, its power devices on its management VLAN, and its two
+	// ToRs' management addresses, each on its own link to the edge that
+	// provisions it and advertised by that edge alone.
 	"autoApprovers": {
 		"routes": {
 			"10.128.0.0/12":   ["tag:tuist-k8s-staging"],
@@ -737,6 +777,13 @@
 			"192.168.0.16/32": ["tag:tuist-rack-edge"],
 			"192.168.0.17/32": ["tag:tuist-rack-edge"],
 			"192.168.0.18/32": ["tag:tuist-rack-edge"],
+			"10.20.0.0/24":    ["tag:tuist-rack-edge"],
+			"192.168.60.14/32": ["tag:tuist-rack-edge"],
+			"192.168.60.15/32": ["tag:tuist-rack-edge"],
+			"192.168.60.16/32": ["tag:tuist-rack-edge"],
+			"192.168.60.17/32": ["tag:tuist-rack-edge"],
+			"192.168.61.2/32":  ["tag:tuist-rack-edge"],
+			"192.168.61.6/32":  ["tag:tuist-rack-edge"],
 		},
 		// Tailscale Services the operator's ingress ProxyGroups advertise
 		// (infra/helm/tailscale-operator, `tailnetIngress`). The operator
@@ -754,23 +801,24 @@
 	// Tailscale SSH (distinct from "grants"). Only the xcresult-processor
 	// Tart VMs run tailscaled with --ssh=true
 	// (infra/xcresult-processor-image/tailscale-up.sh); Mac mini hosts and
-	// rack nodes join with --ssh=false, so the accept rules below reach the
-	// VMs only. They let the cluster-side subnet router
-	// `tailscale ssh admin@<vm-tailnet-ip>` into matching-env xcresult VMs:
-	// diagnostic shell access when `kubectl logs` / `kubectl exec` against
-	// the kubelet endpoint fails (tart-kubelet's Node hostname doesn't
-	// resolve from the K8s apiserver's DNS, so the standard debug path is
-	// broken on macOS fleets and this is the substitute). The tcp:22 in the
-	// cluster -> Mac mini grants is the network half of it.
+	// rack nodes join with --ssh=false, so the macmini rule below reaches
+	// the VMs only. It lets an admin `tailscale ssh admin@<vm-tailnet-ip>`
+	// into an xcresult VM: diagnostic shell access when `kubectl logs` /
+	// `kubectl exec` against the kubelet endpoint fails (tart-kubelet's
+	// Node hostname doesn't resolve from the K8s apiserver's DNS, so the
+	// standard debug path is broken on macOS fleets and this is the
+	// substitute). The admins -> Mac mini tcp:22 grant is the network half
+	// of it.
 	//
-	// Locked down to the `admin` user only, the bake-time user that owns
-	// /opt/tuist and the launchd plist. Explicitly excludes `root` and the
-	// broader `autogroup:nonroot` to keep a compromise of the k8s tag
-	// (large blast radius: cluster subnet router, every operator pod the
-	// Tailscale operator exposes) from being a root-shell pivot.
-	// Tagged-device SSH can't use `check` mode (no re-auth flow for a
-	// non-human source), so `accept` is the only option and the narrowing
-	// happens via `users`. No rule targets tag:tuist-runner-host-<env>:
+	// The source is people in `check` mode, never a tag. Tailscale SSH
+	// authenticates the device, and the root tailscaled serves a session's
+	// port and unix-socket forwards, which the policy file has no field to
+	// turn off. A session therefore reaches whatever root can, whichever
+	// `users` it logs in as, so an SSH rule from a tag would make that
+	// tag's devices (the cluster subnet router, every proxy the Tailscale
+	// operator runs) root on the VMs without a person in the loop.
+	// `users` stays `admin`, the bake-time user that owns /opt/tuist and
+	// the launchd plist. No rule targets tag:tuist-runner-host-<env>:
 	// runner hosts and their guests run no Tailscale SSH server. See
 	// sshTests below.
 	"ssh": [
@@ -781,67 +829,39 @@
 			"users":  ["autogroup:nonroot", "root"],
 		},
 		{
-			"action": "accept",
-			"src":    ["tag:tuist-k8s-staging"],
-			"dst":    ["tag:tuist-macmini-staging"],
-			"users":  ["admin"],
-		},
-		{
-			"action": "accept",
-			"src":    ["tag:tuist-k8s-canary"],
-			"dst":    ["tag:tuist-macmini-canary"],
-			"users":  ["admin"],
-		},
-		{
-			"action": "accept",
-			"src":    ["tag:tuist-k8s-production"],
-			"dst":    ["tag:tuist-macmini-production"],
-			"users":  ["admin"],
+			"action":      "check",
+			"src":         ["autogroup:owner", "autogroup:admin"],
+			"dst":         [
+				"tag:tuist-macmini-staging",
+				"tag:tuist-macmini-canary",
+				"tag:tuist-macmini-production",
+			],
+			"users":       ["admin"],
+			"checkPeriod": "1h",
 		},
 	],
 
-	// SSH ACL assertions, enforced on every save in the admin
-	// console. The accept lines lock in the `admin`-only narrowing
-	// added with #11134's diagnostic grants; the reject lines
-	// catch the failure modes that would re-expand blast radius:
-	// root SSH (host take-over), cross-env SSH (staging subnet
-	// router into production VMs), and Tailscale SSH onto runner
-	// hosts.
+	// SSH ACL assertions, enforced on every save in the admin console.
+	// They pin that no tag gets Tailscale SSH onto the macOS fleet: the
+	// cluster tags hold tcp:22 to the minis for drift updates, so the SSH
+	// policy is the only thing between them and a VM shell. The test
+	// engine doesn't resolve `autogroup:*`, so the admin rule has no
+	// accept assertion here; check it by hand after a paste.
 	"sshTests": [
 		{
-			"src":    "tag:tuist-k8s-staging",
-			"dst":    ["tag:tuist-macmini-staging"],
-			"accept": ["admin"],
+			"src":  "tag:tuist-k8s-staging",
+			"dst":  ["tag:tuist-macmini-staging"],
+			"deny": ["admin", "root"],
 		},
 		{
-			"src":    "tag:tuist-k8s-staging",
-			"dst":    ["tag:tuist-macmini-staging"],
-			"deny":   ["root"],
+			"src":  "tag:tuist-k8s-canary",
+			"dst":  ["tag:tuist-macmini-canary"],
+			"deny": ["admin", "root"],
 		},
 		{
-			"src":    "tag:tuist-k8s-staging",
-			"dst":    ["tag:tuist-macmini-production"],
-			"deny":   ["admin"],
-		},
-		{
-			"src":    "tag:tuist-k8s-canary",
-			"dst":    ["tag:tuist-macmini-canary"],
-			"accept": ["admin"],
-		},
-		{
-			"src":    "tag:tuist-k8s-canary",
-			"dst":    ["tag:tuist-macmini-canary"],
-			"deny":   ["root"],
-		},
-		{
-			"src":    "tag:tuist-k8s-production",
-			"dst":    ["tag:tuist-macmini-production"],
-			"accept": ["admin"],
-		},
-		{
-			"src":    "tag:tuist-k8s-production",
-			"dst":    ["tag:tuist-macmini-production"],
-			"deny":   ["root"],
+			"src":  "tag:tuist-k8s-production",
+			"dst":  ["tag:tuist-macmini-production"],
+			"deny": ["admin", "root"],
 		},
 		{
 			"src":    "tag:tuist-k8s-production",
@@ -859,7 +879,8 @@
 	//
 	// Note: no test entries with autogroup-based src. Tailscale's test
 	// engine doesn't resolve `autogroup:*` as a concrete identity, so the
-	// human grants (Talos, MDM, Omada UI, rack SSH, staging kubectl) are
+	// human grants (Talos, MDM, Omada UI, rack SSH, macOS fleet SSH,
+	// staging kubectl) are
 	// exercised only by the live access decisions in the console. Check
 	// them by hand after a paste (NOTES.md in the draft lists how).
 	"tests": [

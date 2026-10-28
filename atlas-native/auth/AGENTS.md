@@ -39,8 +39,14 @@ omitting it preserves generic browser login, including self-hosted providers.
 - C inputs are borrowed NUL-terminated strings. Outputs are owned allocations and
   must be freed exactly once using `atlas_auth_free`. JNI uses VM-managed strings.
 - The calling native coordinator owns secure storage and serializes credential
-  mutations. Rust does not persist anything or call platform APIs. This keeps
-  platform SDKs out of host tests and avoids a global runtime/session lock.
+  mutations. Rust never persists credentials or calls platform APIs. Its optional
+  `cache.rs` persists sanitized read projections to an adapter-supplied private
+  directory; see [Durable read cache](../README.md#durable-read-cache) for key,
+  retention, invalidation and append-only transactional SQLite migration rules.
+  Local `bootstrap` validates/upgrades the opaque session without networking;
+  native adapters persist it before publishing the shell. Protected requests
+  still restore/rotate credentials first. Keep platform SDKs out of host tests
+  and never hold the SQLite mutex during networking.
 - iOS presents ASWebAuthenticationSession; Android presents the system browser
   and receives its registered custom-scheme callback. Rust validates the complete
   callback destination, state, duplicate parameters, and ten-minute login lifetime.
@@ -59,6 +65,13 @@ omitting it preserves generic browser login, including self-hosted providers.
   exposing a signed-in state. Authenticated API calls restore through the same coordinator to avoid concurrent refresh-token reuse. Both native adapters persist rotated credentials before making an API request, including when that request subsequently fails. iOS shares the main-actor credential coordinator and session identity across Automation and business features; Android's application-scoped coordinator shares its credential worker across activities and drains pending login cancellation before shutdown. Keep Automation HTTP/watch waits on separate bounded workers, not the refresh queue.
 
 ## Native API and forms
+
+`moodboard.rs` implements only bearer POST `/api/native/moodboard/suggestions` and
+PUT `/api/native/moodboard/captures/<UUID>`. Validate sources, reviewed fields and IDs
+before networking; strip response extras and never echo provider/server bodies.
+Optional endpoint failures do not revoke OAuth. The host persists the immutable first
+save payload/UUID for uncertain retries; the extension has no Rust/auth/network dependency.
+Keep the source in all three production Once lists and tests in the host test glob.
 
 `api.rs` owns an allowlisted Automation request enum, same-origin bearer HTTP and
 bounded TLS Phoenix subscriptions. Credentials travel in the WebSocket subprotocol,

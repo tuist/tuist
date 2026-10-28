@@ -67,11 +67,7 @@ jobs:
         # Canary's macOS jobs run on ber1-runner-b02, which production lends
         # it (`tuist` is on `runner_site` there), and take canary's public
         # cache, since the rack's cache node belongs to production.
-        # Production probes its rented fleet and the rack.
-        # `tuist-runners-acceptance` is a pool on production's rented fleet
-        # (values-managed-production.yaml): the account's profiles prefer the
-        # rack and only spill to the rented fleet, so no profile label lands
-        # there deterministically.
+        # Production probes the rack: it rents no macOS hosts.
         run: |
           set -euo pipefail
           #
@@ -87,7 +83,7 @@ jobs:
               ;;
             production)
               server=https://tuist.dev
-              macos='[{"name":"rented","label":"tuist-runners-acceptance","cache_host":""},{"name":"BER1 rack","label":"tuist-ber1-smoke","cache_host":"tuist-ber1-runners.kura.tuist.dev"}]'
+              macos='[{"name":"BER1 rack","label":"tuist-ber1-smoke","cache_host":"tuist-ber1-runners.kura.tuist.dev"}]'
               linux='[{"name":"default","label":"tuist-linux"}]'
               volume_label=""
               ;;

@@ -231,6 +231,15 @@ job details warn when a failed job's copy reached 99% of its volume.
 Readers need `runners_read`; clearing requires `account_update`
 and a confirmation. Every browser query and mutation is account-scoped.
 
+Operators clear a volume from a server Pod with the same semantics:
+
+```bash
+kubectl exec deploy/tuist-tuist-server -- bin/tuist eval 'Tuist.Release.clear_runner_cache_volume(<account id>, "<volume id>")'
+```
+
+It starts the repository and an insert-only Oban instance, so the prune of the
+saved master is still scheduled, and raises when the account has no such volume.
+
 Clearing invalidates immediately. Physical removal waits for running jobs,
 responding storage agents and eviction of local master replicas. History remains available.
 Account deletion cascades metadata; agents receive a delete decision for their
@@ -473,3 +482,61 @@ filesystem rather than the pod's work volume. A clone is therefore admitted only
 while free space covers the whole checkout image (60 GB), as the reserve covers
 one custom volume. It never evicts anything for that room: without it the job
 checks out as usual.
+
+## Docker cache volumes
+
+Each repository whose Linux jobs use Docker gets a volume with the reserved key
+`docker` holding its jobs' Docker data root, on pools whose RunnerPool sets
+`dockerCache`. Overlay2 cannot use virtio-fs as an upper layer, so the guest
+loop-mounts the branch image itself, exactly as the sidecar loop-mounts its
+ephemeral `disk.img`; the host never mounts it (`../runner-cache`, `KindDocker`).
+The agent:
+
+- answers `POST /docker` (15 s, its own four request slots) for the live runner
+  pod at the caller's address: it allocates through the server's `/docker` with UID
+  0 and a 100 GB capacity, then clones the master, or formats an empty image, and
+  links it into `pods/<uid>/<scope>/docker.img`. It answers `unseen` when the
+  server has no Docker volume for the repository yet (404), so the runner reports
+  later whether the job used Docker, and `timeout`, `capacity`, `denied` or
+  `error` otherwise. A host without the master prefetches it after the job, like a
+  custom volume.
+- forwards `POST /docker-seen` from the live runner pod to the server.
+- reports a finished Docker use with the inventory from the guest's `docker.json`,
+  including whether the guest formatted it empty because the saved data root
+  would not mount; the server counts such a use as a miss.
+  Publication follows the custom-volume rules; before it the host requires the
+  guest's clean-unmount report, the same inode at the pod's link and an ext4
+  superblock with no journal to recover and no errors, and withholds an unchanged
+  data root or one above 30 GB.
+- answers `POST /docker-merge` from the live runner pod after its job: when the
+  lineage's HEAD is newer than the copy actually mounted (including an older
+  local clone of the head assigned at allocation), it offers that HEAD's clone as
+  `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
+  at a time), so the guest merges the job's images with it before publishing;
+  otherwise it answers no merge.
+
+An older local clone cannot publish without merging its assigned head: comparing
+only the allocation's base would allow a successful CAS to erase content absent
+from that clone. The host checks its durable mounted-generation marker before
+publication. Background prefetch uses one worker and a 64-lineage FIFO, keeping
+the newest queued generation per scope. Downloads still do not delay attach;
+an immediate job on another host may use an older copy until refresh completes.
+
+Guest teardown enforces a 26 decimal GB aggregate filesystem-use target before
+publication and again after merging. It evicts least-recently-used registry
+images and whole opted-in BuildKit volumes, preserving database consistency;
+embedded build cache remains subject to Docker's 10 GB GC target. Builder use
+timestamps live in `tuist/builders.json` inside the image and travel with copied
+builder state. Missing history is treated as oldest. A single oversized builder
+can be evicted in full. These are disposable caches, not durable job output.
+
+After stopping dockerd, the guest runs `fstrim` before unmounting so deleted ext4
+blocks release the sparse image's backing extents. Cache-enabled DinD installs
+`util-linux` for this command. Usage, eviction, GC or trim errors withhold the
+snapshot. The host still enforces the 30 GB allocated-byte limit, leaving 4 GB
+above the guest target for metadata/shutdown writes; it never mounts or parses
+the guest filesystem. Roll out the controller/agent and runner images together.
+
+Staging enables it on every Linux pool (`values-managed-staging.yaml`). The
+server gates it per account with `:runner_docker_cache` on canary and
+production, and each runner profile can turn it off.

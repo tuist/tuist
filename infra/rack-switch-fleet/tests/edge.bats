@@ -481,8 +481,20 @@ STUB
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"edge_vlan_bond wan0 4001"* ]]
-    [[ "$output" != *"149.6.170."* ]]
+    # the path never sets the WAN address or a route through it; it names
+    # them only to give up what the edge's install took on its own
+    ! grep -E '^ *ip (addr|route) (add|replace) .*149\.6\.170\.' <<<"$output"
     [[ "$output" != *"2001:978:"* ]]
+    [[ "$output" == *"edge_vlan_bond wan0 4001
+if [ -s /run/rack-edge/first-wan ]; then
+  read -r first_wan </run/rack-edge/first-wan
+  case \"\$first_wan\" in
+    wan0) ip route del default via 149.6.170.30 dev wan0 metric 50 2>/dev/null || true
+      ip addr del 149.6.170.31/31 dev wan0 2>/dev/null || true ;;
+    *) ip link del \"\$first_wan\" 2>/dev/null || true ;;
+  esac
+  rm -f /run/rack-edge/first-wan
+fi"* ]]
     # the edge trunks carry the WAN VLAN tagged, and the WAN ports untagged and
     # alone, with no spanning tree towards the upstream
     for tor in ber1-tor-a ber1-tor-b; do
@@ -671,24 +683,24 @@ STUB
     [[ "$output" == *"stale: "*"/sites/ber1/bird.conf"* ]]
 }
 
-@test "the Mac minis the site's egress names go out from its block of the site's own prefix, and everything else from the WAN address" {
+@test "the site's Mac minis go out from its block of the site's own prefix, and everything else from the WAN address" {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
-    snat='    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent'
+    snat='    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109, 10.10.0.110, 10.10.0.111, 10.10.0.112, 10.10.0.113, 10.10.0.114, 10.10.0.115, 10.10.0.116 } snat ip to 95.130.119.16-95.130.119.31 persistent'
     machines='    oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade'
-    # the named minis first, so their translation wins over the segment's
+    # the minis first, so their translation wins over the segment's
     [[ "$output" == *"$snat"$'\n'"$machines"* ]]
-    # the management segment and the standby keep the WAN address
-    [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
-    # without nodes every Mac mini moves, and the storage node, in the
-    # cluster under the WAN address, does not
-    jq '.management.edge.wan.egress |= del(.nodes)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/allminis.json"
-    run fleet_edge_path "$BATS_TEST_TMPDIR/allminis.json"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *'ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109, 10.10.0.110, 10.10.0.111, 10.10.0.112, 10.10.0.113, 10.10.0.114, 10.10.0.115, 10.10.0.116 } snat ip to 95.130.119.16-95.130.119.31 persistent'* ]]
+    # the storage node, in the cluster under the WAN address, does not move
     [[ "$output" != *"10.10.0.11 "* ]]
     [[ "$output" != *"10.10.0.11,"* ]]
+    # the management segment and the standby keep the WAN address
+    [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
+    # nodes limits it to the named minis
+    jq '.management.edge.wan.egress.nodes = ["ber1-runner-b01", "ber1-runner-b02"]' "$SITE_FILE" > "$BATS_TEST_TMPDIR/someminis.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/someminis.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent'$'\n'"$machines"* ]]
     # without an egress the machines all go out from the WAN address
     jq '.management.edge.wan |= del(.egress)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/noegress.json"
     run fleet_edge_path "$BATS_TEST_TMPDIR/noegress.json"
@@ -1021,6 +1033,24 @@ STUB
     # protocol included, so a restart of networkd adds no second one
     [[ "$output" == *'ip route replace default via "$peer_address" dev vrrp0 metric 200 proto static'* ]]
     [ "$(grep -c '^  ber1-edge-' <<<"$install")" -eq 2 ]
+}
+
+@test "each edge's install carries the site's static WAN once its address is known, for the first edge of a site to take on its own" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_install "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"      peer: 10.255.255.1
+    wan:
+      vlan: 4001
+      address: 149.6.170.31/31
+      gateway: 149.6.170.30"* ]]
+    [ "$(grep -c '^    wan:$' <<<"$output")" -eq 2 ]
+    # before the carrier assigns it, the edges carry no WAN to take
+    jq '.management.edge.wan |= {vlan}' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nowanaddress.json"
+    run fleet_edge_install "$BATS_TEST_TMPDIR/nowanaddress.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"vrrp:"* ]]
+    [[ "$output" != *"wan:"* ]]
 }
 
 @test "a site with no WAN gives its edges' installs no way out over VRRP, so they keep DHCP on their uplinks" {

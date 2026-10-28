@@ -30,9 +30,12 @@ use (
 	./infra/macos-log-shipper
 	./infra/mdm/enroller
 	./infra/rack-switch-controller
+	./infra/rack-switch-fleet/edge/tor-console
 	./infra/runner-cache
 	./infra/runner-image
 	./infra/runners-controller
+	./infra/sandbox-image
+	./infra/sandboxd
 	./infra/stable-egress-controller
 	./infra/tart-kubelet
 	./kube-impersonator

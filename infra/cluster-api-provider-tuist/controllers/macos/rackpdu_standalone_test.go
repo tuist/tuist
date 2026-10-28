@@ -51,3 +51,42 @@ func TestPowerIsRefusedThroughAStandaloneRackPDU(t *testing.T) {
 		t.Fatalf("switched an outlet of a standalone PDU: %v", calls)
 	}
 }
+
+// A standalone PDU is one the controller never contacts, as a planned PDU at a
+// site that is not racked yet, so it has nothing to report: a Ready series of
+// 0 would read as a PDU that cannot be observed. Its series go when an adopted
+// PDU is made standalone, as a standalone RackATS has none.
+func TestAStandaloneRackPDUHasNoMetrics(t *testing.T) {
+	hasSeries := func() []string {
+		var found []string
+		for name, g := range map[string]interface {
+			DeleteLabelValues(...string) bool
+		}{"adopted": rackPDUAdoptedGauge, "ready": rackPDUReadyGauge, "drifted": rackPDUDriftedGauge, "certificate changed": rackPDUCertificateChangedGauge} {
+			if g.DeleteLabelValues("ber1-pdu-b", "ber1") {
+				found = append(found, name)
+			}
+		}
+		return found
+	}
+	planned := func(p *infrav1.RackPDU) {
+		p.Spec.ManagedBy = infrav1.RackCardManagedByStandalone
+	}
+
+	h := newPDUHarness(t, rackPDU(planned))
+	h.reconcile()
+	if found := hasSeries(); len(found) != 0 {
+		t.Fatalf("a standalone PDU exports %v", found)
+	}
+
+	h = newPDUHarness(t, rackPDU())
+	h.reconcile()
+	pdu := h.pdu()
+	pdu.Spec.ManagedBy = infrav1.RackCardManagedByStandalone
+	if err := h.r.Update(context.Background(), pdu); err != nil {
+		t.Fatal(err)
+	}
+	h.reconcile()
+	if found := hasSeries(); len(found) != 0 {
+		t.Fatalf("a PDU made standalone keeps %v", found)
+	}
+}

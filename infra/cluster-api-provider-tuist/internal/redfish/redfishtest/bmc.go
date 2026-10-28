@@ -32,6 +32,9 @@ type BMC struct {
 	Image       string
 	// Override is the one-time boot target, empty for none.
 	Override string
+	// SSDP and Sideband are whether the BMC announces itself with SSDP and
+	// whether its NC-SI interface (eth1) is up.
+	SSDP, Sideband bool
 	// Resets records every reset type asked for.
 	Resets []string
 	etag   int
@@ -48,7 +51,9 @@ func New() *BMC {
 			"TCG001": "Enabled", "TER002": false, "SECB001": "Disabled",
 			"MAPIDS": "AridApmLastState:1,NWSK000:1,NWSK001:1,NWSK006:1,TCG001:1,TER002:1,SECB001:0,",
 		},
-		Pending: map[string]any{},
+		Pending:  map[string]any{},
+		SSDP:     true,
+		Sideband: true,
 	}
 }
 
@@ -155,6 +160,17 @@ func (b *BMC) get(w http.ResponseWriter, p string) {
 		}
 	case "/redfish/v1/Managers/Self/VirtualMedia/CD1":
 		writeJSON(w, map[string]any{"Inserted": b.Image != "", "Image": b.Image})
+	case "/redfish/v1/Managers/Self/NetworkProtocol":
+		writeJSON(w, map[string]any{
+			"SSDP": map[string]any{"ProtocolEnabled": b.SSDP, "Port": 1900},
+			"SNMP": map[string]any{"ProtocolEnabled": true, "EnableSNMPv1": true, "EnableSNMPv2c": true, "Port": 161},
+		})
+	case "/redfish/v1/Managers/Self/EthernetInterfaces/eth1":
+		e := map[string]any{"InterfaceEnabled": b.Sideband}
+		for k, v := range ethernet[p] {
+			e[k] = v
+		}
+		writeJSON(w, e)
 	default:
 		if e, ok := ethernet[p]; ok {
 			writeJSON(w, e)
@@ -207,6 +223,24 @@ func (b *BMC) patch(w http.ResponseWriter, p string, body map[string]any) {
 		if boot["BootSourceOverrideEnabled"] == "Once" && boot["BootSourceOverrideMode"] == "UEFI" {
 			b.Override, _ = boot["BootSourceOverrideTarget"].(string)
 		}
+	case "/redfish/v1/Managers/Self/NetworkProtocol":
+		if _, ok := body["SNMP"]; ok {
+			writeError(w, http.StatusBadRequest, "The property ProtocolEnabled is a read only property and cannot be assigned a value.")
+			return
+		}
+		ssdp, _ := body["SSDP"].(map[string]any)
+		on, _ := ssdp["ProtocolEnabled"].(bool)
+		if on == b.SSDP {
+			writeError(w, http.StatusBadRequest, "Cannot patch the value which already applied")
+			return
+		}
+		b.SSDP = on
+	case "/redfish/v1/Managers/Self/EthernetInterfaces/eth1":
+		on, _ := body["InterfaceEnabled"].(bool)
+		b.Sideband = on
+		b.etag++
+		w.WriteHeader(http.StatusAccepted)
+		return
 	default:
 		name, ok := accounts[p]
 		if !ok {

@@ -4,6 +4,13 @@ SwiftUI owns presentation; Rust owns OAuth, Orbit session state and allowlisted 
 Keep shared section strings/routes in the Rust navigation catalog. Do not add a web
 view, source interpreter or independent networking/token-refresh implementation.
 
+Moodboard's share extension and protected App Group inbox live in [Share](Share/AGENTS.md).
+`AtlasSharedItems` owns host review and exact uncertain-save retries; `AtlasSharedItemsView`
+offers review from Profile and a foreground banner without replacing active drafts.
+Authentication publishes a random recipient/server pair, not credentials, and purges it
+on logout/new login. Suggestion callbacks must preserve concurrent typing and notes.
+The share-sheet recipient is captured on entry; account changes must reject that sheet's save.
+
 `AtlasAuthentication` is the MainActor coordinator for credential mutation and shared
 in-flight refresh. Persist rotations before requests, fence both successes and errors
 by session generation, and discard cancelled/late responses. Blocking Rust calls run
@@ -133,7 +140,9 @@ in a changing safe-area inset around the entire TabView. The compact participant
 menu must not cover navigation controls or expose stale names on local-only screens.
 Tab models retain loaded data for the signed-in session; returning to Orbit reuses
 its Rust snapshot, while pull-to-refresh and live invalidations keep it current.
-Do not persist authenticated responses to a shared or disk cache to mask layout bugs.
+Orbit additionally hydrates Rust's explicitly sanitized, credential-lifetime-scoped
+inbox projection before network session restoration; see [Durable read cache](../README.md#durable-read-cache).
+Do not persist arbitrary authenticated responses or use disk caching to mask layout bugs.
 
 Add new Swift sources to explicit Once source lists where needed, particularly the
 unhosted test bundle. Run `once build AtlasIOS`, `once test AtlasIOSTests` and

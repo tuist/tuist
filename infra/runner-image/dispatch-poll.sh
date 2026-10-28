@@ -243,11 +243,13 @@ source /etc/tuist.env
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
-# GitHub-hosted runners set ImageOS (e.g. `macos26`), and setup actions such
-# as erlef/setup-beam read it to pick a prebuilt binary for the OS. Derived
-# from the booted OS so it follows base-image bumps; the runner forwards it
-# to every step.
-ImageOS="macos$(sw_vers -productVersion | cut -d. -f1)"
+# The booted OS version, so both uses follow base-image bumps. Every dispatch
+# request reports it, and the server names the runner after it
+# (`tuist-macos-26.6-xcode-27.0-…`). GitHub-hosted runners set ImageOS (e.g.
+# `macos26`), and setup actions such as erlef/setup-beam read it to pick a
+# prebuilt binary for the OS; the runner forwards it to every step.
+os_version="$(sw_vers -productVersion)"
+ImageOS="macos${os_version%%.*}"
 export ImageOS
 
 keep_desktop_interactive() {
@@ -971,7 +973,7 @@ while true; do
     --request POST \
     --header "Authorization: Bearer ${SA_TOKEN}" \
     --header "Content-Type: application/json" \
-    --data '{}' \
+    --data "{\"os_version\":\"${os_version}\"}" \
     "${TUIST_RUNNER_DISPATCH_URL}" 2>/dev/null) || http="000"
 
   case "${http}" in
