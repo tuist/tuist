@@ -26,6 +26,15 @@ The 512 MiB file and eight-second phases are VM mechanism diagnostics, not
 hosted NVMe/application measurements or proof of a cold working set. Reclamation
 churn includes TRIM for thin; ordinary filesystem block reuse requires no TRIM.
 
+Setting `KURA_FSCRYPT_CACHE_BENCH` to the built `cmd/cache-bench` executable also
+runs the pinned Kura runtime in unprivileged Docker containers, with one CPU,
+768 MiB memory, 4 GiB cache budget and 2 GiB workspace. It compares shared XFS,
+plain ext4, fscrypt and thin LUKS/XFS in forward/reverse order with a new cache
+directory each time. Every layout has a 6 GiB project quota. Authenticated,
+checksum-checked HTTP workloads include eviction churn and a 1 GiB working set.
+The temporary auth token is fixture-only, kept out of artifacts and deleted
+with the fixture. This remains VM testing, not Kubernetes/CSI or OpenBao E2E.
+
 fscrypt encrypts file contents and filenames, not other filesystem metadata.
 Unlocked files still rely on normal host permissions and pod isolation. Keys
 for open files can remain in use after a removal request. A successful probe

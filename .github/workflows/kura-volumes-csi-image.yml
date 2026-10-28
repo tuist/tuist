@@ -94,13 +94,20 @@ jobs:
     if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch'
     # Independent storage-primitive experiment; no deployed driver change.
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Build bounded cache benchmark
+        working-directory: infra/kura-volumes-csi
+        run: go build -o /tmp/kura-fscrypt-cache-bench ./cmd/cache-bench
       - name: Install disposable VM prerequisites
         run: |
           sudo apt-get update
@@ -118,7 +125,7 @@ jobs:
         run: |
           # The unprivileged runner intentionally owns the report artifact.
           # shellcheck disable=SC2024
-          sudo env KURA_FSCRYPT_DISPOSABLE_VM=1 ruby infra/kura-volumes-csi/fscrypt/stack_test.rb > /tmp/kura-fscrypt-stack.json
+          sudo env KURA_FSCRYPT_DISPOSABLE_VM=1 KURA_FSCRYPT_CACHE_BENCH=/tmp/kura-fscrypt-cache-bench ruby infra/kura-volumes-csi/fscrypt/stack_test.rb > /tmp/kura-fscrypt-stack.json
       - name: Preserve disposable VM kernel diagnostics
         if: failure()
         run: sudo dmesg | tail -100

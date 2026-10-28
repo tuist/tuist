@@ -6,6 +6,9 @@ require 'tmpdir'
 require 'fileutils'
 require 'securerandom'
 require 'digest'
+require 'openssl'
+require 'base64'
+require 'net/http'
 
 abort 'requires a disposable Linux VM, root and KURA_FSCRYPT_DISPOSABLE_VM=1' unless
   RUBY_PLATFORM.include?('linux') && Process.uid.zero? && ENV['KURA_FSCRYPT_DISPOSABLE_VM'] == '1'
@@ -18,6 +21,7 @@ class FscryptFixture
     @root = Dir.mktmpdir('kura-fscrypt-')
     File.chmod(0755, @root)
     @mounts, @loops, @keys, @ids = [], [], {}, {}
+    @backings = {}
     @result = {schema: 1, assertions: [], observations: {}, benchmarks: []}
     @helper = File.join(@root, 'probe')
     run('cc', '-O2', '-Wall', '-Wextra', '-Werror', File.join(__dir__, 'probe.c'), '-o', @helper)
@@ -41,6 +45,7 @@ class FscryptFixture
     File.open(f, 'wb', 0600) { |io| io.truncate(size) }
     loop = run('losetup', '--direct-io=on', '--find', '--show', f).strip
     @loops << loop
+    @backings[loop] = f
     check('loop belongs to private fixture', run('losetup', '-n', '-O', 'BACK-FILE', loop).strip == f)
     loop
   end
@@ -54,7 +59,7 @@ class FscryptFixture
   def setup
     @result[:environment] = {kernel: run('uname', '-r').strip, fscryptctl: run('fscryptctl', '--version').strip,
       backing: 'private loop files in disposable VM; no hosted storage', uid: 1000}
-    @device = image('ext4', 3 << 30)
+    @device = image('ext4', 8 << 30)
     run('mkfs.ext4', '-q', '-F', '-m', '0', '-O', 'encrypt,project,quota', '-E', 'lazy_itable_init=0,lazy_journal_init=0', @device)
     run('tune2fs', '-Q', 'prjquota', @device)
     @ext = mount(@device, 'ext4', 'ext4', 'nodev,nosuid,noatime,prjquota')
@@ -71,8 +76,8 @@ class FscryptFixture
     end
     check('distinct tenant encryption policies', @ids['a'] != @ids['b'])
     @result[:observations][:policies] = %w[a b].to_h { |n| [n, run('fscryptctl', 'get_policy', tenant(n))] }
-    @result[:observations][:virtual_ceilings] = {a: 4 << 30, b: 4 << 30, physical_filesystem: space['total']}
-    check('aggregate logical ceilings exceed physical filesystem', 8 << 30 > space['total'])
+    @result[:observations][:virtual_ceilings] = {a: 8 << 30, b: 8 << 30, physical_filesystem: space['total']}
+    check('aggregate logical ceilings exceed physical filesystem', 16 << 30 > space['total'])
   end
   def tenant(name); File.join(@ext, name); end
   def project(name); name == 'a' ? '1' : '2'; end
@@ -160,7 +165,7 @@ class FscryptFixture
   def benchmarks
     # Buffered, synchronous I/O on every layout: no silent fscrypt O_DIRECT fallback comparison.
     # These VM figures are not hosted NVMe or application throughput.
-    @xdev = image('shared-xfs', 3 << 30)
+    @xdev = image('shared-xfs', 8 << 30)
     run('mkfs.xfs', '-q', '-f', '-m', 'reflink=0', @xdev)
     xfs = mount(@xdev, 'xfs', 'xfs', 'nodev,nosuid,noatime,prjquota')
     File.chown(1000, 1000, xfs)
@@ -169,19 +174,21 @@ class FscryptFixture
     File.chown(1000, 1000, plain)
     limit('a', 2048)
     layouts = {'xfs'=>xfs, 'ext4'=>plain, 'fscrypt'=>tenant('a')}
+    devices = {'xfs'=>@xdev, 'ext4'=>@device, 'fscrypt'=>@device}
+    projects = {'xfs'=>'1', 'ext4'=>'3', 'fscrypt'=>'1'}
     @vg = "kura_fscrypt_#{SecureRandom.hex(4)}"
-    pv = image('lvm-controls', 10 << 30)
+    pv = image('lvm-controls', 20 << 30)
     run('pvcreate', '-y', pv)
     run('vgcreate', @vg, pv)
-    run('lvcreate', '-y', '--type', 'thin-pool', '-L', '4G', '--poolmetadatasize', '128M',
+    run('lvcreate', '-y', '--type', 'thin-pool', '-L', '8G', '--poolmetadatasize', '128M',
       '--chunksize', '512K', '--discards', 'nopassdown', '-n', 'pool', @vg)
     run('lvchange', '--errorwhenfull', 'y', "#{@vg}/pool")
     @mappers = []
     %w[thick thin].each do |name|
       if name == 'thin'
-        run('lvcreate', '-y', '-V', '3G', '--thinpool', "#{@vg}/pool", '-n', name)
+        run('lvcreate', '-y', '-V', '7680M', '--thinpool', "#{@vg}/pool", '-n', name)
       else
-        run('lvcreate', '-y', '-L', '3G', '-n', name, @vg)
+        run('lvcreate', '-y', '-L', '7680M', '-n', name, @vg)
       end
       key = SecureRandom.random_bytes(32)
       device = "/dev/#{@vg}/#{name}"
@@ -196,6 +203,12 @@ class FscryptFixture
       target = mount("/dev/mapper/#{mapper}", name, 'xfs', 'nodev,nosuid,noatime,prjquota')
       File.chown(1000, 1000, target)
       layouts[name] = target
+      devices[name] = "/dev/mapper/#{mapper}"
+      projects[name] = '1'
+    end
+    layouts.each do |name, path|
+      run(@helper, 'project', path, projects[name])
+      run(@helper, 'set', devices[name], projects[name], (2048*MIB).to_s, '65536')
     end
     order = %w[xfs ext4 fscrypt thick thin thin thick fscrypt ext4 xfs]
     order.each_with_index do |layout, round|
@@ -222,14 +235,84 @@ class FscryptFixture
       @result[:benchmarks] << {layout: layout, round: round, workload: '16x64MiB_write_delete_reclaim',
         seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC)-started}
     end
+    cache_benchmarks(layouts, devices, projects) if ENV['KURA_FSCRYPT_CACHE_BENCH']
+  end
+  def cache_benchmarks(layouts, devices, projects)
+    executable = ENV.fetch('KURA_FSCRYPT_CACHE_BENCH')
+    raise 'benchmark binary must exist' unless File.executable?(executable)
+    image = 'ghcr.io/tuist/kura:sha-04e128167d80'
+    run('docker', 'pull', image)
+    @result[:runtime] = {image: image, digest: run('docker', 'image', 'inspect', '--format', '{{index .RepoDigests 0}}', image).strip,
+      cpu_limit: 1, memory_bytes: 768*MIB, cache_bytes: 4096*MIB, workspace_bytes: 2048*MIB}
+    secret = SecureRandom.hex(32)
+    b64 = ->(o) { Base64.urlsafe_encode64(JSON.generate(o), padding: false) }
+    unsigned = [b64.call(alg: 'HS256', typ: 'JWT'), b64.call(sub: 'disposable-probe', type: 'user',
+      scopes: ['project_cache_write'], cache_grants: {project: {read: ['default/shared'], write: ['default/shared']}}, exp: Time.now.to_i+14400)].join('.')
+    token = unsigned + '.' + Base64.urlsafe_encode64(OpenSSL::HMAC.digest('sha256', secret, unsigned), padding: false)
+    token_file = File.join(@root, 'fixture-token')
+    File.write(token_file, token, mode: 'w', perm: 0600)
+    env_file = File.join(@root, 'fixture-env')
+    env = {KURA_PORT: 4000, KURA_INTERNAL_PORT: 7443, KURA_NODE_URL: 'http://127.0.0.1:7443',
+      KURA_PEERS: 'http://127.0.0.1:7443', KURA_TENANT_ID: 'default', KURA_REGION: 'qualification',
+      KURA_DATA_DIR: '/var/cache/kura', KURA_TMP_DIR: '/var/cache/kura/tmp', KURA_TMP_DIR_MAX_BYTES: 2048*MIB,
+      KURA_CAS_CAPACITY_BYTES: 4096*MIB, KURA_MEMORY_LIMIT_BYTES: 768*MIB,
+      KURA_AUTH_JWT_SECRET: secret, RUST_LOG: 'warn', KURA_OTEL_SERVICE_NAME: 'fscrypt-qualification'}
+    File.write(env_file, env.map { |k,v| "#{k}=#{v}" }.join("\n")+"\n", mode: 'w', perm: 0600)
+    @result[:cache_benchmarks] = []
+    %w[xfs ext4 fscrypt thin thin fscrypt ext4 xfs].each_with_index do |layout, round|
+      run(@helper, 'set', devices[layout], projects[layout], (6144*MIB).to_s, '65536')
+      path = File.join(layouts[layout], 'cache-run')
+      Dir.mkdir(path)
+      File.chown(1000, 1000, path)
+      name = "kura-fscrypt-probe-#{SecureRandom.hex(5)}"
+      @container = name
+      run('docker', 'run', '-d', '--name', name, '--user', '1000:1000', '--cap-drop=ALL',
+        '--security-opt=no-new-privileges', '--cpus=1', '--memory=768m', '--memory-swap=768m',
+        '--pids-limit=256', '--env-file', env_file, '-p', '127.0.0.1::4000', '-v', "#{path}:/var/cache/kura", image)
+      endpoint = 'http://' + run('docker', 'port', name, '4000/tcp').strip
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC)+90
+      loop do
+        begin
+          break if Net::HTTP.get_response(URI(endpoint+'/ready')).code == '200'
+        rescue Errno::ECONNREFUSED, EOFError, Errno::ECONNRESET
+        end
+        raise "runtime not ready: #{run('docker', 'logs', name)}" if Process.clock_gettime(Process::CLOCK_MONOTONIC)>deadline
+        sleep 1
+      end
+      warn "BENCH cache #{round+1}/8 #{layout}"
+      stats = -> { run('docker', 'exec', name, 'sh', '-c', 'cat /sys/fs/cgroup/cpu.stat /sys/fs/cgroup/memory.events /sys/fs/cgroup/memory.peak') }
+      before = stats.call
+      output = File.join(@root, "cache-#{round}.json")
+      run(executable, '-base', endpoint, '-token-file', token_file, '-account', 'default', '-out', output)
+      metrics = JSON.parse(File.read(output))
+      check('all cache requests passed', metrics.all? { |m| m.fetch('failures') == 0 })
+      @result[:cache_benchmarks] << {layout: layout, round: round, phases: metrics, before: before, after: stats.call,
+        quota: JSON.parse(run(@helper, 'get', devices[layout], projects[layout]))}
+      working = File.join(@root, "working-#{round}.json")
+      run(executable, '-base', endpoint, '-token-file', token_file, '-account', 'default', '-working-set', '-out', working)
+      working_metrics = JSON.parse(File.read(working))
+      check('working set larger than memory passed', working_metrics.all? { |m| m.fetch('failures') == 0 })
+      @result[:cache_benchmarks].last[:working_set] = working_metrics
+      run('docker', 'stop', '-t', '30', name)
+      run('docker', 'rm', name)
+      @container = nil
+      FileUtils.remove_entry(path)
+      run('sync', '-f', layouts[layout])
+      run('fstrim', layouts[layout]) if layout == 'thin'
+    end
   end
   def cleanup
     safe = true
+    safe = cmd('docker', 'rm', '-f', @container, failure: true)[2] && safe if @container
     @mounts.reverse_each { |m| safe = cmd('umount', m, failure: true)[2] && safe }
     (@mappers || []).reverse_each { |m| safe = cmd('cryptsetup', 'close', m, failure: true)[2] && safe } if safe
     safe = cmd('vgremove', '-y', @vg, failure: true)[2] && safe if safe && @vg
     if safe
-      @loops.reverse_each { |d| safe = cmd('losetup', '-d', d, failure: true)[2] && safe }
+      @loops.reverse_each do |d|
+        detached = cmd('losetup', '-d', d, failure: true)[2]
+        detached &&= run('losetup', '-j', @backings.fetch(d)).strip.empty?
+        safe = detached && safe
+      end
     end
     @keys.each_value { |k| k.replace("\0" * k.bytesize) }
     if safe
@@ -242,6 +325,7 @@ class FscryptFixture
 end
 
 fixture = FscryptFixture.new
+Signal.trap('TERM') { raise Interrupt, 'terminated' }
 begin
   fixture.setup
   fixture.reclamation
