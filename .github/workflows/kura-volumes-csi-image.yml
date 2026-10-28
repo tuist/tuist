@@ -144,7 +144,12 @@ jobs:
           profile_tool=""
           if [ "$FSCRYPT_PROFILE" = "true" ]; then
             sudo apt-get install -y linux-tools-generic
-            profile_tool=$(find /usr/lib/linux-tools -type f -name perf | sort -V | tail -1)
+            for candidate in /usr/lib/linux-tools/*/perf; do
+              if [ -x "$candidate" ]; then
+                profile_tool="$candidate"
+                break
+              fi
+            done
             test -x "$profile_tool"
             sudo sysctl -w kernel.perf_event_paranoid=1 kernel.kptr_restrict=0
           fi
