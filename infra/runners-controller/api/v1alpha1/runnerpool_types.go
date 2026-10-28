@@ -239,6 +239,13 @@ type RunnerPoolAutoscaling struct {
 	// +optional
 	MinWarmPoolFloor *int32 `json:"minWarmPoolFloor,omitempty"`
 
+	// MaxLearnedWarmPoolFloor caps the warm floor the server learns from
+	// the pool's own jobs: the burst its jobs arrive in, kept idle above
+	// the pool's load while the pool has had a job in the last day. 0
+	// turns the learned floor off, leaving only MinWarmPoolFloor.
+	// +optional
+	MaxLearnedWarmPoolFloor int32 `json:"maxLearnedWarmPoolFloor,omitempty"`
+
 	// MaxReplicas is the hard ceiling on the autoscaler-driven
 	// `spec.replicas` value. 0 disables autoscaling-driven scale
 	// changes (the static `spec.replicas` still applies).

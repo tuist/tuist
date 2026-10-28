@@ -215,6 +215,16 @@ spec:
                         work. macOS and uncontended pools honor it as a
                         floor; real load (claimed + queued) is always funded
                         above it.
+                    maxLearnedWarmPoolFloor:
+                      type: integer
+                      default: 0
+                      minimum: 0
+                      description: |
+                        Cap on the warm floor the server learns from the
+                        pool's own jobs: the burst its jobs arrive in, kept
+                        idle above the pool's load while the pool has had a
+                        job in the last day. 0 turns the learned floor off,
+                        leaving only minWarmPoolFloor.
                     maxReplicas:
                       type: integer
                       default: 0
