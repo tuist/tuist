@@ -10,12 +10,13 @@ defmodule TuistWeb.Noora.Pages.Banner do
       "Keep the title and description short. They sit side by side on one row, separated by a dot.",
       "Match the status to the message: `success` confirms, `warning` asks for attention, `error` reports a problem that needs action, `information` gives context.",
       "Only `primary` accepts a custom `icon`. The other statuses always show their own icon.",
-      "Dismissing hides the banner in the browser with `JS.hide`. It comes back on the next page load unless you stop rendering it.",
-      "Render at most one `primary` banner per page. Its background grid uses a fixed SVG gradient id, so a second one duplicates it."
+      "Add at most one link with the `action` slot, for the next step such as Learn more or Update payment method. Use a large `link_button`; it takes the banner's text color.",
+      "Dismissing hides the banner in the browser with `JS.hide`. It comes back on the next page load unless you stop rendering it."
     ]
 
   example "Primary",
-    description: "The default status, for announcements. It has a grid background and can show an icon of your choice.",
+    description:
+      "The default status, for announcements. It has an animated dither wave in the background and can show an icon of your choice.",
     layout: :column do
     ~H"""
     <.banner
@@ -55,6 +56,34 @@ defmodule TuistWeb.Noora.Pages.Banner do
       title="We could not charge your card"
       description="Update your payment method to keep using the remote cache"
     />
+    """
+  end
+
+  example "With a link",
+    description: "The `action` slot adds a link after the description. Arrows come from the link button's icon slots.",
+    layout: :column do
+    ~H"""
+    <.banner
+      id="banner-action-success"
+      status="success"
+      title="You're on the Pro plan"
+      description="Unlimited cache and previews"
+    >
+      <:action>
+        <.link_button label="See plan" size="large" href="#">
+          <:icon_right><.chevron_right /></:icon_right>
+        </.link_button>
+      </:action>
+    </.banner>
+    <.banner
+      id="banner-action-error"
+      status="error"
+      title="Your payment failed"
+    >
+      <:action>
+        <.link_button label="Update card" size="large" href="#" />
+      </:action>
+    </.banner>
     """
   end
 

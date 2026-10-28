@@ -73,6 +73,7 @@ const hooks = {
   NooraCheckbox: lazyHook(() => import("noora/hooks/Checkbox.js")),
   NooraDatePicker: lazyHook(() => import("noora/hooks/DatePicker/index.js")),
   NooraDigitInput: lazyHook(() => import("noora/hooks/DigitInput.js")),
+  NooraDitherWave: lazyHook(() => import("noora/hooks/DitherWave.js")),
   PlaceCursorAtEnd: lazyHook(() =>
     import("noora/hooks/hooks.js").then(({ PlaceCursorAtEnd }) => ({ default: PlaceCursorAtEnd })),
   ),
