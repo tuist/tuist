@@ -11,25 +11,13 @@ defmodule Noora.Breadcrumbs do
     <.breadcrumb id="category" label="Electronics" />
   </.breadcrumbs>
   ```
-
-  Set `build_tool` on `breadcrumb` or `breadcrumb_item` to show a build tool logo
-  (`xcode`, `gradle`, `bazel`, `mix`, or `once`) before the label:
-
-  ```elixir
-  <.breadcrumb id="project" label="android-app" build_tool="gradle">
-    <.breadcrumb_item value="ios-app" label="ios-app" build_tool="xcode" href="/ios-app" />
-  </.breadcrumb>
-  ```
   """
   use Phoenix.Component
 
   import Noora.Avatar
-  import Noora.Badge
   import Noora.Dropdown
   import Noora.Icon
   import Noora.Utils
-
-  @build_tools [nil | ~w(xcode gradle bazel mix once)]
 
   attr(:style, :string, values: ~w(slash arrow), default: "slash", doc: "The separator style between breadcrumbs")
   slot(:inner_block, doc: "Breadcrumb items to be rendered")
@@ -76,26 +64,18 @@ defmodule Noora.Breadcrumbs do
     doc: "Function called when an interaction happens outside the component"
   )
 
+  attr(:image, :string,
+    default: nil,
+    doc:
+      "URL of a 20px logo shown before the label, such as a project's build system. A breadcrumb shows one of an image, an avatar, or an icon; the image takes their place."
+  )
+
   attr(:show_avatar, :boolean, default: false, doc: "Whether to show the avatar")
 
   attr(:avatar_color, :string,
     values: ~w(gray red orange yellow azure blue purple pink),
     default: "pink",
     doc: "Color of the avatar when avatar is shown"
-  )
-
-  attr(:build_tool, :string,
-    values: @build_tools,
-    default: nil,
-    doc: "Build tool whose logo is shown before the label. Takes precedence over `show_avatar` and the `icon` slot."
-  )
-
-  attr(:badge_label, :string, default: nil, doc: "Label for the badge displayed next to the breadcrumb label")
-
-  attr(:badge_color, :string,
-    values: ~w(neutral destructive warning attention success information focus primary secondary),
-    default: "neutral",
-    doc: "Color of the badge"
   )
 
   slot(:icon, doc: "Breadcrumb icon")
@@ -123,10 +103,10 @@ defmodule Noora.Breadcrumbs do
       data-positioning-anchor="trigger"
       {@rest}
     >
-      <a href={@href} data-part="link" data-build-tool={@build_tool}>
-        <span :if={@build_tool} data-part="build-tool" data-tool={@build_tool} aria-hidden="true" />
+      <a href={@href} data-part="link">
+        <img :if={@image} src={@image} alt="" width="20" height="20" data-part="image" />
         <.avatar
-          :if={@show_avatar and is_nil(@build_tool)}
+          :if={@show_avatar and is_nil(@image)}
           id={@id <> "-avatar"}
           name={@label}
           color={@avatar_color}
@@ -134,13 +114,12 @@ defmodule Noora.Breadcrumbs do
           data-part="avatar"
         />
         <div
-          :if={has_slot_content?(@icon, assigns) and not @show_avatar and is_nil(@build_tool)}
+          :if={has_slot_content?(@icon, assigns) and not @show_avatar and is_nil(@image)}
           data-part="icon"
         >
           {render_slot(@icon)}
         </div>
         <span data-part="label">{@label}</span>
-        <.badge :if={@badge_label} label={@badge_label} color={@badge_color} size="small" />
       </a>
       <button
         :if={has_slot_content?(@inner_block, assigns)}
@@ -180,24 +159,16 @@ defmodule Noora.Breadcrumbs do
   attr(:show_avatar, :boolean, default: false, doc: "Whether to show the avatar")
   attr(:icon, :string, default: nil, doc: "Icon to display. Overrides `show_avatar`.")
 
-  attr(:build_tool, :string,
-    values: @build_tools,
+  attr(:image, :string,
     default: nil,
-    doc: "Build tool whose logo is shown before the label. Overrides `icon` and `show_avatar`."
+    doc:
+      "URL of a 20px logo shown before the label, such as a project's build system. It takes the place of the avatar and the icon."
   )
 
   attr(:avatar_color, :string,
     values: ~w(gray red orange yellow azure blue purple pink),
     default: "pink",
     doc: "Color of the avatar when avatar is shown"
-  )
-
-  attr(:badge_label, :string, default: nil, doc: "Label for the badge displayed next to the item label")
-
-  attr(:badge_color, :string,
-    values: ~w(neutral destructive warning attention success information focus primary secondary),
-    default: "neutral",
-    doc: "Color of the badge"
   )
 
   def breadcrumb_item(assigns) do
@@ -207,24 +178,22 @@ defmodule Noora.Breadcrumbs do
       label={@label}
       href={@href}
       data-selected={@selected}
-      data-build-tool={@build_tool}
       role="menuitem"
       tabindex="-1"
     >
-      <:left_icon :if={@show_avatar or not is_nil(@icon) or not is_nil(@build_tool)}>
-        <span :if={@build_tool} data-part="build-tool" data-tool={@build_tool} aria-hidden="true" />
+      <:left_icon :if={@show_avatar or not is_nil(@icon) or not is_nil(@image)}>
+        <img :if={@image} src={@image} alt="" width="20" height="20" data-part="image" />
         <.avatar
-          :if={@show_avatar and is_nil(@icon) and is_nil(@build_tool)}
+          :if={@show_avatar and is_nil(@icon) and is_nil(@image)}
           id={(@id || @label) <> "-avatar"}
           name={@label}
           color={@avatar_color}
           size="2xsmall"
           data-part="avatar"
         />
-        <.icon :if={not is_nil(@icon) and is_nil(@build_tool)} name={@icon} />
+        <.icon :if={not is_nil(@icon) and is_nil(@image)} name={@icon} />
       </:left_icon>
-      <:right_icon :if={@badge_label || @selected}>
-        <.badge :if={@badge_label} label={@badge_label} color={@badge_color} size="small" />
+      <:right_icon :if={@selected}>
         <div data-part="check"><.icon name="check" /></div>
       </:right_icon>
     </.dropdown_item>
