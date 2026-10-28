@@ -1501,8 +1501,8 @@ rackFleet:
     maxPods: 5
     # Shared built-in/custom cache budget on the 1858 GiB disk, enforced by
     # tart-kubelet (`--runner-cache-budget-gib`). Planning allowance: 512 GiB
-    # cache + up to 540 GiB goldens (every catalog image; hosts usually hold
-    # 1 to 3) + 280 GiB guest disks + 100 GiB host data, which stays above the
+    # cache + up to 540 GiB goldens (every catalog image, which staging keeps
+    # on every host) + 280 GiB guest disks + 100 GiB host data, which stays above the
     # 15% (279 GiB) free floor cache admission and the golden GC keep.
     #
     # The volume's APFS quota is half the disk (929 GiB), fixed when the
@@ -1544,8 +1544,8 @@ rackFleet:
   # 12 vCPU shape stays cold: an idle one would hold a whole host.
   #
   # Every image's golden fits beside the cache: about 60 GiB each, 9 images
-  # in the 540 GiB allowance above, and a release pulls only the overlay on
-  # hosts that held the previous image (infra/tart-kubelet/AGENTS.md).
+  # in the 540 GiB allowance above. Every host stages every pool's image, and
+  # a release pulls only the overlay (infra/tart-kubelet/AGENTS.md).
   runners:
     enabled: true
     # Every BER1 host runs macOS 27 and Tart 2.41.1.

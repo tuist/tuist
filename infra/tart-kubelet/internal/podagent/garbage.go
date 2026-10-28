@@ -433,13 +433,15 @@ func (c *Collector) liveBackedGoldens(ctx context.Context) map[string]struct{} {
 
 // keepGolden decides whether to retain a golden base VM this pass and
 // stamps its last-seen time. A golden whose digest a current Pod still
-// references is always kept (and its retention clock reset). An
-// unreferenced golden of an image no pool of the fleet runs is reaped. Any
-// other unreferenced golden is kept until GoldenRetention elapses since it
-// was last seen — except under `aggressive` reclaim, where unreferenced
-// always means reap. First unreferenced sighting starts the clock now
-// (covers a just-materialized golden the Pod List hasn't caught up to,
-// and pre-restart goldens), so it's never reaped on the very pass that
+// references is always kept (and its retention clock reset), and so is one
+// of an image a pool of the fleet runs or moves to next, outside `aggressive`
+// reclaim: staging keeps those on every host, and the disk-pressure reclaim
+// bounds them. An unreferenced golden of an image no pool of the fleet runs
+// is reaped. Any other unreferenced golden is kept until GoldenRetention
+// elapses since it was last seen — except under `aggressive` reclaim, where
+// unreferenced always means reap. First unreferenced sighting starts the
+// clock now (covers a just-materialized golden the Pod List hasn't caught up
+// to, and pre-restart goldens), so it's never reaped on the very pass that
 // discovers it.
 func (c *Collector) keepGolden(name string, expected *expectedSet, now time.Time, retention time.Duration, aggressive bool) bool {
 	c.goldenSeenMu.Lock()
@@ -449,6 +451,10 @@ func (c *Collector) keepGolden(name string, expected *expectedSet, now time.Time
 	}
 
 	if _, referenced := expected.vms[name]; referenced {
+		c.goldenSeen[name] = now
+		return true
+	}
+	if _, current := expected.poolGoldens[name]; current && !aggressive {
 		c.goldenSeen[name] = now
 		return true
 	}

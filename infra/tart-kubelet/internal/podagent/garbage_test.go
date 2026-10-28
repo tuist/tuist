@@ -591,6 +591,26 @@ func TestRunOnceReapsImagesNoPoolRuns(t *testing.T) {
 		}
 	})
 
+	// A host that ran no Pod of a pool's image for a day used to drop its
+	// golden, so the next Pod there pulled it while its job waited.
+	t.Run("keeps the golden of an image a pool runs past the retention window", func(t *testing.T) {
+		c, read := newCollector(t, entries, catalog(), fleet, pod)
+		c.goldenSeen = map[string]time.Time{goldenVMName(current): now.Add(-48 * time.Hour)}
+		c.RunOnce(context.Background())
+		if got, want := read(t), []string{goldenVMName(superseded), superseded}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("deletes = %v, want only the superseded golden and its OCI entry %v", got, want)
+		}
+	})
+
+	t.Run("reaps an unreferenced golden past the retention window when the pools cannot be listed", func(t *testing.T) {
+		c, read := newCollector(t, entries, &poolLister{err: errors.New("no matches for kind RunnerPool")}, fleet, pod)
+		c.goldenSeen = map[string]time.Time{goldenVMName(current): now.Add(-48 * time.Hour)}
+		c.RunOnce(context.Background())
+		if got, want := read(t), []string{goldenVMName(current)}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("deletes = %v, want the retention window to apply without the pools %v", got, want)
+		}
+	})
+
 	t.Run("keeps superseded images when the pools cannot be listed", func(t *testing.T) {
 		c, read := newCollector(t, entries, &poolLister{err: errors.New("no matches for kind RunnerPool")}, fleet, pod)
 		c.RunOnce(context.Background())
