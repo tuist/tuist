@@ -1,0 +1,181 @@
+// Experiment-only: injected into a disposable checkout, never a release build.
+use super::*;
+use std::sync::OnceLock;
+
+#[derive(Deserialize)]
+struct Control {
+    generation: u64,
+    placements: Vec<String>,
+    drain: Vec<String>,
+}
+static ROOT: OnceLock<Option<PathBuf>> = OnceLock::new();
+static NEXT: AtomicUsize = AtomicUsize::new(0);
+fn root() -> Option<&'static PathBuf> {
+    ROOT.get_or_init(|| std::env::var_os("KURA_BORROWED_PROTOTYPE").map(PathBuf::from))
+        .as_ref()
+}
+fn valid(id: &str) -> bool {
+    id == "base"
+        || id
+            .strip_prefix("pvc-")
+            .is_some_and(|v| Uuid::parse_str(v).is_ok())
+}
+fn control() -> Result<Option<Control>, String> {
+    let Some(root) = root() else { return Ok(None) };
+    let bytes = std::fs::read(root.join("control.json")).map_err(|e| e.to_string())?;
+    if bytes.len() > 4096 {
+        return Err("prototype control too large".into());
+    }
+    let c: Control = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    if c.generation == 0
+        || c.placements.is_empty()
+        || c.placements.len() > 8
+        || c.drain.len() > 8
+        || c.placements.iter().chain(&c.drain).any(|id| !valid(id))
+        || c.placements.iter().any(|id| c.drain.contains(id))
+        || c.drain.iter().any(|id| id == "base")
+    {
+        return Err("invalid prototype control".into());
+    }
+    Ok(Some(c))
+}
+fn unit(id: &str) -> &str {
+    id.split_once('~').map_or("base", |(u, _)| u)
+}
+fn unit_root(base: &Path, id: &str) -> PathBuf {
+    if id == "base" {
+        base.to_owned()
+    } else {
+        // IDs originate in this isolated runtime's own durable ring state.
+        root()
+            .expect("prototype unit requires prototype mode")
+            .join("units")
+            .join(id)
+    }
+}
+fn verify(base: &Path, id: &str) -> Result<(), String> {
+    if !valid(id) {
+        return Err("invalid unit identity".into());
+    }
+    if id != "base" {
+        let r = unit_root(base, id);
+        let marker = std::fs::read_to_string(r.join(".unit-id"))
+            .map_err(|e| format!("unit {id} unavailable: {e}"))?;
+        if marker.trim() != id {
+            return Err("unit identity mismatch".into());
+        }
+    }
+    Ok(())
+}
+pub(super) fn path(base: &Path, id: &str) -> PathBuf {
+    if root().is_none() {
+        return segment_path(base, id);
+    }
+    unit_root(base, unit(id))
+        .join("segments")
+        .join(format!("{id}.seg"))
+}
+pub(super) fn new_id(base: &Path) -> Result<String, String> {
+    let uuid = Uuid::now_v7().to_string();
+    let Some(c) = control()? else { return Ok(uuid) };
+    let id = &c.placements[NEXT.fetch_add(1, Ordering::Relaxed) % c.placements.len()];
+    verify(base, id)?;
+    Ok(if id == "base" {
+        uuid
+    } else {
+        format!("{id}~{uuid}")
+    })
+}
+pub(super) fn must_rotate(_base: &Path, id: Option<&str>) -> Result<bool, String> {
+    let Some(c) = control()? else {
+        return Ok(false);
+    };
+    Ok(id.is_some_and(|id| !c.placements.iter().any(|u| u == unit(id))))
+}
+pub(super) fn available(base: &Path) -> Option<u64> {
+    let Some(c) = (match control() {
+        Ok(c) => c,
+        Err(_) => return Some(0),
+    }) else {
+        return available_disk_bytes(base);
+    };
+    c.placements
+        .iter()
+        .map(|u| {
+            verify(base, u).ok()?;
+            available_disk_bytes(&unit_root(base, u))
+        })
+        .collect::<Option<Vec<_>>>()?
+        .into_iter()
+        .min()
+}
+pub(super) fn directories(base: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut paths = vec![base.join("segments")];
+    if let Some(root) = root() {
+        for entry in std::fs::read_dir(root.join("units")).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let name = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| "invalid unit name")?;
+            if entry.path().join(".unit-id").exists() {
+                verify(base, &name)?;
+                paths.push(entry.path().join("segments"));
+            }
+        }
+    }
+    Ok(paths)
+}
+impl Store {
+    pub(super) fn prototype_verify_units(&self) -> Result<(), String> {
+        if root().is_none() {
+            return Ok(());
+        }
+        for id in self.segment_state_snapshot().generations.keys() {
+            verify(&self.data_dir, unit(id))?;
+        }
+        Ok(())
+    }
+    pub(super) async fn prototype_reclaim_unit(&self) -> Result<(), String> {
+        let Some(c) = control()? else { return Ok(()) };
+        if self.handover_enabled { return Err("prototype drain is not qualified for managed handover".into()); }
+        if c.drain.is_empty() {
+            return Ok(());
+        }
+        let mut recovery = self.disk_pressure_reclamation.lock().await;
+        self.finish_segment_retirement(&mut recovery).await?;
+        {
+            let _refresh = self.segment_refresh_lock.lock().await;
+            let _exclusive = self.segment_write_barrier.write().await;
+            let _writer = self.segment_write_lock.lock().await;
+            let snapshot = self.segment_state_snapshot();
+            let candidate = snapshot
+                .state
+                .old
+                .iter()
+                .chain(&snapshot.state.current)
+                .chain(&snapshot.state.new)
+                .find(|s| {
+                    c.drain.iter().any(|u| u == unit(&s.segment_id))
+                        && !self.is_active_segment(&s.segment_id)
+                        && !self.segment_is_pinned(&s.segment_id)
+                });
+            let Some(segment) = candidate.cloned() else {
+                return Ok(());
+            };
+            let bytes = try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0);
+            // Existing eviction commits preserve the
+            // retained-corpus hold. Never delete segment files directly.
+            self.mutate_segment_state(|s| s.remove_segment(&segment.segment_id))
+                .await?;
+            recovery.pending = Some(PressureRetirement {
+                segment,
+                bytes,
+                available_before: self.available_segment_disk_bytes().unwrap_or(0),
+                reason: "prototype_unit",
+            });
+            self.disk_pressure_notify.notify_one();
+        }
+        self.finish_segment_retirement(&mut recovery).await
+    }
+}

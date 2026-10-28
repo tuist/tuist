@@ -18,6 +18,10 @@ on:
       - .github/workflows/kura-volumes-csi-image.yml
   workflow_dispatch:
     inputs:
+      borrowed_only:
+        description: Run only the disposable borrowed-volume prototype; publish no images
+        type: boolean
+        default: false
       fscrypt_only:
         description: Run only the disposable fscrypt experiment, without publishing images
         type: boolean
@@ -37,7 +41,7 @@ env:
 
 jobs:
   test:
-    if: github.repository == 'tuist/tuist' && inputs.fscrypt_only != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    if: github.repository == 'tuist/tuist' && inputs.fscrypt_only != true && inputs.borrowed_only != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +60,7 @@ jobs:
         run: go vet ./...
 
   thin-stack:
-    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true && inputs.borrowed_only != true
     # Device-mapper fault tests need their own disposable VM, never a shared
     # staging host or a container with access to a runner host's block devices.
     runs-on: ubuntu-24.04
@@ -85,6 +89,8 @@ jobs:
           sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_THIN_CHUNK_KIB=${{ matrix.chunk-kib }} /tmp/kura-thin-driver.test -test.run '^TestThinRealStack$' -test.v -test.timeout 15m | tee /tmp/kura-thin-driver.log
       - name: Qualify reclamation and the quota counterexample
         run: |
+          # The unprivileged runner owns the report artifact.
+          # shellcheck disable=SC2024
           sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_THIN_CHUNK_KIB=${{ matrix.chunk-kib }} ruby infra/kura-volumes-csi/thin/stack_test.rb > /tmp/kura-thin-stack.json
       - uses: actions/upload-artifact@v4
         if: always()
@@ -94,8 +100,95 @@ jobs:
             /tmp/kura-thin-driver.log
             /tmp/kura-thin-stack.json
 
+  borrowed-build:
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
+    runs-on: tuist-linux
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: kura
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "rust bazel tuist"
+          working_directory: kura
+      - name: Install build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config ruby
+      - name: Configure optional build cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Apply experiment-only runtime patch
+        run: |
+          KURA_BORROWED_BUILD=1 ruby ../infra/kura-volumes-csi/thin/borrowed/patch_runtime.rb .
+          cargo fmt
+          git diff -- src > /tmp/kura-borrowed-runtime.patch
+          cp src/borrowed_prototype.rs /tmp/kura-borrowed-runtime.rs
+      - name: Validate and build the experimental runtime
+        run: |
+          mise run --skip-tools clippy
+          mise run --skip-tools compile --binary-only -- -c opt
+          cp bazel-bin/kura /tmp/kura-borrowed-runtime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: borrowed-runtime
+          path: |
+            /tmp/kura-borrowed-runtime
+            /tmp/kura-borrowed-runtime.patch
+            /tmp/kura-borrowed-runtime.rs
+
+  borrowed-stack:
+    needs: borrowed-build
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: borrowed-runtime
+          path: /tmp/borrowed-runtime
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Build private runtime image and test binaries
+        run: |
+          mkdir -p kura/bin/amd64
+          cp /tmp/borrowed-runtime/kura-borrowed-runtime kura/bin/amd64/kura
+          chmod +x kura/bin/amd64/kura
+          docker build -f kura/Dockerfile.release --build-arg TARGETARCH=amd64 -t kura:borrowed-prototype kura
+          cd infra/kura-volumes-csi
+          go test -c -o /tmp/kura-borrowed-driver.test ./internal/driver
+          go build -o /tmp/kura-borrowed-cache-bench ./cmd/cache-bench
+      - name: Install private VM stack prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby lvm2 cryptsetup xfsprogs thin-provisioning-tools
+          sudo modprobe dm_thin_pool
+          test "$(df --output=avail -B1 /var/tmp | tail -1)" -gt 25000000000
+      - name: Exercise real CSI and Kura with transferable encrypted units
+        run: |
+          sudo env KURA_BORROWED_DISPOSABLE_VM=1 KURA_BORROWED_SCRIPT="$PWD/infra/kura-volumes-csi/thin/borrowed/stack.rb" KURA_BORROWED_BENCH=/tmp/kura-borrowed-cache-bench /tmp/kura-borrowed-driver.test -test.run '^TestBorrowedRealStack$' -test.v -test.timeout 40m | tee /tmp/kura-borrowed-driver.log
+      - name: Preserve diagnostics
+        if: failure()
+        run: sudo dmesg | tail -100
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: borrowed-stack
+          path: |
+            /tmp/kura-borrowed-results.json
+            /tmp/kura-borrowed-driver.log
+
   fscrypt-experiment:
-    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch'
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.borrowed_only != true
     # Independent storage-primitive experiment; no deployed driver change.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
