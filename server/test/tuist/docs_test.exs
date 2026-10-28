@@ -178,25 +178,26 @@ defmodule Tuist.DocsTest do
       assert migration_page.body =~ "localized_link"
     end
 
-    test "self-hosting documents instance-wide reporting configuration and automatic client discovery" do
+    test "self-hosting documents independent insights and cache access with shared setup" do
       page = Docs.get_page("/en/guides/server/self-host/server")
-      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true"
-      assert page.markdown =~ "No client-side opt-in is required"
-      assert page.markdown =~ "GET /.well-known/tuist.json"
+
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS=true"
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_CACHE_ACCESS=true"
+      assert page.markdown =~ "no client opt-in is needed"
       assert page.markdown =~ "does not follow redirects"
-      assert page.markdown =~ "Upgrade the server before credential-free clients"
-      assert page.markdown =~ "tools sharing a credential directory"
-      assert page.markdown =~ "discovery manifest does not probe"
+      assert page.markdown =~ "Upgrade every server and Kura replica before upgrading clients"
+      assert page.markdown =~ "Older tools can delete credentials"
+      assert page.markdown =~ "omit Git origins from unsigned reports"
+      assert page.markdown =~ "Keep Kura authentication enabled"
+      assert page.markdown =~ "across all accounts and projects, including private projects"
+      assert page.markdown =~ "restart **every relevant server replica**"
+      assert page.markdown =~ "within 60 seconds"
+      assert page.markdown =~ "dashboard and administration still require authentication"
       refute page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
-      assert page.markdown =~ "all existing and newly created"
-      assert page.markdown =~ "across every account on the instance"
-      assert page.markdown =~ "reads the variable at startup"
-      assert page.markdown =~ "no project allowlist or dashboard toggle"
-      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false"
-      assert page.markdown =~ "every relevant server replica"
-      refute page.markdown =~ "TUIST_NETWORK_TRUSTED_BUILD_PUBLISHING"
-      refute page.markdown =~ "enable **Network-trusted report publishing** in each"
-      assert Enum.any?(page.headings, &(&1.id == "network-trusted-report-publishing"))
+
+      assert Enum.any?(page.headings, &(&1.id == "network-trusted-access"))
+      assert page.body =~ ~s(id="network-trusted-report-publishing")
+      assert page.body =~ ~s(id="network-trusted-cache-access")
     end
 
     test "wraps Markdown tables in a scroll container" do

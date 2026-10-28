@@ -40,7 +40,12 @@ if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
 end
 
 config :tuist, :network_trusted_cache_access, System.get_env("TUIST_NETWORK_TRUSTED_CACHE_ACCESS") == "true"
-config :tuist, :network_trusted_report_publishing, System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING") == "true"
+
+config :tuist,
+       :network_trusted_report_publishing,
+       System.get_env("TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS", System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING")) ==
+         "true"
+
 config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
 config :tuist, :runner_macos_cache_volumes, System.get_env("TUIST_RUNNER_MACOS_CACHE_VOLUMES") == "true"
 
