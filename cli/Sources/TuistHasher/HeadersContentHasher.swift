@@ -13,6 +13,7 @@ public protocol HeadersContentHashing {
 /// `HeadersContentHashing`
 /// is responsible for computing a hash that uniquely identifies a list of headers
 public struct HeadersContentHasher: HeadersContentHashing {
+    static let swiftPackageLayoutVersion = "swift-package-source-headers-v2"
     private let contentHasher: ContentHashing
     private let fileSystem: FileSysteming
 
@@ -36,7 +37,7 @@ public struct HeadersContentHasher: HeadersContentHashing {
                 .replacingOccurrences(of: "\"\(layout.root.pathString)\"", with: "\"$(TUIST_PACKAGE_TARGET)\"")
             headersContent += allHeaders.map { $0.relative(to: layout.root).pathString + "\0" }
             headersContent += [
-                "swift-package-source-headers-v1",
+                Self.swiftPackageLayoutVersion,
                 layout.moduleName,
                 layout.publicHeaders.relative(to: layout.root).pathString,
                 String(layout.usesDirectoryModuleMap),

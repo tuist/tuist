@@ -31,9 +31,6 @@ enum SwiftPackageModuleMapRelocator {
                 throw SwiftPackageHeadersExportError.unsupported("external module map in \(layout.moduleMap)")
             }
             if token.text == "module", depth == 0 {
-                guard index + 1 < tokens.count, tokens[index + 1].text == layout.moduleName else {
-                    throw SwiftPackageHeadersExportError.unsupported("multiple or unexpected top-level modules")
-                }
                 foundModule = true
                 let isFramework = index > 0 && tokens[index - 1].text == "framework"
                 if framework, !isFramework {
@@ -67,7 +64,7 @@ enum SwiftPackageModuleMapRelocator {
                     let prefix = token.text == "umbrella" ? "Headers/" : ""
                     relative = prefix + path.relative(to: layout.publicHeaders).pathString
                 } else {
-                    let prefix = token.text == "umbrella" ? "TuistHeaders/" : "../TuistHeaders/"
+                    let prefix = token.text == "umbrella" ? "PrivateHeaders/TuistHeaders/" : "../PrivateHeaders/TuistHeaders/"
                     relative = prefix + path.relative(to: layout.root).pathString
                 }
             } else {
@@ -77,7 +74,7 @@ enum SwiftPackageModuleMapRelocator {
             if token.text == "header" { references.append(path) }
         }
         guard foundModule else {
-            throw SwiftPackageHeadersExportError.unsupported("missing module \(layout.moduleName)")
+            throw SwiftPackageHeadersExportError.unsupported("missing module declaration")
         }
         let output = NSMutableString(string: contents)
         for (range, replacement) in replacements.sorted(by: { $0.0.location > $1.0.location }) {

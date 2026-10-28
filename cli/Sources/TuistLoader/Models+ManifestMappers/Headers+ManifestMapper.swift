@@ -1,7 +1,7 @@
 import FileSystem
 import Foundation
 import Path
-import ProjectDescription
+@_spi(TuistLoader) import ProjectDescription
 import TuistCore
 import TuistSupport
 import XcodeGraph

@@ -3,7 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import ProjectDescription
+@_spi(TuistLoader) import ProjectDescription
 import Testing
 import TSCUtility
 import TuistConstants
@@ -9385,9 +9385,6 @@ extension ProjectDescription.Target {
         }
 
         customSettings["SWIFT_PACKAGE_NAME"] = .string(swiftPackageName ?? packageName)
-        if headers?.sourceLayout != nil {
-            customSettings["TUIST_SWIFTPM_HEADER_LAYOUT_VERSION"] = "1"
-        }
 
         return ProjectDescription.Target.target(
             name: name,
@@ -9423,7 +9420,7 @@ extension ProjectDescription.Headers {
         let publicPath = targetBasePath.appending(component: publicDirectory)
         let name = moduleName ?? targetBasePath.basename.replacingOccurrences(of: "-", with: "_")
         let glob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
-        return .headers(
+        return .swiftPackageHeaders(
             public: .list([.glob(.path("\(publicPath.pathString)/\(glob)"), excluding: excluding)]),
             project: .list([.glob(.path("\(targetBasePath.pathString)/\(glob)"), excluding: excluding)]),
             sourceLayout: .init(

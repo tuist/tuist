@@ -9,7 +9,7 @@ import XcodeGraph
 
 struct SwiftPackageHeadersExporterTests {
     enum ModuleKind: CaseIterable {
-        case custom, umbrellaHeader, directory
+        case custom, umbrellaHeader, directory, multipleModules, aliasedModule
     }
 
     enum ArtifactKind: CaseIterable {
@@ -41,6 +41,10 @@ struct SwiftPackageHeadersExporterTests {
             map = "framework module CLib { umbrella header \"\(publicHeader.pathString)\" export * module * { export * } }"
         case .custom:
             map = "// header \"not-a-path\"\nmodule CLib { header \"API.h\" export * }"
+        case .multipleModules:
+            map = "module CLib { header \"API.h\" export * }\nmodule CLib_Private { header \"nested/API.h\" export * }"
+        case .aliasedModule:
+            map = "module ActualCLib { header \"API.h\" export * }"
         }
         try await fileSystem.writeText(map, at: moduleMap)
         let headers = Headers(
@@ -64,7 +68,7 @@ struct SwiftPackageHeadersExporterTests {
                 )
             }
         }
-        let target = Target.test(name: "CLib", product: framework ? .staticFramework : .staticLibrary, headers: headers)
+        let target = Target.test(name: "CLib", product: framework ? .framework : .staticLibrary, headers: headers)
         let exported = try #require(try await SwiftPackageHeadersExporter().export(
             target: target, artifact: artifact
         ))
@@ -78,12 +82,25 @@ struct SwiftPackageHeadersExporterTests {
         try run(["clang", "-c", implementation.pathString, "-o", object.pathString])
         let binary = framework ? (artifactKind == .versionedFramework ? version : artifact)
             .appending(component: "CLib") : artifact
-        try run(["libtool", "-static", "-o", binary.pathString, object.pathString])
+        if framework {
+            try run(["clang", "-dynamiclib", "-o", binary.pathString, object.pathString])
+        } else {
+            try run(["libtool", "-static", "-o", binary.pathString, object.pathString])
+        }
         if framework {
             let info = ["CFBundleExecutable": "CLib", "CFBundleIdentifier": "dev.tuist.CLib", "CFBundlePackageType": "FMWK"]
             let resources = artifactKind == .versionedFramework ? version.appending(component: "Resources") : artifact
             try await fileSystem.makeDirectory(at: resources)
             try PropertyListEncoder().encode(info).write(to: resources.appending(component: "Info.plist").url)
+            try run(["codesign", "--force", "--sign", "-", artifact.pathString])
+            try run(["codesign", "--verify", "--strict", artifact.pathString])
+            if artifactKind == .versionedFramework {
+                for name in ["Headers", "PrivateHeaders", "Modules"] {
+                    #expect(try FileManager.default.destinationOfSymbolicLink(
+                        atPath: artifact.appending(component: name).pathString
+                    ) == "Versions/Current/\(name)")
+                }
+            }
         }
         let xcframework = temporary.appending(component: "CLib.xcframework")
         try run(["xcodebuild", "-create-xcframework"] + (
@@ -99,7 +116,7 @@ struct SwiftPackageHeadersExporterTests {
         try await fileSystem.remove(artifact)
         if !framework { try await fileSystem.remove(exported) }
         let metadata: SwiftPackageHeadersExporter.Metadata = try await fileSystem.readJSONFile(
-            at: (framework ? directory : directory.appending(component: "CLib"))
+            at: directory.appending(component: framework ? "PrivateHeaders" : "CLib")
                 .appending(component: SwiftPackageHeadersExporter.Metadata.fileName)
         )
         let publicDirectory = directory.appending(try RelativePath(validating: metadata.publicDirectory))
@@ -109,7 +126,8 @@ struct SwiftPackageHeadersExporterTests {
             #if __has_include(<CLib/API.h>) != \(directoryModule ? 1 : 0)
             #error Cache export changed module header visibility
             #endif
-            @import CLib;
+            @import \(kind == .aliasedModule ? "ActualCLib" : "CLib");
+            \(kind == .multipleModules ? "@import CLib_Private;" : "")
             #include <API.h>
             int use(void) { return private_value() + nested_value(); }
             """,
@@ -122,6 +140,8 @@ struct SwiftPackageHeadersExporterTests {
             "-fmodules-cache-path=\(temporary.appending(component: "module-cache").pathString)",
             "-I\(publicDirectory.pathString)", consumer.pathString,
         ] + (framework ? ["-F\(slice.pathString)"] : ["-I\(directory.pathString)"])
+        let relocatedMap = directory.appending(try RelativePath(validating: #require(metadata.moduleMap)))
+        process.arguments?.append("-fmodule-map-file=\(relocatedMap.pathString)")
         if let namespaceDirectory = metadata.namespaceDirectory {
             process.arguments?.append("-I\(directory.appending(try RelativePath(validating: namespaceDirectory)).pathString)")
         }
@@ -130,6 +150,26 @@ struct SwiftPackageHeadersExporterTests {
         #expect(process.terminationStatus == 0)
         #expect(try await fileSystem.exists(publicDirectory.parentDirectory.appending(component: "Private.hpp")))
         #expect(try await fileSystem.exists(publicDirectory.appending(components: "nested", "API.h")))
+        if framework {
+            // Model the framework embed copy's header exclusions, then sign its runtime payload.
+            let embedded = temporary.appending(components: "embedded", "CLib.framework")
+            try await fileSystem.makeDirectory(at: embedded.parentDirectory)
+            try await fileSystem.copy(directory, to: embedded)
+            for parent in [embedded, embedded.appending(components: "Versions", "A")] {
+                for name in ["Headers", "PrivateHeaders"] {
+                    let path = parent.appending(component: name)
+                    if (try? FileManager.default.destinationOfSymbolicLink(atPath: path.pathString)) != nil {
+                        try FileManager.default.removeItem(at: path.url)
+                    } else if try await fileSystem.exists(path) {
+                        try await fileSystem.remove(path)
+                    }
+                }
+            }
+            let leakedHeaders = try await fileSystem.glob(directory: embedded, include: ["**/*.{h,hpp,ipp,json}"]).collect()
+            #expect(leakedHeaders.isEmpty)
+            try run(["codesign", "--force", "--sign", "-", embedded.pathString])
+            try run(["codesign", "--verify", "--strict", embedded.pathString])
+        }
     }
 
     private func run(_ arguments: [String]) throws {
@@ -158,10 +198,12 @@ struct SwiftPackageHeadersExporterTests {
         """
         let result = try SwiftPackageModuleMapRelocator.relocate(source, layout: layout, framework: true)
         #expect(result.contents.contains("framework module CLib [system]"))
-        #expect(result.contents.contains("umbrella header \"../TuistHeaders/include/API.h\""))
-        #expect(result.contents.contains("textual header \"../TuistHeaders/Templates.ipp\""))
+        #expect(result.contents.contains("umbrella header \"../PrivateHeaders/TuistHeaders/include/API.h\""))
+        #expect(result.contents.contains("textual header \"../PrivateHeaders/TuistHeaders/Templates.ipp\""))
         #expect(result.contents
-            .contains("explicit module Detail { private header \"../TuistHeaders/include/detail/Private.h\" export * }"))
+            .contains(
+                "explicit module Detail { private header \"../PrivateHeaders/TuistHeaders/include/detail/Private.h\" export * }"
+            ))
         #expect(result.contents.contains("// header \"This is a comment\""))
         #expect(result.contents.contains("requires cplusplus"))
         #expect(result.contents.contains("link \"c++\""))
@@ -183,6 +225,67 @@ struct SwiftPackageHeadersExporterTests {
 }
 
 struct SwiftPackageCachedHeadersMapperTests {
+    @Test(.inTemporaryDirectory) func ordinaryBinaryDependenciesDoNotChangeTargets() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let binary = GraphDependency.testXCFramework(path: root.appending(component: "Ordinary.xcframework"))
+        let targets = (0 ..< 1000).map { Target.test(name: "Target\($0)") }
+        let dependencies = Dictionary(uniqueKeysWithValues: targets.map {
+            (GraphDependency.target(name: $0.name, path: root), Set([binary]))
+        })
+        let graph = Graph.test(path: root, projects: [root: .test(path: root, targets: targets)], dependencies: dependencies)
+        let (mapped, effects, _) = try await SwiftPackageCachedHeadersMapper().map(graph: graph, environment: MapperEnvironment())
+        #expect(mapped == graph)
+        #expect(effects.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func downstreamProcessorDoesNotSupplyUpstreamHeaders() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let artifact = root.appending(component: "S.xcframework")
+        let directory = artifact.appending(components: "macos-arm64", "Headers", "S")
+        try await fileSystem.makeDirectory(at: directory)
+        try await fileSystem.writeAsJSON(
+            SwiftPackageHeadersExporter.Metadata(publicDirectory: "S/TuistHeaders/include", moduleMap: "S/module.modulemap"),
+            at: directory.appending(component: SwiftPackageHeadersExporter.metadataFileName)
+        )
+        let library = GraphDependency.testXCFramework(path: artifact, infoPlist: .test(libraries: [
+            .test(
+                identifier: "macos-arm64",
+                path: try RelativePath(validating: "libS.a"),
+                headersPath: try RelativePath(validating: "Headers"),
+                platform: .macOS
+            ),
+        ]), linking: .static)
+        let upstream = GraphDependency.target(name: "T", path: root)
+        let app = GraphDependency.target(name: "App", path: root)
+        let wrapper = GraphDependency.testXCFramework(path: root.appending(component: "Wrapper.xcframework"))
+        let project = Project.test(path: root, xcodeProjPath: root.appending(component: "Order.xcodeproj"), targets: [
+            .test(name: "T", platform: .macOS, product: .framework),
+            .test(name: "App", platform: .macOS, product: .app),
+        ])
+        let graph = Graph.test(
+            path: root,
+            projects: [root: project],
+            dependencies: [upstream: [wrapper], app: [upstream, library]]
+        )
+        let source = Graph.test(path: root, projects: [root: project], dependencies: [
+            upstream: [wrapper], wrapper: [library], app: [upstream, library],
+        ])
+        var environment = MapperEnvironment()
+        environment.initialGraphWithSources = source
+        let (mapped, _, _) = try await SwiftPackageCachedHeadersMapper().map(graph: graph, environment: environment)
+        let upstreamSettings = try #require(mapped.projects[root]?.targets["T"]?.settings?.base)
+        #expect(upstreamSettings["HEADER_SEARCH_PATHS[sdk=macosx*]"] == .array([
+            "$(inherited)", "\"$(PROJECT_DIR)/S.xcframework/macos-arm64/Headers/S/TuistHeaders/include\"",
+        ]))
+        #expect(upstreamSettings["OTHER_CFLAGS[sdk=macosx*]"] == .array([
+            "$(inherited)", "-fmodule-map-file=\"$(PROJECT_DIR)/S.xcframework/macos-arm64/Headers/S/module.modulemap\"",
+        ]))
+        #expect(mapped.projects[root]?.targets["App"]?.settings?.base["HEADER_SEARCH_PATHS[sdk=macosx*]"] == .array([
+            "$(inherited)", "\"$(BUILT_PRODUCTS_DIR)/include/S/TuistHeaders/include\"",
+        ]))
+    }
+
     @Test(.inTemporaryDirectory, arguments: [false, true], [false, true])
     func restoresOnlyMatchingSDKIncludePaths(framework: Bool, directlyLinked: Bool) async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
@@ -191,7 +294,7 @@ struct SwiftPackageCachedHeadersMapperTests {
         let headersDirectory = framework ? "CLib.framework" : "Headers"
         for sdk in ["ios-arm64", "macos-arm64"] {
             let directory = artifact.appending(components: sdk, headersDirectory)
-            let metadataDirectory = framework ? directory : directory.appending(component: "CLib")
+            let metadataDirectory = directory.appending(component: framework ? "PrivateHeaders" : "CLib")
             try await fileSystem.makeDirectory(at: metadataDirectory)
             try await fileSystem.writeAsJSON(
                 SwiftPackageHeadersExporter
@@ -208,7 +311,9 @@ struct SwiftPackageCachedHeadersMapperTests {
         let consumer = GraphDependency.target(name: "Consumer", path: root)
         let wrapper = GraphDependency.testXCFramework(path: root.appending(component: "Wrapper.xcframework"))
         let graph = Graph.test(
-            path: root, projects: [root: .test(path: root, targets: [.test(name: "Consumer")])],
+            path: root, projects: [root: .test(
+                path: root, xcodeProjPath: root.appending(component: "App.xcodeproj"), targets: [.test(name: "Consumer")]
+            )],
             dependencies: directlyLinked ? [consumer: [dependency]] : [consumer: [wrapper], wrapper: [dependency]],
             dependencyConditions: [GraphEdge(
                 from: directlyLinked ? consumer : wrapper,
@@ -220,7 +325,7 @@ struct SwiftPackageCachedHeadersMapperTests {
         let relative = framework ? "TuistHeaders/include" : "CLib/TuistHeaders/include"
         let expected = directlyLinked
             ? "$(BUILT_PRODUCTS_DIR)/\(framework ? "CLib.framework" : "include")/\(relative)"
-            : "$(SRCROOT)/CLib.xcframework/ios-arm64/\(headersDirectory)/\(relative)"
+            : "$(PROJECT_DIR)/CLib.xcframework/ios-arm64/\(headersDirectory)/\(relative)"
         #expect(settings["HEADER_SEARCH_PATHS[sdk=iphoneos*]"] == .array([
             "$(inherited)", "\"\(expected)\"",
         ]))

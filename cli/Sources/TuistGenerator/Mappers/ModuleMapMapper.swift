@@ -362,6 +362,11 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     }
 
     private static func dependencyMetadata(for dependency: GraphTargetReference) throws -> DependencyMetadata {
+        // Swift package headers are bound after binary replacement. Propagating their original
+        // paths here leaves source module maps competing with the exported maps of cache hits.
+        if dependency.target.headers?.sourceLayout != nil {
+            return DependencyMetadata(moduleName: dependency.target.productName, moduleMapPath: nil, headerSearchPaths: [])
+        }
         let dependencyModuleMapPath: AbsolutePath?
         let pathString = dependency.graphTarget.path.pathString
 

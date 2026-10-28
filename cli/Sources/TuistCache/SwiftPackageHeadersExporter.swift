@@ -24,6 +24,7 @@ public struct SwiftPackageHeadersExporter {
         static let fileName = SwiftPackageHeadersExporter.metadataFileName
         let publicDirectory: String
         var namespaceDirectory: String? = nil
+        var moduleMap: String? = nil
     }
 
     private let fileSystem: FileSysteming
@@ -46,7 +47,10 @@ public struct SwiftPackageHeadersExporter {
         } else {
             destination = isFramework ? container : container.appending(component: layout.moduleName)
         }
-        let tree = destination.appending(component: "TuistHeaders")
+        // Xcode strips Headers and PrivateHeaders when embedding a framework. Keep every
+        // compilation-only file under those standard directories, including the metadata.
+        let support = isFramework ? destination.appending(component: "PrivateHeaders") : destination
+        let tree = support.appending(component: "TuistHeaders")
         let publicRelativePath = layout.publicHeaders.relative(to: layout.root)
         guard layout.publicHeaders.isDescendantOfOrEqual(to: layout.root) else {
             throw SwiftPackageHeadersExportError.unsupported("public headers outside \(layout.root)")
@@ -65,7 +69,7 @@ public struct SwiftPackageHeadersExporter {
             }
         }
         // Remove the public alias before its destination, including on repeated exports.
-        let namespaceDirectory = destination.appending(component: "TuistIncludes")
+        let namespaceDirectory = support.appending(component: "TuistIncludes")
         let publicLink = isFramework ? destination.appending(component: "Headers")
             : namespaceDirectory.appending(component: layout.moduleName)
         try await removeAlias(at: publicLink)
@@ -88,30 +92,41 @@ public struct SwiftPackageHeadersExporter {
                 from: publicLink,
                 to: tree.appending(publicRelativePath).relative(to: publicLink.parentDirectory)
             )
+            if isFramework {
+                let namespace = namespaceDirectory.appending(component: layout.moduleName)
+                try await fileSystem.makeDirectory(at: namespaceDirectory)
+                try await removeAlias(at: namespace)
+                try await fileSystem.createSymbolicLink(
+                    from: namespace, to: tree.appending(publicRelativePath).relative(to: namespaceDirectory)
+                )
+            }
         } else if isFramework {
             // Framework module-map header paths resolve against this directory. Keep it empty
             // so caching does not flip sibling shims' __has_include(<Module/Header.h>) branches.
             try await fileSystem.makeDirectory(at: publicLink)
         }
-        try await fileSystem.writeAsJSON(
-            Metadata(
-                publicDirectory: tree.appending(publicRelativePath).relative(to: container).pathString,
-                namespaceDirectory: !isFramework && layout.usesDirectoryModuleMap
-                    ? namespaceDirectory.relative(to: container).pathString : nil
-            ),
-            at: (isFramework ? container : destination).appending(component: Metadata.fileName)
-        )
         let moduleMap = isFramework
             ? destination.appending(components: "Modules", "module.modulemap")
             : destination.appending(component: "module.modulemap")
+        let treeRelative = isFramework ? "PrivateHeaders/TuistHeaders" : tree.relative(to: container).pathString
+        try await fileSystem.writeAsJSON(
+            Metadata(
+                publicDirectory: treeRelative + "/" + publicRelativePath.pathString,
+                namespaceDirectory: layout.usesDirectoryModuleMap
+                    ? (isFramework ? "PrivateHeaders/TuistIncludes" : namespaceDirectory.relative(to: container).pathString) :
+                    nil,
+                moduleMap: isFramework ? "Modules/module.modulemap" : moduleMap.relative(to: container).pathString
+            ),
+            at: support.appending(component: Metadata.fileName)
+        )
         try await fileSystem.makeDirectory(at: moduleMap.parentDirectory)
         try await fileSystem.writeText(relocated.contents, at: moduleMap, encoding: .utf8, options: [.overwrite])
         if isFramework, destination != container {
-            for component in ["Headers", "Modules"] {
+            for component in ["Headers", "PrivateHeaders", "Modules"] {
                 let alias = container.appending(component: component)
                 try await removeAlias(at: alias)
                 try await fileSystem.createSymbolicLink(
-                    from: alias, to: destination.appending(component: component).relative(to: container)
+                    from: alias, to: try RelativePath(validating: "Versions/Current/\(component)")
                 )
             }
         }

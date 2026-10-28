@@ -1,4 +1,5 @@
 import Path
+import TuistConstants
 import TuistCore
 import XcodeGraph
 
@@ -19,24 +20,16 @@ struct SwiftPackageHeaderNamespaceMapper {
                 else { continue }
 
                 let includes = project.xcodeProjPath.parentDirectory.appending(
-                    components: "Derived", "SwiftPackageIncludes", target.name
+                    components: Constants.DerivedDirectory.name, "SwiftPackageIncludes", target.name
                 )
                 sideEffects.append(.symbolicLink(.init(
                     path: includes.appending(component: layout.moduleName),
                     destination: layout.publicHeaders
                 )))
                 let settings = target.settings ?? .default
-                var base = settings.base
-                let existing: [String]
-                switch base["HEADER_SEARCH_PATHS"] {
-                case let .array(values): existing = values
-                case let .string(value): existing = [value]
-                case nil: existing = ["$(inherited)"]
-                }
-                base["HEADER_SEARCH_PATHS"] = .array(
-                    existing + ["$(SRCROOT)/\(includes.relative(to: project.path).pathString)"]
-                )
-                target.settings = settings.with(base: base)
+                target.settings = settings.appendingBuildSettings(["HEADER_SEARCH_PATHS": .array([
+                    "$(PROJECT_DIR)/\(includes.relative(to: project.xcodeProjPath.parentDirectory).pathString)",
+                ])])
                 project.targets[targetName] = target
             }
             graph.projects[projectPath] = project

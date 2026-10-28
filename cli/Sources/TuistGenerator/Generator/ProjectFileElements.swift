@@ -9,6 +9,8 @@ import XcodeProj
 
 public enum GroupFileElement: Hashable {
     case file(path: AbsolutePath, group: ProjectGroup)
+    /// A compiler reference whose file is already visible inside a folder reference.
+    case buildFile(path: AbsolutePath, group: ProjectGroup, sourceRoot: AbsolutePath)
     case folder(path: AbsolutePath, group: ProjectGroup)
     case synchronizedFolder(path: AbsolutePath, group: ProjectGroup)
 
@@ -37,6 +39,7 @@ public enum GroupFileElement: Hashable {
     var path: AbsolutePath {
         switch self {
         case let .file(path, _): return path
+        case let .buildFile(path, _, _): return path
         case let .folder(path, _): return path
         case let .synchronizedFolder(path, _): return path
         }
@@ -45,6 +48,7 @@ public enum GroupFileElement: Hashable {
     var group: ProjectGroup {
         switch self {
         case let .file(_, group): return group
+        case let .buildFile(_, group, _): return group
         case let .folder(_, group): return group
         case let .synchronizedFolder(_, group): return group
         }
@@ -202,6 +206,19 @@ class ProjectFileElements {
         return groups
     }
 
+    /// XcodeProj assigns stable file IDs while walking navigator groups. Temporarily expose
+    /// compile-only references to that walk, then keep them out of the serialized navigator.
+    func finalizeBuildFileReferences(in pbxproj: PBXProj, mainGroup: PBXGroup) throws {
+        let references = elements.values.compactMap { $0 as? PBXFileReference }
+            .filter { $0.sourceTree == .sourceRoot && $0.uuid.hasPrefix("TEMP_") }
+            .sorted { ($0.path ?? "") < ($1.path ?? "") }
+        guard !references.isEmpty else { return }
+        let children = mainGroup.children
+        mainGroup.children += references
+        defer { mainGroup.children = children }
+        _ = try pbxproj.dataRepresentation(outputSettings: PBXOutputSettings())
+    }
+
     func targetFiles(target: Target, project: Project) throws -> Set<GroupFileElement> {
         var files = Set<AbsolutePath>()
         files.formUnion(target.sources.map(\.path))
@@ -242,7 +259,16 @@ class ProjectFileElements {
         if let layout = target.headers?.sourceLayout {
             elements.insert(.folder(path: layout.root, group: target.filesGroup))
         }
-        elements.formUnion(files.map { GroupFileElement.file(path: $0, group: target.filesGroup) })
+        elements.formUnion(files.map { path in
+            if let root = target.headers?.sourceLayout?.root, path.isDescendant(of: root) {
+                return GroupFileElement.buildFile(
+                    path: path,
+                    group: target.filesGroup,
+                    sourceRoot: project.xcodeProjPath.parentDirectory
+                )
+            }
+            return GroupFileElement.file(path: path, group: target.filesGroup)
+        })
         elements.formUnion(
             target.resources.resources.map {
                 GroupFileElement($0, group: target.filesGroup)
@@ -447,6 +473,18 @@ class ProjectFileElements {
         }
 
         let fileElementRelativeToSourceRoot = fileElement.path.relative(to: sourceRootPath)
+        if case let .buildFile(_, _, projectDirectory) = fileElement {
+            // Keep the reference needed by PBXSourcesBuildPhase without a second navigator
+            // hierarchy. SOURCE_ROOT makes it independent of an enclosing PBXGroup.
+            let reference = PBXFileReference(
+                sourceTree: .sourceRoot,
+                lastKnownFileType: fileElement.path.extension.flatMap { Xcode.filetype(extension: $0) },
+                path: fileElement.path.relative(to: projectDirectory).pathString
+            )
+            pbxproj.add(object: reference)
+            elements[fileElement.path] = reference
+            return
+        }
         let closestRelativeRelativePath =
             try closestRelativeElementPath(
                 pathRelativeToSourceRoot: fileElementRelativeToSourceRoot

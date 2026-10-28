@@ -90,6 +90,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
         mappers.append(StaticXCFrameworkModuleMapGraphMapper())
         mappers.append(SwiftPackageCachedHeadersMapper())
         mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
+        mappers.append(SwiftPackageSourceHeadersMapper())
         mappers.append(FrameworkSearchPathsGraphMapper())
         mappers.append(AutogenerateTuistGenerateSchemeMapper(
             includeGenerateScheme: config.project.generatedProject?.generationOptions.includeGenerateScheme ?? false
@@ -198,6 +199,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
             }
 
+            mappers.append(SwiftPackageSourceHeadersMapper())
+
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
             mappers.append(CachedModulesDebuggingGraphMapper(config: config))
@@ -239,6 +242,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(SwiftPackageCachedHeadersMapper())
                 mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
             }
+
+            mappers.append(SwiftPackageSourceHeadersMapper())
 
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
@@ -295,6 +300,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
             }
 
+            mappers.append(SwiftPackageSourceHeadersMapper())
+
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
 
@@ -346,6 +353,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             mappers.append(SwiftPackageCachedHeadersMapper())
             mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
 
+            mappers.append(SwiftPackageSourceHeadersMapper())
+
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
 
@@ -365,6 +374,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 includedTargets: targetsToBinaryCache
             )
 
+            mappers.append(SwiftPackageSourceHeadersMapper())
+
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
 
@@ -382,6 +393,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
 
         func `default`(config: Tuist, forceWorkspaceSchemes: Bool) -> [GraphMapping] {
             var mappers = self.default(config: config, includedTargets: [])
+
+            mappers.append(SwiftPackageSourceHeadersMapper())
 
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
@@ -455,6 +468,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             includeWorkspaceScheme: Bool
         ) -> [GraphMapping] {
             var mappers: [GraphMapping] = [
+                SwiftPackageSourceHeadersMapper(),
                 FrameworkSearchPathsGraphMapper(),
                 ForeignBuildSideEffectGraphMapper(),
             ]

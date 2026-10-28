@@ -2,7 +2,7 @@
 public struct Headers: Codable, Equatable, Sendable {
     /// Source-backed headers of a Swift package. These are compiler and hashing inputs, not
     /// individual Xcode header build commands. Ordinary manifest headers keep their existing behavior.
-    public struct SourceLayout: Codable, Equatable, Sendable {
+    @_spi(TuistLoader) public struct SourceLayout: Codable, Equatable, Sendable {
         public var root: Path
         public var publicHeaders: Path
         public var moduleMap: Path
@@ -18,7 +18,7 @@ public struct Headers: Codable, Equatable, Sendable {
         }
     }
 
-    public var sourceLayout: SourceLayout?
+    @_spi(TuistLoader) public var sourceLayout: SourceLayout?
     /// Determine how to resolve cases, when the same files found in different header scopes
     public enum AutomaticExclusionRule: Int, Codable, Sendable {
         /// Project headers = all found - private headers - public headers
@@ -79,16 +79,22 @@ public struct Headers: Codable, Equatable, Sendable {
         public: FileList? = nil,
         private: FileList? = nil,
         project: FileList? = nil,
-        exclusionRule: AutomaticExclusionRule = .projectExcludesPrivateAndPublic,
-        sourceLayout: SourceLayout? = nil
+        exclusionRule: AutomaticExclusionRule = .projectExcludesPrivateAndPublic
     ) -> Headers {
         .init(
             public: `public`,
             private: `private`,
             project: project,
-            exclusionRule: exclusionRule,
-            sourceLayout: sourceLayout
+            exclusionRule: exclusionRule
         )
+    }
+
+    @_spi(TuistLoader) public static func swiftPackageHeaders(
+        public: FileList,
+        project: FileList,
+        sourceLayout: SourceLayout
+    ) -> Headers {
+        .init(public: `public`, project: project, exclusionRule: .projectExcludesPrivateAndPublic, sourceLayout: sourceLayout)
     }
 
     private static func headers(

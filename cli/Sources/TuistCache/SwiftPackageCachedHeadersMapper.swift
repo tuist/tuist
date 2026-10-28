@@ -3,9 +3,16 @@ import Path
 import TuistCore
 import XcodeGraph
 
-/// Restores the original raw include search path of cached SwiftPM C modules. Custom module maps
-/// keep an empty framework Headers directory, so caching cannot change shim __has_include branches.
+/// Restores portable SwiftPM headers without mixing vendor and ProcessXCFramework copies.
 public struct SwiftPackageCachedHeadersMapper: GraphMapping {
+    private struct Slice {
+        let sdk: String
+        let platform: PlatformFilter
+        let directory: AbsolutePath
+        let productsDirectory: String
+        let metadata: [SwiftPackageHeadersExporter.Metadata]
+    }
+
     private let fileSystem: FileSysteming
 
     public init(fileSystem: FileSysteming = FileSystem()) {
@@ -16,126 +23,183 @@ public struct SwiftPackageCachedHeadersMapper: GraphMapping {
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        guard graph.dependencies.values.contains(where: { dependencies in
-            dependencies.contains {
-                if case .xcframework = $0 { return true }
-                return false
-            }
-        }) else { return (graph, [], environment) }
-        var graph = graph
+        let graphs = [graph, environment.initialGraphWithSources].compactMap { $0 }
+        // Ordinary binary dependencies have no portable metadata. Probe each artifact once
+        // before doing any per-target traversal, then walk backwards only from matching artifacts.
+        let artifacts = try await exportedSlices(in: graphs)
+        guard !artifacts.isEmpty else { return (graph, [], environment) }
+        let consumers = consumers(of: Set(artifacts.keys), in: graphs)
         let traverser = GraphTraverser(graph: graph)
         let sourceTraverser = environment.initialGraphWithSources.map { GraphTraverser(graph: $0) }
-        var processedPlatforms = directlyProcessedPlatforms(graph: graph, sourceGraph: environment.initialGraphWithSources)
-        var inspectedProcessors: Set<AbsolutePath> = []
-        var metadataByDirectory: [AbsolutePath: [SwiftPackageHeadersExporter.Metadata]] = [:]
-        var inspectedDirectories: Set<AbsolutePath> = []
-        for projectPath in graph.projects.keys.sorted() {
-            guard var project = graph.projects[projectPath] else { continue }
-            for targetName in project.targets.keys.sorted() {
-                guard var target = project.targets[targetName] else { continue }
-                let origin = GraphDependency.target(name: targetName, path: projectPath)
-                var queue = Array(graph.dependencies[origin, default: []])
-                let recovered = sourceTraverser?.staticObjcXCFrameworksReachableViaCachedTargets(
-                    path: projectPath, name: targetName, currentGraph: graph
-                ) ?? []
-                queue += recovered
-                var visited: Set<GraphDependency> = []
-                var pathsBySDK: [String: Set<String>] = [:]
-                while let dependency = queue.popLast() {
-                    guard visited.insert(dependency).inserted else { continue }
-                    queue += graph.dependencies[dependency, default: []]
-                    let dependencyTraverser = recovered.contains(dependency) ? (sourceTraverser ?? traverser) : traverser
-                    guard case let .xcframework(xcframework) = dependency,
-                          case let .condition(condition) = dependencyTraverser.combinedCondition(to: dependency, from: origin)
-                    else { continue }
-                    if inspectedProcessors.insert(xcframework.path).inserted {
-                        for reference in traverser.targetsProcessingStaticXCFramework(at: xcframework.path)
-                            where !reference.target.metadata.tags.contains("tuist:binary-sources")
-                        {
-                            for destination in reference.target.destinations
-                                where reference.condition?.platformFilters.contains(destination.platformFilter) ?? true
-                            {
-                                processedPlatforms[xcframework.path, default: []].insert(destination.platformFilter)
-                            }
-                        }
-                    }
-                    for library in xcframework.infoPlist.libraries {
-                        if let condition, !condition.platformFilters.contains(library.platformFilter) { continue }
-                        let slice = xcframework.path.appending(component: library.identifier)
-                        let directory = library.path.extension == "framework"
-                            ? slice.appending(library.path)
-                            : library.headersPath.map { slice.appending($0) }
-                        guard let directory else { continue }
-                        if inspectedDirectories.insert(directory).inserted {
-                            let manifest = directory.appending(component: SwiftPackageHeadersExporter.Metadata.fileName)
-                            if try await fileSystem.exists(manifest) {
-                                metadataByDirectory[directory] = [try await fileSystem.readJSONFile(at: manifest)]
-                            } else if library.path.extension != "framework" {
-                                let manifests = try await fileSystem.glob(
-                                    directory: directory, include: ["*/\(SwiftPackageHeadersExporter.Metadata.fileName)"]
-                                ).collect()
-                                var metadata: [SwiftPackageHeadersExporter.Metadata] = []
-                                for manifest in manifests.sorted() {
-                                    metadata.append(try await fileSystem.readJSONFile(at: manifest))
-                                }
-                                metadataByDirectory[directory] = metadata
-                            }
-                        }
-                        for metadata in metadataByDirectory[directory, default: []] {
-                            for relative in [metadata.publicDirectory, metadata.namespaceDirectory].compactMap({ $0 }) {
-                                let include = directory.appending(try RelativePath(validating: relative))
-                                guard include.isDescendant(of: directory) else { continue }
-                                let searchPath: String
-                                if processedPlatforms[xcframework.path, default: []].contains(library.platformFilter) {
-                                    // Module maps and raw includes must refer to the same physical files.
-                                    // Mixing the vendor tree with ProcessXCFramework's copy redeclares types.
-                                    let productDirectory = library.path.extension == "framework" ? library.path.pathString : "include"
-                                    searchPath = "$(BUILT_PRODUCTS_DIR)/\(productDirectory)/\(relative)"
-                                } else {
-                                    searchPath = "$(SRCROOT)/\(include.relative(to: project.path).pathString)"
-                                }
-                                pathsBySDK[library.sdkCondition, default: []].insert("\"\(searchPath)\"")
-                            }
-                        }
-                    }
+        let processors = processors(of: Set(artifacts.keys), graph: graph, traverser: traverser)
+        var result = graph
+        for origin in consumers.keys.sorted() {
+            guard case let .target(name, path, _) = origin,
+                  var project = result.projects[path], var target = project.targets[name]
+            else { continue }
+            let reachable = reachableDependencies(from: origin, in: graph)
+            let sourceReachable = environment.initialGraphWithSources.map { reachableDependencies(from: origin, in: $0) } ?? []
+            var additions: SettingsDictionary = [:]
+            for dependency in consumers[origin, default: []].sorted() {
+                let dependencyTraverser: GraphTraverser
+                if reachable.contains(dependency) {
+                    dependencyTraverser = traverser
+                } else if sourceReachable.contains(dependency), let sourceTraverser {
+                    dependencyTraverser = sourceTraverser
+                } else {
+                    continue
                 }
-                guard !pathsBySDK.isEmpty else { continue }
-                let settings = target.settings ?? .default
-                var base = settings.base
-                for (sdk, paths) in pathsBySDK {
-                    let key = "HEADER_SEARCH_PATHS[\(sdk)]"
-                    let existing: [String]
-                    switch base[key] {
-                    case let .array(values): existing = values
-                    case let .string(value): existing = [value]
-                    case nil: existing = ["$(inherited)"]
+                guard case let .condition(condition) = dependencyTraverser.combinedCondition(to: dependency, from: origin)
+                else { continue }
+                for slice in artifacts[dependency, default: []] {
+                    if let condition, !condition.platformFilters.contains(slice.platform) { continue }
+                    let processed = processors[dependency, default: [:]].contains { processor, platforms in
+                        guard platforms.contains(slice.platform) else { return false }
+                        if processor == origin { return true }
+                        // combinedCondition describes conditions, not reachability. A sibling or
+                        // downstream app's processing step cannot satisfy this consumer's inputs.
+                        guard reachable.contains(processor),
+                              case let .condition(condition) = traverser.combinedCondition(to: processor, from: origin)
+                        else { return false }
+                        return condition?.platformFilters.contains(slice.platform) ?? true
                     }
-                    base[key] = .array(existing + paths.sorted())
+                    additions = additions.combine(with: try settings(
+                        for: slice, processed: processed, projectPath: project.xcodeProjPath.parentDirectory
+                    ))
                 }
-                target.settings = settings.with(base: base)
-                project.targets[targetName] = target
             }
-            graph.projects[projectPath] = project
+            let settings = target.settings ?? .default
+            target.settings = settings.appendingBuildSettings(additions)
+            project.targets[name] = target
+            result.projects[path] = project
         }
-        return (graph, [], environment)
+        return (result, [], environment)
     }
 
-    private func directlyProcessedPlatforms(graph: Graph, sourceGraph: Graph?) -> [AbsolutePath: Set<PlatformFilter>] {
-        var result: [AbsolutePath: Set<PlatformFilter>] = [:]
-        for source in [graph, sourceGraph].compactMap({ $0 }) {
-            for (origin, dependencies) in source.dependencies {
-                guard case let .target(name, path, _) = origin,
-                      let target = graph.projects[path]?.targets[name],
-                      !target.metadata.tags.contains("tuist:binary-sources")
-                else { continue }
+    private func settings(for slice: Slice, processed: Bool, projectPath: AbsolutePath) throws -> SettingsDictionary {
+        func searchPath(_ relative: String) throws -> String? {
+            let include = slice.directory.appending(try RelativePath(validating: relative))
+            guard include.isDescendant(of: slice.directory) else { return nil }
+            return processed
+                ? "$(BUILT_PRODUCTS_DIR)/\(slice.productsDirectory)/\(relative)"
+                : "$(PROJECT_DIR)/\(include.relative(to: projectPath).pathString)"
+        }
+        var result: SettingsDictionary = [:]
+        for metadata in slice.metadata {
+            let includes = try [metadata.publicDirectory, metadata.namespaceDirectory].compactMap { relative in
+                try relative.flatMap { try searchPath($0) }.map { "\"\($0)\"" }
+            }
+            result = result.combine(with: ["HEADER_SEARCH_PATHS[\(slice.sdk)]": .array(includes)])
+            if let moduleMap = metadata.moduleMap, let mapPath = try searchPath(moduleMap) {
+                // Explicit loading supports multiple top-level modules and names different from
+                // the artifact, and does not discover a sibling target's processed copy.
+                let flag = "-fmodule-map-file=\"\(mapPath)\""
+                result = result.combine(with: [
+                    "OTHER_CFLAGS[\(slice.sdk)]": .array([flag]),
+                    "OTHER_SWIFT_FLAGS[\(slice.sdk)]": .array(["-Xcc", flag]),
+                ])
+            }
+        }
+        return result
+    }
+
+    private func exportedSlices(in graphs: [Graph]) async throws -> [GraphDependency: [Slice]] {
+        let dependencies = Set(graphs.flatMap { $0.dependencies.values.flatMap { $0 } })
+        var result: [GraphDependency: [Slice]] = [:]
+        var inspected: [AbsolutePath: [Slice]] = [:]
+        for dependency in dependencies.sorted() {
+            guard case let .xcframework(xcframework) = dependency else { continue }
+            if let slices = inspected[xcframework.path] {
+                if !slices.isEmpty { result[dependency] = slices }
+                continue
+            }
+            var slices: [Slice] = []
+            for library in xcframework.infoPlist.libraries {
+                let framework = library.path.extension == "framework"
+                let slice = xcframework.path.appending(component: library.identifier)
+                let directory = framework ? slice.appending(library.path) : library.headersPath.map { slice.appending($0) }
+                guard let directory else { continue }
+                let manifests: [AbsolutePath]
+                if framework {
+                    let manifest = directory.appending(components: "PrivateHeaders", SwiftPackageHeadersExporter.metadataFileName)
+                    manifests = try await fileSystem.exists(manifest) ? [manifest] : []
+                } else {
+                    manifests = try await fileSystem.glob(
+                        directory: directory, include: ["*/\(SwiftPackageHeadersExporter.metadataFileName)"]
+                    ).collect().sorted()
+                }
+                guard !manifests.isEmpty else { continue }
+                var metadata: [SwiftPackageHeadersExporter.Metadata] = []
+                for manifest in manifests {
+                    metadata.append(try await fileSystem.readJSONFile(at: manifest))
+                }
+                slices.append(Slice(
+                    sdk: library.sdkCondition, platform: library.platformFilter, directory: directory,
+                    productsDirectory: framework ? library.path.pathString : "include", metadata: metadata
+                ))
+            }
+            inspected[xcframework.path] = slices
+            if !slices.isEmpty { result[dependency] = slices }
+        }
+        return result
+    }
+
+    private func consumers(of artifacts: Set<GraphDependency>, in graphs: [Graph]) -> [GraphDependency: Set<GraphDependency>] {
+        var dependents: [GraphDependency: Set<GraphDependency>] = [:]
+        for graph in graphs {
+            for (origin, dependencies) in graph.dependencies {
                 for dependency in dependencies {
-                    guard case let .xcframework(xcframework) = dependency else { continue }
-                    let condition = source.dependencyConditions[(origin, dependency)]
-                    for destination in target.destinations
-                        where condition?.platformFilters.contains(destination.platformFilter) ?? true
-                    {
-                        result[xcframework.path, default: []].insert(destination.platformFilter)
-                    }
+                    dependents[dependency, default: []].insert(origin)
+                }
+            }
+        }
+        var result: [GraphDependency: Set<GraphDependency>] = [:]
+        for artifact in artifacts {
+            var queue = [artifact]
+            var visited: Set<GraphDependency> = []
+            while let dependency = queue.popLast() {
+                guard visited.insert(dependency).inserted else { continue }
+                queue += dependents[dependency, default: []]
+                if case .target = dependency { result[dependency, default: []].insert(artifact) }
+            }
+        }
+        return result
+    }
+
+    private func reachableDependencies(from origin: GraphDependency, in graph: Graph) -> Set<GraphDependency> {
+        var queue = Array(graph.dependencies[origin, default: []])
+        var visited: Set<GraphDependency> = []
+        while let dependency = queue.popLast() {
+            guard visited.insert(dependency).inserted else { continue }
+            queue += graph.dependencies[dependency, default: []]
+        }
+        return visited
+    }
+
+    private func processors(
+        of artifacts: Set<GraphDependency>, graph: Graph, traverser: GraphTraverser
+    ) -> [GraphDependency: [GraphDependency: Set<PlatformFilter>]] {
+        var result: [GraphDependency: [GraphDependency: Set<PlatformFilter>]] = [:]
+        for artifact in artifacts {
+            guard case let .xcframework(xcframework) = artifact else { continue }
+            for reference in traverser.targetsProcessingStaticXCFramework(at: xcframework.path)
+                where !reference.target.metadata.tags.contains("tuist:binary-sources")
+            {
+                let origin = GraphDependency.target(name: reference.target.name, path: reference.graphTarget.path)
+                for destination in reference.target.destinations
+                    where reference.condition?.platformFilters.contains(destination.platformFilter) ?? true
+                {
+                    result[artifact, default: [:]][origin, default: []].insert(destination.platformFilter)
+                }
+            }
+            for (origin, dependencies) in graph.dependencies where dependencies.contains(artifact) {
+                guard case let .target(name, path, _) = origin, let target = graph.projects[path]?.targets[name],
+                      !target.metadata.tags.contains("tuist:binary-sources") else { continue }
+                for destination in target.destinations
+                    where graph.dependencyConditions[(origin, artifact)]?.platformFilters
+                    .contains(destination.platformFilter) ?? true
+                {
+                    result[artifact, default: [:]][origin, default: []].insert(destination.platformFilter)
                 }
             }
         }

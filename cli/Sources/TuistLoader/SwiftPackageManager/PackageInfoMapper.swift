@@ -2,7 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ProjectDescription
+@_spi(TuistLoader) import ProjectDescription
 import TSCUtility
 import TuistConstants
 import TuistCore
@@ -1075,7 +1075,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         let productName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveProductName)
             .replacingOccurrences(of: "-", with: "_")
 
-        var settings = try await Settings.from(
+        let settings = try await Settings.from(
             target: target,
             productName: productName,
             moduleName: moduleName,
@@ -1091,11 +1091,6 @@ public struct PackageInfoMapper: PackageInfoMapping {
             enabledTraits: enabledTraits,
             prebuilts: targetPrebuilts
         )
-
-        if headers?.sourceLayout != nil {
-            // Include the packaging contract in external-package hashes as well as local header hashes.
-            settings?.base["TUIST_SWIFTPM_HEADER_LAYOUT_VERSION"] = "1"
-        }
 
         var metadataTags = [TargetTags.swiftPackage]
         if target.type == .test, packageType.isLocalExternal {
@@ -1144,7 +1139,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             let isDirectory = try await fileSystem.exists(path, isDirectory: true)
             return .path(isDirectory ? path.appending(component: "**").pathString : path.pathString)
         }
-        return .headers(
+        return .swiftPackageHeaders(
             public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"), excluding: excluding)]),
             project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)]),
             sourceLayout: .init(
