@@ -1202,7 +1202,10 @@ func TestDockerCacheRunsDockerdUnderTheSupervisor(t *testing.T) {
 	if strings.Contains(command, "mount-server") {
 		t.Fatal("a second mount broker would race the supervisor's socket")
 	}
-	if !strings.Contains(command, "apk add --no-cache e2fsprogs coreutils util-linux") {
+	if strings.Contains(command, "util-linux") {
+		t.Fatal("util-linux replaces the BusyBox loop mount used in Kata")
+	}
+	if !strings.Contains(command, "apk add --no-cache e2fsprogs coreutils") {
 		t.Fatal("BuildKit merges need GNU cp to preserve overlay xattrs")
 	}
 	if !strings.Contains(strings.Join(dind.StartupProbe.Exec.Command, " "), "test -S "+workPath+"/.tuist-cache-mount.sock") {

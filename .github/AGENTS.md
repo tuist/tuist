@@ -567,6 +567,15 @@ covered only by the production schedule.
   conclusion is successful. Validate this contract with
   `node --test .github/scripts/runners-acceptance/acceptance.test.cjs` after
   `npm ci --ignore-scripts` at the repository root.
+- Canary also runs five sequential Docker-cache phases through
+  `runners-docker-cache-probe.yml` after both ordinary Linux probes. Count the
+  five `Linux Docker cache ... / Build` jobs in the watchdog; exclude their
+  GitHub-hosted publication-window jobs. Require every phase in `gate.sh`,
+  including final reuse, and pass the deploy's intended Linux image digest
+  before staging holds. A mounted cache, correct compile output and actual
+  cross-job layer/mutable-cache reuse are mandatory. The 120-second pauses are
+  allowances, not publication proof; slow publication fails rather than retries.
+  Keep production's scheduled probes usable while its Docker cache is disabled.
 - Health checks are not enough: a Kura that cannot reach the server's token
   introspection answers `/up` and degrades every lookup into a slow miss. Keep
   the authenticated blob round trip and the rebuild from an empty local CAS,

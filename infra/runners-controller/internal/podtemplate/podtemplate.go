@@ -249,7 +249,8 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// (tart-kubelet projects the audience-scoped token into the VM
 	// separately). The Linux branch below overrides all of these.
 	automount := true
-	runnerEnv := dispatchEnv
+	runnerEnv := append([]corev1.EnvVar{}, dispatchEnv...)
+	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "TUIST_RUNNER_IMAGE", Value: pool.Spec.Image})
 	var runnerCommand []string
 	var runnerMounts []corev1.VolumeMount
 	var volumes []corev1.Volume
@@ -444,7 +445,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			})
 			dindPackages := "e2fsprogs"
 			if pool.Spec.DockerCache {
-				dindPackages += " coreutils util-linux"
+				dindPackages += " coreutils"
 			}
 			initContainers = append(initContainers, corev1.Container{
 				Name:  "dind",

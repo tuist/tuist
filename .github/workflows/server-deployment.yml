@@ -105,6 +105,10 @@ on:
         type: boolean
         default: true
   workflow_call:
+    outputs:
+      linux_runner_image:
+        description: Intended Linux runner image before per-pool staging holds
+        value: ${{ jobs.deploy.outputs.linux_runner_image }}
     inputs:
       staging_platform_revision:
         description: Existing staging platform Helm revision to restore and retain for this deployment
@@ -855,6 +859,8 @@ jobs:
           mise -C infra run --skip-tools k8s:install-platform "$KUBECONFIG" "$CLUSTER_NAME"
 
   deploy:
+    outputs:
+      linux_runner_image: ${{ steps.deploy-chart.outputs.linux_runner_image }}
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
     needs: [build, build-images, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
@@ -1361,6 +1367,7 @@ jobs:
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
       - name: helm upgrade --install
+        id: deploy-chart
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
         # TUIST_CLICKHOUSE_URL / TUIST_S3_* from priv/secrets/<env>.yml.enc
@@ -1470,6 +1477,7 @@ jobs:
             # Resolve manual pins too. The pool identity is content, so a new
             # release tag serving the same manifest cannot churn idle runners.
             linux_runner_image_digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "$linux_runner_image_version")"
+            echo "linux_runner_image=ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}" >> "$GITHUB_OUTPUT"
             add_set "runnersFleetLinux.shapeRunnerImage" \
               "ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}"
           fi

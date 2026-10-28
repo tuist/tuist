@@ -1,0 +1,78 @@
+name: Runners Docker cache probe
+
+on:
+  workflow_call:
+    inputs:
+      phase:
+        type: string
+        required: true
+      expected_linux_image:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  publication-window:
+    name: Publication window
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # This is an allowance, not evidence of publication. The next job must
+      # actually reuse the previous job's layers/mutable cache; it never retries
+      # a failed assertion. Canary has one Linux host, so no WAN freshness claim.
+      - if: inputs.phase != 'cold'
+        run: sleep 120
+  build:
+    name: Build
+    needs: publication-window
+    runs-on: tuist-canary-linux
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/setup-docker-builder
+            .github/scripts/docker-build-cache-benchmark.sh
+      - name: Require candidate runner and mounted cache
+        env:
+          EXPECTED_LINUX_IMAGE: ${{ inputs.expected_linux_image }}
+        run: |
+          set -euo pipefail
+          if [ -n "$EXPECTED_LINUX_IMAGE" ]; then
+            test "${TUIST_RUNNER_IMAGE:-}" = "$EXPECTED_LINUX_IMAGE" || {
+              echo "::error::Acceptance ran on ${TUIST_RUNNER_IMAGE:-unknown}, expected $EXPECTED_LINUX_IMAGE"
+              exit 1
+            }
+          fi
+          jq -e '.mounted == true' /home/runner/.tuist-docker.json
+          echo "Runner image: ${TUIST_RUNNER_IMAGE:-unknown}" >> "$GITHUB_STEP_SUMMARY"
+      - uses: ./.github/actions/setup-docker-builder
+        id: builder
+        with:
+          cache-key: acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Verify both drivers
+        env:
+          CACHE_PHASE: ${{ inputs.phase }}
+          BUILDER: ${{ steps.builder.outputs.name }}
+        run: |
+          set -euo pipefail
+          # Both drivers share one published snapshot. Parallel seed jobs can
+          # overwrite whole BuildKit databases, obscuring what this gate tests.
+          for driver in docker docker-container; do
+            export CACHE_DRIVER="$driver"
+            export CACHE_EXPERIMENT="canary-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$driver"
+            export CACHE_BUILDER=default
+            [ "$driver" != docker-container ] || export CACHE_BUILDER="$BUILDER"
+            bash .github/scripts/docker-build-cache-benchmark.sh
+            mv "$RUNNER_TEMP/docker-build-cache-results" "$RUNNER_TEMP/docker-cache-$driver"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canary-docker-cache-${{ inputs.phase }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/docker-cache-*
+            ${{ runner.temp }}/docker-build-cache-results

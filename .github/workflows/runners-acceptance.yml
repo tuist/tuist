@@ -42,12 +42,20 @@ on:
         description: Set by gate.sh to find the run it dispatched
         required: false
         default: ""
+      expected_linux_image:
+        description: Candidate digest required by the cascade; a staged old image must not pass
+        type: string
+        default: ""
       cache_endpoint:
         description: Overrides the cache endpoint dispatch hands each job, e.g. to prove a broken endpoint fails fast
         required: false
         default: ""
   schedule:
     - cron: "23 * * * *"
+
+concurrency:
+  group: runners-acceptance-${{ inputs.environment || 'production' }}
+  cancel-in-progress: false
 
 permissions: {}
 
@@ -92,8 +100,9 @@ jobs:
               ;;
             *) echo "::error::unknown environment ${ENVIRONMENT}"; exit 1 ;;
           esac
-          # Each Linux target runs both native and real job-container probes.
-          probe_jobs=$(( $(jq length <<< "${macos}") + 2 * $(jq length <<< "${linux}") + (${#volume_label} > 0 ? 1 : 0) ))
+          # Each Linux target runs native and real job-container probes.
+          # Canary adds one macOS volume probe and five Docker cache phases.
+          probe_jobs=$(( $(jq length <<< "${macos}") + 2 * $(jq length <<< "${linux}") + (${#volume_label} > 0 ? 6 : 0) ))
           {
             echo "server=${server}"
             echo "macos=${macos}"
@@ -106,7 +115,7 @@ jobs:
     name: Dispatch watchdog
     needs: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 55
     permissions:
       actions: write
       contents: read
@@ -124,6 +133,7 @@ jobs:
           LINUX_PICKUP_MINUTES: 10
           # The volume verify job only exists once the seed job finishes, so
           # the watchdog keeps watching until every expected probe has started.
+          DOCKER_CACHE_PROBES: ${{ inputs.environment == 'canary' && 'true' || 'false' }}
           EXPECTED_PROBE_JOBS: ${{ needs.plan.outputs.probe_jobs }}
         run: .github/scripts/runners-acceptance/dispatch-watchdog.sh
 
@@ -341,3 +351,58 @@ jobs:
         run: echo "TUIST_ACCEPTANCE_ENV=round-trip-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
       - name: Read environment file
         run: test "${TUIST_ACCEPTANCE_ENV:-}" = "round-trip-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+  docker-cold:
+    name: Linux Docker cache cold
+    needs: [plan, linux, linux-container]
+    if: inputs.environment == 'canary'
+    uses: ./.github/workflows/runners-docker-cache-probe.yml
+    with:
+      phase: cold
+      expected_linux_image: ${{ inputs.expected_linux_image }}
+    permissions:
+      contents: read
+
+  docker-warm-layers:
+    name: Linux Docker cache warm-layers
+    needs: [plan, docker-cold]
+    if: inputs.environment == 'canary'
+    uses: ./.github/workflows/runners-docker-cache-probe.yml
+    with:
+      phase: warm-layers
+      expected_linux_image: ${{ inputs.expected_linux_image }}
+    permissions:
+      contents: read
+
+  docker-changed-source:
+    name: Linux Docker cache changed-source
+    needs: [plan, docker-warm-layers]
+    if: inputs.environment == 'canary'
+    uses: ./.github/workflows/runners-docker-cache-probe.yml
+    with:
+      phase: changed-source
+      expected_linux_image: ${{ inputs.expected_linux_image }}
+    permissions:
+      contents: read
+
+  docker-same-size-write:
+    name: Linux Docker cache same-size-write
+    needs: [plan, docker-changed-source]
+    if: inputs.environment == 'canary'
+    uses: ./.github/workflows/runners-docker-cache-probe.yml
+    with:
+      phase: same-size-write
+      expected_linux_image: ${{ inputs.expected_linux_image }}
+    permissions:
+      contents: read
+
+  docker-verify-final:
+    name: Linux Docker cache verify-final
+    needs: [plan, docker-same-size-write]
+    if: inputs.environment == 'canary'
+    uses: ./.github/workflows/runners-docker-cache-probe.yml
+    with:
+      phase: verify-final
+      expected_linux_image: ${{ inputs.expected_linux_image }}
+    permissions:
+      contents: read
