@@ -100,7 +100,7 @@ defmodule TuistWeb.TestCaseRunLive do
 
     selected_tab =
       case params["tab"] do
-        "test-selection" when is_nil(socket.assigns.selection) -> "overview"
+        "selective-testing" when is_nil(socket.assigns.selection) -> "overview"
         nil -> "overview"
         tab -> tab
       end
@@ -111,7 +111,7 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:uri, uri)
 
     socket =
-      if selected_tab == "test-selection",
+      if selected_tab == "selective-testing",
         do: TestCaseRunTab.assign_files(socket, socket.assigns.selection, params),
         else: socket
 

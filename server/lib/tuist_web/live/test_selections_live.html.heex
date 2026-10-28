@@ -425,7 +425,9 @@
                 "dashboard_tests",
                 "%{count} selection run",
                 "%{count} selection runs",
-                baseline.selection_runs, count: baseline.selection_runs)
+                baseline.selection_runs,
+                count: baseline.selection_runs
+              )
             } />
           </:col>
           <:col :let={baseline} label={dgettext("dashboard_tests", "Ran at")}>
