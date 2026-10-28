@@ -7,6 +7,7 @@
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,22 @@
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+
+// Linux 6.17 ABI on both qualified architectures. Ubuntu 24.04 userspace
+// headers may predate the running kernel; keep the negative control callable.
+#if defined(__x86_64__) || defined(__aarch64__)
+#define KURA_NR_FILE_SETATTR 469
+#else
+#error Unsupported qualification architecture
+#endif
+#if defined(__NR_file_setattr) && __NR_file_setattr != KURA_NR_FILE_SETATTR
+#error Unexpected file_setattr syscall ABI
+#endif
+struct kura_file_attr {
+  uint64_t xflags;
+  uint32_t extsize, nextents, projid, cowextsize;
+};
+_Static_assert(sizeof(struct kura_file_attr) == 24, "Linux file_attr v0 ABI");
 
 static void fail(const char *s) { perror(s); exit(1); }
 // Test confinement only. Production needs an independently qualified node/pod
@@ -37,6 +54,8 @@ static void confine(void) {
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
     BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 0x40000000, 0, 1), // reject x32 ABI
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, KURA_NR_FILE_SETATTR, 0, 1),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_ioctl, 0, 7),
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[1])),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, FS_IOC_FSSETXATTR, 4, 0),
@@ -69,14 +88,17 @@ int main(int argc, char **argv) {
     if (!q.dqb_bhardlimit || !q.dqb_ihardlimit) return 2;
     q.dqb_valid = QIF_LIMITS;
     if (quotactl(QCMD(Q_SETQUOTA, PRJQUOTA), argv[2], atoi(argv[3]), (void *)&q)) fail("setquota");
-  } else if (!strcmp(argv[1], "project") && argc == 4) {
+  } else if ((!strcmp(argv[1], "project") || !strcmp(argv[1], "project-syscall")) && argc == 4) {
     int fd = open(argv[2], O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
     if (fd < 0) fail("open");
     struct fsxattr a = {0};
     if (ioctl(fd, FS_IOC_FSGETXATTR, &a)) fail("getxattr");
     a.fsx_projid = atoi(argv[3]);
     a.fsx_xflags |= FS_XFLAG_PROJINHERIT;
-    if (ioctl(fd, FS_IOC_FSSETXATTR, &a)) fail("setxattr");
+    if (!strcmp(argv[1], "project-syscall")) {
+      struct kura_file_attr f = {a.fsx_xflags, a.fsx_extsize, a.fsx_nextents, a.fsx_projid, a.fsx_cowextsize};
+      if (syscall(KURA_NR_FILE_SETATTR, fd, "", &f, sizeof(f), AT_EMPTY_PATH)) fail("file_setattr");
+    } else if (ioctl(fd, FS_IOC_FSSETXATTR, &a)) fail("setxattr");
     close(fd);
   } else if (!strcmp(argv[1], "space") && argc == 3) {
     struct statvfs s;

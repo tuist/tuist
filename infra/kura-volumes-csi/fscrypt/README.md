@@ -16,6 +16,7 @@ as UID 1000 without capabilities. Failed detach retains backing files.
 File ownership without a separate user namespace can permit changing project
 IDs and inheritance. The harness records this negative control, then installs
 an additional seccomp filter rejecting filesystem project/flag mutation ioctls
+and the Linux 6.17 `file_setattr` syscall (including a direct syscall probe)
 for test writers. The same filter is inherited by the benchmark Kura process,
 in addition to Docker's normal confinement. This is test code, not a shipped
 pod security contract. A production implementation must qualify equivalent

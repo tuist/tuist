@@ -79,8 +79,14 @@ class FscryptFixture
       'project', tenant('a'), '0', failure: true)
     @result[:observations][:unconfined_owner_can_change_project] = attempted[2]
     run(@helper, 'project', tenant('a'), '1')
+    attempted_syscall = cmd('setpriv', '--reuid=1000', '--regid=1000', '--clear-groups', '--', @helper,
+      'project-syscall', tenant('a'), '0', failure: true)
+    @result[:observations][:unconfined_file_setattr] = {success: attempted_syscall[2], error: attempted_syscall[1].strip}
+    run(@helper, 'project', tenant('a'), '1')
     denied = user(@helper, 'project', tenant('a'), '0', failure: true)
     check('confined owner cannot escape project quota', !denied[2] && denied[1].include?('Operation not permitted'))
+    denied_syscall = user(@helper, 'project-syscall', tenant('a'), '0', failure: true)
+    check('confined owner cannot escape through file_setattr', !denied_syscall[2] && denied_syscall[1].include?('Operation not permitted'))
     denied_flags = user('chattr', '-P', tenant('a'), failure: true)
     check('confined owner cannot disable project inheritance', !denied_flags[2] && denied_flags[1].include?('Operation not permitted'))
     @result[:observations][:policies] = %w[a b].to_h { |n| [n, run('fscryptctl', 'get_policy', tenant(n))] }
@@ -273,7 +279,7 @@ class FscryptFixture
     env = {KURA_PORT: 4000, KURA_INTERNAL_PORT: 7443, KURA_NODE_URL: 'http://127.0.0.1:7443',
       KURA_PEERS: 'http://127.0.0.1:7443', KURA_TENANT_ID: 'default', KURA_REGION: 'qualification',
       KURA_DATA_DIR: '/var/cache/kura', KURA_TMP_DIR: '/var/cache/kura/tmp', KURA_TMP_DIR_MAX_BYTES: 2048*MIB,
-      KURA_CAS_CAPACITY_BYTES: 4096*MIB, KURA_MEMORY_LIMIT_BYTES: 768*MIB,
+      KURA_CAS_CAPACITY_BYTES: 4096*MIB,
       KURA_AUTH_JWT_SECRET: secret, RUST_LOG: 'warn', KURA_OTEL_SERVICE_NAME: 'fscrypt-qualification',
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: 'qualification'}
     File.write(env_file, env.map { |k,v| "#{k}=#{v}" }.join("\n")+"\n", mode: 'w', perm: 0600)
