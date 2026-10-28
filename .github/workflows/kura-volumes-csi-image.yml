@@ -119,7 +119,7 @@ jobs:
         run: |
           cp infra/kura-volumes-csi/fscrypt/allocator_test.go.fixture sharing-reference/infra/kura-controller/internal/diskallocator/fscrypt_probe_test.go
           cd sharing-reference/infra/kura-controller
-          go test -c -o /tmp/kura-fscrypt-allocator.test ./internal/diskallocator
+          GOWORK=off go test -c -o /tmp/kura-fscrypt-allocator.test ./internal/diskallocator
       - name: Install disposable VM prerequisites
         run: |
           sudo apt-get update
