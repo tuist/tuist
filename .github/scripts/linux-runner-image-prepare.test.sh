@@ -47,6 +47,15 @@ fi
 STUB
 cat > "$work/bin/sleep" <<'STUB'
 #!/usr/bin/env bash
+if [[ "${LINUX_IMAGE_STAGING_WAIT_SECONDS:-0}" != 0 ]]; then
+  echo sleep >> "$IMAGE_TEST_WORK/calls"
+  if [[ "${IMAGE_TEST_EVENTUALLY_READY:-}" == true ]]; then
+    cp "$IMAGE_TEST_WORK/ready-pods.json" "$IMAGE_TEST_WORK/pods.json"
+  else
+    /bin/sleep "$1"
+  fi
+  exit 0
+fi
 echo 'Image staging must not poll or wait' >&2
 exit 1
 STUB
@@ -179,4 +188,39 @@ reset
 jq '.items[].status.phase="Pending"' "$work/ready-pods.json" > "$work/pods.json"
 IMAGE_TEST_FAIL=cleanup run
 held
-echo 'Linux staging: one-shot holds, background lifetime, promotion, expiry, cleanup, runtime and error checks passed.'
+
+# Canary waits within the same deployment, including first installs and pools
+# already naming the candidate. It never accepts old DaemonSet age as proof.
+reset
+jq '.items[].status.phase="Pending"' "$work/ready-pods.json" > "$work/pods.json"
+LINUX_IMAGE_STAGING_WAIT_SECONDS=10 IMAGE_TEST_EVENTUALLY_READY=true run
+moving
+test "$(grep -c 'get pods' "$work/calls")" = 2
+test "$(grep -c 'get nodes' "$work/calls")" = 2
+for current in '{"items":[]}' "$(jq '{items:map(select(.spec.os=="linux"))}' "$work/render.json")"; do
+  reset
+  echo "$current" > "$work/current.json"
+  LINUX_IMAGE_STAGING_WAIT_SECONDS=10 run
+  moving
+  test "$(grep -c 'apply -f' "$work/calls")" = 1
+done
+for failure in pending expired no-hosts wrong-image; do
+  reset
+  case "$failure" in
+    pending|expired) jq '.items[].status.phase="Pending"' "$work/ready-pods.json" > "$work/pods.json" ;;
+    no-hosts) echo '{"items":[]}' > "$work/nodes.json" ;;
+    wrong-image) export IMAGE_TEST_POD_MUTATION='.items[1].spec.containers[0].image="old:image"' ;;
+  esac
+  if TEST_NOW=1793062800 LINUX_IMAGE_STAGING_WAIT_SECONDS=1 run; then
+    echo "Canary accepted $failure" >&2; exit 1
+  fi
+  unset IMAGE_TEST_POD_MUTATION
+  grep -q 'refusing to qualify an old image' "$work/log"
+done
+for operation in read apply; do
+  reset
+  if IMAGE_TEST_FAIL="$operation" LINUX_IMAGE_STAGING_WAIT_SECONDS=10 run; then
+    echo "Canary ignored $operation failure" >&2; exit 1
+  fi
+done
+echo 'Linux staging: background holds and bounded, fail-closed canary preparation checks passed.'

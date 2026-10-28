@@ -11,7 +11,7 @@ const workflow = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/ru
 const cascade = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/server-production-deployment.yml'), 'utf8'));
 const deployment = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/server-deployment.yml'), 'utf8'));
 
-test('Linux staging is warning-only and supplies per-pool holds without extending deploy timeouts', () => {
+test('Linux staging waits and fails closed in canary; other environments preserve background holds', () => {
   const deploy = deployment.jobs.deploy;
   const helm = deploy.steps.find(step => step.name === 'helm upgrade --install');
   assert.equal(deploy['timeout-minutes'], 125);
@@ -20,7 +20,36 @@ test('Linux staging is warning-only and supplies per-pool holds without extendin
   assert.match(helm.run, /::warning::Could not check Linux image staging/);
   assert.match(helm.run, /echo '\{"runnersFleetLinux":\{"imageHolds":\{\}\}\}' > "\$linux_staging_values"/);
   assert.match(helm.run, /helm_values_args\+=\(-f "\$linux_staging_values"\)/);
+  assert.match(helm.run, /export LINUX_IMAGE_STAGING_WAIT_SECONDS=0\s+if \[ "\$TARGET_ENVIRONMENT" = "canary" \]; then\s+export LINUX_IMAGE_STAGING_WAIT_SECONDS=300/);
+  assert.match(helm.run, /if ! bash \.github\/scripts\/linux-runner-image-prepare[^\n]+; then\s+if \[ "\$TARGET_ENVIRONMENT" = "canary" \]; then\s+echo '[^']+'\s+exit 1/);
 });
+
+for (const environment of ['canary', 'production']) {
+  for (const failure of [false, true]) {
+    test(`${environment} image preparation handles failure=${failure}`, () => {
+      const work = fs.mkdtempSync(path.join(os.tmpdir(), 'image-prepare-caller-'));
+      try {
+        fs.mkdirSync(path.join(work, '.github/scripts'), { recursive: true });
+        fs.writeFileSync(path.join(work, '.github/scripts/linux-runner-image-prepare.sh'),
+          `echo "$LINUX_IMAGE_STAGING_WAIT_SECONDS" > "$TEST_MODE"\n${failure ? 'exit 1' : `echo '{"runnersFleetLinux":{"imageHolds":{}}}'`}\n`);
+        const helm = deployment.jobs.deploy.steps.find(step => step.id === 'deploy-chart').run;
+        const start = helm.indexOf('if [ -f .github/scripts/linux-runner-image-prepare.sh ]; then');
+        const end = helm.indexOf('rm -f "$kvm_render"', start);
+        assert.ok(start >= 0 && end > start);
+        const result = spawnSync('bash', ['-c', `set -euo pipefail\nhelm_values_args=()\n${helm.slice(start, end)}\ncat "$linux_staging_values"`], {
+          cwd: work, encoding: 'utf8', env: { ...process.env, TARGET_ENVIRONMENT: environment, TEST_MODE: path.join(work, 'mode'),
+            TMPDIR: work, kvm_render: 'unused', HELM_RELEASE_NAME: 'tuist', NAMESPACE: 'canary' },
+        });
+        assert.equal(fs.readFileSync(path.join(work, 'mode'), 'utf8').trim(), environment === 'canary' ? '300' : '0');
+        assert.equal(result.status !== 0, failure && environment === 'canary');
+        if (failure && environment === 'canary') assert.match(result.stdout, /stopping before the Helm upgrade/);
+        else assert.match(result.stdout, /"imageHolds":\{\}/);
+      } finally {
+        fs.rmSync(work, { recursive: true, force: true });
+      }
+    });
+  }
+}
 
 for (const [environment, label, count] of [['canary', 'tuist-canary-linux', 9], ['production', 'tuist-linux', 3]]) {
   test(`${environment} plans native and container Linux probes in the watchdog count`, () => {
@@ -188,3 +217,26 @@ test('probe rejects an older candidate image before any build', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stdout, /Acceptance ran on candidate@sha256:old, expected candidate@sha256:new/);
 });
+
+for (const mounted of [true, false]) {
+  test(`candidate probe requires a real mount: mounted=${mounted}`, () => {
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'docker-probe-'));
+    try {
+      const probe = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/runners-docker-cache-probe.yml'), 'utf8'));
+      const check = probe.jobs.build.steps.find(step => step.name === 'Require candidate runner and mounted cache');
+      const state = path.join(work, 'state.json');
+      fs.writeFileSync(state, JSON.stringify({ mounted, reason: 'denied', token: 'must-not-log' }));
+      const result = spawnSync('bash', ['-c', check.run.replaceAll('/home/runner/.tuist-docker.json', state)], {
+        encoding: 'utf8', env: { ...process.env, EXPECTED_LINUX_IMAGE: 'candidate', TUIST_RUNNER_IMAGE: 'candidate', GITHUB_STEP_SUMMARY: path.join(work, 'summary') },
+      });
+      assert.equal(result.status === 0, mounted);
+      if (!mounted) {
+        assert.match(result.stdout, /Docker cache is not mounted/);
+        assert.match(result.stdout, /denied/);
+      }
+      assert.doesNotMatch(result.stdout, /must-not-log/);
+    } finally {
+      fs.rmSync(work, { recursive: true, force: true });
+    }
+  });
+}

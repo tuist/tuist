@@ -47,7 +47,12 @@ jobs:
               exit 1
             }
           fi
-          jq -e '.mounted == true' /home/runner/.tuist-docker.json
+          if ! jq -e '.mounted == true' /home/runner/.tuist-docker.json; then
+            echo '::error::Docker cache is not mounted; check pool provisioning, server authorization and the job-start hook.'
+            # Only include the local outcome, never tokens or the full manifest.
+            jq '{mounted, reason}' /home/runner/.tuist-docker.json || true
+            exit 1
+          fi
           echo "Runner image: ${TUIST_RUNNER_IMAGE:-unknown}" >> "$GITHUB_STEP_SUMMARY"
       - uses: ./.github/actions/setup-docker-builder
         id: builder
