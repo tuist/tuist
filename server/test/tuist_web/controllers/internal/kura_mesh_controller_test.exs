@@ -11,6 +11,83 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.KuraFixtures
 
+  test "cache policy requires tenant-bound node credentials and follows the instance setting", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
+    stub(Tuist.License, :get_license, fn -> {:ok, %{valid: true}} end)
+    stub(Tuist.Environment, :network_trusted_report_publishing_enabled?, fn -> false end)
+
+    for enabled <- [false, true, false] do
+      stub(Tuist.Environment, :network_trusted_cache_access_enabled?, fn -> enabled end)
+
+      response =
+        conn |> basic_auth(client.client_id, secret) |> get(~p"/_internal/kura/cache-policy?tenant_id=#{account.name}")
+
+      assert json_response(response, 200) == %{"tenant_id" => account.name, "network_trusted_cache_access" => enabled}
+      assert get_resp_header(response, "cache-control") == ["no-store"]
+    end
+
+    conn |> get(~p"/_internal/kura/cache-policy?tenant_id=#{account.name}") |> json_response(401)
+
+    conn
+    |> basic_auth(client.client_id, "wrong")
+    |> get(~p"/_internal/kura/cache-policy?tenant_id=#{account.name}")
+    |> json_response(401)
+
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> get(~p"/_internal/kura/cache-policy?tenant_id=another-account")
+    |> json_response(401)
+
+    authenticated = basic_auth(conn, client.client_id, secret)
+    [authorization] = get_req_header(authenticated, "authorization")
+
+    %{authenticated | req_headers: [{"authorization", authorization} | authenticated.req_headers]}
+    |> get(~p"/_internal/kura/cache-policy?tenant_id=#{account.name}")
+    |> json_response(401)
+
+    stub(Tuist.License, :get_license, fn -> {:ok, %{valid: false}} end)
+
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> get(~p"/_internal/kura/cache-policy?tenant_id=#{account.name}")
+    |> json_response(422)
+  end
+
+  test "deployment credentials resolve cache policy through current and retained account handles", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+    stub(Tuist.Environment, :network_trusted_cache_access_enabled?, fn -> true end)
+    stub(Tuist.License, :get_license, fn -> {:ok, %{valid: true}} end)
+    {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+
+    for handle <- [account.name, renamed.name] do
+      response =
+        conn
+        |> basic_auth("static-kura-client", "static-kura-secret")
+        |> get(~p"/_internal/kura/cache-policy?tenant_id=#{handle}")
+
+      assert json_response(response, 200) == %{"tenant_id" => handle, "network_trusted_cache_access" => true}
+
+      conn
+      |> basic_auth("static-kura-client", "wrong")
+      |> get(~p"/_internal/kura/cache-policy?tenant_id=#{handle}")
+      |> json_response(401)
+    end
+
+    conn
+    |> basic_auth("static-kura-client", "static-kura-secret")
+    |> get(~p"/_internal/kura/cache-policy?tenant_id=missing-tenant")
+    |> json_response(401)
+  end
+
   defp csr_pem do
     :secp256r1
     |> X509.PrivateKey.new_ec()

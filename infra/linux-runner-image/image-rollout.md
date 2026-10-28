@@ -43,8 +43,17 @@ the same rendered pools that Helm will install. That render is the desired-image
 announcement, including explicit pools, fleets, and runtime classes. This avoids
 another writer sharing the macOS `tuist-upcoming-runner-images` ConfigMap, and
 also covers manual pins and rollback releases without relying on a prior release
-announcement. Pulling starts during deployment, rather than immediately on
-publication; normal jobs continue using the existing pools during preparation.
+announcement. Normal jobs continue using the existing pools during preparation.
+
+Releases run in `linux-runner-image-release.yml`, outside the deploy cascade,
+like macOS's `runner-image-release.yml`. After tagging, its `announce` job runs
+`linux-runner-image-stage.sh` on canary and production: it retargets the
+release's live Linux pools that run a released image by digest (tag-pinned
+pools are left alone) and waits up to an hour for the same helpers the deploy's
+check creates. Only then does it dispatch Server Production Deployment, which
+finds them ready and moves the pools. A deploy that runs first, for another
+change, holds and stages as below. The job only warns on failure or timeout and
+dispatches the deploy anyway, as macOS does.
 
 One temporary DaemonSet per unique namespace/fleet/preparation-runtime/image starts only
 `/bin/sleep`, with no dispatch token, host mounts, or job registration. Managed

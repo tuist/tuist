@@ -40,7 +40,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     }
 
     private let fileSystem: FileSysteming
-    private let token: @Sendable () async throws -> String
+    private let token: @Sendable () async throws -> String?
     private let guards: TransferGuards
     private let metadataTimeout: Duration
     private let stats: REAPIStats?
@@ -67,7 +67,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         backpressureRetryPolicy: REAPIBackpressureRetryPolicy? = nil,
         environment: [String: String] = Environment.current.variables,
         chunkCacheDirectory: URL? = nil,
-        token: @escaping @Sendable () async throws -> String
+        token: @escaping @Sendable () async throws -> String?
     ) async throws {
         var guards = guards
         if let raw = environment["TUIST_CACHE_CONCURRENCY_LIMIT"], let value = Int(raw), value > 0 {
@@ -125,7 +125,9 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     private func metadata(presenceLookup: Bool = false) async throws -> Metadata {
         var result = Metadata()
-        result.addString("Bearer \(try await token())", forKey: "authorization")
+        if let token = try await token() {
+            result.addString("Bearer \(token)", forKey: "authorization")
+        }
         result.addString(accountHandle, forKey: "x-tuist-account-handle")
         result.addString("module", forKey: "x-tuist-artifact-kind")
         if presenceLookup {

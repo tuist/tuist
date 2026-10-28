@@ -6,7 +6,8 @@
   reload kubelet's egress dependency before stopping the egress service; an
   explicit stop otherwise propagates through `Requires` and stops kubelet.
   Never move an existing cache vRack NIC automatically. Managed staging/canary
-  enable activation; production stays off until advance allowlisting and qualification;
+  enable activation; production activation requires advance allowlisting,
+  confirmed block attachment and a drained, verified cutover;
   preserve private-cache enrollment during public-egress cleanup. Block inventory,
   staging qualification limits and rollout/rollback steps are in
   [OVH runner egress](docs/ovh-runner-egress.md).
