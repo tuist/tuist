@@ -565,9 +565,8 @@ struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
 
-        let xcodeproj = try XcodeProj(
-            pathString: fixturePath.appending(components: "Package", "repro.xcodeproj").pathString
-        )
+        let packageDirectory = fixturePath.appending(component: "Package")
+        let xcodeproj = try XcodeProj(pathString: packageDirectory.appending(component: "repro.xcodeproj").pathString)
         let reproCoreTarget = try TuistAcceptanceTest.requireTarget("ReproCore", in: xcodeproj)
         let buildConfigurations = try #require(reproCoreTarget.buildConfigurationList?.buildConfigurations)
 
@@ -578,7 +577,12 @@ struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
             let otherSwiftFlags = try #require(buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue)
             #expect(otherSwiftFlags.contains("-module-abi-name"))
             #expect(otherSwiftFlags.contains("-Xcc"))
-            #expect(otherSwiftFlags.contains(where: { $0.contains("ReproCore-deps.modulemap") }))
+            let moduleMapFlag = try #require(otherSwiftFlags.first { $0.hasPrefix("-fmodule-map-file=") })
+            let moduleMapPath = try AbsolutePath(validating: String(moduleMapFlag.dropFirst("-fmodule-map-file=".count))
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: packageDirectory.pathString))
+            let moduleMap = try await FileSystem().readTextFile(at: moduleMapPath)
+            #expect(moduleMap.contains("module CShim"))
             #expect(!otherSwiftFlags.contains("-package-name"))
         }
 
@@ -714,12 +718,16 @@ struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
 
-        let xcodeproj = try XcodeProj(
-            pathString: fixturePath.appending(components: "CLibPkg", "CLibPkg.xcodeproj").pathString
-        )
+        let packageDirectory = fixturePath.appending(component: "CLibPkg")
+        let xcodeproj = try XcodeProj(pathString: packageDirectory.appending(component: "CLibPkg.xcodeproj").pathString)
         let target = try #require(xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == "CLib" }))
         #expect(target.buildPhases.compactMap { $0 as? PBXHeadersBuildPhase }.isEmpty)
-        #expect(xcodeproj.pbxproj.fileReferences.contains { $0.lastKnownFileType == "folder" })
+        let sourceDirectory = packageDirectory.appending(components: "Sources", "CLib")
+        let sourceFolder = try #require(try xcodeproj.pbxproj.fileReferences.first {
+            guard let path = try $0.fullPath(sourceRoot: packageDirectory.pathString) else { return false }
+            return URL(fileURLWithPath: path).resolvingSymlinksInPath().path == sourceDirectory.url.resolvingSymlinksInPath().path
+        })
+        #expect(xcodeproj.pbxproj.groups.contains { $0.children.contains(sourceFolder) })
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try await CommandRunner().runAndWait(arguments: [
             "/usr/bin/xcodebuild", "build",
