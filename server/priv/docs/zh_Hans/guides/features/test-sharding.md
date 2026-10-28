@@ -7,11 +7,11 @@
 ---
 # 测试分片 {#test-sharding}
 
-现代 CI 主机提供多核环境，允许一定程度的测试并行化。然而，在某些场景下，你需要超越单台主机所能提供的能力——例如，当你受限于可同时运行的模拟器数量，或者你的测试套件规模已经超出单台机器的处理能力时。
+现代 CI 主机提供多核环境，允许一定程度的测试并行化。然而，有些场景下你需要超越单台主机的能力——例如，当你受限于可同时运行的模拟器数量，或者你的测试套件规模已经超出单台机器的处理能力时。
 
 在这些情况下，你需要一个能够将测试分发到多个 CI 运行器并将结果聚合为统一视图的系统。这正是测试分片的作用。
 
-Tuist 利用历史测试耗时数据，通过[装箱算法](https://en.wikipedia.org/wiki/Bin_packing_problem)智能地在各个分片之间平衡负载，从而使每个运行器大致在同一时间完成。所有分片的结果会自动聚合到<.localized_link href="/guides/features/test-insights">测试洞察</.localized_link>中，为你提供跨所有分片的测试套件的单一统一视图。
+Tuist 利用历史测试耗时数据，通过[装箱算法](https://en.wikipedia.org/wiki/Bin_packing_problem)智能地在各个分片之间平衡负载，使每个运行器大致在同一时间完成。所有分片的结果会自动聚合到<.localized_link href="/guides/features/test-insights">测试洞察</.localized_link>中，为你提供跨所有分片的测试套件的统一视图。
 
 <.home_cards>
   <.home_card
@@ -31,12 +31,12 @@ Tuist 利用历史测试耗时数据，通过[装箱算法](https://en.wikipedia
 />
   <.home_card
     title="Elixir"
-    details="在并行的 CI 运行器之间分片你的 Elixir 项目的测试。"
+    details="在并行的 CI 运行器之间分片你的 Elixir 项目测试。"
     link="/guides/features/test-sharding/elixir"
 />
   <.home_card
     title="Rust"
-    details="了解纯 Cargo 测试运行的测试分片可用性。"
+    details="在并行的 CI 工作节点之间分发 Cargo 测试目标。"
     link="/guides/features/test-sharding/rust"
 />
 </.home_cards>

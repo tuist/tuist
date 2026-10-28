@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "2cf555dfd21cdf3e7ca35e2c4692718918aa1bf34f4bca26eb4e45ce36c82f6e",
+  "hash": "ac0cc9051d59087668437e667033c5a2fa66a5b0e902775c57930f5907be90fa",
   "hash_tree": {
     "root": {
       "children": [
@@ -20,7 +20,7 @@
                   "content_hash": "7a5f2b646f1ec05e683c2a75d12a627fb4c23e67f413932f4a480e486a129869"
                 },
                 "## What is tracked {#what-is-tracked}": {
-                  "content_hash": "48884d6a1c0ef3096a72c03999305484cf0400af09a5cd50e258c20a00a8e52d"
+                  "content_hash": "b314f2bbadb4999241664b61e0f0e04823a41c7babf6ba5fa8a87268f111f589"
                 },
                 "### Git history {#git-history}": {
                   "content_hash": "3879ea10f8f6ca2faf893ee87232cb9be1b652902f771ef9414bc444ae5e2f7e"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "577324ce714b4c570dc74a4a6469305ee9866782990bd6662357bc1f96b0c930",
+          "hash": "f84e4b2819eff8cba1dc9d2c94cab5a7528cf70b4fac083d81f6b9a1e2f5ca0b",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/elixir.md",
           "metadata": {
-            "content_hash": "d958abf3003a15c80e34ff707335c39b51a48e8df8501ddb0c8d9edf5eaaa850"
+            "content_hash": "f67a2f0c33bb5d04d4a8035387a77036096d0ad94bb4ebb21a3ae35c922ab9c5"
           }
         },
         {
@@ -195,14 +195,14 @@
         }
       ],
       "details": {},
-      "hash": "2cf555dfd21cdf3e7ca35e2c4692718918aa1bf34f4bca26eb4e45ce36c82f6e",
+      "hash": "ac0cc9051d59087668437e667033c5a2fa66a5b0e902775c57930f5907be90fa",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/elixir.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "3b98dbb960a381f588c33dd8fc74f10528ab1cdd23e4b4f10429510310849d37",
+  "output_hash": "77ddb7b7197601e08a13d518439a4355e4ec73d048e7aa7ea47451e568ab8d94",
   "output_path": "server/priv/docs/yue_Hant/guides/features/test-insights/elixir.md",
   "protection_state": "recorded",
   "provider": "",
@@ -220,8 +220,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "c6d51e83d116dcde709d176029583c6f387ce2ee",
+  "source_commit_sha": "ba2b1151ebe4606255f776d1dc029c9c30f3fe3c",
   "source_path": "server/priv/docs/en/guides/features/test-insights/elixir.md",
-  "translated_at": "2026-10-28T14:52:28.187116Z",
-  "translation_session_id": "01a182fe-6e52-7653-a0f5-ce40b9451f67"
+  "translated_at": "2026-10-28T16:17:20.731610Z",
+  "translation_session_id": "01a18348-feaf-7fdb-a2e7-eeb1d093adf7"
 }

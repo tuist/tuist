@@ -7,7 +7,7 @@
 ---
 # Información de tests de Rust {#rust-test-insights}
 
-Tuist informa los resultados individuales de los tests de `cargo test`, incluyendo unit tests, integration tests y doctests. No se requiere ninguna dependencia de Rust ni un ejecutor de tests adicional.
+Tuist informa los resultados individuales de los tests de `cargo test`, incluidos unit tests, integration tests y doctests. No se requiere ninguna dependencia de Rust ni un ejecutor de tests adicional.
 
 > [!IMPORTANT] Requirements
 > - Sigue la <.localized_link href="/guides/get-started/rust-project">configuración del proyecto Rust</.localized_link>.
@@ -18,7 +18,7 @@ Tuist informa los resultados individuales de los tests de `cargo test`, incluyen
 tuist cargo test --workspace
 ```
 
-Con el wrapper de mise para Cargo configurado, puedes seguir escribiendo `cargo test`. Cargo sigue compilando y ejecutando tus tests, con sus argumentos, salida y código de salida habituales. Los fallos en el envío de informes no cambian el resultado de tus tests.
+Con el wrapper de mise para Cargo configurado, puedes seguir escribiendo `cargo test`. Cargo sigue compilando y ejecutando tus tests, con sus argumentos habituales, salida y código de salida. Los fallos en el informe no cambian el resultado de tus tests.
 
 Puedes seleccionar un paquete o filtrar tests como de costumbre:
 
@@ -29,12 +29,12 @@ tuist cargo test authentication
 
 ## Qué rastrea Tuist {#what-is-tracked}
 
-- Tests pasados, fallidos e ignorados de suites de tests completadas.
+- Tests aprobados, fallidos e ignorados de suites de tests completadas.
 - Unit tests, integration tests y doctests.
-- Duraciones de la suite completa.
+- Duraciones de suite completa.
 - Metadatos disponibles de rama, commit, CI y runner.
 
-Los tests filtrados y los tests no ejecutados tras un fallo nunca se informan como pasados. Los resultados aparecen bajo **Tests** en el dashboard.
+Los tests filtrados y los tests no ejecutados tras un fallo nunca se informan como aprobados. Los resultados aparecen bajo **Tests** en el dashboard.
 
 ## Paquetes, módulos y casos de test {#test-hierarchy}
 
@@ -50,25 +50,25 @@ Los doctests usan un módulo separado como `store::doctest/store`. Sus nombres i
 
 ## Doctests y duraciones {#cargo-test}
 
-Los doctests se ejecutan con tu comando de test habitual, incluyendo ejemplos `compile_fail`, `should_panic` y `no_run`. Para ejecutar solo doctests:
+Los doctests se ejecutan con tu comando de test habitual, incluidos ejemplos `compile_fail`, `should_panic` y `no_run`. Para ejecutar solo doctests:
 
 ```sh
 tuist cargo test --doc
 ```
 
-libtest estable informa el tiempo de la suite completa pero no las duraciones de tests individuales. Los tiempos no disponibles se excluyen de los historiales de duración por caso y de las analíticas de duración, mientras que los resultados de los tests siguen contribuyendo a la fiabilidad y al recuento de ejecuciones.
+libtest estable informa el tiempo de suite completa pero no las duraciones de tests individuales. Los tiempos no disponibles se excluyen de los historiales de duración por caso y de los análisis de duración, mientras que los resultados de los tests siguen contribuyendo a la fiabilidad y al recuento de ejecuciones.
 
-## Límites de informe {#reporting-limits}
+## Límites de informes {#reporting-limits}
 
-Los resultados individuales se recogen de la salida predeterminada de Cargo/libtest. Los comandos que usan `--no-run`, `--list`, salida silenciosa o verbosa de Cargo, formatos alternativos o salida de test no capturada se ejecutan normalmente sin informar tests individuales. Los harnesses personalizados, resúmenes incompletos, atribución ambigua de targets e informes excesivamente grandes no se suben.
+Los resultados individuales se recopilan de la salida predeterminada de Cargo/libtest. Los comandos que usan `--no-run`, `--list`, salida silenciosa o detallada de Cargo, formatos alternativos o salida de test no capturada se ejecutan normalmente sin informar tests individuales. Los harnesses personalizados, resúmenes incompletos, atribución ambigua de targets e informes excesivamente grandes no se suben.
 
-Si los paquetes del workspace tienen targets de integración con nombres idénticos, selecciona uno con `-p <package>`. El informe admite nombres exactos de paquetes del workspace; los paquetes de dependencias, selectores calificados por versión y globs se ejecutan normalmente pero no se informan. Las rutas absolutas de doctest se omiten para mantener las rutas de checkout fuera de las identidades de los tests.
+Si los paquetes del workspace tienen targets de integración con nombres idénticos, selecciona uno con `-p <package>`. Los informes admiten nombres exactos de paquetes del workspace; los paquetes de dependencias, selectores calificados por versión y globs se ejecutan normalmente pero no se informan. Las rutas absolutas de doctest se omiten para mantener las rutas de checkout fuera de las identidades de los tests.
 
-Tuist transmite la salida mientras recoge los resultados. Esto puede afectar a la detección automática de color. Los procesos en segundo plano que mantienen abiertas las tuberías de salida después de que Cargo finalice pueden hacer que se omita el informe, pero no cambian el estado de salida de Cargo.
+Tuist transmite la salida mientras recopila los resultados. Esto puede afectar a la detección automática de color. Los procesos en segundo plano que mantienen abiertas las tuberías de salida después de que Cargo finalice pueden hacer que se omita el informe, pero no cambian el estado de salida de Cargo.
 
 ## Fiabilidad y selección {#reliability-and-selection}
 
-Usa la <.localized_link href="/guides/features/test-insights/flaky-tests/rust">detección de tests inestables</.localized_link> para investigar tests inestables. La cuarentena del dashboard actualmente no silencia ni omite los tests de Cargo. La ingesta de cobertura, la selección de tests basada en cobertura y el sharding de construcción única no están disponibles para ejecuciones simples de tests de Cargo.
+Usa <.localized_link href="/guides/features/test-insights/flaky-tests/rust">detección y cuarentena de tests inestables</.localized_link> para investigar tests inestables y silenciarlos u omitirlos. <.localized_link href="/guides/features/test-sharding/rust">Test sharding</.localized_link> distribuye los targets completos de Cargo entre los workers de CI. La ingesta de cobertura, la selección de tests basada en cobertura y la distribución de build-once no están disponibles para ejecuciones normales de Cargo test.
 
 ## Solución de problemas {#troubleshooting}
 
