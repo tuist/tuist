@@ -165,12 +165,29 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 	if m == nil {
 		// With no control Pod and no durable records, this host keeps its existing
 		// CI-only behavior. Existing records always require recovery before launches.
+		s.mu.Lock()
+		s.ready = false
+		s.mu.Unlock()
 		entries, readErr := os.ReadDir(filepath.Join(s.Root, "records"))
-		if control == nil && (os.IsNotExist(readErr) || readErr == nil && len(entries) == 0) {
+		if readErr != nil && !os.IsNotExist(readErr) {
+			return readErr
+		}
+		if len(entries) == 0 {
+			vms, err := os.ReadDir(filepath.Join(s.Root, "tart", "vms"))
+			if err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			for _, vm := range vms {
+				if strings.HasPrefix(vm.Name(), "sbx-") {
+					return errors.New("orphan sandbox VM requires ownership reconciliation")
+				}
+			}
 			s.mu.Lock()
 			s.ready = true
 			s.mu.Unlock()
-			return nil
+			if control == nil {
+				return nil
+			}
 		}
 		var cfg Config
 		configData, configErr := os.ReadFile(filepath.Join(s.Root, "config.json"))
@@ -192,11 +209,6 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		}
 		if err = atomicFile(filepath.Join(s.Root, "config.json"), configData); err != nil {
 			return err
-		}
-		if os.IsNotExist(readErr) || readErr == nil && len(entries) == 0 {
-			s.mu.Lock()
-			s.ready = true
-			s.mu.Unlock()
 		}
 		binary, err := BuildRuntime(ctx, filepath.Join(s.Root, "runtimes"))
 		if err != nil {

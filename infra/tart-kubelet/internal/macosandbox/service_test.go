@@ -2,6 +2,8 @@ package macosandbox
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,6 +15,37 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
 )
+
+func TestUnjournaledVMBlocksCIWithoutControlPod(t *testing.T) {
+	capacity, node, _ := capacityFixture()
+	s := &Service{Kube: capacity.Kube, Node: node.Name, Root: t.TempDir()}
+	orphan := filepath.Join(s.Root, "tart", "vms", "sbx-orphan")
+	if err := os.MkdirAll(orphan, 0700); err != nil {
+		t.Fatal(err)
+	}
+	var controlUID string
+	var cancel context.CancelFunc
+	ctx := context.Background()
+	if err := s.tick(ctx, ctx, &controlUID, &cancel); err == nil {
+		t.Fatal("orphan VM without a journal was treated as an empty store")
+	}
+	if unlock, err := s.LaunchGuard(ctx, "ci-vm"); err == nil {
+		unlock()
+		t.Fatal("CI admitted while sandbox ownership was unknown")
+	}
+	// Simulate operator reconciliation, then verify the CI-only path recovers.
+	if err := os.Remove(orphan); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.tick(ctx, ctx, &controlUID, &cancel); err != nil {
+		t.Fatal(err)
+	}
+	unlock, err := s.LaunchGuard(ctx, "ci-vm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlock()
+}
 
 // The fake API normally drops Pods immediately regardless of deletion grace.
 // Leave graceful deletes in the tracker, as the real API does without a kubelet
