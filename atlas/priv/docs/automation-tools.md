@@ -73,8 +73,51 @@ context. Opt-out stops future matching, not existing thread membership. Opening
 queues a generic attention notification for registered devices and starts Pip's
 read-only investigation when inference is configured. It does not send an external
 reply. The native iOS/Android Orbit inbox groups prioritized conversations under
-Now, Today and Later. Provider polling and a source configuration UI are not
-included; operators must explicitly wire event producers to ingestion.
+Now, Today and Later. Configure sources through API/MCP; a source configuration
+UI is not included.
+
+## Monitor personal Gmail and Slack
+
+Connect your personal account in Settings → Connections. For Gmail, choose
+**Allow Gmail monitoring** to grant separate read-only email access; the ordinary
+Google connection does not request it. Nothing is scanned just by connecting.
+
+Add `polling` to `create_signal_source` instead of `event_receiver`:
+
+```json
+{
+  "provider": "gmail",
+  "query": "label:support",
+  "interval_seconds": 300
+}
+```
+
+Use `provider: "slack"` with a narrowly scoped Slack search such as `in:help`.
+Confirm the source's `reader_ids`: matching excerpts may be shared into their
+Orbit conversations and sent to the acting person's configured model. Polling
+uses only the owner's personal OAuth grant, never a shared operator or bot token.
+Optional `subjects` and `topics` arrays attach stable account/service identifiers
+and expertise tags for the same business-profile routing used by signed events.
+Enable the source explicitly after configuring its pinned policy. Gmail needs
+the [read-only Gmail scope](https://developers.google.com/workspace/gmail/api/auth/scopes);
+no sending, mailbox writes or attachments are supported.
+
+Polls begin at source creation, with a short overlap for delayed search indexing;
+they do not scan older mailbox history. Pages checkpoint durably with admission,
+retries deduplicate, and transient failures do not advance the watermark. Source
+metadata exposes `poll_error`, `poll_next_at` and `poll_interval_seconds`, not
+private queries, tokens or page cursors. Pause with `set_signal_source_enabled`;
+disconnecting or losing authorization also stops admission. Reauthorizing the
+same grant can resume; reconnecting a deleted grant or switching external accounts
+requires a new source, so a monitor cannot silently follow a different identity.
+
+This is best-effort search, not a lossless event subscription. Gmail captures
+subject/from headers and snippets, not full messages. Slack's
+[search API](https://docs.slack.dev/reference/methods/search.messages/) can collapse
+nearby matches and respects personal search filters. Atlas uses cursormark
+pagination rather than the numbered-page API's 100-page limit.
+Use signed events for sources requiring complete delivery. Atlas makes no external
+reply and changes no email or Slack message.
 
 ## Receive MCP events
 

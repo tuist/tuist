@@ -1132,7 +1132,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(ingest_signal decide_signal update_my_business_profile save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
+       when name in ~w(create_signal_source ingest_signal decide_signal update_my_business_profile save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

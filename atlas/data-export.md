@@ -97,14 +97,42 @@ admission; recreating a source replaces its immutable receiver/key. The same
 source/owner deletion and backup retention apply; no automatic credential expiry
 or provider enrollment/renewal worker is added.
 
+Optional personal Gmail/Slack monitors store the immutable query, provider and
+connection UUID/external identity/workspace binding in Cloak-encrypted, redacted
+`signal_sources.poll_config`. The encrypted `poll_state` holds a UTC watermark,
+fixed in-progress query window and pagination token/page. Public source metadata
+includes interval seconds, next-poll timestamp and a bounded `poll_error` category;
+API/MCP serializers omit both encrypted polling fields. Monitoring requires an
+explicit source audience and activation. Gmail separately requires read-only email
+consent; ordinary Google connections still request no Gmail scope. Slack uses the
+owner's personal search grant, never the shared operator/bot identity.
+
+The provider receives the query, date window, pagination parameters and personal
+OAuth token. Gmail collection includes message/thread IDs, occurrence time,
+subject/from headers and bounded snippets, not full mail bodies or attachments.
+Slack collects message/channel/timestamp, optional parent timestamp and a bounded
+text excerpt; a content digest distinguishes edits. These become ordinary encrypted
+signal envelopes and may be copied into authorized Orbit history and model context
+under the rules below. Polling is best-effort search, not a lossless event log.
+Disconnect/account switching/current scope loss stops admission; an in-flight
+provider request cannot be recalled. Existing evidence is not erased by disconnect.
+Queries/checkpoints remain with the source until owner/source deletion under its
+existing no-expiry/backup policy. A schema rollback removes polling configuration
+and progress, not already-admitted signals/history.
+
+Authorized operator exports must decrypt the applicable sources' query and binding
+configuration, plus their watermark/window metadata. Exclude opaque upstream page
+tokens and OAuth credentials. Poll jobs contain only source UUIDs; `.polled` audits
+store actor/interface/source and admitted count, never queries or provider bodies.
+
 Automation admissions and results carry opaque signal IDs/status only. Opening
 copies bounded evidence, priority/reason and routed IDs/reason categories into an
 ordinary shared Orbit system message; it also stores the source reader ceiling in
 `orbit_threads.signal_reader_ids`. Those copies follow Orbit's existing history,
 provider-sharing and deletion rules, including retention after owner deletion.
 Pip receives the bounded transcript, not necessarily every byte of provider data.
-No Gmail/Slack polling, telemetry collection or additional provider grant is
-enabled by this backend. Ingestion must be explicitly wired by the operator.
+No source, personal monitor, telemetry collection or provider grant is enabled
+automatically; source owners explicitly configure and enable ingestion.
 
 `signal_source.created`, `.updated`, `signal.received`, `.decided` and
 `user.business_profile_updated` audits retain actor/interface and resource IDs,

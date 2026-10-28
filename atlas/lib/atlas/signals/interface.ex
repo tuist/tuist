@@ -12,6 +12,17 @@ defmodule Atlas.Signals.Interface do
         "reader_ids" => array(@id, 30),
         "required_scopes" => array(text(100), 100),
         "routing_roles" => array(text(100), 10),
+        "polling" =>
+          object(
+            %{
+              "provider" => %{"enum" => ~w(gmail slack)},
+              "query" => nonblank(500),
+              "subjects" => array(text(200), 20),
+              "topics" => array(text(100), 20),
+              "interval_seconds" => %{"type" => "integer", "minimum" => 60, "maximum" => 86_400}
+            },
+            ~w(provider query interval_seconds)
+          ),
         "event_receiver" =>
           object(
             %{

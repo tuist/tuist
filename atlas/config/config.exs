@@ -41,6 +41,7 @@ alias Atlas.Orbit.Workers.CleanupAttachments
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
 alias Atlas.Push.Workers.Prune, as: PrunePushInstallations
+alias Atlas.Signals.Workers.SchedulePolls
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Atlas.TimeOff.SyncPublicHolidays
 alias Atlas.Workers.PruneRateLimits
@@ -138,6 +139,7 @@ config :atlas, Oban,
        # schedule in every environment.
        {"* * * * *", ErrorsSummaryWorker},
        {"* * * * *", ScheduleRuns},
+       {"* * * * *", SchedulePolls},
        # Weekly digest of inbound emails the classifier silenced so
        # the team stays aware of what was filtered.
        {"0 9 * * 1", SupportInboxWeeklyDigest}

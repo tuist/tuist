@@ -330,6 +330,8 @@ defmodule Atlas.Automations.Interface do
       :__meta__,
       :token_hash,
       :signing_secret,
+      :poll_config,
+      :poll_state,
       :created_by,
       :published_by,
       :initiated_by,

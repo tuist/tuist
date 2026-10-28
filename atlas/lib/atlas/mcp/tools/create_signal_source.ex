@@ -9,7 +9,7 @@ defmodule Atlas.MCP.Tools.CreateSignalSource do
 
   def description,
     do:
-      "Create a disabled portable signal source, pinning its workflow revision, execution owner, reader ceiling and domain scopes. Optional event_receiver binds an MCP event name, exact data filters and correlation field; returns its callback path and signing secret once. Treat that secret as a credential visible to this MCP client. Subscription enrollment and renewal remain separate upstream operations. Bindings are immutable; create a new source to change them."
+      "Create a disabled portable signal source, pinning its workflow revision, execution owner, reader ceiling and domain scopes. Choose optional event_receiver OR polling. Polling watches a query on your personally connected Gmail or Slack account; explicitly confirm sharing matching excerpts with reader_ids. Gmail first requires separate read-only consent at /settings/connections. Polls start at source creation, not historical inbox scanning. Event receivers return callback/signing credentials once; treat them as secrets. Upstream subscription enrollment is separate. Bindings, including the provider identity, are immutable; create a new source to change them."
 
   def execute(conn, args), do: Automation.execute(:create_signal_source, conn, args)
 end

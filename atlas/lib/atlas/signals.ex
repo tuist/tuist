@@ -14,6 +14,7 @@ defmodule Atlas.Signals do
   alias Atlas.Signals.Config
   alias Atlas.Signals.Interface
   alias Atlas.Signals.MCPEvents
+  alias Atlas.Signals.Polling
   alias Atlas.Signals.Routing
   alias Atlas.Signals.Signal
   alias Atlas.Signals.Source
@@ -29,12 +30,15 @@ defmodule Atlas.Signals do
          :ok <- DomainAccess.authorize_execution(actor, revision.plan),
          true <- Enum.all?(attrs["required_scopes"] || [], &(&1 in Authorization.all_scopes())),
          true <- Access.holds_all?(actor, attrs["required_scopes"] || []),
+         true <- is_nil(attrs["event_receiver"]) or is_nil(attrs["polling"]),
          {:ok, readers} <- readers(actor, attrs["reader_ids"] || []) do
       Repo.transaction(fn ->
         signing_secret = if attrs["event_receiver"], do: :crypto.strong_rand_bytes(32)
+        polling = Polling.bind(actor, attrs["polling"])
 
         source =
           %Source{owner_id: actor.id, revision_id: revision.id, signing_secret: signing_secret}
+          |> Ecto.Changeset.change(polling)
           |> Source.changeset(Map.put(attrs, "reader_ids", readers))
           |> Repo.insert()
           |> case do

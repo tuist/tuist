@@ -17,6 +17,11 @@ defmodule Atlas.Signals.Source do
     field :event_receiver, :map
     field :signing_secret, Binary, redact: true
     field :delivery, :map, virtual: true, redact: true
+    field :poll_config, Binary, redact: true
+    field :poll_state, Binary, redact: true
+    field :poll_interval_seconds, :integer
+    field :poll_next_at, :utc_datetime_usec
+    field :poll_error, :string
     belongs_to :owner, User
     belongs_to :revision, Revision
     timestamps(type: :utc_datetime_usec)

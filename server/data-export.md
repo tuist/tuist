@@ -54,7 +54,18 @@ while evidence already copied to shared Orbit history follows Orbit retention.
 Exports must include profiles, sources by owner or reader UUID, associated signals
 and their authorized decrypted envelopes, linked Automation and Orbit history,
 and matching audits/jobs. Customer references can occur inside envelope data, not
-only foreign keys. No new object-store paths or provider polling are introduced.
+only foreign keys. No new object-store paths are introduced.
+Optional Gmail/Slack polling adds encrypted query/provider/connection identity
+bindings (`signal_sources.poll_config`) and watermarks/windows/page tokens
+(`poll_state`), interval/next-run metadata and bounded failure categories.
+Explicit Gmail read-only consent and source activation are separate; Slack uses
+the owner's personal search grant. Stored signal evidence includes bounded email
+headers/snippets or Slack text, never full mail bodies/attachments or OAuth tokens.
+Include authorized decrypted query/binding and watermark metadata in Atlas exports,
+excluding opaque pagination tokens and credentials. Disconnect stops future
+admission, not retention of captured signals/Orbit copies. Configuration follows
+source deletion/backup retention; polling schema rollback discards checkpoints,
+not admitted history. Poll jobs hold source UUIDs only; polling audits add counts.
 Orbit stores nullable queue priority on threads, shared join notices and encrypted
 recipient-specific catch-ups (`orbit_messages.recipient_id`, `private_body`, with
 ordinary `body` empty). Participant exports must exclude other recipients' private
