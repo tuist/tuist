@@ -32,6 +32,34 @@ spec:
                 name: {{ include "atlas.fullname" . }}
                 port:
                   name: http
+---
+# Allow long non-streaming inference responses, with headroom above Atlas's
+# default 300-second per-attempt receive timeout. Scope this read timeout to the
+# relay; TLS and cert-manager ownership stay on the main Ingress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "atlas.fullname" . }}-inference
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 25m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "360"
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.host }}
+      http:
+        paths:
+          - path: /inference/v1/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "atlas.fullname" . }}
+                port:
+                  name: http
 {{- if .Values.ingress.operatorGrant }}
 ---
 # ops.tuist.dev hands the operator grant back on the query string, and

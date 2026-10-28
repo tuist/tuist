@@ -85,6 +85,29 @@ bash "$chart/test-push-config.sh"
 bash "$root/atlas/deploy/test-sandbox-retention.sh"
 helm template standalone "$chart" > "$work/standalone.yaml"
 helm template atlas "$chart" --values "$chart/values-managed-production.yaml" > "$work/managed.yaml"
+# Only inference gets a six-minute response-read idle timeout; other routes keep
+# their existing timeouts. TLS/Certificate ownership stays on the main Ingress.
+if ! yq -o=json '.' "$work/managed.yaml" | jq --slurp --exit-status '
+  [ .[] | select(.kind == "Ingress") ] as $ingresses |
+  [ $ingresses[] | select(.metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"] != null) ] as $timed |
+  ($timed | length == 1) and
+  ($timed[0].metadata.annotations == {
+    "nginx.ingress.kubernetes.io/proxy-body-size": "25m",
+    "nginx.ingress.kubernetes.io/proxy-read-timeout": "360"
+  }) and
+  ($timed[0].spec.ingressClassName == "nginx") and
+  ($timed[0].spec.tls == null) and
+  ($timed[0].spec.rules == [{
+    "host": "atlas.tuist.dev",
+    "http": {"paths": [{
+      "path": "/inference/v1/", "pathType": "Prefix",
+      "backend": {"service": {"name": "atlas", "port": {"name": "http"}}}
+    }]}
+  }])
+' > /dev/null; then
+  echo 'Atlas inference timeout must be scoped to inference and preserve body size, routing, and TLS ownership' >&2
+  exit 1
+fi
 if grep -Eq 'kind: (ExternalSecret|Cluster)|tuist-server-token|atlas.tuist.dev' "$work/standalone.yaml"; then
   echo 'Standalone chart unexpectedly depends on managed infrastructure' >&2
   exit 1
