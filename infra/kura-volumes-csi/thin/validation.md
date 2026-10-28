@@ -1,6 +1,21 @@
 # Thin stack qualification
 
-## Decision — retain shared XFS, 2026-10-28
+## Active encryption objective and unqualified thin candidate
+
+Encryption at rest with per-tenant keys and OpenBao remains the objective of
+#14152, including rack nodes. Disk sharing in #14825 is a separate workstream
+whose future reclamation/accounting needs constrain the encryption layout.
+The earlier decision below to defer encryption was a scope error and is
+superseded. Shared XFS without tenant encryption does not satisfy this work.
+
+The tested thin implementation is still not a rollout candidate. Preserve its
+performance and physical-allocation failures while selecting a layout that
+supports safe future redistribution without routine volume replacement or
+permanent full-ceiling backing. Reopening the encryption draft does not waive
+those gates or establish permanent OpenBao custody. The shared-XFS benchmarks
+and no-node-reboot rollout in #14825 do not qualify an encrypted implementation.
+
+## Superseded scope decision — 2026-10-28
 
 The thin-LVM migration in #14152 is parked. Continue disk sharing in #14825
 on shared XFS; it no longer depends on this CSI implementation. Preserve this
@@ -29,7 +44,8 @@ Production is unchanged. Shared-XFS sharing still needs its own staging and
 rollout qualification; the following thin tests cannot qualify it.
 
 All release-status statements below describe the experiment at the time of
-measurement. They do not supersede this decision.
+measurement. The active encryption objective above governs subsequent work;
+the measurements and safety failures remain valid evidence.
 
 ## Destination-bound handoff qualification — 2026-10-27
 

@@ -1,5 +1,13 @@
 # Thin encrypted Kura volumes
 
+This document describes the existing thin candidate, not a settled rollout
+decision. #14152 remains responsible for per-tenant encryption and OpenBao;
+#14825 owns capacity-sharing policy. The thin candidate's full-ceiling backing
+and measured regressions have not established a practical shared-capacity path.
+The final encryption layout must preserve safe, efficient reclamation and
+accounting interfaces for that separate work without implementing its full
+allocator. See [validation.md](validation.md) for the current scope and evidence.
+
 Status: conservative thin CSI implementation, 2026-10-27. The implemented
 `ceiling-backed-v1` API and rollout contract are in [interface.md](interface.md).
 This document also records requirements for a future shared admission mode;
@@ -9,8 +17,8 @@ outstanding acceptance gates are in [validation.md](validation.md).
 
 Related work: [LVM and encryption #14152](https://github.com/tuist/tuist/pull/14152)
 and [disk sharing #14825](https://github.com/tuist/tuist/pull/14825). The latter
-currently operates on shared XFS. It must consume this storage interface after
-#14152 lands instead of independently administering the encrypted filesystems.
+currently operates on shared XFS. Both workstreams must agree on the final
+storage interface; selecting this experimental thin interface is not assumed.
 Full fairness policy and pressure-driven pod migration belong outside this PR.
 
 ## Decision and release boundary
