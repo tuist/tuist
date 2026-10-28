@@ -19,6 +19,7 @@ import (
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -98,7 +99,26 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 	var control *corev1.Pod
 	for i := range pods.Items {
 		p := &pods.Items[i]
-		if p.Labels[RoleLabel] == "control" && p.Spec.ServiceAccountName == ServiceAccount && p.DeletionTimestamp.IsZero() {
+		if p.Spec.NodeName != s.Node {
+			continue
+		}
+		if p.Labels[RoleLabel] == "control" && p.Spec.ServiceAccountName == ServiceAccount {
+			if !p.DeletionTimestamp.IsZero() {
+				if *controlUID == string(p.UID) {
+					if *cancel != nil {
+						(*cancel)()
+						*cancel = nil
+					}
+					*controlUID = ""
+				}
+				// A control Pod owns only its connection, never a guest. Complete
+				// deletion even when runtime/image preparation never succeeded.
+				zero := int64(0)
+				if err := s.Kube.CoreV1().Pods(Namespace).Delete(ctx, p.Name, metav1.DeleteOptions{GracePeriodSeconds: &zero, Preconditions: &metav1.Preconditions{UID: &p.UID}}); err != nil && !apierrors.IsNotFound(err) {
+					return err
+				}
+				continue
+			}
 			if control != nil {
 				return errors.New("multiple sandbox control Pods")
 			}
