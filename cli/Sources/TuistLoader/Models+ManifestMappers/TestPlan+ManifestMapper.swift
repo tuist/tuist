@@ -34,7 +34,7 @@ extension XcodeGraph.TestPlan {
                     fileSystem: fileSystem,
                     into: &resolved
                 )
-            case let .generated(name, testTargets, path):
+            case let .generated(name, testTargets, path, language, region):
                 let resolvedPath: AbsolutePath = if let explicitPath = path {
                     try generatorPaths.resolve(path: explicitPath)
                 } else {
@@ -48,7 +48,9 @@ extension XcodeGraph.TestPlan {
                         path: resolvedPath,
                         testTargets: targets,
                         isDefault: resolved.isEmpty,
-                        kind: .generated
+                        kind: .generated,
+                        language: language?.identifier,
+                        region: region
                     )
                 )
             }

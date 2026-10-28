@@ -42,6 +42,11 @@ extension TestPlanDescriptor {
 
         guard !testTargets.isEmpty else { return nil }
 
-        return TestPlanDescriptor(path: testPlan.path, testTargets: testTargets)
+        return TestPlanDescriptor(
+            path: testPlan.path,
+            testTargets: testTargets,
+            language: testPlan.language,
+            region: testPlan.region
+        )
     }
 }

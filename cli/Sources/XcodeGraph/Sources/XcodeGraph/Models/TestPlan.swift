@@ -15,17 +15,25 @@ public struct TestPlan: Hashable, Codable, Sendable {
     public let testTargets: [TestableTarget]
     public let isDefault: Bool
     public let kind: Kind
+    /// Language the tests run in. Only written into generated plans.
+    public let language: String?
+    /// Region the tests run in. Only written into generated plans.
+    public let region: String?
 
     public init(
         path: AbsolutePath,
         testTargets: [TestableTarget],
         isDefault: Bool,
-        kind: Kind = .referenced
+        kind: Kind = .referenced,
+        language: String? = nil,
+        region: String? = nil
     ) {
         name = path.basenameWithoutExt
         self.path = path
         self.testTargets = testTargets
         self.isDefault = isDefault
         self.kind = kind
+        self.language = language
+        self.region = region
     }
 }
