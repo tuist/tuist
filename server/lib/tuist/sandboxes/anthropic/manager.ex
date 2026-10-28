@@ -52,7 +52,7 @@ defmodule Tuist.Sandboxes.Anthropic.Manager do
   defp do_reconcile do
     enabled =
       Sandboxes.list_enabled_agent_environments()
-      |> Enum.filter(&FeatureFlags.sandboxes_enabled?(&1.account))
+      |> Enum.filter(&(FeatureFlags.sandboxes_enabled?(&1.account) and Sandboxes.platform_enabled?(&1)))
       |> Enum.map(& &1.id)
 
     Enum.each(enabled, &start_poller/1)

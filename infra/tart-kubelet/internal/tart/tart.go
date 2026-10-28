@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -38,6 +39,11 @@ type Client struct {
 	// process environment. Sandbox experiments must not share the kubelet's
 	// store: its orphan collector owns all non-Pod VMs there.
 	HomeDir string
+	// ExtraEnv is host-owned runtime configuration; never put guest credentials here.
+	ExtraEnv []string
+	// LaunchGuard serializes the final CI start against native sandbox admission.
+	// It must return quickly; slow reclamation belongs to the sandbox worker.
+	LaunchGuard func(context.Context, string) (func(), error)
 
 	// UserDataDir is the host directory where per-VM env files live.
 	// Defaults to /var/lib/tart-userdata. The kubelet stages
@@ -86,6 +92,7 @@ type VM struct {
 	CPU    int    `json:"CPU"`
 	Memory int    `json:"Memory"`
 	Size   vmSize `json:"Size"`
+	Disk   vmSize `json:"Disk"`
 }
 
 // vmSize tolerates Tart's inconsistent Size encoding across subcommands:
@@ -358,6 +365,9 @@ func (h *RunHandle) closeVNCInfo() {
 
 // RunOptions controls how Tart boots a VM.
 type RunOptions struct {
+	// DetachedLogs gives persistent sandbox processes regular-file stdout/stderr
+	// so a kubelet restart cannot break their pipes. Incompatible with VNC.
+	DetachedLogs bool
 	// Suspendable selects the device configuration required by Apple's save/restore
 	// API. Keep this and all disk/share attachments identical across resumptions.
 	Suspendable bool
@@ -433,6 +443,9 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 // the capacity charged, monitor Done, and run WaitReady outside the kubelet's
 // reconcile worker. Cancellation never kills a VM started successfully.
 func (c *Client) StartWithOptions(ctx context.Context, name string, opts RunOptions) (*RunHandle, error) {
+	if opts.DetachedLogs && opts.VNC {
+		return nil, errors.New("detached logs cannot expose VNC credentials")
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -488,6 +501,16 @@ func (c *Client) StartWithOptions(ctx context.Context, name string, opts RunOpti
 		args = append(args, "--disk", disk)
 	}
 
+	if c.LaunchGuard != nil {
+		release, err := c.LaunchGuard(ctx, name)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	logPath := filepath.Join(c.LogDir, name+".log")
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -508,15 +531,20 @@ func (c *Client) StartWithOptions(ctx context.Context, name string, opts RunOpti
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		_ = logFile.Close()
-		return nil, fmt.Errorf("open tart stdout pipe: %w", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		_ = logFile.Close()
-		return nil, fmt.Errorf("open tart stderr pipe: %w", err)
+	var stdout, stderr io.ReadCloser
+	if opts.DetachedLogs {
+		cmd.Stdout, cmd.Stderr = logFile, logFile
+	} else {
+		stdout, err = cmd.StdoutPipe()
+		if err != nil {
+			_ = logFile.Close()
+			return nil, fmt.Errorf("open tart stdout pipe: %w", err)
+		}
+		stderr, err = cmd.StderrPipe()
+		if err != nil {
+			_ = logFile.Close()
+			return nil, fmt.Errorf("open tart stderr pipe: %w", err)
+		}
 	}
 
 	handle := &RunHandle{
@@ -533,9 +561,11 @@ func (c *Client) StartWithOptions(ctx context.Context, name string, opts RunOpti
 
 	var outputWG sync.WaitGroup
 	var logMu sync.Mutex
-	outputWG.Add(2)
-	go copyTartOutput(stdout, logFile, &logMu, handle, &outputWG)
-	go copyTartOutput(stderr, logFile, &logMu, handle, &outputWG)
+	if !opts.DetachedLogs {
+		outputWG.Add(2)
+		go copyTartOutput(stdout, logFile, &logMu, handle, &outputWG)
+		go copyTartOutput(stderr, logFile, &logMu, handle, &outputWG)
+	}
 
 	// Single launcher goroutine owns cmd.Wait for the lifetime of
 	// the process. Writing exitErr before close(done) gives readers
@@ -875,7 +905,7 @@ func (c *Client) environment() []string {
 	if c.HomeDir != "" {
 		env = append(env, "TART_HOME="+c.HomeDir)
 	}
-	return env
+	return append(env, c.ExtraEnv...)
 }
 
 // isNotFound recognizes Tart's absent-VM error strings. `tart get` on a VM

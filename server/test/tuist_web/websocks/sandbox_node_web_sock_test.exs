@@ -303,4 +303,23 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
 
     assert :ok = SandboxNodeWebSock.terminate(:normal, state)
   end
+
+  test "a Linux identity cannot advertise macOS and a replaced macOS identity cannot report" do
+    {:ok, linux} = SandboxNodeWebSock.init(%{node_name: "linux"})
+
+    assert {:stop, :identity_mismatch, _, _} =
+             SandboxNodeWebSock.handle_in(text(%{"type" => "hello", "platform" => "darwin"}), linux)
+
+    {:ok, native} =
+      SandboxNodeWebSock.init(%{
+        node_name: "mac",
+        identity: %{platform: "darwin", generation: "node-1", control_uid: "pod-1"}
+      })
+
+    assert {:stop, :identity_mismatch, _, _} =
+             SandboxNodeWebSock.handle_in(
+               text(%{"type" => "report", "platform" => "darwin", "generation" => "node-2", "control_uid" => "pod-1"}),
+               native
+             )
+  end
 end

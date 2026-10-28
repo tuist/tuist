@@ -613,3 +613,8 @@ runnersFleetLinux:
   nestedVirtualization:
     enabled: true
     defaultEnabled: true
+
+# Prepare host services; account admission remains default-off via :macos_sandboxes.
+sandboxes:
+  macos:
+    enabled: true

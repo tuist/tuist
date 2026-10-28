@@ -91,4 +91,42 @@ defmodule TuistWeb.SandboxNodesControllerTest do
 
     assert json_response(conn, 503)["error"] == "kubernetes unavailable"
   end
+
+  test "native identity requires the current node and control Pod UIDs", %{conn: conn} do
+    principal = %{
+      namespace: "tuist-sandboxes",
+      name: "tuist-macos-sandboxd",
+      node_name: "mac-1",
+      node_uid: "node-uid",
+      pod_name: "control",
+      pod_uid: "pod-uid"
+    }
+
+    for {node_uid, pod_uid, deleting, role} <- [
+          {"replacement", "pod-uid", nil, "control"},
+          {"node-uid", "replacement", nil, "control"},
+          {"node-uid", "pod-uid", "now", "control"},
+          {"node-uid", "pod-uid", nil, "execution"}
+        ] do
+      expect(K8sClient, :create_sandbox_node_token_review, fn "token" -> {:ok, principal} end)
+
+      expect(K8sClient, :get_node, fn "mac-1" ->
+        {:ok, %{"metadata" => %{"uid" => node_uid, "labels" => %{"kubernetes.io/os" => "darwin"}}}}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-sandboxes", "control" ->
+        {:ok,
+         %{
+           "metadata" => %{
+             "uid" => pod_uid,
+             "deletionTimestamp" => deleting,
+             "labels" => %{"tuist.dev/macos-sandbox-role" => role}
+           }
+         }}
+      end)
+
+      response = connect_node(conn, [{"authorization", "Bearer token"}, {"x-tuist-node-name", "mac-1"}])
+      assert json_response(response, 401)["error"] == "node name does not match the token"
+    end
+  end
 end

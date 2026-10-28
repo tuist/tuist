@@ -296,7 +296,7 @@ spec:
             - name: TUIST_RUNNER_HOST_IDENTITY_NAMESPACE
               value: {{ .Release.Namespace | quote }}
             {{- end }}
-            {{- if .Values.sandboxes.enabled }}
+            {{- if or .Values.sandboxes.enabled .Values.sandboxes.macos.enabled }}
             # Sandboxes namespace: the principal namespace the server requires
             # on the sandboxd node connection's TokenReview.
             - name: TUIST_SANDBOXES_NAMESPACE

@@ -745,7 +745,16 @@ defmodule Tuist.Kubernetes.Client do
   defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid} = user) do
     case String.split(rest, ":", parts: 2) do
       [namespace, name] when namespace != "" and name != "" ->
-        {:ok, %{namespace: namespace, name: name, uid: uid, node_name: bound_node_name(user)}}
+        {:ok,
+         %{
+           namespace: namespace,
+           name: name,
+           uid: uid,
+           node_name: bound_node_name(user),
+           node_uid: bound_extra(user, "node-uid"),
+           pod_uid: bound_extra(user, "pod-uid"),
+           pod_name: bound_extra(user, "pod-name")
+         }}
 
       _ ->
         {:error, :not_service_account}
@@ -760,4 +769,11 @@ defmodule Tuist.Kubernetes.Client do
        when is_binary(node_name), do: node_name
 
   defp bound_node_name(_user), do: nil
+
+  defp bound_extra(user, key) do
+    case get_in(user, ["extra", "authentication.kubernetes.io/" <> key]) do
+      [value | _] when is_binary(value) -> value
+      _ -> nil
+    end
+  end
 end

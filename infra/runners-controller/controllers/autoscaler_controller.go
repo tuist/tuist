@@ -474,10 +474,16 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
 		return nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
 	}
-	if pool.Spec.OS == "linux" {
+	nativeSlots := map[string]int32{}
+	if pool.Spec.OS == "linux" || pool.Spec.OS == "darwin" {
 		daemons, err := r.sandboxDaemons(ctx)
 		if err != nil {
 			return nil, err
+		}
+		for _, daemon := range daemons {
+			if daemon.native {
+				nativeSlots[daemon.node]++
+			}
 		}
 		for i := range nodes.Items {
 			nodes.Items[i] = *nodeWithoutSandboxes(&nodes.Items[i], daemons)
@@ -494,7 +500,11 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 			if nodeFilterReason(&nodes.Items[i]) != "" {
 				continue
 			}
-			seats += nodeSeatsForShape(&nodes.Items[i], shape)
+			available := nodeSeatsForShape(&nodes.Items[i], shape)
+			if nativeSlots[nodes.Items[i].Name] > 0 {
+				available = min(available, max(2-nativeSlots[nodes.Items[i].Name], 0))
+			}
+			seats += available
 		}
 		caps[key] = seats
 	}
@@ -745,6 +755,13 @@ func (r *AutoscalerReconciler) macosFleetAllocatableMemory(ctx context.Context, 
 		nodeOSLabel:     macosNodeOSDarwin,
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
+	}
+	daemons, err := r.sandboxDaemons(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for i := range nodes.Items {
+		nodes.Items[i] = *nodeWithoutSandboxes(&nodes.Items[i], daemons)
 	}
 	ready, filtered := summarizeFleetNodes(nodes.Items)
 	metrics.RecordFleetNodes(fleetSelector, "darwin", ready, filtered)

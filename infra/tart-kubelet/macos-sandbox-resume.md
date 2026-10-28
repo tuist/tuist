@@ -1,7 +1,8 @@
 # macOS sandbox resume experiment
 
-This opt-in prototype provides a Tart lifecycle, a same-host benchmark and a
-CI-first shadow policy. It does not enable production sandbox placement. Results,
+The experiment tools provide a Tart lifecycle, a same-host benchmark and a
+CI-first shadow policy. The flag-controlled integration is documented in
+[macOS sandbox operation](macos-sandboxes.md). Results,
 tradeoffs and the original evidence archive live in the
 [handbook research note](../../handbook/handbook/engineering/macos-sandbox-resume.md).
 

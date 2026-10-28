@@ -17,7 +17,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 )
 
 const (
@@ -38,10 +38,13 @@ type Config struct {
 	URL       string
 	NodeName  string
 	TokenPath string
-	Hello     func() protocol.Hello
-	Report    func() protocol.Report
-	Handler   Handler
-	Log       *slog.Logger
+	// Token mints a fresh host-only credential for each connection. When set,
+	// TokenPath is ignored; credentials never enter the guest or a disk journal.
+	Token   func(context.Context) (string, error)
+	Hello   func() protocol.Hello
+	Report  func() protocol.Report
+	Handler Handler
+	Log     *slog.Logger
 
 	ReportInterval time.Duration
 	MinBackoff     time.Duration
@@ -158,7 +161,13 @@ func (c *Client) session(parent context.Context) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 
-	token, err := c.token()
+	var token string
+	var err error
+	if c.cfg.Token != nil {
+		token, err = c.cfg.Token(ctx)
+	} else {
+		token, err = c.token()
+	}
 	if err != nil {
 		return err
 	}

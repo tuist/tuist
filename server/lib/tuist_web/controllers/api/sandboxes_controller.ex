@@ -35,6 +35,7 @@ defmodule TuistWeb.API.SandboxesController do
       id: %Schema{type: :integer},
       anthropic_environment_id: %Schema{type: :string},
       name: %Schema{type: :string, nullable: true},
+      platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
       template: %Schema{type: :string},
       vcpus: %Schema{type: :integer},
       memory_mb: %Schema{type: :integer},
@@ -59,6 +60,7 @@ defmodule TuistWeb.API.SandboxesController do
     required: [
       :id,
       :anthropic_environment_id,
+      :platform,
       :template,
       :vcpus,
       :memory_mb,
@@ -91,11 +93,13 @@ defmodule TuistWeb.API.SandboxesController do
 
   @sandbox_schema %Schema{
     title: "Sandbox",
-    description: "A Firecracker sandbox VM.",
+    description: "A persistent Linux or macOS sandbox VM.",
     type: :object,
     properties: %{
       id: %Schema{type: :string, format: "uuid"},
       state: %Schema{type: :string, enum: Enum.map(Sandbox.states(), &Atom.to_string/1)},
+      resident: %Schema{type: :boolean, description: "Whether a macOS sandbox retains its process and capacity."},
+      platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
       template: %Schema{type: :string},
       template_tag: %Schema{type: :string, nullable: true},
       vcpus: %Schema{type: :integer},
@@ -134,9 +138,14 @@ defmodule TuistWeb.API.SandboxesController do
                         [sandbox_id: [in: :path, type: :string, required: true, description: "The sandbox identifier."]]
 
   @shape_properties %{
+    platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
     template: %Schema{type: :string, pattern: @template_pattern, description: "Sandbox template name."},
-    vcpus: %Schema{type: :integer, enum: [2, 4, 8], description: "With memory_mb, one of 2x4096, 4x8192 or 8x16384."},
-    memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384]},
+    vcpus: %Schema{
+      type: :integer,
+      enum: [2, 4, 8],
+      description: "Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576."
+    },
+    memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384, 24_576]},
     workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 100}
   }
 
@@ -191,6 +200,7 @@ defmodule TuistWeb.API.SandboxesController do
         :agent_model,
         :agent_system_prompt,
         :name,
+        :platform,
         :template,
         :vcpus,
         :memory_mb,
@@ -202,6 +212,9 @@ defmodule TuistWeb.API.SandboxesController do
     case Sandboxes.create_agent_environment(account, attrs) do
       {:ok, agent_environment} ->
         conn |> put_status(:created) |> json(serialize_agent_environment(agent_environment))
+
+      {:error, :macos_sandboxes_disabled} ->
+        sandbox_error(conn, :macos_sandboxes_disabled)
 
       {:error, %Ecto.Changeset{} = changeset} ->
         conn |> put_status(:bad_request) |> json(%{message: changeset_message(changeset)})
@@ -335,7 +348,7 @@ defmodule TuistWeb.API.SandboxesController do
   )
 
   def create(%{assigns: %{selected_account: account}, body_params: body_params} = conn, _params) do
-    attrs = Map.take(body_params, [:template, :vcpus, :memory_mb, :workspace_gb])
+    attrs = Map.take(body_params, [:platform, :template, :vcpus, :memory_mb, :workspace_gb])
 
     case Sandboxes.create_sandbox(account, attrs) do
       {:ok, sandbox} -> conn |> put_status(:created) |> json(serialize_sandbox(sandbox))
@@ -479,6 +492,10 @@ defmodule TuistWeb.API.SandboxesController do
 
   defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message})
 
+  defp sandbox_error(conn, :macos_sandboxes_disabled) do
+    conn |> put_status(:forbidden) |> json(%{message: "macOS sandboxes are not enabled for this account."})
+  end
+
   defp sandbox_error(conn, {:invalid_state, state}) do
     conn |> put_status(:conflict) |> json(%{message: "The sandbox is #{state}."})
   end
@@ -550,6 +567,7 @@ defmodule TuistWeb.API.SandboxesController do
       :id,
       :anthropic_environment_id,
       :name,
+      :platform,
       :template,
       :vcpus,
       :memory_mb,
@@ -570,6 +588,8 @@ defmodule TuistWeb.API.SandboxesController do
     Map.take(sandbox, [
       :id,
       :state,
+      :platform,
+      :resident,
       :template,
       :template_tag,
       :vcpus,

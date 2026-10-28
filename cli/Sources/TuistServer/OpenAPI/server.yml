@@ -6873,6 +6873,14 @@ components:
           type: integer
           x-struct:
           x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
+          x-struct:
+          x-validate:
         template:
           type: string
           x-struct:
@@ -6893,6 +6901,7 @@ components:
       required:
         - id
         - anthropic_environment_id
+        - platform
         - template
         - vcpus
         - memory_mb
@@ -7695,6 +7704,7 @@ components:
             - 4096
             - 8192
             - 16384
+            - 24576
           type: integer
           x-struct:
           x-validate:
@@ -7710,6 +7720,14 @@ components:
           type: integer
           x-struct:
           x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
+          x-struct:
+          x-validate:
         template:
           description: Sandbox template name.
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -7717,7 +7735,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -10516,7 +10534,16 @@ components:
             - 4096
             - 8192
             - 16384
+            - 24576
           type: integer
+          x-struct:
+          x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
           x-struct:
           x-validate:
         template:
@@ -10526,7 +10553,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -11860,7 +11887,7 @@ components:
       x-struct:
       x-validate:
     Sandbox:
-      description: A Firecracker sandbox VM.
+      description: A persistent Linux or macOS sandbox VM.
       properties:
         agent_environment_id:
           nullable: true
@@ -11913,9 +11940,22 @@ components:
           type: string
           x-struct:
           x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
+          x-struct:
+          x-validate:
         residency_work_id:
           nullable: true
           type: string
+          x-struct:
+          x-validate:
+        resident:
+          description: Whether a macOS sandbox retains its process and capacity.
+          type: boolean
           x-struct:
           x-validate:
         state:
@@ -16156,7 +16196,7 @@ paths:
                 properties:
                   sandboxes:
                     items:
-                      description: A Firecracker sandbox VM.
+                      description: A persistent Linux or macOS sandbox VM.
                       properties:
                         agent_environment_id:
                           nullable: true
@@ -16209,9 +16249,22 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        platform:
+                          default: linux
+                          enum:
+                            - linux
+                            - darwin
+                          type: string
+                          x-struct:
+                          x-validate:
                         residency_work_id:
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        resident:
+                          description: Whether a macOS sandbox retains its process and capacity.
+                          type: boolean
                           x-struct:
                           x-validate:
                         state:
@@ -16322,7 +16375,16 @@ paths:
                     - 4096
                     - 8192
                     - 16384
+                    - 24576
                   type: integer
+                  x-struct:
+                  x-validate:
+                platform:
+                  default: linux
+                  enum:
+                    - linux
+                    - darwin
+                  type: string
                   x-struct:
                   x-validate:
                 template:
@@ -16332,7 +16394,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -16357,7 +16419,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -16410,9 +16472,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -20718,7 +20793,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -20771,9 +20846,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -25164,7 +25252,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -25217,9 +25305,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -33720,6 +33821,14 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        platform:
+                          default: linux
+                          enum:
+                            - linux
+                            - darwin
+                          type: string
+                          x-struct:
+                          x-validate:
                         template:
                           type: string
                           x-struct:
@@ -33740,6 +33849,7 @@ paths:
                       required:
                         - id
                         - anthropic_environment_id
+                        - platform
                         - template
                         - vcpus
                         - memory_mb
@@ -33854,6 +33964,7 @@ paths:
                     - 4096
                     - 8192
                     - 16384
+                    - 24576
                   type: integer
                   x-struct:
                   x-validate:
@@ -33869,6 +33980,14 @@ paths:
                   type: integer
                   x-struct:
                   x-validate:
+                platform:
+                  default: linux
+                  enum:
+                    - linux
+                    - darwin
+                  type: string
+                  x-struct:
+                  x-validate:
                 template:
                   description: Sandbox template name.
                   pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -33876,7 +33995,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -33960,6 +34079,14 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   template:
                     type: string
                     x-struct:
@@ -33980,6 +34107,7 @@ paths:
                 required:
                   - id
                   - anthropic_environment_id
+                  - platform
                   - template
                   - vcpus
                   - memory_mb
@@ -38397,7 +38525,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -38450,9 +38578,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -38734,6 +38875,14 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   template:
                     type: string
                     x-struct:
@@ -38754,6 +38903,7 @@ paths:
                 required:
                   - id
                   - anthropic_environment_id
+                  - platform
                   - template
                   - vcpus
                   - memory_mb

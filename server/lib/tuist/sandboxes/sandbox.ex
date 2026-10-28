@@ -34,6 +34,9 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :workspace_gb, :integer
     field :state, Ecto.Enum, values: @states, default: :creating
     field :node_name, :string
+    field :platform, Ecto.Enum, values: [:linux, :darwin], default: :linux
+    field :node_uid, :string
+    field :resident, :boolean, default: false
     field :hostname, :string
     field :residency_work_id, :string
     field :residency_epoch, :integer, default: 0
@@ -60,11 +63,13 @@ defmodule Tuist.Sandboxes.Sandbox do
     vcpus = get_field(changeset, :vcpus)
     memory_mb = get_field(changeset, :memory_mb)
 
+    shapes = if get_field(changeset, :platform) == :darwin, do: [{8, 8192}, {8, 16_384}, {8, 24_576}], else: @shapes
+
     changeset =
-      if is_nil(vcpus) or is_nil(memory_mb) or {vcpus, memory_mb} in @shapes do
+      if is_nil(vcpus) or is_nil(memory_mb) or {vcpus, memory_mb} in shapes do
         changeset
       else
-        offered = Enum.map_join(@shapes, ", ", fn {v, m} -> "#{v}x#{m}" end)
+        offered = Enum.map_join(shapes, ", ", fn {v, m} -> "#{v}x#{m}" end)
         add_error(changeset, :memory_mb, "vcpus x memory_mb must be one of #{offered}")
       end
 
@@ -74,6 +79,7 @@ defmodule Tuist.Sandboxes.Sandbox do
   def create_changeset(sandbox, attrs) do
     sandbox
     |> cast(attrs, [
+      :platform,
       :account_id,
       :agent_environment_id,
       :anthropic_session_id,
@@ -94,6 +100,8 @@ defmodule Tuist.Sandboxes.Sandbox do
       :template_tag,
       :state,
       :node_name,
+      :node_uid,
+      :resident,
       :hostname,
       :residency_work_id,
       :residency_epoch,

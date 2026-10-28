@@ -33,7 +33,11 @@ defmodule Tuist.Sandboxes.Router do
       when is_binary(work_id) and is_binary(session_id) do
     with {:ok, sandbox} <- find_or_create_sandbox(agent_environment, session_id, item),
          {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id),
-         {:ok, _data} <- start_worker(sandbox, worker_env(agent_environment, item, session_id)) do
+         {:ok, _data} <-
+           start_worker(
+             sandbox,
+             worker_environment(agent_environment, item, session_id, sandbox)
+           ) do
       Logger.info("sandboxes: worker started",
         sandbox_id: sandbox.id,
         node: sandbox.node_name,
@@ -68,6 +72,9 @@ defmodule Tuist.Sandboxes.Router do
       %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming] ->
         {:ok, sandbox}
 
+      %Sandbox{platform: :darwin, state: :error} ->
+        {:error, :sandbox_recovery_required}
+
       # A sandbox that died or was deleted from under us cannot be
       # resumed; drop what is left of it and start the session afresh.
       %Sandbox{} = sandbox ->
@@ -86,6 +93,7 @@ defmodule Tuist.Sandboxes.Router do
            Sandboxes.create_sandbox(account, %{
              agent_environment_id: agent_environment.id,
              anthropic_session_id: session_id,
+             platform: agent_environment.platform,
              template: agent_environment.template,
              vcpus: agent_environment.vcpus,
              memory_mb: agent_environment.memory_mb,
@@ -126,7 +134,7 @@ defmodule Tuist.Sandboxes.Router do
   end
 
   defp clone_repository(account, sandbox, url, ref, trust) do
-    destination = "/workspace/" <> repository_name(url)
+    destination = Sandboxes.workspace(sandbox) <> "/" <> repository_name(url)
     {git_env, secret} = credentials(account, url, trust)
     sha = if is_binary(ref) and Regex.match?(@commit_sha, ref), do: ref
     branch = if is_binary(ref) and is_nil(sha), do: ["--branch", ref], else: []
@@ -243,6 +251,11 @@ defmodule Tuist.Sandboxes.Router do
 
         :ok
     end
+  end
+
+  defp worker_environment(environment, item, session_id, sandbox) do
+    env = worker_env(environment, item, session_id)
+    if sandbox.platform == :darwin, do: Map.put(env, "SBX_WORKDIR", Sandboxes.workspace(sandbox)), else: env
   end
 
   defp worker_env(agent_environment, item, session_id) do

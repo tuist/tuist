@@ -14,6 +14,7 @@ defmodule Tuist.Sandboxes do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSessions
@@ -47,11 +48,37 @@ defmodule Tuist.Sandboxes do
 
   # ----- Agent environments -----
 
-  def create_agent_environment(%Account{id: account_id}, attrs) when is_map(attrs) do
-    %AgentEnvironment{}
-    |> AgentEnvironment.create_changeset(Map.put(attrs, :account_id, account_id))
-    |> Repo.insert()
+  def create_agent_environment(%Account{id: account_id} = account, attrs) when is_map(attrs) do
+    with :ok <- authorize_platform(account, Map.get(attrs, :platform, :linux)) do
+      %AgentEnvironment{}
+      |> AgentEnvironment.create_changeset(attrs |> platform_defaults() |> Map.put(:account_id, account_id))
+      |> Repo.insert()
+    end
   end
+
+  defp platform_defaults(attrs) do
+    defaults =
+      if Map.get(attrs, :platform) in [:darwin, "darwin"] do
+        %{vcpus: 8, memory_mb: 8192, workspace_gb: 10, template: "macos"}
+      else
+        Map.put(@default_shape, :template, @default_template)
+      end
+
+    Map.merge(defaults, attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new())
+  end
+
+  def authorize_platform(account, platform) when platform in [:darwin, "darwin"] do
+    if FeatureFlags.macos_sandboxes_enabled?(account), do: :ok, else: {:error, :macos_sandboxes_disabled}
+  end
+
+  def authorize_platform(_account, _platform), do: :ok
+
+  def platform_enabled?(%{account_id: account_id, platform: platform}) do
+    authorize_platform(%Account{id: account_id}, platform) == :ok
+  end
+
+  def workspace(%{platform: :darwin}), do: "/Users/runner/work"
+  def workspace(_sandbox), do: "/workspace"
 
   def list_agent_environments(%Account{id: account_id}) do
     Repo.all(from e in AgentEnvironment, where: e.account_id == ^account_id, order_by: [asc: e.id])
@@ -178,14 +205,14 @@ defmodule Tuist.Sandboxes do
   boots the VM there. The row exists before the node hears about the id,
   so a report that races the create never looks like an orphan.
   """
-  def create_sandbox(%Account{id: account_id}, attrs \\ %{}) when is_map(attrs) do
+  def create_sandbox(%Account{id: account_id} = account, attrs \\ %{}) when is_map(attrs) do
     attrs =
-      @default_shape
-      |> Map.put(:template, @default_template)
-      |> Map.merge(attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new())
+      attrs
+      |> platform_defaults()
       |> Map.put(:account_id, account_id)
 
-    with :ok <- check_sandbox_limit(account_id),
+    with :ok <- authorize_platform(account, Map.get(attrs, :platform, :linux)),
+         :ok <- check_sandbox_limit(account_id),
          {:ok, sandbox} <- %Sandbox{} |> Sandbox.create_changeset(attrs) |> Repo.insert() do
       boot(sandbox)
     end
@@ -211,7 +238,8 @@ defmodule Tuist.Sandboxes do
     }
 
     with {:ok, node_name} <- Capacity.place(sandbox),
-         {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
+         sandbox = Repo.reload!(sandbox),
+         {:ok, data} <- node_call(%{sandbox | node_name: node_name}, "create", args, timeout: @create_timeout) do
       Logger.info("sandboxes: sandbox created",
         sandbox_id: sandbox.id,
         node: node_name,
@@ -223,6 +251,7 @@ defmodule Tuist.Sandboxes do
       |> update_sandbox(%{
         state: :running,
         node_name: node_name,
+        resident: sandbox.platform == :darwin,
         hostname: hostname,
         template_tag: data["template_tag"],
         last_active_at: now(),
@@ -301,7 +330,7 @@ defmodule Tuist.Sandboxes do
 
   defp do_resume(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
     with {:ok, sandbox} <- Capacity.admit(sandbox) do
-      case Nodes.call(node_name, "resume", %{sandbox_id: sandbox.id}, timeout: @resume_timeout) do
+      case node_call(sandbox, "resume", %{sandbox_id: sandbox.id}, timeout: @resume_timeout) do
         {:ok, data} ->
           Logger.info("sandboxes: sandbox resumed",
             sandbox_id: sandbox.id,
@@ -316,7 +345,7 @@ defmodule Tuist.Sandboxes do
         # The snapshot is intact on the node's disk; a node that is away or
         # slow is not a reason to give the sandbox up.
         {:error, reason} when reason in @transient_node_errors ->
-          {:ok, _} = update_sandbox(sandbox, %{state: :paused})
+          {:ok, _} = update_sandbox(sandbox, %{state: if(sandbox.platform == :darwin, do: :resuming, else: :paused)})
           {:error, reason}
 
         {:error, reason} ->
@@ -365,7 +394,7 @@ defmodule Tuist.Sandboxes do
   end
 
   defp do_pause(%Sandbox{state: :running, node_name: node_name} = sandbox) when is_binary(node_name) do
-    case Nodes.call(node_name, "pause", %{sandbox_id: sandbox.id}, []) do
+    case node_call(sandbox, "pause", %{sandbox_id: sandbox.id}, []) do
       {:ok, data} ->
         Logger.info("sandboxes: sandbox paused",
           sandbox_id: sandbox.id,
@@ -374,7 +403,8 @@ defmodule Tuist.Sandboxes do
           mem_bytes: data["mem_bytes"]
         )
 
-        with {:ok, paused} <- update_sandbox(sandbox, %{state: :paused, paused_at: now()}) do
+        with {:ok, paused} <-
+               update_sandbox(sandbox, %{state: :paused, paused_at: now(), resident: data["resident"] == true}) do
           if Capacity.shared_node?(node_name), do: Capacity.enqueue_reclaim(node_name, true)
           {:ok, paused}
         end
@@ -410,8 +440,8 @@ defmodule Tuist.Sandboxes do
 
   defp delete_on_node(%Sandbox{node_name: nil}), do: :ok
 
-  defp delete_on_node(%Sandbox{node_name: node_name} = sandbox) do
-    case Nodes.call(node_name, "delete", %{sandbox_id: sandbox.id}, []) do
+  defp delete_on_node(%Sandbox{} = sandbox) do
+    case node_call(sandbox, "delete", %{sandbox_id: sandbox.id}, []) do
       {:ok, _data} -> :ok
       {:error, :not_connected} -> :ok
       {:error, reason} -> {:error, reason}
@@ -438,7 +468,7 @@ defmodule Tuist.Sandboxes do
           sandbox_id: sandbox.id,
           cmd: cmd,
           env: Keyword.get(opts, :env, %{}),
-          cwd: Keyword.get(opts, :cwd, "/workspace"),
+          cwd: Keyword.get(opts, :cwd, workspace(sandbox)),
           timeout_ms: timeout_ms
         }
 
@@ -447,7 +477,7 @@ defmodule Tuist.Sandboxes do
         on_stream = fn {stream, data} -> capture_output(caller, ref, stream, data) end
 
         result =
-          Nodes.call(node_name, "exec", args, timeout: timeout_ms + @exec_timeout_slack_ms, on_stream: on_stream)
+          node_call(sandbox, "exec", args, timeout: timeout_ms + @exec_timeout_slack_ms, on_stream: on_stream)
 
         {stdout, stderr} = drain_output(ref)
         Process.delete({ref, :stdout})
@@ -514,14 +544,14 @@ defmodule Tuist.Sandboxes do
 
   def start_worker(%Sandbox{state: :running, node_name: node_name} = sandbox, env)
       when is_binary(node_name) and is_map(env) do
-    Nodes.call(node_name, "start_worker", %{sandbox_id: sandbox.id, env: env}, [])
+    node_call(sandbox, "start_worker", %{sandbox_id: sandbox.id, env: env}, [])
   end
 
   def start_worker(%Sandbox{state: :running}, _env), do: {:error, :no_node}
   def start_worker(%Sandbox{state: state}, _env), do: {:error, {:invalid_state, state}}
 
   def stop_worker(%Sandbox{state: :running, node_name: node_name} = sandbox) when is_binary(node_name) do
-    Nodes.call(node_name, "stop_worker", %{sandbox_id: sandbox.id}, [])
+    node_call(sandbox, "stop_worker", %{sandbox_id: sandbox.id}, [])
   end
 
   def stop_worker(%Sandbox{state: :running}), do: {:error, :no_node}
@@ -563,6 +593,9 @@ defmodule Tuist.Sandboxes do
   def end_residency(%Sandbox{id: id} = sandbox) do
     timestamp = now()
     query = from(s in Sandbox, where: s.id == ^id and s.state != :deleted, select: s)
+
+    query =
+      if sandbox.platform == :darwin, do: where(query, [s], s.residency_epoch == ^sandbox.residency_epoch), else: query
 
     case Repo.update_all(query,
            set: [residency_work_id: nil, last_active_at: timestamp, updated_at: timestamp],
@@ -614,7 +647,11 @@ defmodule Tuist.Sandboxes do
   defp schedule_pause(%Sandbox{} = sandbox) do
     %{sandbox_id: sandbox.id, residency_epoch: sandbox.residency_epoch}
     |> PauseSandboxWorker.new(
-      schedule_in: if(Capacity.shared_node?(sandbox.node_name), do: 0, else: pause_grace_seconds(sandbox)),
+      schedule_in:
+        if(sandbox.platform == :darwin or Capacity.shared_node?(sandbox.node_name),
+          do: 0,
+          else: pause_grace_seconds(sandbox)
+        ),
       replace: [scheduled: [:args, :scheduled_at], available: [:args, :scheduled_at]]
     )
     |> Oban.insert()
@@ -641,7 +678,12 @@ defmodule Tuist.Sandboxes do
           duration_ms: event["duration_ms"]
         )
 
-        {:ok, _sandbox} = end_residency(sandbox)
+        if sandbox.platform != :darwin or
+             (sandbox.node_name == node_name and sandbox.node_uid == event["generation"] and
+                sandbox.residency_work_id == event["work_id"]) do
+          {:ok, _sandbox} = end_residency(sandbox)
+        end
+
         :ok
 
       _ ->
@@ -653,7 +695,11 @@ defmodule Tuist.Sandboxes do
     case get_sandbox_by_id(sandbox_id) do
       %Sandbox{state: state} = sandbox when state != :deleted ->
         Logger.warning("sandboxes: sandbox died", sandbox_id: sandbox.id, node: node_name, reason: event["reason"])
-        mark_error(sandbox.id, event["reason"] || "sandbox died")
+
+        if sandbox.platform != :darwin or (sandbox.node_name == node_name and sandbox.node_uid == event["generation"]) do
+          mark_error(sandbox.id, event["reason"] || "sandbox died")
+        end
+
         :ok
 
       _ ->
@@ -680,7 +726,8 @@ defmodule Tuist.Sandboxes do
   caller that died mid-operation is settled from the report once it has
   been stuck longer than any create or resume can take.
   """
-  def reconcile_node_report(node_name, %{"sandboxes" => reported}) when is_binary(node_name) and is_list(reported) do
+  def reconcile_node_report(node_name, %{"sandboxes" => reported} = report)
+      when is_binary(node_name) and is_list(reported) do
     reported_by_id =
       Map.new(
         for %{"id" => id} = sandbox <- reported,
@@ -692,7 +739,15 @@ defmodule Tuist.Sandboxes do
     known = Repo.all(from s in Sandbox, where: s.id in ^reported_ids)
 
     Enum.each(known, fn sandbox ->
-      reconcile_reported(sandbox, node_name, Map.fetch!(reported_by_id, sandbox.id))
+      if sandbox.platform != :darwin or (sandbox.node_name == node_name and sandbox.node_uid == report["generation"]) do
+        reported_sandbox = Map.fetch!(reported_by_id, sandbox.id)
+        reconcile_reported(sandbox, node_name, reported_sandbox)
+
+        if sandbox.platform == :darwin and is_binary(sandbox.residency_work_id) and
+             reported_sandbox["finished_work_id"] == sandbox.residency_work_id do
+          end_residency(sandbox)
+        end
+      end
     end)
 
     reported_ids
@@ -710,7 +765,10 @@ defmodule Tuist.Sandboxes do
     |> Repo.all()
     |> Enum.each(fn sandbox ->
       Logger.warning("sandboxes: sandbox missing on node", sandbox_id: sandbox.id, node: node_name, state: sandbox.state)
-      mark_error(sandbox.id, "missing on node", sandbox.state)
+
+      if sandbox.platform != :darwin or sandbox.node_uid == report["generation"] do
+        mark_error(sandbox.id, "missing on node", sandbox.state)
+      end
     end)
 
     :ok
@@ -721,6 +779,12 @@ defmodule Tuist.Sandboxes do
   defp reconcile_reported(%Sandbox{state: :deleted}, _node_name, _reported), do: :ok
 
   defp reconcile_reported(%Sandbox{} = sandbox, _node_name, %{"state" => "error"} = reported) do
+    if sandbox.platform == :darwin and is_boolean(reported["resident"]) do
+      Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id and s.node_uid == ^sandbox.node_uid),
+        set: [resident: reported["resident"]]
+      )
+    end
+
     if sandbox.state != :error do
       Logger.warning("sandboxes: node reports sandbox in error", sandbox_id: sandbox.id, reason: reported["error"])
       mark_error(sandbox.id, reported["error"] || "error on the node", sandbox.state)
@@ -732,6 +796,7 @@ defmodule Tuist.Sandboxes do
   defp reconcile_reported(%Sandbox{} = sandbox, node_name, reported) do
     attrs =
       %{node_name: node_name}
+      |> maybe_put(:resident, reported["resident"])
       |> maybe_put(:template_tag, reported["template_tag"])
       |> maybe_put_state(reported["state"])
       |> keep_in_flight_state(sandbox, reported["state"])
@@ -793,7 +858,7 @@ defmodule Tuist.Sandboxes do
     Logger.warning("sandboxes: deleting sandbox unknown to the server", sandbox_id: sandbox_id, node: node_name)
 
     Tasks.run_async(fn ->
-      case Nodes.call(node_name, "delete", %{sandbox_id: sandbox_id}, []) do
+      case Nodes.call(node_name, "delete", orphan_args(node_name, sandbox_id), []) do
         {:ok, _data} ->
           :ok
 
@@ -825,4 +890,20 @@ defmodule Tuist.Sandboxes do
   defp error_message(:node_disconnected), do: "node disconnected during the operation"
   defp error_message(:timeout), do: "node did not answer in time"
   defp error_message(reason), do: inspect(reason)
+
+  defp node_call(sandbox, op, args, opts) do
+    if op in ["create", "resume", "exec", "start_worker"] and not platform_enabled?(sandbox) do
+      {:error, :macos_sandboxes_disabled}
+    else
+      args = if sandbox.platform == :darwin, do: Map.put(args, :node_uid, sandbox.node_uid), else: args
+      Nodes.call(sandbox.node_name, op, args, opts)
+    end
+  end
+
+  defp orphan_args(node_name, sandbox_id) do
+    case Nodes.lookup(node_name) do
+      {:ok, _pid, %{platform: "darwin", generation: generation}} -> %{sandbox_id: sandbox_id, node_uid: generation}
+      _ -> %{sandbox_id: sandbox_id}
+    end
+  end
 end

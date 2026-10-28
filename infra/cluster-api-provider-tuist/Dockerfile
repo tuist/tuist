@@ -82,14 +82,24 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/rack-node-linux-amd64 ./cmd/rack-node
 
 
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS sandbox-tools-builder
+WORKDIR /src/sandbox-image
+COPY infra/sandbox-image ./
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /out/sbx-macos ./cmd/sbx-macos && \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /out/sbx-worker ./cmd/sbx-worker
+
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS kubelet-builder
 
 WORKDIR /src/tart-kubelet
 COPY infra/runner-cache /src/runner-cache
+COPY infra/sandboxd /src/sandboxd
 COPY infra/tart-kubelet/go.mod infra/tart-kubelet/go.sum ./
 RUN go mod download
 
 COPY infra/tart-kubelet ./
+COPY --from=sandbox-tools-builder /out/ ./internal/macosandbox/bundle/
 
 # Always darwin/arm64 — these binaries run on Mac minis, not on the
 # operator host. CGO off keeps the binary statically linked so it has

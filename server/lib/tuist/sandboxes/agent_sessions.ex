@@ -10,6 +10,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
   alias Tuist.Accounts.Account
   alias Tuist.Repo
+  alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.Anthropic.ControlPlane
@@ -44,6 +45,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
     with {:ok, params} <- validate_params(attrs),
          {:ok, agent_environment} <- resolve_agent_environment(account, attrs[:agent_environment_id]),
+         :ok <- Sandboxes.authorize_platform(account, agent_environment.platform),
          {:ok, api_key} <- api_key(agent_environment),
          model = params.model || agent_environment.agent_model,
          {:ok, agent_id} <- ensure_agent(account, agent_environment, api_key, model, attrs[:agent_id]),
@@ -237,7 +239,9 @@ defmodule Tuist.Sandboxes.AgentSessions do
     attrs = %{
       name: "tuist-" <> account.name,
       model: model,
-      system: agent_environment.agent_system_prompt || @default_system_prompt
+      system:
+        agent_environment.agent_system_prompt ||
+          String.replace(@default_system_prompt, "/workspace", Sandboxes.workspace(agent_environment))
     }
 
     case ControlPlane.create_agent(api_key, attrs) do
