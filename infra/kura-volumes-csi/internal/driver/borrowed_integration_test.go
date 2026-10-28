@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -63,13 +64,29 @@ func TestBorrowedRealStack(t *testing.T) {
 	t.Cleanup(func() {
 		// Ruby stops its labelled containers first. A missed container must keep the
 		// backing file, not cause us to force-unmount an active filesystem.
-		mounts, _ := (ProcMountTable{Path: "/proc/self/mountinfo"}).Mounts()
-		safe := true
-		for i := len(mounts) - 1; i >= 0; i-- {
-			if strings.HasPrefix(mounts[i].MountPoint, root+"/") {
-				_, e := (ExecRunner{}).Run(context.Background(), nil, "umount", mounts[i].MountPoint)
-				safe = e == nil && safe
+		safe := false
+		for attempt := 0; attempt < 20; attempt++ {
+			mounts, err := (ProcMountTable{Path: "/proc/self/mountinfo"}).Mounts()
+			if err != nil {
+				break
 			}
+			var owned []string
+			for _, m := range mounts {
+				if strings.HasPrefix(m.MountPoint, root+"/") {
+					owned = append(owned, m.MountPoint)
+				}
+			}
+			if len(owned) == 0 {
+				safe = true
+				break
+			}
+			sort.Slice(owned, func(i, j int) bool { return len(owned[i]) > len(owned[j]) })
+			for _, path := range owned {
+				if _, err = (ExecRunner{}).Run(context.Background(), nil, "umount", path); err != nil && attempt == 19 {
+					t.Logf("cleanup unmount: %v", err)
+				}
+			}
+			time.Sleep(250 * time.Millisecond)
 		}
 		for n := 1; n <= 12; n++ {
 			_, _ = (ExecRunner{}).Run(context.Background(), nil, "cryptsetup", "close", "kura-"+id(n))

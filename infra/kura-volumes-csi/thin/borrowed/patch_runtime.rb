@@ -39,3 +39,15 @@ s = replace_once(s, "        Ok(swept)\n    }\n\n    fn segment_path", "        
 s << "\n#[path = \"borrowed_prototype.rs\"]\nmod borrowed_prototype;\n"
 File.write(path, s)
 FileUtils.cp(File.join(__dir__, 'runtime.rs.fixture'), File.join(root, 'src/borrowed_prototype.rs'))
+app_path = File.join(root, 'src/app.rs')
+app = File.read(app_path)
+app = replace_once(app, '        vec![config.tmp_dir.clone(), config.data_dir.clone()],', <<~'RS'.rstrip)
+        {
+            let mut roots = vec![config.tmp_dir.clone(), config.data_dir.clone()];
+            if let Some(root) = std::env::var_os("KURA_BORROWED_PROTOTYPE") {
+                roots.push(std::path::PathBuf::from(root).join("units"));
+            }
+            roots
+        },
+RS
+File.write(app_path, app)

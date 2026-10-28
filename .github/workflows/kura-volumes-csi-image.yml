@@ -126,6 +126,7 @@ jobs:
       - name: Apply experiment-only runtime patch
         run: |
           KURA_BORROWED_BUILD=1 ruby ../infra/kura-volumes-csi/thin/borrowed/patch_runtime.rb .
+          rustup toolchain install 1.94.1 --profile minimal --component rustfmt
           cargo fmt
           git diff -- src > /tmp/kura-borrowed-runtime.patch
           cp src/borrowed_prototype.rs /tmp/kura-borrowed-runtime.rs
@@ -187,8 +188,10 @@ jobs:
           sudo modprobe dm_thin_pool
           test "$(df --output=avail -B1 /var/tmp | tail -1)" -gt 25000000000
       - name: Exercise real CSI and Kura with transferable encrypted units
+        shell: bash
         run: |
           sudo env KURA_BORROWED_DISPOSABLE_VM=1 KURA_BORROWED_SCRIPT="$PWD/infra/kura-volumes-csi/thin/borrowed/stack.rb" KURA_BORROWED_BENCH=/tmp/kura-borrowed-cache-bench KURA_BORROWED_POLICY=/tmp/kura-borrowed-allocator.test KURA_BORROWED_SOURCE="$GITHUB_SHA" /tmp/kura-borrowed-driver.test -test.run '^TestBorrowedRealStack$' -test.v -test.timeout 40m | tee /tmp/kura-borrowed-driver.log
+          ruby -rjson -e 'r=JSON.parse(File.read("/tmp/kura-borrowed-results.json")); abort "prototype failed" if r["failure"] || r.fetch("assertions").size < 20 || r.fetch("assertions").any? { |a| !a.fetch("passed") }; abort "incomplete benchmark" unless r.fetch("benchmarks").size == 6; abort "cleanup incomplete" unless r["containers_cleaned"] && File.read("/tmp/kura-borrowed-driver.log").include?("BORROWED_CLEANUP_COMPLETE=true")'
       - name: Preserve diagnostics
         if: failure()
         run: sudo dmesg | tail -100
