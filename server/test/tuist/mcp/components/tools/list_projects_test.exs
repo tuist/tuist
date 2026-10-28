@@ -38,5 +38,15 @@ defmodule Tuist.MCP.Components.Tools.ListProjectsTest do
       assert project_id == project.id
       assert project_name == project.name
     end
+
+    test "returns build systems added after the output schema was declared" do
+      user = AccountsFixtures.user_fixture()
+      ProjectsFixtures.project_fixture(account: user.account, build_system: :once)
+
+      conn = %Plug.Conn{assigns: %{current_subject: user}}
+
+      assert %{"structuredContent" => %{"projects" => [%{"build_system" => "once"}]}} =
+               ListProjects.call(conn, %{})
+    end
   end
 end

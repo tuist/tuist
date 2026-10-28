@@ -22,26 +22,22 @@ defaults:
     working-directory: cache
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
   deploy-canary:
-    # Must stay on a GitHub-hosted runner: kamal SSHes into the cache hosts, and
-    # the in-house fleet's runner Pods have no TCP 22 egress (the
-    # runners-default-deny NetworkPolicy allows only DNS, 80/443 and Kura 4000),
-    # so kamal dies with Net::SSH::ConnectionTimeout there. ubuntu-latest is
-    # 4 vCPU / 16 GB on public repos — kamal builds the Elixir release image
-    # locally and the 2/8 shape OOMs.
+    if: github.repository == 'tuist/tuist'
+    # Stays on a GitHub-hosted runner: kamal builds the Elixir release image
+    # locally and the 2/8 shape OOMs. ubuntu-latest is 4 vCPU / 16 GB on public
+    # repos.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: cache-canary
     steps:
       - uses: actions/checkout@v4
       - uses: 1password/install-cli-action@v2
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           working_directory: cache
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
@@ -54,12 +50,9 @@ jobs:
         run: |
           mise run deploy canary
   deploy-production:
-    # Must stay on a GitHub-hosted runner: kamal SSHes into the cache hosts, and
-    # the in-house fleet's runner Pods have no TCP 22 egress (the
-    # runners-default-deny NetworkPolicy allows only DNS, 80/443 and Kura 4000),
-    # so kamal dies with Net::SSH::ConnectionTimeout there. ubuntu-latest is
-    # 4 vCPU / 16 GB on public repos — kamal builds the Elixir release image
-    # locally and the 2/8 shape OOMs.
+    # Stays on a GitHub-hosted runner: kamal builds the Elixir release image
+    # locally and the 2/8 shape OOMs. ubuntu-latest is 4 vCPU / 16 GB on public
+    # repos.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: deploy-canary
@@ -68,9 +61,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: 1password/install-cli-action@v2
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           working_directory: cache
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1

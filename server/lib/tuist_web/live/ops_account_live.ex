@@ -13,22 +13,39 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
+  alias Tuist.Utilities.ByteFormatter
 
+  # Enough to see a pattern without the card becoming the page.
+  @kura_claim_history_limit 5
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     case Accounts.get_account_by_id(parse_id(id)) do
       {:ok, account} ->
         account = preload_billing(account)
+        balance = Prepaid.balance(account)
+        subscription = Billing.get_current_active_subscription(account)
 
         {:ok,
          socket
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
-         |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
+         |> assign(:prepaid_balance, balance)
+         |> assign(:prepaid_minutes_value, held_minutes(balance))
+         |> assign(:on_runner_trial, Trials.on_trial?(account))
+         |> assign(:prepaid_pool_quote, nil)
+         |> assign(:prepaid_pool_coverage, nil)
+         |> assign(:prepaid_quote, nil)
+         |> assign_standing_prepaid(account, subscription)
+         |> assign(:has_subscription, not is_nil(subscription))
+         |> assign_free_tier(account)
+         |> assign_kura(account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
 
@@ -40,13 +57,21 @@ defmodule TuistWeb.OpsAccountLive do
     end
   end
 
+  defp assign_free_tier(socket, account) do
+    socket
+    |> assign(:free_tier_egress_megabytes, account.current_month_cache_egress_megabytes || 0)
+    |> assign(:free_tier_requests, account.current_month_cache_requests || 0)
+    |> assign(:free_tier_reset_at, account.free_tier_reset_at)
+    |> assign(:cache_access_blocked, Billing.cache_access_blocked?(account))
+  end
+
   defp preload_billing(account) do
     Repo.preload(account, [
       :organization,
       :user,
       subscriptions:
         from(s in Subscription,
-          where: s.status in ["active", "trialing"],
+          where: s.status in ^Billing.live_subscription_statuses(),
           order_by: [desc: s.inserted_at]
         )
     ])
@@ -83,6 +108,304 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
+  def handle_event("start_runner_trial", _params, socket) do
+    case Trials.start(socket.assigns.account) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:on_runner_trial, true)
+         |> put_flash(
+           :info,
+           dgettext(
+             "dashboard",
+             "%{account} is on a runner trial and will not be billed for runner usage until it is cancelled.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard", "Could not start the trial: %{reason}", reason: inspect(reason)))}
+    end
+  end
+
+  @impl true
+  def handle_event("reset_free_tier", _params, socket) do
+    case Billing.reset_free_tier(socket.assigns.account) do
+      {:ok, account} ->
+        account = preload_billing(account)
+
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> assign_free_tier(account)
+         |> put_flash(
+           :info,
+           dgettext(
+             "dashboard",
+             "%{account}'s free tier starts over from now. It has the full allowance again until the end of the month.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "Could not reset the free tier: %{reason}", reason: inspect(reason))
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_runner_trial", _params, socket) do
+    case Trials.cancel(socket.assigns.account) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> assign(:on_runner_trial, false)
+         |> put_flash(
+           :info,
+           dgettext("dashboard", "%{account}'s runner trial is over. Runner usage is billable from now on.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "Could not cancel the trial: %{reason}", reason: inspect(reason))
+         )}
+    end
+  end
+
+  # Quoted live as ops types, so the money leaving the customer is on
+  # screen before the charge is created rather than inferred from a
+  # minute count.
+  @impl true
+  def handle_event("quote_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    {:noreply, assign(socket, :prepaid_quote, quote_minutes(minutes))}
+  end
+
+  @impl true
+  def handle_event("set_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    case parse_minutes(minutes) do
+      {:ok, minutes} ->
+        account = Accounts.create_customer_when_absent(socket.assigns.account)
+
+        case Prepaid.set_minutes(account, minutes) do
+          {:ok, _result} ->
+            refreshed = Prepaid.balance(account)
+
+            {:noreply,
+             socket
+             |> assign(:account, preload_billing(account))
+             |> assign(:prepaid_balance, refreshed)
+             |> assign(:prepaid_minutes_value, held_minutes(refreshed))
+             |> assign(:prepaid_quote, nil)
+             |> put_flash(:info, set_minutes_message(account, minutes))}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               dgettext("dashboard", "Could not set prepaid minutes: %{reason}", reason: inspect(reason))
+             )}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to clear."))}
+    end
+  end
+
+  @impl true
+  def handle_event("quote_prepaid_pool", params, socket) do
+    {:noreply,
+     socket
+     |> assign(:prepaid_pool_quote, quote_pool(params))
+     |> assign(:prepaid_pool_coverage, pool_coverage(params, socket.assigns.account))}
+  end
+
+  @impl true
+  def handle_event("grant_prepaid_pool", params, socket) do
+    case parse_pool_params(params) do
+      {:ok, attrs} ->
+        account = Accounts.create_customer_when_absent(socket.assigns.account)
+
+        case Prepaid.grant_pool(account, attrs) do
+          {:ok, _grant} ->
+            refreshed = Prepaid.balance(account)
+
+            {:noreply,
+             socket
+             |> assign(:account, preload_billing(account))
+             |> assign(:prepaid_balance, refreshed)
+             |> assign(:prepaid_minutes_value, held_minutes(refreshed))
+             |> assign(:prepaid_pool_quote, nil)
+             |> assign(:prepaid_pool_coverage, nil)
+             |> put_flash(:info, grant_pool_message(account, attrs))}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, prepaid_pool_error(reason))}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, prepaid_pool_error(:unreadable))}
+    end
+  end
+
+  @impl true
+  def handle_event("quote_standing_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    {:noreply, assign(socket, :standing_prepaid_quote, quote_minutes(minutes))}
+  end
+
+  # Sets the subscription item only. It does not touch the period already
+  # running, so an operator agreeing a deal mid-cycle uses the field above
+  # for this cycle and this one for every cycle after.
+  @impl true
+  def handle_event("set_standing_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    case parse_minutes(minutes) do
+      {:ok, minutes} ->
+        account = socket.assigns.account
+
+        case Prepaid.set_standing_minutes(account, minutes) do
+          {:ok, minutes} ->
+            {:noreply,
+             socket
+             |> assign(:standing_prepaid_minutes_value, minutes)
+             |> assign(:standing_prepaid_quote, nil)
+             |> put_flash(:info, set_standing_minutes_message(account, minutes))}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, standing_prepaid_error(reason))}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to stop."))}
+    end
+  end
+
+  @impl true
+  def handle_event("apply_kura_claim_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_claim_proposal
+
+    case proposal && Kura.apply_claim_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, result} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, kura_storage_claim_message(result))}
+
+      _stale_or_missing ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(
+           :error,
+           dgettext(
+             "dashboard",
+             "The proposal no longer applies; the next sizing sweep re-evaluates the account."
+           )
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("dismiss_kura_claim_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_claim_proposal
+
+    case proposal && Kura.dismiss_claim_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, _proposal} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, dgettext("dashboard", "Sizing proposal dismissed."))}
+
+      _stale_or_missing ->
+        {:noreply, assign_kura(socket, account)}
+    end
+  end
+
+  @impl true
+  def handle_event("apply_kura_placement_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_placement_proposal
+
+    case proposal && Kura.apply_placement_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, outcome} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, kura_placement_message(outcome))}
+
+      _stale_or_missing ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(
+           :error,
+           dgettext(
+             "dashboard",
+             "The proposal no longer applies; the next placement sweep re-evaluates the account."
+           )
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("dismiss_kura_placement_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_placement_proposal
+
+    case proposal && Kura.dismiss_placement_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, _proposal} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, dgettext("dashboard", "Placement proposal dismissed."))}
+
+      _stale_or_missing ->
+        {:noreply, assign_kura(socket, account)}
+    end
+  end
+
+  @impl true
+  def handle_event("update_kura_egress_limits", %{"account" => params}, socket) do
+    save_kura_egress_limits(socket, params)
+  end
+
+  @impl true
+  def handle_event("toggle_visibility", _params, socket) do
+    account = socket.assigns.account
+    visibility = if account.visibility == :public, do: :private, else: :public
+
+    case Accounts.update_account_visibility(account, visibility) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, preload_billing(account))
+         |> put_flash(
+           :info,
+           dgettext("dashboard", "%{account} is now %{visibility}.",
+             account: account.name,
+             visibility: account.visibility
+           )
+         )}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Account visibility could not be updated."))}
+    end
+  end
+
+  @impl true
   def handle_event("initiate_enterprise_upgrade", _params, socket) do
     account = Accounts.create_customer_when_absent(socket.assigns.account)
     customer = fetch_stripe_customer(account.customer_id)
@@ -90,7 +413,7 @@ defmodule TuistWeb.OpsAccountLive do
     if customer_has_billing_details?(customer) do
       # Customer already has name/email/address on Stripe: upgrade in
       # one click without prompting ops to re-enter anything.
-      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{})
 
       {:noreply,
        socket
@@ -103,12 +426,38 @@ defmodule TuistWeb.OpsAccountLive do
        )}
     else
       # Missing billing details: open the modal pre-filled with whatever
-      # the Stripe customer already has.
+      # the Stripe customer already has. The modal is `:if`-gated on
+      # `upgrade_target_account`, so it isn't in the DOM yet and its
+      # Noora Modal hook hasn't attached the `phx:open-modal` window
+      # listener. Defer the event to the next tick so the DOM patch
+      # mounts the modal (and its listener) before we dispatch.
+      send(self(), :open_enterprise_modal)
+
       {:noreply,
        socket
        |> assign(:upgrade_target_account, account)
-       |> assign(:upgrade_target_customer, customer)
-       |> push_event("open-modal", %{id: "enterprise-modal"})}
+       |> assign(:upgrade_target_customer, customer)}
+    end
+  end
+
+  @impl true
+  def handle_event("start_open_source_plan", _params, socket) do
+    account = socket.assigns.account
+
+    case Billing.start_open_source_plan(account) do
+      {:ok, _sub} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, dgettext("dashboard", "%{account} is now on the Open Source plan.", account: account.name))
+         |> push_navigate(to: ~p"/ops/accounts/#{account.id}")}
+
+      {:error, :subscription_exists} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "%{account} already has an active subscription.", account: account.name)
+         )}
     end
   end
 
@@ -169,6 +518,11 @@ defmodule TuistWeb.OpsAccountLive do
      |> push_event("close-modal", %{id: "enterprise-modal"})}
   end
 
+  @impl true
+  def handle_info(:open_enterprise_modal, socket) do
+    {:noreply, push_event(socket, "open-modal", %{id: "enterprise-modal"})}
+  end
+
   ## Stripe-customer prefill helpers (moved from OpsAccountsLive)
 
   defp fetch_stripe_customer(nil), do: %{}
@@ -212,7 +566,6 @@ defmodule TuistWeb.OpsAccountLive do
     %{
       name: params["name"],
       billing_email: params["billing_email"],
-      cadence: params["cadence"] || "monthly",
       address: %{
         line1: params["address_line1"],
         line2: params["address_line2"],
@@ -224,10 +577,863 @@ defmodule TuistWeb.OpsAccountLive do
     }
   end
 
+  defp quote_minutes(raw) do
+    case parse_minutes(raw) do
+      {:ok, minutes} when minutes > 0 -> Prepaid.quote_minutes(minutes)
+      _ -> nil
+    end
+  end
+
+  defp set_minutes_message(account, 0) do
+    dgettext("dashboard", "%{account} no longer holds any prepaid runner minutes.", account: account.name)
+  end
+
+  defp set_minutes_message(account, minutes) do
+    quoted = Prepaid.quote_minutes(minutes)
+
+    dgettext(
+      "dashboard",
+      "%{account} now holds %{minutes} prepaid runner minutes. %{amount} was added to its next invoice.",
+      minutes: format_number(minutes),
+      amount: format_money(quoted.invoiced),
+      account: account.name
+    )
+  end
+
+  defp quote_pool(params) do
+    with {:ok, paid_cents} <- parse_pool_paid(params["paid"]),
+         {:ok, credit_multiplier} <- parse_decimal(params["credit_multiplier"]),
+         {:ok, quote} <- Prepaid.quote_pool(paid_cents, credit_multiplier) do
+      quote
+    else
+      _invalid -> nil
+    end
+  end
+
+  # Which invoices the pool will pay for, read only once both contract dates
+  # are filled in, since the billing cycle can take a Stripe call to read.
+  defp pool_coverage(params, account) do
+    with {:ok, starts_on} <- parse_date(params["starts_on"]),
+         {:ok, expires_on} <- parse_date(params["expires_on"]),
+         false <- Date.after?(starts_on, expires_on) do
+      Prepaid.pool_coverage(Billing.current_billing_period(account), starts_on, expires_on)
+    else
+      _incomplete -> nil
+    end
+  end
+
+  # Reads the form into the terms `Prepaid.grant_pool/2` takes. It only
+  # parses: whether the terms make sense is the domain's to decide, so the
+  # same rules hold however a pool is granted.
+  defp parse_pool_params(params) do
+    with {:ok, paid_cents} <- parse_pool_paid(params["paid"]),
+         {:ok, credit_multiplier} <- parse_decimal(params["credit_multiplier"]),
+         {:ok, platforms} <- parse_pool_platforms(params["platforms"]),
+         {:ok, starts_on} <- parse_date(params["starts_on"]),
+         {:ok, expires_on} <- parse_date(params["expires_on"]) do
+      {:ok,
+       %{
+         paid_cents: paid_cents,
+         credit_multiplier: credit_multiplier,
+         platforms: platforms,
+         starts_on: starts_on,
+         expires_on: expires_on,
+         invoice_id: blank_to_nil(params["invoice_id"])
+       }}
+    end
+  end
+
+  # Dollars as typed, to whole cents. A fraction of a cent is a typo, not a
+  # rounding question.
+  defp parse_pool_paid(raw) do
+    with {:ok, dollars} <- parse_decimal(String.replace(raw || "", ",", "")),
+         cents = Decimal.mult(dollars, 100),
+         true <- Decimal.integer?(cents) do
+      {:ok, Decimal.to_integer(cents)}
+    else
+      _invalid -> :error
+    end
+  end
+
+  defp parse_decimal(raw) when is_binary(raw) do
+    case Decimal.parse(String.trim(raw)) do
+      {decimal, ""} -> {:ok, decimal}
+      _invalid -> :error
+    end
+  end
+
+  defp parse_decimal(_raw), do: :error
+
+  defp parse_pool_platforms("all"), do: {:ok, [:linux, :macos]}
+  defp parse_pool_platforms("macos"), do: {:ok, [:macos]}
+  defp parse_pool_platforms("linux"), do: {:ok, [:linux]}
+  defp parse_pool_platforms(_raw), do: :error
+
+  defp parse_date(raw) when is_binary(raw) do
+    case Date.from_iso8601(String.trim(raw)) do
+      {:ok, date} -> {:ok, date}
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp parse_date(_raw), do: :error
+
+  defp blank_to_nil(raw) when is_binary(raw) do
+    case String.trim(raw) do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp blank_to_nil(_raw), do: nil
+
+  # The standard prepaid terms as a credit multiplier, which the pool form
+  # opens on.
+  def standard_credit_multiplier do
+    Prepaid.default_funding_ratio_bp()
+    |> Decimal.new()
+    |> Decimal.div(10_000)
+    |> Decimal.normalize()
+    |> Decimal.to_string(:normal)
+  end
+
+  def credit_multiplier_hint do
+    paid = Money.new(100_000, :USD)
+    {:ok, quote} = Prepaid.quote_pool(paid.amount, Decimal.new(standard_credit_multiplier()))
+
+    dgettext(
+      "dashboard",
+      "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute. The standard prepaid terms are %{multiplier}, so %{paid} paid grants %{granted} of credit.",
+      multiplier: standard_credit_multiplier(),
+      paid: format_money(paid),
+      granted: format_money(quote.granted)
+    )
+  end
+
+  defp grant_pool_message(account, attrs) do
+    {:ok, quote} = Prepaid.quote_pool(attrs.paid_cents, attrs.credit_multiplier)
+
+    dgettext(
+      "dashboard",
+      "%{account} now holds a pool of %{credit} in runner credit, about %{minutes} baseline minutes, usable until %{date}.",
+      account: account.name,
+      credit: format_money(quote.granted),
+      minutes: format_number(quote.minutes),
+      date: Timex.format!(attrs.expires_on, "{Mfull} {D}, {YYYY}")
+    )
+  end
+
+  def prepaid_pool_error(:unreadable),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: enter the amount paid in dollars, a credit multiplier such as 1.25, the platforms, and the contract's last day."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :paid_cents}),
+    do: dgettext("dashboard", "Could not grant the pool: the amount paid has to be more than zero.")
+
+  def prepaid_pool_error({:invalid_pool, :credit_multiplier}),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: the credit multiplier has to be between 1.0 and 2.0, with at most four decimal places."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :platforms}),
+    do: dgettext("dashboard", "Could not grant the pool: choose the platforms the credit pays for.")
+
+  def prepaid_pool_error({:invalid_pool, :term}),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: the contract has to start on or before its last day and last at most a year."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :expires_on}),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not grant the pool: the contract's last day has to be after today and within thirteen months."
+      )
+
+  def prepaid_pool_error({:invalid_pool, :invoice_id}),
+    do: dgettext("dashboard", "Could not grant the pool: a Stripe invoice id starts with in_.")
+
+  def prepaid_pool_error(:no_runner_prices_configured),
+    do: dgettext("dashboard", "Could not grant the pool: no runner price is configured for this environment yet.")
+
+  def prepaid_pool_error(reason),
+    do: dgettext("dashboard", "Could not grant the pool: %{reason}", reason: inspect(reason))
+
+  defp assign_standing_prepaid(socket, account, subscription) do
+    {minutes, unavailable} =
+      case Prepaid.standing_minutes(account) do
+        {:ok, minutes} -> {minutes, nil}
+        {:error, reason} -> {0, reason}
+      end
+
+    socket
+    |> assign(:standing_prepaid_minutes_value, minutes)
+    |> assign(:standing_prepaid_unavailable, unavailable)
+    |> assign(:standing_prepaid_quote, nil)
+    # The item is billed and granted on the renewal invoice, so the end of
+    # the period now running is when the next minutes land.
+    |> assign(:standing_prepaid_next_at, subscription && subscription.current_period_end)
+  end
+
+  defp set_standing_minutes_message(account, 0) do
+    dgettext("dashboard", "%{account} will no longer be billed or granted minutes at each renewal.",
+      account: account.name
+    )
+  end
+
+  defp set_standing_minutes_message(account, minutes) do
+    quoted = Prepaid.quote_minutes(minutes)
+
+    dgettext(
+      "dashboard",
+      "%{account} will be billed %{amount} and granted %{minutes} minutes at each renewal. The cycle now running is unchanged.",
+      minutes: format_number(minutes),
+      amount: format_money(quoted.invoiced),
+      account: account.name
+    )
+  end
+
+  def standing_prepaid_error(:no_subscription),
+    do: dgettext("dashboard", "This account has no active subscription to carry standing minutes.")
+
+  def standing_prepaid_error(:not_monthly),
+    do: dgettext("dashboard", "Standing minutes need a subscription that renews monthly, and this one does not.")
+
+  def standing_prepaid_error(:on_runner_trial),
+    do:
+      dgettext("dashboard", "This account is on a runner trial, so standing minutes would buy credit it can never spend.")
+
+  def standing_prepaid_error(:no_prepaid_price_configured),
+    do: dgettext("dashboard", "No prepaid minutes price is configured for this environment yet.")
+
+  def standing_prepaid_error(reason),
+    do: dgettext("dashboard", "Could not read or set the standing monthly minutes: %{reason}", reason: inspect(reason))
+
+  def standing_prepaid_next_label(nil), do: dgettext("dashboard", "the next renewal")
+
+  def standing_prepaid_next_label(%DateTime{} = next_at), do: Timex.format!(next_at, "{Mfull} {D}, {YYYY}")
+
+  # The field opens on what the account holds, so an operator corrects a
+  # figure rather than working out the difference from the table above.
+  defp held_minutes(nil), do: 0
+
+  # A pool is not what the field sets, so counting it would sell its minutes
+  # again as a month's worth.
+  defp held_minutes(%{grants: grants}) do
+    grants |> Enum.reject(&(&1.kind == "pool")) |> Enum.map(&Map.get(&1, :available_minutes, 0)) |> Enum.sum()
+  end
+
+  defp parse_minutes(raw) when is_binary(raw) do
+    case Integer.parse(String.trim(raw)) do
+      {minutes, ""} when minutes >= 0 -> {:ok, minutes}
+      _ -> :error
+    end
+  end
+
+  defp parse_minutes(_raw), do: :error
+
+  def prepaid_pool_invoice_label(%DateTime{} = closes_at), do: Timex.format!(closes_at, "{Mfull} {D}, {YYYY}")
+
+  def prepaid_grant_kind_label("trial"), do: dgettext("dashboard", "Trial")
+  def prepaid_grant_kind_label("pool"), do: dgettext("dashboard", "Pool")
+  def prepaid_grant_kind_label(_kind), do: dgettext("dashboard", "Prepaid")
+
+  def prepaid_expiry_label(nil), do: dgettext("dashboard", "No expiry")
+  def prepaid_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
+
+  def free_tier_reset_label(nil), do: dgettext("dashboard", "Never")
+  def free_tier_reset_label(%DateTime{} = reset_at), do: Timex.format!(reset_at, "{Mfull} {D}, {YYYY} {h24}:{m} UTC")
+
+  def free_tier_egress_label(megabytes), do: ByteFormatter.format_bytes(megabytes * 1_000_000)
+
+  def free_tier_egress_limit_label, do: free_tier_egress_label(UsagePricing.included_egress_megabytes())
+
+  def free_tier_requests_limit, do: UsagePricing.included_requests()
+
   defp runner_concurrency_form(account) do
     account
     |> Concurrency.change_limits()
     |> to_form(as: "account")
+  end
+
+  # The rows, the forms and the numbers the rows resolve against move together:
+  # an applied proposal re-pins instances and re-resolves their limits, so a
+  # table left on the old assign would show values that no longer exist.
+  # Long enough to cover the shortest decision window, so an operator sees the
+  # same evidence the shortest-fused transition reads.
+  @kura_traffic_mix_days 14
+
+  defp assign_kura(socket, account) do
+    servers = Kura.list_servers_for_account(account.id)
+
+    socket
+    |> assign(:kura_servers, servers)
+    |> assign(:kura_account_claim, Kura.effective_storage_claim(account))
+    |> assign(:kura_egress_regions, kura_egress_regions(account, servers))
+    # The rows share one form element; each row's inputs carry their own names,
+    # so this outer form exists only to own the submit.
+    |> assign(:kura_egress_form, to_form(%{}, as: "egress"))
+    # assign_new so a save that re-reads the section keeps the message it just
+    # produced.
+    |> assign_new(:kura_egress_result, fn -> nil end)
+    |> assign(:kura_sized_claim, Kura.sized_storage_claim(account))
+    |> assign(:kura_claim_proposal, Kura.claim_proposal_for(account))
+    |> assign(:kura_claim_history, Kura.claim_sizing_history(account, @kura_claim_history_limit))
+    |> assign(:kura_disk_usage, Kura.latest_storage_snapshots(account))
+    |> assign(:kura_placement_regions, Kura.placement_regions(account))
+    |> assign(:kura_traffic_mix, Kura.placement_traffic_mix(account, @kura_traffic_mix_days))
+    |> assign(:kura_placement_proposal, Kura.placement_proposal_for(account))
+    |> assign(:kura_placement_history, Kura.placement_history(account, @kura_claim_history_limit))
+  end
+
+  # One entry per egress-governed region the account holds an instance in, each
+  # with its own form: an override is a per-region decision because the boxes
+  # differ.
+  defp kura_egress_regions(account, servers) do
+    servers
+    # An instance without pods is not one an override reaches, and offering a row
+    # for it would report a save as recreating nothing.
+    |> Enum.filter(&Kura.kura_instance_holds_pods?(&1.status))
+    |> Enum.map(& &1.region)
+    |> Enum.uniq()
+    |> Enum.flat_map(fn region_id ->
+      region = Kura.region(region_id)
+
+      if region && Kura.egress_governed_region?(region) do
+        [
+          %{
+            id: region_id,
+            display_name: region.display_name,
+            defaults: Kura.default_egress_limits(account, region),
+            effective: Kura.effective_egress_limits(account, region),
+            node_mbps: Kura.region_node_egress_budget_mbps(account, region),
+            headroom: Kura.region_egress_headroom(account, region),
+            form: kura_egress_limits_form(account, region)
+          }
+        ]
+      else
+        []
+      end
+    end)
+  end
+
+  # The regions share one <form> — they are rows of a table, and a form cannot
+  # be a child of <tr> — so each row's inputs are named and identified by their
+  # region. Saving submits every row at once; `account[<region>][<field>]` is
+  # what tells them apart on the way back.
+  defp kura_egress_limits_form(account, region) do
+    account
+    |> Kura.change_egress_limits_override(region)
+    |> to_form(as: "account[#{region.id}]", id: "kura-egress-#{region.id}")
+  end
+
+  # Every row is cast before any is written, so a typo in one region cannot
+  # half-apply a change across several. Only touched rows are written: rewriting
+  # an untouched one moves its manifest revision and reconciles an instance
+  # nobody asked to disturb.
+  defp save_kura_egress_limits(socket, params) do
+    account = socket.assigns.account
+
+    rows =
+      Enum.flat_map(params, fn {region_id, attrs} ->
+        region = Kura.region(region_id)
+
+        # Only the rows whose values moved. An untouched row is not validated:
+        # the live reading behind the check can shift under a table an operator
+        # is looking at, and a row they did not touch must not refuse a save of
+        # the one they did.
+        if region && edited?(account, region, attrs),
+          do: [{region, attrs, Kura.cast_egress_limits_override(account, region, attrs)}],
+          else: []
+      end)
+
+    case Enum.filter(rows, fn {_region, _attrs, result} -> match?({:error, _}, result) end) do
+      [_ | _] = invalid ->
+        {:noreply,
+         socket
+         |> assign(:kura_egress_regions, put_region_errors(socket.assigns.kura_egress_regions, invalid))
+         |> assign(:kura_egress_result, %{status: "error", title: kura_egress_limits_rejected_message(invalid)})}
+
+      [] ->
+        {written, failed} =
+          Enum.reduce(rows, {[], []}, fn {region, attrs, _result}, {written, failed} ->
+            case Kura.update_egress_limits_override(account, region, attrs) do
+              {:ok, result} -> {[result | written], failed}
+              {:error, _changeset} -> {written, [{region, attrs, :error} | failed]}
+            end
+          end)
+
+        socket = assign_kura(socket, account)
+
+        {:noreply, assign(socket, :kura_egress_result, kura_egress_limits_result(written, failed))}
+    end
+  end
+
+  # Compared as the form submits them, so an untouched row is recognised without
+  # casting it — casting is what a stale reading would make fail.
+  defp edited?(account, region, attrs) do
+    {floor_field, burst_field} = Kura.egress_limits_form_fields()
+    stored = Kura.egress_limits_override(account, region) || %{floor_mbps: nil, burst_mbps: nil}
+
+    {field_value(attrs, floor_field), field_value(attrs, burst_field)} !=
+      {stored.floor_mbps, stored.burst_mbps}
+  end
+
+  defp field_value(attrs, field) do
+    case attrs |> Map.get(Atom.to_string(field), "") |> String.trim() do
+      "" ->
+        nil
+
+      value ->
+        value
+        |> Integer.parse()
+        |> then(fn
+          {int, ""} -> int
+          _ -> value
+        end)
+    end
+  end
+
+  # Only the rows the operator got wrong get their invalid changeset back; the
+  # others keep the forms they were rendered with, so an error in one region
+  # cannot look like an error in all of them.
+  defp put_region_errors(regions, invalid) do
+    errored = Map.new(invalid, fn {region, _attrs, {:error, changeset}} -> {region.id, changeset} end)
+
+    Enum.map(regions, fn region ->
+      case Map.fetch(errored, region.id) do
+        {:ok, changeset} ->
+          %{region | form: to_form(changeset, as: "account[#{region.id}]", id: "kura-egress-#{region.id}")}
+
+        :error ->
+          region
+      end
+    end)
+  end
+
+  # One message for the whole Save, naming the regions and totalling the
+  # instances an operator can go and check. Nothing changed gets its own answer:
+  # reporting a recreate that is not happening sends them looking for a rollout.
+  defp kura_egress_limits_result([], []) do
+    %{status: "information", title: dgettext("dashboard", "No egress limits changed.")}
+  end
+
+  defp kura_egress_limits_result([], failed) do
+    %{status: "error", title: kura_egress_limits_rejected_message(failed)}
+  end
+
+  # Each region is written in its own transaction, and the reading the write
+  # re-casts against can move between the check above and the write itself, so a
+  # save can end up half applied. Saying only that something was rejected would
+  # leave the operator believing the regions that did land had not.
+  defp kura_egress_limits_result(written, failed) do
+    %{
+      status: if(failed == [], do: "success", else: "warning"),
+      title: Enum.map_join([written_message(written) | rejected_message(failed)], " ", & &1)
+    }
+  end
+
+  defp rejected_message([]), do: []
+  defp rejected_message(failed), do: [kura_egress_limits_failed_message(failed)]
+
+  defp written_message(results) do
+    regions = results |> Enum.map(& &1.region.display_name) |> Enum.sort() |> Enum.join(", ")
+    servers = results |> Enum.flat_map(& &1.servers) |> length()
+
+    dngettext(
+      "dashboard",
+      "Egress limits updated in %{regions}. %{count} instance is recreated to pick them up.",
+      "Egress limits updated in %{regions}. %{count} instances are recreated to pick them up.",
+      servers,
+      regions: regions
+    )
+  end
+
+  # Named, because with several rows on screen "could not be updated" leaves the
+  # operator hunting for which one was rejected. Nothing at all was written on
+  # this path -- the rows are cast before any of them is saved -- so it says so
+  # of the whole table, not only of the row it names.
+  defp kura_egress_limits_rejected_message(invalid) do
+    dngettext(
+      "dashboard",
+      "Nothing was saved: %{regions} was rejected.",
+      "Nothing was saved: %{regions} were rejected.",
+      length(invalid),
+      regions: region_names(invalid)
+    )
+  end
+
+  defp kura_egress_limits_failed_message(failed) do
+    dngettext(
+      "dashboard",
+      "%{regions} was rejected and not saved.",
+      "%{regions} were rejected and not saved.",
+      length(failed),
+      regions: region_names(failed)
+    )
+  end
+
+  defp region_names(rows) do
+    rows |> Enum.map(fn {region, _attrs, _result} -> region.display_name end) |> Enum.sort() |> Enum.join(", ")
+  end
+
+  @doc """
+  A region's egress pair as `"25 / 500 Mbps"`, with an em dash for a number the
+  region leaves unset.
+  """
+  def egress_pair_label(%{floor_mbps: nil, burst_mbps: nil}), do: dgettext("dashboard", "None")
+
+  def egress_pair_label(%{floor_mbps: floor_mbps, burst_mbps: burst_mbps}) do
+    dgettext("dashboard", "%{floor} / %{burst} Mbps", floor: mbps_label(floor_mbps), burst: mbps_label(burst_mbps))
+  end
+
+  @doc """
+  The account's pair in `region_id`, or `nil` when that region shapes no egress
+  — which is what a table row in a cloud region shows.
+  """
+  def egress_for_region(regions, region_id) do
+    Enum.find(regions, &(&1.id == region_id))
+  end
+
+  @doc """
+  A region's node budget as a label, or a dash when the cluster cannot be read.
+  """
+  def node_budget_label(nil), do: dgettext("dashboard", "unknown")
+  def node_budget_label(mbps), do: dgettext("dashboard", "%{mbps} Mbps", mbps: mbps)
+
+  @doc """
+  The highest floor this region's box can hold for the account, as
+  `"up to 250"`, or `nil` when nothing bounds it more tightly than the box's own
+  budget.
+
+  Says the number rather than only refusing it afterwards: a floor is a
+  scheduler request that every replica reserves, so what the box has for this
+  account, divided by its replicas, is the real limit.
+  """
+  def egress_headroom_label(headroom) do
+    case Kura.max_egress_floor_mbps(headroom) do
+      nil ->
+        nil
+
+      mbps ->
+        # An account whose replicas are split across boxes is bound by the
+        # tightest of them, which reads as an unexplained drop unless the row
+        # says the replicas are not all in one place.
+        case headroom do
+          %{boxes: boxes} when boxes > 1 ->
+            dngettext(
+              "dashboard",
+              "up to %{mbps}, across %{count} box",
+              "up to %{mbps}, across %{count} boxes",
+              boxes,
+              mbps: mbps
+            )
+
+          _ ->
+            dgettext("dashboard", "up to %{mbps}", mbps: mbps)
+        end
+    end
+  end
+
+  @doc """
+  The highest floor the form will take for a region, for the input's `max`.
+
+  The browser refusing the number is the pleasant half of this check: it says so
+  before the row is submitted, in its own chrome rather than as an error inside a
+  table cell. The server still decides — `max` is a hint a client can ignore, and
+  the reading behind it can go stale between rendering the form and rolling the
+  pods.
+  """
+  def egress_max_floor_mbps(%{headroom: headroom, node_mbps: node_mbps}) do
+    case {Kura.max_egress_floor_mbps(headroom), node_mbps} do
+      {nil, node_mbps} -> node_mbps
+      {mbps, node_mbps} when is_integer(node_mbps) -> min(mbps, node_mbps)
+      {mbps, _node_mbps} -> mbps
+    end
+  end
+
+  defp mbps_label(nil), do: "—"
+  defp mbps_label(mbps), do: Integer.to_string(mbps)
+
+  # The proposal's evidence differs by direction: growth argues from how young
+  # the shed content was against the plan's retention floor, shrinking from
+  # how empty the ring stayed.
+  # Written for an operator deciding whether to trust the proposal: what the
+  # cache is doing, what it is supposed to do instead, and how much evidence
+  # sits behind it. No policy vocabulary — the windows and thresholds are ours,
+  # not something the reader should have to look up.
+  defp kura_claim_proposal_evidence(%{direction: :grow, evidence: evidence}) do
+    dgettext(
+      "dashboard",
+      "The cache in %{region} is discarding work a median of %{shed_age} after it was written, when it should keep everything for at least %{floor}.",
+      shed_age: humanize_seconds(evidence["median_shed_age_seconds"]),
+      region: evidence["region"],
+      floor: humanize_seconds(evidence["retention_floor_seconds"])
+    )
+  end
+
+  defp kura_claim_proposal_evidence(%{direction: :shrink, evidence: %{"signal" => "retention_above_floor"} = evidence}) do
+    dgettext(
+      "dashboard",
+      "The cache in %{region} has kept work for at least %{retention} before discarding it, when it needs to keep everything for %{floor}.",
+      region: evidence["region"],
+      retention: humanize_seconds(evidence["shortest_shed_age_seconds"]),
+      floor: humanize_seconds(evidence["retention_floor_seconds"])
+    )
+  end
+
+  defp kura_claim_proposal_evidence(%{direction: :shrink, evidence: evidence}) do
+    dgettext(
+      "dashboard",
+      "The cache in %{region} has not filled past %{peak}% of the disk it reserves, and has discarded nothing.",
+      region: evidence["region"],
+      peak: evidence["max_occupancy_percent"]
+    )
+  end
+
+  # The second line: how much observation stands behind the first. Days are
+  # what the measurements are grouped into, so an operator can see whether this
+  # is one bad afternoon or a standing pattern.
+  defp kura_claim_proposal_basis(%{direction: :grow, evidence: %{"ring_turnover" => turnover} = evidence})
+       when not is_nil(turnover) do
+    dngettext(
+      "dashboard",
+      "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
+      "Seen on %{count} days of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
+      evidence["window_days"],
+      bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0),
+      turnover: turnover
+    )
+  end
+
+  # No node reported the ring it was running, so there is no turnover to
+  # quote and the volume stands on its own.
+  defp kura_claim_proposal_basis(%{direction: :grow, evidence: evidence}) do
+    dngettext(
+      "dashboard",
+      "Seen on %{count} day of measurements (%{bytes} discarded).",
+      "Seen on %{count} days of measurements (%{bytes} discarded).",
+      evidence["window_days"],
+      bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0)
+    )
+  end
+
+  defp kura_claim_proposal_basis(%{direction: :shrink, evidence: evidence}) do
+    dngettext(
+      "dashboard",
+      "Seen on %{count} day of measurements.",
+      "Seen on %{count} consecutive days of measurements.",
+      evidence["window_days"]
+    )
+  end
+
+  defp humanize_seconds(nil), do: dgettext("dashboard", "unknown")
+
+  defp humanize_seconds(seconds) when is_integer(seconds) do
+    cond do
+      seconds >= 86_400 -> dgettext("dashboard", "%{count} days", count: Float.round(seconds / 86_400, 1))
+      seconds >= 3_600 -> dgettext("dashboard", "%{count} hours", count: Float.round(seconds / 3_600, 1))
+      true -> dgettext("dashboard", "%{count} minutes", count: div(seconds, 60))
+    end
+  end
+
+  # A growth that recommends the claim the account already has raises the
+  # instances pinned under it, so the move worth showing is theirs.
+  def claim_history_change(%{
+        direction: :grow,
+        current_claim_size: claim,
+        recommended_claim_size: claim,
+        evidence: %{"region_claim_size" => from}
+      }) do
+    "#{from} → #{claim}"
+  end
+
+  def claim_history_change(%{current_claim_size: from, recommended_claim_size: to}), do: "#{from} → #{to}"
+
+  def claim_history_outcome(%{status: :applied}), do: {dgettext("dashboard", "applied"), "success"}
+  def claim_history_outcome(%{status: :dismissed}), do: {dgettext("dashboard", "dismissed"), "neutral"}
+  def claim_history_outcome(%{status: :superseded}), do: {dgettext("dashboard", "superseded"), "neutral"}
+  def claim_history_outcome(%{status: :open}), do: {dgettext("dashboard", "waiting"), "attention"}
+
+  def claim_history_actor(%{status: :open}), do: dgettext("dashboard", "Not resolved yet")
+
+  def claim_history_actor(%{resolved_by: by}) when by in ["automatic", "sweep", "stale_on_apply"],
+    do: dgettext("dashboard", "Sizing")
+
+  def claim_history_actor(%{resolved_by: by}) when is_binary(by), do: by
+  def claim_history_actor(_decision), do: dgettext("dashboard", "Unknown")
+
+  # Compact enough for a table cell; the open proposal above carries the full
+  # sentence.
+  def claim_history_reason(%{direction: :grow, evidence: evidence}) do
+    dgettext("dashboard", "discarding work after %{shed_age}, target %{floor}",
+      shed_age: humanize_seconds(evidence["median_shed_age_seconds"]),
+      floor: humanize_seconds(evidence["retention_floor_seconds"])
+    )
+  end
+
+  def claim_history_reason(%{direction: :shrink, evidence: %{"signal" => "retention_above_floor"} = evidence}) do
+    dgettext("dashboard", "keeps work %{retention}, needs %{floor}",
+      retention: humanize_seconds(evidence["shortest_shed_age_seconds"]),
+      floor: humanize_seconds(evidence["retention_floor_seconds"])
+    )
+  end
+
+  def claim_history_reason(%{direction: :shrink, evidence: evidence}) do
+    dgettext("dashboard", "peaked at %{peak}% of its disk", peak: evidence["max_occupancy_percent"])
+  end
+
+  def placement_history_change(%{kind: kind, from_region: from, to_region: to}) when kind in [:relocate, :correct],
+    do: "#{from} → #{to}"
+
+  def placement_history_change(%{kind: :expand, to_region: to}), do: dgettext("dashboard", "add %{region}", region: to)
+
+  def placement_history_change(%{kind: :retire, from_region: from}),
+    do: dgettext("dashboard", "leave %{region}", region: from)
+
+  def placement_history_actor(%{status: :open}), do: dgettext("dashboard", "Not resolved yet")
+
+  def placement_history_actor(%{resolved_by: by}) when by in ["automatic", "sweep", "stale_on_apply"],
+    do: dgettext("dashboard", "Placement")
+
+  def placement_history_actor(%{resolved_by: by}) when is_binary(by), do: by
+  def placement_history_actor(_decision), do: dgettext("dashboard", "Unknown")
+
+  # Compact enough for a table cell; the open proposal above carries the full
+  # sentence.
+  def placement_history_reason(%{kind: kind, evidence: evidence}) when kind in [:relocate, :correct] do
+    dgettext("dashboard", "%{share}%% of runs over %{days} days",
+      share: round((evidence["share"] || 0) * 100),
+      days: evidence["window_days"]
+    )
+  end
+
+  def placement_history_reason(%{kind: :expand, evidence: evidence}) do
+    dgettext("dashboard", "%{rate} runs a day over %{days} days",
+      rate: evidence["runs_per_day"],
+      days: evidence["window_days"]
+    )
+  end
+
+  def placement_history_reason(%{kind: :retire, evidence: evidence}) do
+    dgettext("dashboard", "%{rate} runs a day over %{days} days",
+      rate: evidence["runs_per_day"],
+      days: evidence["window_days"]
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :relocate} = proposal) do
+    dgettext("dashboard", "Placement proposes moving this account from %{from} to %{to}.",
+      from: proposal.from_region,
+      to: proposal.to_region
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :correct} = proposal) do
+    dgettext("dashboard", "Placement proposes moving this account off its first region, %{from}, to %{to}.",
+      from: proposal.from_region,
+      to: proposal.to_region
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :expand} = proposal) do
+    dgettext("dashboard", "Placement proposes also serving this account from %{to}.", to: proposal.to_region)
+  end
+
+  defp placement_proposal_summary(%{kind: :retire} = proposal) do
+    dgettext("dashboard", "Placement proposes giving up %{from} for this account.", from: proposal.from_region)
+  end
+
+  # What the apply actually did, rather than "saved". Nothing moves at the
+  # moment a proposal is applied: the lifecycle provisions the destination on
+  # the account's next demand, and the source leaves only once it is serving.
+  defp kura_placement_message(%{kind: kind, from_region: from, to_region: to}) when kind in [:relocate, :correct] do
+    dgettext(
+      "dashboard",
+      "Placement moved to %{to}. %{from} keeps serving until %{to} is up, then drains.",
+      from: from,
+      to: to
+    )
+  end
+
+  defp kura_placement_message(%{kind: :expand, to_region: to}) do
+    dgettext("dashboard", "Placement added %{region}. It is provisioned on the account's next cache demand.", region: to)
+  end
+
+  defp kura_placement_message(%{kind: :retire, from_region: from}) do
+    dgettext("dashboard", "Placement is leaving %{region}. It drains once nothing else is waiting on it.", region: from)
+  end
+
+  defp kura_disk_usage_label(snapshot) do
+    dgettext("dashboard", "%{used} of %{budget}",
+      used: ByteFormatter.format_bytes(snapshot.live_segment_bytes),
+      budget: ByteFormatter.format_bytes(snapshot.ring_budget_bytes)
+    )
+  end
+
+  # Raising a claim and lowering one do different things to a running instance,
+  # and only one of them costs a cache. Say which happened rather than reporting
+  # a successful save: an operator raising a claim to rescue a capped account is
+  # the one most likely to assume it was free.
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: [], lowered: []}) do
+    dgettext(
+      "dashboard",
+      "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built.",
+      claim: claim_size
+    )
+  end
+
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: [_ | _] = raised, lowered: [_ | _] = lowered}) do
+    Enum.join(
+      [
+        dgettext("dashboard", "Kura disk claim moved to %{claim}.", claim: claim_size),
+        dngettext(
+          "dashboard",
+          "%{count} instance was raised and rebuilds its volumes, one replica at a time behind the standby that keeps serving.",
+          "%{count} instances were raised and rebuild their volumes, one replica at a time behind the standby that keeps serving.",
+          length(raised)
+        ),
+        dngettext(
+          "dashboard",
+          "%{count} instance was lowered and keeps its cache, evicting down to the new budget.",
+          "%{count} instances were lowered and keep their caches, evicting down to the new budget.",
+          length(lowered)
+        )
+      ],
+      " "
+    )
+  end
+
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: []} = result) do
+    dngettext(
+      "dashboard",
+      "Kura disk claim lowered to %{claim}. %{count} running instance keeps its cache and evicts down to the new budget.",
+      "Kura disk claim lowered to %{claim}. %{count} running instances keep their caches and evict down to the new budget.",
+      length(result.lowered),
+      claim: claim_size
+    )
+  end
+
+  # "Up to", because an instance rebuilds only if its volumes are smaller than
+  # the new claim, and an earlier decrease can have left them larger. The rebuild
+  # rolls one replica at a time behind the standby, so it is a rollout rather
+  # than an outage and the cache survives it where there is a standby to refill
+  # from.
+  defp kura_storage_claim_message(%{claim_size: claim_size} = result) do
+    dngettext(
+      "dashboard",
+      "Kura disk claim raised to %{claim}. Up to %{count} running instance rebuilds its volumes, one replica at a time behind the standby that keeps serving.",
+      "Kura disk claim raised to %{claim}. Up to %{count} running instances rebuild their volumes, one replica at a time behind the standby that keeps serving.",
+      length(result.raised),
+      claim: claim_size
+    )
   end
 
   # ISO 3166-1 alpha-2 codes for the countries most likely to appear on

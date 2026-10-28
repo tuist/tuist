@@ -3,7 +3,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--noora-spacing-6);
-  padding: var(--noora-spacing-7) var(--noora-spacing-0);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
   & > [data-part="action-buttons"] {
     display: flex;
@@ -187,6 +187,18 @@
         .noora-breadcrumbs {
           max-width: 100%;
           .noora-breadcrumb {
+            min-width: 0;
+            & [data-part="link"] {
+              min-width: 0;
+            }
+            & [data-part="label"] {
+              display: block;
+              min-width: 0;
+              max-width: 480px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            }
             & [data-part="trigger"] {
               &[data-state="open"] {
                 box-shadow: unset;
@@ -222,12 +234,10 @@
 
         & > #bundle-size-analysis-sunburst {
           flex-grow: 1;
-          margin-top: -40px;
           margin-left: -40px;
           height: 410px;
           @media (max-width: 768px) {
             & {
-              margin-top: -40px;
               margin-left: -15px;
             }
           }
@@ -251,8 +261,10 @@
             align-items: center;
             gap: var(--noora-spacing-5);
             padding-left: var(--noora-spacing-5);
+            min-width: 0;
 
             & > [data-part="dot"] {
+              flex-shrink: 0;
               border-radius: 1.33px;
               width: 6px;
               height: 6px;
@@ -290,16 +302,26 @@
               }
             }
             & > [data-part="label"] {
+              overflow: hidden;
               color: var(--noora-surface-label-primary);
               font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+              text-overflow: ellipsis;
+              white-space: nowrap;
             }
           }
 
           & table {
             align-self: stretch;
+            & th:first-child > span {
+              display: block;
+              max-width: min(360px, 45vw);
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            }
             & td:first-child {
               & > div {
-                width: 360px;
+                width: min(360px, 45vw);
               }
             }
           }
@@ -417,12 +439,21 @@
                   flex-direction: row;
                   align-items: center;
                   gap: var(--noora-spacing-4);
+                  min-width: 0;
 
                   & > [data-part="title"] {
                     flex-grow: 1;
                     margin: 0;
+                    min-width: 0;
+                    overflow: hidden;
                     color: var(--noora-surface-label-primary);
                     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                  }
+
+                  & > .noora-badge {
+                    flex-shrink: 0;
                   }
                 }
 
@@ -453,8 +484,16 @@
                   padding: var(--noora-spacing-3);
                   & > [data-part="title"] {
                     flex-grow: 1;
+                    min-width: 0;
+                    overflow: hidden;
                     color: var(--noora-surface-label-primary);
                     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                  }
+
+                  & > .noora-badge {
+                    flex-shrink: 0;
                   }
                 }
               }

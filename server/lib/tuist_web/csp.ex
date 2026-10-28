@@ -153,6 +153,37 @@ defmodule TuistWeb.CSP do
     conn
     |> assign(:csp_nonce, get_csp_nonce())
     |> put_resp_header("content-security-policy", csp)
+    |> put_resp_header("permissions-policy", permissions_policy())
+  end
+
+  # Locks down the browser features the app never uses so a third-party
+  # script (or an iframe under an attacker's control) can't silently
+  # switch them on. The list is deny-by-default; extend it only when a
+  # feature is actually needed.
+  defp permissions_policy do
+    Enum.join(
+      [
+        "accelerometer=()",
+        "autoplay=()",
+        "camera=()",
+        "display-capture=()",
+        "encrypted-media=()",
+        "fullscreen=(self)",
+        "geolocation=()",
+        "gyroscope=()",
+        "magnetometer=()",
+        "microphone=()",
+        "midi=()",
+        "payment=()",
+        "picture-in-picture=()",
+        "publickey-credentials-get=(self)",
+        "screen-wake-lock=()",
+        "sync-xhr=(self)",
+        "usb=()",
+        "xr-spatial-tracking=()"
+      ],
+      ", "
+    )
   end
 
   @doc """

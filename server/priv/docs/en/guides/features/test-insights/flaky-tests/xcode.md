@@ -10,8 +10,7 @@
 > [!WARNING]
 > **Requirements**
 >
-> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> must be configured
-
+> - <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights</.localized_link> configured. Tuist detects flaky tests from the test-insight events uploaded by every test run.
 
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
 
@@ -38,9 +37,11 @@ tuist xcodebuild test \
 
 ### Cross-run detection {#cross-run-detection}
 
-Even without test retries, Tuist can detect flaky tests by comparing results across different CI runs on the same commit and the same scheme. If a test passes in one CI run but fails in another run for the same commit and scheme, both runs are marked as flaky.
+Even without test retries, Tuist can detect flaky tests by comparing results across different CI runs on the same commit, scheme, and reported destination (device name, platform, and OS version). If a test passes in one matching CI run but fails in another, the failing execution is marked as flaky. This works regardless of which result arrives first.
 
-The scheme is part of the comparison key because the same test can behave deterministically differently across schemes — for example, a snapshot test that's only valid against a specific simulator destination, or a test target that's compiled with different flags. Two runs of the same commit on different schemes are treated as separate execution variants and won't flag each other as flaky.
+The same test can behave consistently differently across schemes or destinations. For example, passing on iOS 26 and failing on iOS 27 does not establish flakiness. Results from different schemes, devices, platforms, or OS versions do not flag each other as flaky.
+
+Results without an attributable destination are compared with other unattributed results, separately from results with a known destination. This includes reports with missing or incomplete destination metadata and reports containing multiple distinct destinations, because individual test outcomes cannot yet be attributed to a destination. Differences between environments in this group can still produce false flaky classifications. Retry-based detection still applies. Existing historical flaky classifications are unchanged.
 
 This is particularly useful for catching flaky tests that don't fail consistently enough to be caught by retries, but still cause intermittent CI failures.
 
@@ -100,6 +101,47 @@ xcodebuild test \
 
 This is the safe default outside `tuist xcodebuild test`: failure masking for muted tests only happens when you go through that command, so skipping both modes avoids spurious CI failures. If you need finer control, go through `tuist xcodebuild test` instead.
 
+## Stress-testing new tests {#stress-testing-new-tests}
+
+The stress gate reruns the test cases your branch adds, several times each in a fresh process, and reports the ones that turn out flaky. You see a new flaky test on the pull request that introduced it, not weeks later.
+
+A test case counts as new when it hasn't run in CI in the last 90 days on the project's default branch, or on a commit that has since landed on it. With a merge queue, a test case the queue ran is known once the queue's commit lands, and stays new if the queue drops it. Commits are matched through the <.localized_link href="/guides/features/test-insights/xcode#git-history">Git history</.localized_link> Tuist collects on CI.
+
+### Enabling it
+
+The gate is off by default. Set a mode:
+
+- **`report`**: warns about each flaky test case. The run still exits on its own result.
+- **`enforce`**: a flaky test case fails the run, with the same exit code as a failed test.
+
+Start with `report` for a couple of weeks to see what `enforce` would have blocked.
+
+Pass it ahead of the passthrough arguments, or set `TUIST_TEST_STRESS_NEW_TESTS` to vary the mode per CI lane:
+
+```sh
+tuist xcodebuild test --stress-new-tests report -scheme MyScheme
+```
+
+### How many times each test reruns
+
+It depends on how long the test case took on the first pass:
+
+| First pass | Reruns |
+| --- | --- |
+| Up to 5s | 10 |
+| Up to 10s | 5 |
+| Up to 30s | 3 |
+| Up to 5min | 2 |
+| Over 5min | Not rerun |
+
+Reruns reuse what the first pass built. The pass stops at 200 test cases or 10 minutes, whichever comes first, and says which limit it hit.
+
+### When the gate doesn't run
+
+- The first pass already failed. Fix those tests first.
+- The project has no default branch, or nothing has run in CI on it yet.
+- More than 30% of the project's test cases look new. Rerunning that many would take longer than it's worth. Expect this on a project that only just started reporting to Tuist, or after a rename that moves a lot of tests at once.
+
 ## Slack notifications {#slack-notifications}
 
 Get notified instantly when a test becomes flaky by setting up <.localized_link href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</.localized_link> in your Slack integration.
@@ -123,4 +165,4 @@ All of these accept `--json` for scripting.
 
 ### REST API
 
-The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. State changes (mark/unmark flaky, mute, skip) currently happen from the dashboard UI, not via the public REST API.
+The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. To change a test case's state (mark or unmark flaky, mute, skip), send `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` with `is_flaky` or `state`. The same change is available as `tuist test case update` and as the `update_test_case` Model Context Protocol tool.

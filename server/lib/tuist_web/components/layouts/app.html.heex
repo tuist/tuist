@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<html lang={Gettext.get_locale(TuistWeb.Gettext)} class="[scrollbar-gutter:stable]">
+<html
+  lang={TuistWeb.Locale.language_tag(Gettext.get_locale(TuistWeb.Gettext))}
+  class="[scrollbar-gutter:stable]"
+>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -30,10 +33,11 @@
       {assigns[:head_title] || "Tuist"}
     </.live_title>
     <TuistWeb.LayoutComponents.head_favicon_links />
+    <TuistWeb.LayoutComponents.head_canonical_link {assigns} />
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
-    
-<!-- Assets -->
+
+    <!-- Assets -->
     <link phx-track-static rel="stylesheet" href={~p"/app/assets/bundle.css"} />
     <script defer phx-track-static type="module" src={~p"/app/assets/bundle.js"}>
     </script>

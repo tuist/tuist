@@ -267,7 +267,7 @@ defmodule Noora.Dropdown do
     doc: "Optional slot for rendering an icon on the right side of the item"
   )
 
-  attr(:rest, :global, doc: "Additional HTML attributes")
+  attr(:rest, :global, include: ~w(target rel), doc: "Additional HTML attributes")
 
   slot(:left_icon,
     required: false,

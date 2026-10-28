@@ -9,6 +9,7 @@ defmodule TuistWeb.AuthControllerTest do
   alias Tuist.OAuth2.SSOClient
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.UnauthorizedError
   alias Ueberauth.Auth.Info
 
   describe "GET /auth/cli/:device_code" do
@@ -130,6 +131,16 @@ defmodule TuistWeb.AuthControllerTest do
       end
     end
 
+    test "raises unauthorized error when organization_id is not a valid integer", %{conn: conn} do
+      assert_error_sent 401, fn ->
+        get(conn, "/users/auth/okta?organization_id=1%2C%60")
+      end
+
+      assert_error_sent 401, fn ->
+        get(conn, "/users/auth/okta?organization_id=not-a-number")
+      end
+    end
+
     test "raises unauthorized error when organization not configured for Okta", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 
@@ -155,6 +166,9 @@ defmodule TuistWeb.AuthControllerTest do
           creator: existing_user,
           sso_provider: :okta,
           sso_organization_id: "dev-123456",
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate()
         )
@@ -278,6 +292,9 @@ defmodule TuistWeb.AuthControllerTest do
           creator: existing_user,
           sso_provider: :oauth2,
           sso_organization_id: "https://auth.example.com",
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
           oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
@@ -568,7 +585,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert identity.user_id == existing_user.id
     end
 
-    test "preserves new-user onboarding for a legacy custom-provider organization", %{conn: conn} do
+    test "rejects new-user onboarding for a former compatibility-mode organization", %{conn: conn} do
       admin = AccountsFixtures.user_fixture(email: "legacy-admin@customer.example")
       new_user_email = "new-user@consultancy.example"
 
@@ -578,7 +595,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_provider: :oauth2,
           sso_organization_id: "https://login.vendor.example",
           sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true,
+          existing_sso_configuration: true,
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
           oauth2_authorize_url: "https://login.vendor.example/authorize",
@@ -594,7 +611,7 @@ defmodule TuistWeb.AuthControllerTest do
         {:ok, %{"sub" => "legacy-new-user", "email" => new_user_email, "name" => "New User"}}
       end)
 
-      conn =
+      assert_error_sent 401, fn ->
         conn
         |> init_test_session(%{
           sso_organization_id: organization.id,
@@ -602,9 +619,9 @@ defmodule TuistWeb.AuthControllerTest do
           sso_route_provider: :oauth2
         })
         |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+      end
 
-      assert redirected_to(conn) == "/users/choose-username"
-      assert get_session(conn, :pending_oauth_signup)["email"] == new_user_email
+      assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(new_user_email)
     end
 
     test "rejects a new user when automatic enrollment is disabled and no invitation exists", %{conn: conn} do
@@ -738,7 +755,7 @@ defmodule TuistWeb.AuthControllerTest do
                  |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
                end)
 
-      assert body =~ "must verify a login email domain"
+      assert body =~ "verified a login email domain that matches your email"
       assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(invitee_email)
     end
 
@@ -1013,6 +1030,9 @@ defmodule TuistWeb.AuthControllerTest do
           creator: attacker,
           sso_provider: :oauth2,
           sso_organization_id: "https://idp-b.example.com",
+          sso_login_domain: "customer-b.example",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
           oauth2_authorize_url: "https://idp-b.example.com/oauth2/authorize",
@@ -1034,7 +1054,7 @@ defmodule TuistWeb.AuthControllerTest do
       # for `(:oauth2, "shared-sub", "https://idp-b.example.com")` returns
       # :not_found — so we fall through to the email-based path and link
       # the attacker to THEIR OWN existing user (which they're allowed to,
-      # since they're a member of the attacker org).
+      # since their email is on the attacker org's verified domain).
       conn =
         conn
         |> init_test_session(%{
@@ -1096,6 +1116,308 @@ defmodule TuistWeb.AuthControllerTest do
         |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
       end
     end
+  end
+
+  describe "linking an existing account through a custom provider" do
+    test "keeps linked members signing in after compatibility mode is retired", %{conn: conn} do
+      member = AccountsFixtures.user_fixture(email: "linked@customer.example")
+
+      organization =
+        custom_provider_organization(
+          creator: member,
+          existing_sso_configuration: true,
+          sso_automatic_enrollment: true
+        )
+
+      organization = organization |> Ecto.Changeset.change(sso_enforced: true) |> Tuist.Repo.update!()
+
+      Tuist.Accounts.link_oauth_identity_to_user(member, %{
+        provider: :oauth2,
+        id_in_provider: "linked-member",
+        provider_organization_id: organization.sso_organization_id
+      })
+
+      stub_sso_userinfo("linked-member", member.email)
+
+      conn = sso_callback(conn, organization)
+      assert get_session(conn, :user_token)
+      assert get_session(conn, :auth_method) == :oauth2
+      assert Tuist.Accounts.belongs_to_organization?(member, organization)
+      assert Tuist.Accounts.sso_enforced_for_email?(member.email)
+      refute Tuist.Accounts.sso_enforced_for_email?("new@customer.example")
+    end
+
+    test "does not link a member by email while the login domain is unverified", %{conn: conn} do
+      member = AccountsFixtures.user_fixture(email: "member@customer.example")
+      organization = custom_provider_organization(creator: member)
+      stub_sso_userinfo("unverified-member", member.email)
+
+      conn = sso_callback(conn, organization)
+
+      assert redirected_to(conn) == "/users/log_in"
+      assert get_session(conn, :user_return_to) == "/users/auth/oauth2?organization_id=#{organization.id}"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Log in to your Tuist account"
+      refute get_session(conn, :user_token)
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "unverified-member", "https://login.vendor.example")
+    end
+
+    test "does not link a member whose email is outside the verified domain", %{conn: conn} do
+      member = AccountsFixtures.user_fixture(email: "contractor@elsewhere.example")
+
+      organization =
+        custom_provider_organization(
+          creator: member,
+          sso_login_domain: "customer.example",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z]
+        )
+
+      stub_sso_userinfo("off-domain-member", member.email)
+
+      conn = sso_callback(conn, organization)
+
+      assert redirected_to(conn) == "/users/log_in"
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "off-domain-member", "https://login.vendor.example")
+    end
+
+    test "links an account the organization's SCIM provisioning created while the domain is unverified", %{
+      conn: conn
+    } do
+      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
+      organization = custom_provider_organization(creator: owner)
+      {:ok, provisioned} = Tuist.SCIM.provision_user(organization, %{user_name: "provisioned@customer.example"})
+      stub_sso_userinfo("provisioned-identity", provisioned.email)
+
+      conn = sso_callback(conn, organization)
+
+      assert redirected_to(conn) =~ "/#{provisioned.account.name}"
+
+      assert {:ok, identity} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "provisioned-identity", "https://login.vendor.example")
+
+      assert identity.user_id == provisioned.id
+    end
+
+    test "does not link an account another organization's SCIM provisioning created", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
+      organization = custom_provider_organization(creator: owner)
+
+      other_organization =
+        AccountsFixtures.organization_fixture(creator: AccountsFixtures.user_fixture(email: "other-owner@mail.example"))
+
+      {:ok, provisioned} = Tuist.SCIM.provision_user(other_organization, %{user_name: "shared@customer.example"})
+      :ok = Tuist.Accounts.add_user_to_organization(provisioned, organization, role: :user)
+      stub_sso_userinfo("foreign-identity", provisioned.email)
+
+      conn = sso_callback(conn, organization)
+
+      assert redirected_to(conn) == "/users/log_in"
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "foreign-identity", "https://login.vendor.example")
+    end
+
+    test "requires existing members to sign in before linking an unverified provider", %{conn: conn} do
+      member = AccountsFixtures.user_fixture(email: "legacy-member@customer.example")
+
+      organization =
+        custom_provider_organization(creator: member, existing_sso_configuration: true)
+
+      stub_sso_userinfo("legacy-member", member.email)
+
+      conn = sso_callback(conn, organization)
+
+      assert redirected_to(conn) == "/users/log_in"
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "legacy-member", "https://login.vendor.example")
+    end
+
+    test "asks a signed-in member to confirm linking an identity with a different email", %{conn: conn} do
+      member = AccountsFixtures.user_fixture(email: "personal@mail.example")
+      organization = custom_provider_organization(creator: member, existing_sso_configuration: true)
+      stub_sso_userinfo("work-identity", "person@customer.example")
+
+      conn =
+        sso_callback(conn, organization, %{
+          user_token: Tuist.Accounts.generate_user_session_token(member),
+          oauth_return_to: "/#{member.account.name}/projects"
+        })
+
+      assert redirected_to(conn) == "/auth/sso/link"
+
+      assert %{
+               "user_id" => user_id,
+               "organization_id" => organization_id,
+               "provider" => "oauth2",
+               "uid" => "work-identity",
+               "provider_organization_id" => "https://login.vendor.example",
+               "email" => "person@customer.example",
+               "return_to" => return_to
+             } = get_session(conn, :pending_sso_link)
+
+      assert user_id == member.id
+      assert organization_id == organization.id
+      assert return_to == "/#{member.account.name}/projects"
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "work-identity", "https://login.vendor.example")
+    end
+
+    test "links a signed-in member rather than starting a signup that cannot finish while signed in", %{
+      conn: conn
+    } do
+      member = AccountsFixtures.user_fixture(email: "personal@mail.example")
+
+      organization =
+        custom_provider_organization(
+          creator: member,
+          sso_login_domain: "customer.example",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          sso_automatic_enrollment: true
+        )
+
+      stub_sso_userinfo("work-identity", "person@customer.example")
+
+      conn =
+        sso_callback(conn, organization, %{user_token: Tuist.Accounts.generate_user_session_token(member)})
+
+      assert redirected_to(conn) == "/auth/sso/link"
+      assert get_session(conn, :pending_sso_link)["user_id"] == member.id
+      refute get_session(conn, :pending_oauth_signup)
+    end
+
+    test "does not offer a signed-in user who was only invited a link", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
+      invitee = AccountsFixtures.user_fixture(email: "invitee@mail.example")
+      organization = custom_provider_organization(creator: owner)
+
+      {:ok, _invitation} =
+        Tuist.Accounts.invite_user_to_organization(
+          invitee.email,
+          %{inviter: owner, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      stub_sso_userinfo("provider-chosen-identity", "someone@provider.example")
+
+      assert_error_sent 401, fn ->
+        sso_callback(conn, organization, %{user_token: Tuist.Accounts.generate_user_session_token(invitee)})
+      end
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "provider-chosen-identity", "https://login.vendor.example")
+    end
+
+    test "does not offer a signed-in user who does not belong to the organization a link", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
+      outsider = AccountsFixtures.user_fixture(email: "outsider@mail.example")
+      organization = custom_provider_organization(creator: owner)
+      stub_sso_userinfo("outsider-identity", outsider.email)
+
+      assert_error_sent 401, fn ->
+        sso_callback(conn, organization, %{user_token: Tuist.Accounts.generate_user_session_token(outsider)})
+      end
+    end
+  end
+
+  describe "instance-trusted SSO callbacks" do
+    setup do
+      organization = custom_provider_organization(sso_login_domain: "example.com")
+
+      other =
+        custom_provider_organization(sso_login_domain: "example.com", sso_organization_id: "https://other.example.com")
+
+      stub(Tuist.Environment, :sso_require_login_domain_verification?, fn -> false end)
+      %{organization: organization, other: other}
+    end
+
+    test "links an existing account through an instance-trusted provider", %{conn: conn, organization: organization} do
+      user = AccountsFixtures.user_fixture(email: "person@example.com")
+      stub_sso_userinfo("operator-sub", user.email)
+      conn = sso_callback(conn, organization)
+      assert get_session(conn, :user_token)
+
+      assert {:ok, identity} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "operator-sub", organization.sso_organization_id)
+
+      assert identity.user_id == user.id
+    end
+
+    test "permits new-user signup when automatic enrollment is enabled", %{
+      conn: conn,
+      organization: organization
+    } do
+      {:ok, organization} =
+        Tuist.Accounts.update_sso_configuration(organization.id, :oauth2, %{sso_automatic_enrollment: true})
+
+      stub_sso_userinfo("new-operator-sub", "new-person@example.com")
+      conn = sso_callback(conn, organization)
+      assert redirected_to(conn) == "/users/choose-username"
+      assert get_session(conn, :pending_oauth_signup)
+    end
+
+    test "instance trust authorizes another organization's provider for its saved domain", %{
+      conn: conn,
+      other: other
+    } do
+      user = AccountsFixtures.user_fixture(email: "person@example.com")
+      stub_sso_userinfo("other-sub", user.email)
+      assert get_session(sso_callback(conn, other), :user_token)
+      assert {:ok, identity} = Tuist.Accounts.get_oauth2_identity(:oauth2, "other-sub", other.sso_organization_id)
+      assert identity.user_id == user.id
+    end
+
+    test "does not link email addresses outside the saved domain", %{conn: conn, organization: organization} do
+      user = AccountsFixtures.user_fixture(email: "victim@outside.example")
+      stub_sso_userinfo("outside-sub", user.email)
+      assert_raise UnauthorizedError, fn -> sso_callback(conn, organization) end
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "outside-sub", organization.sso_organization_id)
+    end
+  end
+
+  defp custom_provider_organization(attrs) do
+    AccountsFixtures.organization_fixture(
+      Keyword.merge(
+        [
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        ],
+        attrs
+      )
+    )
+  end
+
+  defp stub_sso_userinfo(sub, email) do
+    expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+      {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+    end)
+
+    expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+      {:ok, %{"sub" => sub, "email" => email, "name" => "Person"}}
+    end)
+  end
+
+  defp sso_callback(conn, organization, session \\ %{}) do
+    conn
+    |> init_test_session(
+      Map.merge(
+        %{sso_organization_id: organization.id, sso_state: "expected-state", sso_route_provider: :oauth2},
+        session
+      )
+    )
+    |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
   end
 
   describe "callback/2 with OAuth" do

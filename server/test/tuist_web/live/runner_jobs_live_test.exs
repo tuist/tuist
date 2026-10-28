@@ -7,6 +7,8 @@ defmodule TuistWeb.RunnerJobsLiveTest do
 
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
+  alias Tuist.Runners.WorkflowJobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -31,6 +33,8 @@ defmodule TuistWeb.RunnerJobsLiveTest do
     conn: conn,
     account: account
   } do
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/jobs")
 
     assert html =~ "Jobs · #{account.name} · Tuist"
@@ -51,6 +55,8 @@ defmodule TuistWeb.RunnerJobsLiveTest do
         head_branch: "main",
         head_sha: "abc1234def"
       })
+
+    flush_outbox!()
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/jobs")
 
@@ -92,6 +98,8 @@ defmodule TuistWeb.RunnerJobsLiveTest do
         head_sha: "6666666"
       })
 
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/jobs?repository=tuist/cli")
 
     assert html =~ "cli-job"
@@ -126,7 +134,9 @@ defmodule TuistWeb.RunnerJobsLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("fleet-a", [])
-    :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-1", DateTime.utc_now())
+
+    flush_outbox!()
 
     {:ok, _lv, html} =
       live(
@@ -142,6 +152,8 @@ defmodule TuistWeb.RunnerJobsLiveTest do
     conn: conn,
     account: account
   } do
+    flush_outbox!()
+
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/jobs")
 
     # Initial state — no queued jobs visible.
@@ -168,8 +180,12 @@ defmodule TuistWeb.RunnerJobsLiveTest do
 
     assert_receive {:runner_jobs_status_changed, %{status: "queued"}}, 1_000
 
-    # The LV re-runs `assign_jobs` from the same broadcast, so the new
-    # row appears in the table without any client-side reload.
+    # The broadcast-triggered refetch can race the outbox flush (the
+    # CH replica lags by up to a flusher tick in production); flush and
+    # re-broadcast so the LV refetches against a caught-up replica.
+    flush_outbox!()
+    Tuist.PubSub.broadcast(%{status: "queued"}, Jobs.topic(account.id), :runner_jobs_status_changed)
+
     assert render(lv) =~ "broadcast-job"
   end
 
@@ -202,6 +218,8 @@ defmodule TuistWeb.RunnerJobsLiveTest do
         head_sha: "def"
       })
 
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/jobs?search=Docker")
 
     assert html =~ "Docker build"
@@ -229,6 +247,8 @@ defmodule TuistWeb.RunnerJobsLiveTest do
           })
       end
     )
+
+    flush_outbox!()
 
     {:ok, _lv, html} =
       live(conn, ~p"/#{account.name}/runners/jobs?sort_by=job&sort_order=asc")
@@ -265,7 +285,11 @@ defmodule TuistWeb.RunnerJobsLiveTest do
         })
     end)
 
+    flush_outbox!()
+
     {:ok, _lv, page_1_html} = live(conn, ~p"/#{account.name}/runners/jobs")
+    flush_outbox!()
+
     {:ok, _lv, page_2_html} = live(conn, ~p"/#{account.name}/runners/jobs?page=2")
 
     assert page_1_html =~ "Next"
@@ -293,9 +317,15 @@ defmodule TuistWeb.RunnerJobsLiveTest do
         head_sha: "deadbef"
       })
 
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/jobs")
 
     refute html =~ "should-be-hidden"
     refute html =~ "evil/corp"
+  end
+
+  defp flush_outbox! do
+    :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
   end
 end

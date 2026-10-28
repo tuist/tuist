@@ -54,5 +54,14 @@ defmodule TuistCommon.AWS.Client do
       {:error, reason} ->
         {:error, %{reason: reason}}
     end
+  rescue
+    # Finch raises instead of returning an error when no pooled connection
+    # frees up within `pool_timeout`.
+    error in RuntimeError ->
+      if String.starts_with?(error.message, "Finch was unable to provide a connection") do
+        {:error, %{reason: :pool_timeout}}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 end

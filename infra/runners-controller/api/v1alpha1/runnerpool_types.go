@@ -22,6 +22,19 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // side. Runner availability is gated server-side by the `:runners`
 // feature flag.
 type RunnerPoolSpec struct {
+	// Linux cache volumes require a dedicated host filesystem and a node-local agent.
+	// Empty disables the feature. Never expose CacheVolumeRoot without SubPathExpr.
+	// +optional
+	CacheVolumeRoot string `json:"cacheVolumeRoot,omitempty"`
+	// +optional
+	CacheVolumeURL string `json:"cacheVolumeURL,omitempty"`
+	// DockerCache moves each job's dockerd onto its repository's Docker cache
+	// volume. It needs cache volumes. The dind sidecar then runs a supervisor
+	// that owns dockerd and the mount socket, so turning it on replaces the
+	// pool's Pods.
+	// +optional
+	DockerCache bool `json:"dockerCache,omitempty"`
+
 	// Labels are stamped on the Pods + SAs the controller creates;
 	// not the GitHub Actions runner labels (those come from
 	// `DispatchLabel` at JIT-mint time).
@@ -30,9 +43,12 @@ type RunnerPoolSpec struct {
 
 	// Replicas is the count of Pods the controller maintains. The
 	// chart's `runnersFleet.pools[].replicas` flows straight into
-	// this field. Across all pools in a namespace, the sum should
-	// fit within the host fleet's capacity (one VM per host at v1;
-	// Apple's SLA permits up to two).
+	// this field. Across all pools in a namespace, the sum should fit
+	// within the host fleet's guest capacity — which is NOT the host
+	// count on a mixed-SKU fleet: a Mac mini admits
+	// `allocatable memory / podMemoryMB` guests, so one M2-L
+	// contributes one slot and one M4-XL contributes two. Apple's SLA
+	// caps any single host at two.
 	// +kubebuilder:default=0
 	Replicas int32 `json:"replicas,omitempty"`
 
@@ -44,6 +60,14 @@ type RunnerPoolSpec struct {
 	// can share a node fleet (bin-pack different images on the
 	// same Mac mini hosts) or split (dedicated capacity per image).
 	FleetSelector string `json:"fleetSelector"`
+
+	// Site, when set, pins the pool's Pods to the rack site's Nodes
+	// (`node.cluster.x-k8s.io/rack-site=<site>`) within its fleet. A rack
+	// fleet spans every site whose runners are on, so a pool that must run
+	// at one site, such as a smoke pool testing that rack, names it. Empty
+	// places the pool anywhere in its fleet.
+	// +optional
+	Site string `json:"site,omitempty"`
 
 	// DispatchLabel is the GitHub Actions runner label customers
 	// put in `runs-on` to target this fleet. The webhook handler
@@ -97,11 +121,27 @@ type RunnerPoolSpec struct {
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 
+	// NestedVirtualization gives the runner container a usable /dev/kvm,
+	// so a job can run hardware-accelerated guests of its own, such as
+	// x86_64 Android emulators. Linux `kata-qemu` pools only. The Pod
+	// boots the KVM-enabled guest kernel the CAPI provider installs on
+	// every Kata host, lands only on hosts labelled
+	// `tuist.dev/kata-kvm=true` (the provider's proof that the kernel is
+	// installed and the host runs KVM with nesting on), and requests one
+	// `devices.tuist.dev/kvm` from the kvm-device-plugin DaemonSet, which
+	// is what injects the device node into the unprivileged runner
+	// container. The microVM stays the isolation boundary; what the pool
+	// adds is the host's nested-virtualization code path, reachable from
+	// the guest kernel.
+	// +optional
+	NestedVirtualization bool `json:"nestedVirtualization,omitempty"`
+
 	// Provisioning bounds how many Linux Kata sandboxes may be starting at
 	// once across pools that share this pool's FleetSelector, and how long a
-	// bound Pod may take to start its dispatch poller. The controller uses the
-	// lowest maxConcurrentPerFleetSelector configured by sibling pools so a
-	// mismatched pool cannot weaken the shared safety boundary.
+	// bound Pod may take to start its dispatch poller. The bound is
+	// maxConcurrentPerNode times the fleet's healthy node count, using the
+	// lowest per-node value configured by sibling pools so a mismatched pool
+	// cannot weaken the shared safety boundary.
 	//
 	// Linux only. macOS runner Pods use the Tart host lifecycle and do not
 	// participate in this admission gate.
@@ -214,25 +254,37 @@ type RunnerPoolAutoscaling struct {
 	// via ScaleDownCooldownSecondsOrDefault.
 	// +optional
 	ScaleDownCooldownSeconds *int32 `json:"scaleDownCooldownSeconds,omitempty"`
+
+	// HoldRecentPeak keeps the pool sized to the server's 95th percentile
+	// of concurrent runners over the last hour after load falls. False
+	// sizes it to current load plus minWarmPoolFloor, for pools whose jobs
+	// arrive in one-off bursts the last hour does not predict.
+	//
+	// Pointer so a deliberate false survives serialization; nil means
+	// unset and defaults to true. Read via HoldRecentPeakOrDefault.
+	// +optional
+	HoldRecentPeak *bool `json:"holdRecentPeak,omitempty"`
 }
 
 const (
-	defaultMaxConcurrentProvisioningPerFleetSelector int32 = 4
-	defaultProvisioningStartTimeoutSeconds           int32 = 300
+	defaultMaxConcurrentProvisioningPerNode int32 = 6
+	defaultProvisioningStartTimeoutSeconds  int32 = 300
 )
 
 // RunnerPoolProvisioning carries the Linux Kata sandbox admission knobs.
 // Pointer fields preserve a deliberate zero for startTimeoutSeconds while
 // allowing the custom-resource defaults to distinguish an omitted value.
 type RunnerPoolProvisioning struct {
-	// MaxConcurrentPerFleetSelector is the maximum number of Linux runner
-	// Pods that may be waiting for their dispatch poller to start across all
-	// sibling pools sharing the same operating system and FleetSelector. The lowest sibling value is
-	// authoritative for the shared fleet. Default 4.
-	// +kubebuilder:default=4
+	// MaxConcurrentPerNode is the maximum number of Linux runner Pods that
+	// may be waiting for their dispatch poller to start per healthy fleet
+	// node, across all sibling pools sharing the same operating system and
+	// FleetSelector. The controller multiplies it by the node count to get
+	// the shared fleet ceiling, and uses the lowest sibling value so one
+	// mismatched pool cannot weaken the fleet boundary. Default 6.
+	// +kubebuilder:default=6
 	// +kubebuilder:validation:Minimum=1
 	// +optional
-	MaxConcurrentPerFleetSelector *int32 `json:"maxConcurrentPerFleetSelector,omitempty"`
+	MaxConcurrentPerNode *int32 `json:"maxConcurrentPerNode,omitempty"`
 
 	// StartTimeoutSeconds bounds how long a Linux runner Pod that has been
 	// assigned to a node may wait for its dispatch poller to start. Timed-out
@@ -244,14 +296,14 @@ type RunnerPoolProvisioning struct {
 	StartTimeoutSeconds *int32 `json:"startTimeoutSeconds,omitempty"`
 }
 
-func (p *RunnerPoolProvisioning) MaxConcurrentPerFleetSelectorOrDefault() int32 {
+func (p *RunnerPoolProvisioning) MaxConcurrentPerNodeOrDefault() int32 {
 	// The custom-resource schema rejects 0. Keep the non-positive fallback
 	// defensive for typed test clients and clusters whose schema has not yet
 	// been upgraded; unlike StartTimeoutSeconds, zero never disables this cap.
-	if p == nil || p.MaxConcurrentPerFleetSelector == nil || *p.MaxConcurrentPerFleetSelector <= 0 {
-		return defaultMaxConcurrentProvisioningPerFleetSelector
+	if p == nil || p.MaxConcurrentPerNode == nil || *p.MaxConcurrentPerNode <= 0 {
+		return defaultMaxConcurrentProvisioningPerNode
 	}
-	return *p.MaxConcurrentPerFleetSelector
+	return *p.MaxConcurrentPerNode
 }
 
 func (p *RunnerPoolProvisioning) StartTimeoutSecondsOrDefault() int32 {
@@ -280,6 +332,15 @@ func (a *RunnerPoolAutoscaling) ScaleDownCooldownSecondsOrDefault() int32 {
 		return defaultScaleDownCooldownSeconds
 	}
 	return *a.ScaleDownCooldownSeconds
+}
+
+// HoldRecentPeakOrDefault returns the configured value, or the CRD
+// default (true) when unset.
+func (a *RunnerPoolAutoscaling) HoldRecentPeakOrDefault() bool {
+	if a == nil || a.HoldRecentPeak == nil {
+		return true
+	}
+	return *a.HoldRecentPeak
 }
 
 // RunnerPoolRollout carries the Pod-template rollout throttle knob.
@@ -324,6 +385,13 @@ type RunnerPoolStatus struct {
 	// +optional
 	ObservedImage string `json:"observedImage,omitempty"`
 
+	// PreviousImage is the `spec.image` the pool ran before
+	// ObservedImage. tart-kubelet reads it to pull the current image on
+	// hosts that hold the previous one before its GC reaps that golden,
+	// so a release costs those hosts only what changed.
+	// +optional
+	PreviousImage string `json:"previousImage,omitempty"`
+
 	// ImageRolledAt is when the controller most recently observed
 	// `spec.image` changing. The server-side dispatch endpoint reads
 	// this to stagger stale-Pod drains across a rolling window —
@@ -334,6 +402,23 @@ type RunnerPoolStatus struct {
 	// replicas and survives a restart mid-rollout.
 	// +optional
 	ImageRolledAt metav1.Time `json:"imageRolledAt,omitempty"`
+
+	// UnplaceableSince is when this pool most recently began holding
+	// demand the scheduler could not place, and has held continuously
+	// since. Nil means the pool is placing everything it wants.
+	//
+	// It lives on the pool rather than being derived from Pod ages
+	// because the reaper deletes an unplaced Pod at
+	// `provisioning.startTimeoutSeconds` (300s by default) and the pool
+	// immediately recreates it. A starvation clock read from
+	// `pod.CreationTimestamp` therefore restarts every five minutes and
+	// can never measure a starvation longer than one reap cycle — which
+	// is exactly the window a node reservation needs to converge. The
+	// reservation state machine reads this to decide both when a pool
+	// has waited long enough to be worth draining a host for, and which
+	// of several starved pools on a fleet goes first.
+	// +optional
+	UnplaceableSince *metav1.Time `json:"unplaceableSince,omitempty"`
 }
 
 // +kubebuilder:object:root=true

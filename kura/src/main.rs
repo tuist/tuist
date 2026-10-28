@@ -10,11 +10,14 @@ union JemallocConfigPointer {
 
 // Keep allocator page reclamation independent of subsequent allocation
 // traffic so a burst can return memory while the service is otherwise idle.
-// tikv-jemallocator uses a prefixed jemalloc build by default and documents
-// this exact symbol for setting its boot-time configuration.
+// jemalloc reads its boot-time configuration from this documented symbol. On
+// linux-gnu the build is unprefixed (see Cargo.toml), so the symbol is the
+// plain `malloc_conf`; everywhere else tikv-jemalloc-sys keeps the `_rjem_`
+// prefix.
 #[cfg(target_os = "linux")]
 #[used]
-#[unsafe(export_name = "_rjem_malloc_conf")]
+#[cfg_attr(target_env = "gnu", unsafe(export_name = "malloc_conf"))]
+#[cfg_attr(not(target_env = "gnu"), unsafe(export_name = "_rjem_malloc_conf"))]
 static JEMALLOC_MALLOC_CONF: Option<&'static std::ffi::c_char> = Some(unsafe {
     JemallocConfigPointer {
         bytes: &b"background_thread:true,max_background_threads:1,dirty_decay_ms:4000,muzzy_decay_ms:4000\0"[0],
@@ -23,9 +26,18 @@ static JEMALLOC_MALLOC_CONF: Option<&'static std::ffi::c_char> = Some(unsafe {
 });
 
 fn main() {
+    if matches!(std::env::args().nth(1).as_deref(), Some("--version" | "-V")) {
+        println!("kura {}", kura::VERSION);
+        return;
+    }
+
     #[cfg(target_os = "linux")]
     if let Err(error) = verify_jemalloc_configuration() {
-        eprintln!("invalid jemalloc configuration: {error}");
+        report_fatal(
+            "kura.allocator.configuration_invalid",
+            "invalid allocator configuration",
+            &error,
+        );
         std::process::exit(1);
     }
 
@@ -37,14 +49,18 @@ fn main() {
     {
         Ok(runtime) => runtime,
         Err(error) => {
-            eprintln!("failed to build tokio runtime: {error}");
+            report_fatal(
+                "kura.runtime.initialization_failed",
+                "failed to initialize asynchronous runtime",
+                &error,
+            );
             std::process::exit(1);
         }
     };
 
     runtime.block_on(async {
         if let Err(error) = kura::run().await {
-            eprintln!("{error}");
+            report_fatal("kura.runtime.failed", "Kura stopped with an error", &error);
             std::process::exit(1);
         }
     });
@@ -82,7 +98,34 @@ fn verify_jemalloc_configuration() -> Result<(), String> {
         ));
     }
 
+    // The `malloc` that shared libraries (libstdc++ for rocksdb's C++) resolve
+    // at load time must be jemalloc's, otherwise their allocations land in
+    // glibc arenas that neither the decay tuning above nor the memory-pressure
+    // trims can reclaim. RTLD_DEFAULT follows the same lookup order as their
+    // PLT resolution, so it sees the interposition (or its absence) as they do.
+    #[cfg(target_env = "gnu")]
+    {
+        let resolved = unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"malloc".as_ptr()) };
+        if resolved as *const () != tikv_jemalloc_sys::malloc as *const () {
+            return Err("libc malloc is not interposed by jemalloc".into());
+        }
+    }
+
     Ok(())
+}
+
+fn report_fatal(event_name: &str, message: &str, error: &dyn std::fmt::Display) {
+    eprintln!(
+        "{}",
+        serde_json::json!({
+            "level": "ERROR",
+            "event.name": event_name,
+            "message": message,
+            "error": error.to_string(),
+            "service.name": "kura",
+            "service.version": kura::VERSION,
+        })
+    );
 }
 
 fn resolve_worker_threads() -> usize {

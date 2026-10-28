@@ -11,6 +11,7 @@ defmodule TuistWeb.API.Schemas.Builds.Build do
     type: :object,
     description: "Represents a single build run.",
     properties: %{
+      actor: TuistWeb.API.Schemas.ReportActor,
       type: %Schema{type: :string, enum: ["build"], description: "The type of the run, which is 'build' in this case"},
       id: %Schema{type: :string, description: "The unique identifier of the build run"},
       status: %Schema{

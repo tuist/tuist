@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCore
+import TuistSupport
 import XcodeGraph
 
 /// Configures foreign build targets with script build phases and wires up linking dependencies.
@@ -88,7 +89,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             case let .file(path):
                 pathStrings.append(path.pathString)
             case let .folder(path):
-                let filePathStrings = try await fileSystem.glob(directory: path, include: ["**/*"])
+                let filePathStrings = try await fileSystem.manifestGlob(directory: path, include: ["**/*"])
                     .collect()
                     .concurrentFilter {
                         try await fileSystem.exists($0, isDirectory: false)

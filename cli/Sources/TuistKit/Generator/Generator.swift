@@ -78,8 +78,10 @@ public class Generator: Generating {
         )
         let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
 
-        // Write
-        try await writer.write(workspace: workspaceDescriptor)
+        // Write. `projectFormat` opts into Xcode 27.2's experimental JSON5 format when set to
+        // `.xcproj`; the default `.pbxproj` keeps the classic OpenStep plist output.
+        let projectFormat: XcodeProjectFormat = (options?.projectFormat ?? .pbxproj) == .xcproj ? .xcproj : .pbxproj
+        try await writer.write(workspace: workspaceDescriptor, projectFormat: projectFormat)
 
         // Mapper side effects
         try await sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)

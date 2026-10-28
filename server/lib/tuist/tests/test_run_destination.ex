@@ -2,9 +2,11 @@ defmodule Tuist.Tests.TestRunDestination do
   @moduledoc """
   A run destination records one device/simulator a test run executed on
   (for example `iPad (A16)` on `iOS Simulator 26.4`). Stored in ClickHouse
-  and associated to a `Tuist.Tests.Test` via `test_run_id`.
+  and associated to a `Tuist.Tests.Test` via `test_run_id`. Case runs from an
+  attributable report reference this row through `test_run_destination_id`.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 
@@ -16,8 +18,10 @@ defmodule Tuist.Tests.TestRunDestination do
     field :os_version, Ch, type: "String"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
-    belongs_to :test_run, Tuist.Tests.Test, foreign_key: :test_run_id, define_field: false
+    belongs_to :test_run, {"test_run_summaries", Tuist.Tests.Test}, foreign_key: :test_run_id, define_field: false
   end
+
+  def query, do: Ecto.Queryable.to_query({"reported_test_run_destinations", __MODULE__})
 
   def create_changeset(destination, attrs) do
     destination

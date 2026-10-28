@@ -8,3 +8,4 @@ Minimal Kubernetes API helpers used by Tuist server workloads.
 - Keep kubeconfig-backed helpers scoped to explicit local-controller/dev use. Production code for the server's own cluster should use the in-cluster client path.
 - Keep helpers narrowly scoped to the resources the server owns. Product workload reconciliation belongs in dedicated controllers.
 - Return tagged tuples for API failures so callers can decide whether to retry, fail, or ignore `:not_found`.
+- Stable-intent JSON patches carry an explicit timeout with transport retries disabled, matching the bounded reads used by activation polling.

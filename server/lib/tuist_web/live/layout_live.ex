@@ -9,11 +9,35 @@ defmodule TuistWeb.LayoutLive do
   import TuistWeb.AppLayoutComponents
 
   alias Tuist.Accounts
+  alias Tuist.AppBuilds
   alias Tuist.Authorization
   alias Tuist.CommandEvents
   alias Tuist.GitHub.Releases
+  alias Tuist.Observability
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
+
+  def on_mount(:observability, _params, _session, socket) do
+    Observability.clear()
+    socket = put_observability_context(socket)
+
+    socket =
+      socket
+      |> attach_hook(:observability, :handle_event, &observability_callback/3)
+      |> attach_hook(:observability, :handle_async, &observability_callback/3)
+      |> attach_hook(:observability, :handle_info, &observability_callback/2)
+
+    socket =
+      if socket.router do
+        attach_hook(socket, :observability, :handle_params, &observability_callback/3)
+      else
+        socket
+      end
+
+    {:cont, socket}
+  end
 
   def on_mount(
         :optional_project,
@@ -65,6 +89,7 @@ defmodule TuistWeb.LayoutLive do
       end
 
     %{account: selected_account} = selected_project
+    Observability.set_context(current_user, %{selected_account: selected_account, selected_project: selected_project})
 
     # Dropdown contents only matter once the user can click them, so defer
     # the queries until the LiveView is connected.
@@ -137,7 +162,17 @@ defmodule TuistWeb.LayoutLive do
      |> assign_latest_app_release()
      |> assign(:selected_account, selected_account)
      |> assign(:selected_project, selected_project)
+     |> assign(
+       :previews_available,
+       Project.supports_previews?(selected_project) or AppBuilds.has_previews?(selected_project)
+     )
      |> assign(:current_user, current_user)
+     |> assign(
+       OpenGraph.project_image_assigns(selected_project,
+         title: selected_project.name,
+         subtitle: dgettext("dashboard_projects", "Project dashboard")
+       )
+     )
      |> assign(
        :selected_projects,
        selected_projects
@@ -150,22 +185,25 @@ defmodule TuistWeb.LayoutLive do
 
     # Deferred until connected — see :project.
     current_user_accounts =
-      if connected?(socket) do
+      if connected?(socket) and not is_nil(current_user) do
         get_user_organization_accounts(current_user) ++ [current_user.account]
       else
         []
       end
 
     selected_account =
-      case Map.get(params, "account_handle") do
-        handle when is_binary(handle) -> Accounts.get_account_by_handle(handle)
-        _ -> current_user.account
+      case {Map.get(params, "account_handle"), current_user} do
+        {handle, _} when is_binary(handle) -> Accounts.get_account_by_handle(handle)
+        {_, nil} -> nil
+        {_, user} -> user.account
       end
 
     if is_nil(selected_account) do
       raise NotFoundError,
             dgettext("dashboard", "The account you are looking for doesn't exist or has been moved.")
     end
+
+    Observability.set_context(current_user, %{selected_account: selected_account})
 
     {:cont,
      socket
@@ -215,6 +253,15 @@ defmodule TuistWeb.LayoutLive do
      |> assign(:current_user, current_user)}
   end
 
+  def observability_callback(_arg, _arg2, socket), do: {:cont, put_observability_context(socket)}
+  def observability_callback(_arg, socket), do: {:cont, put_observability_context(socket)}
+
+  defp put_observability_context(socket) do
+    subject = socket.assigns[:current_user] || socket.assigns[:current_project] || socket.assigns[:current_subject]
+    Observability.set_context(subject, socket.assigns)
+    socket
+  end
+
   defp get_user_organization_accounts(user) do
     if is_nil(user) do
       []
@@ -244,7 +291,7 @@ defmodule TuistWeb.LayoutLive do
     # rather than re-querying accounts/organizations/users_roles per project.
     user_belongs_to_account? =
       not is_nil(current_user) and
-        Accounts.owns_account_or_belongs_to_account_organization?(current_user, %{id: account.id})
+        Accounts.owns_account_or_is_member_of_account_organization?(current_user, %{id: account.id})
 
     account
     |> Projects.get_all_project_accounts()
@@ -288,5 +335,8 @@ defmodule TuistWeb.LayoutLive do
 
   defp build_system_badge(:xcode), do: %{label: "Xcode", color: "focus"}
   defp build_system_badge(:gradle), do: %{label: "Gradle", color: "success"}
+  defp build_system_badge(:bazel), do: %{label: "Bazel", color: "warning"}
+  defp build_system_badge(:mix), do: %{label: "Mix", color: "information"}
+  defp build_system_badge(:once), do: %{label: "Once", color: "primary"}
   defp build_system_badge(_), do: nil
 end

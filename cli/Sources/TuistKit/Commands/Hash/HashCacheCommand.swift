@@ -1,9 +1,10 @@
 import ArgumentParser
 import Foundation
 import TuistEnvKey
+import TuistSupport
 
 /// A command to hash an Xcode or generated project.
-public struct HashCacheCommand: AsyncParsableCommand {
+public struct HashCacheCommand: AsyncParsableCommand, ProjectPathProviding {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -20,7 +21,7 @@ public struct HashCacheCommand: AsyncParsableCommand {
         completion: .directory,
         envKey: .hashCachePath
     )
-    var path: String?
+    public var path: String?
 
     @Option(
         name: .shortAndLong,

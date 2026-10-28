@@ -13,6 +13,8 @@ Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so
 
 Each dependency defaults to `embedded` (deployed within the chart). To use an external provider instead, set its `mode` to `external` and configure the connection details under the corresponding section in `values.yaml`.
 
+Embedded object storage uses the [Cool Labs community build of MinIO](https://github.com/coollabsio/minio), pinned to a release and multi-architecture digest. The upstream `quay.io/minio/minio` and `quay.io/minio/mc` images no longer allow anonymous pulls. Both the server and bucket initialization Job use the same image, which includes the `mc` client and shell. Override `objectStorage.embedded.image` and `objectStorage.embedded.mcImage` to use your own builds; keep the server's MinIO entrypoint and the initializer's `/bin/sh`, `mc`, and `sleep` available. This restores image availability; the community build does not provide an ongoing upstream security-support commitment. Managed environments use external object storage and do not run these images.
+
 The Tuist server can use Azure Blob Storage for server-owned artifacts by setting `server.storage.provider: azure_blob` and filling `server.azureBlob.*`. The top-level `objectStorage` dependency remains S3-compatible because optional workloads such as the cache service and registry mirror still use S3-compatible APIs. For Azure-only deployments with those workloads disabled, set `objectStorage.mode: external` and leave the external object-storage endpoint and credentials empty to avoid deploying the embedded MinIO StatefulSet.
 
 External PostgreSQL with an existing Secret:
@@ -51,6 +53,31 @@ server:
     testAttachments: 30
     shardBundles: 14
 ```
+
+## Kura analytics
+
+Managed environments enable `kuraController.analytics.enabled`. The chart
+syncs `CACHE_API_KEY/password` from the same secret store used by the server
+into `kura-shared-secrets` as `KURA_ANALYTICS_SIGNING_KEY`, alongside
+`KURA_ANALYTICS_SERVER_URL` pointing to the server's internal Service in
+absolute form, so a Kura node outside the control plane's region does not
+spend a WAN round trip per search domain resolving it. Both
+values are needed: Kura otherwise accepts Bazel build events while leaving
+analytics delivery disabled. This also enables cache-operation analytics
+and Bazel test-artifact delivery.
+
+The controller rolls Kura pods when the shared Secret changes. After rollout,
+`kura_analytics_queue_capacity` should be positive (the default is 1000).
+Run a Bazel build with `--bes_upload_mode=wait_for_upload_complete`, then
+verify its invocation appears in Tuist and that
+`kura_analytics_events_total_total{pipeline="bazel_invocations",result="sent"}`
+increases. Successful upload to Kura alone does not prove server ingestion.
+Events accepted while analytics were disabled are not retained for replay.
+
+This automatic secret sync requires `server.config.managedSecrets` and stays
+disabled by default for self-hosted installs. Those installs can supply both
+runtime variables through `kuraController.sharedSecrets.data` or an externally
+managed shared Secret, using the same signing key as their server.
 
 ## Local validation
 
@@ -197,3 +224,43 @@ clickhouse:
       ttlDays: 7
       level: warning
 ```
+
+## Scaling the server
+
+### When to add replicas
+
+A single web replica may be enough for a small installation. Add replicas when you need the web tier to remain available during restarts or node failures, or when one replica can no longer comfortably handle your request volume.
+
+For availability, spread replicas across nodes or failure zones. Two pods on the same host do not protect against host failure, and shared dependencies still need their own availability strategy. For capacity, first check that the bottleneck is in the web tier: adding web replicas does not scale PostgreSQL, ClickHouse or background processors, and each replica adds database connections.
+
+Geographic distribution is a separate concern. More replicas in one region do not bring the server closer to users elsewhere, and placing web replicas far from their shared databases can increase latency. A multi-region deployment needs a design for traffic routing, data placement and cross-region communication; increasing the replica count alone does not provide that.
+
+### Configure the cluster
+
+Tuist uses Erlang clustering to exchange notifications between web replicas, so features such as realtime updates can work across the web tier. Enable `server.cluster.enabled` before increasing the replica count or enabling autoscaling beyond one replica; the chart rejects multi-replica configurations without clustering. If you are upgrading an existing installation, first follow the [upgrade and clustering migration prerequisites](https://tuist.dev/en/docs/guides/server/self-host/server#multi-replica-clustering).
+
+Create a high-entropy cookie Secret in the release namespace using your secret manager, then reference it:
+
+```yaml
+server:
+  replicaCount: 2
+  cluster:
+    enabled: true
+    distributionPort: 9100
+    cookieExistingSecret: tuist-server-cluster
+    cookieExistingSecretKey: release-cookie
+```
+
+The cookie lets the web replicas trust one another, so they must all use the same value, including during rolling upgrades. Treat it as a remote-execution credential: keep it private and never use an image-baked cookie. To rotate it, coordinate replacement of every participating process; updating the Secret alone does not change running nodes.
+
+Use a separately managed Secret for offline `helm template` and GitOps deployments. Ordinary server-connected Helm upgrades can instead generate and reuse a cookie when `cookieExistingSecret` is empty, but offline renderers cannot preserve that generated value.
+
+The replicas also need private connectivity on EPMD (TCP 4369) and the distribution port (TCP 9100 by default). Allow these connections only between trusted server peers. Enable `server.networkPolicy.enabled` to render the chart's peer rules, and verify that your cluster enforces them. Background processors remain outside the web cluster and scale separately.
+
+### Verify the rollout
+
+Once the replicas are running, use the release's `rpc 'Node.list()'` command on each web pod to check membership. With two healthy replicas, each should list the other. If the lists are empty, check that the pods use the same cookie and can reach each other's distribution ports.
+
+Before increasing traffic, exercise a rolling replacement and a replica failure under load. Check that requests continue to be served and that cross-replica PubSub and Oban notifications work across the deployed versions. Ready pods alone do not establish that the cluster is working.
+
+A surviving single replica should still serve requests. Do not make readiness depend on having a peer: otherwise, losing one replica would take the survivor out of service too.

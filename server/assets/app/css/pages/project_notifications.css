@@ -89,7 +89,7 @@
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--noora-surface-border-secondary);
+    border-bottom: 1px solid var(--noora-surface-border-primary);
     padding: var(--noora-spacing-4) 0;
 
     & > [data-part="content"] {

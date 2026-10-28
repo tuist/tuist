@@ -5,255 +5,483 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_usage",
-          "Traffic and request volume served by Tuist Cache for this account."
+          "Runner time and cache traffic billed to this account."
         )}
       </span>
     </div>
     <div data-part="date-picker-bar">
       <.dropdown
-        id="usage-project-dropdown"
-        label={TuistWeb.UsageLive.project_label(@project_handle)}
-        secondary_text={dgettext("dashboard_usage", "Project:")}
+        id="usage-period-dropdown"
+        label={TuistWeb.UsageLive.period_label(@selected_period)}
+        secondary_text={dgettext("dashboard_usage", "Billing period:")}
       >
-        <:search :if={length(@projects) > 5}>
-          <input
-            type="text"
-            placeholder={dgettext("dashboard_usage", "Search...")}
-            data-part="search-input"
-          />
-        </:search>
         <.dropdown_item
-          value="any"
-          label={dgettext("dashboard_usage", "Any")}
-          patch={TuistWeb.UsageLive.project_patch(@uri, "any")}
-          data-selected={@project_handle == "any"}
+          :for={period <- @periods}
+          value={TuistWeb.UsageLive.period_param(period)}
+          label={TuistWeb.UsageLive.period_label(period)}
+          patch={TuistWeb.UsageLive.period_patch(@uri, period)}
+          data-selected={period == @selected_period}
         >
-          <:right_icon :if={@project_handle == "any"}><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          :for={project <- @projects}
-          value={project.name}
-          label={project.name}
-          patch={TuistWeb.UsageLive.project_patch(@uri, project.name)}
-          data-selected={@project_handle == project.name}
-        >
-          <:right_icon :if={@project_handle == project.name}><.check /></:right_icon>
+          <:right_icon :if={period == @selected_period}><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.date_picker
-        id="usage-analytics-date-range-picker"
-        name="usage-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_usage", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_usage", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_usage", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_usage", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_usage", "Custom")}
-        ]}
-        selected_preset={@analytics_preset}
-        period={@analytics_period}
-        on_period_change="analytics_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_usage", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "usage-analytics-date-range-picker"}
-              )
-            }
-          />
-          <.button
-            label={dgettext("dashboard_usage", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply",
-                detail: %{id: "usage-analytics-date-range-picker"}
-              )
-            }
-          />
-        </:actions>
-      </.date_picker>
     </div>
   </div>
 
   <.card
-    title={dgettext("dashboard_usage", "Cache traffic")}
-    icon="chart_column"
-    data-part="kura-traffic"
+    :if={@runner_breakdown.minutes > 0 or @runners_enabled}
+    title={dgettext("dashboard_usage", "Runner usage")}
+    icon="server"
+    data-part="runner-usage-card"
   >
-    <div data-part="widgets">
-      <.widget
-        id="widget-egress"
-        title={dgettext("dashboard_usage", "Egress")}
-        legend_color="primary"
-        description={
-          dgettext(
-            "dashboard_usage",
-            "Bytes sent from the cache to clients (cache downloads) in the selected window."
-          )
-        }
-        value={if @totals.ok?, do: TuistWeb.UsageLive.format_bytes(@totals.result.egress.bytes)}
-        loading={!@totals.ok?}
-        selected={@analytics_selected_widget == "egress"}
-        phx_click="select_widget"
-        phx_value_widget="egress"
-        trend_value={if @totals.ok?, do: @totals.result.egress.bytes_trend}
-        trend_type={:neutral}
-        trend_label={@analytics_trend_label}
-        empty={@totals.ok? && @totals.result.egress.bytes == 0}
-      />
-      <.widget
-        id="widget-ingress"
-        title={dgettext("dashboard_usage", "Ingress")}
-        legend_color="secondary"
-        description={
-          dgettext(
-            "dashboard_usage",
-            "Bytes received by the cache from clients (cache uploads) in the selected window."
-          )
-        }
-        value={if @totals.ok?, do: TuistWeb.UsageLive.format_bytes(@totals.result.ingress.bytes)}
-        loading={!@totals.ok?}
-        selected={@analytics_selected_widget == "ingress"}
-        phx_click="select_widget"
-        phx_value_widget="ingress"
-        trend_value={if @totals.ok?, do: @totals.result.ingress.bytes_trend}
-        trend_type={:neutral}
-        trend_label={@analytics_trend_label}
-        empty={@totals.ok? && @totals.result.ingress.bytes == 0}
-      />
-      <.widget
-        id="widget-requests"
-        title={dgettext("dashboard_usage", "Requests")}
-        legend_color="tertiary"
-        description={
-          dgettext(
-            "dashboard_usage",
-            "Number of cache requests served in the selected window."
-          )
-        }
-        value={if @totals.ok?, do: TuistWeb.UsageLive.format_count(@totals.result.request_count)}
-        loading={!@totals.ok?}
-        selected={@analytics_selected_widget == "requests"}
-        phx_click="select_widget"
-        phx_value_widget="requests"
-        trend_value={if @totals.ok?, do: @totals.result.request_count_trend}
-        trend_type={:neutral}
-        trend_label={@analytics_trend_label}
-        empty={@totals.ok? && @totals.result.request_count == 0}
-      />
-    </div>
-    <.card_section data-part="kura-traffic-card-chart-section">
-      <% current_series = TuistWeb.UsageLive.series_for(assigns, @analytics_selected_widget) %>
-      <%= cond do %>
-        <% !current_series.ok? -> %>
-          <.skeleton_chart />
-        <% Enum.empty?(current_series.result) or Enum.all?(current_series.result, &(&1.total == 0)) -> %>
-          <.empty_card_section
-            title={TuistWeb.UsageLive.empty_label()}
-            get_started_href="https://tuist.dev/en/docs"
-          >
-            <:image>
-              <img
-                src={~p"/images/empty_table_light.png"}
-                data-theme="light"
-                loading="lazy"
-                decoding="async"
-              />
-              <img
-                src={~p"/images/empty_table_dark.png"}
-                data-theme="dark"
-                loading="lazy"
-                decoding="async"
-              />
-            </:image>
-          </.empty_card_section>
-        <% true -> %>
-          <.chart
-            id="usage-traffic-chart"
-            type="line"
-            extra_options={
-              TuistWeb.UsageLive.traffic_chart_options(
-                current_series.result |> List.first() |> Map.get(:dates),
-                @analytics_preset,
-                @bucket,
-                @analytics_selected_widget
-              )
-            }
-            series={TuistWeb.UsageLive.traffic_chart_series(current_series.result)}
-            y_axis_min={0}
-          />
-      <% end %>
+    <.card_section data-part="usage-summary-section">
+      <span data-part="info-label">
+        {dgettext(
+          "dashboard_usage",
+          "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs.",
+          from: Timex.format!(@runner_breakdown.period_start, "{Mshort} {D}"),
+          to: Timex.format!(@runner_breakdown.period_end, "{Mshort} {D}, {YYYY}")
+        )}
+      </span>
+      <div data-part="widgets">
+        <.widget
+          id="widget-runner-minutes"
+          title={dgettext("dashboard_usage", "Runner minutes")}
+          description={
+            dgettext("dashboard_usage", "%{count} free each month",
+              count: CldrHelpers.format_number(@runner_breakdown.free_minutes)
+            )
+          }
+          value={CldrHelpers.format_number(@runner_breakdown.minutes)}
+        />
+        <.widget
+          id="widget-runner-gross"
+          title={dgettext("dashboard_usage", "Usage value")}
+          description={dgettext("dashboard_usage", "At the standard rate, before the free tier")}
+          value={format_money(@runner_breakdown.gross)}
+        />
+        <.widget
+          id="widget-runner-billed"
+          title={dgettext("dashboard_usage", "Billed")}
+          description={dgettext("dashboard_usage", "What you'll owe for this period")}
+          value={
+            format_money(TuistWeb.UsageLive.amount_due(@runner_breakdown, @prepaid_coverage))
+          }
+        />
+      </div>
     </.card_section>
+    <.card_section
+      :if={TuistWeb.UsageLive.runner_usage?(@runner_breakdown)}
+      data-part="usage-detail-section"
+      data-chart-frame="standard"
+    >
+      <div data-part="chart">
+        <.chart
+          id="runner-spend-chart"
+          type="bar"
+          extra_options={
+            TuistWeb.UsageLive.runner_chart_options(
+              TuistWeb.UsageLive.runner_chart_dates(@runner_breakdown)
+            )
+          }
+          series={
+            TuistWeb.UsageLive.runner_chart_series(
+              @runner_breakdown.by_repository,
+              @runner_breakdown.projected_days
+            )
+          }
+          y_axis_min={0}
+        />
+      </div>
+      <div data-part="receipts">
+        <div :for={row <- @runner_breakdown.platforms} data-part="receipt">
+          <div data-part="heading">
+            <span data-part="platform">{TuistWeb.UsageLive.platform_label(row.platform)}</span>
+            <span data-part="shape">{TuistWeb.UsageLive.platform_shape(row.platform)}</span>
+          </div>
+          <dl data-part="lines">
+            <div data-part="line">
+              <dt>
+                {dgettext("dashboard_usage", "%{count} minutes run",
+                  count: CldrHelpers.format_number(row.minutes)
+                )}
+              </dt>
+              <dd>{TuistWeb.UsageLive.money_label(row.gross)}</dd>
+            </div>
+            <% trial_credit = TuistWeb.UsageLive.trial_credit(row) %>
+            <div :if={trial_credit} data-part="line" data-kind="credit">
+              <dt>{dgettext("dashboard_usage", "Covered by your trial")}</dt>
+              <dd>{TuistWeb.UsageLive.credit_label(trial_credit)}</dd>
+            </div>
+            <div :if={row.included_minutes} data-part="line" data-kind="credit">
+              <dt>
+                {dgettext("dashboard_usage", "%{count} minutes included",
+                  count: CldrHelpers.format_number(row.included_minutes)
+                )}
+              </dt>
+              <dd>{TuistWeb.UsageLive.included_credit_label(row)}</dd>
+            </div>
+            <div data-part="line" data-kind="total">
+              <dt>{dgettext("dashboard_usage", "Billed this period")}</dt>
+              <dd>{TuistWeb.UsageLive.money_label(row.billed)}</dd>
+            </div>
+          </dl>
+          <% pace = TuistWeb.UsageLive.pace_label(row) %>
+          <p :if={pace} data-part="footnote">{pace}</p>
+        </div>
+        <div :if={@prepaid_coverage} data-part="receipt" data-kind="prepaid">
+          <div data-part="heading">
+            <span data-part="platform">{dgettext("dashboard_usage", "Prepaid credit")}</span>
+          </div>
+          <dl data-part="lines">
+            <div data-part="line">
+              <dt>{dgettext("dashboard_usage", "Balance")}</dt>
+              <dd>{TuistWeb.UsageLive.money_label(@prepaid_coverage.available)}</dd>
+            </div>
+            <div data-part="line" data-kind="credit">
+              <dt>{dgettext("dashboard_usage", "Covers this period")}</dt>
+              <dd>{TuistWeb.UsageLive.credit_label(@prepaid_coverage.covered)}</dd>
+            </div>
+            <div data-part="line" data-kind="total">
+              <dt>{dgettext("dashboard_usage", "Left to pay")}</dt>
+              <dd>{TuistWeb.UsageLive.money_label(@prepaid_coverage.due)}</dd>
+            </div>
+          </dl>
+          <p data-part="footnote">
+            {dgettext(
+              "dashboard_usage",
+              "Drawn down when the period is invoiced, so this is what your balance would cover today."
+            )}
+          </p>
+        </div>
+      </div>
+    </.card_section>
+    <.usage_empty_state
+      :if={not TuistWeb.UsageLive.runner_usage?(@runner_breakdown)}
+      data-part="runner-usage-empty"
+      title={dgettext("dashboard_usage", "No runner usage in this period")}
+      get_started_href="https://tuist.dev/en/docs/guides/features/runners"
+    />
   </.card>
 
   <.card
-    title={dgettext("dashboard_usage", "Traffic by region")}
-    icon="server"
-    data-part="kura-traffic-by-region-card"
+    title={dgettext("dashboard_usage", "Cache usage")}
+    icon="database"
+    data-part="cache-usage-card"
   >
-    <.card_section data-part="kura-traffic-by-region-card-section">
-      <%= cond do %>
-        <% !@per_region.ok? -> %>
+    <.async_result :let={pricing} assign={@usage_pricing}>
+      <:loading>
+        <.card_section data-part="usage-summary-section" data-chart-frame="standard">
           <.skeleton_chart />
-        <% Enum.empty?(@per_region.result) -> %>
-          <.empty_card_section
-            title={TuistWeb.UsageLive.empty_label()}
-            get_started_href="https://tuist.dev/en/docs"
-          >
-            <:image>
-              <img
-                src={~p"/images/empty_table_light.png"}
-                data-theme="light"
-                loading="lazy"
-                decoding="async"
-              />
-              <img
-                src={~p"/images/empty_table_dark.png"}
-                data-theme="dark"
-                loading="lazy"
-                decoding="async"
-              />
-            </:image>
-          </.empty_card_section>
-        <% true -> %>
-          <.table
-            id="usage-per-region-table"
-            rows={@per_region.result}
-            row_key={fn row -> "usage-region-#{row.region}" end}
-          >
-            <:col :let={row} label={dgettext("dashboard_usage", "Region")}>
-              <.text_cell icon="server" label={TuistWeb.UsageLive.region_label(row.region)} />
-            </:col>
-            <:col :let={row} label={dgettext("dashboard_usage", "Egress")}>
-              <.text_cell label={TuistWeb.UsageLive.format_bytes(row.egress_bytes)} />
-            </:col>
-            <:col :let={row} label={dgettext("dashboard_usage", "Ingress")}>
-              <.text_cell label={TuistWeb.UsageLive.format_bytes(row.ingress_bytes)} />
-            </:col>
-            <:col :let={row} label={dgettext("dashboard_usage", "Requests")}>
-              <.text_cell label={TuistWeb.UsageLive.format_count(row.request_count)} />
-            </:col>
-          </.table>
-      <% end %>
-    </.card_section>
+        </.card_section>
+      </:loading>
+      <.card_section data-part="usage-summary-section">
+        <span data-part="info-label">
+          {dgettext(
+            "dashboard_usage",
+            "Billing period %{from} to %{to}. Egress and requests from every cache share one allowance, and traffic from Tuist Runners counts at half. Uploads and storage are free.",
+            from: Timex.format!(pricing.period_start, "{Mshort} {D}"),
+            to: Timex.format!(pricing.period_end, "{Mshort} {D}, {YYYY}")
+          )}
+        </span>
+        <div data-part="widgets">
+          <.widget
+            id="widget-cache-egress"
+            title={dgettext("dashboard_usage", "Egress")}
+            description={
+              dgettext(
+                "dashboard_usage",
+                "Data downloaded from your caches. %{size} free each period.",
+                size: TuistWeb.UsageLive.format_bytes(UsagePricing.included_egress_bytes())
+              )
+            }
+            value={TuistWeb.UsageLive.format_bytes(pricing.cache.egress.quantity)}
+            selected={@cache_view == "egress"}
+            phx_click="select_cache_view"
+            phx_value_widget="egress"
+          />
+          <.widget
+            id="widget-cache-requests"
+            title={dgettext("dashboard_usage", "Requests")}
+            description={
+              dgettext(
+                "dashboard_usage",
+                "Downloads served from your caches. %{count} free each period.",
+                count: CldrHelpers.format_number(UsagePricing.included_requests())
+              )
+            }
+            value={CldrHelpers.format_number(pricing.cache.requests.quantity)}
+            selected={@cache_view == "requests"}
+            phx_click="select_cache_view"
+            phx_value_widget="requests"
+          />
+          <.widget
+            id="widget-cache-charge"
+            title={dgettext("dashboard_usage", "Usage")}
+            description={TuistWeb.UsageLive.usage_charge_description(pricing.cache)}
+            value={format_money(pricing.cache.charge)}
+            selected={@cache_view == "charge"}
+            phx_click="select_cache_view"
+            phx_value_widget="charge"
+          />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={TuistWeb.UsageLive.cache_used?(pricing.cache)}
+        data-part="usage-detail-section"
+        data-chart-frame="standard"
+      >
+        <div data-part="chart">
+          <.chart
+            id="cache-spend-chart"
+            type="bar"
+            extra_options={
+              TuistWeb.UsageLive.usage_chart_options(
+                TuistWeb.UsageLive.usage_chart_dates(pricing.cache),
+                TuistWeb.UsageLive.cache_chart_unit(@cache_view)
+              )
+            }
+            series={TuistWeb.UsageLive.cache_chart_series(pricing.cache, @cache_view)}
+            y_axis_min={0}
+          />
+        </div>
+        <div data-part="receipts">
+          <div :if={@cache_view == "charge"} data-part="receipt" data-kind="cache-usage">
+            <div data-part="heading">
+              <span data-part="platform">{dgettext("dashboard_usage", "Usage")}</span>
+            </div>
+            <dl data-part="lines">
+              <div data-part="line">
+                <dt>{dgettext("dashboard_usage", "Egress")}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.cache.egress.charge)}</dd>
+              </div>
+              <div data-part="line">
+                <dt>{dgettext("dashboard_usage", "Requests")}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.cache.requests.charge)}</dd>
+              </div>
+              <div data-part="line" data-kind="total">
+                <dt>{TuistWeb.UsageLive.usage_total_label(pricing.cache)}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.cache.charge)}</dd>
+              </div>
+            </dl>
+          </div>
+          <div :if={@cache_view == "egress"} data-part="receipt" data-kind="egress">
+            <div data-part="heading">
+              <span data-part="platform">{dgettext("dashboard_usage", "Egress")}</span>
+              <span data-part="shape">{TuistWeb.UsageLive.egress_rate_label()}</span>
+            </div>
+            <dl data-part="lines">
+              <div data-part="line">
+                <dt>
+                  {dgettext("dashboard_usage", "%{size} of egress",
+                    size: TuistWeb.UsageLive.format_bytes(pricing.cache.egress.quantity)
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.cache.egress.gross)}</dd>
+              </div>
+              <div
+                :if={pricing.cache.egress.runner_quantity > 0}
+                data-part="line"
+                data-kind="credit"
+              >
+                <dt>{dgettext("dashboard_usage", "Tuist Runners discount")}</dt>
+                <dd>{TuistWeb.UsageLive.credit_label(pricing.cache.egress.runner_credit)}</dd>
+              </div>
+              <div data-part="line" data-kind="credit">
+                <dt>
+                  {dgettext("dashboard_usage", "%{size} included",
+                    size: TuistWeb.UsageLive.format_bytes(pricing.cache.egress.included)
+                  )}
+                </dt>
+                <dd>
+                  {TuistWeb.UsageLive.credit_label(pricing.cache.egress.included_credit)}
+                </dd>
+              </div>
+              <div data-part="line" data-kind="total">
+                <dt>{TuistWeb.UsageLive.usage_total_label(pricing.cache)}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.cache.egress.charge)}</dd>
+              </div>
+            </dl>
+            <% egress_pace = TuistWeb.UsageLive.egress_pace_label(pricing.cache.egress) %>
+            <p :if={egress_pace} data-part="footnote">{egress_pace}</p>
+          </div>
+          <div :if={@cache_view == "requests"} data-part="receipt" data-kind="requests">
+            <div data-part="heading">
+              <span data-part="platform">{dgettext("dashboard_usage", "Requests")}</span>
+              <span data-part="shape">{TuistWeb.UsageLive.request_rate_label()}</span>
+            </div>
+            <dl data-part="lines">
+              <div data-part="line">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} requests",
+                    count: CldrHelpers.format_number(pricing.cache.requests.quantity)
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.cache.requests.gross)}</dd>
+              </div>
+              <div
+                :if={pricing.cache.requests.runner_quantity > 0}
+                data-part="line"
+                data-kind="credit"
+              >
+                <dt>{dgettext("dashboard_usage", "Tuist Runners discount")}</dt>
+                <dd>{TuistWeb.UsageLive.credit_label(pricing.cache.requests.runner_credit)}</dd>
+              </div>
+              <div data-part="line" data-kind="credit">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} included",
+                    count: CldrHelpers.format_number(pricing.cache.requests.included)
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.credit_label(pricing.cache.requests.included_credit)}</dd>
+              </div>
+              <div data-part="line" data-kind="total">
+                <dt>{TuistWeb.UsageLive.usage_total_label(pricing.cache)}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.cache.requests.charge)}</dd>
+              </div>
+            </dl>
+            <% requests_pace = TuistWeb.UsageLive.requests_pace_label(pricing.cache.requests) %>
+            <p :if={requests_pace} data-part="footnote">{requests_pace}</p>
+          </div>
+        </div>
+      </.card_section>
+      <.usage_empty_state
+        :if={not TuistWeb.UsageLive.cache_used?(pricing.cache)}
+        data-part="cache-usage-empty"
+        title={dgettext("dashboard_usage", "No cache usage in this period")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/cache"
+      />
+    </.async_result>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_usage", "Test insights usage")}
+    icon="checkup_list"
+    data-part="test-insights-usage-card"
+  >
+    <.async_result :let={pricing} assign={@usage_pricing}>
+      <:loading>
+        <.card_section data-part="usage-summary-section" data-chart-frame="standard">
+          <.skeleton_chart />
+        </.card_section>
+      </:loading>
+      <.card_section data-part="usage-summary-section">
+        <span data-part="info-label">
+          {dgettext(
+            "dashboard_usage",
+            "Billing period %{from} to %{to}. Passing test cases are billed. Builds, failed and skipped test cases, and tests run on Tuist Runners are free.",
+            from: Timex.format!(pricing.period_start, "{Mshort} {D}"),
+            to: Timex.format!(pricing.period_end, "{Mshort} {D}, {YYYY}")
+          )}
+        </span>
+        <div data-part="widgets">
+          <.widget
+            id="widget-passing-test-cases"
+            title={dgettext("dashboard_usage", "Passing test cases")}
+            description={
+              dgettext("dashboard_usage", "%{count} free each period",
+                count: CldrHelpers.format_number(UsagePricing.included_passing_test_cases())
+              )
+            }
+            value={CldrHelpers.format_number(pricing.tests.passed)}
+          />
+          <.widget
+            id="widget-tests-charge"
+            title={dgettext("dashboard_usage", "Usage")}
+            description={TuistWeb.UsageLive.usage_charge_description(pricing.tests)}
+            value={format_money(pricing.tests.charge)}
+          />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={TuistWeb.UsageLive.tests_used?(pricing.tests)}
+        data-part="usage-detail-section"
+        data-chart-frame="standard"
+      >
+        <div data-part="chart">
+          <.chart
+            id="tests-spend-chart"
+            type="bar"
+            extra_options={
+              TuistWeb.UsageLive.usage_chart_options(
+                TuistWeb.UsageLive.usage_chart_dates(pricing.tests),
+                :currency
+              )
+            }
+            series={TuistWeb.UsageLive.tests_chart_series(pricing.tests)}
+            y_axis_min={0}
+          />
+        </div>
+        <div data-part="receipts">
+          <div data-part="receipt" data-kind="passing-test-cases">
+            <div data-part="heading">
+              <span data-part="platform">{dgettext("dashboard_usage", "Passing test cases")}</span>
+              <span data-part="shape">{TuistWeb.UsageLive.passing_test_case_rate_label()}</span>
+            </div>
+            <dl data-part="lines">
+              <div data-part="line">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} passing",
+                    count: CldrHelpers.format_number(pricing.tests.passed)
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.tests.gross)}</dd>
+              </div>
+              <div data-part="line" data-kind="credit">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} included",
+                    count: CldrHelpers.format_number(pricing.tests.included)
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.credit_label(pricing.tests.included_credit)}</dd>
+              </div>
+              <div data-part="line" data-kind="total">
+                <dt>{TuistWeb.UsageLive.usage_total_label(pricing.tests)}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(pricing.tests.charge)}</dd>
+              </div>
+            </dl>
+            <% tests_pace = TuistWeb.UsageLive.tests_pace_label(pricing.tests) %>
+            <p :if={tests_pace} data-part="footnote">{tests_pace}</p>
+          </div>
+          <div data-part="receipt" data-kind="not-billed-test-cases">
+            <div data-part="heading">
+              <span data-part="platform">{dgettext("dashboard_usage", "Not billed")}</span>
+            </div>
+            <dl data-part="lines">
+              <div data-part="line" data-kind="free">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} failed",
+                    count: CldrHelpers.format_number(pricing.tests.failed)
+                  )}
+                </dt>
+                <dd>{dgettext("dashboard_usage", "Free")}</dd>
+              </div>
+              <div data-part="line" data-kind="free">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} skipped",
+                    count: CldrHelpers.format_number(pricing.tests.skipped)
+                  )}
+                </dt>
+                <dd>{dgettext("dashboard_usage", "Free")}</dd>
+              </div>
+              <div data-part="line" data-kind="free">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} run on Tuist Runners",
+                    count: CldrHelpers.format_number(pricing.tests.on_runners)
+                  )}
+                </dt>
+                <dd>{dgettext("dashboard_usage", "Free")}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </.card_section>
+      <.usage_empty_state
+        :if={not TuistWeb.UsageLive.tests_used?(pricing.tests)}
+        data-part="test-insights-usage-empty"
+        title={dgettext("dashboard_usage", "No test runs in this period")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
+      />
+    </.async_result>
   </.card>
 </div>

@@ -20,6 +20,7 @@ defmodule TuistWeb.BuildsLiveTest do
   } do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds")
+    render_async(lv, @render_async_timeout)
 
     # Then
     assert has_element?(lv, "span", "No data yet")
@@ -129,5 +130,33 @@ defmodule TuistWeb.BuildsLiveTest do
     render_async(lv, @render_async_timeout)
 
     assert has_element?(lv, "#builds-analytics-environment-dropdown")
+  end
+
+  test "failure categories follow scheme and environment filters", %{conn: conn, project: project} do
+    yesterday = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.truncate(:second)
+
+    for {scheme, is_ci, category} <- [{"App", true, "verification"}, {"Other", false, "infrastructure_tooling"}] do
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: scheme,
+        is_ci: is_ci,
+        status: "failure",
+        inserted_at: yesterday,
+        custom_values: %{"tuist.detected_failure_category" => category}
+      )
+    end
+
+    path = "/#{project.account.name}/#{project.name}/builds"
+    {:ok, view, _} = live(conn, path)
+    render_async(view, 5_000)
+    assert has_element?(view, "#build-runs-table", "App")
+    assert has_element?(view, "#build-runs-table", "Other")
+    render_patch(view, path <> "?analytics-build-scheme=App&analytics-environment=ci")
+    render_async(view, 5_000)
+    assert has_element?(view, "#build-runs-table", "App")
+    refute has_element?(view, "#build-runs-table", "Other")
+    render_patch(view, path <> "?analytics-build-scheme=App&analytics-environment=local")
+    render_async(view, 5_000)
+    refute has_element?(view, "#build-runs-table", "Verification")
   end
 end

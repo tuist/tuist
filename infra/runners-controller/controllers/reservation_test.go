@@ -1,0 +1,1456 @@
+package controllers
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+)
+
+const reservationFleet = "runners-macos"
+
+var reservationNow = time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+
+// largePool is the 12 vCPU shape: it needs both of an M4-XL's guest
+// slots, so no host running two 6 vCPU guests can seat it.
+func largePool() *tuistv1.RunnerPool {
+	return &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "macos-26-6-12vcpu-28gb", Namespace: "runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			OS:            "darwin",
+			FleetSelector: reservationFleet,
+			PodCPUMilli:   12000,
+			PodMemoryMB:   28672,
+		},
+	}
+}
+
+func m4Node(name string) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				macosFleetLabel: reservationFleet,
+				nodeOSLabel:     macosNodeOSDarwin,
+			},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewQuantity(12, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(28672*1024*1024, resource.BinarySI),
+			},
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+		},
+	}
+}
+
+// m2Node cannot seat the large shape on either dimension.
+func m2Node(name string) *corev1.Node {
+	node := m4Node(name)
+	node.Status.Allocatable = corev1.ResourceList{
+		corev1.ResourceCPU:    *resource.NewQuantity(8, resource.DecimalSI),
+		corev1.ResourceMemory: *resource.NewQuantity(14336*1024*1024, resource.BinarySI),
+	}
+	return node
+}
+
+func pendingPod(name, pool string, age time.Duration) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              name,
+			Namespace:         "runners",
+			Labels:            map[string]string{"tuist.dev/runner-pool": pool},
+			CreationTimestamp: metav1.NewTime(reservationNow.Add(-age)),
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodPending},
+	}
+}
+
+func placedPod(name, pool, node string, owner string) *corev1.Pod {
+	pod := pendingPod(name, pool, time.Hour)
+	pod.Spec.NodeName = node
+	pod.Status.Phase = corev1.PodRunning
+	if owner != "" {
+		pod.Labels["tuist.dev/runner-pool-owner"] = owner
+	}
+	return pod
+}
+
+func seatedPod(name, pool, node string, seatedAt time.Time) *corev1.Pod {
+	p := placedPod(name, pool, node, "")
+	p.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(seatedAt),
+	}}
+	return p
+}
+
+// smallPool is the 6 vCPU shape the large one competes with. A
+// reservation is only taken for a shape that is large RELATIVE to what
+// else runs on the fleet, so the sibling has to exist for the large
+// shape to qualify.
+func smallPool() *tuistv1.RunnerPool {
+	return &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "macos-26-6", Namespace: "runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			OS:            "darwin",
+			FleetSelector: reservationFleet,
+			PodCPUMilli:   6000,
+			PodMemoryMB:   14336,
+		},
+	}
+}
+
+const (
+	linuxReservationFleet = "runners-linux"
+	linuxSmallPoolName    = "runner-pool-linux-2vcpu-8gb"
+)
+
+// linuxLargePool is the 64 GB ceiling shape. It costs a third of an
+// AX162-R, which is what makes it starvable behind smaller Pods.
+func linuxLargePool() *tuistv1.RunnerPool {
+	return &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "runner-pool-linux-16vcpu-64gb", Namespace: "runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			OS:            "linux",
+			FleetSelector: linuxReservationFleet,
+			PodCPUMilli:   16000,
+			PodMemoryMB:   65536,
+		},
+	}
+}
+
+// linuxSmallPool is the default 2 vCPU / 8 GB shape the large one
+// competes with for the same hosts.
+func linuxSmallPool() *tuistv1.RunnerPool {
+	return &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: linuxSmallPoolName, Namespace: "runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			OS:            "linux",
+			FleetSelector: linuxReservationFleet,
+			PodCPUMilli:   2000,
+			PodMemoryMB:   8192,
+		},
+	}
+}
+
+// ax162Node carries the production AX162-R's allocatable, which is well
+// short of its 256 GB of installed memory once kube and system
+// reservations come off.
+func ax162Node(name string) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				fleetNodePoolLabel: linuxReservationFleet,
+				nodeOSLabel:        "linux",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewQuantity(94, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(227571*1024*1024, resource.BinarySI),
+			},
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+		},
+	}
+}
+
+func reservationReconciler(objects ...client.Object) *RunnerPoolReconciler {
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	return &RunnerPoolReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build(),
+		Scheme: scheme,
+		Now:    func() time.Time { return reservationNow },
+	}
+}
+
+func nodeByName(t *testing.T, r *RunnerPoolReconciler, name string) *corev1.Node {
+	t.Helper()
+	node := &corev1.Node{}
+	if err := r.Get(context.Background(), client.ObjectKey{Name: name}, node); err != nil {
+		t.Fatalf("get node %s: %v", name, err)
+	}
+	return node
+}
+
+// The scenario the reservation exists for: both M4 guest slots are held
+// by 6 vCPU jobs, a 12 vCPU Pod has waited past the grace period, and no
+// coincidence of two simultaneously-free slots is going to arrive on its
+// own while small jobs keep landing.
+func TestReservation_HoldsAHostForAStarvedShape(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), node, m4Node("m4-1"), starved,
+		placedPod("small-0", "macos-26-6", "m4-0", "acme"),
+		placedPod("small-1", "macos-26-6", "m4-0", "acme"),
+		// m4-1 keeps the fleet above the last-host floor and is busier,
+		// so m4-0 stays the host that converges soonest.
+		placedPod("small-2", "macos-26-6", "m4-1", "acme"),
+		placedPod("small-3", "macos-26-6", "m4-1", "acme"),
+		placedPod("small-4", "macos-26-6", "m4-1", "acme"),
+	)
+
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	got := nodeByName(t, r, "m4-0")
+	if !isReserved(got) {
+		t.Fatalf("node was not reserved: %+v", got.Spec.Taints)
+	}
+	for _, taint := range got.Spec.Taints {
+		if taint.Key == podtemplate.ReservationTaintKey {
+			if taint.Value != podtemplate.ReservationValue(pool.Name) {
+				t.Errorf("taint value = %q, want the starved pool", taint.Value)
+			}
+			if taint.Effect != corev1.TaintEffectNoSchedule {
+				t.Errorf("taint effect = %q, want NoSchedule so running jobs survive", taint.Effect)
+			}
+		}
+	}
+	if got.Annotations[reservationAtAnnotation] == "" {
+		t.Error("reservation must be stamped so it can time out")
+	}
+}
+
+// A Pod that has only just been created is waiting for the scheduler,
+// not starved. Draining a host for it would be expensive and wrong.
+func TestReservation_WaitsOutTheGracePeriod(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	fresh := pendingPod("large-0", pool.Name, 10*time.Second)
+
+	r := reservationReconciler(pool, smallPool(), node, fresh)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*fresh}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("a Pod inside the grace period must not trigger a drain")
+	}
+}
+
+// Only idle Pods are retired, and only those belonging to other pools.
+// A Pod running a customer job is waited out, never evicted.
+func TestReservation_RetiresIdlePodsButNeverRunningJobs(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	idle := placedPod("small-idle", "macos-26-6", "m4-0", "")
+	owned := placedPod("small-owned", "macos-26-6", "m4-0", "acme")
+
+	r := reservationReconciler(pool, smallPool(), node, starved, idle, owned)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	remaining := &corev1.PodList{}
+	if err := r.List(context.Background(), remaining, client.InNamespace("runners")); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	names := map[string]bool{}
+	for i := range remaining.Items {
+		names[remaining.Items[i].Name] = true
+	}
+
+	if names["small-idle"] {
+		t.Error("an idle Pod of another pool should have been retired to clear the seat")
+	}
+	if !names["small-owned"] {
+		t.Error("a Pod running a customer job must never be evicted by a reservation")
+	}
+}
+
+// Once the pool is served the host goes back into general circulation.
+func TestReservation_ReleasesWhenThePoolIsServed(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+
+	placed := placedPod("large-0", pool.Name, "m4-0", "acme")
+
+	r := reservationReconciler(pool, smallPool(), node, placed)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*placed}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("reservation should be released once the pool has its seat")
+	}
+}
+
+// A reservation waiting on a six-hour job must not hold the host
+// forever; the seats already cleared are worth more back in circulation.
+func TestReservation_ReleasesOnTimeout(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{
+		reservationAtAnnotation: reservationNow.Add(-reservationTimeout - time.Minute).Format(time.RFC3339),
+	}
+	starved := pendingPod("large-0", pool.Name, time.Hour)
+
+	r := reservationReconciler(pool, smallPool(), node, starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("an expired reservation should have been released")
+	}
+}
+
+// Hosts too small to ever seat the shape are not drained: no amount of
+// waiting makes an M2-L fit a 12 vCPU guest.
+func TestReservation_SkipsHostsThatCouldNeverSeatTheShape(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), m2Node("m2-0"), m2Node("m2-1"), starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	for _, name := range []string{"m2-0", "m2-1"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Fatalf("%s cannot seat the shape and must not be drained", name)
+		}
+	}
+}
+
+// Every reservation is capacity withdrawn from the small shapes, so only
+// one host is held at a time across the whole fleet.
+func TestReservation_HoldsAtMostOneHostFleetWide(t *testing.T) {
+	pool := largePool()
+	held := m4Node("m4-0")
+	held.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  "some-other-pool",
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	free := m4Node("m4-1")
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), held, free, starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-1")) {
+		t.Fatal("a second concurrent reservation would take a quarter of the fleet offline")
+	}
+}
+
+// The host that converges soonest is the one with fewest customer jobs
+// to wait out; ties break on name so a reservation does not wander.
+func TestReservation_PrefersTheHostThatConvergesSoonest(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-busy"), m4Node("m4-quiet"), starved,
+		placedPod("job-0", "macos-26-6", "m4-busy", "acme"),
+		placedPod("job-1", "macos-26-6", "m4-busy", "acme"),
+		placedPod("idle-0", "macos-26-6", "m4-quiet", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-quiet")) {
+		t.Error("should reserve the host whose seats are only held by idle Pods")
+	}
+	if isReserved(nodeByName(t, r, "m4-busy")) {
+		t.Error("should not reserve the host with two customer jobs to wait out")
+	}
+}
+
+// Between hosts that converge equally soon, the one already holding the
+// pool's golden image wins, so the starved job clones instead of pulling.
+func TestReservation_PrefersAHostHoldingThePoolsImage(t *testing.T) {
+	pool := largePool()
+	pool.Spec.Image = "ghcr.io/tuist/tuist-runner:macos-26-1-1"
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	warm := m4Node("m4-b")
+	warm.Labels[podtemplate.GoldenNodeAffinityKey(pool.Spec.Image)] = "true"
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-a"), warm, starved,
+		placedPod("idle-a", "macos-26-6", "m4-a", ""),
+		placedPod("idle-b", "macos-26-6", "m4-b", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Error("should reserve the host that already holds the pool's image")
+	}
+	if isReserved(nodeByName(t, r, "m4-a")) {
+		t.Error("should not reserve the host that would have to pull the image")
+	}
+}
+
+// Holding the image never outranks convergence: waiting on a customer job
+// can take longer than a pull.
+func TestReservation_PrefersConvergenceOverTheImage(t *testing.T) {
+	pool := largePool()
+	pool.Spec.Image = "ghcr.io/tuist/tuist-runner:macos-26-1-1"
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	warm := m4Node("m4-a")
+	warm.Labels[podtemplate.GoldenNodeAffinityKey(pool.Spec.Image)] = "true"
+
+	r := reservationReconciler(pool, smallPool(), warm, m4Node("m4-b"), starved,
+		placedPod("job-a", "macos-26-6", "m4-a", "acme"),
+		placedPod("idle-b", "macos-26-6", "m4-b", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Error("should reserve the host with no customer job to wait out")
+	}
+}
+
+// Linux fleets opt out: those hosts are far larger than any shape, so a
+// shape never needs one drained to fit.
+// The Linux equivalent of the scenario above. A 64 GiB shape costs a
+// third of an AX162-R, so it needs a contiguous third of a host that a
+// trickle of 8 GiB Pods keeps carving up — the same starvation the macOS
+// 12 vCPU shape hits, at a different granularity.
+func TestReservation_HoldsALinuxHostForAStarvedShape(t *testing.T) {
+	pool := linuxLargePool()
+	node := ax162Node("bm-0")
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, ax162Node("bm-1"), starved,
+		placedPod("small-0", linuxSmallPoolName, "bm-0", "acme"),
+		// bm-1 keeps the fleet above the last-host floor and is busier,
+		// so bm-0 stays the host that converges soonest.
+		placedPod("small-1", linuxSmallPoolName, "bm-1", "acme"),
+		placedPod("small-2", linuxSmallPoolName, "bm-1", "acme"),
+	)
+
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	got := nodeByName(t, r, "bm-0")
+	if !isReserved(got) {
+		t.Fatalf("node was not reserved: %+v", got.Spec.Taints)
+	}
+	for _, taint := range got.Spec.Taints {
+		if taint.Key != podtemplate.ReservationTaintKey {
+			continue
+		}
+		if taint.Value != podtemplate.ReservationValue(pool.Name) {
+			t.Errorf("taint value = %q, want the starved pool", taint.Value)
+		}
+		// NoSchedule and not NoExecute: the drain is progressive. Jobs
+		// already running on the host finish and free their memory, and
+		// the starved Pod lands as soon as its shape fits.
+		if taint.Effect != corev1.TaintEffectNoSchedule {
+			t.Errorf("taint effect = %q, want NoSchedule so running jobs survive", taint.Effect)
+		}
+	}
+}
+
+// A pool addresses its fleet by the labels its own Pods select on:
+// `tuist.dev/fleet` on darwin, `node.cluster.x-k8s.io/pool` on linux.
+// Both fleets live in one cluster and nothing stops an operator naming
+// them alike, so the two hosts here carry the SAME fleet value under
+// their respective labels. A selector keyed on the fleet name alone
+// would hand each platform the other's host to drain.
+func TestFleetNodes_AddressEachPlatformsHostsSeparately(t *testing.T) {
+	mac := m4Node("m4-0")
+	mac.Labels[macosFleetLabel] = linuxReservationFleet
+	bare := ax162Node("bm-0")
+
+	macPool := largePool()
+	macPool.Spec.FleetSelector = linuxReservationFleet
+
+	r := reservationReconciler(macPool, linuxLargePool(), mac, bare)
+
+	linuxNodes, err := r.fleetNodes(context.Background(), linuxLargePool())
+	if err != nil {
+		t.Fatalf("fleetNodes(linux): %v", err)
+	}
+	if got := nodeNames(linuxNodes); len(got) != 1 || got[0] != "bm-0" {
+		t.Errorf("linux fleet = %v, want just the bare-metal host", got)
+	}
+
+	macNodes, err := r.fleetNodes(context.Background(), macPool)
+	if err != nil {
+		t.Fatalf("fleetNodes(darwin): %v", err)
+	}
+	if got := nodeNames(macNodes); len(got) != 1 || got[0] != "m4-0" {
+		t.Errorf("darwin fleet = %v, want just the Mac mini", got)
+	}
+}
+
+func nodeNames(nodes []corev1.Node) []string {
+	names := make([]string, 0, len(nodes))
+	for i := range nodes {
+		names = append(names, nodes[i].Name)
+	}
+	return names
+}
+
+// The drain is what makes the reservation useful on Linux, where a host
+// carries many small Pods rather than two. `isIdle` reads the poller's
+// exit, so an unclaimed Pod is retired and a claimed one is waited out.
+func TestReservation_RetiresIdleLinuxPodsButNeverRunningJobs(t *testing.T) {
+	pool := linuxLargePool()
+	node := ax162Node("bm-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	idle := placedPod("small-idle", linuxSmallPoolName, "bm-0", "")
+	owned := placedPod("small-owned", linuxSmallPoolName, "bm-0", "acme")
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, starved, idle, owned)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	remaining := &corev1.PodList{}
+	if err := r.List(context.Background(), remaining, client.InNamespace("runners")); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	names := map[string]bool{}
+	for i := range remaining.Items {
+		names[remaining.Items[i].Name] = true
+	}
+
+	if names["small-idle"] {
+		t.Error("an idle Pod of another pool should have been retired to clear memory")
+	}
+	if !names["small-owned"] {
+		t.Error("a Pod running a customer job must never be evicted by a reservation")
+	}
+}
+
+// A reservation taints a host NoSchedule for every pool but its own, so
+// on a single-host fleet it stops job dispatch outright until it clears.
+// The granularity guard does not catch this on Linux: a 64 GB shape
+// genuinely IS coarser than its siblings on one big host, so it passes
+// that test and would close the fleet. Reachable in practice — the
+// Linux fleet is small and moving to smaller boxes.
+// A reservation releases the moment its Pod binds, so the seat it just
+// produced is exposed to the next reservation on the same host while
+// dispatch is still reaching for it.
+func TestReservation_DoesNotRetireAFreshlySeatedPod(t *testing.T) {
+	pool := linuxLargePool()
+	node := ax162Node("bm-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	fresh := seatedPod("small-fresh", linuxSmallPoolName, "bm-0", reservationNow.Add(-30*time.Second))
+	stale := seatedPod("small-stale", linuxSmallPoolName, "bm-0", reservationNow.Add(-10*time.Minute))
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, starved, fresh, stale)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	remaining := &corev1.PodList{}
+	if err := r.List(context.Background(), remaining, client.InNamespace("runners")); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	names := map[string]bool{}
+	for i := range remaining.Items {
+		names[remaining.Items[i].Name] = true
+	}
+
+	if !names["small-fresh"] {
+		t.Error("a Pod seated within the grace period must survive: dispatch has not had a chance to claim it")
+	}
+	if names["small-stale"] {
+		t.Error("a Pod idle since well before the grace period should still be retired")
+	}
+}
+
+func macOSPod(pod *corev1.Pod) *corev1.Pod {
+	pod.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "darwin"}
+	return pod
+}
+
+// provisioningMacOSPod is bound to a host whose tart-kubelet is still
+// pulling the image or creating the VM: Pending, with only the scheduler's
+// PodScheduled condition on it.
+func provisioningMacOSPod(name, pool, node string, boundAt time.Time) *corev1.Pod {
+	pod := macOSPod(seatedPod(name, pool, node, boundAt))
+	pod.Status.Phase = corev1.PodPending
+	return pod
+}
+
+// bootedMacOSPod's VM is up. tart-kubelet has replaced its conditions and
+// stamped the VM start as the Pod's start time.
+func bootedMacOSPod(name, pool, node string, vmStartedAt time.Time) *corev1.Pod {
+	pod := macOSPod(placedPod(name, pool, node, ""))
+	startedAt := metav1.NewTime(vmStartedAt)
+	pod.Status.StartTime = &startedAt
+	return pod
+}
+
+func reservedM4Node(name string, pool *tuistv1.RunnerPool) *corev1.Node {
+	node := m4Node(name)
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+	return node
+}
+
+func remainingPodNames(t *testing.T, r *RunnerPoolReconciler) map[string]bool {
+	t.Helper()
+	remaining := &corev1.PodList{}
+	if err := r.List(context.Background(), remaining, client.InNamespace("runners")); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	names := map[string]bool{}
+	for i := range remaining.Items {
+		names[remaining.Items[i].Name] = true
+	}
+	return names
+}
+
+// A cold image pull keeps a macOS Pod Pending for many minutes after it
+// binds. Retiring it then throws the pull away while the job it was created
+// for waits for a replacement to pull again.
+func TestReservation_DoesNotRetireAMacOSPodStillCreatingItsVM(t *testing.T) {
+	pool := largePool()
+	node := reservedM4Node("m4-0", pool)
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	pulling := provisioningMacOSPod("small-pulling", "macos-26-6", "m4-0", reservationNow.Add(-14*time.Minute))
+	wedged := provisioningMacOSPod("small-wedged", "macos-26-6", "m4-0", reservationNow.Add(-macOSProvisioningGrace-time.Minute))
+
+	r := reservationReconciler(pool, smallPool(), node, starved, pulling, wedged)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	names := remainingPodNames(t, r)
+	if !names["small-pulling"] {
+		t.Error("a macOS Pod still creating its VM must not be retired")
+	}
+	if names["small-wedged"] {
+		t.Error("a macOS Pod that has not come up within the provisioning grace should be retired")
+	}
+}
+
+// The VM is up, but the guest has not had time to claim the job queued for
+// it. Retiring it now loses the job's seat just as it is about to be used.
+func TestReservation_DoesNotRetireAMacOSPodThatJustBooted(t *testing.T) {
+	pool := largePool()
+	node := reservedM4Node("m4-0", pool)
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	booted := bootedMacOSPod("small-booted", "macos-26-6", "m4-0", reservationNow.Add(-time.Minute))
+	warm := bootedMacOSPod("small-warm", "macos-26-6", "m4-0", reservationNow.Add(-time.Hour))
+
+	r := reservationReconciler(pool, smallPool(), node, starved, booted, warm)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	names := remainingPodNames(t, r)
+	if !names["small-booted"] {
+		t.Error("a macOS Pod whose VM just started must get its first dispatch poll")
+	}
+	if names["small-warm"] {
+		t.Error("a macOS Pod idle long after booting should still be retired")
+	}
+}
+
+// A host whose idle Pod is still creating its VM cannot be cleared straight
+// away, so it must not rank as the host that converges soonest.
+func TestReservation_PrefersAHostWithoutAProvisioningPod(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		provisioningMacOSPod("small-pulling", "macos-26-6", "m4-0", reservationNow.Add(-5*time.Minute)),
+		bootedMacOSPod("small-warm", "macos-26-6", "m4-1", reservationNow.Add(-time.Hour)),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Error("the host with a Pod still creating its VM should not be reserved")
+	}
+	if !isReserved(nodeByName(t, r, "m4-1")) {
+		t.Error("the host whose idle Pod can be retired now should be reserved")
+	}
+}
+
+func TestReservation_NeverTakesTheFleetsLastHost(t *testing.T) {
+	pool := linuxLargePool()
+	node := ax162Node("bm-0")
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, starved,
+		placedPod("small-0", linuxSmallPoolName, "bm-0", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "bm-0")) {
+		t.Fatal("reserving the fleet's only host closes it to every pool")
+	}
+}
+
+// A second host that is down is not a second host: reserving the one
+// still serving work closes the fleet just the same.
+func TestReservation_CountsOnlyHealthyHostsTowardTheFloor(t *testing.T) {
+	pool := linuxLargePool()
+	node := ax162Node("bm-0")
+	down := ax162Node("bm-1")
+	down.Status.Conditions = []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionFalse}}
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, down, starved,
+		placedPod("small-0", linuxSmallPoolName, "bm-0", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "bm-0")) {
+		t.Fatal("a NotReady sibling must not count as the host that keeps the fleet open")
+	}
+}
+
+// The "large relative to the fleet" guard is platform-neutral. The
+// default 2 vCPU / 8 GiB shape gets as many seats on a host as anything
+// else does, so queueing behind other Pods is ordinary contention and
+// draining a host for it would take a third of the Linux fleet out of
+// service to no end.
+func TestReservation_SkipsLinuxShapesThatAreNotLarge(t *testing.T) {
+	pool := linuxSmallPool()
+	node := ax162Node("bm-0")
+	starved := pendingPod("small-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, linuxLargePool(), node, starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "bm-0")) {
+		t.Fatal("the fleet's most granular shape must not reserve")
+	}
+}
+
+// A deleted Linux pool has to hand its host back on the delete path.
+// The orphan sweep is only a backstop, and it runs from OTHER pools'
+// reconciles — on a fleet whose remaining pools are all scaled to zero
+// it may not run promptly.
+func TestReservation_ReleasedWhenTheOwningLinuxPoolIsDeleted(t *testing.T) {
+	pool := linuxLargePool()
+	node := ax162Node("bm-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+
+	r := reservationReconciler(pool, node)
+	if err := r.ReleaseReservationsForPool(context.Background(), pool); err != nil {
+		t.Fatalf("ReleaseReservationsForPool: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "bm-0")) {
+		t.Fatal("a deleting Linux pool must release the host it held")
+	}
+}
+
+// A homogeneous fleet whose hosts hold exactly one guest has nothing to
+// accumulate: the shape already fits a single seat, so waiting for it is
+// correct. Reserving there would take a one-host fleet entirely out of
+// service for every other pool until the reservation cleared.
+func TestReservation_SkipsFleetsWhereTheShapeIsNotLarge(t *testing.T) {
+	pool := smallPool()
+	node := m2Node("m2-0")
+	starved := pendingPod("small-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, node, starved,
+		placedPod("other-0", "macos-26-5", "m2-0", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m2-0")) {
+		t.Fatal("a single-seat shape on a single-seat host must not reserve; it should just wait")
+	}
+}
+
+// The 6 vCPU shape is not large on an M4-XL either — it fits any free
+// seat, so it never needs a host drained for it.
+func TestReservation_SkipsTheSmallShapeOnADualSeatHost(t *testing.T) {
+	pool := smallPool()
+	node := m4Node("m4-0")
+	starved := pendingPod("small-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, largePool(), node, starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("the fleet's most granular shape must never trigger a reservation")
+	}
+}
+
+// The timeout is only a safety valve if the host actually goes back
+// into circulation. `starvedPod` measures the Pod's own age, so the Pod
+// that triggered the reservation is still long past the grace period the
+// instant the taint lifts — without a cooldown the next reconcile
+// re-reserves the same host and the small shapes never get it back.
+func TestReservation_TimedOutHostRestsBeforeBeingReservedAgain(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{
+		reservationAtAnnotation: reservationNow.Add(-reservationTimeout - time.Minute).Format(time.RFC3339),
+	}
+	// Pending since well before the grace period, as it would be after
+	// fifteen minutes of waiting.
+	starved := pendingPod("large-0", pool.Name, time.Hour)
+
+	r := reservationReconciler(pool, smallPool(), node, starved)
+	ctx := context.Background()
+
+	// First pass times out and releases.
+	if err := r.reconcileReservation(ctx, pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation (release): %v", err)
+	}
+	released := nodeByName(t, r, "m4-0")
+	if isReserved(released) {
+		t.Fatal("an expired reservation should have been released")
+	}
+	if released.Annotations[reservationCooldownAnnotation] == "" {
+		t.Fatal("a timed-out release must rest the host")
+	}
+
+	// Second pass, same tick: the host must not be taken straight back.
+	if err := r.reconcileReservation(ctx, pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation (retry): %v", err)
+	}
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("host was re-reserved during its cooldown; the timeout is then a no-op")
+	}
+}
+
+// Once the cooldown expires the pool may try again — the job is still
+// queued and the host may since have freed up.
+func TestReservation_ResumesAfterTheCooldownExpires(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Annotations = map[string]string{
+		reservationCooldownAnnotation: reservationNow.Add(-time.Minute).Format(time.RFC3339),
+	}
+	starved := pendingPod("large-0", pool.Name, time.Hour)
+
+	// m4-1 is busier, so the expired cooldown on m4-0 is the only thing
+	// that could keep it from being chosen.
+	r := reservationReconciler(pool, smallPool(), node, m4Node("m4-1"), starved,
+		placedPod("small-0", "macos-26-6", "m4-1", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("an expired cooldown must not keep blocking the host")
+	}
+}
+
+// A reservation that ended because the Pod landed achieved what it was
+// for, so the host is handed straight back with no penalty.
+func TestReservation_SuccessfulReleaseSetsNoCooldown(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+	placed := placedPod("large-0", pool.Name, "m4-0", "acme")
+
+	r := reservationReconciler(pool, smallPool(), node, placed)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*placed}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if got := nodeByName(t, r, "m4-0"); got.Annotations[reservationCooldownAnnotation] != "" {
+		t.Fatal("a successful reservation must not penalise the host")
+	}
+}
+
+// A pool blocked on a resting host is still free to reserve a different
+// eligible one, which is why the cooldown lives on the node.
+func TestReservation_CooldownIsPerHostNotPerPool(t *testing.T) {
+	pool := largePool()
+	resting := m4Node("m4-0")
+	resting.Annotations = map[string]string{
+		reservationCooldownAnnotation: reservationNow.Add(time.Minute).Format(time.RFC3339),
+	}
+	fresh := m4Node("m4-1")
+	starved := pendingPod("large-0", pool.Name, time.Hour)
+
+	r := reservationReconciler(pool, smallPool(), resting, fresh, starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Error("the resting host must stay out of the running")
+	}
+	if !isReserved(nodeByName(t, r, "m4-1")) {
+		t.Error("a sibling host with no cooldown should have been reserved instead")
+	}
+}
+
+// A reservation names its owning pool, so only that pool can find and
+// release it. Once the pool's CR is gone the taint is unreachable: the
+// host is out of the fleet permanently AND its reservation keeps
+// counting against the fleet-wide limit, blocking every future one.
+func TestReservation_SweepsReservationsWhoseOwningPoolIsGone(t *testing.T) {
+	pool := largePool()
+	orphaned := m4Node("m4-0")
+	orphaned.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue("macos-26-1-12vcpu-28gb"),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+
+	// No Pod is starved, so nothing but the sweep can act here.
+	r := reservationReconciler(pool, smallPool(), orphaned)
+	if err := r.reconcileReservation(context.Background(), pool, nil); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("a reservation whose pool no longer exists must be swept")
+	}
+}
+
+// An orphaned reservation must not keep the fleet's one slot spoken for.
+func TestReservation_OrphanDoesNotBlockANewReservation(t *testing.T) {
+	pool := largePool()
+	orphaned := m4Node("m4-0")
+	orphaned.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue("long-gone-pool"),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), orphaned, starved)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	node := nodeByName(t, r, "m4-0")
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == podtemplate.ReservationTaintKey &&
+			taint.Value != podtemplate.ReservationValue(pool.Name) {
+			t.Fatal("the orphan still holds the host; the starved pool is blocked behind it")
+		}
+	}
+}
+
+// A pool being deleted returns through reconcileDelete without reaching
+// reservation reconciliation, so the delete path has to hand the host
+// back itself.
+func TestReservation_ReleasedWhenTheOwningPoolIsDeleted(t *testing.T) {
+	pool := largePool()
+	node := m4Node("m4-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+
+	r := reservationReconciler(pool, smallPool(), node)
+	if err := r.ReleaseReservationsForPool(context.Background(), pool); err != nil {
+		t.Fatalf("ReleaseReservationsForPool: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Fatal("a deleting pool must hand its host back")
+	}
+}
+
+// A host already holding one of this pool's own Pods cannot be cleared
+// for a second: the reaper never retires own-pool Pods. Ranking on
+// occupancy alone made that host look ideal, because its own idle Pod
+// counts as zero occupancy.
+func TestReservation_SkipsHostsItsOwnPodAlreadyFills(t *testing.T) {
+	pool := largePool()
+	occupied := m4Node("m4-a") // holds this pool's own idle Pod
+	free := m4Node("m4-b")     // holds two other-pool jobs
+	starved := pendingPod("large-1", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), occupied, free, starved,
+		placedPod("large-0", pool.Name, "m4-a", ""),
+		placedPod("small-0", "macos-26-6", "m4-b", "acme"),
+		placedPod("small-1", "macos-26-6", "m4-b", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-a")) {
+		t.Fatal("reserved a host its own Pod fills; that host can never seat the second Pod")
+	}
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Fatal("should have reserved the host whose occupants can actually be cleared")
+	}
+}
+
+// starvedSince stamps a pool as having been unable to place since `ago`,
+// the state a pool reaches after its first reconcile with unplaced work.
+func starvedSince(pool *tuistv1.RunnerPool, ago time.Duration) *tuistv1.RunnerPool {
+	stamp := metav1.NewTime(reservationNow.Add(-ago))
+	pool.Status.UnplaceableSince = &stamp
+	return pool
+}
+
+// The regression this whole change exists for. The reaper deletes an
+// unplaced Pod at `startTimeoutSeconds` and the pool recreates it, so
+// every five minutes the pool's Pods are all younger than the two-minute
+// grace period. The old per-Pod age test read that as "pool is served"
+// and released a reservation part-way through draining a host, handing
+// the seats back to the small shapes that had taken them in the first
+// place. Production, 2026-09-04 08:24:24: a reap and a release logged in
+// the same second while the pool went 3 -> 2 -> 1 -> 0 Running.
+func TestReservation_SurvivesTheUnschedulableReapCycle(t *testing.T) {
+	pool := starvedSince(linuxLargePool(), 40*time.Minute)
+	pool.Spec.Replicas = 1
+	node := ax162Node("ax-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{
+		reservationAtAnnotation: reservationNow.Add(-3 * time.Minute).UTC().Format(time.RFC3339),
+	}
+
+	// The replacement the reaper's recreate just produced: far too young
+	// to have counted under the old rule.
+	fresh := pendingPod("large-replacement", pool.Name, 20*time.Second)
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, ax162Node("ax-1"), fresh)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*fresh}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "ax-0")) {
+		t.Fatal("released a reservation because the reaper had just recycled the Pod; the pool is not served")
+	}
+	if pool.Status.UnplaceableSince == nil {
+		t.Fatal("starvation clock cleared while demand was still unplaced")
+	}
+	if got := pool.Status.UnplaceableSince.Time; !got.Equal(reservationNow.Add(-40 * time.Minute)) {
+		t.Errorf("starvation clock restarted at %v; the reap must not reset it", got)
+	}
+}
+
+// A pool that has placed everything it wants is served, and must hand
+// the host back rather than sit on it until the timeout.
+func TestReservation_ClearsTheClockOncePlaced(t *testing.T) {
+	pool := starvedSince(linuxLargePool(), 40*time.Minute)
+	pool.Spec.Replicas = 1
+	node := ax162Node("ax-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	placed := placedPod("large-0", pool.Name, "ax-0", "acme")
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, ax162Node("ax-1"), placed)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*placed}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "ax-0")) {
+		t.Fatal("held a reservation for a pool whose demand is placed")
+	}
+	if pool.Status.UnplaceableSince != nil {
+		t.Error("starvation clock must clear once the pool places its demand")
+	}
+}
+
+// The fleet has one reservation and it went to whichever pool reconciled
+// first. Small shapes starve often and converge in seconds, so they kept
+// re-taking it while the coarse shape — the only one that cannot be
+// served without a drain — waited over an hour.
+func TestReservation_OldestStarvationGoesFirst(t *testing.T) {
+	small := starvedSince(linuxSmallPool(), 45*time.Minute)
+	small.Spec.Replicas = 1
+	large := starvedSince(linuxLargePool(), 5*time.Minute)
+	large.Spec.Replicas = 1
+	starved := pendingPod("large-0", large.Name, 5*time.Minute)
+
+	r := reservationReconciler(large, small, ax162Node("ax-0"), ax162Node("ax-1"), starved)
+	if err := r.reconcileReservation(context.Background(), large, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "ax-0")) || isReserved(nodeByName(t, r, "ax-1")) {
+		t.Fatal("took the fleet's only reservation ahead of a pool that has been starved longer")
+	}
+}
+
+// ...and the symmetric case: first in line takes it. Ordering on
+// starvation age rather than shape size is what keeps both the coarse
+// shape and the default shape from being cut in line indefinitely.
+func TestReservation_FirstInLineTakesTheReservation(t *testing.T) {
+	small := starvedSince(linuxSmallPool(), 5*time.Minute)
+	small.Spec.Replicas = 1
+	large := starvedSince(linuxLargePool(), 45*time.Minute)
+	large.Spec.Replicas = 1
+	starved := pendingPod("large-0", large.Name, 45*time.Minute)
+
+	r := reservationReconciler(large, small, ax162Node("ax-0"), ax162Node("ax-1"), starved,
+		placedPod("small-0", small.Name, "ax-0", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), large, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "ax-0")) && !isReserved(nodeByName(t, r, "ax-1")) {
+		t.Fatal("the longest-starved pool must get the fleet's reservation")
+	}
+}
+
+// Yielding must not become its own starvation. A shape no host can seat
+// even empty never stops being starved, so a pool must step over it
+// rather than queue behind it forever.
+func TestReservation_DoesNotYieldToAnUnseatableShape(t *testing.T) {
+	// 512 GB per Pod: no node on this fleet can seat it, ever.
+	unseatable := starvedSince(linuxLargePool(), 90*time.Minute)
+	unseatable.Name = "runner-pool-linux-impossible"
+	unseatable.Spec.PodMemoryMB = 524288
+	unseatable.Spec.Replicas = 1
+
+	large := starvedSince(linuxLargePool(), 10*time.Minute)
+	large.Spec.Replicas = 1
+	starved := pendingPod("large-0", large.Name, 10*time.Minute)
+
+	r := reservationReconciler(large, unseatable, linuxSmallPool(),
+		ax162Node("ax-0"), ax162Node("ax-1"), starved,
+		placedPod("small-0", linuxSmallPoolName, "ax-0", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), large, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "ax-0")) && !isReserved(nodeByName(t, r, "ax-1")) {
+		t.Fatal("blocked forever behind a shape no drain could ever serve")
+	}
+}
+
+// A nested-virtualization pool reasons about the KVM-proven hosts only,
+// the same set its Pods' nodeSelector restricts the scheduler to.
+func TestFleetNodesOfANestedVirtualizationPoolAreTheKVMHosts(t *testing.T) {
+	node := func(name string, kvm bool) *corev1.Node {
+		labels := map[string]string{fleetNodePoolLabel: "runners-linux", nodeOSLabel: "linux"}
+		if kvm {
+			labels[podtemplate.KVMNodeLabel] = "true"
+		}
+		return &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels}}
+	}
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node("kvm", true), node("plain", false)).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: "runners-linux", RuntimeClass: "kata-qemu"}}
+	all, err := r.fleetNodes(context.Background(), pool)
+	if err != nil || len(all) != 2 {
+		t.Fatalf("plain pool fleet = %d nodes (err %v), want both", len(all), err)
+	}
+
+	pool.Spec.NestedVirtualization = true
+	kvm, err := r.fleetNodes(context.Background(), pool)
+	if err != nil || len(kvm) != 1 || kvm[0].Name != "kvm" {
+		t.Fatalf("nested pool fleet = %v (err %v), want only the KVM host", kvm, err)
+	}
+}
+
+// Every image keeps a warm runner, so on a quiet fleet each host can hold an
+// idle one. A host holding only idle runners clears at once, so the starved
+// shape takes it after idleHostReservationGrace rather than reservationGrace.
+func TestReservation_TakesAnIdleHostEarly(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 45*time.Second)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		bootedMacOSPod("small-warm-0", "macos-26-6", "m4-0", reservationNow.Add(-time.Hour)),
+		bootedMacOSPod("small-warm-1", "macos-26-6", "m4-1", reservationNow.Add(-time.Hour)),
+		placedPod("small-owned", "macos-26-6", "m4-1", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-0")) {
+		t.Error("the host holding only an idle runner should be reserved before reservationGrace")
+	}
+	if isReserved(nodeByName(t, r, "m4-1")) {
+		t.Error("the host running a job should not be reserved")
+	}
+}
+
+// A host that would have to wait out a job is only worth draining once the
+// Pod has waited the full reservationGrace.
+func TestReservation_WaitsTheFullGraceForABusyHost(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 45*time.Second)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		placedPod("small-owned-0", "macos-26-6", "m4-0", "acme"),
+		placedPod("small-owned-1", "macos-26-6", "m4-1", "acme"),
+		bootedMacOSPod("small-booted", "macos-26-6", "m4-1", reservationNow.Add(-time.Minute)),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	for _, name := range []string{"m4-0", "m4-1"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Errorf("%s was reserved before reservationGrace although it runs a job", name)
+		}
+	}
+}
+
+func linuxMidPool() *tuistv1.RunnerPool {
+	return &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "runner-pool-linux-16vcpu-32gb", Namespace: "runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			OS:            "linux",
+			FleetSelector: linuxReservationFleet,
+			PodCPUMilli:   16000,
+			PodMemoryMB:   32768,
+		},
+	}
+}
+
+// riseLNode carries an OVH RISE-L's allocatable: 16 cores / 32 threads and
+// 128 GB, less the kubelet reservation.
+func riseLNode(name string) *corev1.Node {
+	node := ax162Node(name)
+	node.Status.Allocatable = corev1.ResourceList{
+		corev1.ResourceCPU:    *resource.NewQuantity(31, resource.DecimalSI),
+		corev1.ResourceMemory: *resource.NewQuantity(125773035215, resource.BinarySI),
+	}
+	return node
+}
+
+// kataPod gives a runner Pod its shape's request and the kata RuntimeClass
+// overhead, as admission does.
+func kataPod(pod *corev1.Pod, cpuMilli, memoryMB int64) *corev1.Pod {
+	pod.Spec.Containers = []corev1.Container{{
+		Name: "runner",
+		Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    *resource.NewMilliQuantity(cpuMilli, resource.DecimalSI),
+			corev1.ResourceMemory: *resource.NewQuantity(memoryMB*1024*1024, resource.BinarySI),
+		}},
+	}}
+	pod.Spec.Overhead = corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("250m"),
+		corev1.ResourceMemory: resource.MustParse("2560Mi"),
+	}
+	return pod
+}
+
+func cacheVolumeAgentPod(name, node string, seatedAt time.Time) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              name,
+			Namespace:         "runners",
+			Labels:            map[string]string{"app.kubernetes.io/component": "runner-cache-volumes"},
+			CreationTimestamp: metav1.NewTime(seatedAt),
+		},
+		Spec: corev1.PodSpec{NodeName: node},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			Conditions: []corev1.PodCondition{{
+				Type:               corev1.PodScheduled,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(seatedAt),
+			}},
+		},
+	}
+}
+
+// Every Linux host runs some job during working hours, so a host with no job
+// at all rarely exists. A host whose idle Pods are all that stand between the
+// starved shape and a seat clears as fast as one holding only idle Pods.
+func TestReservation_TakesALinuxHostEarlyWhenItsIdlePodsMakeRoom(t *testing.T) {
+	pool := linuxMidPool()
+	starved := kataPod(pendingPod("mid-0", pool.Name, 45*time.Second), 16000, 32768)
+
+	r := reservationReconciler(pool, linuxSmallPool(), riseLNode("rl-0"), riseLNode("rl-1"), starved,
+		kataPod(placedPod("rl-0-job", "runner-pool-linux-8vcpu-16gb", "rl-0", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-0-warm", "runner-pool-linux-16vcpu-64gb", "rl-0", ""), 16000, 65536),
+		kataPod(placedPod("rl-1-job-0", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-job-1", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-job-2", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-warm", linuxSmallPoolName, "rl-1", ""), 2000, 8192),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "rl-0")) {
+		t.Error("the host that seats the shape once its idle Pod is retired should be reserved before reservationGrace")
+	}
+	if isReserved(nodeByName(t, r, "rl-1")) {
+		t.Error("the host whose jobs leave no room for the shape should not be reserved")
+	}
+}
+
+func TestReservation_WaitsTheFullGraceWhenNoLinuxHostClearsAtOnce(t *testing.T) {
+	pool := linuxMidPool()
+	starved := kataPod(pendingPod("mid-0", pool.Name, 45*time.Second), 16000, 32768)
+
+	r := reservationReconciler(pool, linuxSmallPool(), riseLNode("rl-0"), riseLNode("rl-1"), starved,
+		kataPod(placedPod("rl-0-job-0", "runner-pool-linux-8vcpu-16gb", "rl-0", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-0-job-1", "runner-pool-linux-8vcpu-16gb", "rl-0", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-0-warm", linuxSmallPoolName, "rl-0", ""), 2000, 8192),
+		kataPod(placedPod("rl-1-job-0", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-job-1", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-warm", linuxSmallPoolName, "rl-1", ""), 2000, 8192),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	for _, name := range []string{"rl-0", "rl-1"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Errorf("%s was reserved before reservationGrace although its jobs leave no room", name)
+		}
+	}
+}
+
+// A shape that already fits beside a host's jobs, with nothing to retire, is
+// held back by something the runners namespace does not show.
+func TestReservation_LinuxEarlyPathNeedsAnIdlePodToRetire(t *testing.T) {
+	pool := linuxMidPool()
+	starved := kataPod(pendingPod("mid-0", pool.Name, 45*time.Second), 16000, 32768)
+
+	r := reservationReconciler(pool, linuxSmallPool(), riseLNode("rl-0"), riseLNode("rl-1"), starved,
+		kataPod(placedPod("rl-0-job", "runner-pool-linux-8vcpu-16gb", "rl-0", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-job", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	for _, name := range []string{"rl-0", "rl-1"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Errorf("%s was reserved early with no idle Pod to retire", name)
+		}
+	}
+}
+
+func TestReservation_NeverRetiresTheCacheVolumeAgent(t *testing.T) {
+	pool := linuxMidPool()
+	node := riseLNode("rl-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+
+	starved := pendingPod("mid-0", pool.Name, 5*time.Minute)
+	r := reservationReconciler(pool, linuxSmallPool(), node, riseLNode("rl-1"), starved,
+		cacheVolumeAgentPod("cache-volumes-0", "rl-0", reservationNow.Add(-time.Hour)),
+		placedPod("small-idle", linuxSmallPoolName, "rl-0", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	remaining := remainingPodNames(t, r)
+	if !remaining["cache-volumes-0"] {
+		t.Error("the cache-volume agent is not a runner and must survive the drain")
+	}
+	if remaining["small-idle"] {
+		t.Error("an idle runner of another pool should still be retired")
+	}
+}
+
+func TestReservation_AFreshCacheVolumeAgentDoesNotHoldBackTheEarlyPath(t *testing.T) {
+	pool := linuxMidPool()
+	starved := kataPod(pendingPod("mid-0", pool.Name, 45*time.Second), 16000, 32768)
+
+	r := reservationReconciler(pool, linuxSmallPool(), riseLNode("rl-0"), riseLNode("rl-1"), starved,
+		cacheVolumeAgentPod("cache-volumes-0", "rl-0", reservationNow.Add(-30*time.Second)),
+		kataPod(placedPod("rl-0-warm", "runner-pool-linux-16vcpu-64gb", "rl-0", ""), 16000, 65536),
+		kataPod(placedPod("rl-1-job", "runner-pool-linux-16vcpu-64gb", "rl-1", "acme"), 16000, 65536),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "rl-0")) {
+		t.Error("a host holding only an idle runner and the cache-volume agent should be reserved before reservationGrace")
+	}
+}

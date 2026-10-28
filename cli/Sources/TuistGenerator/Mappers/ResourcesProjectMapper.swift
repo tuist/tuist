@@ -14,8 +14,8 @@ import XcodeGraph
 ///      cannot host their own resources).
 ///   2. Writes a `TuistBundle+<Target>.swift` accessor into the target's Derived directory so
 ///      that user code can call `Bundle.module`.
-///   3. For Objective-C targets generated from Swift packages, also emits
-///      Swift Package Manager-shaped C bridging files.
+///   3. For Objective-C targets generated from Swift packages, asks Xcode to generate resource
+///      accessors with the same build setting as Swift Package Manager.
 public struct ResourcesProjectMapper: ProjectMapping {
     private let contentHasher: ContentHashing
     private let buildableFolderChecker: BuildableFolderChecking
@@ -58,13 +58,15 @@ public struct ResourcesProjectMapper: ProjectMapping {
             return ([target], [])
         }
 
+        let objcResourceAccessorNeeded = targetNeedsObjcResourceAccessor(target)
         let bundleName = "\(project.name)_\(target.name.sanitizedModuleName)"
+        let resourceBundleName = objcResourceAccessorNeeded ? bundleName.asLegalCIdentifier : bundleName
         var modifiedTarget = target
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
 
         if targetNeedsCompanionBundle(target) {
-            let companion = synthesizeCompanionBundle(for: target, bundleName: bundleName)
+            let companion = synthesizeCompanionBundle(for: target, bundleName: resourceBundleName)
             modifiedTarget = companion.modifiedTarget
             additionalTargets.append(companion.bundleTarget)
         }
@@ -75,21 +77,15 @@ public struct ResourcesProjectMapper: ProjectMapping {
                 sideEffects: &sideEffects,
                 target: target,
                 project: project,
-                bundleName: bundleName
+                bundleName: resourceBundleName
             )
             if targetNeedsCompanionBundle(target) {
                 modifiedTarget = addingModuleResourceBundleAvailableCondition(to: modifiedTarget)
             }
         }
 
-        if targetNeedsObjcAccessor(target) {
-            try appendObjcBundleAccessor(
-                to: &modifiedTarget,
-                sideEffects: &sideEffects,
-                target: target,
-                project: project,
-                bundleName: bundleName
-            )
+        if objcResourceAccessorNeeded {
+            modifiedTarget = addingObjcResourceAccessorGeneration(to: modifiedTarget)
         }
 
         return ([modifiedTarget] + additionalTargets, sideEffects)
@@ -120,7 +116,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
         return containsSwift || containsSourcesInBuildableFolders
     }
 
-    private func targetNeedsObjcAccessor(_ target: Target) -> Bool {
+    private func targetNeedsObjcResourceAccessor(_ target: Target) -> Bool {
         guard target.metadata.tags.contains(TargetTags.swiftPackage) else { return false }
         let containsObjc = target.sources.contains {
             $0.path.extension == "m" || $0.path.extension == "mm"
@@ -157,7 +153,15 @@ public struct ResourcesProjectMapper: ProjectMapping {
         for target: Target,
         bundleName: String
     ) -> CompanionBundleResult {
-        let partition = partitioner.partition(target.buildableFolders)
+        let partition = partitioner.partition(
+            target.buildableFolders,
+            explicitCatalogSources: Set(target.sources.compactMap {
+                ["xcassets", "xcstrings"].contains($0.path.extension?.lowercased() ?? "") ? $0.path : nil
+            }),
+            explicitCatalogResources: Set(target.resources.resources.compactMap {
+                ["xcassets", "xcstrings"].contains($0.path.extension?.lowercased() ?? "") ? $0.path : nil
+            })
+        )
 
         let bundleTarget = makeBundleTarget(
             for: target,
@@ -174,31 +178,33 @@ public struct ResourcesProjectMapper: ProjectMapping {
 
         // Asset catalogs (.xcassets) sit on the main target's Sources phase so Xcode generates
         // typed asset symbols, and on the companion bundle's Resources phase so the catalog is
-        // actually compiled. This applies both to explicit `resources` entries and to catalogs
-        // discovered inside buildable folders. Mirrors SwiftPM's PIF builder:
+        // actually compiled. Discovered catalogs keep synchronized membership in both targets:
+        // swift-build moves source-generating Resources entries into Sources for symbol generation.
+        // Explicit declarations take precedence over implicit membership to preserve per-file metadata.
+        // A catalog declared as a buildable root still needs its explicit Sources reference.
+        //   - https://github.com/swiftlang/swift-build/blob/89af69d6b4effc57993c35181b8726d292749b47/Sources/SWBTaskConstruction/TaskProducers/BuildPhaseTaskProducers/SourcesTaskProducer.swift#L263-L275
+        // Explicit `resources` entries mirror SwiftPM's PIF builder:
         //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L944-L952
         //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L347-L353
         appendUniqueSourceFiles(
             paths: target.resources.resources.compactMap { resource in
                 guard resource.path.extension?.lowercased() == "xcassets" else { return nil }
                 return resource.path
-            } + buildableFolderAssetCatalogPaths(target.buildableFolders),
+            } + target.buildableFolders.compactMap { folder in
+                folder.path.extension?.lowercased() == "xcassets" ? folder.path : nil
+            },
             to: &modifiedTarget
         )
 
-        // String catalogs (.xcstrings) stay on the main target's Resources phase so Xcode runs
-        // localization extraction and stale-string detection in the same target where the Swift
-        // sources live. They are also kept on the companion bundle's Resources phase so the
-        // catalog is compiled to .strings for `Bundle.module` lookups at runtime.
+        // String catalogs (.xcstrings) stay on the main target's Resources phase, or in its
+        // synchronized membership, so swift-build can generate string symbols when enabled.
+        // Swift string extraction is independently controlled by SWIFT_EMIT_LOC_STRINGS.
+        // The companion bundle compiles the catalog to .strings for `Bundle.module` lookups.
         // `PACKAGE_RESOURCE_BUNDLE_NAME` (set on the main target below) makes swift-build's
         // `XCStringsCompiler.shouldCompileCatalog` skip catalog compilation here, so the catalog
         // is only compiled once, inside the companion bundle.
         //   - https://github.com/swiftlang/swift-build/blob/main/Sources/SWBApplePlatform/XCStringsCompiler.swift
-        var explicitResources = partition.originalTargetExplicitResources
-        explicitResources.append(
-            contentsOf: target.resources.resources.filter { $0.path.extension == "xcstrings" }
-        )
-        modifiedTarget.resources.resources = explicitResources
+        modifiedTarget.resources.resources = target.resources.resources.filter { $0.path.extension == "xcstrings" }
         modifiedTarget.copyFiles = []
         modifiedTarget.buildableFolders = partition.originalTargetFolders
         modifiedTarget.dependencies.append(.target(
@@ -213,9 +219,9 @@ public struct ResourcesProjectMapper: ProjectMapping {
         // `xcodebuild archive` fails for static targets because `LinkAssetCatalog` references an
         // `UninstalledProducts` path that doesn't exist during archiving.
         //
-        // `PACKAGE_RESOURCE_TARGET_KIND = "regular"` tells Xcode this is a normal compilation
-        // target (not a resource bundle) so string extraction runs here where the Swift source
-        // references live. Mirrors SwiftPM's PIF builder:
+        // `PACKAGE_RESOURCE_TARGET_KIND = "regular"` identifies the main compilation target,
+        // rather than its resource bundle. It does not enable Swift string extraction.
+        // Mirrors SwiftPM's PIF builder:
         //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L642
         //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift#L524
         var base = modifiedTarget.settings?.base ?? SettingsDictionary()
@@ -329,32 +335,13 @@ public struct ResourcesProjectMapper: ProjectMapping {
         return target
     }
 
-    private func appendObjcBundleAccessor(
-        to modifiedTarget: inout Target,
-        sideEffects: inout [SideEffectDescriptor],
-        target: Target,
-        project: Project,
-        bundleName: String
-    ) throws {
-        let header = bundleAccessorTemplate.objcAccessorHeader(target: target, project: project)
-        let implementation = bundleAccessorTemplate.objcAccessorImplementation(
-            target: target,
-            bundleName: bundleName,
-            project: project
-        )
-
-        // Point the target's prefix header at the synthesised .h so every Obj-C file picks up
-        // `SWIFTPM_MODULE_BUNDLE` without an explicit `#import`.
-        let prefixHeaderPath = "$(SRCROOT)/\(header.path.relative(to: project.path).pathString)"
-        var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
-        settings["GCC_PREFIX_HEADER"] = .string(prefixHeaderPath)
-        modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
-
-        let implementationHash = try implementation.contents.map(contentHasher.hash)
-        modifiedTarget.sources.append(SourceFile(path: implementation.path, contentHash: implementationHash))
-
-        sideEffects.append(.file(.init(path: header.path, contents: header.contents, state: .present)))
-        sideEffects.append(.file(.init(path: implementation.path, contents: implementation.contents, state: .present)))
+    private func addingObjcResourceAccessorGeneration(to target: Target) -> Target {
+        var target = target
+        var settings = target.settings?.base ?? SettingsDictionary()
+        settings["GENERATE_RESOURCE_ACCESSORS"] = .string("YES")
+        target.settings = target.settings?.with(base: settings)
+            ?? Settings(base: settings, configurations: [:])
+        return target
     }
 
     private func appendUniqueSourceFiles(paths: [AbsolutePath], to target: inout Target) {
@@ -364,24 +351,5 @@ public struct ResourcesProjectMapper: ProjectMapping {
         for path in paths where existingPaths.insert(path).inserted {
             target.sources.append(SourceFile(path: path))
         }
-    }
-
-    private func buildableFolderAssetCatalogPaths(_ folders: [BuildableFolder]) -> [AbsolutePath] {
-        var assetCatalogPaths: [AbsolutePath] = []
-        var seenPaths = Set<AbsolutePath>()
-
-        for folder in folders {
-            if folder.path.extension?.lowercased() == "xcassets", seenPaths.insert(folder.path).inserted {
-                assetCatalogPaths.append(folder.path)
-            }
-
-            for resolvedFile in folder.resolvedFiles where resolvedFile.path.extension?.lowercased() == "xcassets" {
-                if seenPaths.insert(resolvedFile.path).inserted {
-                    assetCatalogPaths.append(resolvedFile.path)
-                }
-            }
-        }
-
-        return assetCatalogPaths
     }
 }

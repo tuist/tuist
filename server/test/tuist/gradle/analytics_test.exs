@@ -134,10 +134,36 @@ defmodule Tuist.Gradle.AnalyticsTest do
           end_datetime: end_datetime
         )
 
+      assert got.has_data
       assert got.avg_hit_rate == 50.0
       assert is_number(got.trend)
       assert length(got.dates) == 3
       assert length(got.values) == 3
+    end
+
+    test "distinguishes recorded cache misses from absent observations", %{
+      now: now,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
+      project = ProjectsFixtures.project_fixture()
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: now,
+        tasks: [
+          %{task_path: ":app:compile", outcome: "executed", cacheable: true}
+        ]
+      )
+
+      analytics =
+        Analytics.cache_hit_rate_analytics(project.id,
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
+        )
+
+      assert analytics.has_data
+      assert analytics.avg_hit_rate == 0.0
     end
 
     test "returns zero trend and rate when no data exists", %{
@@ -154,6 +180,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
           end_datetime: end_datetime
         )
 
+      refute got.has_data
       assert got.avg_hit_rate == 0.0
       assert got.trend == 0.0
       assert got.dates == expected_dates

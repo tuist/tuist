@@ -22,6 +22,18 @@ func TestDesiredReplicas(t *testing.T) {
 			want:    6, // floor=5 (p95), target=max(0,5)=5, desired=5+1=6
 		},
 		{
+			name:    "IgnoreRecentPeak sizes an idle pool to its floor after a burst",
+			signals: Signals{Claimed: 0, Queued: 0, P95ConcurrentLastHour: 11},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 0, MaxReplicas: 18, IgnoreRecentPeak: true},
+			want:    0,
+		},
+		{
+			name:    "IgnoreRecentPeak still funds current load",
+			signals: Signals{Claimed: 3, Queued: 2, P95ConcurrentLastHour: 11},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 18, IgnoreRecentPeak: true},
+			want:    6, // target=load 5, desired=5+1
+		},
+		{
 			name:    "idle with no history uses MinWarmPoolFloor",
 			signals: Signals{Claimed: 0, Queued: 0, P95ConcurrentLastHour: 0},
 			knobs:   PolicyKnobs{MinWarmPoolFloor: 3, MaxReplicas: 30},

@@ -21,6 +21,7 @@ defmodule TuistOps.JIT.Elevation do
   schema "tailscale_jit_elevations" do
     field :requester_email, :string
     field :target_group, :string
+    field :github_login, :string
     field :expires_at, :utc_datetime
     field :status, :string, default: "active"
     field :reverted_at, :utc_datetime
@@ -33,7 +34,7 @@ defmodule TuistOps.JIT.Elevation do
 
   def create_changeset(attrs) do
     %__MODULE__{}
-    |> cast(attrs, [:request_id, :requester_email, :target_group, :expires_at])
+    |> cast(attrs, [:request_id, :requester_email, :target_group, :github_login, :expires_at])
     |> validate_required([:request_id, :requester_email, :target_group, :expires_at])
     |> validate_inclusion(:status, @statuses)
     |> foreign_key_constraint(:request_id)

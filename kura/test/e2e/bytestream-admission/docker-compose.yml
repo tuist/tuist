@@ -1,0 +1,34 @@
+services:
+  kura-us:
+    # Keep Linux accounting isolated, with room for allocator overhead while
+    # retaining the reproducer's 32 MiB transient and 16 MiB response pools.
+    mem_limit: 1g
+    memswap_limit: 1g
+    environment:
+      KURA_MEMORY_SOFT_LIMIT_BYTES: "536870912"
+      KURA_MEMORY_HARD_LIMIT_BYTES: "570425344"
+      KURA_METADATA_STORE_READ_CACHE_BYTES: "4194304"
+      KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES: "8388608"
+      KURA_METADATA_STORE_WRITE_BUFFER_BYTES: "4194304"
+      KURA_MANIFEST_CACHE_MAX_BYTES: "4194304"
+      KURA_SNAPSHOT_CACHE_MAX_BYTES: "4194304"
+      KURA_PEERS: ""
+      KURA_DISCOVERY_DNS_NAME: ""
+      KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ""
+
+  bytestream-client:
+    profiles: [bytestream-admission]
+    build:
+      context: ./test/e2e/grpc-upload-throughput/client
+    command: [load]
+    environment:
+      LOAD_TARGET: kura-us:4000
+      LOAD_OPERATION: read
+      LOAD_REQUESTS: "${KURA_E2E_BYTESTREAM_REQUESTS:-128}"
+      LOAD_CONCURRENCY: "32"
+      LOAD_CONNECTIONS: "1"
+      LOAD_KEYSPACE: "1"
+      LOAD_SIZE_KB: "1024"
+      LOAD_STREAM_WINDOW_BYTES: "65536"
+      LOAD_READ_BYTES_PER_SECOND: "2097152"
+      LOAD_MIN_REQUEST_MS: "500"

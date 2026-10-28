@@ -5,6 +5,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.GitHub.App
+  alias Tuist.OAuth2.SSRFGuard
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.ArchiveLogsWorker
@@ -12,6 +13,12 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
   alias Tuist.VCS
 
   setup :verify_on_exit!
+
+  setup do
+    stub(SSRFGuard, :pin, fn url -> {:ok, url, URI.parse(url).host} end)
+    stub(SSRFGuard, :connect_options, fn _host -> [] end)
+    :ok
+  end
 
   defp enqueue(account, workflow_job_id) do
     :ok =
@@ -38,7 +45,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
   end
 
   defp stub_gh_installation_token do
-    stub(VCS, :get_github_app_installation_by_installation_id, fn _id ->
+    stub(VCS, :get_github_app_installation_for_account, fn _id ->
       {:ok, %{installation_id: "12345"}}
     end)
 
@@ -132,6 +139,13 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
 
       body = "2026-06-02T15:31:03.111111Z downloaded from signed URL\n"
       signed_url = "https://objects.githubusercontent.com/github-production-repository-file-5/logs.txt"
+      pinned_url = "https://93.184.216.34/github-production-repository-file-5/logs.txt"
+
+      expect(SSRFGuard, :pin, fn ^signed_url -> {:ok, pinned_url, "objects.githubusercontent.com"} end)
+
+      expect(SSRFGuard, :connect_options, fn "objects.githubusercontent.com" ->
+        [hostname: "objects.githubusercontent.com"]
+      end)
 
       expect(Req, :get, 2, fn opts ->
         case Keyword.fetch!(opts, :url) do
@@ -149,7 +163,9 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
                 private: %{}
               }}}
 
-          ^signed_url ->
+          ^pinned_url ->
+            assert opts[:connect_options] == [hostname: "objects.githubusercontent.com"]
+            assert opts[:finch] == nil
             assert opts[:redirect] == false
             assert Keyword.has_key?(opts, :into)
             refute Enum.any?(opts[:headers], fn {name, _value} -> String.downcase(name) == "authorization" end)
@@ -171,7 +187,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       )
     end
 
-    test "returns the error so Oban retries when GitHub hasn't published the log yet (404)" do
+    test "snoozes without noise while the log archive is still being finalised (404)" do
       account = account_fixture()
       enqueue(account, 9_910_002)
       stub_gh_installation_token()
@@ -180,14 +196,35 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
         {:ok, %Req.Response{status: 404, body: ""}}
       end)
 
-      assert {:error, :log_not_ready_yet} =
+      # A 404 is the expected response for ~30s after job completion while
+      # GitHub finalises the archive. Snoozing keeps the retry off Sentry.
+      assert {:snooze, seconds} =
                FetchLogsWorker.perform(%Oban.Job{args: args(9_910_002, account.id), attempt: 1, max_attempts: 5})
+
+      assert seconds > 0
 
       assert JobLogs.list_for_job(9_910_002) == []
       refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_002})
     end
 
-    test "gives up quietly on the last attempt when GitHub never publishes a log (404)" do
+    test "keeps snoozing on later attempts inside the snooze budget (404)" do
+      account = account_fixture()
+      enqueue(account, 9_910_007)
+      stub_gh_installation_token()
+
+      expect(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 404, body: ""}}
+      end)
+
+      # A 4th attempt is still inside the snooze budget covering GitHub's
+      # publication delay, so we keep snoozing rather than surfacing an error.
+      assert {:snooze, seconds} =
+               FetchLogsWorker.perform(%Oban.Job{args: args(9_910_007, account.id), attempt: 4, max_attempts: 8})
+
+      assert seconds > 0
+    end
+
+    test "gives up quietly after the snooze budget is exhausted (404)" do
       account = account_fixture()
       enqueue(account, 9_910_004)
       stub_gh_installation_token()
@@ -196,10 +233,11 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
         {:ok, %Req.Response{status: 404, body: ""}}
       end)
 
-      # A permanent 404 (a job that never ran a step) is not actionable,
-      # so the last attempt completes rather than discarding with an error.
+      # After the snooze budget, a persistent 404 (a job that never ran
+      # a step, an archive GitHub never published) is not actionable, so
+      # the worker completes rather than discarding with an error.
       assert :ok =
-               FetchLogsWorker.perform(%Oban.Job{args: args(9_910_004, account.id), attempt: 5, max_attempts: 5})
+               FetchLogsWorker.perform(%Oban.Job{args: args(9_910_004, account.id), attempt: 6, max_attempts: 10})
 
       assert JobLogs.list_for_job(9_910_004) == []
       refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_004})
@@ -304,11 +342,85 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       assert line.message == "Only line, no trailing newline"
     end
 
+    test "uses the account-owned installation and pins the Enterprise API proxy log request" do
+      account = account_fixture()
+      installation = %{installation_id: "12345", api_url: "https://proxy.example.com/ghe/api/v3"}
+
+      expect(VCS, :get_github_app_installation_for_account, fn id ->
+        assert id == account.id
+        {:ok, installation}
+      end)
+
+      reject(&VCS.get_github_app_installation_by_installation_id/1)
+      expect(VCS, :installation_api_url, fn ^installation -> installation.api_url end)
+
+      expect(App, :get_installation_token, fn ^installation, opts ->
+        assert opts[:api_url] == installation.api_url
+        {:ok, %{token: "proxy-token"}}
+      end)
+
+      expect(SSRFGuard, :pin, fn url ->
+        assert url == "#{installation.api_url}/repos/tuist/tuist/actions/jobs/9910030/logs"
+        {:ok, "https://93.184.216.34/ghe/api/v3/repos/tuist/tuist/actions/jobs/9910030/logs", "proxy.example.com"}
+      end)
+
+      expect(SSRFGuard, :connect_options, fn "proxy.example.com" -> [hostname: "proxy.example.com"] end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://93.184.216.34/ghe/api/v3/repos/tuist/tuist/actions/jobs/9910030/logs"
+        assert opts[:connect_options] == [hostname: "proxy.example.com"]
+        assert opts[:redirect] == false
+        assert opts[:finch] == nil
+        assert {"Authorization", "Bearer proxy-token"} in opts[:headers]
+        {:ok, %Req.Response{status: 200, body: "", private: %{}}}
+      end)
+
+      assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_030, account.id)})
+    end
+
+    for location <- ["https://127.0.0.1/private", "http://169.254.169.254/latest/meta-data", "file:///etc/passwd"] do
+      test "rejects unsafe log redirect #{location}" do
+        account = account_fixture()
+        location = unquote(location)
+        stub_gh_installation_token()
+
+        expect(Req, :get, fn _opts ->
+          {:ok, %Req.Response{status: 302, headers: %{"location" => [location]}, body: ""}}
+        end)
+
+        expected_error =
+          if String.starts_with?(location, "https://") do
+            expect(SSRFGuard, :pin, fn ^location -> {:error, :private_ip_resolved} end)
+            {:ssrf, :private_ip_resolved}
+          else
+            reject(&SSRFGuard.pin/1)
+            :invalid_log_url
+          end
+
+        assert {:error, ^expected_error} = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_031, account.id)})
+        assert JobLogs.list_for_job(9_910_031) == []
+        refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_031})
+      end
+    end
+
+    test "does not use an installation ID belonging to a different account" do
+      account = account_fixture()
+
+      expect(VCS, :get_github_app_installation_for_account, fn id ->
+        assert id == account.id
+        {:ok, %{installation_id: "different"}}
+      end)
+
+      reject(&App.get_installation_token/2)
+      reject(&Req.get/1)
+      assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_032, account.id)})
+    end
+
     test "is a no-op when the GitHub App installation has been uninstalled" do
       account = account_fixture()
       enqueue(account, 9_910_004)
 
-      stub(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:error, :not_found} end)
+      stub(VCS, :get_github_app_installation_for_account, fn _ -> {:error, :not_found} end)
       reject(&Req.get/1)
 
       assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_004, account.id)})

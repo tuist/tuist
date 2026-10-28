@@ -183,14 +183,29 @@ var (
 		Help: "Runner-fleet nodes excluded from capacity or provisioning admission, grouped by reason.",
 	}, []string{fleetSelectorLabel, operatingSystemLabel, reasonLabel})
 
+	fleetProvisioningCeiling = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_fleet_provisioning_ceiling",
+		Help: "Concurrent Linux Kata sandbox starts a runner fleet allows: the per-node budget times its healthy node count. Compare with the sum of tuist_runners_pool_pending_provisioning_pods to see how much of the ceiling is in use.",
+	}, []string{fleetSelectorLabel, operatingSystemLabel})
+
 	podStartTimeoutsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "tuist_runners_pool_pod_start_timeouts_total",
 		Help: "Bound Linux runner Pods reaped after failing to start their dispatch poller within the configured timeout.",
 	}, []string{poolLabel, reasonLabel})
+
+	stuckTerminationsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "tuist_runners_pool_stuck_terminations_total",
+		Help: "Runner Pods force-deleted after kubelet did not finish terminating them within the grace period. A non-zero rate means sandboxes are leaking on their nodes.",
+	}, []string{poolLabel})
+
+	preemptedPodsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "tuist_runners_pool_preempted_pods_total",
+		Help: "Idle runner Pods retired ahead of the scale-down cooldown because a sibling pool on the same fleet had queued jobs the scheduler could not place.",
+	}, []string{fleetSelectorLabel, poolLabel})
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, podStartTimeoutsTotal)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, fleetProvisioningCeiling, podStartTimeoutsTotal, stuckTerminationsTotal, preemptedPodsTotal)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -246,8 +261,32 @@ func RecordFleetNodes(fleetSelector, operatingSystem string, ready int, filtered
 	}
 }
 
+// RecordFleetProvisioningCeiling publishes the fleet's derived concurrent-start
+// budget. It moves with the healthy node count, so a drop without a
+// configuration change means nodes left the fleet.
+func RecordFleetProvisioningCeiling(fleetSelector, operatingSystem string, ceiling int) {
+	if ceiling < 0 {
+		ceiling = 0
+	}
+	fleetProvisioningCeiling.WithLabelValues(fleetSelector, operatingSystem).Set(float64(ceiling))
+}
+
 func RecordPodStartTimeout(pool, reason string) {
 	podStartTimeoutsTotal.WithLabelValues(pool, reason).Inc()
+}
+
+// RecordStuckTermination counts a Pod the controller force-deleted because
+// kubelet never finished terminating it. Distinct from the start-timeout
+// counter on purpose: that one means a sandbox failed to come up, this one
+// means one failed to go down and may still be holding its node.
+func RecordStuckTermination(pool string) {
+	stuckTerminationsTotal.WithLabelValues(pool).Inc()
+}
+
+// RecordPreemption counts an idle runner a pool gave up for a starved
+// sibling on the same fleet.
+func RecordPreemption(fleetSelector, pool string) {
+	preemptedPodsTotal.WithLabelValues(fleetSelector, pool).Inc()
 }
 
 // RecordRoll publishes a pool's Pod-template rollout progress for this
@@ -310,6 +349,7 @@ func ClearRunnerPool(pool string) {
 	for _, phase := range podPhaseLabels {
 		phaseReplicas.DeleteLabelValues(pool, phase)
 	}
+	preemptedPodsTotal.DeletePartialMatch(prometheus.Labels{poolLabel: pool})
 }
 
 // Clear drops all pool series when the RunnerPool object is gone. Safe

@@ -83,12 +83,13 @@ public struct BuildService {
                 errorMessageOverride:
                 "The 'tuist build' command is for generated projects or Swift packages. Please use 'tuist xcodebuild build' instead."
             )
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
         let generator = generatorFactory.building(
             config: config,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
-            cacheStorage: cacheStorage
+            cacheStorage: cacheStorage,
+            coverage: .resolved(config: config)
         )
         let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
         if generate || workspacePath == nil {

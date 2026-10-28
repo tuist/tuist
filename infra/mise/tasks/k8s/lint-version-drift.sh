@@ -24,17 +24,23 @@ if [ -z "$CC_VERSION" ]; then
 fi
 
 drift=0
-for f in "$REPO_ROOT"/infra/k8s/clusters/cluster-*.yaml; do
+# Both layouts: the flat CRs still applied by mgmt-cluster-apply.yml
+# (preview, pentest) AND the Flux-reconciled ones under workloads/.
+# Globbing only cluster-*.yaml silently stopped covering staging /
+# canary / production / tenants when they moved into workloads/.
+for f in "$REPO_ROOT"/infra/k8s/clusters/cluster-*.yaml \
+         "$REPO_ROOT"/infra/k8s/clusters/workloads/*/cluster.yaml; do
+  [ -e "$f" ] || continue
   topo=$(grep -E '^\s+version:\s+v?[0-9]+\.[0-9]+\.[0-9]+' "$f" \
     | head -1 \
     | awk '{print $2}' \
     | sed 's/^v//')
   if [ -z "$topo" ]; then
-    echo "WARN: $f has no topology.version line" >&2
+    echo "WARN: ${f#"$REPO_ROOT"/infra/k8s/clusters/} has no topology.version line" >&2
     continue
   fi
   if [ "$topo" != "$CC_VERSION" ]; then
-    echo "DRIFT: $(basename "$f"): topology.version=$topo  vs  ClusterClass KUBERNETES_VERSION=$CC_VERSION"
+    echo "DRIFT: ${f#"$REPO_ROOT"/infra/k8s/clusters/}: topology.version=$topo  vs  ClusterClass KUBERNETES_VERSION=$CC_VERSION"
     drift=1
   fi
 done

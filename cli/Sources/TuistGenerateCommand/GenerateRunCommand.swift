@@ -11,7 +11,7 @@
     import TuistServer
     import TuistSupport
 
-    public struct GenerateRunCommand: AsyncParsableCommand {
+    public struct GenerateRunCommand: AsyncParsableCommand, ProjectPathProviding {
         public init() {}
 
         public static var configuration: CommandConfiguration {
@@ -30,7 +30,7 @@
             completion: .directory,
             envKey: .generatePath
         )
-        var path: String?
+        public var path: String?
 
         @Argument(
             help: ArgumentHelp(

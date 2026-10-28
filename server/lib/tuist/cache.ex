@@ -8,7 +8,9 @@ defmodule Tuist.Cache do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Authorization
+  alias Tuist.Billing
   alias Tuist.Cache.CASEvent
+  alias Tuist.CacheGuardian
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.KeyValueStore
@@ -21,10 +23,49 @@ defmodule Tuist.Cache do
   @cache_token_ttl_seconds 1800
 
   def accessible_handles(resource, opts \\ []) do
+    Map.merge(
+      %{
+        accounts: accessible_account_handles(resource),
+        projects: accessible_project_handles(resource, opts)
+      },
+      billing_refusals(resource)
+    )
+  end
+
+  @doc """
+  Account handles the subject reaches but whose free tier is exhausted.
+
+  Blocking is expressed as absence from the grants, which on its own is
+  indistinguishable from never having had access. A cache node reads this to
+  tell the two apart and answer the caller with something actionable.
+  """
+  def payment_required_handles(resource), do: billing_refusals(resource).payment_required
+
+  @doc """
+  The handles of `payment_required_handles/1` under `:payment_required`, and
+  under `:payment_failed` the subset of them whose paid plan lapsed because
+  Stripe gave up collecting a subscription payment. A cache node tells the
+  second apart so the caller is told to settle the payment, not to upgrade.
+  """
+  def billing_refusals(resource) do
+    accounts =
+      resource
+      |> with_resolved_membership()
+      |> resolve_accessible_accounts()
+
+    blocked_ids = Billing.cache_blocked_account_ids(accounts)
+    blocked = Enum.filter(accounts, &MapSet.member?(blocked_ids, &1.id))
+    failed_ids = Billing.payment_failed_account_ids(MapSet.to_list(blocked_ids))
+
     %{
-      accounts: accessible_account_handles(resource),
-      projects: accessible_project_handles(resource, opts)
+      payment_required: account_handles(blocked),
+      payment_failed: blocked |> Enum.filter(&MapSet.member?(failed_ids, &1.id)) |> account_handles()
     }
+  end
+
+  defp billing_refusal_claims(resource) do
+    %{payment_required: required, payment_failed: failed} = billing_refusals(resource)
+    %{"cache_payment_required" => required, "cache_payment_failed" => failed}
   end
 
   def cache_grants(resource, opts \\ []) do
@@ -56,6 +97,8 @@ defmodule Tuist.Cache do
   no call back here. It exists for subjects holding an opaque credential, such
   as a CI project token: a cache node cannot verify those itself, so every
   authorization that misses its local cache costs a round-trip to introspection.
+  A node reads this one for itself only where a dedicated keypair is configured
+  and its public half has reached the node; otherwise it introspects this too.
   A project token reaches exactly one project, so the grants stay small enough
   to ride in a request header.
 
@@ -70,12 +113,28 @@ defmodule Tuist.Cache do
       |> cache_grants(opts)
       |> scope_grants(Keyword.get(opts, :scope))
 
-    Tuist.Guardian.encode_and_sign(
+    cache_token_signer().encode_and_sign(
       subject,
-      %{"cache_grants" => grants},
+      subject
+      |> billing_refusal_claims()
+      |> Map.put("cache_grants", grants)
+      |> Map.put("cache_origin", Keyword.get(opts, :origin))
+      |> Map.reject(fn {_key, value} -> is_nil(value) end),
       token_type: @cache_token_type,
       ttl: {ttl, :second}
     )
+  end
+
+  # Signed with the dedicated keypair once issuance is switched on, because a
+  # cache node holds its public half and can then read the token where the
+  # request lands. Until then the API-token key signs it, which no node is
+  # given, so those tokens are answered through introspection instead.
+  #
+  # `signing?` rather than `configured?`: holding the key comes first and by
+  # itself changes nothing a client sees, which is what lets every replica
+  # learn to verify before any replica starts issuing.
+  defp cache_token_signer do
+    if CacheGuardian.signing?(), do: CacheGuardian, else: Tuist.Guardian
   end
 
   # Narrows the grants to the one project the caller is about to use. An
@@ -133,11 +192,14 @@ defmodule Tuist.Cache do
     resource = with_resolved_membership(resource)
     projects = accessible_projects(resource, opts)
 
-    %{
-      "accounts" => accessible_account_handles(resource),
-      "projects" => project_handles(projects),
-      "cache_grants" => cache_grants_for(resource, accessible_accounts(resource), projects)
-    }
+    Map.merge(
+      %{
+        "accounts" => accessible_account_handles(resource),
+        "projects" => project_handles(projects),
+        "cache_grants" => cache_grants_for(resource, accessible_accounts(resource), projects)
+      },
+      billing_refusal_claims(resource)
+    )
   end
 
   def accessible_account_handles(%User{} = user) do
@@ -148,7 +210,9 @@ defmodule Tuist.Cache do
     |> Enum.sort()
   end
 
-  def accessible_account_handles(%Account{} = account), do: [account.name]
+  def accessible_account_handles(%Account{} = account) do
+    if Billing.cache_access_blocked?(account), do: [], else: [account.name]
+  end
 
   def accessible_account_handles(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}) do
     accessible_account_handles(user)
@@ -183,17 +247,42 @@ defmodule Tuist.Cache do
     entries =
       Enum.map(events, fn event ->
         %{
-          id: UUIDv7.generate(),
+          # A producer-supplied event_id becomes the row's identity; falls
+          # back to server-minted for an older Kura that has not started
+          # emitting event_id yet. See Tuist.Gradle for the shared rationale.
+          id: Map.get(event, :event_id) || UUIDv7.generate(),
           action: event.action,
           size: event.size,
           cas_id: event.cas_id,
           project_id: event.project_id,
           cache_endpoint: event.cache_endpoint,
-          inserted_at: now
+          # A producer-supplied observed_at_ms becomes `inserted_at` so a
+          # retried batch keeps the original observation time.
+          inserted_at: observed_at(event, now)
         }
       end)
 
+    # Xcode CAS analytics land in a shared buffered ingest path
+    # (CASEvent.Buffer). insert_deduplication_token requires a stable INSERT
+    # block per producer batch, and the buffer mixes rows from concurrent
+    # callers, so INSERT-level dedup is not applied on this path yet. That
+    # is a follow-up PR: either bypass the buffer for webhook batches or
+    # thread a batch token through the flush. Producer identity (event_id +
+    # observed_at_ms) landing here is still the prerequisite for that work.
     CASEvent.Buffer.insert_all(entries)
+  end
+
+  defp observed_at(event, fallback) do
+    case Map.get(event, :observed_at_ms) do
+      value when is_integer(value) and value >= 0 ->
+        case DateTime.from_unix(value, :millisecond) do
+          {:ok, dt} -> dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
+          _ -> fallback
+        end
+
+      _ ->
+        fallback
+    end
   end
 
   def last_24h_artifacts_count do
@@ -231,7 +320,17 @@ defmodule Tuist.Cache do
 
   defp with_resolved_membership(resource), do: resource
 
-  defp accessible_accounts(%User{} = user) do
+  # An account that has exhausted the free tier reaches no cache at all, so it
+  # is dropped here rather than at each of the four callers that turn these
+  # into handles, grants or token claims.
+  defp accessible_accounts(resource) do
+    accounts = resolve_accessible_accounts(resource)
+    blocked = Billing.cache_blocked_account_ids(accounts)
+
+    Enum.reject(accounts, &MapSet.member?(blocked, &1.id))
+  end
+
+  defp resolve_accessible_accounts(%User{} = user) do
     personal_account = Accounts.get_account_from_user(user)
 
     organization_accounts =
@@ -242,14 +341,16 @@ defmodule Tuist.Cache do
     Enum.reject([personal_account | organization_accounts], &is_nil/1)
   end
 
-  defp accessible_accounts(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}),
-    do: accessible_accounts(user)
+  defp resolve_accessible_accounts(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}),
+    do: resolve_accessible_accounts(user)
 
-  defp accessible_accounts(%AuthenticatedAccount{account: %Account{} = account, all_projects: true}), do: [account]
-  defp accessible_accounts(%AuthenticatedAccount{account: %Account{} = account}), do: [account]
-  defp accessible_accounts(%AuthenticatedAccount{}), do: []
-  defp accessible_accounts(%Project{}), do: []
-  defp accessible_accounts(_), do: []
+  defp resolve_accessible_accounts(%AuthenticatedAccount{account: %Account{} = account, all_projects: true}),
+    do: [account]
+
+  defp resolve_accessible_accounts(%AuthenticatedAccount{account: %Account{} = account}), do: [account]
+  defp resolve_accessible_accounts(%AuthenticatedAccount{}), do: []
+  defp resolve_accessible_accounts(%Project{}), do: []
+  defp resolve_accessible_accounts(_), do: []
 
   defp account_handles(accounts) do
     accounts
@@ -261,16 +362,19 @@ defmodule Tuist.Cache do
   defp project_only_embedded_cache_claims(resource, opts) do
     projects = accessible_projects(resource, opts)
 
-    %{
-      "projects" => project_handles(projects),
-      "cache_grants" => %{
-        "account" => %{"read" => [], "write" => []},
-        "project" => %{
-          "read" => project_cache_handles(resource, projects, :read),
-          "write" => project_cache_handles(resource, projects, :write)
+    Map.merge(
+      %{
+        "projects" => project_handles(projects),
+        "cache_grants" => %{
+          "account" => %{"read" => [], "write" => []},
+          "project" => %{
+            "read" => project_cache_handles(resource, projects, :read),
+            "write" => project_cache_handles(resource, projects, :write)
+          }
         }
-      }
-    }
+      },
+      billing_refusal_claims(resource)
+    )
   end
 
   # The organization is preloaded alongside the account because the cache
@@ -278,7 +382,21 @@ defmodule Tuist.Cache do
   # account. Preloading it batches that into the project query instead of one
   # account read per project.
   defp accessible_projects(resource, opts) do
-    Projects.list_accessible_projects(resource, Keyword.put_new(opts, :preload, account: :organization))
+    resource
+    |> Projects.list_accessible_projects(Keyword.put_new(opts, :preload, account: :organization))
+    |> reject_projects_of_blocked_accounts()
+  end
+
+  # Plans are resolved for every distinct account in one query, so the cost stays
+  # flat in both the number of projects and the number of accounts.
+  defp reject_projects_of_blocked_accounts(projects) do
+    blocked =
+      projects
+      |> Enum.uniq_by(& &1.account_id)
+      |> Enum.map(& &1.account)
+      |> Billing.cache_blocked_account_ids()
+
+    Enum.reject(projects, &MapSet.member?(blocked, &1.account_id))
   end
 
   defp account_cache_handles(resource, accounts, action) do

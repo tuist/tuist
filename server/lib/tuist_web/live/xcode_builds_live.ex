@@ -319,7 +319,8 @@ defmodule TuistWeb.XcodeBuildsLive do
               order_by: [:inserted_at],
               order_directions: [:desc]
             },
-            preload: [:ran_by_account]
+            preload: [:ran_by_account],
+            failure_category_project_id: project.id
           )
 
         recent_builds_chart_data =

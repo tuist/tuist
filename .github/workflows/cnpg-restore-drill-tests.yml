@@ -1,0 +1,25 @@
+name: CNPG restore drill tests
+
+on:
+  pull_request:
+    paths:
+      - .github/scripts/cnpg-restore-*.py
+      - .github/workflows/cnpg-restore-drill*.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Restore namespace tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install PyYAML==6.0.3
+      - run: python3 .github/scripts/cnpg-restore-drill.test.py

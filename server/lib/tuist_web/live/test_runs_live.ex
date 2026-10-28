@@ -18,13 +18,20 @@ defmodule TuistWeb.TestRunsLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
+  @analytics_widgets ~w(test_run_count failed_test_run_count test_run_duration)
+
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
 
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Runs")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("test-runs"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Test Runs"),
+          fallback: "test-runs"
+        )
+      )
       |> assign(:available_filters, define_filters(project))
 
     {:ok, socket}
@@ -45,6 +52,14 @@ defmodule TuistWeb.TestRunsLive do
         },
         operator: :==,
         value: nil
+      },
+      %Filter.Filter{
+        id: "claimed_actor_id",
+        field: :claimed_actor_id,
+        display_name: dgettext("dashboard_tests", "Reported name"),
+        type: :text,
+        operator: :==,
+        value: ""
       },
       %Filter.Filter{
         id: "git_branch",
@@ -132,6 +147,8 @@ defmodule TuistWeb.TestRunsLive do
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
+    widget = analytics_widget(widget)
+
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
     uri = URI.new!("?" <> query)
 
@@ -141,20 +158,7 @@ defmodule TuistWeb.TestRunsLive do
       |> assign(:uri, uri)
       |> push_event("replace-url", %{url: "?" <> query})
 
-    if socket.assigns.test_runs_analytics.ok? do
-      chart_data =
-        analytics_chart_data(
-          widget,
-          socket.assigns.selected_duration_type,
-          socket.assigns.test_runs_analytics.result,
-          socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   def handle_event("select_duration_type", %{"type" => type}, socket) do
@@ -172,20 +176,7 @@ defmodule TuistWeb.TestRunsLive do
       |> assign(:uri, uri)
       |> push_event("replace-url", %{url: "?" <> query})
 
-    if socket.assigns.test_runs_analytics.ok? do
-      chart_data =
-        analytics_chart_data(
-          "test_run_duration",
-          type,
-          socket.assigns.test_runs_analytics.result,
-          socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   def handle_event(
@@ -242,8 +233,19 @@ defmodule TuistWeb.TestRunsLive do
     analytics_environment = params["analytics-environment"] || "any"
     selected_duration_type = params["duration-type"] || "avg"
 
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+    query_key =
+      {project.id, analytics_environment,
+       Map.take(params, ["analytics-date-range", "analytics-start-date", "analytics-end-date"])}
+
+    %{preset: preset, period: period} =
       DatePicker.date_picker_params(params, "analytics")
+
+    period =
+      if socket.assigns[:analytics_query_key] == query_key,
+        do: socket.assigns.analytics_period,
+        else: period
+
+    {start_datetime, end_datetime} = period
 
     opts = [
       project_id: project.id,
@@ -260,44 +262,55 @@ defmodule TuistWeb.TestRunsLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
+    analytics_selected_widget = analytics_widget(params["analytics-selected-widget"])
 
-    socket
-    |> assign(:analytics_preset, preset)
-    |> assign(:analytics_period, period)
-    |> assign(:analytics_trend_label, analytics_trend_label(preset))
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
-    |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:selected_duration_type, selected_duration_type)
-    |> assign(:uri, uri)
-    |> assign_async(
-      [:test_runs_analytics, :failed_test_runs_analytics, :test_runs_duration_analytics, :analytics_chart_data],
-      fn ->
-        test_runs_analytics = Analytics.test_run_analytics(project.id, opts)
+    socket =
+      socket
+      |> assign(:analytics_preset, preset)
+      |> assign(:analytics_period, period)
+      |> assign(:analytics_trend_label, analytics_trend_label(preset))
+      |> assign(:analytics_environment, analytics_environment)
+      |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
+      |> assign(:analytics_selected_widget, analytics_selected_widget)
+      |> assign(:selected_duration_type, selected_duration_type)
+      |> assign(:uri, uri)
 
-        failed_test_runs_analytics =
-          Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
+    result = socket.assigns[:test_runs_analytics]
 
-        test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
+    if socket.assigns[:analytics_query_key] == query_key && result && !result.failed &&
+         (result.ok? || result.loading) do
+      socket
+    else
+      socket
+      |> assign(:analytics_query_key, query_key)
+      |> assign_async(
+        [
+          :test_runs_analytics,
+          :failed_test_runs_analytics,
+          :test_runs_duration_analytics
+        ],
+        fn ->
+          test_runs_analytics = Analytics.test_run_analytics(project.id, opts)
 
-        {:ok,
-         %{
-           test_runs_analytics: test_runs_analytics,
-           failed_test_runs_analytics: failed_test_runs_analytics,
-           test_runs_duration_analytics: test_runs_duration_analytics,
-           analytics_chart_data:
-             analytics_chart_data(
-               analytics_selected_widget,
-               selected_duration_type,
-               test_runs_analytics,
-               failed_test_runs_analytics,
-               test_runs_duration_analytics
-             )
-         }}
-      end
-    )
+          failed_test_runs_analytics =
+            Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
+
+          test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
+
+          {:ok,
+           %{
+             test_runs_analytics: test_runs_analytics,
+             failed_test_runs_analytics: failed_test_runs_analytics,
+             test_runs_duration_analytics: test_runs_duration_analytics
+           }}
+        end
+      )
+    end
   end
+
+  # A bookmarked link may name a widget the page no longer has, like `coverage`.
+  defp analytics_widget(widget) when widget in @analytics_widgets, do: widget
+  defp analytics_widget(_widget), do: "test_run_count"
 
   defp analytics_chart_data(
          analytics_selected_widget,
@@ -396,7 +409,8 @@ defmodule TuistWeb.TestRunsLive do
           Map.put(options, :first, 20)
       end
 
-    {test_runs, test_runs_meta} = Tests.list_test_runs(options)
+    {test_runs, test_runs_meta} =
+      Tests.list_test_runs(options)
 
     socket
     |> assign(:active_filters, filters)
@@ -418,11 +432,11 @@ defmodule TuistWeb.TestRunsLive do
         %{value: value, operator: :==} when not is_nil(value) ->
           [
             %{field: :is_ci, op: :==, value: false},
-            %{field: :account_id, op: :==, value: value}
+            %{field: :verified_actor, op: :==, value: value}
           ]
 
         %{value: value, operator: op} when not is_nil(value) ->
-          [%{field: :account_id, op: op, value: value}]
+          [%{field: :verified_actor, op: op, value: value}]
 
         _ ->
           []

@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistHTTP
 
 @Mockable
 public protocol MultipartUploadGenerateURLAnalyticsServicing {
@@ -64,6 +65,10 @@ public struct MultipartUploadGenerateURLAnalyticsService: MultipartUploadGenerat
             case let .json(cacheArtifact):
                 return cacheArtifact.data.url
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw MultipartUploadGenerateURLAnalyticsServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):

@@ -34,7 +34,21 @@ ARG TARGETARCH=amd64
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent
+    go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-cache-volume ./cmd/tuist-cache-volume
+
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS gitlab-runner-builder
+WORKDIR /src
+COPY gitlab-runner/go.mod gitlab-runner/go.sum ./
+RUN go mod download
+COPY gitlab-runner/*.go ./
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-gitlab-runner .
 
 # Android SDK resolver. sdkmanager is a JVM tool, so it runs here in a
 # JDK stage and only the resolved SDK is copied into the final image —
@@ -48,7 +62,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # Gradle configuration exactly like a missing SDK. GitHub's hosted image
 # takes the same approach (`platform_min_version` / `build_tools_min_version`
 # in its toolset), which also means new platforms roll in on the next
-# image rebuild with no version bump anywhere.
+# SDK-stage rebuild with no platform version bump anywhere.
 #
 # The cmdline-tools archive is fetched straight from Google because
 # sdkmanager is what installs every other component (it cannot install
@@ -57,7 +71,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # package.xml, and current cmdline-tools writes v4 while AGP 8.7 parses
 # only up to v3 — which makes every Gradle invocation warn about the
 # skew. Keep it behind the AGP releases customers are likely to run.
-FROM eclipse-temurin:21-jdk-jammy AS android-sdk
+FROM eclipse-temurin:21-jdk-jammy@sha256:4e61d0b3471137e239397789661f6adeaf8db9adcfae45916b22f628c8a32dc0 AS android-sdk
 
 ARG ANDROID_CMDLINE_TOOLS_ARCHIVE=commandlinetools-linux-11076708_latest.zip
 ARG ANDROID_PLATFORM_MIN_VERSION=34
@@ -108,11 +122,14 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
     # `runner`, not root.
     && chmod -R a+rwX "${ANDROID_SDK_ROOT}"
 
-FROM ubuntu:22.04
+FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b AS runner
 
-# renovate: datasource=github-releases depName=actions/runner
-ARG RUNNER_VERSION=2.336.0
-ARG RUNNER_ARCH=x64
+# GitHub-hosted runners set ImageOS, and setup actions such as
+# erlef/setup-beam read it to pick a prebuilt binary for the OS. Keep it
+# in step with the base image above (ubuntu:24.04 -> ubuntu24). The image
+# is amd64-only (RUNNER_ARCH=x64); an arm64 build would need GitHub's
+# `ubuntu22-arm64`.
+ENV ImageOS=ubuntu22
 
 # Set runtime defaults so customer workflows see UTF-8 locales out
 # of the box and apt-driven installs in workflow steps don't trip
@@ -228,11 +245,11 @@ RUN apt-get update \
 # land as `fix(linux-runner-image): …` and route through the
 # release flow same as `RUNNER_VERSION`.
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=1.36.1
+ARG KUBECTL_VERSION=1.37.0
 # renovate: datasource=github-releases depName=helm/helm
-ARG HELM_VERSION=4.2.0
+ARG HELM_VERSION=4.3.0
 # renovate: datasource=github-releases depName=cli/cli
-ARG GH_VERSION=2.97.0
+ARG GH_VERSION=2.100.0
 RUN ARCH="$(dpkg --print-architecture)" \
     && curl -fSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" \
          -o /usr/local/bin/kubectl \
@@ -279,13 +296,11 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 # per job — and the path below matches theirs for workflows that
 # hardcode it.
 #
-# Deliberately narrower than the hosted image, which carries every
-# platform from android-34 up, six build-tools releases and three NDK
-# majors. We ship the single platform + build-tools pair `android/`
-# builds against and no NDK at all (the app has no native code), which
-# is what keeps this a few hundred MB rather than the ~10GB the hosted
-# image spends here.
-COPY --from=android-sdk /opt/android-sdk /usr/local/lib/android/sdk
+# Keep every platform/build-tools version above the configured floor,
+# but omit NDKs. --link preserves this large layer even when an unrelated
+# apt or CLI layer changes. SDK discovery runs again when its stage is
+# invalidated (for example by a Renovate base digest update).
+COPY --link --from=android-sdk /opt/android-sdk /usr/local/lib/android/sdk
 # The copied tree keeps the modes set in the builder stage, but COPY
 # creates the destination directory itself as 0755, so the SDK root
 # alone would be read-only for `runner`. Re-chmod just that directory —
@@ -305,10 +320,46 @@ RUN groupadd -g 123 docker \
     && useradd -m -d /home/runner -s /bin/bash -G docker runner \
     && echo "runner ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
     && mkdir -p /home/runner/actions-runner \
-    && chown -R runner:runner /home/runner
+    && chown -R runner:runner /home/runner \
+    && rm -f /home/runner/.bash_logout
+
+# The Buildkite agent lives alongside the GitHub one rather than in a
+# second image. Which of the two runs is a per-job decision the server
+# makes at dispatch, so a Pod has to be able to serve either; forking the
+# image would split the warm pool to save one binary.
+#
+# Pinned for the same reason RUNNER_VERSION is: the version that ran a
+# job should be the version we baked. The agent has no self-update, so
+# pinning here is the whole mechanism. Renovate bumps it the same way.
+# renovate: datasource=github-releases depName=buildkite/agent
+ARG BUILDKITE_AGENT_VERSION=3.138.0
+# From the release's own `buildkite-agent-<version>.SHA256SUMS`. A version
+# bump has to carry these with it: the download is verified against them
+# before anything is extracted, so a stale pair fails the build rather
+# than installing an unchecked binary.
+ARG BUILDKITE_AGENT_SHA256_AMD64=90017b67de70675c4330ae18b55c21397247fb157831549f0896dffa4ce04b7f
+ARG BUILDKITE_AGENT_SHA256_ARM64=1d8445221b67f20e04b962a7a00855023f32423662e1ab3be88c564d4af87c87
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) bk_arch=amd64; bk_sha="${BUILDKITE_AGENT_SHA256_AMD64}" ;; \
+      arm64) bk_arch=arm64; bk_sha="${BUILDKITE_AGENT_SHA256_ARM64}" ;; \
+      *) echo "unsupported architecture" >&2; exit 1 ;; \
+    esac; \
+    curl -fSL "https://github.com/buildkite/agent/releases/download/v${BUILDKITE_AGENT_VERSION}/buildkite-agent-linux-${bk_arch}-${BUILDKITE_AGENT_VERSION}.tar.gz" \
+        -o /tmp/buildkite-agent.tar.gz; \
+    echo "${bk_sha}  /tmp/buildkite-agent.tar.gz" | sha256sum -c -; \
+    mkdir -p /tmp/buildkite-agent-dist; \
+    tar xzf /tmp/buildkite-agent.tar.gz -C /tmp/buildkite-agent-dist; \
+    install -m 0755 /tmp/buildkite-agent-dist/buildkite-agent /usr/local/bin/buildkite-agent; \
+    rm -rf /tmp/buildkite-agent.tar.gz /tmp/buildkite-agent-dist; \
+    buildkite-agent --version
 
 USER runner
 WORKDIR /home/runner/actions-runner
+
+# renovate: datasource=github-releases depName=actions/runner
+ARG RUNNER_VERSION=2.337.0
+ARG RUNNER_ARCH=x64
 
 # Download + extract the actions/runner tarball. Sha checksum is
 # published by GitHub at the release URL; if the bump ever
@@ -320,22 +371,23 @@ RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VER
     && rm /tmp/actions-runner.tar.gz
 
 USER root
-# dispatch-poll.sh runs in the `poller` init container (holds the SA
-# token, stages the JIT); run-job.sh runs in the `runner` main
-# container (no token, runs the staged JIT). The controller's
-# podtemplate wires which container runs which. See
-# infra/runners-controller/AGENTS.md for the split-credential shape.
-COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
-COPY run-job.sh /usr/local/bin/run-job.sh
-COPY vitals.sh /usr/local/bin/vitals.sh
+
+# Compiled clients precede scripts so a shell-only release leaves their layers
+# untouched, including the copy exposed to Docker job containers via /__e.
+COPY --from=gitlab-runner-builder /out/tuist-gitlab-runner /usr/local/bin/tuist-gitlab-runner
 COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/runner-shell-agent
-# metrics-sampler.sh runs in the `metrics` native-sidecar container
-# (holds the SA token like the poller; never the runner container) and
-# POSTs the microVM's machine metrics for the job detail page.
-COPY metrics-sampler.sh /usr/local/bin/metrics-sampler.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/runner-shell-agent /usr/local/bin/metrics-sampler.sh
+COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /usr/local/bin/tuist-cache-volume
+COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /home/runner/actions-runner/externals/tuist-cache-volume
+
+# Global Buildkite hooks execute with the job-scoped report token. The poller
+# and metrics sidecar hold the dispatch SA token; run-job.sh never receives it.
+# Set permissions during COPY: a later chmod would copy unchanged binaries
+# into another layer whenever a script changes.
+COPY --chmod=0755 buildkite-hooks/ /usr/local/share/tuist/buildkite-hooks/
+COPY --chmod=0755 dispatch-poll.sh run-job.sh vitals.sh metrics-sampler.sh /usr/local/bin/
 
 USER runner
+RUN printf 'set -e\necho login-shell-ready\nexit 0\n' | env SHLVL=0 /bin/bash --login
 
 # Default CMD is the poll loop, used by the poller init container.
 # The runner main container overrides this with run-job.sh via the

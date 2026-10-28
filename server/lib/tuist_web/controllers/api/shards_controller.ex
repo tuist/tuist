@@ -4,12 +4,15 @@ defmodule TuistWeb.API.ShardsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Shards
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Shards.Shard
   alias TuistWeb.API.Schemas.Shards.ShardPlan
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Headers
 
   @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
+  @suite_catch_all_minimum_gradle_plugin_version Version.parse!("0.17.0")
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -59,11 +62,23 @@ defmodule TuistWeb.API.ShardsController do
              items: %Schema{type: :string},
              description: "Test suite names (for suite-level granularity)."
            },
+           skipped_test_suites: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history."
+           },
            parallelizable_modules: %Schema{
              type: :array,
              items: %Schema{type: :string},
              description:
                "Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows."
+           },
+           concurrent_modules: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module."
            },
            shard_min: %Schema{type: :integer, description: "Minimum number of shards."},
            shard_max: %Schema{type: :integer, description: "Maximum number of shards."},
@@ -79,6 +94,11 @@ defmodule TuistWeb.API.ShardsController do
              type: :string,
              enum: ["module", "suite"],
              description: "Sharding granularity level."
+           },
+           git_branch: %Schema{
+             type: :string,
+             description:
+               "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
            },
            build_run_id: %Schema{
              type: :string,
@@ -97,6 +117,7 @@ defmodule TuistWeb.API.ShardsController do
       ok: {"The shard plan", "application/json", ShardPlan},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"Invalid parameters", "application/json", Error}
     }
@@ -107,12 +128,15 @@ defmodule TuistWeb.API.ShardsController do
       reference: body_params.reference,
       modules: Map.get(body_params, :modules),
       test_suites: Map.get(body_params, :test_suites),
+      skipped_test_suites: Map.get(body_params, :skipped_test_suites),
       parallelizable_modules: Map.get(body_params, :parallelizable_modules),
+      concurrent_modules: Map.get(body_params, :concurrent_modules),
       shard_min: Map.get(body_params, :shard_min),
       shard_max: Map.get(body_params, :shard_max),
       shard_total: Map.get(body_params, :shard_total),
       shard_max_duration: Map.get(body_params, :shard_max_duration),
       granularity: Map.get(body_params, :granularity, "module"),
+      git_branch: Map.get(body_params, :git_branch),
       build_run_id: Map.get(body_params, :build_run_id),
       gradle_build_id: Map.get(body_params, :gradle_build_id)
     }
@@ -123,6 +147,7 @@ defmodule TuistWeb.API.ShardsController do
       id: result.plan.id,
       reference: result.plan.reference,
       shard_count: result.shard_count,
+      reporting_version: result.plan.reporting_version,
       upload_url:
         url(~p"/api/projects/#{selected_project.account.name}/#{selected_project.name}/tests/shards/upload/start"),
       shards: result.shard_assignments
@@ -181,6 +206,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The shard plan was not found", "application/json", Error},
       bad_request: {"Invalid parameters", "application/json", Error}
     }
@@ -214,6 +240,9 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:bad_request)
         |> json(%{message: "Either shard_plan_id or reference is required."})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
     end
   end
 
@@ -257,6 +286,7 @@ defmodule TuistWeb.API.ShardsController do
       bad_request: {"The request parameters are invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The session or shard was not found", "application/json", Error}
     }
   )
@@ -370,6 +400,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       bad_request: {"Invalid parameters", "application/json", Error}
     }
   )
@@ -484,6 +515,7 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       bad_request: {"Invalid parameters", "application/json", Error}
     }
   )
@@ -541,6 +573,9 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:bad_request)
         |> json(%{message: "Either shard_plan_id or reference is required."})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
     end
   end
 
@@ -556,9 +591,10 @@ defmodule TuistWeb.API.ShardsController do
   end
 
   defp suite_catch_all_supported?(conn) do
-    case Headers.get_cli_version(conn) do
-      nil -> false
-      cli_version -> Version.compare(cli_version, @suite_catch_all_minimum_cli_version) != :lt
-    end
+    version_at_least?(Headers.get_cli_version(conn), @suite_catch_all_minimum_cli_version) or
+      version_at_least?(Headers.get_gradle_plugin_version(conn), @suite_catch_all_minimum_gradle_plugin_version)
   end
+
+  defp version_at_least?(nil, _minimum), do: false
+  defp version_at_least?(version, minimum), do: Version.compare(version, minimum) != :lt
 end

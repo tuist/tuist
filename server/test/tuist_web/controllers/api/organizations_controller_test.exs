@@ -4,7 +4,10 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Environment
+  alias Tuist.Runners.Allowance
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -126,6 +129,64 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["plan"] == "air"
     end
 
+    test "embedded invitations carry the role they will grant", %{conn: conn, user: user} do
+      # Given — the Invitation schema marks role required, so an embedded
+      # invitation without it fails generated-client decoding.
+      conn = Authentication.put_current_user(conn, user)
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization(
+          "invited-viewer@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          role: :viewer
+        )
+
+      # When
+      conn = get(conn, ~p"/api/organizations/tuist-org")
+
+      # Then
+      [invitation] = json_response(conn, :ok)["invitations"]
+      assert invitation["role"] == "viewer"
+    end
+
+    test "lists viewers alongside admins and users", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      viewer = AccountsFixtures.user_fixture(email: "tuist-viewer@tuist.io")
+      Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+
+      # When
+      conn = get(conn, ~p"/api/organizations/tuist-org")
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert Enum.find(response["members"], &(&1["id"] == viewer.id))["role"] == "viewer"
+    end
+
+    test "does not return invitations to an organization member without invitation read access", %{conn: conn, user: user} do
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      member = AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
+      Accounts.add_user_to_organization(member, organization)
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization(
+          "invited-viewer@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          role: :viewer
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(member)
+        |> get(~p"/api/organizations/tuist-org")
+
+      assert json_response(conn, :ok)["invitations"] == []
+    end
+
     test "returns an organization with an active pro plan", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
@@ -239,16 +300,71 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       :ok
     end
 
-    test "returns an organization usage", %{conn: conn, user: user} do
+    test "returns the current billing period's usage and charges", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      Accounts.add_user_to_organization(user, organization)
+      account_id = organization.account.id
 
-      organization =
-        AccountsFixtures.organization_fixture(
-          name: "tuist-org",
-          current_month_remote_cache_hits_count: 1
-        )
+      period = {~U[2026-10-22 08:30:00.123456Z], ~U[2026-11-22 08:30:00.123456Z]}
 
+      stub(Billing, :effective_plan, fn %{id: ^account_id} -> :pro end)
+      stub_period_usage(account_id, period)
+
+      # When
+      conn = get(conn, ~p"/api/organizations/tuist-org/usage")
+
+      # Then
+      assert json_response(conn, :ok) == %{
+               "current_month_remote_cache_hits" => 0,
+               "period" => %{"start" => "2026-10-22T08:30:00Z", "end" => "2026-11-22T08:30:00Z"},
+               "cache_egress" => %{
+                 "used" => 120_300_000_000,
+                 "included" => 100_000_000_000,
+                 "billable" => 20_300_000_000,
+                 "charge_cents" => 710
+               },
+               "cache_requests" => %{
+                 "used" => 412_000,
+                 "included" => 1_000_000,
+                 "billable" => 0,
+                 "charge_cents" => 0
+               },
+               "passing_test_cases" => %{
+                 "used" => 6_200_000,
+                 "included" => 5_000_000,
+                 "billable" => 1_200_000,
+                 "charge_cents" => 240
+               },
+               "runner_minutes" => %{"used" => 250, "included" => 100, "charge_cents" => 1_200},
+               "estimated_charge_cents" => 2_150
+             }
+    end
+
+    test "charges an account not on Pro only for runner minutes", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      Accounts.add_user_to_organization(user, organization)
+      stub_period_usage(organization.account.id, {~U[2026-10-01 00:00:00Z], ~U[2026-11-01 00:00:00Z]})
+
+      # When
+      conn = get(conn, ~p"/api/organizations/tuist-org/usage")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["cache_egress"]["billable"] == 20_300_000_000
+      assert response["cache_egress"]["charge_cents"] == 0
+      assert response["passing_test_cases"]["charge_cents"] == 0
+      assert response["runner_minutes"]["charge_cents"] == 1_200
+      assert response["estimated_charge_cents"] == 1_200
+    end
+
+    test "returns no charges for an organization without usage", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
 
       # When
@@ -256,7 +372,25 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      assert response["current_month_remote_cache_hits"] == 1
+      assert response["current_month_remote_cache_hits"] == 0
+      assert response["estimated_charge_cents"] == 0
+
+      assert response["cache_egress"] == %{
+               "used" => 0,
+               "included" => 100_000_000_000,
+               "billable" => 0,
+               "charge_cents" => 0
+             }
+
+      assert response["passing_test_cases"] == %{
+               "used" => 0,
+               "included" => 5_000_000,
+               "billable" => 0,
+               "charge_cents" => 0
+             }
+
+      assert %{"used" => 0, "charge_cents" => 0} = response["runner_minutes"]
+      assert {:ok, _, 0} = DateTime.from_iso8601(response["period"]["start"])
     end
 
     test "returns :not_found when organization does not exist", %{conn: conn, user: user} do
@@ -432,6 +566,53 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   end
 
   describe "PUT /api/organizations/:organization_name" do
+    test "ordinary organization administrators can disable SSO under instance trust", %{conn: conn, user: user} do
+      AccountsFixtures.organization_fixture(
+        name: "tuist-org",
+        creator: user,
+        sso_provider: :google,
+        sso_organization_id: "example.com"
+      )
+
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org", sso_provider: "none")
+
+      assert json_response(conn, :ok)["sso_provider"] == nil
+    end
+
+    test "instance trust does not bypass ordinary organization authorization", %{conn: conn, user: user} do
+      AccountsFixtures.organization_fixture(name: "tuist-org")
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org", sso_provider: "none")
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "allows an ordinary organization administrator to configure Google under instance trust", %{conn: conn} do
+      domain = unique_sso_domain()
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org", sso_provider: "google", sso_organization_id: domain)
+
+      assert json_response(conn, :ok)["sso_provider"] == "google"
+    end
+
     test "updates an organization with SSO settings when user's google hosted domain is equal to the new value",
          %{conn: conn} do
       # Given
@@ -869,6 +1050,28 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert Accounts.organization_admin?(member, organization)
     end
 
+    test "updates a member to a viewer role", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      member = AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
+      Accounts.add_user_to_organization(member, organization)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org/members/tuist-member", role: "viewer")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["role"] == "viewer"
+      assert Accounts.organization_viewer?(member, organization)
+      refute Accounts.organization_user?(member, organization)
+      refute Accounts.organization_admin?(member, organization)
+    end
+
     test "updates a member with an account token with members write scope", %{conn: conn, user: user} do
       # Given
       organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
@@ -1012,5 +1215,38 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         }
       }
     }
+  end
+
+  defp stub_period_usage(account_id, period) do
+    stub(Billing, :recent_billing_periods, fn %{id: ^account_id}, 1 -> [period] end)
+
+    stub(UsagePricing, :period_breakdown, fn %{id: ^account_id}, ^period ->
+      %{
+        cache: %{
+          egress: %{
+            quantity: 130_000_000_000,
+            runner_quantity: 20_000_000_000,
+            metered: 120_300_000_000,
+            included: 100_000_000_000,
+            billable: 20_300_000_000,
+            charge: Money.new(710, :USD)
+          },
+          requests: %{
+            quantity: 412_000,
+            runner_quantity: 0,
+            metered: 412_000,
+            included: 1_000_000,
+            billable: 0,
+            charge: Money.new(0, :USD)
+          },
+          charge: Money.new(710, :USD)
+        },
+        tests: %{passed: 6_200_000, included: 5_000_000, billable: 1_200_000, charge: Money.new(240, :USD)}
+      }
+    end)
+
+    stub(Allowance, :period_breakdown, fn %{id: ^account_id}, ^period ->
+      %{minutes: 250, free_minutes: 100, billed: Money.new(1_200, :USD)}
+    end)
   end
 end

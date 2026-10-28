@@ -1,5 +1,7 @@
+import ArgumentParser
 import Path
 import TuistEnvironment
+import TuistSupport
 
 public enum CommandArguments {
     public static func processArguments(_ arguments: [String]? = nil) -> [String]? {
@@ -25,7 +27,13 @@ public enum CommandArguments {
         value(for: ["--path", "-p"], in: arguments)
     }
 
-    public static func path(in arguments: [String]) async throws -> AbsolutePath {
-        try await Environment.current.pathRelativeToWorkingDirectory(pathArgument(in: arguments))
+    public static func path(in arguments: [String], command: ParsableCommand? = nil) async throws -> AbsolutePath {
+        let path: String?
+        if let command = command as? ProjectPathProviding {
+            path = command.path
+        } else {
+            path = pathArgument(in: arguments)
+        }
+        return try await Environment.current.pathRelativeToWorkingDirectory(path)
     }
 }

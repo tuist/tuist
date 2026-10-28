@@ -47,7 +47,9 @@ struct RunReportServiceTests {
                         scheme: "App",
                         totalTests: 10,
                         skippedTests: 2,
-                        failedTestNames: ["CheckoutFlowTests.test_appliesDiscountCode"]
+                        failedTestNames: ["CheckoutFlowTests.test_appliesDiscountCode"],
+                        ranTestModules: 18,
+                        skippedTestModules: 28
                     ),
                 ],
                 buildRunReports: [RunReportBuildRun(scheme: "App", succeeded: true, duration: 432)]
@@ -62,7 +64,35 @@ struct RunReportServiceTests {
         #expect(report.testRuns.first?.succeeded == false)
         #expect(report.testRuns.first?.ranTests == 8)
         #expect(report.testRuns.first?.failedTestNames == ["CheckoutFlowTests.test_appliesDiscountCode"])
+        #expect(report.testRuns.first?.ranTestModules == 18)
+        #expect(report.testRuns.first?.skippedTestModules == 28)
         #expect(report.buildRuns.first?.durationInSeconds == 432)
+    }
+
+    @Test(.withMockedEnvironment())
+    func omits_skipped_test_modules_when_selective_testing_did_not_apply() async throws {
+        let cwd = try await Environment.current.currentWorkingDirectory()
+        let path = cwd.appending(component: "run-report.json")
+
+        await subject.writeRunReport(
+            makeReport(
+                testRunReports: [
+                    RunReportTestRun(
+                        scheme: "App",
+                        totalTests: 10,
+                        skippedTests: 0,
+                        failedTestNames: [],
+                        ranTestModules: 3,
+                        skippedTestModules: nil
+                    ),
+                ]
+            ),
+            to: path.pathString
+        )
+
+        let content = try await fileSystem.readTextFile(at: path)
+        #expect(content.contains("\"ranTestModules\" : 3"))
+        #expect(!content.contains("skippedTestModules"))
     }
 
     /// The URLs are logged in mutually exclusive branches, so stdout can only ever carry one of

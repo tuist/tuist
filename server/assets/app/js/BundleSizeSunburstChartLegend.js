@@ -11,163 +11,141 @@ function findNode(data, predicate) {
   return null;
 }
 
+// A directory with a single child is merged into the child's node, which keeps the child's
+// path, so a directory without a node of its own resolves to the merged node below it.
+function findNodeByPath(data, path) {
+  return (
+    findNode(data, (node) => node.path === path) ||
+    findNode(data, (node) => node.path && node.path.startsWith(`${path}/`))
+  );
+}
+
+function selectedArtifact(node) {
+  return {
+    value: node.value,
+    name: node.name,
+    artifact_type: node.artifact_type,
+    artifact_id: node.artifact_id,
+    children: node.children || [],
+    path: node.path,
+  };
+}
+
 export default {
   mounted() {
-    const chart = document.querySelector(`#${this.el.dataset.chartId}`);
+    this.chartDom = document.getElementById(`${this.el.dataset.chartId}-chart`);
+    this.highlightedNewElement = false;
 
-    if (chart) {
-      const chartPart = chart.querySelector('[data-part="chart"]');
-      const element = chartPart || chart;
-      const chartContainer = element.closest(".noora-chart");
-
-      if (chartContainer && window.liveSocket && window.liveSocket.roots) {
-        for (const rootId in window.liveSocket.roots) {
-          const view = window.liveSocket.roots[rootId];
-          if (view && view.el && view.el.contains(chartContainer)) {
-            if (view.getHook) {
-              const hook = view.getHook(chartContainer);
-              if (hook && hook.chart) {
-                this.setupChartHandlers(hook.chart);
-                return;
-              }
-            }
+    this.chartHandlers = {
+      mouseover: (el) => {
+        this.highlightedNewElement = true;
+        if (el.name == "") {
+          this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-highlighted-parent", {});
+        } else if (el.data) {
+          this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-highlighted-artifact", {
+            artifact: selectedArtifact(el.data),
+          });
+        }
+      },
+      mouseout: () => {
+        this.highlightedNewElement = false;
+        setTimeout(() => {
+          if (this.highlightedNewElement === false) {
+            this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-no-highlighted-artifact", {});
           }
-        }
-      }
-    }
-  },
-
-  setupChartHandlers(echart) {
-    this.handleBreadcrumbClicked = (event) => {
-      if (event.target.id == this.el.id && echart) {
-        const node = findNode(echart.getOption().series[0].data, (node) => node.id == event.detail.artifact_id);
-        if (node) {
-          echart.dispatchAction({
-            type: "sunburstRootToNode",
-            seriesIndex: 0,
-            targetNodeId: event.detail.artifact_id,
-          });
+        }, 10);
+      },
+      click: (params) => {
+        if (params.name == "") {
+          this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-parent", {});
+        } else if (params.data) {
           this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-artifact", {
-            artifact: {
-              value: node.value,
-              name: node.name,
-              artifact_type: node.artifact_type,
-              artifact_id: node.artifact_id,
-              children: node.children || [],
-              path: node.path,
-            },
+            artifact: selectedArtifact(params.data),
           });
-        } else {
-          echart.dispatchAction({ type: "sunburstRootToNode", seriesIndex: 0, targetNode: "" });
-          this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-root", {});
         }
+      },
+    };
+
+    this.handleBreadcrumbClicked = (event) => {
+      if (event.target.id != this.el.id || !this.echart) return;
+
+      const path = event.detail.path;
+      const node = path && findNodeByPath(this.echart.getOption().series[0].data, path);
+      if (node) {
+        this.echart.dispatchAction({ type: "sunburstRootToNode", seriesIndex: 0, targetNodeId: node.id });
+        this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-artifact", {
+          artifact: selectedArtifact(node),
+        });
+      } else {
+        this.echart.dispatchAction({ type: "sunburstRootToNode", seriesIndex: 0, targetNode: "" });
+        this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-root", {});
       }
     };
     window.addEventListener("bundle-size-analysis-breadcrumb-clicked", this.handleBreadcrumbClicked);
 
     this.handleTableRowClicked = (event) => {
-      if (event.target.id == this.el.id && echart) {
-        const artifact = event.detail.artifact;
+      if (event.target.id != this.el.id || !this.echart) return;
 
-        if (artifact.artifact_type === "directory" || artifact.artifact_type === "asset") {
-          let node;
-          const seriesData = echart.getOption().series[0].data;
+      const artifact = event.detail.artifact;
+      const seriesData = this.echart.getOption().series[0].data;
 
-          if (artifact.path) {
-            node = findNode(seriesData, (node) => node.path === artifact.path);
-          }
+      if (artifact.artifact_type === "directory" || artifact.artifact_type === "asset") {
+        const node = artifact.path && findNodeByPath(seriesData, artifact.path);
 
-          if (!node && artifact.artifact_id) {
-            node = findNode(seriesData, (node) => node.artifact_id === artifact.artifact_id);
-          }
-
-          if (node) {
-            echart.dispatchAction({
-              type: "sunburstRootToNode",
-              seriesIndex: 0,
-              targetNodeId: node.id,
-            });
-            this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-artifact", {
-              artifact: {
-                value: node.value,
-                name: node.name,
-                artifact_type: node.artifact_type,
-                artifact_id: node.artifact_id,
-                children: node.children || [],
-                path: node.path,
-              },
-            });
-          }
-        } else {
-          const seriesData = echart.getOption().series[0].data;
-          const fileNode = findNode(seriesData, (node) => {
-            return node.path === artifact.path;
+        if (node) {
+          this.echart.dispatchAction({ type: "sunburstRootToNode", seriesIndex: 0, targetNodeId: node.id });
+          this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-artifact", {
+            artifact: selectedArtifact(node),
           });
-
-          if (fileNode) {
-            echart.dispatchAction({
-              type: "highlight",
-              seriesIndex: 0,
-              name: artifact.name,
-            });
-          }
         }
+      } else if (findNode(seriesData, (node) => node.path === artifact.path)) {
+        this.echart.dispatchAction({ type: "highlight", seriesIndex: 0, name: artifact.name });
       }
     };
     window.addEventListener("bundle-size-analysis-table-row-clicked", this.handleTableRowClicked);
 
-    let highlightedNewElement = false;
-    this.handleOnHighlighted = (el) => {
-      highlightedNewElement = true;
-      if (el.name == "") {
-        this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-highlighted-parent", {});
-      } else if (el.data) {
-        this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-highlighted-artifact", {
-          artifact: {
-            value: el.data.value,
-            artifact_type: el.data.artifact_type,
-            name: el.data.name,
-            artifact_id: el.data.artifact_id,
-            children: el.data.children || [],
-            path: el.data.path,
-          },
-        });
-      }
-    };
+    // Noora disposes and re-creates the ECharts instance whenever the chart re-renders, which
+    // replaces the instance's DOM inside the chart element.
+    this.chartObserver = new MutationObserver(() => this.bindChart());
+    if (this.chartDom) this.chartObserver.observe(this.chartDom, { childList: true });
+    this.bindChart();
+  },
 
-    echart.on("mouseover", this.handleOnHighlighted);
-    echart.on("mouseout", (el) => {
-      highlightedNewElement = false;
-      setTimeout(() => {
-        if (highlightedNewElement === false) {
-          this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-no-highlighted-artifact", {});
-        }
-      }, 10);
-    });
-    echart.on("click", (params) => {
-      if (params.name == "") {
-        this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-parent", {});
-      } else if (params.data) {
-        this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-artifact", {
-          artifact: {
-            value: params.data.value,
-            name: params.data.name,
-            artifact_type: params.data.artifact_type,
-            artifact_id: params.data.artifact_id,
-            children: params.data.children || [],
-            path: params.data.path,
-          },
-        });
+  bindChart() {
+    const echart = this.chartDom && this.chartDom.__nooraChart;
+    if (!echart || echart === this.echart) return;
+
+    this.unbindChart();
+    this.echart = echart;
+    for (const [eventName, handler] of Object.entries(this.chartHandlers)) {
+      echart.on(eventName, handler);
+    }
+    this.drillToCurrentPath();
+  },
+
+  unbindChart() {
+    if (this.echart && !this.echart.isDisposed()) {
+      for (const [eventName, handler] of Object.entries(this.chartHandlers)) {
+        this.echart.off(eventName, handler);
       }
-    });
+    }
+    this.echart = null;
+  },
+
+  drillToCurrentPath() {
+    const path = this.el.dataset.currentPath;
+    if (!path) return;
+
+    const node = findNodeByPath(this.echart.getOption().series[0].data, path);
+    if (node) {
+      this.echart.dispatchAction({ type: "sunburstRootToNode", seriesIndex: 0, targetNodeId: node.id });
+    }
   },
 
   destroyed() {
-    if (this.handleBreadcrumbClicked) {
-      window.removeEventListener("bundle-size-analysis-breadcrumb-clicked", this.handleBreadcrumbClicked);
-    }
-    if (this.handleTableRowClicked) {
-      window.removeEventListener("bundle-size-analysis-table-row-clicked", this.handleTableRowClicked);
-    }
+    this.chartObserver.disconnect();
+    this.unbindChart();
+    window.removeEventListener("bundle-size-analysis-breadcrumb-clicked", this.handleBreadcrumbClicked);
+    window.removeEventListener("bundle-size-analysis-table-row-clicked", this.handleTableRowClicked);
   },
 };

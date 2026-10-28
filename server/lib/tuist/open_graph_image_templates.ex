@@ -8,35 +8,24 @@ defmodule Tuist.OpenGraphImageTemplates do
   """
 
   alias Tuist.Docs.OgImage, as: DocsImage
-  alias Tuist.Marketing.Changelog.OgImage, as: ChangelogImage
+  alias Tuist.Marketing.Blog.CoverArtwork, as: BlogCoverArtwork
+  alias Tuist.Marketing.Customers.CoverArtwork
   alias Tuist.Marketing.OgImages, as: MarketingImages
   alias Tuist.Marketing.OpenGraph
+  alias Tuist.OpenGraph.ProjectImage
   alias Tuist.OpenGraphImageRenderer
   alias Tuist.OpenGraphImages
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
 
   @max_title_length 500
   @max_description_length 1_000
 
   def spec(%{"template" => "marketing", "title" => title} = params) do
-    with true <- allowed_keys?(params, ["template", "title"], ["icon"]),
-         true <- valid_text?(title, @max_title_length),
-         {:ok, icon_path} <- marketing_icon_path(Map.get(params, "icon")) do
-      marketing_spec(params, title, icon_path)
-    else
-      _ -> :error
-    end
-  end
-
-  def spec(%{"template" => template, "title" => title} = params)
-      when template in [
-             "marketing_home",
-             "marketing_blog",
-             "marketing_changelog",
-             "marketing_newsletter",
-             "marketing_api_docs"
-           ] do
     if allowed_keys?(params, ["template", "title"], []) and valid_text?(title, @max_title_length) do
-      marketing_layout_spec(params, template, title)
+      build_spec(params, marketing_asset_hash(), fn ->
+        OpenGraph.generate_title_card_binary(title)
+      end)
     else
       :error
     end
@@ -62,7 +51,6 @@ defmodule Tuist.OpenGraphImageTemplates do
          valid_text?(category, @max_title_length) do
       priv_dir = Application.app_dir(:tuist, "priv")
       fonts_dir = Path.join(priv_dir, "static/fonts")
-      logo_path = Path.join(priv_dir, "docs/images/logo.webp")
 
       build_spec(params, docs_asset_hash(), fn ->
         html =
@@ -70,8 +58,7 @@ defmodule Tuist.OpenGraphImageTemplates do
             title: title,
             description: description,
             category: category,
-            fonts_dir: fonts_dir,
-            logo_path: logo_path
+            fonts_dir: fonts_dir
           )
 
         OpenGraphImageRenderer.render(html, title)
@@ -81,37 +68,51 @@ defmodule Tuist.OpenGraphImageTemplates do
     end
   end
 
-  def spec(%{"template" => "changelog_entry", "title" => title} = params) do
-    description = Map.get(params, "description")
-    date = Map.get(params, "date")
+  def spec(%{"template" => "marketing_case_study", "slug" => slug} = params) do
+    if allowed_keys?(params, ["template", "slug"], []) and CoverArtwork.available?(slug) do
+      # The SVG is the render's whole input, so hashing it into the key
+      # busts the cache whenever the logo file or the artwork generator
+      # changes; the module digest covers the HTML wrapper around it.
+      svg = CoverArtwork.svg(slug, :og)
+      asset_hash = OpenGraphImages.key([case_study_asset_hash(), svg])
 
-    with true <-
-           allowed_keys?(
-             params,
-             ["template", "title"],
-             ["description", "date", "pull_request"]
-           ),
-         true <- valid_text?(title, @max_title_length),
-         true <- valid_optional_text?(description, @max_description_length),
-         true <- valid_optional_text?(date, @max_title_length),
-         {:ok, pull_request} <- optional_positive_integer(Map.get(params, "pull_request")) do
-      priv_dir = Application.app_dir(:tuist, "priv")
-      fonts_dir = Path.join(priv_dir, "static/fonts")
-      logo_path = Path.join(priv_dir, "docs/images/logo.webp")
-
-      build_spec(params, changelog_asset_hash(), fn ->
-        html =
-          ChangelogImage.render_html(
-            title: title,
-            description: description,
-            date: date,
-            pull_request: pull_request,
-            fonts_dir: fonts_dir,
-            logo_path: logo_path
-          )
-
-        OpenGraphImageRenderer.render(html, title)
+      build_spec(params, asset_hash, fn ->
+        html = MarketingImages.render_case_study_html(svg: svg)
+        OpenGraphImageRenderer.render(html, slug)
       end)
+    else
+      :error
+    end
+  end
+
+  def spec(%{"template" => "marketing_blog_cover", "slug" => slug} = params) do
+    if allowed_keys?(params, ["template", "slug"], []) and BlogCoverArtwork.available?(slug) do
+      # As for case studies: the SVG is the render's whole input, so it is
+      # hashed into the key and the dark variant fills the same 16:9 wrapper.
+      svg = BlogCoverArtwork.svg(slug, :og)
+      asset_hash = OpenGraphImages.key([blog_cover_asset_hash(), svg])
+
+      build_spec(params, asset_hash, fn ->
+        html = MarketingImages.render_case_study_html(svg: svg)
+        OpenGraphImageRenderer.render(html, slug)
+      end)
+    else
+      :error
+    end
+  end
+
+  def spec(%{"template" => "project", "title" => title, "project" => project, "project_id" => project_id} = params) do
+    optional_keys = ["subtitle", "badge", "locale"]
+
+    with true <- allowed_keys?(params, ["template", "title", "project", "project_id"], optional_keys),
+         true <- valid_text?(title, 160),
+         true <- valid_text?(project, 510),
+         true <- valid_optional_text?(Map.get(params, "subtitle"), 200),
+         true <- valid_optional_text?(Map.get(params, "badge"), 60),
+         true <- valid_optional_text?(Map.get(params, "locale"), 20),
+         {:ok, resolved_project} <- public_project(project),
+         true <- to_string(resolved_project.id) == project_id do
+      project_spec(params, title, resolved_project)
     else
       _ -> :error
     end
@@ -119,56 +120,19 @@ defmodule Tuist.OpenGraphImageTemplates do
 
   def spec(_params), do: :error
 
-  defp marketing_spec(params, title, icon_path) do
+  defp project_spec(params, title, %Project{}) do
     priv_dir = Application.app_dir(:tuist, "priv")
     fonts_dir = Path.join(priv_dir, "static/fonts")
-    logo_path = Path.join(priv_dir, "docs/images/logo.webp")
-    background_path = Path.join(priv_dir, "static/marketing/images/background.webp")
 
-    asset_hash = OpenGraphImages.key([marketing_asset_hash(), icon_path && {:file, icon_path}])
-
-    build_spec(params, asset_hash, fn ->
-      opts = [title: title, fonts_dir: fonts_dir, logo_path: logo_path, bg_path: background_path]
-      opts = if icon_path, do: Keyword.put(opts, :icon_path, icon_path), else: opts
-      html = MarketingImages.render_html(opts)
-      OpenGraphImageRenderer.render(html, title)
-    end)
-  end
-
-  defp marketing_layout_spec(params, template, title) do
-    priv_dir = Application.app_dir(:tuist, "priv")
-    fonts_dir = Path.join(priv_dir, "static/fonts")
-    logo_path = Path.join(priv_dir, "docs/images/logo.webp")
-    background_path = Path.join(priv_dir, "static/marketing/images/background.webp")
-
-    build_spec(params, marketing_asset_hash(), fn ->
-      common_opts = [
-        title: title,
-        fonts_dir: fonts_dir,
-        logo_path: logo_path,
-        bg_path: background_path
-      ]
-
+    build_spec(params, project_asset_hash(), fn ->
       html =
-        case template do
-          "marketing_home" ->
-            phone_path = Path.join(priv_dir, "static/marketing/images/og/phone.png")
-            MarketingImages.render_home_html(Keyword.put(common_opts, :phone_path, phone_path))
-
-          "marketing_blog" ->
-            MarketingImages.render_blog_html(common_opts)
-
-          "marketing_changelog" ->
-            timeline_path = Path.join(priv_dir, "static/marketing/images/og/changelog-timeline.svg")
-            MarketingImages.render_changelog_list_html(Keyword.put(common_opts, :timeline_path, timeline_path))
-
-          "marketing_newsletter" ->
-            icon_path = Path.join(priv_dir, "static/marketing/images/newsletter/envelope.webp")
-            MarketingImages.render_newsletter_html(Keyword.put(common_opts, :icon_path, icon_path))
-
-          "marketing_api_docs" ->
-            MarketingImages.render_api_docs_html(common_opts)
-        end
+        ProjectImage.render_html(
+          title: title,
+          project: Map.fetch!(params, "project"),
+          subtitle: Map.get(params, "subtitle"),
+          badge: Map.get(params, "badge"),
+          fonts_dir: fonts_dir
+        )
 
       OpenGraphImageRenderer.render(html, title)
     end)
@@ -183,30 +147,13 @@ defmodule Tuist.OpenGraphImageTemplates do
     {:ok, OpenGraphImages.spec(key_parts, params, render)}
   end
 
-  defp marketing_icon_path(nil), do: {:ok, nil}
-
-  defp marketing_icon_path(relative_path) do
-    priv_dir = Application.app_dir(:tuist, "priv")
-    icon_path = Path.expand(relative_path, priv_dir)
-
-    if String.starts_with?(icon_path, priv_dir <> "/") and File.regular?(icon_path) do
-      {:ok, icon_path}
-    else
-      :error
-    end
-  end
-
   defp marketing_asset_hash do
     priv_dir = Application.app_dir(:tuist, "priv")
 
     OpenGraphImages.cached_key(:marketing_open_graph_template_assets, [
-      {:module, MarketingImages},
-      {:dir, Path.join(priv_dir, "static/fonts")},
-      {:file, Path.join(priv_dir, "docs/images/logo.webp")},
-      {:file, Path.join(priv_dir, "static/marketing/images/background.webp")},
-      {:file, Path.join(priv_dir, "static/marketing/images/newsletter/envelope.webp")},
-      {:file, Path.join(priv_dir, "static/marketing/images/og/phone.png")},
-      {:file, Path.join(priv_dir, "static/marketing/images/og/changelog-timeline.svg")}
+      {:module, OpenGraph},
+      {:file, Path.join(priv_dir, "static/images/og_marketing_template.png")},
+      {:dir, Path.join(priv_dir, "static/fonts")}
     ])
   end
 
@@ -215,18 +162,24 @@ defmodule Tuist.OpenGraphImageTemplates do
 
     OpenGraphImages.cached_key(:docs_open_graph_template_assets, [
       {:module, DocsImage},
-      {:dir, Path.join(priv_dir, "static/fonts")},
-      {:file, Path.join(priv_dir, "docs/images/logo.webp")}
+      {:module, OpenGraphImageRenderer},
+      {:dir, Path.join(priv_dir, "static/fonts")}
     ])
   end
 
-  defp changelog_asset_hash do
-    priv_dir = Application.app_dir(:tuist, "priv")
+  defp case_study_asset_hash do
+    OpenGraphImages.cached_key(:marketing_case_study_open_graph_template_assets, [
+      {:module, MarketingImages},
+      {:module, OpenGraphImageRenderer},
+      {:module, CoverArtwork}
+    ])
+  end
 
-    OpenGraphImages.cached_key(:changelog_open_graph_template_assets, [
-      {:module, ChangelogImage},
-      {:dir, Path.join(priv_dir, "static/fonts")},
-      {:file, Path.join(priv_dir, "docs/images/logo.webp")}
+  defp blog_cover_asset_hash do
+    OpenGraphImages.cached_key(:marketing_blog_cover_open_graph_template_assets, [
+      {:module, MarketingImages},
+      {:module, OpenGraphImageRenderer},
+      {:module, BlogCoverArtwork}
     ])
   end
 
@@ -240,6 +193,23 @@ defmodule Tuist.OpenGraphImageTemplates do
     ])
   end
 
+  defp project_asset_hash do
+    priv_dir = Application.app_dir(:tuist, "priv")
+
+    OpenGraphImages.cached_key(:project_open_graph_template_assets, [
+      {:module, ProjectImage},
+      {:module, OpenGraphImageRenderer},
+      {:dir, Path.join(priv_dir, "static/fonts")}
+    ])
+  end
+
+  defp public_project(slug) do
+    case Projects.get_project_by_slug(slug) do
+      {:ok, %Project{visibility: :public} = project} -> {:ok, project}
+      _ -> :error
+    end
+  end
+
   defp allowed_keys?(params, required, optional) do
     keys = Map.keys(params)
     Enum.all?(required, &(&1 in keys)) and Enum.all?(keys, &(&1 in required or &1 in optional))
@@ -251,13 +221,4 @@ defmodule Tuist.OpenGraphImageTemplates do
 
   defp valid_optional_text?(nil, _max_length), do: true
   defp valid_optional_text?(value, max_length), do: valid_text?(value, max_length)
-
-  defp optional_positive_integer(nil), do: {:ok, nil}
-
-  defp optional_positive_integer(value) do
-    case Integer.parse(value) do
-      {integer, ""} when integer > 0 -> {:ok, integer}
-      _ -> :error
-    end
-  end
 end

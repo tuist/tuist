@@ -11,7 +11,8 @@ let tuist = Tuist(
         installOptions: .options(
             passthroughSwiftPackageManagerArguments: [
                 "--replace-scm-with-registry",
-            ]
+            ],
+            packageManifestEnvironment: .automatic
         )
     )
 )

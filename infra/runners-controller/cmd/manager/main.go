@@ -53,6 +53,7 @@ func main() {
 		registryMirror      string
 		clusterDNSIP        string
 		clusterDomain       string
+		sandboxesNS         string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -74,6 +75,8 @@ func main() {
 		"kube-dns ClusterIP injected into macOS pool Pods as TUIST_CLUSTER_DNS_IP. dispatch-poll.sh inside the Tart VM writes /etc/resolver/<cluster-domain> from it so the dispatch-provided cache_endpoint_url (*.svc.cluster.local) resolves in the VM. Optional; empty skips the injection (macOS runners then never receive a resolvable in-cluster cache URL — pair with the server's TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS gate).")
 	flag.StringVar(&clusterDomain, "cluster-domain", envOr("TUIST_RUNNER_CLUSTER_DOMAIN", "cluster.local"),
 		"Cluster DNS suffix paired with --cluster-dns-ip (TUIST_CLUSTER_DOMAIN in macOS pool Pods; names the /etc/resolver file in the VM).")
+	flag.StringVar(&sandboxesNS, "sandboxes-namespace", envOr("TUIST_SANDBOXES_NAMESPACE", ""),
+		"Namespace of the sandbox daemons sharing the Linux fleet's nodes, whose memory the autoscaler keeps out of the fleet budget. Optional; empty when no sandboxes run.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -105,9 +108,31 @@ func main() {
 		os.Exit(1)
 	}
 
+	// One sessions client for both reconcilers: the pool reconciler
+	// closes a Pod's session immediately before reaping it, and the
+	// pod-lifecycle reconciler reports the earlier terminal transition.
+	// nil when unconfigured, which disables reporting on both.
+	var sessionsClient *sessions.Client
+	if sessionsURL != "" {
+		sessionsClient = sessions.NewClient(sessionsURL)
+	}
+
+	// Shared by the autoscaler and the pool reconciler's placement preferences.
+	// Cache just under the poll interval so the fleet-aware pass (which fetches
+	// every sibling shape's signals each reconcile) collapses an N-shape fleet's
+	// N² requests down to ~N per cycle.
+	var signalsClient *scaling.Client
+	if scalingSignalsURL != "" {
+		signalsClient = scaling.NewClient(scalingSignalsURL)
+		signalsClient.CacheTTL = 4 * time.Second
+	}
+
 	if err := (&controllers.RunnerPoolReconciler{
 		Client:              mgr.GetClient(),
+		APIReader:           mgr.GetAPIReader(),
+		SandboxesNamespace:  sandboxesNS,
 		Scheme:              mgr.GetScheme(),
+		SessionsClient:      sessionsClient,
 		DispatchURL:         dispatchURL,
 		DispatchInternalURL: dispatchInternalURL,
 		DindImage:           dindImage,
@@ -115,6 +140,7 @@ func main() {
 		ClusterDNSIP:        clusterDNSIP,
 		ClusterDomain:       clusterDomain,
 		Recorder:            mgr.GetEventRecorderFor("runnerpool-controller"),
+		SignalsClient:       signalsClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RunnerPool reconciler")
 		os.Exit(1)
@@ -124,16 +150,13 @@ func main() {
 	// the scaling URL isn't configured (the v1 macOS-only chart
 	// shape) we skip wiring it up — autoscaling pools fail open
 	// (no scaling-driven changes), static pools work as before.
-	if scalingSignalsURL != "" {
-		signalsClient := scaling.NewClient(scalingSignalsURL)
-		// Cache just under the poll interval so the fleet-aware pass
-		// (which fetches every sibling shape's signals each reconcile)
-		// collapses an N-shape fleet's N² requests down to ~N per cycle.
-		signalsClient.CacheTTL = 4 * time.Second
+	if signalsClient != nil {
 		if err := (&controllers.AutoscalerReconciler{
-			Client:        mgr.GetClient(),
-			Scheme:        mgr.GetScheme(),
-			SignalsClient: signalsClient,
+			Client:             mgr.GetClient(),
+			Scheme:             mgr.GetScheme(),
+			SignalsClient:      signalsClient,
+			SandboxesNamespace: sandboxesNS,
+			APIReader:          mgr.GetAPIReader(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup Autoscaler reconciler")
 			os.Exit(1)
@@ -160,7 +183,7 @@ func main() {
 		if err := (&controllers.PodLifecycleReconciler{
 			Client:         mgr.GetClient(),
 			Scheme:         mgr.GetScheme(),
-			SessionsClient: sessions.NewClient(sessionsURL),
+			SessionsClient: sessionsClient,
 			Logs:           clientset,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup PodLifecycle reconciler")

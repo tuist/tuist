@@ -17,13 +17,14 @@ public protocol GetCacheTokenServicing: Sendable {
     func getCacheToken(serverURL: URL, fullHandle: String?) async throws -> CacheToken
 }
 
-enum GetCacheTokenServiceError: LocalizedError {
+public enum GetCacheTokenServiceError: LocalizedError, Equatable {
     case unauthorized(String)
+    case freeTierExhausted(String)
     case unknownError(Int)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
-        case let .unauthorized(message):
+        case let .unauthorized(message), let .freeTierExhausted(message):
             return message
         case let .unknownError(statusCode):
             return "Failed to obtain a cache token due to an unknown server response of \(statusCode)."
@@ -51,6 +52,11 @@ public struct GetCacheTokenService: GetCacheTokenServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw GetCacheTokenServiceError.unauthorized(error.message)
+            }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw GetCacheTokenServiceError.freeTierExhausted(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw GetCacheTokenServiceError.unknownError(statusCode)

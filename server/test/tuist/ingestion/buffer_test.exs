@@ -276,7 +276,7 @@ defmodule Tuist.Ingestion.BufferTest do
         buffer: ["row"],
         max_buffer_size: 1000,
         flush_interval_ms: 60_000,
-        user_memory_retries: 0
+        memory_retries: 0
       ]
 
       assert {:ok, pid} = Buffer.start_link(opts)
@@ -314,7 +314,7 @@ defmodule Tuist.Ingestion.BufferTest do
         max_buffer_size: 3,
         retained_buffer_size: 6,
         flush_interval_ms: 60_000,
-        user_memory_retries: 0,
+        memory_retries: 0,
         sync_writes: false
       ]
 
@@ -356,7 +356,7 @@ defmodule Tuist.Ingestion.BufferTest do
         max_buffer_size: 3,
         retained_buffer_size: 6,
         flush_interval_ms: 60_000,
-        user_memory_retries: 0,
+        memory_retries: 0,
         sync_writes: true
       ]
 
@@ -389,7 +389,7 @@ defmodule Tuist.Ingestion.BufferTest do
         header: "test_header",
         max_buffer_size: 3,
         flush_interval_ms: 60_000,
-        user_memory_retries: 0,
+        memory_retries: 0,
         sync_writes: false
       ]
 

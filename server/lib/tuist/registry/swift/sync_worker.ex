@@ -25,6 +25,27 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   @sync_lock_ttl_seconds 3_000
   @package_lock_ttl_seconds 900
 
+  # Emitted when a pass stops short of the packages it was scheduled to visit.
+  # A ready pod that is silently skipping packages is the condition that let the
+  # July 2026 catalog drift run for days, so lost coverage has to be a signal in
+  # its own right rather than a line in the log.
+  @coverage_deferred_event [:tuist, :registry, :swift, :sync, :coverage_deferred]
+  @package_skipped_event [:tuist, :registry, :swift, :sync, :package_skipped]
+
+  # GitHub's primary quota window is an hour, so the reset it reports is never
+  # further out than that. The floor keeps a reset that has already elapsed from
+  # turning into an immediate re-run against a quota that has not actually
+  # recovered.
+  @min_snooze_seconds 60
+  @max_snooze_seconds 3_600
+  @default_snooze_seconds 600
+
+  @doc false
+  def coverage_deferred_event_name, do: @coverage_deferred_event
+
+  @doc false
+  def package_skipped_event_name, do: @package_skipped_event
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
     cond do
@@ -37,7 +58,21 @@ defmodule Tuist.Registry.Swift.SyncWorker do
         :ok
 
       true ->
-        perform_sync(args, Registry.swift_registry_github_token())
+        case Registry.swift_registry_github_token() do
+          nil ->
+            # Configuration says the mirror has a credential, so a missing token
+            # here is the App failing to issue one. Deferring keeps the pass
+            # queued for when it recovers instead of reporting a clean run that
+            # visited nothing.
+            Logger.error("Registry sync deferred: no GitHub credential could be resolved")
+
+            :telemetry.execute(@coverage_deferred_event, %{packages: 0}, %{reason: :missing_credential})
+
+            {:snooze, @default_snooze_seconds}
+
+          token ->
+            perform_sync(args, token)
+        end
     end
   end
 
@@ -68,17 +103,15 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     limit = Map.get(args, "limit", Registry.swift_registry_sync_limit())
 
     case list_packages(token) do
-      {:ok, packages} ->
-        case packages do
-          [] ->
-            :ok
+      {:ok, []} ->
+        :ok
 
-          _ ->
-            {batch, next_cursor} = take_batch(packages, limit)
-            Enum.each(batch, &sync_package(&1, token))
-            SyncCursor.put(next_cursor)
-            :ok
-        end
+      {:ok, packages} ->
+        {batch, cursor, total} = take_batch(packages, limit)
+        sync_batch(batch, cursor, total, token)
+
+      {:snooze, _seconds} = snooze ->
+        snooze
 
       {:discard, _reason} = discard ->
         discard
@@ -86,6 +119,73 @@ defmodule Tuist.Registry.Swift.SyncWorker do
       {:error, _reason} = error ->
         error
     end
+  end
+
+  # The cursor advances only over packages the pass actually visited. Advancing
+  # it by the whole batch after stopping early is what made throttled packages
+  # invisible: each skipped package waited a full catalog rotation for another
+  # look, with nothing recording that it had been passed over.
+  defp sync_batch(batch, cursor, total, token) do
+    {visited, failed, outcome} =
+      Enum.reduce_while(batch, {0, 0, :ok}, fn package, {visited, failed, :ok} ->
+        case sync_package(package, token) do
+          :ok -> {:cont, {visited + 1, failed, :ok}}
+          :failed -> {:cont, {visited + 1, failed + 1, :ok}}
+          {halt_reason, retry_after} -> {:halt, {visited, failed, {halt_reason, retry_after}}}
+        end
+      end)
+
+    finish_batch(batch, cursor, total, visited, failed, outcome)
+  end
+
+  defp finish_batch(batch, cursor, total, visited, _failed, {reason, retry_after}) do
+    SyncCursor.put(next_cursor(cursor, visited, total))
+
+    seconds = snooze_seconds(retry_after)
+    deferred = length(batch) - visited
+
+    Logger.warning("Deferring #{deferred} of #{length(batch)} scheduled registry packages for #{seconds}s (#{reason})")
+
+    :telemetry.execute(@coverage_deferred_event, %{packages: deferred}, %{reason: reason})
+
+    {:snooze, seconds}
+  end
+
+  # A pass where every package failed is a problem with the mirror, not with
+  # several hundred unrelated repositories at once. Per-package failures are
+  # individually survivable, which is exactly why they add up to a clean-looking
+  # run: the cursor rotates on, the pass returns `:ok`, and the catalog quietly
+  # stops moving. Reading "all of them" as one systemic failure is what keeps a
+  # credential or client regression from hiding inside per-package noise —
+  # GitHub answers a repository a credential cannot see with 404, not 401, so
+  # the authentication halt above cannot catch that shape on its own.
+  #
+  # The cursor is held rather than advanced: nothing was mirrored, so there is
+  # no progress to record, and rotating on would spend the next pass on
+  # different packages that fail the same way.
+  defp finish_batch(batch, cursor, _total, _visited, failed, :ok) when failed > 0 and failed == length(batch) do
+    SyncCursor.put(cursor)
+
+    Logger.error("Every one of the #{failed} packages in this registry pass failed; holding the cursor")
+
+    :telemetry.execute(@coverage_deferred_event, %{packages: failed}, %{reason: :all_packages_failed})
+
+    {:snooze, @default_snooze_seconds}
+  end
+
+  defp finish_batch(_batch, cursor, total, visited, _failed, :ok) do
+    SyncCursor.put(next_cursor(cursor, visited, total))
+
+    :ok
+  end
+
+  defp next_cursor(_cursor, _visited, 0), do: 0
+  defp next_cursor(cursor, visited, total), do: rem(cursor + visited, total)
+
+  defp snooze_seconds(nil), do: @default_snooze_seconds
+
+  defp snooze_seconds(retry_after) when is_integer(retry_after) do
+    retry_after |> max(@min_snooze_seconds) |> min(@max_snooze_seconds)
   end
 
   defp force_resync_package_version_for_handle(repository_full_handle, version, resync_flags, token) do
@@ -107,6 +207,9 @@ defmodule Tuist.Registry.Swift.SyncWorker do
             package ->
               force_resync_package_version(package, normalized_version, resync_flags, token)
           end
+
+        {:snooze, _seconds} = snooze ->
+          snooze
 
         {:discard, _reason} = discard ->
           discard
@@ -131,6 +234,19 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     end
   end
 
+  # Throttling is deferred rather than dropped. Discarding it lost the pass
+  # outright: the job left the queue, nothing recorded the missed coverage, and
+  # the quota reset GitHub had just reported went unused.
+  defp package_list_error({:rate_limited, status, retry_after}) do
+    seconds = snooze_seconds(retry_after)
+
+    Logger.warning("Deferring the Swift Package Index catalog fetch for #{seconds}s after HTTP #{status}")
+
+    :telemetry.execute(@coverage_deferred_event, %{packages: 0}, %{reason: :rate_limited})
+
+    {:snooze, seconds}
+  end
+
   defp package_list_error(reason) do
     if transient_fetch_error?(reason) do
       # A transport or protocol failure talking to GitHub (connection closed
@@ -150,12 +266,8 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     end
   end
 
-  # GitHub rate limits are returned separately from other HTTP status errors, so
-  # the cron job can resume at its next scheduled run without replaying an
-  # exhausted job in the meantime.
   defp transient_fetch_error?(%Req.TransportError{}), do: true
   defp transient_fetch_error?(%Req.HTTPError{}), do: true
-  defp transient_fetch_error?({:rate_limited, _status}), do: true
   defp transient_fetch_error?(_reason), do: false
 
   defp sync_package(%{scope: scope, name: name, repository_full_handle: full_handle}, token) do
@@ -169,7 +281,16 @@ defmodule Tuist.Registry.Swift.SyncWorker do
           Lock.release(lock_key)
         end
 
+      # A release worker holds this lock while it writes the package's catalog
+      # entry, so contention is ordinary rather than exotic. The pass moves on
+      # instead of stalling the whole rotation behind one package, and the
+      # cursor moves with it, but the miss is counted: coverage the pass did not
+      # take has to be visible somewhere other than in nobody's memory.
       {:error, :already_locked} ->
+        Logger.debug("Skipping #{scope}/#{name}: another worker holds its package lock")
+
+        :telemetry.execute(@package_skipped_event, %{packages: 1}, %{reason: :package_locked})
+
         :ok
     end
   end
@@ -194,9 +315,33 @@ defmodule Tuist.Registry.Swift.SyncWorker do
       {:ok, tags} ->
         sync_tags(scope, name, full_handle, tags, metadata)
 
+      # The pass stops here rather than moving on. Continuing spends the rest of
+      # the batch against an exhausted quota and skips every one of those
+      # packages for a full catalog rotation, which is how thousands of
+      # rate-limit failures coexisted with a pod reporting healthy.
+      {:error, {:rate_limited, status, retry_after}} ->
+        Logger.warning("GitHub is throttling the mirror (HTTP #{status}); stopping the pass at #{scope}/#{name}")
+
+        {:rate_limited, retry_after}
+
+      # A 401 is the credential, not the repository, so every remaining package
+      # in the batch would fail the same way. Skipping them one by one would
+      # advance the cursor over the whole batch and report a clean pass, which
+      # is the silent loss of coverage this worker exists to make impossible.
+      # A 403 is left as a per-package skip: GitHub uses it for repositories
+      # that are individually unavailable, and halting on one would stall the
+      # rotation indefinitely.
+      {:error, {:http_error, 401}} ->
+        Logger.error("GitHub rejected the mirror's credential at #{scope}/#{name}; stopping the pass")
+
+        {:unauthorized, nil}
+
       {:error, reason} ->
         Logger.warning("Failed to fetch tags for #{scope}/#{name}: #{inspect(reason)}")
-        :ok
+
+        :telemetry.execute(@package_skipped_event, %{packages: 1}, %{reason: :tag_fetch_failed})
+
+        :failed
     end
   end
 
@@ -217,6 +362,15 @@ defmodule Tuist.Registry.Swift.SyncWorker do
           tag ->
             enqueue_release_worker(scope, name, full_handle, tag, resync_flags)
         end
+
+      {:error, {:rate_limited, status, retry_after}} ->
+        seconds = snooze_seconds(retry_after)
+
+        Logger.warning(
+          "Deferring the force resync of #{scope}/#{name}@#{version} for #{seconds}s after HTTP #{status} from GitHub"
+        )
+
+        {:snooze, seconds}
 
       {:error, reason} ->
         Logger.warning("Failed to fetch tags before force resyncing #{scope}/#{name}@#{version}: #{inspect(reason)}")
@@ -323,9 +477,8 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     {prefix, suffix} = Enum.split(packages, cursor)
     rotated = suffix ++ prefix
     batch = Enum.take(rotated, safe_limit)
-    next_cursor = if total == 0, do: 0, else: rem(cursor + safe_limit, total)
 
-    {batch, next_cursor}
+    {batch, cursor, total}
   end
 
   defp matches_pattern?(handle, pattern) do

@@ -18,6 +18,7 @@ zstd = "0.13"
 # so it is JSON rather than a format each side hand-rolls and can drift on.
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
+semver = "1.0"
 libc = "0.2"
 bazel-remote-apis = "0.27.0"
 tonic = { version = "0.14.2", features = ["tls-ring", "tls-native-roots"] }
@@ -28,6 +29,8 @@ h2 = "0.4"
 hyper = "1"
 prost = "0.14.1"
 sha2 = "0.10"
+fastcdc = "3.2"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 tokio = { version = "1.48", features = ["rt-multi-thread", "time"] }
 # Analytics parity with the Swift `CASAnalyticsDatabase`: the proxy writes
 # cas_analytics.db, read by the server's xcactivitylog NIF. `bundled` compiles

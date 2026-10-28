@@ -54,6 +54,29 @@ struct XCWorkspaceMapperTests {
         #expect(workspace.schemes.isEmpty == true)
     }
 
+    @Test("Maps projects in synchronized workspace groups")
+    func map_FileSystemSynchronizedGroup() async throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/tmp/MyWorkspace.xcworkspace")
+        let workspaceDir = workspacePath.parentDirectory
+        let xcworkspace = XCWorkspace.test(
+            withElements: [
+                .fileSystemSynchronizedGroup(XCWorkspaceDataGroup(
+                    location: .group("NestedGroup"),
+                    name: "NestedGroup",
+                    children: [.test(relativePath: "Project.xcodeproj")]
+                )),
+            ], path: workspacePath.pathString
+        )
+        let mapper = XCWorkspaceMapper()
+
+        // When
+        let workspace = try await mapper.map(xcworkspace: xcworkspace)
+
+        // Then
+        #expect(workspace.projects == [workspaceDir.appending(components: ["NestedGroup", "Project.xcodeproj"])])
+    }
+
     @Test("Maps workspace with shared schemes")
     func map_WithSchemes() async throws {
         // Given

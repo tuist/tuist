@@ -7,6 +7,11 @@
 
 server:
   replicaCount: 0
+  # The Deployment is scaled to zero, so the tag is never pulled. This value
+  # satisfies the chart's mandatory-tag guard while preserving the rendered
+  # server workload in this Kubernetes smoke test.
+  image:
+    tag: k3s-smoke
   migrationJob:
     enabled: false
   license:
@@ -50,6 +55,16 @@ clickhouse:
 
 objectStorage:
   embedded:
+    # Built and imported by helm:k3s-smoke. With USE_CURRENT_CONTEXT=1, load
+    # this image into the existing K3s cluster before running the task.
+    image:
+      repository: tuist-helm-smoke-storage
+      tag: local
+      pullPolicy: Never
+    mcImage:
+      repository: tuist-helm-smoke-storage
+      tag: local
+      pullPolicy: Never
     persistence:
       size: 1Gi
     resources:

@@ -35,11 +35,12 @@ defmodule TuistWeb.RunnerJobLogsController do
     user = Authentication.current_user(conn)
 
     with false <- is_nil(account),
-         :ok <- Authorization.authorize(:projects_read, user, account),
+         :ok <- Authorization.authorize(:account_dashboard_read, user, account),
          {workflow_run_id, ""} <- Integer.parse(workflow_run_id_param),
          {workflow_job_id, ""} <- Integer.parse(workflow_job_id_param),
-         {:ok, %{workflow_run_id: ^workflow_run_id, log_archived_at: %DateTime{}} = job} <-
-           Jobs.get_for_account(account.id, workflow_job_id) do
+         {:ok, %{workflow_run_id: ^workflow_run_id} = job} <-
+           Jobs.get_for_account(account.id, workflow_job_id),
+         true <- Jobs.archive_available?(job) do
       serve(conn, account, job)
     else
       _ ->

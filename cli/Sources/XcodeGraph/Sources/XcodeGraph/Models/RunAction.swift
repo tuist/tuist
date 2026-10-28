@@ -9,7 +9,7 @@ public struct RunAction: Equatable, Codable, Sendable {
     public let customLLDBInitFile: AbsolutePath?
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
-    public let executable: TargetReference?
+    public var executable: TargetReference?
     public let filePath: AbsolutePath?
     public let arguments: Arguments?
     public let options: RunActionOptions

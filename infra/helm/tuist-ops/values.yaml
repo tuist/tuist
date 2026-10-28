@@ -28,6 +28,17 @@ pomerium:
   audience: ops.tuist.dev
   publicKey: ""
 
+# Origins a signed project-access grant may be handed back to. The reason
+# form refuses any `return_to` outside this list, so a minted token cannot
+# be redirected to a host we do not run. Unset, tuist-ops falls back to
+# https://tuist.dev alone.
+#
+# Atlas no longer receives grants: operators read customer accounts through
+# its MCP proxy with Atlas' own identity, so only the dashboard consumes them.
+projectAccess:
+  returnToAllowlist:
+    - https://tuist.dev
+
 # Internal name used by the tailscale operator to expose this
 # Service as a tailnet device. Pomerium pods in workload clusters
 # dial this hostname through their cluster's tailscale-egress

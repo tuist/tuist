@@ -137,7 +137,7 @@ defmodule Tuist.OrganizationTest do
       assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_enforced
     end
 
-    test "preserves enforcement for a legacy custom-provider configuration" do
+    test "does not allow the retired compatibility flag to enable enforcement" do
       changeset =
         Organization.create_changeset(
           %Organization{},
@@ -147,10 +147,10 @@ defmodule Tuist.OrganizationTest do
           })
         )
 
-      assert changeset.valid?
+      refute changeset.valid?
     end
 
-    test "preserves automatic enrollment for a legacy custom-provider configuration" do
+    test "does not allow the retired compatibility flag to enable automatic enrollment" do
       changeset =
         Organization.create_changeset(
           %Organization{},
@@ -160,7 +160,7 @@ defmodule Tuist.OrganizationTest do
           })
         )
 
-      assert changeset.valid?
+      refute changeset.valid?
     end
 
     test "accepts an oauth2 issuer URL with a path" do
@@ -294,6 +294,80 @@ defmodule Tuist.OrganizationTest do
       assert "can't be blank" in errors_on(changeset).oauth2_authorize_url
       assert "can't be blank" in errors_on(changeset).oauth2_token_url
       assert "can't be blank" in errors_on(changeset).oauth2_user_info_url
+    end
+  end
+
+  describe "sso_configuration_changeset/2 for never-verified organizations" do
+    test "preserves enabled policies while editing settings and rejects new enablement" do
+      organization = struct(Organization, Map.merge(@oauth2_attrs, %{sso_automatic_enrollment: true, sso_enforced: true}))
+
+      changeset =
+        Organization.sso_configuration_changeset(organization, %{
+          oauth2_client_id: "rotated-client",
+          sso_automatic_enrollment: true,
+          sso_enforced: true
+        })
+
+      assert changeset.valid?
+
+      disabled =
+        Organization.sso_configuration_changeset(organization, %{sso_automatic_enrollment: false, sso_enforced: false})
+
+      assert disabled.valid?
+
+      changeset =
+        disabled
+        |> Ecto.Changeset.apply_changes()
+        |> Organization.sso_configuration_changeset(%{sso_automatic_enrollment: true, sso_enforced: true})
+
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_automatic_enrollment
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_enforced
+    end
+  end
+
+  describe "sso_configuration_changeset/2 after the daily re-check lapsed the domain" do
+    setup do
+      lapsed =
+        struct(
+          Organization,
+          Map.merge(@oauth2_attrs, %{
+            sso_login_domain: "example.com",
+            sso_login_domain_verification_token: "verification-token",
+            sso_login_domain_verified_at: nil,
+            sso_login_domain_last_verified_at: ~U[2026-09-01 12:00:00Z],
+            sso_automatic_enrollment: true,
+            sso_enforced: true
+          })
+        )
+
+      %{lapsed: lapsed}
+    end
+
+    test "keeps the settings it was saved with while other fields change", %{lapsed: lapsed} do
+      changeset = Organization.sso_configuration_changeset(lapsed, %{oauth2_client_id: "rotated-client-id"})
+
+      assert changeset.valid?
+    end
+
+    test "still requires verification to turn a setting on", %{lapsed: lapsed} do
+      changeset =
+        lapsed
+        |> Map.put(:sso_automatic_enrollment, false)
+        |> Organization.sso_configuration_changeset(%{sso_automatic_enrollment: true})
+
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_automatic_enrollment
+    end
+
+    test "keeps saved policies when replacing the domain without granting verification", %{lapsed: lapsed} do
+      changeset =
+        Organization.sso_configuration_changeset(lapsed, %{
+          sso_login_domain: "replacement.example",
+          sso_login_domain_verification_token: "replacement-token",
+          sso_login_domain_last_verified_at: nil
+        })
+
+      assert changeset.valid?
+      refute Ecto.Changeset.get_field(changeset, :sso_login_domain_verified_at)
     end
   end
 

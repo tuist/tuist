@@ -29,6 +29,25 @@ defmodule CacheWeb.GradleController do
 
   tags(["Gradle"])
 
+  # Kura, the regional implementation of these cache routes, sheds a read it
+  # cannot admit a response stream for instead of queueing it unboundedly. This
+  # app never returns it, but clients see one contract across both
+  # implementations, and a client that reads the shed as an unknown failure
+  # gives up the retry the server explicitly asked for.
+  @too_many_requests %OpenApiSpex.Response{
+    description: "The server is limiting concurrent artifact response streams; retry after the hint",
+    headers: %{
+      "retry-after" => %OpenApiSpex.Header{
+        description:
+          "Whole seconds to wait before retrying. Jittered, so clients shed together do not return together.",
+        schema: %OpenApiSpex.Schema{type: :string}
+      }
+    },
+    content: %{
+      "application/json" => %OpenApiSpex.MediaType{schema: Error}
+    }
+  }
+
   operation(:download,
     summary: "Download a Gradle build cache artifact",
     operation_id: "downloadGradleArtifact",
@@ -57,7 +76,9 @@ defmodule CacheWeb.GradleController do
       not_found: {"Artifact not found", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
+      too_many_requests: @too_many_requests
     }
   )
 
@@ -160,7 +181,8 @@ defmodule CacheWeb.GradleController do
       unprocessable_entity:
         {"Invalid or missing request parameters (e.g., missing Content-Length header)", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
     }
   )
 

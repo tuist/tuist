@@ -11,4 +11,5 @@ else
   aube run check:generated
   mix format --check-formatted
   aube exec prettier --check "js/**/*.js" "css/**/*.css"
+  mise run css:lint-tokens noora
 fi

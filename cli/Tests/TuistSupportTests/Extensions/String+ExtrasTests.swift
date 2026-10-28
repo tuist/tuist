@@ -116,6 +116,17 @@ final class StringExtrasTests: TuistUnitTestCase {
         XCTAssertEqual(got, "test--bundle--identifier")
     }
 
+    func test_as_legal_c_identifier() {
+        // Given
+        let subject = "3sdk-with.dash/target"
+
+        // When
+        let got = subject.asLegalCIdentifier
+
+        // Then
+        XCTAssertEqual(got, "_sdk_with_dash_target")
+    }
+
     func test_string_doesnt_match_GitURL_regex() {
         // Given
         let stringToEvaluate = "not a url string"

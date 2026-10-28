@@ -13,6 +13,15 @@ pub struct SegmentLocationRecord {
     pub size: u64,
     pub version_ms: u64,
     pub created_at_ms: u64,
+    /// Trailing, optional: a record written before the field existed decodes
+    /// with `None`, and a binary that predates it stops reading before the
+    /// tail, so both rollback directions read each other's rows.
+    pub origin_region: Option<String>,
+    /// Trailing after `origin_region`, optional the same way. The tail has no
+    /// presence flags, so a record carrying a digest always writes the region
+    /// slot first (empty when unknown, which every reader decodes as `None`),
+    /// and a binary that predates the digest stops after the region.
+    pub content_sha256: Option<String>,
 }
 
 impl SegmentLocationRecord {
@@ -35,6 +44,8 @@ impl SegmentLocationRecord {
             size: manifest.size,
             version_ms: manifest.version_ms,
             created_at_ms: manifest.created_at_ms,
+            origin_region: manifest.origin_region.clone(),
+            content_sha256: manifest.content_sha256.clone(),
         })
     }
 
@@ -53,6 +64,8 @@ impl SegmentLocationRecord {
             version_ms: self.version_ms,
             created_at_ms: self.created_at_ms,
             branch: None,
+            origin_region: self.origin_region,
+            content_sha256: self.content_sha256,
         })
     }
 
@@ -65,7 +78,9 @@ impl SegmentLocationRecord {
                 + self.key.len()
                 + self.content_type.len()
                 + self.segment_id.len()
-                + 16,
+                + 24
+                + self.origin_region.as_ref().map_or(0, String::len)
+                + self.content_sha256.as_ref().map_or(0, String::len),
         );
         bytes.push(SEGMENT_LOCATION_RECORD_VERSION);
         bytes.push(producer_code(self.producer));
@@ -77,6 +92,12 @@ impl SegmentLocationRecord {
         push_string(&mut bytes, &self.key);
         push_string(&mut bytes, &self.content_type);
         push_string(&mut bytes, &self.segment_id);
+        if self.origin_region.is_some() || self.content_sha256.is_some() {
+            push_string(&mut bytes, self.origin_region.as_deref().unwrap_or(""));
+        }
+        if let Some(content_sha256) = &self.content_sha256 {
+            push_string(&mut bytes, content_sha256);
+        }
         bytes
     }
 
@@ -97,6 +118,8 @@ impl SegmentLocationRecord {
         let key = read_string(bytes, &mut cursor)?;
         let content_type = read_string(bytes, &mut cursor)?;
         let segment_id = read_string(bytes, &mut cursor)?;
+        let origin_region = read_optional_tail_string(bytes, &mut cursor)?;
+        let content_sha256 = read_optional_tail_string(bytes, &mut cursor)?;
 
         Ok(Some(
             Self {
@@ -109,9 +132,19 @@ impl SegmentLocationRecord {
                 size,
                 version_ms,
                 created_at_ms,
+                origin_region,
+                content_sha256,
             }
             .into_manifest(artifact_id)?,
         ))
+    }
+}
+
+fn read_optional_tail_string(bytes: &[u8], cursor: &mut usize) -> Result<Option<String>, String> {
+    if *cursor < bytes.len() {
+        Ok(Some(read_string(bytes, cursor)?).filter(|value| !value.is_empty()))
+    } else {
+        Ok(None)
     }
 }
 
@@ -191,12 +224,11 @@ fn read_string(bytes: &[u8], cursor: &mut usize) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::SegmentLocationRecord;
+    use super::{SegmentLocationRecord, push_string, read_optional_tail_string};
     use crate::artifact::{manifest::ArtifactManifest, producer::ArtifactProducer};
 
-    #[test]
-    fn round_trips_segment_backed_manifest() {
-        let manifest = ArtifactManifest {
+    fn manifest(origin_region: Option<&str>, content_sha256: Option<&str>) -> ArtifactManifest {
+        ArtifactManifest {
             artifact_id: "artifact".into(),
             producer: ArtifactProducer::Gradle,
             namespace_id: "android".into(),
@@ -210,15 +242,60 @@ mod tests {
             version_ms: 5678,
             created_at_ms: 1234,
             branch: None,
-        };
+            origin_region: origin_region.map(str::to_owned),
+            content_sha256: content_sha256.map(str::to_owned),
+        }
+    }
 
-        let record = SegmentLocationRecord::from_manifest(&manifest)
+    fn round_trip(manifest: &ArtifactManifest) -> ArtifactManifest {
+        let record = SegmentLocationRecord::from_manifest(manifest)
             .expect("segment-backed manifest should encode");
-        let decoded = SegmentLocationRecord::decode(&record.encode(), &manifest.artifact_id)
+        SegmentLocationRecord::decode(&record.encode(), &manifest.artifact_id)
             .expect("record should decode")
-            .expect("record should be present");
+            .expect("record should be present")
+    }
 
-        assert_eq!(decoded, manifest);
+    #[test]
+    fn round_trips_segment_backed_manifest() {
+        let digest = "ab".repeat(32);
+        for manifest in [
+            manifest(None, None),
+            manifest(Some("eu-west"), None),
+            manifest(None, Some(&digest)),
+            manifest(Some("eu-west"), Some(&digest)),
+        ] {
+            assert_eq!(round_trip(&manifest), manifest);
+        }
+    }
+
+    // What a binary that predates the digest reads: everything up to and
+    // including the region slot. With no known region the slot is empty, which
+    // that reader already decodes as `None`, so the digest after it is ignored
+    // rather than misread as a region.
+    #[test]
+    fn a_reader_that_predates_the_digest_stops_at_the_region() {
+        let digest = "cd".repeat(32);
+        for origin_region in [None, Some("us-east")] {
+            let encoded =
+                SegmentLocationRecord::from_manifest(&manifest(origin_region, Some(&digest)))
+                    .expect("segment-backed manifest should encode")
+                    .encode();
+            let mut digest_tail = Vec::new();
+            push_string(&mut digest_tail, &digest);
+            let pre_digest_prefix = &encoded[..encoded.len() - digest_tail.len()];
+            assert_eq!(&encoded[pre_digest_prefix.len()..], digest_tail.as_slice());
+
+            let decoded = SegmentLocationRecord::decode(pre_digest_prefix, "artifact")
+                .expect("pre-digest prefix should decode")
+                .expect("record should be present");
+            assert_eq!(decoded, manifest(origin_region, None));
+
+            let mut cursor = pre_digest_prefix.len() - 4 - origin_region.map_or(0, str::len);
+            assert_eq!(
+                read_optional_tail_string(&encoded, &mut cursor).expect("region slot should read"),
+                origin_region.map(str::to_owned)
+            );
+        }
     }
 
     #[test]

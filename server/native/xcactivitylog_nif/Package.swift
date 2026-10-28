@@ -2,13 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "XCActivityLogNIF",
+    name: "XCActivityLog",
     platforms: [.macOS(.v14)],
     products: [
-        .library(
-            name: "XCActivityLogNIF",
-            type: .dynamic,
-            targets: ["XCActivityLogNIF"]
+        .executable(
+            name: "xcactivitylog-parser",
+            targets: ["xcactivitylog-parser"]
         ),
         .library(
             name: "XCActivityLogParser",
@@ -20,7 +19,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(id: "MobileNativeFoundation.XCLogParser", from: "0.2.49"),
+        .package(id: "MobileNativeFoundation.XCLogParser", from: "0.2.50"),
         .package(id: "tuist.Path", from: "0.3.8"),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
@@ -41,8 +40,8 @@ let package = Package(
                 .product(name: "FileSystem", package: "tuist.FileSystem"),
             ]
         ),
-        .target(
-            name: "XCActivityLogNIF",
+        .executableTarget(
+            name: "xcactivitylog-parser",
             dependencies: [
                 "XCActivityLogParser",
             ]

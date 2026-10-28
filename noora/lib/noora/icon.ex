@@ -27,8 +27,10 @@ defmodule Noora.Icon do
   Strategies:
   - `"morph"` — tween one filled path into the other. Raises at render time if
     either icon is not a filled path (see `morphable?/1`).
+  - `"crossfade"` — opacity-only crossfade between the two icons. Works for any pair.
   - `"crossfade_rotate"` — crossfade and rotate the two icons. Works for any pair.
-  - `"auto"` (default) — morph when both icons are compatible, otherwise crossfade.
+  - `"auto"` (default) — morph when both icons are compatible, otherwise crossfade
+    with rotation.
 
   ## Adding an icon
 
@@ -38,7 +40,17 @@ defmodule Noora.Icon do
   use Phoenix.Component
 
   @icons_path Path.join(File.cwd!(), "lib/noora/icons")
-  @external_resource @icons_path
+
+  # Recompiles when icons are added or removed. The directory itself is not an
+  # external resource: Mix can't digest it, so any checkout would recompile.
+  @icon_files @icons_path |> File.ls!() |> Enum.filter(&(Path.extname(&1) == ".svg")) |> Enum.sort()
+
+  def __mix_recompile__? do
+    case File.ls(@icons_path) do
+      {:ok, files} -> files |> Enum.filter(&(Path.extname(&1) == ".svg")) |> Enum.sort() != @icon_files
+      {:error, _} -> true
+    end
+  end
 
   # Noora icons must be filled paths (`fill="currentColor"`) so they render and
   # animate (morph) correctly. Stroked icons would render as solid blobs, so we
@@ -74,8 +86,11 @@ defmodule Noora.Icon do
       |> assign_new(:active_state, fn -> "open" end)
 
     case resolve_transition(assigns.transition, assigns.name, active_name) do
-      :morph -> render_morph_icon(assigns)
-      :crossfade_rotate -> render_crossfade_icon(assigns)
+      :morph ->
+        render_morph_icon(assigns)
+
+      kind when kind in [:crossfade, :crossfade_rotate] ->
+        render_crossfade_icon(assign(assigns, :resolved_transition, kind))
     end
   end
 
@@ -139,6 +154,8 @@ defmodule Noora.Icon do
   # (filled-path) icons and raises otherwise so misuse fails loudly rather than
   # rendering an incorrect shape. `"auto"` morphs when possible and crossfades
   # otherwise.
+  defp resolve_transition("crossfade", _from, _to), do: :crossfade
+
   defp resolve_transition("crossfade_rotate", _from, _to), do: :crossfade_rotate
 
   defp resolve_transition("auto", from, to) do
@@ -197,7 +214,7 @@ defmodule Noora.Icon do
       class="noora-icon-transition"
       phx-hook="NooraIconTransition"
       phx-update="ignore"
-      data-transition="crossfade_rotate"
+      data-transition={@resolved_transition}
       data-watch={@watch}
       data-active-state={@active_state}
     >

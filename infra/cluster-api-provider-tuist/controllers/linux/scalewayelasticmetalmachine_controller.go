@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -55,6 +56,12 @@ const (
 	// a host that has finished install but isn't answering SSH yet errors out
 	// and the reconcile retries on the normal cadence.
 	elasticMetalSSHTimeout = 5 * time.Minute
+
+	// elasticMetalReleaseRetryInterval bounds how long a failed release reinstall
+	// waits before retrying. Returning the error would hand the retry to
+	// controller-runtime's default backoff, which doubles to a 1000s cap and
+	// leaves a Machine idling in Deleting long after Scaleway frees the server.
+	elasticMetalReleaseRetryInterval = 60 * time.Second
 
 	// pnIPv4Label is the node label dispatch reads as the Private-Network
 	// address of the runner-cache node. kubelet can't self-set tuist.dev/*
@@ -487,6 +494,14 @@ func (r *ScalewayElasticMetalMachineReconciler) claimedServerIDs(ctx context.Con
 }
 
 func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.ScalewayElasticMetalMachine) (ctrl.Result, error) {
+	running, err := holdReleaseForRunnerJobs(ctx, r.Client, machine.Name)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(running) > 0 {
+		r.event(machine, "WaitingForRunnerJobs", "%s", releaseHeldMessage(machine.Name, running))
+		return ctrl.Result{RequeueAfter: runnerJobsRecheckInterval}, nil
+	}
 	if machine.Status.ServerID != "" {
 		zone, err := scw.ParseZone(firstNonEmpty(machine.Spec.Zone, r.DefaultZone))
 		if err == nil {
@@ -498,10 +513,14 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Cont
 			if keyErr != nil {
 				return ctrl.Result{}, fmt.Errorf("read fleet ssh key for release: %w", keyErr)
 			}
+			// ReinstallServer already reads a server that is absent or mid-install
+			// as released, so this only fires on a failure that has to be retried.
 			if relErr := r.ScalewayClient.ReinstallServer(ctx, zone, machine.Status.ServerID,
 				firstNonEmpty(machine.Spec.OS, r.DefaultOS), nonEmpty(sshKeyID)); relErr != nil {
-				r.event(machine, "ReleaseFailed", "release (reinstall) Elastic Metal server %s: %v (will retry)", machine.Status.ServerID, relErr)
-				return ctrl.Result{}, relErr
+				r.event(machine, "ReleaseFailed", "release (reinstall) Elastic Metal server %s: %v (retrying in %s)",
+					machine.Status.ServerID, relErr, elasticMetalReleaseRetryInterval)
+				log.FromContext(ctx).Error(relErr, "reinstall Elastic Metal box on release", "id", machine.Status.ServerID)
+				return ctrl.Result{RequeueAfter: elasticMetalReleaseRetryInterval}, nil
 			}
 		}
 	}
@@ -637,7 +656,7 @@ func (r *ScalewayElasticMetalMachineReconciler) event(machine *infrav1.ScalewayE
 
 func (r *ScalewayElasticMetalMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.ScalewayElasticMetalMachine{}).
+		For(&infrav1.ScalewayElasticMetalMachine{}, builder.WithPredicates(ignoreOwnStatusWrites())).
 		Complete(r)
 }
 

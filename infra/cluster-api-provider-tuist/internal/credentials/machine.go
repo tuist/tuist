@@ -6,7 +6,8 @@
 // via the wider read surface that the CR object carries (etcd
 // backups, audit logs, casual `kubectl describe` / `-o yaml`).
 //
-// The Secret holds three things:
+// The Secret holds three things, and a fourth for the length of a rack
+// reinstall (tailscale-state, see SetMachineTailscaleState):
 //
 //   - sudo-password: returned by Scaleway at server creation time;
 //     used in two places by bootstrap (passwordless-sudoers entry,
@@ -25,6 +26,7 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -42,6 +44,7 @@ const (
 	machineSudoPasswordKey    = "sudo-password"
 	machineSSHUsernameKey     = "ssh-username"
 	machineHostFingerprintKey = "host-fingerprint"
+	machineTailscaleStateKey  = "tailscale-state"
 )
 
 // MachineBootstrap is the read shape for per-machine credentials.
@@ -51,6 +54,9 @@ type MachineBootstrap struct {
 	SudoPassword    string
 	SSHUsername     string
 	HostFingerprint string
+	// TailscaleState is tailscaled's state, held only while a rack host is erased
+	// and installed again, so it rejoins the tailnet as the same device.
+	TailscaleState []byte
 }
 
 // GetMachineBootstrap reads the Secret. Returns (nil, nil) if it doesn't
@@ -68,6 +74,7 @@ func (m *Manager) GetMachineBootstrap(ctx context.Context, machineName string) (
 		SudoPassword:    string(secret.Data[machineSudoPasswordKey]),
 		SSHUsername:     string(secret.Data[machineSSHUsernameKey]),
 		HostFingerprint: string(secret.Data[machineHostFingerprintKey]),
+		TailscaleState:  secret.Data[machineTailscaleStateKey],
 	}, nil
 }
 
@@ -96,6 +103,21 @@ func (m *Manager) SetMachineHostFingerprint(ctx context.Context, machineName, fi
 	})
 }
 
+// SetMachineTailscaleState keeps tailscaled's state for a host being erased and
+// installed again; nil removes it.
+func (m *Manager) SetMachineTailscaleState(ctx context.Context, machineName string, state []byte) error {
+	return m.upsertMachineBootstrap(ctx, machineName, func(s *corev1.Secret) {
+		if s.Data == nil {
+			s.Data = map[string][]byte{}
+		}
+		if state == nil {
+			delete(s.Data, machineTailscaleStateKey)
+			return
+		}
+		s.Data[machineTailscaleStateKey] = state
+	})
+}
+
 // DeleteMachineBootstrap removes the per-machine bootstrap Secret
 // (sudo password, SSH username, host fingerprint). Idempotent.
 func (m *Manager) DeleteMachineBootstrap(ctx context.Context, machineName string) error {
@@ -119,7 +141,7 @@ func (m *Manager) upsertMachineBootstrap(ctx context.Context, machineName string
 				Name:      name,
 				Labels: map[string]string{
 					"tuist.dev/managed-by": "capi-scaleway-applesilicon",
-					"tuist.dev/machine":    machineName,
+					"tuist.dev/machine":    labelValue(machineName),
 				},
 			},
 			Type: corev1.SecretTypeOpaque,
@@ -137,4 +159,14 @@ func (m *Manager) upsertMachineBootstrap(ctx context.Context, machineName string
 		return fmt.Errorf("update machine bootstrap secret: %w", err)
 	}
 	return nil
+}
+
+// labelValue is as much of s as a label value holds: nothing selects Secrets by
+// the machine label, so a name longer than that, such as a rack host's pin key
+// of its UUID and tailnet device, is cut short.
+func labelValue(s string) string {
+	if len(s) > 63 {
+		s = s[:63]
+	}
+	return strings.TrimRight(s, "-_.")
 }

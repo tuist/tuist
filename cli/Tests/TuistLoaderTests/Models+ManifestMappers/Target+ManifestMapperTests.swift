@@ -220,54 +220,6 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_generatedSourceFiles_haveContentHash() async throws {
-        // Given
-        let rootDirectory = try temporaryPath()
-        let generatedFilePath = "Scripts/GeneratedFile.swift"
-        let generatorPaths = GeneratorPaths(
-            manifestDirectory: try temporaryPath(),
-            rootDirectory: rootDirectory
-        )
-
-        // When
-        let mockContentHasher = MockContentHashing()
-        let expectedHash = "mock-generated-hash"
-        let resolvedPath = try generatorPaths.resolve(path: .relativeToRoot(generatedFilePath))
-
-        given(mockContentHasher)
-            .hash(Parameter<String>.any)
-            .willReturn(expectedHash)
-
-        let target = try await XcodeGraph.Target.from(
-            manifest: .test(
-                name: "TestTarget",
-                sources: .sourceFilesList(
-                    globs: [
-                        .generated(.relativeToRoot(generatedFilePath)),
-                    ]
-                ),
-                resources: .resources([]),
-                scripts: [.test(
-                    order: .pre,
-                    outputPaths: [.relativeToRoot(generatedFilePath)]
-                )]
-            ),
-            generatorPaths: generatorPaths,
-            externalDependencies: [:],
-            fileSystem: fileSystem,
-            contentHasher: mockContentHasher,
-            type: .local
-        )
-
-        // Then
-        XCTAssertEqual(target.sources.map(\.path), [resolvedPath])
-        XCTAssertEqual(target.sources.map(\.contentHash), [expectedHash])
-
-        verify(mockContentHasher)
-            .hash(Parameter<String>.value("generated-file-Scripts/GeneratedFile.swift"))
-            .called(1)
-    }
-
     func test_from_deduplicatesIdenticalXCFrameworkDependenciesExpandedFromExternalDependencies() async throws {
         // Given
         let rootDirectory = try temporaryPath()
@@ -349,5 +301,64 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
             graphDependency,
             graphDependency,
         ])
+    }
+}
+
+struct GeneratedSourceIdentityMappingTests {
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func generatedSourcesKeepTheirPathFingerprintButMarkItAsAPlaceholder(exists: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let relative = "Scripts/GeneratedFile.swift"
+        let path = root.appending(try RelativePath(validating: relative))
+        if exists {
+            try await FileSystem().makeDirectory(at: path.parentDirectory)
+            try await FileSystem().writeText("arbitrary script output", at: path)
+        }
+        let hasher = MockContentHashing()
+        given(hasher).hash(Parameter<String>.any).willReturn("mock-generated-hash")
+        let target = try await XcodeGraph.Target.from(
+            manifest: .test(
+                name: "TestTarget", sources: .sourceFilesList(globs: [.generated(.relativeToRoot(relative))]),
+                resources: .resources([]), scripts: [.test(order: .pre, outputPaths: [.relativeToRoot(relative)])]
+            ), generatorPaths: GeneratorPaths(manifestDirectory: root, rootDirectory: root),
+            externalDependencies: [:], fileSystem: FileSystem(), contentHasher: hasher, type: .local
+        )
+        #expect(target.sources.map(\.path) == [path])
+        #expect(target.sources.map(\.contentHash) == ["mock-generated-hash"])
+        #expect(target.sources.map(\.contentHashIsPlaceholder) == [true])
+        verify(hasher).hash(Parameter<String>.value("generated-file-Scripts/GeneratedFile.swift")).called(1)
+    }
+}
+
+struct LocalPackageTestDependencyDiagnosticTests {
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func missingDependencyExplainsRootPackageRequirement(isLocalPackageTest: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        do {
+            _ = try await XcodeGraph.Target.from(
+                manifest: .test(
+                    name: "SupportTests",
+                    product: .unitTests,
+                    dependencies: [.external(name: "TestSupport")],
+                    metadata: .metadata(tags: isLocalPackageTest ? [TargetTags.localSwiftPackageTest] : [])
+                ),
+                generatorPaths: GeneratorPaths(manifestDirectory: directory, rootDirectory: directory),
+                externalDependencies: [:],
+                fileSystem: FileSystem(),
+                contentHasher: MockContentHashing(),
+                type: .local
+            )
+            Issue.record("Expected a missing dependency error")
+        } catch {
+            if isLocalPackageTest {
+                let error = try #require(error as? TargetManifestMapperError)
+                #expect(error == .missingLocalPackageTestDependency(target: "SupportTests", product: "TestSupport"))
+                #expect(error.description.contains("Tuist/Package.swift"))
+                #expect(error.description.contains("tuist install"))
+            } else {
+                let error = try #require(error as? TargetDependencyMapperError)
+                #expect(error.description == "`TestSupport` is not a valid configured external dependency")
+            }
+        }
     }
 }

@@ -71,6 +71,9 @@ defmodule Noora.Modal do
 
   def modal(assigns) do
     ~H"""
+    <.portal :if={@title} id={@id <> "-title-portal"} target={"#" <> @id <> "-title"}>
+      {@title}
+    </.portal>
     <.portal id={@id <> "-portal"} target={"#" <> @id <> "-body"}>
       {render_slot(@inner_block)}
     </.portal>
@@ -98,7 +101,7 @@ defmodule Noora.Modal do
         <div data-part="content">
           <.modal_header
             :if={@title}
-            title={@title}
+            title_id={@id <> "-title"}
             description={@description}
             type={@header_type}
             size={@header_size}
@@ -115,7 +118,10 @@ defmodule Noora.Modal do
     """
   end
 
-  attr(:title, :string, required: true, doc: "Title of the modal")
+  attr(:title_id, :string,
+    required: true,
+    doc: "Id of the element the title is portaled into, so it updates inside the ignored modal."
+  )
 
   attr(:description, :string,
     default: nil,
@@ -143,7 +149,7 @@ defmodule Noora.Modal do
       </.modal_header_icon>
       <div data-part="header-content">
         <div data-part="row">
-          <span data-part="title">{@title}</span>
+          <span data-part="title"><span id={@title_id}></span></span>
           <%= if not has_slot_content?(@header_button, assigns) do %>
             <.dismiss_icon data-part="close-trigger" phx-click={@on_dismiss} />
           <% end %>

@@ -15,13 +15,32 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   alias Tuist.MCP.Components.Tools.ListTestSuiteRuns
   alias Tuist.MCP.Components.Tools.ListXcodeTestTargets
   alias Tuist.MCP.Components.Tools.UpdateTestCase
+  alias Tuist.MCP.Tool
   alias Tuist.Projects
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.TestRunQuery
   alias Tuist.Xcode
 
   describe "list_test_runs" do
+    test "query description lists supported fields and a complete negation example" do
+      description = Tool.descriptor(ListTestRuns)["inputSchema"]["properties"]["query"]["description"]
+
+      assert description =~ "Supported fields: `git_branch`, `scheme`, and `status`."
+      assert description =~ "case-insensitive substring matches"
+      assert description =~ "AND semantics"
+      assert [_, example] = Regex.run(~r/for example `([^`]+)`/, description)
+      assert example == ~s(-git_branch~"gh-readonly-queue")
+
+      assert {:ok, [%{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"}]} =
+               TestRunQuery.filters(example)
+
+      for field <- ["git_branch", "scheme", "status"] do
+        assert {:ok, [_filter]} = TestRunQuery.filters(~s(#{field}:"value"))
+      end
+    end
+
     test "returns paginated test runs with metrics" do
       project = %{id: 1, name: "app"}
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
@@ -157,6 +176,36 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       result = JSON.decode!(text)
       assert length(result["modules"]) == 1
       assert hd(result["modules"])["name"] == "AuthTests"
+    end
+
+    test "filters by the ID extracted from a dashboard URL, not by the URL" do
+      test_run_id = "38338b32-3437-42e4-bc01-f048d6d3368f"
+      project = %{id: 1, name: "app"}
+
+      stub(Tests, :get_test, fn ^test_run_id -> {:ok, %{id: test_run_id, project_id: 1}} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Tests, :list_test_module_runs, fn %{filters: filters} ->
+        assert %{field: :test_run_id, op: :==, value: test_run_id} in filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 0,
+           total_pages: 0,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text"}]} =
+               ListTestModuleRuns.call(conn, %{
+                 "test_run_id" => "https://tuist.dev/acme/app/tests/test-runs/#{test_run_id}?tab=modules"
+               })
     end
   end
 
@@ -402,6 +451,39 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
 
       assert text =~ "You do not have access to this resource."
     end
+
+    test "accepts a dashboard URL in place of the test case ID" do
+      test_case_id = "38338b32-3437-42e4-bc01-f048d6d3368f"
+      project = %{id: 1, name: "app"}
+
+      stub(Tests, :get_test_case_by_id, fn ^test_case_id ->
+        {:ok, %{id: test_case_id, project_id: 1}}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Tests, :list_test_case_events, fn ^test_case_id, _attrs ->
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListTestCaseEvents.call(conn, %{
+                 "test_case_id" => "https://tuist.dev/acme/app/tests/test-cases/#{test_case_id}/"
+               })
+
+      assert JSON.decode!(text)["events"] == []
+    end
   end
 
   describe "get_test_case" do
@@ -529,7 +611,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
 
-      stub(Analytics, :get_test_run_metrics, fn "run-1" ->
+      stub(Analytics, :get_test_run_metrics, fn %{id: "run-1"} ->
         %{total_count: 50, failed_count: 2, flaky_count: 1, avg_duration: 300}
       end)
 

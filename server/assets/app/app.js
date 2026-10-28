@@ -25,10 +25,12 @@ import Noora from "noora";
 import "./app.css";
 import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";
+import JSONInput from "./js/JSONInput.mjs";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
 import Clipboard from "./js/Clipboard.js";
 import BundleSizeSunburstChartLegend from "./js/BundleSizeSunburstChartLegend.js";
 import VideoPlayer from "./js/VideoPlayer.js";
+import BuildTimeline from "./js/BuildTimeline.js";
 import TimelineSeek from "./js/TimelineSeek.js";
 import BlurOnClick from "./js/BlurOnClick.js";
 import ScrollIntoView from "./js/ScrollIntoView.js";
@@ -45,20 +47,26 @@ import RunnerMetricsHighlight from "./js/RunnerMetricsHighlight.js";
 import RunnerShellTerminal from "./js/RunnerShellTerminal.js";
 import RunnerVNCClient from "./js/RunnerVNCClient.js";
 import RunnerVNCFullscreen from "./js/RunnerVNCFullscreen.js";
+import Turnstile from "./js/Turnstile.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
+import { GoogleOneTap } from "../shared/js/hooks/google-one-tap.js";
+import { initAnalytics } from "../shared/js/analytics.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
 
 let Hooks = {};
+Hooks.GoogleOneTap = GoogleOneTap;
 Hooks.ImageFallback = ImageFallback;
+Hooks.JSONInput = JSONInput;
 Hooks.Clipboard = Clipboard;
 Hooks.DeeplinkValidation = DeeplinkValidation;
 Hooks.BundleSizeSunburstChartLegend = BundleSizeSunburstChartLegend;
 Hooks.VideoPlayer = VideoPlayer;
 Hooks.TimelineSeek = TimelineSeek;
+Hooks.BuildTimeline = BuildTimeline;
 Hooks.BlurOnClick = BlurOnClick;
 Hooks.ScrollIntoView = ScrollIntoView;
 Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
@@ -74,6 +82,7 @@ Hooks.RunnerMetricsHighlight = RunnerMetricsHighlight;
 Hooks.RunnerShellTerminal = RunnerShellTerminal;
 Hooks.RunnerVNCClient = RunnerVNCClient;
 Hooks.RunnerVNCFullscreen = RunnerVNCFullscreen;
+Hooks.Turnstile = Turnstile;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
@@ -136,13 +145,7 @@ liveSocket.connect();
 
 setupQueryMemory();
 
-// Analytics
-window.addEventListener("phx:navigate", (info) => {
-  if (globalThis.analytics.enabled) {
-    // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
-    posthog.capture("$pageview");
-  }
-});
+initAnalytics();
 
 // Replace the browser URL without triggering handle_params (which push_patch would do),
 // avoiding unnecessary assign_async re-fetches when switching widgets.

@@ -69,10 +69,9 @@ defmodule Tuist.MCP.Components.Tools.SearchTuist do
 
   @impl EMCP.Tool
   def description do
-    "Call this first whenever the user asks a Tuist question, before inspecting local files or using general web search. " <>
-      "It searches public documentation, the application programming interface reference, release notes, community " <>
-      "discussions, and issues, returning explanations, terminology, and links to cite. " <>
-      "Use the Tuist source tools as well when current implementation details determine the answer."
+    "Search public Tuist documentation, the application programming interface reference, release notes, community " <>
+      "discussions, and issues. Use when the user asks about documented behavior, released changes, terminology, or " <>
+      "known issues. Returns matching excerpts and source links."
   end
 
   def execute(_conn, arguments), do: Search.search(arguments)

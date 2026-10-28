@@ -39,7 +39,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: "true"
@@ -48,6 +47,7 @@ env:
 jobs:
   check-releases:
     name: Check for releasable changes
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 5
     outputs:
@@ -58,9 +58,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -71,7 +70,7 @@ jobs:
     name: Release App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 50
     permissions:
       contents: write
@@ -84,16 +83,15 @@ jobs:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     outputs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
-      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "--locked tuist git-cliff 1password-cli jq"
+          install_args: "--locked tuist 1password-cli jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -102,21 +100,6 @@ jobs:
         run: tuist setup
       - name: Install dependencies
         run: tuist install --force-resolved-versions
-
-      - name: Get release notes
-        id: release-notes
-        working-directory: app
-        run: |
-          # Get the latest app version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^app@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          else
-            git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          fi
-          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update version
         working-directory: app
@@ -131,12 +114,6 @@ jobs:
           # artifact upload, so the release ships without its DMG (app@0.25.5).
           BUILD_NUMBER=$(date +%s)
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${BUILD_NUMBER}\",/g" "Project.swift"
-
-      - name: Update CHANGELOG.md
-        working-directory: app
-        # Full-history regen with authoritative --tag. A ranged --bump with -o
-        # overwrites the file with only the latest release, dropping prior history.
-        run: git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.app-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle macOS app
         run: mise run --no-deps --skip-tools app:bundle
@@ -158,7 +135,6 @@ jobs:
         with:
           name: app-artifacts
           path: |
-            app/CHANGELOG.md
             app/Project.swift
             app/appcast.xml
             app/build/artifacts/Tuist.dmg
@@ -170,7 +146,7 @@ jobs:
     name: Release iOS App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     # Matches release-app. `app:upload-ios` archives before it uploads,
     # and `tuist generate` runs with --no-binary-cache, so a cold
     # compilation cache (any runner image roll invalidates it) makes
@@ -187,13 +163,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked tuist 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -240,9 +217,8 @@ jobs:
         with:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked java gradle 1password-cli tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -290,12 +266,26 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Get release notes
+        id: release-notes
+        working-directory: app
+        run: |
+          # Get the latest app version tag
+          LATEST_VERSION=$(git tag -l | grep -E "^app@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - name: Download App artifacts
         uses: actions/download-artifact@v4
         with:
@@ -310,7 +300,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: App ${{ needs.check-releases.outputs.app-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.app-next-version }}
-          body: ${{ needs.release-app.outputs.release-notes }}
+          body: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
           files: |
             app/build/artifacts/SHASUMS256.txt
             app/build/artifacts/SHASUMS512.txt

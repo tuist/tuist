@@ -5,19 +5,14 @@
     import TuistEnvironment
     import TuistLogging
     import TuistSupport
+    import TuistTestSupport
     import XCTest
 
     extension XCTestCase {
         // MARK: - Fixtures
 
         public func fixturePath(path: RelativePath) -> AbsolutePath {
-            // swiftlint:disable:next force_try
-            try! AbsolutePath(
-                validating: Environment.current
-                    .variables["TUIST_CONFIG_SRCROOT"]!
-            )
-            .appending(components: "cli", "Tests", "Fixtures")
-            .appending(path)
+            TestPaths.fixturesDirectory.appending(path)
         }
 
         // MARK: - XCTAssertions

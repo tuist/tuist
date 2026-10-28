@@ -43,6 +43,30 @@ a new object instead always writes the full spec.
 {{- with .Values.macosFleet.machine.hostMemoryMB }}
 {{- $_ := set $machineSpec "hostMemoryMB" . }}
 {{- end }}
+{{- /*
+Same per-SKU seam as hostCPU/hostMemoryMB above, for the fields a
+larger mini changes: the Node's Pod ceiling, how many Tart guests
+the host is expected to run (which sizes the VNC relay port range
+and the disk-pressure goldens floor), and the runner-cache volume
+quota, whose right value tracks the SKU's disk. Each is omitted
+when unset so the operator global applies and the rendered spec —
+and therefore the template's name hash — is unchanged.
+*/}}
+{{- with .Values.macosFleet.machine.maxPods }}
+{{- $_ := set $machineSpec "maxPods" . }}
+{{- end }}
+{{- with .Values.macosFleet.machine.guestCapacity }}
+{{- $_ := set $machineSpec "guestCapacity" . }}
+{{- end }}
+{{- /*
+Presence, not truthiness: 0 means "cache volumes off on this host" and
+`with` would swallow it, leaving the host on the operator's non-zero
+global. `hasKey` alone is not enough — the documented placeholder in
+values.yaml is an explicit null, i.e. a present key with no value.
+*/}}
+{{- if and (hasKey .Values.macosFleet.machine "runnerCacheVolumeGiB") (not (kindIs "invalid" .Values.macosFleet.machine.runnerCacheVolumeGiB)) }}
+{{- $_ := set $machineSpec "runnerCacheVolumeGiB" .Values.macosFleet.machine.runnerCacheVolumeGiB }}
+{{- end }}
 {{- $templateName := printf "%s-%s" $fleetName (toYaml $machineSpec | sha256sum | trunc 8) }}
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayAppleSiliconMachineTemplate

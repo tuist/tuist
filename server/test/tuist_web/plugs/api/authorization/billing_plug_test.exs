@@ -6,6 +6,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   alias Tuist.Billing.Subscription
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.API.Authorization.BillingPlug
 
@@ -14,15 +15,13 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   setup :set_mimic_from_context
 
   setup context do
-    current_month_remote_cache_hits_count =
-      Map.get(context, :current_month_remote_cache_hits_count, 0)
-
     %{account: account} =
       user =
-      AccountsFixtures.user_fixture(
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
-        preload: [:account]
-      )
+      AccountsFixtures.user_fixture(preload: [:account])
+
+    account
+    |> Ecto.Changeset.change(current_month_cache_requests: Map.get(context, :current_month_cache_requests, 0))
+    |> Repo.update!()
 
     project =
       [account_id: account.id] |> ProjectsFixtures.project_fixture() |> Repo.preload(:account)
@@ -37,7 +36,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     }
   end
 
-  @tag current_month_remote_cache_hits_count: 50
+  @tag current_month_cache_requests: 50_000
   test "caches the billing information across requests",
        %{conn: conn, project: project} do
     # Given
@@ -64,7 +63,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     end
   end
 
-  @tag current_month_remote_cache_hits_count: 50
+  @tag current_month_cache_requests: 50_000
   test "returns the same connection when the plan is enterprise, and the subscription is active",
        %{conn: conn, project: project} do
     # Given
@@ -90,7 +89,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     assert got == conn
   end
 
-  @tag current_month_remote_cache_hits_count: 50
+  @tag current_month_cache_requests: 50_000
   test "returns the same connection when the plan is enterprise, and the subscription is not active",
        %{conn: conn, project: project} do
     # Given
@@ -120,7 +119,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
            }
   end
 
-  @tag current_month_remote_cache_hits_count: 250
+  @tag current_month_cache_requests: 1_250_000
   test "returns an error when the plan is air, and the usage is above the threshold",
        %{conn: conn, project: project} do
     # Given
@@ -150,7 +149,33 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
            }
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
+  test "returns the same connection when the plan is pro, and the subscription is trialing",
+       %{conn: conn, project: project} do
+    # Given
+    account = project.account
+
+    stub(Billing, :get_current_active_subscription, fn ^account ->
+      %Subscription{plan: :pro, status: "trialing"}
+    end)
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
+
+    # When
+    got = BillingPlug.call(conn, plug_opts)
+
+    # Then
+    assert got == conn
+  end
+
+  @tag current_month_cache_requests: 5_000_000
   test "returns an error when the plan is pro, and the subscription is not active",
        %{conn: conn, project: project} do
     # Given
@@ -180,7 +205,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
            }
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
   test "returns the same connection the plan is pro, and the subscription is active",
        %{conn: conn, project: project} do
     # Given
@@ -206,7 +231,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     assert got == conn
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
   test "returns the same connection the plan is open_source, and the subscription is active",
        %{conn: conn, project: project} do
     # Given
@@ -232,7 +257,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     assert got == conn
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
   test "returns the an error if the plan is open_source, and the subscription is canceled",
        %{conn: conn, project: project} do
     # Given
@@ -259,6 +284,54 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
              "message" => ~s"""
              The account '#{account.name}' 'Tuist Open Source' plan is not active. You can contact Tuist at contact@tuist.dev to renovate it, or upgrade to 'Tuist Pro' at #{url(~p"/#{account.name}/billing/upgrade")}.
              """
+           }
+  end
+
+  @tag current_month_cache_requests: 5_000_000
+  test "returns the same connection while the pro subscription's renewal payment is being retried",
+       %{conn: conn, project: project} do
+    # Given
+    BillingFixtures.subscription_fixture(account_id: project.account.id, plan: :pro, status: "past_due")
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
+
+    # When
+    got = BillingPlug.call(conn, plug_opts)
+
+    # Then
+    assert got == conn
+  end
+
+  @tag current_month_cache_requests: 5_000_000
+  test "says a payment failed when an unpaid subscription left the account over the free tier",
+       %{conn: conn, project: project} do
+    # Given
+    account = project.account
+    BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "unpaid")
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
+
+    # When
+    got = BillingPlug.call(conn, plug_opts)
+
+    # Then
+    assert json_response(got, :payment_required) == %{
+             "message" =>
+               "A payment for the subscription of the account '#{account.name}' failed, so the account is limited to the free tier of the 'Tuist Air' plan, which it has used up. Update the payment method and pay the open invoice at #{url(~p"/#{account.name}/billing")} to restore access."
            }
   end
 end

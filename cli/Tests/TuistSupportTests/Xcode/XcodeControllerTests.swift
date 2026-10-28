@@ -92,4 +92,36 @@ final class XcodeControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(Version(11, 3, 0), xcodeVersion)
     }
+
+    func test_selectedBuildVersion_readsTheProductBuildVersion() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let contentsPath = temporaryPath.appending(component: "Contents")
+        try await FileSystem().makeDirectory(at: contentsPath)
+        let versionPlist: [String: String] = ["CFBundleShortVersionString": "27.1", "ProductBuildVersion": "27A9269"]
+        try PropertyListEncoder().encode(versionPlist).write(to: contentsPath.appending(component: "version.plist").url)
+        let developerPath = contentsPath.appending(component: "Developer")
+        mockCommandRunner.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
+
+        // When
+        let buildVersion = try await subject.selectedBuildVersion()
+
+        // Then
+        XCTAssertEqual(buildVersion, "27A9269")
+    }
+
+    func test_selectedBuildVersion_when_theVersionPlistIsMissing() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let contentsPath = temporaryPath.appending(component: "Contents")
+        try await FileSystem().makeDirectory(at: contentsPath)
+        let developerPath = contentsPath.appending(component: "Developer")
+        mockCommandRunner.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.selectedBuildVersion(),
+            XcodeError.versionPlistNotFound(contentsPath.appending(component: "version.plist"))
+        )
+    }
 }

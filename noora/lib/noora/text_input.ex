@@ -39,6 +39,12 @@ defmodule Noora.TextInput do
 
   attr(:label, :string, default: nil, doc: "Label to be rendered in the input.")
   attr(:sublabel, :string, default: nil, doc: "Sublabel to be rendered in the input.")
+
+  attr(:label_tooltip, :string,
+    default: nil,
+    doc: "Help text shown in a tooltip from an icon after the label."
+  )
+
   attr(:hint, :string, default: nil, doc: "Hint text to be rendered below the input.")
   attr(:hint_variant, :string, default: "default", doc: "Hint text variant.")
 
@@ -75,7 +81,7 @@ defmodule Noora.TextInput do
 
   attr(:disabled, :boolean, default: false, doc: "Whether the input is disabled.")
 
-  attr(:rest, :global)
+  attr(:rest, :global, include: ~w(autocomplete readonly))
 
   slot(:prefix,
     required: false,
@@ -112,6 +118,8 @@ defmodule Noora.TextInput do
         label={@label}
         sublabel={@sublabel}
         required={@required and @show_required}
+        tooltip={@label_tooltip}
+        tooltip_id={"#{@id}-label-tooltip"}
         disabled={@disabled}
         data-part="label"
       />
@@ -145,9 +153,9 @@ defmodule Noora.TextInput do
           :if={@show_suffix and not is_nil(@suffix_hint) and !has_slot_content?(@suffix, assigns)}
           data-part="suffix-hint"
         >
-          <.tooltip id={"#{@id}-hint"} title={@suffix_hint}>
+          <.tooltip id={"#{@id}-hint"} title={@suffix_hint} placement="bottom-end">
             <:trigger :let={attrs}>
-              <span {attrs}><.alert_circle /></span>
+              <span {attrs} tabindex="0"><.alert_circle /></span>
             </:trigger>
           </.tooltip>
         </div>

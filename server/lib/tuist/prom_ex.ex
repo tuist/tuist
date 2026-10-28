@@ -60,6 +60,7 @@ defmodule Tuist.PromEx do
       [
         # Plugins.Application,
         Tuist.Oban.PromExPlugin,
+        Tuist.Sandboxes.PromExPlugin,
         # Plugins.PhoenixLiveView,
         # Plugins.Absinthe,
         # Plugins.Broadway,
@@ -69,19 +70,37 @@ defmodule Tuist.PromEx do
         PromEx.Plugins.Beam,
         Tuist.Storage.PromExPlugin,
         Tuist.CommandEvents.PromExPlugin,
-        Tuist.Accounts.PromExPlugin,
-        Tuist.Projects.PromExPlugin,
         Tuist.AppBuilds.PromExPlugin,
         Tuist.Tests.PromExPlugin,
         Tuist.Repo.PromExPlugin,
+        Tuist.ClickHouseRepo.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,
+        Tuist.PromEx.RateLimit,
         Tuist.Authentication.PromExPlugin,
         Tuist.HTTP.PromExPlugin,
         Tuist.License.PromExPlugin,
-        Tuist.Runners.PromExPlugin,
+        Tuist.OnceEvents.PromExPlugin,
+        Tuist.Registry.Swift.PromExPlugin,
         TuistCommon.HTTP.TransportPromExPlugin,
         TuistCommon.GitHub.PromExPlugin
       ]
+
+    # Control-plane gauges polled from Postgres tables the processor and
+    # swift_registry_sync roles may not read, so outside web mode these pollers
+    # only fail with 42501 on every boot.
+    plugins =
+      if Tuist.Environment.mode() == :web do
+        plugins ++
+          [
+            Tuist.Accounts.PromExPlugin,
+            Tuist.Projects.PromExPlugin,
+            Tuist.Kura.PromExPlugin,
+            Tuist.Runners.PromExPlugin,
+            Tuist.Kura.Rollouts.PromExPlugin
+          ]
+      else
+        plugins
+      end
 
     plugins =
       if Tuist.Environment.tuist_hosted?() do

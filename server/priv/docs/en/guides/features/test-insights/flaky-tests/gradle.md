@@ -7,12 +7,6 @@
 ---
 # Gradle flaky tests {#gradle-flaky-tests}
 
-> [!WARNING]
-> **Requirements**
->
-> - The <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</.localized_link> installed and configured
-
-
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
 
 ![Flaky Tests page](/images/guides/features/test-insights/flaky-tests-page.png)
@@ -95,6 +89,53 @@ tuist {
 
 When `enabled` is not set, it defaults to auto-detection: enabled on CI, disabled locally.
 
+## Stress-testing new tests {#stress-testing-new-tests}
+
+The stress gate reruns the test cases your branch adds, several times each in a fresh process, and reports the ones that turn out flaky. You see a new flaky test on the pull request that introduced it, not weeks later.
+
+A test case counts as new when it hasn't run in CI in the last 90 days on the project's default branch, or on a commit that has since landed on it. With a merge queue, a test case the queue ran is known once the queue's commit lands, and stays new if the queue drops it. Commits are matched through the <.localized_link href="/guides/features/test-insights/gradle#git-history">Git history</.localized_link> Tuist collects on CI.
+
+### Enabling it
+
+The gate is off by default. Set a mode:
+
+- **`report`**: warns about each flaky test case. The run still exits on its own result.
+- **`enforce`**: a flaky test case fails the run, with the same exit code as a failed test.
+
+Start with `report` for a couple of weeks to see what `enforce` would have blocked.
+
+Declare it in `settings.gradle.kts`, or set `TUIST_TEST_STRESS_NEW_TESTS` to vary the mode per CI lane:
+
+```kotlin
+tuist {
+    stressNewTests {
+        mode = "report" // or "enforce"
+    }
+}
+```
+
+Unlike quarantine, the gate has no CI-aware default. With no `mode` set it doesn't run anywhere.
+
+### How many times each test reruns
+
+It depends on how long the test case took on the first pass:
+
+| First pass | Reruns |
+| --- | --- |
+| Up to 5s | 10 |
+| Up to 10s | 5 |
+| Up to 30s | 3 |
+| Up to 5min | 2 |
+| Over 5min | Not rerun |
+
+Each rerun is a nested Gradle build filtered to that one test case, so every rerun gets a fresh test JVM. The pass stops at 200 test cases or 10 minutes, whichever comes first, and says which limit it hit.
+
+### When the gate doesn't run
+
+- The first pass already failed. Fix those tests first.
+- The project has no default branch, or nothing has run in CI on it yet.
+- More than 30% of the project's test cases look new. Rerunning that many would take longer than it's worth. Expect this on a project that only just started reporting to Tuist, or after a rename that moves a lot of tests at once.
+
 ## Slack notifications {#slack-notifications}
 
 Get notified instantly when a test becomes flaky by setting up <.localized_link href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</.localized_link> in your Slack integration.
@@ -118,4 +159,4 @@ All of these accept `--json` for scripting.
 
 ### REST API
 
-The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. State changes (mark/unmark flaky, mute, skip) currently happen from the dashboard UI, not via the public REST API.
+The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. To change a test case's state (mark or unmark flaky, mute, skip), send `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` with `is_flaky` or `state`. The same change is available as `tuist test case update` and as the `update_test_case` Model Context Protocol tool.

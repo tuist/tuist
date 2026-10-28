@@ -1,0 +1,163 @@
+{{- if .Values.vector.enabled }}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ include "atlas.vectorSecretName" . }}
+  labels:
+    {{- include "atlas.vectorLabels" . | nindent 4 }}
+spec:
+  refreshInterval: {{ .Values.externalSecrets.refreshInterval | quote }}
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.storeRef.name }}
+    kind: {{ .Values.externalSecrets.storeRef.kind }}
+  target:
+    name: {{ include "atlas.vectorSecretName" . }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        AWS_ACCESS_KEY_ID: "{{ `{{ .access_key_id | trim }}` }}"
+        AWS_SECRET_ACCESS_KEY: "{{ `{{ .secret_access_key | trim }}` }}"
+  data:
+    - secretKey: access_key_id
+      remoteRef:
+        key: {{ .Values.vector.storage.externalSecret.accessKeyRemoteRef | quote }}
+    - secretKey: secret_access_key
+      remoteRef:
+        key: {{ .Values.vector.storage.externalSecret.secretKeyRemoteRef | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "atlas.vectorName" . }}-config
+  labels:
+    {{- include "atlas.vectorLabels" . | nindent 4 }}
+data:
+  vector.yaml: |
+    storage:
+      type: SlateDb
+      path: {{ .Values.vector.storage.prefix }}
+      object_store:
+        type: Aws
+        region: {{ .Values.vector.storage.region }}
+        bucket: {{ .Values.vector.storage.bucket }}
+      block_cache:
+        type: FoyerHybrid
+        memory_capacity: {{ printf "%.0f" (.Values.vector.cache.memoryCapacityBytes | float64) }}
+        disk_capacity: {{ printf "%.0f" (.Values.vector.cache.diskCapacityBytes | float64) }}
+        disk_path: {{ .Values.vector.cache.mountPath }}/block-cache
+    dimensions: {{ .Values.vector.config.dimensions }}
+    distance_metric: {{ .Values.vector.config.distanceMetric }}
+    flush_interval: {{ .Values.vector.config.flushInterval }}
+    split_threshold_vectors: {{ .Values.vector.config.splitThresholdVectors }}
+    merge_threshold_vectors: {{ .Values.vector.config.mergeThresholdVectors }}
+    split_search_neighbourhood: {{ .Values.vector.config.splitSearchNeighbourhood }}
+    metadata_fields:
+      {{- toYaml .Values.vector.config.metadataFields | nindent 6 }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "atlas.vectorName" . }}-cache
+  labels:
+    {{- include "atlas.vectorLabels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.vector.cache.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.vector.cache.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "atlas.vectorName" . }}
+  labels:
+    {{- include "atlas.vectorLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "atlas.vectorSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "atlas.vectorSelectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ printf "%s-%s-%s" (toYaml .Values.vector.config) (toYaml .Values.vector.storage) (toYaml .Values.vector.cache) | sha256sum }}
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: vector
+          image: "{{ .Values.vector.image.repository }}:{{ .Values.vector.image.tag }}"
+          imagePullPolicy: {{ .Values.vector.image.pullPolicy }}
+          args:
+            - --port
+            - {{ .Values.vector.containerPort | quote }}
+            - vector
+            - --config
+            - /config/vector.yaml
+          ports:
+            - name: http
+              containerPort: {{ .Values.vector.containerPort }}
+              protocol: TCP
+          env:
+            - name: AWS_REGION
+              value: {{ .Values.vector.storage.region | quote }}
+            - name: AWS_ENDPOINT_URL
+              value: {{ .Values.vector.storage.endpointURL | quote }}
+            - name: AWS_ENDPOINT_URL_S3
+              value: {{ .Values.vector.storage.endpointURL | quote }}
+            - name: RUST_LOG
+              value: info
+          envFrom:
+            - secretRef:
+                name: {{ include "atlas.vectorSecretName" . }}
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.vector.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: cache
+              mountPath: {{ .Values.vector.cache.mountPath }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "atlas.vectorName" . }}-config
+        - name: cache
+          persistentVolumeClaim:
+            claimName: {{ include "atlas.vectorName" . }}-cache
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "atlas.vectorName" . }}
+  labels:
+    {{- include "atlas.vectorLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.vector.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "atlas.vectorSelectorLabels" . | nindent 4 }}
+{{- end }}

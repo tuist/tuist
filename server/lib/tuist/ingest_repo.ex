@@ -8,6 +8,8 @@ defmodule Tuist.IngestRepo do
     otp_app: :tuist,
     adapter: Ecto.Adapters.ClickHouse
 
+  use Tuist.ClickHouse.ArrayInParams
+
   alias Tuist.ClickHouseRetry
 
   defoverridable insert_all: 2, insert_all: 3, insert: 1, insert: 2
@@ -21,5 +23,5 @@ defmodule Tuist.IngestRepo do
   end
 
   defdelegate with_retry(fun), to: ClickHouseRetry
-  defdelegate with_retry(fun, retries_left), to: ClickHouseRetry
+  defdelegate with_retry(fun, opts), to: ClickHouseRetry
 end

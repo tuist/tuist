@@ -7,7 +7,7 @@ import TuistEnvKey
 import TuistSupport
 import XcodeGraph
 
-public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableParsableCommand {
+public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableParsableCommand, XcodeBuildPassthroughCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build-for-testing",
@@ -83,6 +83,8 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
     )
     public var passthroughXcodebuildArguments: [String] = []
 
+    var xcodebuildActionIndex: Int = 0
+
     public func run() async throws {
         let shardArchivePath = try await { () async throws -> AbsolutePath? in
             if let shardArchivePath = self.shardArchivePath {
@@ -92,7 +94,7 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
         }()
         try await XcodeBuildBuildCommandService()
             .run(
-                passthroughXcodebuildArguments: ["build-for-testing"] + passthroughXcodebuildArguments,
+                passthroughXcodebuildArguments: xcodebuildArguments,
                 shardReference: shardReference,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,

@@ -64,9 +64,13 @@ describe("NooraChart", () => {
       renderer: "svg",
     });
     expect(chart.options).toEqual(options);
-    expect(instance.setOption).toHaveBeenCalledWith(options, {
-      notMerge: true,
-    });
+    expect(instance.setOption).toHaveBeenCalledWith(
+      { ...options, yAxis: { axisLabel: { formatter: expect.any(Function) } } },
+      { notMerge: true },
+    );
+    expect(
+      instance.setOption.mock.calls[0][0].yAxis.axisLabel.formatter(121755),
+    ).toBe("121.8K");
 
     chart.remove();
 

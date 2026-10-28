@@ -4,8 +4,6 @@ defmodule Tuist.Analytics do
   The module uses the `telemetry` to broadcast events, which are then handled by the respective analytics modules.
   """
 
-  # Naming convention: https://posthog.com/product-engineers/5-ways-to-improve-analytics-data#1-implement-a-naming-convention
-
   @all_events [
     [:analytics, :organization, :create],
     [:analytics, :user, :create],

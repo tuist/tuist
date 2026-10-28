@@ -39,6 +39,9 @@ public struct RunReport: Codable, Equatable {
         public let skippedTests: Int
         public let ranTests: Int
         public let failedTestNames: [String]
+        public let ranTestModules: Int
+        /// Omitted when selective testing didn't apply to the run.
+        public let skippedTestModules: Int?
     }
 
     public struct BuildRun: Codable, Equatable {
@@ -71,7 +74,9 @@ public struct RunReport: Codable, Equatable {
                 totalTests: $0.totalTests,
                 skippedTests: $0.skippedTests,
                 ranTests: $0.ranTests,
-                failedTestNames: $0.failedTestNames
+                failedTestNames: $0.failedTestNames,
+                ranTestModules: $0.ranTestModules,
+                skippedTestModules: $0.skippedTestModules
             )
         }
         buildRuns = buildRunReports.map {

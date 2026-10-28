@@ -65,7 +65,45 @@ struct ContentHashingIntegrationTests {
         given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 3, 0))
+        given(xcodeControllerMock)
+            .selectedBuildVersion()
+            .willReturn("15E204a")
         subject = CacheGraphContentHasher(contentHasher: CachedContentHasher())
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider, .withMockedXcodeController)
+    func artifactFormatSeparatesExactAndSDKKeysFromEarlierDebuggingProducts() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(name: "Feature", destinations: [.iPhone, .mac], product: .framework, sources: [source1])
+        let project = Project.test(
+            path: root, sourceRootPath: root,
+            settings: Settings(configurations: [.debug("Debug"): nil, .release("Release"): nil]), targets: [target]
+        )
+        let graphTarget = GraphTarget(path: root, target: target, project: project)
+        let graph = Graph.test(projects: [root: project])
+        var hashes: [TargetContentHash] = []
+        for version in [CacheVersion.version7, .version8, .version9] {
+            let content = CachedContentHasher()
+            let hasher = CacheGraphContentHasher(
+                graphContentHasher: GraphContentHasher(contentHasher: content), contentHasher: content,
+                versionFetcher: FixedArtifactVersion(value: version), defaultConfigurationFetcher: DefaultConfigurationFetcher()
+            )
+            let result = try await hasher.contentHashes(
+                for: graph, configuration: nil, defaultConfiguration: nil, excludedTargets: [], destination: nil, coverage: .off
+            )
+            hashes.append(try #require(result[graphTarget]))
+        }
+        #expect(Set(hashes.map(\.hash)).count == 3)
+        let sdks = try #require(hashes.first?.binaryCacheFingerprints.keys)
+        #expect(!sdks.isEmpty)
+        for sdk in sdks {
+            #expect(Set(hashes.compactMap { $0.binaryCacheFingerprints[sdk] }).count == 3)
+        }
+    }
+
+    private struct FixedArtifactVersion: CacheVersionFetching {
+        let value: CacheVersion
+        func version() -> CacheVersion { value }
     }
 
     // MARK: - Sources
@@ -105,7 +143,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -147,7 +186,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -219,7 +259,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -272,7 +313,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -284,7 +326,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func contentHashes_scopesOnlyWhenConfigurationIsSelected() async throws {
+    ) func contentHashes_scopeFollowsTheResolvedConfiguration() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let selectedConfiguration = BuildConfiguration.debug("Debug-SharedCache")
@@ -342,28 +384,32 @@ struct ContentHashingIntegrationTests {
             configuration: selectedConfiguration.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let hashesWithoutUnrelatedConfiguration = try await subject.contentHashes(
             for: graphWithoutUnrelatedConfiguration,
             configuration: selectedConfiguration.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let implicitHashesWithUnrelatedConfiguration = try await subject.contentHashes(
             for: graphWithUnrelatedConfiguration,
             configuration: nil,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let implicitHashesWithoutUnrelatedConfiguration = try await subject.contentHashes(
             for: graphWithoutUnrelatedConfiguration,
             configuration: nil,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -374,6 +420,73 @@ struct ContentHashingIntegrationTests {
         #expect(
             implicitHashesWithUnrelatedConfiguration[graphTargetWithUnrelatedConfiguration]?.hash
                 != implicitHashesWithoutUnrelatedConfiguration[graphTargetWithoutUnrelatedConfiguration]?.hash
+        )
+    }
+
+    /// Cache hashes must be a function of the *resolved* configuration, never of how it was resolved.
+    /// `tuist cache --configuration Debug` and an unflagged `generate --binary-cache` on a project whose
+    /// first debug configuration is `Debug` both build `Debug`, so they must agree on hashes; the same
+    /// holds when the configuration comes from `generationOptions.defaultConfiguration`. Regression test
+    /// for #12012, which scoped settings only when the configuration was named explicitly, leaving the
+    /// unflagged side hashing every configuration and missing 100% of the cache the flagged side filled.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_areIndependentOfHowTheConfigurationIsResolved() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let debugConfiguration = BuildConfiguration.debug("Debug")
+        let releaseConfiguration = BuildConfiguration.release("Release")
+        let settings = Settings.test(
+            configurations: [
+                debugConfiguration: Configuration(settings: ["SWIFT_VERSION": "5.10"]),
+                releaseConfiguration: Configuration(settings: ["UNRELATED": "YES"]),
+            ]
+        )
+        let framework = makeFramework(settings: settings, sources: [source1])
+        let project = Project.test(
+            path: temporaryPath.appending(component: "project"),
+            settings: settings,
+            targets: [framework]
+        )
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTarget = GraphTarget(path: project.path, target: framework, project: project)
+
+        // When
+        let explicitHashes = try await subject.contentHashes(
+            for: graph,
+            configuration: debugConfiguration.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let implicitHashes = try await subject.contentHashes(
+            for: graph,
+            configuration: nil,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let defaultConfigurationHashes = try await subject.contentHashes(
+            for: graph,
+            configuration: nil,
+            defaultConfiguration: debugConfiguration.name,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+
+        // Then
+        #expect(
+            explicitHashes[graphTarget]?.hash
+                == implicitHashes[graphTarget]?.hash
+        )
+        #expect(
+            explicitHashes[graphTarget]?.hash
+                == defaultConfigurationHashes[graphTarget]?.hash
         )
     }
 
@@ -418,18 +531,50 @@ struct ContentHashingIntegrationTests {
             configuration: selectedConfiguration.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let secondHashes = try await subject.contentHashes(
             for: secondGraph,
             configuration: selectedConfiguration.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
         #expect(firstHashes[firstGraphTarget]?.hash != secondHashes[secondGraphTarget]?.hash)
+    }
+
+    /// Xcode releases can ship the same compiler with different SDKs (e.g. Xcode 27.0 and 27.1 beta 1 both
+    /// ship `swiftlang-6.4.0.34.1`). Binaries built against one SDK fail to import under the other with
+    /// "SDK does not match", so the hashes must change with the Xcode build even when the compiler doesn't.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_changingXcodeBuildWithTheSameCompilerChangesHash() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let framework = makeFramework(sources: [source1])
+        let project = Project.test(
+            path: temporaryPath.appending(component: "project"),
+            settings: .default,
+            targets: [framework]
+        )
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTarget = GraphTarget(path: project.path, target: framework, project: project)
+
+        // When
+        let firstHashes = try await contentHashes(for: graph, xcodeBuildVersion: "27A266a")
+        let secondHashes = try await contentHashes(for: graph, xcodeBuildVersion: "27A9269")
+
+        // Then
+        let firstHash = try #require(firstHashes[graphTarget])
+        let secondHash = try #require(secondHashes[graphTarget])
+        #expect(firstHash.hash != secondHash.hash)
+        #expect(firstHash.binaryCacheFingerprints != secondHash.binaryCacheFingerprints)
     }
 
     @Test(
@@ -469,28 +614,32 @@ struct ContentHashingIntegrationTests {
             configuration: BuildConfiguration.debug.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let secondDebugHashes = try await subject.contentHashes(
             for: secondGraph,
             configuration: BuildConfiguration.debug.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let firstReleaseHashes = try await subject.contentHashes(
             for: firstGraph,
             configuration: BuildConfiguration.release.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let secondReleaseHashes = try await subject.contentHashes(
             for: secondGraph,
             configuration: BuildConfiguration.release.name,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -533,19 +682,21 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         let secondRun = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
-        #expect(firstRun[framework1]?.hash == "ddb2a8a0a4663353ae43079cdf358016")
-        #expect(firstRun[framework2]?.hash == "bea9417f35911c3c83609e16fcfb8c36")
+        #expect(firstRun[framework1]?.hash == "98eabc6075e21d340bd96c24197d9a21")
+        #expect(firstRun[framework2]?.hash == "c32f18144e8065a67c0f90a5c6f4aae5")
         #expect(firstRun[framework1]?.hash == secondRun[framework1]?.hash)
         #expect(firstRun[framework2]?.hash == secondRun[framework2]?.hash)
         #expect(firstRun[framework1]?.hash != firstRun[framework2]?.hash)
@@ -588,7 +739,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -630,7 +782,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -673,7 +826,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -717,7 +871,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -759,7 +914,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -805,7 +961,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         #expect(contentHash[framework1] != contentHash[framework2])
@@ -848,13 +1005,29 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         #expect(contentHash[framework1] != contentHash[framework2])
     }
 
     // MARK: - Private helpers
+
+    private func contentHashes(for graph: Graph, xcodeBuildVersion: String) async throws -> [GraphTarget: TargetContentHash] {
+        let xcodeController = MockXcodeControlling()
+        given(xcodeController).selectedBuildVersion().willReturn(xcodeBuildVersion)
+        return try await XcodeController.$current.withValue(xcodeController) {
+            try await subject.contentHashes(
+                for: graph,
+                configuration: "Debug",
+                defaultConfiguration: nil,
+                excludedTargets: [],
+                destination: nil,
+                coverage: .off
+            )
+        }
+    }
 
     private func createTemporarySourceFile(
         on temporaryDirectoryPath: AbsolutePath,

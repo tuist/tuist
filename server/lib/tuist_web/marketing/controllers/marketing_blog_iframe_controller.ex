@@ -19,7 +19,7 @@ defmodule TuistWeb.Marketing.MarketingBlogIframeController do
             |> put_resp_content_type("text/html")
             |> put_layout(false)
             |> put_view(MarketingHTML)
-            |> assign(:plain_disabled?, true)
+            |> assign(:support_chat_disabled?, true)
             |> assign(:analytics_disabled?, true)
             |> render(template)
 

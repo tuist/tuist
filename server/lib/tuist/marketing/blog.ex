@@ -25,6 +25,21 @@ defmodule Tuist.Marketing.Blog do
 
   def get_post_author_name(post), do: post |> get_post_author() |> author_name_or_fallback(post.author)
 
+  @doc """
+  The author's public profile URL, or `nil` when the author has no handle on
+  file. Used both as the `author.url` in structured data and as the Open Graph
+  `article:author`, which is typed as a profile rather than a name.
+  """
+  def get_post_author_url(post) do
+    case get_post_author(post) do
+      %{"github_handle" => handle} when is_binary(handle) and handle != "" ->
+        "https://github.com/#{handle}"
+
+      _ ->
+        nil
+    end
+  end
+
   def get_authors do
     %{
       "silvia" => %{

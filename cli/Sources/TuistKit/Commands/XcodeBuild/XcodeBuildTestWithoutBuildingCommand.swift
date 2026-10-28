@@ -5,7 +5,9 @@ import TuistEnvironment
 import TuistEnvKey
 import TuistSupport
 
-public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, TrackableParsableCommand {
+public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, TrackableParsableCommand,
+    XcodeBuildPassthroughCommand
+{
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test-without-building",
@@ -29,6 +31,8 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
         help: "Arguments that will be passed through to the xcodebuild CLI. All arguments are forwarded to xcodebuild. Example: tuist xcodebuild test-without-building -scheme MyAppTests -destination 'platform=iOS Simulator,name=iPhone 15' -testConfiguration Debug"
     )
     public var passthroughXcodebuildArguments: [String] = []
+
+    var xcodebuildActionIndex: Int = 0
 
     @Option(name: .long, help: "The zero-based shard index to execute.")
     var shardIndex: Int?
@@ -71,7 +75,7 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
         }()
         try await XcodeBuildTestCommandService()
             .run(
-                passthroughXcodebuildArguments: ["test-without-building"] + passthroughXcodebuildArguments,
+                passthroughXcodebuildArguments: xcodebuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue(),
                 shardReference: shardReference,

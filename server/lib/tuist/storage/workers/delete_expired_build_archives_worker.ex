@@ -6,7 +6,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredBuildArchivesWorker do
     unique: [
       keys: [:account_id],
       period: :infinity,
-      states: [:available, :scheduled, :executing, :retryable]
+      states: :incomplete
     ]
 
   import Tuist.Storage.Workers.ArtifactRetentionWorker

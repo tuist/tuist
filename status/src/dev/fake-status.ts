@@ -47,7 +47,7 @@ export function fakeStatus(): StatusSnapshot {
   const activeIncidents: Incident[] = [
     {
       id: "inc-2026-05-04-001",
-      title: "Elevated cache hit latency in eu-central-1",
+      title: "Elevated cache hit latency in eu-west-1",
       severity: "minor",
       status: "monitoring",
       affectedComponents: ["cache"],

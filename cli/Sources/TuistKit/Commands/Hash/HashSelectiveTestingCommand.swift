@@ -5,7 +5,7 @@ import TuistHasher
 import TuistSupport
 
 /// A command to hash a generated project.
-public struct HashSelectiveTestingCommand: AsyncParsableCommand {
+public struct HashSelectiveTestingCommand: AsyncParsableCommand, ProjectPathProviding {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -22,7 +22,7 @@ public struct HashSelectiveTestingCommand: AsyncParsableCommand {
         completion: .directory,
         envKey: .hashCachePath
     )
-    var path: String?
+    public var path: String?
 
     public func run() async throws {
         try await HashSelectiveTestingCommandService(

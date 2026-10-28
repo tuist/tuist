@@ -190,7 +190,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
                     role = .plugin
                 case .macro:
                     role = .link
-                case .runtime, .runtimeEmbedded:
+                case .runtime, .runtimeEmbedded, .runtimeDynamic, .runtimeDynamicEmbedded:
                     role = target.product.isStatic ? .buildOnly : .link
                 }
                 guard role != .buildOnly else { continue }
@@ -398,13 +398,18 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         path: AbsolutePath,
         graphTraverser: GraphTraversing
     ) throws {
-        let swiftIncludePaths = graphTraverser.librariesSwiftIncludePaths(path: path, name: target.name).sorted()
-        try setup(
-            setting: "SWIFT_INCLUDE_PATHS",
-            paths: swiftIncludePaths.map(LinkGeneratorPath.absolutePath),
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath
+        let swiftIncludePathsBySDKCondition = Dictionary(
+            grouping: graphTraverser.librariesSwiftIncludePaths(path: path, name: target.name),
+            by: \.sdkCondition
         )
+        for (sdkCondition, swiftIncludePaths) in swiftIncludePathsBySDKCondition {
+            try setup(
+                setting: sdkCondition.map { "SWIFT_INCLUDE_PATHS[\($0)]" } ?? "SWIFT_INCLUDE_PATHS",
+                paths: swiftIncludePaths.map(\.path).sorted().map(LinkGeneratorPath.absolutePath),
+                pbxTarget: pbxTarget,
+                sourceRootPath: sourceRootPath
+            )
+        }
     }
 
     func setupRunPathSearchPaths(

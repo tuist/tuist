@@ -174,7 +174,7 @@ roleRef:
 #     egress gate).
 #   * Ingress: default-deny. The polling model needs no inbound
 #     connection to the Pod.
-#   * Egress: DNS + HTTPS/HTTP to the public internet, with
+#   * Egress: DNS + HTTPS/HTTP/SSH to the public internet, with
 #     `exceptCIDRs` carving out cluster-internal ranges (Pod CIDR,
 #     Service CIDR, Node CIDR). Closes the lateral-pivot path from
 #     the Pod into ClickHouse / Postgres / the server's admin
@@ -225,9 +225,11 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    # Public internet egress for HTTP(S): the GH Actions runner
-    # reaches api.github.com, the actions cache, and the customer's
-    # package registries through here. This rule has no churning
+    # Public internet egress for HTTP(S) and SSH: the GH Actions
+    # runner reaches api.github.com, the actions cache, and the
+    # customer's package registries through here, and clones `git@`
+    # dependencies and SSH submodules or deploys over `ssh`/`scp`, as
+    # GitHub-hosted runners allow. This rule has no churning
     # peer (a pure ipBlock) and lives in this all-runners policy
     # whose selected-Pod set is constant across deploys, so a
     # server rollout never forces Cilium to regenerate the egress
@@ -248,6 +250,8 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
+        - protocol: TCP
+          port: 22
     # Kura runner-cache egress: lets a runner Pod reach the account's
     # in-cluster Kura node on the cache ports. Without this rule the
     # in-cluster cache URL (`TUIST_CACHE_ENDPOINT=<svc-dns>:4000`,

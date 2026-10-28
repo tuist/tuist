@@ -21,13 +21,14 @@ public protocol ListBuildsServicing: Sendable {
 
 enum ListBuildsServiceError: LocalizedError {
     case unknownError(Int)
+    case badRequest(String)
     case forbidden(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "We could not list the builds due to an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message):
+        case let .badRequest(message), let .forbidden(message):
             return message
         }
     }
@@ -89,11 +90,20 @@ public struct ListBuildsService: ListBuildsServicing {
             case let .json(json):
                 return json
             }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw ListBuildsServiceError.badRequest(error.message)
+            }
         case let .forbidden(forbidden):
             switch forbidden.body {
             case let .json(error):
                 throw ListBuildsServiceError.forbidden(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw ListBuildsServiceError.unknownError(statusCode)
         }

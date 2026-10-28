@@ -1,0 +1,20 @@
+apiVersion: v2
+name: rack-cache-gateways
+description: >
+  The Kura cache gateways that run on a rack's storage nodes, which the
+  platform chart's values configure (`kura-<site>-runners-ingress-nginx`).
+
+  A release of its own, installed by infra/mise/tasks/k8s/install-platform.sh
+  after the platform release, with the platform chart's values, and never
+  waited on: a gateway is a DaemonSet on rack nodes, and a waited release
+  holding it would fail every deploy while the rack is dark. See "Deploys and
+  the rack's health" in infra/rack-nodes/AGENTS.md.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: ingress-nginx
+    alias: kura-ber1-runners-ingress-nginx
+    version: 4.11.3
+    repository: https://kubernetes.github.io/ingress-nginx
+    condition: kura-ber1-runners-ingress-nginx.enabled

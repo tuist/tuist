@@ -1,0 +1,51 @@
+<%!-- The newspaper stack shared by the newsletter page and its verify
+page: three issues, the latest on top and two older ones peeking out above
+it. Each is the same markup — masthead, volume/date strip, skeleton article
+blocks — and routes/newsletter.css scales the two behind down a notch. --%>
+<div data-part="stack">
+  <div data-part="page" data-page="back">
+    <span data-part="masthead">{dgettext("marketing", "Tuist Digest")}</span>
+    <span data-part="strip">
+      <span>VOL 001</span>
+      <span>MONDAY, SEP 8, 2025</span>
+    </span>
+    <span data-part="body">
+      <span data-part="column">
+        <span data-part="block" data-block="short"></span>
+        <span data-part="block" data-block="long"></span>
+        <span data-part="block" data-block="thin"></span>
+      </span>
+      <span data-part="block" data-block="cover"></span>
+    </span>
+  </div>
+  <div data-part="page" data-page="middle">
+    <span data-part="masthead">{dgettext("marketing", "Tuist Digest")}</span>
+    <span data-part="strip">
+      <span>VOL 001</span>
+      <span>MONDAY, SEP 8, 2025</span>
+    </span>
+    <span data-part="body">
+      <span data-part="column">
+        <span data-part="block" data-block="short"></span>
+        <span data-part="block" data-block="long"></span>
+        <span data-part="block" data-block="thin"></span>
+      </span>
+      <span data-part="block" data-block="cover"></span>
+    </span>
+  </div>
+  <div data-part="page" data-page="front">
+    <span data-part="masthead">{dgettext("marketing", "Optimizing for joy")}</span>
+    <span data-part="strip">
+      <span>VOL 001</span>
+      <span>MONDAY, SEP 8, 2026</span>
+    </span>
+    <span data-part="body">
+      <span data-part="column">
+        <span data-part="block" data-block="short"></span>
+        <span data-part="block" data-block="long"></span>
+        <span data-part="block" data-block="thin"></span>
+      </span>
+      <span data-part="block" data-block="cover"></span>
+    </span>
+  </div>
+</div>

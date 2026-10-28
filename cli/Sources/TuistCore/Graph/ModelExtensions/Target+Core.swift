@@ -91,7 +91,7 @@ extension Target {
             var excluded: [AbsolutePath] = []
             for path in source.excluding {
                 let path = try AbsolutePath(validating: path)
-                let globs = try await fileSystem.glob(
+                let globs = try await fileSystem.manifestGlob(
                     directory: .root,
                     include: [String(path.pathString.dropFirst())]
                 )

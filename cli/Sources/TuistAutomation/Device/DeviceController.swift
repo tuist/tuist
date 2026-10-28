@@ -1,9 +1,9 @@
-import Command
 import FileSystem
 import Foundation
 import Mockable
 import Path
 import TuistLogging
+import TuistProcess
 import TuistSupport
 import XcodeGraph
 

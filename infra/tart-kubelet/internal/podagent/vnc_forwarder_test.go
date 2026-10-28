@@ -148,3 +148,80 @@ func TestAuthenticateRelayClientRejectsMissingOrWrongToken(t *testing.T) {
 		})
 	}
 }
+
+// freeLoopbackPort returns a port that was free a moment ago on loopback.
+// Good enough to seed a range in tests, where nothing else is racing for it.
+func freeLoopbackPort(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	_ = l.Close()
+	return port
+}
+
+func resolveNothing() (string, error) { return "127.0.0.1:1", nil }
+
+// A pinned relay port is a per-host resource while a relay is per-Pod, so a
+// second guest on the same mini must land on the next port in the range
+// rather than failing to bind. Before the range existed the second guest's
+// relay errored out and interactive sessions were dead on half the fleet.
+func TestBindVNCForwarder_WalksTheRangeWhenTheBasePortIsTaken(t *testing.T) {
+	base := freeLoopbackPort(t)
+	r := &Reconciler{NodeIP: "127.0.0.1", VNCRelayPort: base, VNCRelayPortCount: 2}
+
+	first, addr, err := r.bindVNCForwarder(resolveNothing, "pw", "", DefaultScrapeAllowedCIDRs())
+	if err != nil {
+		t.Fatalf("first relay failed to bind on %s: %v", addr, err)
+	}
+	defer first.Stop()
+	if got := first.Addr().(*net.TCPAddr).Port; got != base {
+		t.Fatalf("first relay bound %d, want the base port %d", got, base)
+	}
+
+	second, addr, err := r.bindVNCForwarder(resolveNothing, "pw", "", DefaultScrapeAllowedCIDRs())
+	if err != nil {
+		t.Fatalf("second relay failed to bind on %s: %v; a dual-guest host cannot open both sessions", addr, err)
+	}
+	defer second.Stop()
+	if got := second.Addr().(*net.TCPAddr).Port; got != base+1 {
+		t.Fatalf("second relay bound %d, want base+1 = %d", got, base+1)
+	}
+}
+
+// Exhausting the range is an error, not a silent fallback to an ephemeral
+// port: the pinned range is exactly the set of ports the per-Mac egress
+// Service forwards, so an ephemeral relay would be unreachable and the
+// dashboard would hang instead of reporting a failure.
+func TestBindVNCForwarder_FailsWhenTheWholeRangeIsTaken(t *testing.T) {
+	base := freeLoopbackPort(t)
+	r := &Reconciler{NodeIP: "127.0.0.1", VNCRelayPort: base, VNCRelayPortCount: 1}
+
+	held, _, err := r.bindVNCForwarder(resolveNothing, "pw", "", DefaultScrapeAllowedCIDRs())
+	if err != nil {
+		t.Fatalf("seed relay failed to bind: %v", err)
+	}
+	defer held.Stop()
+
+	if fw, _, err := r.bindVNCForwarder(resolveNothing, "pw", "", DefaultScrapeAllowedCIDRs()); err == nil {
+		fw.Stop()
+		t.Fatal("expected an error once the pinned range is exhausted, got a forwarder on some other port")
+	}
+}
+
+// No pinned base port means the operator never declared a range, so the relay
+// takes an ephemeral port exactly as it did before — the OSS/self-hosted shape.
+func TestBindVNCForwarder_UsesEphemeralPortWithoutAPinnedBase(t *testing.T) {
+	r := &Reconciler{NodeIP: "127.0.0.1", VNCRelayPortCount: 2}
+
+	fw, _, err := r.bindVNCForwarder(resolveNothing, "pw", "", DefaultScrapeAllowedCIDRs())
+	if err != nil {
+		t.Fatalf("ephemeral relay failed to bind: %v", err)
+	}
+	defer fw.Stop()
+	if fw.Addr().(*net.TCPAddr).Port == 0 {
+		t.Fatal("expected a real ephemeral port")
+	}
+}

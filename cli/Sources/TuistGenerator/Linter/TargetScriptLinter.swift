@@ -1,7 +1,7 @@
-import Command
 import FileSystem
 import Foundation
 import TuistCore
+import TuistProcess
 import TuistSupport
 import XcodeGraph
 

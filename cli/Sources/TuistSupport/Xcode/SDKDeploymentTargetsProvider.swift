@@ -1,8 +1,7 @@
-import struct Command.CommandRunner
-import protocol Command.CommandRunning
 import Foundation
 import Mockable
 import TuistLogging
+import TuistProcess
 
 /// The oldest deployment target that each platform SDK supports.
 public struct SDKDeploymentTargets: Equatable, Sendable {

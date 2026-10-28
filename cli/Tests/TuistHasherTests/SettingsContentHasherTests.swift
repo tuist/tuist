@@ -156,3 +156,199 @@ struct SettingsContentHasherBaseDebugTests {
         )
     }
 }
+
+struct SettingsContentHasherCompilationCacheTests {
+    private func makeSubject() -> SettingsContentHasher {
+        let contentHasher = MockContentHashing()
+        let xcconfigHasher = MockXCConfigContentHashing()
+        given(contentHasher)
+            .hash(Parameter<[String]>.any)
+            .willProduce { $0.joined(separator: ";") }
+        given(contentHasher)
+            .hash(Parameter<String>.any)
+            .willProduce { $0 + "-hash" }
+        return SettingsContentHasher(contentHasher: contentHasher, xcconfigHasher: xcconfigHasher)
+    }
+
+    private func settings(base: SettingsDictionary) -> Settings {
+        Settings(base: base, configurations: [BuildConfiguration.debug("Debug"): nil], defaultSettings: .none)
+    }
+
+    /// The compilation-cache settings select where a compilation caches, not what it
+    /// produces. `COMPILATION_CACHE_PLUGIN_PATH` in particular holds the dylib's
+    /// install path, which differs between a Homebrew install and a mise one, so
+    /// hashing it gives developer machines and CI disjoint keys for identical code.
+    @Test func hash_ignoresCompilationCacheSettings() async throws {
+        // Given
+        let subject = makeSubject()
+        let withoutCacheSettings = settings(base: ["SWIFT_VERSION": .string("5")])
+        let withCacheSettings = settings(base: [
+            "SWIFT_VERSION": .string("5"),
+            "COMPILATION_CACHE_ENABLE_CACHING": .string("YES"),
+            "COMPILATION_CACHE_ENABLE_PLUGIN": .string("YES"),
+            "COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS": .string("YES"),
+            "COMPILATION_CACHE_PLUGIN_PATH": .string("/opt/homebrew/lib/libtuist_cas_plugin.dylib"),
+            "COMPILATION_CACHE_REMOTE_SERVICE_PATH": .string("$HOME/.local/state/tuist/cas-proxy.sock"),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: withCacheSettings) == subject.hash(settings: withoutCacheSettings))
+    }
+
+    /// Two machines that resolve the plugin to different install paths must agree.
+    @Test func hash_ignoresCompilationCachePluginPathDifferences() async throws {
+        // Given
+        let subject = makeSubject()
+        let homebrew = settings(base: [
+            "COMPILATION_CACHE_PLUGIN_PATH": .string("/opt/homebrew/lib/libtuist_cas_plugin.dylib"),
+        ])
+        let mise = settings(base: [
+            "COMPILATION_CACHE_PLUGIN_PATH": .string("/Users/ci/.local/share/mise/installs/tuist/lib/libtuist_cas_plugin.dylib"),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: homebrew) == subject.hash(settings: mise))
+    }
+
+    /// `xcodeCache(upload:)` reaches the build as a `-cas-plugin-option` pair rather
+    /// than a `COMPILATION_CACHE_*` key, so filtering by key alone would still split
+    /// CI from local for the documented `upload: Environment.isCI` policy.
+    @Test func hash_ignoresCASPluginOptionsInOtherSwiftFlags() async throws {
+        // Given
+        let subject = makeSubject()
+        let uploading = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array([
+                "$(inherited)",
+                "-cas-plugin-option", "tuist-instance=test-org/test-project",
+            ]),
+        ])
+        let readOnly = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array([
+                "$(inherited)",
+                "-cas-plugin-option", "tuist-instance=test-org/test-project",
+                "-cas-plugin-option", "tuist-upload=false",
+            ]),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: uploading) == subject.hash(settings: readOnly))
+    }
+
+    /// The filter must not swallow flags that do change the built product.
+    @Test func hash_keepsNonCASPluginOtherSwiftFlags() async throws {
+        // Given
+        let subject = makeSubject()
+        let plain = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-cas-plugin-option", "tuist-upload=false"]),
+        ])
+        let withRealFlag = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array([
+                "$(inherited)", "-cas-plugin-option", "tuist-upload=false", "-DFEATURE_FLAG",
+            ]),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: plain) != subject.hash(settings: withRealFlag))
+    }
+
+    /// Git worktrees of one repository differ only in the root directory that the
+    /// generated prefix mappings reference, and must land on the same hash.
+    @Test func hash_ignoresPrefixMappingRootDirectory() async throws {
+        // Given
+        let subject = makeSubject()
+        let mappings: SettingValue = .array([
+            "$(inherited)",
+            "\"$(TUIST_PREFIX_MAPPING_ROOT_DIR)/Tuist/.build=/^spm\"",
+            "\"$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root\"",
+        ])
+        let mainCheckout = settings(base: [
+            "TUIST_PREFIX_MAPPING_ROOT_DIR": .string("/Users/dev/app"),
+            "SWIFT_OTHER_PREFIX_MAPPINGS": mappings,
+            "CLANG_OTHER_PREFIX_MAPPINGS": mappings,
+        ])
+        let worktree = settings(base: [
+            "TUIST_PREFIX_MAPPING_ROOT_DIR": .string("/Users/dev/worktrees/feature branch"),
+            "SWIFT_OTHER_PREFIX_MAPPINGS": mappings,
+            "CLANG_OTHER_PREFIX_MAPPINGS": mappings,
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: mainCheckout) == subject.hash(settings: worktree))
+    }
+
+    @Test func hash_keepsCoveragePrefixMappingPolicy() async throws {
+        let subject = makeSubject()
+        let xccovCompatible = settings(base: ["TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES": "NO"])
+        let mappedCoverage = settings(base: ["TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES": "YES"])
+
+        #expect(try await subject.hash(settings: xccovCompatible) != subject.hash(settings: mappedCoverage))
+    }
+
+    @Test func hash_ignoresWarningsAsErrorsSettings() async throws {
+        // Given
+        let subject = makeSubject()
+        let local = settings(base: ["SWIFT_VERSION": .string("5")])
+        let ci = settings(base: [
+            "SWIFT_VERSION": .string("5"),
+            "SWIFT_TREAT_WARNINGS_AS_ERRORS": .string("YES"),
+            "GCC_TREAT_WARNINGS_AS_ERRORS": .string("YES"),
+            "SWIFT_TREAT_WARNINGS_AS_ERRORS[sdk=iphoneos*]": .string("YES"),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: ci) == subject.hash(settings: local))
+    }
+
+    @Test func hash_ignoresWarningsAsErrorsFlags() async throws {
+        // Given
+        let subject = makeSubject()
+        let local = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-DFEATURE_FLAG"]),
+            "OTHER_CFLAGS": .array(["$(inherited)", "-DFEATURE_FLAG"]),
+        ])
+        let ci = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array([
+                "$(inherited)",
+                "-warnings-as-errors",
+                "-Xfrontend", "-warnings-as-errors",
+                "-Werror", "ExistentialAny",
+                "-DFEATURE_FLAG",
+            ]),
+            "OTHER_CFLAGS": .array(["$(inherited)", "-Werror", "-Werror=unused-variable", "-DFEATURE_FLAG"]),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: ci) == subject.hash(settings: local))
+    }
+
+    @Test func hash_keepsFlagFollowingClangWerror() async throws {
+        // Given
+        let subject = makeSubject()
+        let plain = settings(base: ["OTHER_CFLAGS": .array(["-Werror"])])
+        let withRealFlag = settings(base: ["OTHER_CFLAGS": .array(["-Werror", "-DFEATURE_FLAG"])])
+
+        // When / Then
+        #expect(try await subject.hash(settings: plain) != subject.hash(settings: withRealFlag))
+    }
+
+    /// Both sides of a mapping reach the built product: `/repo=/^shared` records
+    /// `/^shared/Shared/main.swift` where `/repo/Shared=/^shared` records `/^shared/main.swift`.
+    @Test func hash_keepsPrefixMappingValues() async throws {
+        // Given
+        let subject = makeSubject()
+        let repository = settings(base: [
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["$(inherited)", "/repo=/^shared"]),
+        ])
+        let sharedDirectory = settings(base: [
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["$(inherited)", "/repo/Shared=/^shared"]),
+        ])
+        let unmapped = settings(base: [:])
+
+        // When
+        let repositoryHash = try await subject.hash(settings: repository)
+
+        // Then
+        #expect(try await repositoryHash != subject.hash(settings: sharedDirectory))
+        #expect(try await repositoryHash != subject.hash(settings: unmapped))
+    }
+}

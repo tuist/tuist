@@ -7,6 +7,7 @@
   justify-self: end;
   gap: var(--noora-spacing-3);
   z-index: 1;
+  box-sizing: border-box;
   padding: var(--noora-spacing-7) var(--noora-spacing-2) var(--noora-spacing-7) var(--noora-spacing-2);
   width: 100%;
   max-width: 250px;
@@ -53,7 +54,7 @@
     min-width: 0;
     min-height: 0;
     overflow-y: auto;
-    scrollbar-width: none;
+    scrollbar-width: thin;
     list-style: none;
 
     [data-part="item"] {

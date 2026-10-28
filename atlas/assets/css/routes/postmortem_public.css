@@ -1,0 +1,159 @@
+#postmortem-public,
+#postmortem-public-not-found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100dvh;
+  padding: var(--noora-spacing-9) var(--noora-spacing-6);
+  background: var(--noora-surface-background-primary);
+
+  & > article,
+  & > h1 {
+    width: 100%;
+    max-width: 760px;
+  }
+
+  & [data-part="article"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+  }
+
+  & [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding-bottom: var(--noora-spacing-6);
+    border-bottom: 1px solid var(--noora-surface-border-primary);
+  }
+
+  & [data-part="brand"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    & img {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  & [data-part="header"] h1 {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    line-height: 1.2;
+  }
+
+  & [data-part="meta"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & [data-part="domains"] {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="domain"] {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--noora-spacing-3);
+    border-radius: var(--noora-radius-2);
+    background: var(--noora-surface-background-secondary);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-x-small);
+  }
+
+  & .markdown[data-part="body"] {
+    max-width: 100%;
+
+    & > h2 {
+      margin-top: var(--noora-spacing-9);
+      padding-bottom: var(--noora-spacing-3);
+      border-bottom: 1px solid var(--noora-surface-border-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+
+    & > h2:first-child {
+      margin-top: 0;
+    }
+
+    & > h3 {
+      margin-top: var(--noora-spacing-8);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+    }
+  }
+
+  & [data-part="action-items"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding-top: var(--noora-spacing-6);
+    border-top: 1px solid var(--noora-surface-border-primary);
+
+    & h2 {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+    }
+
+    & ul {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-3);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+  }
+
+  & [data-part="action-item"] {
+    display: flex;
+    align-items: baseline;
+    gap: var(--noora-spacing-4);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+  }
+
+  & [data-part="action-item"] [data-part="status"] {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    padding: 0 var(--noora-spacing-3);
+    border-radius: var(--noora-radius-2);
+    background: var(--noora-surface-background-secondary);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-x-small);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  & [data-part="action-item"] [data-part="status"][data-completed="true"] {
+    background: color-mix(in oklab, var(--noora-surface-label-success) 12%, transparent);
+    color: var(--noora-surface-label-success);
+  }
+}
+
+#postmortem-public-not-found {
+  gap: var(--noora-spacing-4);
+
+  & h1 {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+  }
+
+  & p {
+    max-width: 60ch;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    text-align: center;
+  }
+}

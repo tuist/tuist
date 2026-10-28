@@ -1,9 +1,9 @@
-import Command
 import Foundation
 import Mockable
 import Path
 import TSCUtility
 import TuistEnvironment
+import TuistProcess
 import TuistSupport
 
 @Mockable
@@ -72,6 +72,33 @@ public protocol GitControlling {
 
     /// Returns the top level `.git` directory path.
     func topLevelGitDirectory(workingDirectory: AbsolutePath) async throws -> AbsolutePath
+
+    /// What the checkout can tell about `headSHA`'s place in the repository's history: the merge
+    /// base with `baseBranch` and the commits reachable from the head within `limits`. A shallow
+    /// clone is deepened within the budget to find the merge base. Nothing here throws for a
+    /// missing piece: it comes back nil with a reason, and the server may complete it from the
+    /// VCS provider.
+    /// - Parameters:
+    ///   - workingDirectory: The repository's top level.
+    ///   - headSHA: The commit the run is for; HEAD when nil.
+    ///   - baseBranch: The branch the commit will merge into.
+    ///   - limits: How much to collect.
+    func gitHistory(
+        workingDirectory: AbsolutePath,
+        headSHA: String?,
+        baseBranch: String?,
+        limits: GitHistoryLimits
+    ) async throws -> GitHistory
+
+    /// Every file of the commit's tree with the blob it has, at most `limit` of them in path order,
+    /// which is what the server keys the listing by.
+    func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles
+
+    /// The Git blob object id of every source file with one of `pathExtensions`, keyed by its path
+    /// relative to `workingDirectory`, which must be the repository's top level. Tracked files the
+    /// working tree has changed, and untracked files Git does not ignore, are hashed from the
+    /// working tree, so each id describes the contents a build would compile.
+    func sourceFileBlobIds(workingDirectory: AbsolutePath, pathExtensions: Set<String>) async throws -> [String: String]
 }
 
 /// An implementation of `GitControlling`.
@@ -93,6 +120,39 @@ public struct GitController: GitControlling {
             validating: try await capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "--show-toplevel")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         )
+    }
+
+    public func sourceFileBlobIds(workingDirectory: AbsolutePath, pathExtensions: Set<String>) async throws -> [String: String] {
+        let git = ["git", "-C", workingDirectory.pathString]
+        let isSource: (String) -> Bool = { pathExtensions.contains((($0 as NSString).pathExtension).lowercased()) }
+        var blobIds: [String: String] = [:]
+
+        // `<mode> <object> <stage>\t<path>`, NUL-terminated so no path is quoted.
+        for entry in try await capture(arguments: git + ["ls-files", "--stage", "-z"]).split(separator: "\0") {
+            guard let tab = entry.firstIndex(of: "\t") else { continue }
+            let path = String(entry[entry.index(after: tab)...])
+            let fields = entry[..<tab].split(separator: " ")
+            // A submodule's entry names a commit, not a blob.
+            guard isSource(path), fields.count >= 2, fields[0] != "160000" else { continue }
+            blobIds[path] = String(fields[1])
+        }
+
+        let modified = try await capture(arguments: git + ["diff", "--name-only", "--diff-filter=d", "-z"])
+        let untracked = try await capture(arguments: git + ["ls-files", "--others", "--exclude-standard", "-z"])
+        let workingTreePaths = Array(Set((modified + "\0" + untracked).split(separator: "\0").map(String.init).filter(isSource)))
+            .sorted()
+
+        // Batched so a large change set never exceeds the argument list limit.
+        for start in stride(from: 0, to: workingTreePaths.count, by: 500) {
+            let batch = Array(workingTreePaths[start ..< min(start + 500, workingTreePaths.count)])
+            let ids = try await capture(arguments: git + ["hash-object", "--"] + batch)
+                .split(whereSeparator: \.isNewline)
+            for (path, id) in zip(batch, ids) {
+                blobIds[path] = String(id)
+            }
+        }
+
+        return blobIds
     }
 
     public func clone(url: String, into path: AbsolutePath) async throws {
@@ -186,6 +246,28 @@ public struct GitController: GitControlling {
         "BUILDKITE_PULL_REQUEST",
         // CircleCI
         "CIRCLE_PR_NUMBER",
+        // TeamCity
+        "teamcity.pullRequest.number",
+    ]
+
+    private static let baseBranchEnvironmentVariables = [
+        // GitHub Actions
+        "GITHUB_BASE_REF",
+        // GitLab CI
+        "CI_MERGE_REQUEST_TARGET_BRANCH_NAME",
+        "CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME",
+        // Bitrise
+        "BITRISEIO_GIT_BRANCH_DEST",
+        // Buildkite
+        "BUILDKITE_PULL_REQUEST_BASE_BRANCH",
+        // Codemagic
+        "CM_PULL_REQUEST_DEST",
+        // Xcode Cloud
+        "CI_PULL_REQUEST_TARGET_BRANCH",
+        // Azure DevOps (a full ref, refs/heads/main)
+        "SYSTEM_PULLREQUEST_TARGETBRANCH",
+        // TeamCity
+        "teamcity.pullRequest.target.branch",
     ]
 
     private static let branchEnvironmentVariables = [
@@ -206,6 +288,7 @@ public struct GitController: GitControlling {
         // Xcode Cloud
         "CI_BRANCH",
         // TeamCity
+        "teamcity.pullRequest.source.branch",
         "teamcity.build.branch",
         // Azure DevOps
         "BUILD_SOURCEBRANCHNAME",
@@ -230,7 +313,8 @@ public struct GitController: GitControlling {
     }
 
     public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
-        let environment = environment.variables
+        let environment = await CIBuildParameters.read(environment: environment.variables)
+            .merging(environment.variables) { _, variable in variable }
 
         // Ref
         let gitRef: String?
@@ -253,10 +337,19 @@ public struct GitController: GitControlling {
             gitRef = nil
         }
 
+        // The base branch and pull request number, from the CI provider only: a checkout does not
+        // know what its commit will merge into.
+        let baseBranch = Self.baseBranchEnvironmentVariables
+            .compactMap { environment[$0] }
+            .first { !$0.isEmpty }
+            .map(Self.branchName)
+        let pullRequestNumber = Self.pullRequestNumber(ref: gitRef, environment: environment)
+
         // Branch
         let ciBranch = Self.branchEnvironmentVariables
             .compactMap { environment[$0] }
             .first { !$0.isEmpty }
+            .map(Self.branchName)
             ?? Self.githubBranch(environment: environment)
 
         let branchName: String?
@@ -286,17 +379,25 @@ public struct GitController: GitControlling {
                 ref: gitRef,
                 branch: branchName,
                 sha: nil,
-                remoteURLOrigin: nil
+                remoteURLOrigin: nil,
+                baseBranch: baseBranch,
+                pullRequestNumber: pullRequestNumber
             )
         }
 
         // SHA — if CI checked out a PR merge ref (e.g. refs/pull/N/merge),
         // HEAD is an ephemeral merge commit. Use the second parent (the actual
         // PR branch tip) instead, since the merge commit doesn't exist on the remote.
+        // On GitHub Actions, GITHUB_SHA is that merge commit: a workflow that checked out
+        // another commit, such as the pull request's head, reports HEAD, since that commit's
+        // second parent, if it has one, is not the pull request.
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-            let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true
-            if isPullRequestMergeRef,
+            let head = try? await currentCommitSHA(workingDirectory: workingDirectory)
+            let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
+            let isPullRequestMergeCheckout = gitRef?.hasPrefix("refs/pull/") == true
+                && (mergeCommit == nil || mergeCommit == head)
+            if isPullRequestMergeCheckout,
                let secondParent = try? await capture(
                    command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
                ).trimmingCharacters(in: .whitespacesAndNewlines),
@@ -304,7 +405,7 @@ public struct GitController: GitControlling {
             {
                 commitSHA = secondParent
             } else {
-                commitSHA = try? await currentCommitSHA(workingDirectory: workingDirectory)
+                commitSHA = head
             }
         } else {
             commitSHA = nil
@@ -321,24 +422,73 @@ public struct GitController: GitControlling {
             ref: gitRef,
             branch: branchName,
             sha: commitSHA,
-            remoteURLOrigin: remoteURLOrigin
+            remoteURLOrigin: remoteURLOrigin,
+            baseBranch: baseBranch,
+            pullRequestNumber: pullRequestNumber
         )
+    }
+
+    /// Some providers name a branch by its full ref, `refs/heads/main`.
+    private static func branchName(_ name: String) -> String {
+        name.hasPrefix("refs/heads/") ? String(name.dropFirst("refs/heads/".count)) : name
+    }
+
+    /// The pull request number from a `refs/pull/<n>/...` ref (which the CI variables above are
+    /// folded into), or GitLab's merge request id.
+    static func pullRequestNumber(ref: String?, environment: [String: String]) -> Int? {
+        if let ref, let match = ref.wholeMatch(of: #/refs/(?:pull|merge-requests)/(\d+)/.*/#) {
+            return Int(match.1)
+        }
+        return ["CI_MERGE_REQUEST_IID"].compactMap { environment[$0] }.compactMap(Int.init).first
     }
 
     private func run(command: String...) async throws {
         if environment.isVerbose {
-            try await commandRunner.runAndPrint(arguments: command, environment: Environment.current.variables)
+            try await commandRunner.runAndPrint(arguments: command, environment: hardenedEnvironment())
         } else {
-            try await commandRunner.runAndWait(arguments: command)
+            try await commandRunner.runAndWait(arguments: command, environment: hardenedEnvironment())
         }
     }
 
     private func capture(command: String...) async throws -> String {
-        if environment.isVerbose {
-            return try await commandRunner.capture(arguments: command, environment: Environment.current.variables)
-        } else {
-            return try await commandRunner.capture(arguments: command)
-        }
+        try await capture(arguments: command)
+    }
+
+    func capture(arguments: [String]) async throws -> String {
+        try await commandRunner.capture(arguments: arguments, environment: hardenedEnvironment())
+    }
+
+    func runInOwnProcessGroup(arguments: [String]) -> AsyncThrowingStream<ProcessEvent, any Error> {
+        commandRunner.runInOwnProcessGroup(arguments: arguments, environment: hardenedEnvironment(), workingDirectory: nil)
+    }
+
+    /// Environment overrides that keep every spawned `git` invocation
+    /// non-interactive on CI runners. The subprocess inherits `tuist`'s
+    /// stdin, so anything that opens a credential prompt, spawns
+    /// `gpg` for signature verification, or otherwise reads from stdin
+    /// blocks indefinitely with no output. The runner then cancels the
+    /// step at its wall-clock timeout and the user is left with a silent
+    /// multi-hour hang.
+    ///
+    /// `GIT_TERMINAL_PROMPT=0` disables the terminal prompt path.
+    /// `GIT_ASKPASS=/usr/bin/false` forces any askpass helper to fail
+    /// immediately (`/usr/bin/false` exists on both macOS and Linux, while
+    /// `/bin/false` is not guaranteed on macOS and would print a spurious
+    /// `fatal: cannot exec` line into stderr before the disabled-prompt
+    /// path took over). `GIT_CONFIG_COUNT=1` plus the `KEY_0`/`VALUE_0`
+    /// pair overrides `log.showSignature` for the lifetime of the
+    /// subprocess, which keeps `git log` from invoking `gpg`
+    /// regardless of the repository's configuration.
+    private static let hardenedEnvironmentOverrides: [String: String] = [
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ASKPASS": "/usr/bin/false",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "log.showSignature",
+        "GIT_CONFIG_VALUE_0": "false",
+    ]
+
+    private func hardenedEnvironment() -> [String: String] {
+        Environment.current.variables.merging(Self.hardenedEnvironmentOverrides) { _, new in new }
     }
 
     private func parseVersions(_ unparsed: String) throws -> [Version] {

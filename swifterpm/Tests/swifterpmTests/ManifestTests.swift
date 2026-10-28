@@ -415,6 +415,119 @@ struct ManifestTests {
     }
 
     @Test
+    func localPackageDeclaredThroughASymlinkLoadsItAtTheDeclaredPath() async throws {
+        try await withTemporaryDirectory { directory in
+            // A local package reached through a symlink is ordinary in a monorepo: the
+            // directory is generated or shared and linked into place. SwiftPM loads it at the
+            // declared path and records that path in `workspace-state.json`, so swifterpm has
+            // to as well, or the two describe the same dependency by different directories.
+            let realPackageDir = directory.appendingPathComponent("store/Keys")
+            try await writeMinimalPackageManifest(at: realPackageDir, name: "Keys")
+            let rootPackageDir = directory.appendingPathComponent("app/Tuist")
+            try await writeMinimalPackageManifest(at: rootPackageDir, name: "Root")
+            let declaredPackageDir = directory.appendingPathComponent("app/Packages/Keys")
+            try await fileSystem.makeDirectory(
+                at: declaredPackageDir.deletingLastPathComponent().absolutePath,
+                options: [.createTargetParentDirectories]
+            )
+            _ = try await SystemProcess.run(
+                "/bin/ln", ["-s", "../../store/Keys", declaredPackageDir.path])
+
+            let packages = try await ManifestFileSystemDependencyGraph.collect(
+                rootPackageDir: rootPackageDir,
+                rootManifest: [
+                    "dependencies": [
+                        ["fileSystem": [["identity": "keys", "path": declaredPackageDir.path]]]
+                    ]
+                ],
+                disableSandbox: true
+            )
+
+            #expect(packages.count == 1)
+            #expect(packages.first.map { ManifestParser.packageName($0.manifest) } == "Keys")
+            #expect(packages.first?.packagePath.path == declaredPackageDir.path)
+        }
+    }
+
+    @Test
+    func localPackageWhoseSymlinkLeavesTheDeclaredPathFailsAgainstThatPath() async throws {
+        try await withTemporaryDirectory { directory in
+            // The link resolves out of the package's own directory, so the declared path names
+            // a package and the directory it lands in holds none. Dumping the resolved
+            // directory reported a failure against a path the manifest never named, which read
+            // as a typo; the declared path is what the reader can act on, and the redirect is
+            // what tells them the link is the reason.
+            let rootPackageDir = directory.appendingPathComponent("app/Tuist")
+            try await writeMinimalPackageManifest(at: rootPackageDir, name: "Root")
+            let declaredPackageDir = directory.appendingPathComponent("app/Packages/Keys")
+            try await fileSystem.makeDirectory(
+                at: declaredPackageDir.deletingLastPathComponent().absolutePath,
+                options: [.createTargetParentDirectories]
+            )
+            _ = try await SystemProcess.run("/bin/ln", ["-s", "..", declaredPackageDir.path])
+            let landsIn = PathCanonicalizer.realpath(declaredPackageDir)
+
+            do {
+                _ = try await ManifestFileSystemDependencyGraph.collect(
+                    rootPackageDir: rootPackageDir,
+                    rootManifest: [
+                        "dependencies": [
+                            ["fileSystem": [["identity": "keys", "path": declaredPackageDir.path]]]
+                        ]
+                    ],
+                    disableSandbox: true
+                )
+                Issue.record("expected the local package manifest to fail to load")
+            } catch {
+                let description = "\(error)"
+                #expect(description.contains("declared as \"\(declaredPackageDir.path)\""))
+                #expect(description.contains("which resolves to \(landsIn.path)"))
+                #expect(description.contains("no Package.swift in \(declaredPackageDir.path)"))
+            }
+        }
+    }
+
+    @Test
+    func localPackagesReachingTheSameDirectoryAreCollectedOnce() async throws {
+        try await withTemporaryDirectory { directory in
+            // Resolving symlinks still decides identity, which is what stops a diamond from
+            // dumping the same package twice and a link that points back up the tree from
+            // queueing for ever.
+            let realPackageDir = directory.appendingPathComponent("store/Feature")
+            try await writeMinimalPackageManifest(at: realPackageDir, name: "Feature")
+            let rootPackageDir = directory.appendingPathComponent("app/Tuist")
+            try await writeMinimalPackageManifest(at: rootPackageDir, name: "Root")
+            let packagesDir = directory.appendingPathComponent("app/Packages")
+            try await fileSystem.makeDirectory(
+                at: packagesDir.absolutePath, options: [.createTargetParentDirectories])
+            let first = packagesDir.appendingPathComponent("Feature")
+            let second = packagesDir.appendingPathComponent("FeatureAlias")
+            for link in [first, second] {
+                _ = try await SystemProcess.run(
+                    "/bin/ln", ["-s", "../../store/Feature", link.path])
+            }
+
+            let packages = try await ManifestFileSystemDependencyGraph.collect(
+                rootPackageDir: rootPackageDir,
+                rootManifest: [
+                    "dependencies": [
+                        [
+                            "fileSystem": [
+                                ["identity": "feature", "path": first.path],
+                                ["identity": "feature-alias", "path": second.path],
+                            ]
+                        ]
+                    ]
+                ],
+                disableSandbox: true
+            )
+
+            #expect(packages.count == 1)
+            #expect(packages.first?.packagePath.path == first.path)
+        }
+    }
+
+    @Test
     func dumpingASubdirectoryOfAPackageDoesNotStandInForTheEnclosingPackage() async throws {
         try await withTemporaryDirectory { directory in
             // Root resolution runs through the same dump and defaults to the working

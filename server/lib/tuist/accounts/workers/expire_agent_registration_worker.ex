@@ -7,7 +7,7 @@ defmodule Tuist.Accounts.Workers.ExpireAgentRegistrationWorker do
     max_attempts: 3,
     unique: [
       keys: [:registration_id],
-      states: [:available, :scheduled, :executing, :retryable],
+      states: :incomplete,
       period: :infinity
     ]
 

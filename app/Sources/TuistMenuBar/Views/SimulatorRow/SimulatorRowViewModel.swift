@@ -1,6 +1,6 @@
-import Command
 import Foundation
 import TuistCore
+import TuistProcess
 import TuistSupport
 
 @Observable

@@ -1,0 +1,669 @@
+{
+  "clientRevision": "dd727f4df8cd7217fc21fe89919d45a839879267",
+  "endpoint": "https://tuist-eu-west-1.kura.tuist.dev",
+  "machine": {
+    "macOS": "26.3",
+    "xcode": "27.0 (27A266a)",
+    "configuration": "Release; only IssueReporting dependency built without optimization"
+  },
+  "serverCapabilities": {
+    "cacheCapabilities": {
+      "digestFunctions": [
+        "SHA256"
+      ],
+      "actionCacheUpdateCapabilities": {
+        "updateEnabled": true
+      },
+      "maxBatchTotalSizeBytes": "2147483648",
+      "supportedCompressors": [
+        "ZSTD"
+      ],
+      "supportedBatchUpdateCompressors": [
+        "ZSTD"
+      ]
+    }
+  },
+  "corpusProvenance": {
+    "runID": "7cfe4229-d851-4c9d-9113-674be73da98c",
+    "repetitions": 3,
+    "corpora": {
+      "many-mixed": {
+        "modules": 100,
+        "payloadMiBPerSDK": 1,
+        "randomFraction": 0.5,
+        "samples": [
+          {
+            "regularFileBytes": 339437220,
+            "regularFileCount": 8400
+          },
+          {
+            "regularFileBytes": 339437220,
+            "regularFileCount": 8400
+          },
+          {
+            "regularFileBytes": 339437220,
+            "regularFileCount": 8400
+          }
+        ]
+      },
+      "large-mixed": {
+        "modules": 4,
+        "payloadMiBPerSDK": 32,
+        "randomFraction": 0.5,
+        "samples": [
+          {
+            "regularFileBytes": 403647780,
+            "regularFileCount": 336
+          },
+          {
+            "regularFileBytes": 403647780,
+            "regularFileCount": 336
+          },
+          {
+            "regularFileBytes": 403647780,
+            "regularFileCount": 336
+          }
+        ]
+      },
+      "large-incompressible": {
+        "modules": 4,
+        "payloadMiBPerSDK": 32,
+        "randomFraction": 1.0,
+        "samples": [
+          {
+            "regularFileBytes": 403649508,
+            "regularFileCount": 336
+          },
+          {
+            "regularFileBytes": 403649508,
+            "regularFileCount": 336
+          },
+          {
+            "regularFileBytes": 403649508,
+            "regularFileCount": 336
+          }
+        ]
+      }
+    }
+  },
+  "wallTimeSeconds": 1604.331,
+  "metricsCollected": false,
+  "measurements": [
+    {
+      "counters": {},
+      "seconds": 76.467854125,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "cold-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 1.028117375,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "existing-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 10.850012125,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "cold-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 8.685109666,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "ios-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 75.909116959,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "cold-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 4.453160209,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "existing-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 9.806900666,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "cold-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 6.1273525,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "ios-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 64.201610334,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "cold-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 3.844612375,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "existing-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 20.9862105,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "cold-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 7.069176042,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "ios-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 121.399552875,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "cold-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 1.1857755,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "existing-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 8.2501155,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "cold-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 8.010120125,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "ios-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 142.559340333,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "cold-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 0.952346458,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "existing-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 9.693149792,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "cold-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 10.315014209,
+      "model": "archive",
+      "corpus": "large-incompressible",
+      "phase": "ios-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 84.482347167,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "cold-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 1.590237375,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "existing-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 8.639584583,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "cold-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 5.75979925,
+      "model": "reapi",
+      "corpus": "large-incompressible",
+      "phase": "ios-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 77.971009,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "cold-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 0.984798834,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "existing-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 4.579458666,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "cold-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 4.668005459,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "ios-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 48.707238125,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "cold-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 1.6595751669999999,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "existing-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 4.271379958,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "cold-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 2.913589792,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "ios-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 75.168158917,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "cold-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 1.4061818750000001,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "existing-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 4.966939,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "cold-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 2.80859875,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "ios-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 33.42210175,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "cold-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 0.692786041,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "existing-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 4.23768875,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "cold-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 5.094189459,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "ios-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 47.857078583,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "cold-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 0.670538,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "existing-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 4.12958675,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "cold-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 4.17836575,
+      "model": "archive",
+      "corpus": "large-mixed",
+      "phase": "ios-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 41.938869292,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "cold-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 1.410337042,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "existing-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 4.739389,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "cold-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 3.567603458,
+      "model": "reapi",
+      "corpus": "large-mixed",
+      "phase": "ios-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 34.711773084,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "cold-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 5.607218917,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "existing-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 3.326146958,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "cold-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 3.316667833,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "ios-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 49.903383709,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "cold-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 15.63321125,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "existing-push",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 14.880529458,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "cold-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 10.071236708,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "ios-pull",
+      "repetition": 0
+    },
+    {
+      "counters": {},
+      "seconds": 49.974339,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "cold-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 16.314041875,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "existing-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 15.044853583,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "cold-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 9.756709333,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "ios-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 34.8029545,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "cold-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 5.380268083,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "existing-push",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 9.148315083,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "cold-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 3.177683458,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "ios-pull",
+      "repetition": 1
+    },
+    {
+      "counters": {},
+      "seconds": 42.81621225,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "cold-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 6.066930458,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "existing-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 3.581301375,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "cold-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 3.551481334,
+      "model": "archive",
+      "corpus": "many-mixed",
+      "phase": "ios-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 48.638409208,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "cold-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 16.558692416,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "existing-push",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 14.908480625,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "cold-pull",
+      "repetition": 2
+    },
+    {
+      "counters": {},
+      "seconds": 9.65299275,
+      "model": "reapi",
+      "corpus": "many-mixed",
+      "phase": "ios-pull",
+      "repetition": 2
+    }
+  ]
+}

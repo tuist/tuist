@@ -1,0 +1,14 @@
+apiVersion: v2
+name: rack-switch-controller
+description: >
+  The controller that adopts a rack's switches into the Omada SDN controller
+  and writes their configuration through its Open API, from the RackSwitch
+  objects in the rack's namespace. See infra/rack-switch-controller/AGENTS.md.
+
+  Installed into the Omada controller's namespace by
+  .github/workflows/omada-deployment.yml. One replica with leader election,
+  so exactly one writer; never scheduled onto a node behind the switches it
+  reconciles.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

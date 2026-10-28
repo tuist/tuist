@@ -87,17 +87,20 @@ public struct HashCacheCommandService: HashCacheServicing {
 
         let graph: XcodeGraph.Graph
         let defaultConfiguration: String?
+        let coverage: BinaryCacheCoverage
 
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
+            coverage = .resolved(config: config)
 
             #if canImport(TuistCacheEE)
                 let generator = generatorFactory.binaryCacheWarmingPreload(
                     config: config,
-                    targetsToBinaryCache: []
+                    targetsToBinaryCache: [],
+                    coverage: coverage
                 )
             #else
-                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [], coverage: coverage)
             #endif
             graph = try await generator.load(
                 path: absolutePath,
@@ -114,7 +117,8 @@ public struct HashCacheCommandService: HashCacheServicing {
             configuration: configuration,
             defaultConfiguration: defaultConfiguration,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: coverage
         )
 
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }

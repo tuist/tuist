@@ -4,6 +4,7 @@ defmodule Tuist.Shards.AnalyticsTest do
 
   alias Tuist.IngestRepo
   alias Tuist.Shards.Analytics
+  alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardRun
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -169,6 +170,35 @@ defmodule Tuist.Shards.AnalyticsTest do
   end
 
   describe "shard_count_analytics/2" do
+    test "projection replays do not weight a plan more than once" do
+      project = ProjectsFixtures.project_fixture()
+
+      small =
+        ShardsFixtures.shard_plan_fixture(
+          project_id: project.id,
+          shard_count: 2,
+          inserted_at: ~N[2024-06-14 10:00:00.000000]
+        )
+
+      ShardsFixtures.shard_plan_fixture(
+        project_id: project.id,
+        shard_count: 6,
+        inserted_at: ~N[2024-06-14 10:00:00.000000]
+      )
+
+      row = Map.take(small, ShardPlan.__schema__(:fields))
+      IngestRepo.insert_all(ShardPlan, [row, row])
+
+      result =
+        Analytics.shard_count_analytics(project.id,
+          start_datetime: ~U[2024-06-13 00:00:00Z],
+          end_datetime: ~U[2024-06-15 23:59:59Z]
+        )
+
+      assert result.total_average == 4
+      assert Enum.reject(result.values, &(&1 == 0)) == [4]
+    end
+
     test "returns percentile and trend data with shard plans" do
       stub(DateTime, :utc_now, fn -> ~U[2024-06-15 12:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
@@ -231,6 +261,35 @@ defmodule Tuist.Shards.AnalyticsTest do
   end
 
   describe "shard_balance_analytics/2" do
+    test "balance uses each shard's latest report, not placeholders and projection replays" do
+      project = ProjectsFixtures.project_fixture()
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      base = %{
+        shard_plan_id: plan.id,
+        project_id: project.id,
+        test_run_id: Ecto.UUID.generate(),
+        ran_at: ~N[2024-06-14 10:00:00.000000]
+      }
+
+      initial =
+        Map.merge(base, %{shard_index: 0, status: "processing", duration: 0, inserted_at: ~N[2024-06-14 10:00:00.000000]})
+
+      first =
+        Map.merge(base, %{shard_index: 0, status: "success", duration: 100, inserted_at: ~N[2024-06-14 10:01:00.000000]})
+
+      second = %{first | shard_index: 1}
+      IngestRepo.insert_all(ShardRun, [initial, initial, first, first, second])
+
+      result =
+        Analytics.shard_balance_analytics(project.id,
+          start_datetime: ~U[2024-06-13 00:00:00Z],
+          end_datetime: ~U[2024-06-15 23:59:59Z]
+        )
+
+      assert result.total_average == 100
+    end
+
     test "returns balance analytics from shard runs linked to shard plans" do
       stub(DateTime, :utc_now, fn -> ~U[2024-06-15 12:00:00Z] end)
       project = ProjectsFixtures.project_fixture()

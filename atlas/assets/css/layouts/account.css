@@ -1,0 +1,103 @@
+[data-part="account-layout"] {
+  & [data-part="account-main"] {
+    flex-direction: row;
+  }
+
+  & [data-part="account-content"] {
+    padding: var(--noora-spacing-9) var(--noora-spacing-8);
+  }
+
+  & [data-part="account-settings-content"] {
+    width: 100%;
+  }
+
+  & [data-part="sidebar"] {
+    border-right: 1px solid var(--noora-surface-border-primary);
+  }
+
+  @media (max-width: 1023px) {
+    & [data-part="account-main"] {
+      flex-direction: column;
+    }
+
+    & [data-part="sidebar"] {
+      display: block;
+      width: 100%;
+      border-right: none;
+      border-bottom: 1px solid var(--noora-surface-border-primary);
+      flex-shrink: 0;
+    }
+
+    & [data-part="sidebar"] > [data-part="viewport"] {
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+      padding: var(--noora-spacing-4);
+      height: auto;
+    }
+
+    & [data-part="sidebar"] [data-part="group"] {
+      flex-direction: row;
+    }
+
+    & [data-part="sidebar"] [data-part="group-label"] {
+      display: none;
+    }
+
+    & [data-part="account-content"] {
+      padding: var(--noora-spacing-6);
+    }
+  }
+}
+
+[data-part="account-settings-page"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+
+  & > [data-part="header"] {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-5);
+  }
+
+  & > [data-part="header"] > [data-part="text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"],
+  & [data-part="account-profile"] > [data-part="description"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="profile-details"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--noora-spacing-7);
+    margin: 0 0 var(--noora-spacing-6);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="profile-field"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="profile-value"] {
+    margin: 0;
+    overflow-wrap: anywhere;
+    color: var(--noora-surface-label-secondary);
+  }
+}

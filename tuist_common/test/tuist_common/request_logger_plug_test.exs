@@ -40,5 +40,24 @@ defmodule TuistCommon.RequestLoggerPlugTest do
     assert entry =~ "status=204"
     assert entry =~ "duration_ms="
     refute entry =~ "token=secret"
+    refute entry =~ "cache_outcome="
+  end
+
+  test "marks only controller-confirmed cache misses" do
+    log =
+      capture_log(
+        [format: "$metadata[$level] $message", metadata: [:cache_outcome, :status]],
+        fn ->
+          :get
+          |> conn("/api/projects/account/project/cache/ac/hash")
+          |> RequestLoggerPlug.call([])
+          |> assign(:cache_outcome, :miss)
+          |> send_resp(404, "")
+        end
+      )
+
+    assert log =~ "cache_outcome=miss"
+    assert log =~ "status=404"
+    assert log =~ "Request completed"
   end
 end

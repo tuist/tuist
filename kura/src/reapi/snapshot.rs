@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     io::Write,
     time::{Duration, Instant},
 };
@@ -9,12 +9,12 @@ use futures_util::{StreamExt, future::BoxFuture};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
 
-use super::{protobuf_shape::inspect_action_result_wire, service::read_manifest_bytes};
-use crate::{
-    artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
-    state::SharedState,
-    utils::blob_key,
+use super::{
+    chunking::{PresenceBudget, is_presence_budget_error, manifest_presence_keys},
+    protobuf_shape::inspect_action_result_wire,
+    service::read_manifest_bytes,
 };
+use crate::{artifact::manifest::ArtifactManifest, state::SharedState, utils::blob_key};
 
 /// Reserved action key whose lookup returns the namespace's action-cache
 /// snapshot instead of a stored result. Clients hash these exact bytes the
@@ -203,6 +203,10 @@ pub(super) struct NamespaceSnapshotIndex {
     /// The namespace's action-cache generation when this index was built. An
     /// empty index is only served while this still matches the store.
     pub(super) built_at_generation: u64,
+    /// The store's removal sequence this index reflects: every entry and blob
+    /// the store removed up to it is gone from the index too (see
+    /// `crate::action_cache_removals`).
+    pub(super) applied_removal_seq: u64,
 }
 
 impl NamespaceSnapshotIndex {
@@ -215,6 +219,7 @@ impl NamespaceSnapshotIndex {
             last_used: Instant::now(),
             reconciled_at: Instant::now(),
             built_at_generation: 0,
+            applied_removal_seq: 0,
         };
         index.recompute_estimated_bytes();
         index
@@ -274,6 +279,50 @@ impl NamespaceSnapshotIndex {
         self.entries.insert(hash, entry);
     }
 
+    /// Drops every entry the store removed and every entry that references a
+    /// blob it removed, then records `removals.through` as applied. Returns how
+    /// many entries were dropped.
+    pub(super) fn apply_removals(
+        &mut self,
+        removals: &crate::action_cache_removals::ActionCacheRemovals,
+    ) -> usize {
+        let mut dropped: Vec<[u8; 32]> = removals
+            .entries
+            .iter()
+            .filter(|hash| self.entries.contains_key(*hash))
+            .copied()
+            .collect();
+        if !removals.blobs.is_empty() {
+            let removed_nodes: HashSet<u32> = self
+                .nodes
+                .iter()
+                .enumerate()
+                .filter(|(_, node)| removals.blobs.contains(&(node.blob_hash, node.blob_size)))
+                .map(|(index, _)| index as u32)
+                .collect();
+            if !removed_nodes.is_empty() {
+                dropped.extend(
+                    self.entries
+                        .iter()
+                        .filter(|(_, entry)| {
+                            entry.nodes.iter().any(|node| removed_nodes.contains(node))
+                        })
+                        .map(|(hash, _)| *hash),
+                );
+            }
+        }
+        dropped.sort_unstable();
+        dropped.dedup();
+        for hash in &dropped {
+            self.remove_entry(hash);
+        }
+        if !dropped.is_empty() {
+            self.compact_nodes();
+        }
+        self.applied_removal_seq = self.applied_removal_seq.max(removals.through);
+        dropped.len()
+    }
+
     pub(super) fn estimated_bytes(&self) -> usize {
         self.estimated_bytes
     }
@@ -304,6 +353,77 @@ impl NamespaceSnapshotIndex {
     /// process. Skipped while the garbage share is too small to be worth
     /// rewriting every entry's index list.
     pub(super) fn compact_nodes(&mut self) {
+        self.compact_nodes_when(|garbage, nodes| {
+            garbage >= SNAPSHOT_COMPACT_MIN_GARBAGE && garbage * 2 >= nodes
+        });
+    }
+
+    /// Makes room for an entry needing `required_bytes` by dropping entries
+    /// written before `version_ms`, oldest first, and sweeping the nodes only
+    /// they referenced. Returns how many entries it dropped. The served view is
+    /// newest-first, so a newer write displaces an older one rather than being
+    /// turned away by it; `candidates` holds the oldest-first eviction order,
+    /// built on first use and shared across one reconcile.
+    pub(super) fn evict_older_for(
+        &mut self,
+        required_bytes: usize,
+        max_bytes: usize,
+        version_ms: u64,
+        candidates: &mut Option<std::collections::VecDeque<(u64, [u8; 32])>>,
+    ) -> usize {
+        let candidates = candidates.get_or_insert_with(|| {
+            let mut ordered: Vec<(u64, [u8; 32])> = self
+                .entries
+                .iter()
+                .map(|(hash, entry)| (entry.version_ms, *hash))
+                .collect();
+            ordered.sort_unstable();
+            ordered.into()
+        });
+        let mut evicted = 0;
+        while self.estimated_bytes.saturating_add(required_bytes) > max_bytes {
+            // Free at least a sixteenth of the budget per sweep, so a full index
+            // compacts a bounded number of times per reconcile instead of once
+            // per admitted entry.
+            let target = required_bytes.max(max_bytes / 16);
+            let mut freed = 0usize;
+            while freed < target {
+                let Some(&(candidate_version, hash)) = candidates.front() else {
+                    break;
+                };
+                if candidate_version >= version_ms {
+                    break;
+                }
+                candidates.pop_front();
+                let Some(entry) = self.entries.get(&hash) else {
+                    continue;
+                };
+                if entry.version_ms != candidate_version {
+                    continue;
+                }
+                freed = freed.saturating_add(estimated_snapshot_entry_bytes(entry.nodes.len()));
+                freed = freed.saturating_add(
+                    entry
+                        .nodes
+                        .iter()
+                        .map(|&node| {
+                            let node = &self.nodes[node as usize];
+                            estimated_snapshot_node_bytes(node.llcas.len(), node.blob_key.len())
+                        })
+                        .sum::<usize>(),
+                );
+                self.remove_entry(&hash);
+                evicted += 1;
+            }
+            if freed == 0 {
+                break;
+            }
+            self.compact_nodes_when(|garbage, _| garbage > 0);
+        }
+        evicted
+    }
+
+    fn compact_nodes_when(&mut self, worthwhile: impl FnOnce(usize, usize) -> bool) {
         let mut remap: Vec<Option<u32>> = vec![None; self.nodes.len()];
         let mut live: u32 = 0;
         for entry in self.entries.values() {
@@ -315,7 +435,7 @@ impl NamespaceSnapshotIndex {
             }
         }
         let garbage = self.nodes.len() - live as usize;
-        if garbage < SNAPSHOT_COMPACT_MIN_GARBAGE || garbage * 2 < self.nodes.len() {
+        if !worthwhile(garbage, self.nodes.len()) {
             return;
         }
         let old_nodes = std::mem::take(&mut self.nodes);
@@ -584,6 +704,14 @@ fn snapshot_wire_writer_rejects_bytes_past_its_limit() {
 /// from scratch and timed out the same way — the snapshot never became
 /// servable. A detached build completes and caches regardless of who is
 /// still waiting.
+/// A cached full encoding and the removal sequence it reflects, kept as one value
+/// so a reader can never pair one view's bytes with another view's sequence.
+#[derive(Clone)]
+pub(super) struct ServedFullView {
+    pub(super) bytes: std::sync::Arc<Vec<u8>>,
+    pub(super) removal_seq: u64,
+}
+
 pub(crate) struct SnapshotCache {
     pub(super) indexes: std::sync::Mutex<BTreeMap<String, NamespaceSnapshotIndex>>,
     pub(super) builds: std::sync::Mutex<std::collections::HashMap<String, SharedIndexBuild>>,
@@ -594,7 +722,7 @@ pub(crate) struct SnapshotCache {
     /// the (slightly stale) snapshot. Bounded at the wire ceiling per entry and
     /// pruned with the index LRU — unlike cloning the whole index, whose
     /// node table the entry cap does not bound.
-    pub(super) served_full: std::sync::Mutex<BTreeMap<String, std::sync::Arc<Vec<u8>>>>,
+    pub(super) served_full: std::sync::Mutex<BTreeMap<String, ServedFullView>>,
     pub(super) build_lock: tokio::sync::Mutex<()>,
     pub(super) max_bytes: usize,
 }
@@ -642,7 +770,7 @@ impl SnapshotCache {
 
     fn stats_locked(
         indexes: &BTreeMap<String, NamespaceSnapshotIndex>,
-        served_full: &BTreeMap<String, std::sync::Arc<Vec<u8>>>,
+        served_full: &BTreeMap<String, ServedFullView>,
     ) -> SnapshotCacheStats {
         let entries = indexes.values().map(|index| index.entries.len()).sum();
         let nodes = indexes.values().map(|index| index.nodes.len()).sum();
@@ -656,8 +784,8 @@ impl SnapshotCache {
             .sum::<usize>();
         let served_full_bytes = served_full
             .iter()
-            .map(|(namespace, bytes)| {
-                bytes
+            .map(|(namespace, view)| {
+                view.bytes
                     .capacity()
                     .saturating_add(estimated_map_item_bytes(namespace.len()))
             })
@@ -835,6 +963,8 @@ pub(super) async fn reconcile_snapshot_index(
     let mut loads_failed = 0_usize;
     let mut invalid = 0_usize;
     let mut budget_rejected = 0_usize;
+    let mut evicted = 0_usize;
+    let mut eviction_order = None;
     let encoded_load_budget =
         std::sync::Arc::new(tokio::sync::Semaphore::new(budgets.encoded_bytes.max(1)));
     let decoded_load_budget =
@@ -910,6 +1040,28 @@ pub(super) async fn reconcile_snapshot_index(
             continue;
         };
         let entry_bytes = estimated_snapshot_entry_bytes(action_result.output_files.len());
+        let new_node_bytes: usize = action_result
+            .output_files
+            .iter()
+            .filter_map(|file| {
+                let llcas = hex::decode(&file.path).ok()?;
+                let digest = file.digest.as_ref()?;
+                if index.node_index.contains_key(&llcas) {
+                    return None;
+                }
+                let blob_key = blob_key(&format!("{}/{}", digest.hash, digest.size_bytes));
+                Some(estimated_snapshot_node_bytes(llcas.len(), blob_key.len()))
+            })
+            .sum();
+        let required_bytes = entry_bytes.saturating_add(new_node_bytes);
+        if index.estimated_bytes().saturating_add(required_bytes) > budgets.index_bytes {
+            evicted += index.evict_older_for(
+                required_bytes,
+                budgets.index_bytes,
+                version_ms,
+                &mut eviction_order,
+            );
+        }
         if index.estimated_bytes().saturating_add(entry_bytes) > budgets.index_bytes {
             budget_rejected += 1;
             continue;
@@ -968,7 +1120,17 @@ pub(super) async fn reconcile_snapshot_index(
     // pressure-only gate pass (`gate_snapshot_index`) runs under sustained
     // pressure. Mostly existence-cache hits; a dead entry is dropped from
     // the cache too — a republish bumps its version and reloads it.
-    let dead = collect_dead_snapshot_entries(state, namespace_id, &index).await;
+    let presence = match collect_dead_snapshot_entries(state, namespace_id, &index).await {
+        Ok(presence) => presence,
+        Err(error) => {
+            index.entries.clear();
+            index.compact_nodes();
+            return Err((
+                index,
+                format!("snapshot presence gate could not complete: {error}"),
+            ));
+        }
+    };
     // Cascade: an entry whose blobs were evicted is unserveable by
     // construction (the per-key path would hand out a manifest whose
     // batch_read then misses), so delete it from the store too, not just
@@ -976,13 +1138,15 @@ pub(super) async fn reconcile_snapshot_index(
     // peer replication that delivers an entry before its blobs finish
     // syncing.
     let now = crate::utils::now_ms();
-    let cascade: Vec<ArtifactManifest> = dead
+    let cascade: Vec<ArtifactManifest> = presence
+        .dead
         .iter()
         .filter_map(|hash| current.get(hash))
         .filter(|(version_ms, _)| now.saturating_sub(*version_ms) > SNAPSHOT_CASCADE_GRACE_MS)
         .map(|(_, manifest)| manifest.clone())
         .collect();
-    for hash in dead {
+    let unverified = presence.unverified.len();
+    for hash in presence.dead.into_iter().chain(presence.unverified) {
         index.remove_entry(&hash);
     }
     if !cascade.is_empty() {
@@ -1020,7 +1184,9 @@ pub(super) async fn reconcile_snapshot_index(
         loads_failed,
         invalid,
         budget_rejected,
+        evicted,
         interrupted,
+        unverified,
         estimated_bytes = index.estimated_bytes(),
         index_max_bytes = budgets.index_bytes,
         scan_ms,
@@ -1038,31 +1204,52 @@ pub(super) async fn reconcile_snapshot_index(
 /// Shared by the full reconcile and the pressure-only gate pass so the two
 /// cannot drift. Mostly existence-cache hits; the reads are synchronous, so
 /// yield periodically to keep from parking a runtime worker on a cold cache.
+struct SnapshotPresenceResult {
+    dead: Vec<[u8; 32]>,
+    unverified: Vec<[u8; 32]>,
+}
+
 async fn collect_dead_snapshot_entries(
     state: &SharedState,
     namespace_id: &str,
     index: &NamespaceSnapshotIndex,
-) -> Vec<[u8; 32]> {
+) -> Result<SnapshotPresenceResult, String> {
     let mut dead: Vec<[u8; 32]> = Vec::new();
+    let mut unverified: Vec<[u8; 32]> = Vec::new();
+    let mut presence_budget = PresenceBudget::for_snapshot_scan();
     for (gated, (hash, entry)) in index.entries.iter().enumerate() {
         if gated % 1024 == 1023 {
             tokio::task::yield_now().await;
         }
-        let missing = entry.nodes.iter().any(|&node| {
-            !state
-                .store
-                .artifact_manifest_exists(
-                    ArtifactProducer::Reapi,
-                    namespace_id,
-                    &index.nodes[node as usize].blob_key,
-                )
-                .unwrap_or(false)
-        });
+        let mut missing = false;
+        for &node in &entry.nodes {
+            let node = &index.nodes[node as usize];
+            let digest = reapi::Digest {
+                hash: hex::encode(node.blob_hash),
+                size_bytes: node.blob_size as i64,
+            };
+            match manifest_presence_keys(state, namespace_id, &digest, &mut presence_budget).await {
+                Ok(None) => {
+                    missing = true;
+                    break;
+                }
+                Ok(Some(_)) => {}
+                Err(error) if is_presence_budget_error(&error) => {
+                    state
+                        .metrics
+                        .record_reapi_chunking_event("probe_budget_exhausted", "snapshot");
+                    unverified.push(*hash);
+                    missing = false;
+                    break;
+                }
+                Err(error) => return Err(error),
+            }
+        }
         if missing {
             dead.push(*hash);
         }
     }
-    dead
+    Ok(SnapshotPresenceResult { dead, unverified })
 }
 
 /// Pressure-only reconcile: drops action-cache entries whose blobs were
@@ -1082,9 +1269,18 @@ pub(super) async fn gate_snapshot_index(
     namespace_id: &str,
     mut index: NamespaceSnapshotIndex,
 ) -> NamespaceSnapshotIndex {
-    let dead = collect_dead_snapshot_entries(state, namespace_id, &index).await;
-    let removed = dead.len();
-    for hash in dead {
+    let presence = match collect_dead_snapshot_entries(state, namespace_id, &index).await {
+        Ok(presence) => presence,
+        Err(error) => {
+            tracing::warn!(namespace_id, error, "snapshot presence gate deferred");
+            index.entries.clear();
+            index.compact_nodes();
+            return index;
+        }
+    };
+    let removed = presence.dead.len();
+    let unverified = presence.unverified.len();
+    for hash in presence.dead.into_iter().chain(presence.unverified) {
         index.remove_entry(&hash);
     }
     index.compact_nodes();
@@ -1092,6 +1288,7 @@ pub(super) async fn gate_snapshot_index(
         tracing::info!(
             namespace_id,
             removed,
+            unverified,
             entries = index.entries.len(),
             "action-cache snapshot index presence-gated under memory pressure"
         );

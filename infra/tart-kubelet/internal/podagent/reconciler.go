@@ -24,13 +24,17 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
@@ -53,7 +57,29 @@ const (
 	vncRelayHostAnnotation      = "tuist.dev/vnc-relay-host"
 	vncRelayPortAnnotation      = "tuist.dev/vnc-relay-port"
 	vncRelayReadyAtAnnotation   = "tuist.dev/vnc-relay-ready-at"
+
+	// Guest liveness, published for the runners-controller: the state
+	// dispatch-poll.sh last reported and when it last reported it. The
+	// controller reads these to decide whether a darwin Pod is warm
+	// capacity it can actually dispatch to — see isWarmCapacity in
+	// infra/runners-controller. Their absence is meaningful and must
+	// stay that way: see publishRunnerHeartbeat.
+	runnerHeartbeatStateAnnotation = "tuist.dev/runner-heartbeat-state"
+	runnerHeartbeatAtAnnotation    = "tuist.dev/runner-heartbeat-at"
 )
+
+// heartbeatRepublishInterval throttles how often an advancing beat is
+// written back to the API server. The guest beats every couple of
+// seconds and this reconciler runs every 30, so republishing on every
+// observation would mean a Pod write per Pod per reconcile, purely to
+// move a timestamp nobody reads at that resolution. A state change is
+// always published immediately; only the timestamp is throttled.
+//
+// The cost is staleness the consumer has to absorb: a healthy Pod's
+// published beat can lag the guest's real one by this interval plus a
+// reconcile period. The controller's staleness threshold is set well
+// above that sum.
+const heartbeatRepublishInterval = 60 * time.Second
 
 // Reconciler is the controller-runtime reconciler for Pods on this
 // Node. The cached client here is fine: the manager runs a single
@@ -96,7 +122,33 @@ type Reconciler struct {
 	VNCRelayHost string
 	// VNCRelayPort pins the host-side VNC relay port. 0 uses an
 	// ephemeral port, matching the per-request relay default.
+	//
+	// When VNCRelayPortCount > 1 this is the BASE of a contiguous
+	// range rather than a single port.
 	VNCRelayPort int
+
+	// VNCRelayPortCount is how many contiguous ports from VNCRelayPort
+	// a relay may bind. 0 or 1 means the single pinned port, which is
+	// the historical behaviour.
+	//
+	// A pinned port is a per-HOST resource but a relay is a per-POD
+	// one, so a host running more than one guest needs more than one
+	// port or the second guest's relay fails to bind and interactive
+	// sessions silently stop working on half the fleet. The range is
+	// walked in order and the first port that binds wins; the OS is
+	// the authority on what is free, so there is no allocation table
+	// to keep in sync with reality across restarts.
+	//
+	// Callers must declare every port in the range on whatever fronts
+	// the host (the per-Mac Tailscale egress Service). Downstream
+	// consumers already read the ACTUAL bound port out of the
+	// listener (writeVNCState) and republish it on the
+	// tuist.dev/vnc-relay-port Pod annotation, so nothing besides the
+	// bind needs to know which port a given Pod won.
+	//
+	// Ignored when VNCRelayPort is 0: an ephemeral relay has the whole
+	// ephemeral range and never collides.
+	VNCRelayPortCount int
 
 	Tart     *tart.Client
 	Resolver *envresolver.Resolver
@@ -112,18 +164,9 @@ type Reconciler struct {
 	// — when nil, the reconciler just surfaces the error.
 	GC *Collector
 
-	// Volumes manages per-account cache-volume images. Optional
-	// — when nil or disabled (no runner-cache root provisioned on this
-	// host), every VM boots on the status-quo cold path and the volume
-	// lifecycle no-ops.
-	Volumes *VolumeManager
-
-	// ConvergeHeadWaitInterval / ConvergeHeadWaitAttempts bound how long a
-	// background convergence waits for the guest to stage the cache-volume HEAD.
-	// Zero values use the package defaults; injectable so tests don't wait real
-	// seconds, mirroring the manager's mount-check wait.
-	ConvergeHeadWaitInterval time.Duration
-	ConvergeHeadWaitAttempts int
+	CustomVolumes *CustomVolumes
+	// Prefetch learns the server's endpoint from runner Pods; nil without custom volumes.
+	Prefetch *PrefetchPoller
 
 	// Recorder emits Pod Events (e.g. "CreatingVM") so the
 	// Scheduled→Running gap — previously a silent dead zone with no
@@ -132,14 +175,47 @@ type Reconciler struct {
 	// event emission.
 	Recorder record.EventRecorder
 
-	// goldenMu guards goldenLocks; goldenLocks serializes golden-base
-	// materialization per image digest so two Pods admitted close
-	// together don't both run the one-time pull+clone for the same
-	// golden (the second `tart clone` would fail "VM exists"). Reconcile
-	// concurrency is 1 today, but the lock keeps ensureGolden correct if
-	// that's ever raised, and costs nothing on the warm fast path.
-	goldenMu    sync.Mutex
-	goldenLocks map[string]*sync.Mutex
+	// Images picks where a golden base's image is pulled from: a rack image
+	// cache that holds it (`--image-mirror`), else the image's own registry.
+	// Nil pulls every image from its own registry.
+	Images *ImageSources
+
+	// HostDisk, when set, records that the host holds a golden, which the
+	// prewarm gate reads to tell an erased disk from an idle one.
+	HostDisk *HostDisk
+
+	// goldenMu guards the maps below. goldenLocks serializes golden-base
+	// materialization per golden so the prewarmer and a Pod's background
+	// pull never both run the one-time pull+clone (the second `tart clone`
+	// would fail "VM exists"). goldenWaiters are the Pods to re-enqueue when
+	// a golden's lock is released, goldenPulled the start of a background
+	// pull that landed and that no Pod has cloned from yet, and
+	// goldenFailures the last background pull that failed.
+	goldenMu       sync.Mutex
+	goldenLocks    map[string]*sync.Mutex
+	goldenWaiters  map[string]map[types.NamespacedName]struct{}
+	goldenPulled   map[string]time.Time
+	goldenFailures map[string]goldenFailure
+
+	// pullMu keeps one golden materialization running on the host at a
+	// time, as the single reconcile worker did when pulls ran inside it: a
+	// golden is tens of GB, and two at once could fill the disk.
+	pullMu sync.Mutex
+
+	// now is the clock for the golden retry interval. Nil uses time.Now.
+	now func() time.Time
+
+	// requeueEvents re-enqueues a Pod whose readiness probe result changed
+	// or whose golden base finished materializing, without waiting for the
+	// periodic requeue. Nil outside a manager (tests); sends never block.
+	requeueEvents chan event.GenericEvent
+}
+
+// goldenFailure is a background golden pull that failed, reported to the
+// Pods that wait on it until goldenRetryInterval has passed.
+type goldenFailure struct {
+	err error
+	at  time.Time
 }
 
 // MetricsScrapeAnnotation is the pod annotation that tells
@@ -165,6 +241,7 @@ const MetricsPortAnnotation = "prometheus.io/port"
 //     tolerate every taint); we don't want them in our reconcile
 //     queue spamming TartCreateFailed events.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.requeueEvents = make(chan event.GenericEvent, 64)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Pod{}, builder.WithPredicates(predicate.NewPredicateFuncs(func(o client.Object) bool {
 			pod, ok := o.(*corev1.Pod)
@@ -173,6 +250,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 			return podIsHandled(pod)
 		}))).
+		WatchesRawSource(source.Channel(r.requeueEvents, &handler.EnqueueRequestForObject{})).
 		Complete(r)
 }
 
@@ -211,6 +289,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// DeletionTimestamp) unable to do anything about it. We
 		// shipped exactly that bug for several days; the fix is the
 		// ordering you see here.
+		if waiting, err := r.drainPod(ctx, pod); err != nil {
+			logger.Error(err, "guest drain failed; keeping the VM")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		} else if waiting {
+			return ctrl.Result{RequeueAfter: time.Second}, nil
+		}
 		if err := r.deletePod(ctx, pod); err != nil {
 			logger.Error(err, "delete failed; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -279,18 +363,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Store entry); only the published Phase differs.
 	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil && entry.Run != nil {
 		if exitErr, exited := entry.Run.Exited(); exited {
-			// Promote or discard the cache-volume branch before tearing the
-			// VM down. A clean `tart run` exit (exitErr == nil) is the guest
-			// halting after its job flow completed; combined with the guest's
-			// dirty marker it promotes the branch to the account's new
-			// master. A crash (exitErr != nil) or a read-only/clean job
-			// discards it.
 			// Resolve the runner's exit and the time it happened before
 			// deleteByKey, which removes <UserDataDir>/<vm> and takes the
 			// status share (and the guest's report in it) with it.
 			exitCode, exitReason := r.runnerTermination(entry, exitErr)
 			finishedAt := runnerFinishedAt(entry)
-			r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], exitErr == nil)
+			// Re-emit the guest's own log before deleteByKey takes the
+			// status share with it. This is tart-kubelet's durable stdout,
+			// which the host log shipper already tails, so the trail reaches
+			// Loki without the shipper needing to discover per-VM shares.
+			// Unconditional: exitCode does not discriminate here (a runner
+			// that halted without taking a job reports 0 exactly like a
+			// finished one), so gating on it would drop the cases worth
+			// keeping.
+			if tail := readRunnerLog(entry.StatusDir); tail != "" {
+				logger.Info("runner log", "vm", entry.VMName, "runnerLog", tail)
+			}
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 
 			status := &corev1.PodStatus{Reason: "TartRunExited"}
@@ -318,22 +406,26 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if err := r.createPod(ctx, pod); err != nil {
-		logger.Error(err, "create failed; will retry")
+		reason := "TartCreateFailed"
+		switch {
+		case errors.Is(err, errGoldenPulling):
+			reason = "PullingImage"
+			logger.Info("waiting for this host's golden base", "image", pod.Spec.Containers[0].Image)
+		case errors.Is(err, errMirrorSyncing):
+			reason = "ImageCacheSyncing"
+			logger.Info("waiting for the rack image cache", "reason", err.Error())
+		default:
+			logger.Error(err, "create failed; will retry")
+		}
 		// Surface the failure to the API server immediately so
 		// `kubectl describe pod` shows it.
 		_ = r.publishStatus(ctx, pod, &corev1.PodStatus{
 			Phase:   corev1.PodPending,
 			Message: err.Error(),
-			Reason:  "TartCreateFailed",
+			Reason:  reason,
 		})
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
-
-	// The server stamps the runner-account label when it claims a job for this
-	// VM (this reconcile is often triggered by that very label patch). Once the
-	// account is known, clonefile its cache master into the VM's branch and
-	// signal the guest. Idempotent: runs at most once per VM.
-	r.maybeMaterializeVolume(pod)
 
 	status, err := r.podStatus(ctx, pod)
 	if err != nil || status == nil {
@@ -342,6 +434,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.publishStatus(ctx, pod, status); err != nil {
 		logger.Error(err, "status update")
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
+	if err := r.publishRunnerHeartbeat(ctx, pod); err != nil {
+		logger.Error(err, "publish runner heartbeat; will retry")
 	}
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
@@ -352,6 +447,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // The SetupWithManager predicate filters Pods that don't fit
 // tart-kubelet's contract before they reach this method.
 func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
+	// A runner Pod carries the server's dispatch URL, which is where the
+	// prefetch poller lists the masters to prefetch. Observed before the Store
+	// short-circuit so the Pods recoverState adopted after a restart teach it
+	// too, not only the next Pod this host provisions.
+	r.Prefetch.ObservePod(pod)
 
 	if existing := r.Store.Get(pod.Namespace, pod.Name); existing != nil {
 		return nil
@@ -406,18 +506,19 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	if existingClone == nil {
 		// Clone the runner from this host's golden base for the image's
 		// digest — a local APFS clonefile (sub-second, zero network),
-		// not a fresh OCI pull. ensureGolden pays the full multi-GB pull
-		// at most once per digest per host; back-to-back recycles take
-		// only the clonefile path. This is what stops the fleet
-		// re-downloading the whole VM image between jobs.
+		// not a fresh OCI pull. The full multi-GB pull runs at most once
+		// per digest per host, in the background (readyGolden); back-to-back
+		// recycles take only the clonefile path. This is what stops the
+		// fleet re-downloading the whole VM image between jobs.
 		cloneStart := time.Now()
-		base, materialized, err := r.ensureGolden(ctx, c.Image)
+		base, pulledAt, err := r.readyGolden(ctx, pod, c.Image)
 		if err != nil {
 			return err
 		}
 		provisionPath := "warm"
-		if materialized {
+		if !pulledAt.IsZero() {
 			provisionPath = "cold"
+			cloneStart = pulledAt
 			RecordGoldenMaterialized(pool)
 		} else {
 			RecordGoldenReused(pool)
@@ -456,23 +557,12 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// entries. BootObserved is set because we didn't witness this boot.
 	if running, _ := r.Tart.IsRunning(ctx, vmName); running {
 		entry := &Entry{
+			PodName:      pod.Name,
+			PodUID:       string(pod.UID),
 			VMName:       vmName,
 			StartTS:      metav1.Now(),
 			BootObserved: true,
-		}
-		// Same reattach as recoverState (via the shared helper, which preserves
-		// the untrusted decision so an untrusted branch can't be revived as
-		// promotable): this VM survived a restart with its cache branch still
-		// mounted, so rebind it (unless the startup sweep already reaped it
-		// because recovery missed this VM) so Finalize can promote a trusted
-		// warm set instead of losing it.
-		if r.Volumes != nil {
-			if att, ok := ReattachVolumeForPod(r.Volumes, pod, vmName); ok {
-				entry.Volume = att
-				if statusDir, sdErr := r.Tart.StatusDir(vmName); sdErr == nil {
-					entry.VolumeStatusDir = statusDir
-				}
-			}
+			StatusDir:    StatusDirForPod(r.Tart, pod, vmName),
 		}
 		r.Store.Put(pod.Namespace, pod.Name, entry)
 		return nil
@@ -498,42 +588,18 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// pull/clone time the boot histogram (which starts at `tart run`) can't.
 	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
-	// Per-account cache volume. Allocate an EMPTY per-VM branch dir
-	// and share it into the guest as a writable virtio-fs mount at the cache
-	// root — no account data, no prediction. The dispatched account's master
-	// is clonefiled into the branch after the server stamps the runner-account
-	// label (maybeMaterializeVolume), so one account's cache can never reach a
-	// VM that runs another account's job. Done here — after the adoption
-	// early-return above — so a restart-adopted VM doesn't get a stray branch.
-	// A declined admission or a disabled feature leaves att.Attached false and
-	// the VM boots on the cold path.
 	sharedDirs := []string{"env:" + envDir + ":ro"}
-	att, err := r.allocateVolumeBranch(vmName)
-	if err != nil {
-		// A volume failure must never fail the job: it is best-effort warm
-		// state. Log via an Event and fall through to the cold path.
-		if r.Recorder != nil {
-			r.Recorder.Event(pod, corev1.EventTypeWarning, "CacheVolumeSkipped", fmt.Sprintf("cache volume not attached: %v", err))
+	if r.CustomVolumes != nil && pod.Labels[runnerPodLabel] == "true" {
+		if share, e := r.CustomVolumes.Share(pod); e == nil {
+			sharedDirs = append(sharedDirs, "custom-cache:"+share)
 		}
-		att = VolumeAttachment{}
 	}
-	var statusDir string
-	if att.Attached {
-		// tart's --dir mounts read-write by default and only accepts a `:ro`
-		// modifier; a `:rw` suffix is parsed as part of the path and fails the
-		// VM config. Omit it — the guest needs rw to write the cache and the
-		// dirty marker, which is the default. The guest mounts the cache share
-		// at /Volumes/My Shared Files/cache and points its cache root there.
-		sharedDirs = append(sharedDirs, "cache:"+att.BranchPath)
-		if statusDir, err = r.Tart.StatusDir(vmName); err == nil {
-			sharedDirs = append(sharedDirs, "status:"+statusDir)
-			// Stage the per-branch byte budget for the guest's cache LRU prune
-			// before the VM boots (the whole shared quota volume's free space
-			// would be the wrong, far-too-large budget over a virtio-fs share).
-			writeCacheBudget(statusDir, r.Volumes.CapGiB, r.Volumes.CASGiB)
-		} else {
-			statusDir = ""
-		}
+	statusDir := StatusDirForPod(r.Tart, pod, vmName)
+	if pod.Annotations[gracefulDrainAnnotation] == "xcresult-v1" && statusDir == "" {
+		return fmt.Errorf("cannot start a processor without its graceful-drain share")
+	}
+	if statusDir != "" {
+		sharedDirs = append(sharedDirs, "status:"+statusDir)
 	}
 
 	// Record the Pod ↔ VM mapping before kicking the VM off so the
@@ -543,10 +609,11 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// and the GC loop would happily reap it on the next pass —
 	// exactly the orphan we used to clean up reactively.
 	entry := &Entry{
-		VMName:          vmName,
-		StartTS:         metav1.Now(),
-		Volume:          att,
-		VolumeStatusDir: statusDir,
+		PodName:   pod.Name,
+		PodUID:    string(pod.UID),
+		VMName:    vmName,
+		StartTS:   metav1.Now(),
+		StatusDir: statusDir,
 	}
 	r.Store.Put(pod.Namespace, pod.Name, entry)
 
@@ -558,9 +625,7 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		// Roll back the Store entry — the VM either never started
 		// (cmd.Start error) or `tart run` exited immediately, so
 		// there is no live VM for podStatus to observe and no
-		// background process for deletePod to tear down. Discard the
-		// prepared branch so it doesn't leak on the retry.
-		r.finalizeVolume(entry, "", false)
+		// background process for deletePod to tear down.
 		r.Store.Delete(pod.Namespace, pod.Name)
 		return fmt.Errorf("tart run: %w", err)
 	}
@@ -585,10 +650,12 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 const goldenBaseVMPrefix = "tuist-golden-"
 
 // goldenVMName derives the deterministic golden base VM name for an
-// image ref. Runner images are digest-pinned, so the hash changes only
-// when the digest rolls — a new digest gets its own golden and the
-// superseded one ages out of the GC. An 8-byte SHA-256 prefix is
-// collision-safe for the handful of digests a host ever sees and keeps
+// image ref string, not the content it resolves to: two refs to the same
+// manifest get two goldens. Catalog pools name their image by digest
+// (`…/tuist-runner@sha256:…`), so their golden changes only when the
+// content does; a pool that pins a tag gets a new golden with every new
+// tag. A superseded golden ages out of the GC. An 8-byte SHA-256 prefix
+// is collision-safe for the handful of refs a host ever sees and keeps
 // the name well inside Tart's 63-char limit.
 func goldenVMName(image string) string {
 	sum := sha256.Sum256([]byte(image))
@@ -607,7 +674,7 @@ func isGoldenVMName(name string) bool {
 //
 // CONTRACT: this prefix and the hash (the same 8-byte SHA-256 prefix of the
 // image ref that goldenVMName embeds) MUST match the runners-controller's
-// `podtemplate.goldenNodeLabelPrefix` / `goldenNodeAffinityKey`. They live in
+// `podtemplate.goldenNodeLabelPrefix` / `GoldenNodeAffinityKey`. They live in
 // separate Go modules, coupled by convention, not shared code.
 const goldenNodeLabelPrefix = "tuist.dev/golden-"
 
@@ -642,13 +709,102 @@ func GoldenNodeLabels(ctx context.Context, t *tart.Client) (map[string]string, e
 	return labels, nil
 }
 
+// errGoldenPulling reports that the Pod's golden base is being materialized
+// in the background. The Pod stays Pending (`PullingImage`) and is
+// re-enqueued when the golden's materialization ends.
+var errGoldenPulling = errors.New("pulling the runner image into this host's golden base")
+
+// goldenRetryInterval is how long a failed background pull is reported to
+// the Pods that wait on it before one of them pulls again, the requeue a
+// failed create gets.
+const goldenRetryInterval = 30 * time.Second
+
+// readyGolden returns this host's golden base for image without waiting on a
+// pull. A cold pull takes minutes (532 s and 562 s on two rack hosts on
+// 2026-10-21) and the Pod controller has a single worker, so pulling inside
+// the reconcile held the teardown of every finished Pod on the host, and
+// their VM slots, for as long. When the golden is missing, readyGolden starts
+// materializing it in the background (or joins the materialization already
+// running, including the prewarmer's) and returns errGoldenPulling; the Pod
+// is re-enqueued when it ends. pulledAt is when the background pull started,
+// for the one Pod that clones first from a golden it pulled, and zero for a
+// golden that was already there.
+func (r *Reconciler) readyGolden(ctx context.Context, pod *corev1.Pod, image string) (name string, pulledAt time.Time, err error) {
+	name = goldenVMName(image)
+	key := types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}
+
+	r.goldenMu.Lock()
+	lock := r.goldenLockLocked(name)
+	if !lock.TryLock() {
+		r.waitForGoldenLocked(name, key)
+		r.goldenMu.Unlock()
+		return "", time.Time{}, errGoldenPulling
+	}
+	if failure, ok := r.goldenFailures[name]; ok {
+		if r.clock().Sub(failure.at) < goldenRetryInterval {
+			r.goldenMu.Unlock()
+			lock.Unlock()
+			return "", time.Time{}, failure.err
+		}
+		delete(r.goldenFailures, name)
+	}
+	r.goldenMu.Unlock()
+
+	vm, getErr := r.Tart.Get(ctx, name)
+	if getErr == nil && vm != nil {
+		r.goldenMu.Lock()
+		pulledAt = r.goldenPulled[name]
+		delete(r.goldenPulled, name)
+		r.goldenMu.Unlock()
+		r.releaseGolden(name, lock)
+		r.recordGolden(ctx)
+		return name, pulledAt, nil
+	}
+	if getErr != nil {
+		// Not the (nil, nil) "not found" case — `tart get` actually
+		// errored (timeout, lock contention, parse). The golden may well
+		// exist on disk; a run of these lines is the signal that a rising
+		// materialized rate is a warm-path miss, not first-sight.
+		log.FromContext(ctx).Error(getErr, "golden warm-path probe failed; taking cold path (may re-pull)", "golden", name)
+	}
+
+	r.goldenMu.Lock()
+	r.waitForGoldenLocked(name, key)
+	r.goldenMu.Unlock()
+	// The pull outlives this reconcile but not the controller: ctx is the
+	// controller's, which controller-runtime cancels only on shutdown.
+	go r.pullGoldenInBackground(ctx, image, name, lock, r.clock())
+	return "", time.Time{}, errGoldenPulling
+}
+
+// pullGoldenInBackground materializes a golden whose lock the caller holds,
+// records the outcome for the Pods that wait on it and releases the lock.
+func (r *Reconciler) pullGoldenInBackground(ctx context.Context, image, name string, lock *sync.Mutex, started time.Time) {
+	err := r.materializeGolden(ctx, image, name)
+	r.goldenMu.Lock()
+	if err != nil {
+		r.goldenFailures = orEmpty(r.goldenFailures)
+		r.goldenFailures[name] = goldenFailure{err: err, at: r.clock()}
+	} else {
+		r.goldenPulled = orEmpty(r.goldenPulled)
+		r.goldenPulled[name] = started
+	}
+	r.goldenMu.Unlock()
+	if err != nil && !errors.Is(err, errMirrorSyncing) {
+		log.FromContext(ctx).Error(err, "materialize golden base", "golden", name, "image", image)
+	}
+	r.releaseGolden(name, lock)
+}
+
 // ensureGolden materializes this host's golden base VM for `image`
-// exactly once and returns its name. The first call for a digest pays
-// the full `tart pull` + `tart clone` (download + extract the multi-GB
-// image into a runnable bundle); every later call returns immediately
-// off the on-disk golden, and the runner clones the caller makes from
-// it are APFS clonefiles that touch the network zero times. `materialized`
-// is true only on the cold path so the caller can count real pulls.
+// exactly once and returns its name, waiting for the pull. The prewarmer
+// calls it; a Pod goes through readyGolden, which never waits. The first
+// call for a digest pays the full `tart pull` + `tart clone` (download +
+// extract the multi-GB image into a runnable bundle); every later call
+// returns immediately off the on-disk golden, and the runner clones made
+// from it are APFS clonefiles that touch the network zero times.
+// `materialized` is true only on the cold path so the caller can count real
+// pulls.
 //
 // The golden is never run; it's a stable copy-on-write base. Deleting
 // its source OCI cache later is safe — APFS keeps the shared blocks
@@ -656,55 +812,118 @@ func GoldenNodeLabels(ctx context.Context, t *tart.Client) (map[string]string, e
 func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name string, materialized bool, err error) {
 	name = goldenVMName(image)
 
-	unlock := r.lockGolden(name)
-	defer unlock()
+	r.goldenMu.Lock()
+	lock := r.goldenLockLocked(name)
+	r.goldenMu.Unlock()
+	lock.Lock()
+	defer r.releaseGolden(name, lock)
 
 	// Warm path: golden already on disk for this digest — no network.
 	vm, getErr := r.Tart.Get(ctx, name)
 	if getErr == nil && vm != nil {
+		r.recordGolden(ctx)
 		return name, false, nil
 	}
 	if getErr != nil {
-		// Not the (nil, nil) "not found" case — `tart get` actually
-		// errored (timeout, lock contention, parse). The golden may well
-		// exist on disk; falling through to the cold path re-pulls the
-		// whole image needlessly, so surface the probe failure instead
-		// of silently churning. A run of these lines is the signal that
-		// a rising materialized rate is a warm-path miss, not first-sight.
 		log.FromContext(ctx).Error(getErr, "golden warm-path probe failed; taking cold path (may re-pull)", "golden", name)
 	}
 
-	// Cold path: pull + materialize once. Mirror the disk-pressure
-	// handling the per-recycle pull used to have so a full host frees
-	// space and retries rather than wedging the digest's first
-	// provision. RunOnceReclaim is the aggressive variant: under genuine
-	// no-space it evicts even within-retention unreferenced goldens,
-	// which a non-aggressive pass would keep.
-	if pullErr := r.Tart.Pull(ctx, image); pullErr != nil {
-		if r.GC != nil && IsNoSpaceError(pullErr) {
-			r.GC.RunOnceReclaim(ctx)
-			if pullErr2 := r.Tart.Pull(ctx, image); pullErr2 != nil {
-				return "", false, fmt.Errorf("tart pull (after gc): %w", pullErr2)
-			}
-		} else {
-			return "", false, fmt.Errorf("tart pull: %w", pullErr)
-		}
-	}
-	if cloneErr := r.Tart.Clone(ctx, image, name); cloneErr != nil {
-		// A half-created golden (clone failed mid-way) would make every
-		// later clone-from-golden fail. Best-effort delete so the next
-		// provision re-materializes from scratch.
-		_ = r.Tart.Delete(ctx, name)
-		return "", false, fmt.Errorf("materialize golden base: %w", cloneErr)
+	if err := r.materializeGolden(ctx, image, name); err != nil {
+		return "", false, err
 	}
 	return name, true, nil
 }
 
-// lockGolden returns the unlock func for the per-golden-name mutex,
-// lazily creating the lock map on first use (the Reconciler is built as
-// a struct literal, so the map starts nil).
-func (r *Reconciler) lockGolden(name string) func() {
-	r.goldenMu.Lock()
+// materializeGolden pulls image and clones it into the golden `name`. The
+// caller holds the golden's lock and has found no golden on disk.
+func (r *Reconciler) materializeGolden(ctx context.Context, image, name string) error {
+	r.pullMu.Lock()
+	defer r.pullMu.Unlock()
+	pulled, err := r.pullGoldenImage(ctx, image)
+	if err != nil {
+		return err
+	}
+	if cloneErr := r.Tart.CloneFrom(ctx, pulled.ref, name, pulled.insecure); cloneErr != nil {
+		// A half-created golden (clone failed mid-way) would make every
+		// later clone-from-golden fail. Best-effort delete so the next
+		// provision re-materializes from scratch.
+		_ = r.Tart.Delete(ctx, name)
+		return fmt.Errorf("materialize golden base: %w", cloneErr)
+	}
+	r.recordGolden(ctx)
+	return nil
+}
+
+func (r *Reconciler) recordGolden(ctx context.Context) {
+	if r.HostDisk == nil {
+		return
+	}
+	if err := r.HostDisk.Record(); err != nil {
+		log.FromContext(ctx).Error(err, "record that the host holds a golden", "marker", r.HostDisk.MarkerPath)
+	}
+}
+
+// pullGoldenImage pulls image from the first rack image cache that holds it,
+// by the digest the cache served, and from image's own registry when none
+// does or a cache's pull fails. The golden keeps the name image gives it, so
+// where the bytes came from changes nothing a Pod, a Node label or the GC
+// keys on.
+func (r *Reconciler) pullGoldenImage(ctx context.Context, image string) (imagePull, error) {
+	logger := log.FromContext(ctx)
+	mirrors, err := r.Images.sources(ctx, image)
+	if err != nil {
+		return imagePull{}, err
+	}
+	for _, pull := range mirrors {
+		err := r.pullWithReclaim(ctx, pull)
+		if err == nil {
+			return pull, nil
+		}
+		if IsNoSpaceError(err) {
+			return imagePull{}, err
+		}
+		logger.Error(err, "pull from the rack image cache failed; pulling from the upstream", "image", image, "mirror", pull.mirror)
+	}
+	upstream := imagePull{ref: image}
+	if err := r.pullWithReclaim(ctx, upstream); err != nil {
+		return imagePull{}, err
+	}
+	return upstream, nil
+}
+
+// pullWithReclaim mirrors the disk-pressure handling the per-recycle pull
+// used to have: a full host frees space and retries once rather than wedging
+// the digest's first provision. RunOnceReclaim is the aggressive variant:
+// under genuine no-space it evicts even within-retention unreferenced
+// goldens, which a non-aggressive pass would keep.
+func (r *Reconciler) pullWithReclaim(ctx context.Context, pull imagePull) error {
+	source := "upstream"
+	if pull.mirror != "" {
+		source = "mirror"
+	}
+	start := time.Now()
+	err := r.Tart.PullFrom(ctx, pull.ref, pull.insecure)
+	recordImagePull(source, err, time.Since(start).Seconds())
+	if err == nil {
+		return nil
+	}
+	if r.GC == nil || !IsNoSpaceError(err) {
+		return fmt.Errorf("tart pull: %w", err)
+	}
+	r.GC.RunOnceReclaim(ctx)
+	start = time.Now()
+	err = r.Tart.PullFrom(ctx, pull.ref, pull.insecure)
+	recordImagePull(source, err, time.Since(start).Seconds())
+	if err != nil {
+		return fmt.Errorf("tart pull (after gc): %w", err)
+	}
+	return nil
+}
+
+// goldenLockLocked returns the per-golden-name mutex, creating it on first
+// use (the Reconciler is built as a struct literal, so the map starts nil).
+// The caller holds goldenMu.
+func (r *Reconciler) goldenLockLocked(name string) *sync.Mutex {
 	if r.goldenLocks == nil {
 		r.goldenLocks = map[string]*sync.Mutex{}
 	}
@@ -713,10 +932,55 @@ func (r *Reconciler) lockGolden(name string) func() {
 		m = &sync.Mutex{}
 		r.goldenLocks[name] = m
 	}
-	r.goldenMu.Unlock()
+	return m
+}
 
-	m.Lock()
-	return m.Unlock
+// waitForGoldenLocked records that the Pod waits on the golden `name`. The
+// caller holds goldenMu.
+func (r *Reconciler) waitForGoldenLocked(name string, pod types.NamespacedName) {
+	if r.goldenWaiters == nil {
+		r.goldenWaiters = map[string]map[types.NamespacedName]struct{}{}
+	}
+	if r.goldenWaiters[name] == nil {
+		r.goldenWaiters[name] = map[types.NamespacedName]struct{}{}
+	}
+	r.goldenWaiters[name][pod] = struct{}{}
+}
+
+// releaseGolden unlocks the golden `name` and re-enqueues the Pods that
+// waited on it. A waiter that registers after the unlock finds the lock free
+// and probes the golden itself, so none is missed.
+func (r *Reconciler) releaseGolden(name string, lock *sync.Mutex) {
+	lock.Unlock()
+	r.goldenMu.Lock()
+	waiters := r.goldenWaiters[name]
+	delete(r.goldenWaiters, name)
+	r.goldenMu.Unlock()
+	if r.requeueEvents == nil {
+		return
+	}
+	for pod := range waiters {
+		ref := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: pod.Namespace, Name: pod.Name}}
+		select {
+		case r.requeueEvents <- event.GenericEvent{Object: ref}:
+		default:
+			// Queue full; the periodic requeue retries the Pod instead.
+		}
+	}
+}
+
+func (r *Reconciler) clock() time.Time {
+	if r.now != nil {
+		return r.now()
+	}
+	return time.Now()
+}
+
+func orEmpty[V any](m map[string]V) map[string]V {
+	if m == nil {
+		return map[string]V{}
+	}
+	return m
 }
 
 // startMetricsForwarder spins up the host-side TCP relay declared by
@@ -852,16 +1116,11 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 	if entry.VNCForwarder == nil {
 		target := net.JoinHostPort(vncInfo.Host, strconv.Itoa(vncInfo.Port))
 		resolve := func() (string, error) { return target, nil }
-		listenPort := "0"
-		if r.VNCRelayPort > 0 {
-			listenPort = strconv.Itoa(r.VNCRelayPort)
-		}
-		listenAddr := net.JoinHostPort(r.NodeIP, listenPort)
 		allowed := r.ScrapeAllowedCIDRs
 		if len(allowed) == 0 {
 			allowed = DefaultScrapeAllowedCIDRs()
 		}
-		fw, err := NewVNCForwarder(listenAddr, resolve, vncInfo.Password, relayTokenHash, TCPForwarderOptions{AllowedCIDRs: allowed})
+		fw, listenAddr, err := r.bindVNCForwarder(resolve, vncInfo.Password, relayTokenHash, allowed)
 		if err != nil {
 			return fmt.Errorf("start VNC forwarder for %s/%s on %s: %w", pod.Namespace, pod.Name, listenAddr, err)
 		}
@@ -870,6 +1129,58 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 	}
 
 	return r.writeVNCState(ctx, pod, entry, vncInfo)
+}
+
+// bindVNCForwarder starts the host-side relay on the first port of the
+// pinned range that is free, or on an ephemeral port when no range is
+// pinned. Returns the forwarder and the address it bound (or, on
+// failure, the last address attempted, so the caller's error names
+// something concrete).
+//
+// Walking the range instead of tracking allocations ourselves means a
+// relay leaked by a crashed process, a port taken by something else on
+// the host, and a sibling guest's live relay are all the same case: the
+// bind fails and we move on. There is no table that can disagree with
+// the kernel.
+func (r *Reconciler) bindVNCForwarder(
+	resolve func() (string, error),
+	password string,
+	relayTokenHash string,
+	allowed []*net.IPNet,
+) (*TCPForwarder, string, error) {
+	opts := TCPForwarderOptions{AllowedCIDRs: allowed}
+
+	if r.VNCRelayPort <= 0 {
+		listenAddr := net.JoinHostPort(r.NodeIP, "0")
+		fw, err := NewVNCForwarder(listenAddr, resolve, password, relayTokenHash, opts)
+		return fw, listenAddr, err
+	}
+
+	count := r.VNCRelayPortCount
+	if count < 1 {
+		count = 1
+	}
+
+	var (
+		lastErr  error
+		lastAddr string
+	)
+	for offset := 0; offset < count; offset++ {
+		port := r.VNCRelayPort + offset
+		if port > 65535 {
+			break
+		}
+		lastAddr = net.JoinHostPort(r.NodeIP, strconv.Itoa(port))
+		fw, err := NewVNCForwarder(lastAddr, resolve, password, relayTokenHash, opts)
+		if err == nil {
+			return fw, lastAddr, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no port in range %d-%d", r.VNCRelayPort, r.VNCRelayPort+count-1)
+	}
+	return nil, lastAddr, lastErr
 }
 
 func (r *Reconciler) stopVNCForwarder(namespace, name string, entry *Entry) {
@@ -1093,7 +1404,7 @@ func vncControlKey(namespace, name string) string {
 }
 
 func vncCapableRunnerPod(pod *corev1.Pod) bool {
-	return pod.Labels["tuist.dev/runner"] == "true"
+	return pod.Labels[runnerPodLabel] == "true"
 }
 
 func vncURL(host string, port int, password string) string {
@@ -1120,14 +1431,6 @@ func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
 }
 
 func (r *Reconciler) deletePod(ctx context.Context, pod *corev1.Pod) error {
-	// A Pod deleted out from under a running job (drain, scale-down,
-	// eviction) means the job was interrupted, so its cache-volume branch is
-	// discarded (cleanExit=false). A Pod deleted after a clean Succeeded
-	// transition already had its branch finalized on the terminal path, so
-	// this is a no-op there (the branch was consumed).
-	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil {
-		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], false)
-	}
 	// VM teardown only. The caller removes the finalizer and force-
 	// completes the API object deletion afterward.
 	return r.deleteByKey(ctx, pod.Namespace, pod.Name)
@@ -1153,16 +1456,15 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 		return nil
 	}
 
+	if entry.Readiness != nil {
+		entry.Readiness.Stop()
+		entry.Readiness = nil
+	}
 	if entry.MetricsForwarder != nil {
 		entry.MetricsForwarder.Stop()
 		entry.MetricsForwarder = nil
 	}
 	r.stopVNCForwarder(namespace, name, entry)
-
-	// Safety net: if the branch was not already finalized on a completion
-	// path (e.g. the Pod object vanished before we could observe its
-	// account), discard it so it never leaks. No-op once consumed.
-	r.finalizeVolume(entry, "", false)
 
 	_ = r.Tart.Stop(ctx, entry.VMName, 30*time.Second)
 	if err := r.Tart.Delete(ctx, entry.VMName); err != nil {
@@ -1219,23 +1521,19 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 	}
 
 	if !running {
-		// VM exited cleanly. A recovered VM (Run == nil after a kubelet
-		// restart) never passed through the terminal-phase finalize above, so
-		// promote/discard its cache branch HERE from the account label and the
-		// guest's dirty marker — the marker exists only on a clean job
-		// completion and already encodes job success (rc-gated), so treating the
-		// observed stop as a clean exit is correct. Without this, deleteByKey's
-		// safety-net finalize (empty account, cleanExit=false) would discard a
-		// successfully completed dirty branch instead of promoting it. Idempotent
-		// with the terminal path: finalize no-ops once the branch is consumed.
-		// Read the guest's exit report, and the time it was written,
-		// before deleteByKey removes the status share they live in. No
+		// VM exited cleanly. Read the guest's exit report, and the time it
+		// was written, before deleteByKey removes the status share they live in. No
 		// `tart run` error is available on this path — the process is
 		// simply gone — so the guest's own report is the only exit code
 		// and the only exit time there will ever be.
 		exitCode, exitReason := r.runnerTermination(entry, nil)
 		finishedAt := runnerFinishedAt(entry)
-		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], true)
+		// Same reason as the terminal path: publish the guest's log while
+		// the share still exists. This path has even less to go on — there
+		// is no `tart run` error at all — so the log is the whole story.
+		if tail := readRunnerLog(entry.StatusDir); tail != "" {
+			log.FromContext(ctx).Info("runner log", "vm", entry.VMName, "runnerLog", tail)
+		}
 		// Tear down the Tart clone + Store entry so the host state mirrors what
 		// the API server will see post-update, then mark the Pod Succeeded so
 		// the watcher refills the warm pool.
@@ -1292,29 +1590,33 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 			log.FromContext(ctx).Error(err, "sync VNC forwarder",
 				"pod", pod.Namespace+"/"+pod.Name)
 		}
-		// Ready means "the VM process is alive and has an IP", nothing
-		// more. tart-kubelet implements no container probes, so a
-		// readinessProbe in a PodSpec is silently ignored and a guest
-		// whose workload died after boot still reads 1/1 Running. Two
-		// xcresult-processor outages have taken that shape (2026-06-26
-		// host NAT, 2026-08-12 expired Tailscale pre-auth key), both
-		// with every Kubernetes-level signal green throughout. Until
-		// probes exist, that gap is covered outside the cluster by the
+		// Without a readinessProbe, Ready means "the VM process is alive
+		// and has an IP", nothing more: a guest whose workload died after
+		// boot still reads 1/1 Running. Customer runner Pods declare no
+		// probe and stay on that path. With an httpGet or tcpSocket
+		// readinessProbe, Ready is the latest result of a prober that runs
+		// against the guest IP off this path (see readiness.go). Two
+		// xcresult-processor outages had every Kubernetes-level signal
+		// green throughout (2026-06-26 host NAT, 2026-08-12 expired
+		// Tailscale pre-auth key), which is what the probe closes; the
 		// scrape-target and queue-age rules in
-		// infra/helm/k8s-monitoring/alerts.md. Anything relying on
-		// readiness to mean "serving" needs to add probe support here
-		// first; note that doing so also makes a false negative able to
-		// stall rollouts and block drains fleet-wide, since customer
-		// runner Pods take this same path.
-		status.Conditions = []corev1.PodCondition{
-			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+		// infra/helm/k8s-monitoring/alerts.md still cover it from outside.
+		// A wrong probe holds rollouts and PodDisruptionBudgets, so probes
+		// stay opt-in per PodSpec and never gate deletion.
+		ready := r.syncReadinessProbe(pod, entry, ip)
+		readyCondition := corev1.PodCondition{Type: corev1.PodReady, Status: corev1.ConditionTrue}
+		if !ready {
+			readyCondition.Status = corev1.ConditionFalse
+			readyCondition.Reason = "ReadinessProbeFailed"
+			readyCondition.Message = "the guest has not passed its readinessProbe"
 		}
+		status.Conditions = []corev1.PodCondition{readyCondition}
 		// tart-kubelet runs the Pod as a single VM with no per-container
 		// CRI, so the API server receives no containerStatuses on its own
 		// and `kubectl get pods` reads 0/N READY for a healthy VM. Mirror
 		// the Ready condition above into synthesized statuses so the READY
 		// column reflects the running workload.
-		status.ContainerStatuses = runningContainerStatuses(pod, entry.VMName, entry.StartTS)
+		status.ContainerStatuses = runningContainerStatuses(pod, entry.VMName, entry.StartTS, ready)
 	} else {
 		// VM process is alive but IP isn't yet available — the
 		// guest is still booting. Pending is the right read.
@@ -1324,14 +1626,14 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 }
 
 // runningContainerStatuses synthesizes the per-container statuses for a
-// Pod whose Tart VM is up and serving. tart-kubelet has no per-container
-// runtime to source them from, so without this a healthy VM reports 0/N
-// READY in `kubectl get pods` even though its Pod Ready condition is
-// true. The statuses mirror that condition: VM running with an IP means
-// the workload is serving, so each container reads Ready + Running. Pod
-// ↔ VM is 1:1 (multi-container Pods are rejected at admission), so this
-// is effectively a single status.
-func runningContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.Time) []corev1.ContainerStatus {
+// Pod whose Tart VM is up. tart-kubelet has no per-container runtime to
+// source them from, so without this a healthy VM reports 0/N READY in
+// `kubectl get pods` even though its Pod Ready condition is true. The
+// statuses mirror that condition: each container reads Running, and
+// Ready matches the Pod's readiness. Pod ↔ VM is 1:1 (multi-container
+// Pods are rejected at admission), so this is effectively a single
+// status.
+func runningContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.Time, ready bool) []corev1.ContainerStatus {
 	started := true
 	statuses := make([]corev1.ContainerStatus, 0, len(pod.Spec.Containers))
 	for _, c := range pod.Spec.Containers {
@@ -1339,7 +1641,7 @@ func runningContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.T
 			Name:         c.Name,
 			Image:        c.Image,
 			ContainerID:  "tart://" + vmName,
-			Ready:        true,
+			Ready:        ready,
 			Started:      &started,
 			RestartCount: 0,
 			State: corev1.ContainerState{
@@ -1418,7 +1720,7 @@ func terminatedContainerStatuses(
 // report the tart-level code is published under a reason that says so,
 // rather than being dressed up as the runner's own.
 func (r *Reconciler) runnerTermination(entry *Entry, runErr error) (int32, string) {
-	if code, ok := readRunnerExit(entry.VolumeStatusDir); ok {
+	if code, ok := readRunnerExit(entry.StatusDir); ok {
 		if code == 0 {
 			return 0, runnerExitReasonCompleted
 		}
@@ -1456,7 +1758,7 @@ func runnerFinishedAt(entry *Entry) metav1.Time {
 			return metav1.NewTime(at)
 		}
 	}
-	if at, ok := readRunnerExitTime(entry.VolumeStatusDir); ok {
+	if at, ok := readRunnerExitTime(entry.StatusDir); ok {
 		return metav1.NewTime(at)
 	}
 	return metav1.NewTime(time.Now())
@@ -1465,6 +1767,90 @@ func runnerFinishedAt(entry *Entry) metav1.Time {
 func (r *Reconciler) publishStatus(ctx context.Context, pod *corev1.Pod, status *corev1.PodStatus) error {
 	pod.Status = *status
 	return r.CachedClient.Status().Update(ctx, pod)
+}
+
+// publishRunnerHeartbeat mirrors the guest's liveness beat onto the Pod so
+// the runners-controller can tell a warm runner from a Pod whose guest
+// stopped polling. Only the host can see it: the beat is a file in the
+// per-VM status share, and nothing off-Node can read that.
+//
+// Absence is load-bearing, in both directions:
+//
+//   - A Pod that has never carried these annotations is one this host
+//     cannot speak for — no status share, or a runner image from before
+//     the guest wrote a beat. The controller treats that as no signal
+//     and keeps counting the Pod as capacity, so neither case can strand
+//     a fleet by making every Pod look dead.
+//   - Once published, they are never withdrawn. Clearing them on a read
+//     failure would turn exactly the state worth reporting — a guest that
+//     stopped beating — back into "no signal", which is the reading that
+//     fails open.
+//
+// Best-effort: a failed patch leaves the previous beat in place and the
+// next reconcile retries. Called after the status update rather than
+// before, so this patch cannot invalidate the resourceVersion that update
+// still needs.
+func (r *Reconciler) publishRunnerHeartbeat(ctx context.Context, pod *corev1.Pod) error {
+	if r.CachedClient == nil {
+		return nil
+	}
+	entry := r.Store.Get(pod.Namespace, pod.Name)
+	if entry == nil {
+		return nil
+	}
+	state, beatAt, ok := readRunnerHeartbeat(entry.StatusDir)
+	if !ok {
+		return nil
+	}
+	// UTC, so the published value is comparable wherever it is read and
+	// does not carry whatever offset the Mac host happens to be set to.
+	beatAt = beatAt.UTC()
+	// A beat dated ahead of the host reads as now. The guest cannot move
+	// this file's mtime forward on its own — virtio-fs stamps it host-side
+	// — but a clock step on the host can leave one behind, and publishing
+	// a future timestamp would make the Pod look fresh for as long as the
+	// skew lasts.
+	now := time.Now().UTC()
+	if beatAt.After(now) {
+		beatAt = now
+	}
+
+	published := pod.Annotations[runnerHeartbeatAtAnnotation]
+	if pod.Annotations[runnerHeartbeatStateAnnotation] == state {
+		// Same state: republish only once the timestamp has moved enough
+		// to be worth a write. An unparseable value republishes, which is
+		// how a hand-edited or truncated annotation heals.
+		//
+		// The window is bounded at both ends, and the lower bound is the
+		// one that is easy to miss. A host clock stepped backwards dates
+		// every subsequent beat BEFORE what is already on the Pod, so a
+		// bare "advanced less than the interval" test would suppress the
+		// write on a negative delta and go on suppressing it for the whole
+		// length of the rollback. The Pod would then carry a future-dated
+		// beat that the controller compares against its own rolled-back
+		// clock, which reads fresh no matter what the guest is doing —
+		// precisely the state this signal exists to detect. A backwards
+		// beat is new information, so it publishes; one write puts the
+		// annotation back on the host's timeline and the throttle resumes.
+		if at, err := time.Parse(time.RFC3339, published); err == nil {
+			if moved := beatAt.Sub(at); moved >= 0 && moved < heartbeatRepublishInterval {
+				return nil
+			}
+		}
+	}
+
+	patched := pod.DeepCopy()
+	annotations := patched.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[runnerHeartbeatStateAnnotation] = state
+	annotations[runnerHeartbeatAtAnnotation] = beatAt.Format(time.RFC3339)
+	patched.SetAnnotations(annotations)
+	if err := r.CachedClient.Patch(ctx, patched, client.MergeFrom(pod)); err != nil {
+		return fmt.Errorf("patch runner heartbeat for %s/%s: %w", pod.Namespace, pod.Name, err)
+	}
+	return nil
 }
 
 // shouldAutomountSAToken mirrors kubelet's automount logic: the
@@ -1581,6 +1967,8 @@ func VMNameForPod(pod *corev1.Pod) string {
 // Tart endpoint state lives under Reconciler.VNCControlDir, while Pod
 // annotations carry only server-consumable relay readiness metadata.
 type Entry struct {
+	PodName string
+	PodUID  string
 	VMName  string
 	StartTS metav1.Time
 	Run     *tart.RunHandle
@@ -1595,13 +1983,15 @@ type Entry struct {
 	VNCForwarder      *TCPForwarder
 	VNCRelayTokenHash string
 
-	// Volume is the per-account cache-volume branch attached to this VM at
-	// boot. Zero value (Attached false) means the VM booted on
-	// the cold path; the finalize + cleanup steps then no-op.
-	Volume VolumeAttachment
-	// VolumeStatusDir is the host path of the writable share the guest
-	// writes its cache dirty marker into. Empty when no volume was attached.
-	VolumeStatusDir string
+	// Readiness runs the Pod's readinessProbe against the guest. Nil for
+	// Pods without one and until the guest first has an IP.
+	Readiness *readinessProber
+	// readinessUnsupportedReported keeps the Warning for a probe this
+	// runtime cannot evaluate to one event per VM.
+	readinessUnsupportedReported bool
+
+	// StatusDir is the host path of the guest-writable status share; empty for non-runner Pods.
+	StatusDir string
 }
 
 // Store is a tiny thread-safe map. Backed by in-memory state — on

@@ -57,12 +57,13 @@ enum GitFetchFailure {
 }
 
 enum SystemProcess {
-    /// swifterpm invokes git non-interactively: output is captured and fetches run
-    /// in parallel, so a built-in credential prompt (git opens /dev/tty directly)
-    /// would block invisibly in any environment, not just CI. Force git to fail fast
-    /// on a missing credential instead. Credential helpers, ssh-agent, and ~/.netrc
-    /// are unaffected, so configured authentication still works.
-    static let nonInteractiveGitEnvironment = ["GIT_TERMINAL_PROMPT": "0"]
+    /// Match SwiftPM's Git environment defaults without replacing user configuration.
+    static var nonInteractiveGitEnvironment: [String: String] {
+        [
+            "GIT_TERMINAL_PROMPT": Environment.current["GIT_TERMINAL_PROMPT"] ?? "0",
+            "GIT_SSH_COMMAND": Environment.current["GIT_SSH_COMMAND"] ?? "ssh -oBatchMode=yes",
+        ]
+    }
 
     struct Result {
         let stdout: Data
@@ -83,21 +84,43 @@ enum SystemProcess {
         _ arguments: [String],
         workingDirectory: URL? = nil,
         environment: [String: String] = [:],
+        customEnvironment: [String: String]? = nil,
+        input: String = "",
+        gracefulShutdown: Bool = false,
+        failureMessage: String? = nil,
         forwardOutput: Bool = false,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> Result {
+        var platformOptions = PlatformOptions()
+        if gracefulShutdown {
+            platformOptions.teardownSequence = [.gracefulShutDown(allowedDurationToNextStep: .seconds(5))]
+        }
         if forwardOutput {
-            let result = try await Subprocess.run(
+            // Standard error is teed rather than inherited so a failure can report what the
+            // child printed, not only its exit status.
+            let outcome = try await Subprocess.run(
                 subprocessExecutable(executable),
                 arguments: Arguments(arguments),
-                environment: subprocessEnvironment(environment),
+                environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
                 workingDirectory: workingDirectory.map { FilePath($0.path) },
-                output: .standardOutput,
-                error: .standardError
-            )
+                platformOptions: platformOptions,
+                input: .string(input),
+                output: .standardOutput
+            ) { _, errorSequence in
+                var captured = Data()
+                for try await buffer in errorSequence {
+                    let chunk = buffer.withUnsafeBytes { Data($0) }
+                    FileHandle.standardError.write(chunk)
+                    captured.append(chunk.prefix(max(0, outputLimit - captured.count)))
+                }
+                return captured
+            }
 
-            guard result.terminationStatus.isSuccess else {
-                throw ToolError.message(result.terminationStatus.description)
+            guard outcome.terminationStatus.isSuccess else {
+                let stderrText = String(decoding: outcome.value, as: UTF8.self)
+                throw ToolError.message(
+                    failureMessage ?? (stderrText.isEmpty ? outcome.terminationStatus.description : stderrText)
+                )
             }
 
             return Result(stdout: Data(), stderr: Data())
@@ -106,8 +129,10 @@ enum SystemProcess {
         let result = try await Subprocess.run(
             subprocessExecutable(executable),
             arguments: Arguments(arguments),
-            environment: subprocessEnvironment(environment),
+            environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
             workingDirectory: workingDirectory.map { FilePath($0.path) },
+            platformOptions: platformOptions,
+            input: .string(input),
             output: .bytes(limit: outputLimit),
             error: .bytes(limit: outputLimit)
         )
@@ -117,7 +142,7 @@ enum SystemProcess {
             let stdoutText = String(data: Data(result.standardOutput), encoding: .utf8) ?? ""
             let message = stderrText.isEmpty ? stdoutText : stderrText
             throw ToolError.message(
-                message.isEmpty ? result.terminationStatus.description : message
+                failureMessage ?? (message.isEmpty ? result.terminationStatus.description : message)
             )
         }
 
@@ -129,6 +154,7 @@ enum SystemProcess {
         _ arguments: [String],
         workingDirectory: URL? = nil,
         environment: [String: String] = [:],
+        customEnvironment: [String: String]? = nil,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> String {
         try await run(
@@ -136,6 +162,7 @@ enum SystemProcess {
             arguments,
             workingDirectory: workingDirectory,
             environment: environment,
+            customEnvironment: customEnvironment,
             outputLimit: outputLimit
         ).stdoutString
     }
@@ -144,9 +171,27 @@ enum SystemProcess {
         executable.contains("/") ? .path(FilePath(executable)) : .name(executable)
     }
 
-    private static func subprocessEnvironment(_ environment: [String: String])
+    private static func subprocessEnvironment(
+        _ environment: [String: String],
+        customEnvironment: [String: String]?
+    )
         -> Subprocess.Environment
     {
+        if let customEnvironment {
+            var values: [Subprocess.Environment.Key: String] = [:]
+            var overrides: [Subprocess.Environment.Key: String?] = [:]
+            for (key, value) in customEnvironment {
+                if let subprocessKey = Subprocess.Environment.Key(rawValue: key) {
+                    values[subprocessKey] = value
+                }
+            }
+            for (key, value) in environment {
+                if let subprocessKey = Subprocess.Environment.Key(rawValue: key) {
+                    overrides[subprocessKey] = value
+                }
+            }
+            return .custom(values).updating(overrides)
+        }
         guard !environment.isEmpty else { return .inherit }
         var overrides: [Subprocess.Environment.Key: String?] = [:]
         for (key, value) in environment {
@@ -175,9 +220,9 @@ enum HTTPClient {
         return URLSession(configuration: configuration)
     }()
 
-    static func defaultHeaders(for url: URL) async -> [String: String] {
+    static func defaultHeaders(for url: URL) async throws -> [String: String] {
         var headers = ["User-Agent": "swifterpm/0.1"]
-        if let authorization = await HTTPAuthorization.header(for: url) {
+        if let authorization = try await HTTPAuthorization.header(for: url) {
             headers["Authorization"] = authorization
         }
         return headers
@@ -185,8 +230,8 @@ enum HTTPClient {
 
     /// Headers for downloading a binary artifact archive. GitHub's release-asset
     /// endpoint returns asset metadata unless the request accepts the raw bytes.
-    static func binaryArtifactHeaders(for url: URL) async -> [String: String] {
-        var headers = await defaultHeaders(for: url)
+    static func binaryArtifactHeaders(for url: URL) async throws -> [String: String] {
+        var headers = try await defaultHeaders(for: url)
         headers["Accept"] = "application/octet-stream"
         return headers
     }
@@ -227,17 +272,14 @@ enum HTTPClient {
     }
 
     private static func ensureSuccessfulStatus(_ response: URLResponse, url: URL) throws {
-        if let httpResponse = response as? HTTPURLResponse,
-           !(200 ..< 300).contains(httpResponse.statusCode)
-        {
-            throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
+        if let error = StatusError(response: response, requestedURL: url) {
+            throw error
         }
     }
 
-    // Retries transient transport failures (timeouts, dropped or half-open
-    // connections) on a fresh connection with linear backoff. HTTP status
-    // failures are not retried: a non-2xx response is deterministic for an
-    // artifact URL, so a retry would only delay the surfaced error.
+    /// Retries transient transport failures (timeouts, dropped or half-open
+    /// connections) and transient HTTP statuses on a fresh connection with
+    /// linear backoff.
     private static func withRetry<T>(
         _ operation: @Sendable () async throws -> T
     ) async throws -> T {
@@ -246,10 +288,18 @@ enum HTTPClient {
             do {
                 return try await operation()
             } catch let error as URLError where attempt < maxAttempts && isRetryable(error) {
-                try? await Task.sleep(nanoseconds: UInt64(attempt) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: backoff(attempt: attempt, retryAfter: nil))
+                attempt += 1
+            } catch let error as StatusError where attempt < maxAttempts && error.isRetryable {
+                try? await Task.sleep(
+                    nanoseconds: backoff(attempt: attempt, retryAfter: error.retryAfter))
                 attempt += 1
             }
         }
+    }
+
+    private static func backoff(attempt: Int, retryAfter: TimeInterval?) -> UInt64 {
+        UInt64((retryAfter ?? TimeInterval(attempt)) * 1_000_000_000)
     }
 
     private static func isRetryable(_ error: URLError) -> Bool {
@@ -261,65 +311,133 @@ enum HTTPClient {
             return false
         }
     }
+
+    /// A non-2xx HTTP response. `url` is the URL that produced the status, which after a
+    /// redirect is not the URL that was requested. Rendering goes through
+    /// `redactingCredentials`, since a redirect target is routinely a presigned URL whose
+    /// query string carries a signature.
+    struct StatusError: Error, CustomStringConvertible {
+        /// Bounds a hostile or mistaken `Retry-After` so a restore cannot stall on it.
+        static let maximumRetryAfter: TimeInterval = 30
+
+        let statusCode: Int
+        let url: URL
+        let retryAfter: TimeInterval?
+
+        init?(response: URLResponse, requestedURL: URL, now: Date = Date()) {
+            guard let httpResponse = response as? HTTPURLResponse,
+                  !(200 ..< 300).contains(httpResponse.statusCode)
+            else { return nil }
+
+            statusCode = httpResponse.statusCode
+            url = httpResponse.url ?? requestedURL
+            retryAfter = Self.retryAfter(from: httpResponse, now: now)
+        }
+
+        var isRetryable: Bool {
+            statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)
+        }
+
+        var description: String {
+            "HTTP \(statusCode) for \(Self.redactingCredentials(url))"
+        }
+
+        /// Keeps scheme, host, port and path; drops user info, query and fragment.
+        static func redactingCredentials(_ url: URL) -> String {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.user = nil
+            components?.password = nil
+            components?.query = nil
+            components?.fragment = nil
+            if let string = components?.string, !string.isEmpty {
+                return string
+            }
+            let scheme = url.scheme.map { "\($0)://" } ?? ""
+            let port = url.port.map { ":\($0)" } ?? ""
+            return "\(scheme)\(url.host ?? "")\(port)\(url.path)"
+        }
+
+        /// `Retry-After` is either delay-seconds or an HTTP-date (RFC 9110 section 10.2.3).
+        private static func retryAfter(from response: HTTPURLResponse, now: Date) -> TimeInterval? {
+            guard let raw = response.value(forHTTPHeaderField: "Retry-After") else { return nil }
+            let value = raw.trimmingCharacters(in: .whitespaces)
+
+            let seconds: TimeInterval?
+            if let delay = TimeInterval(value) {
+                seconds = delay
+            } else if let date = httpDate(from: value) {
+                seconds = date.timeIntervalSince(now)
+            } else {
+                seconds = nil
+            }
+
+            guard let seconds, seconds > 0 else { return nil }
+            return min(seconds, maximumRetryAfter)
+        }
+
+        /// The three formats a recipient must accept (RFC 9110 section 5.6.7). Foundation
+        /// ships no HTTP-date constant, so they are spelled out here.
+        private enum HTTPDateFormat {
+            static let imfFixdate = "EEE, dd MMM yyyy HH:mm:ss zzz"
+            static let rfc850 = "EEEE, dd-MMM-yy HH:mm:ss zzz"
+            static let asctime = "EEE MMM d HH:mm:ss yyyy"
+
+            static let all = [imfFixdate, rfc850, asctime]
+        }
+
+        private static func httpDate(from value: String) -> Date? {
+            let normalized = value.split(separator: " ", omittingEmptySubsequences: true)
+                .joined(separator: " ")
+
+            for format in HTTPDateFormat.all {
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.timeZone = TimeZone(secondsFromGMT: 0)
+                formatter.dateFormat = format
+                if let date = formatter.date(from: normalized) {
+                    return date
+                }
+            }
+            return nil
+        }
+    }
 }
 
 enum HTTPAuthorization {
-    static func header(for url: URL) async -> String? {
+    static func header(for url: URL) async throws -> String? {
         let environment = Environment.current
 
-        // Explicit, host-scoped credentials win over an ambient GitHub token. A
-        // `machine api.github.com` entry in a netrc file is a deliberate per-host
-        // credential, so it must beat a generic GITHUB_TOKEN /
-        // GH_TOKEN that may be scoped to an unrelated repository — otherwise a
-        // repo-scoped CI token shadows the netrc credential that can actually read
-        // a private release asset. This mirrors SwiftPM, whose download
-        // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
-        if let header = prioritizedHeader(
-            isGitHub: isGitHub(url),
-            netrcCredential: Environment.netrc.credential(for: url),
-            gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
-        ) {
-            return header
-        }
-
-        if isGitHub(url), let token = await GitHubAuth.token() {
-            return bearerHeader(token)
-        }
-
-        return nil
+        let netrc = Environment.netrc
+        return try await prioritizedHeader(
+            sourceControlToken: environment["SWIFTPM_SOURCE_CONTROL_TOKEN"],
+            netrcCredential: netrc.credential(for: url),
+            keychain: {
+                netrc.keychainDisabled ? nil : try await KeychainAuthorization.httpCredential(for: url)
+            }
+        )
     }
 
     static func prioritizedHeader(
-        isGitHub: Bool,
+        sourceControlToken: String?,
         netrcCredential: RegistryCredential?,
-        gitHubEnvToken: String?
-    ) -> String? {
+        keychain: () async throws -> RegistryCredential?
+    ) async throws -> String? {
+        // SwiftPM's source-control environment provider is deliberately not host-scoped.
+        if let token = sourceControlToken, !token.isEmpty {
+            return basicHeader(RegistryCredential(user: "token", password: token))
+        }
         if let credential = netrcCredential {
             return basicHeader(credential)
         }
-        if isGitHub, let token = nonEmpty(gitHubEnvToken) {
-            return bearerHeader(token)
+        if let credential = try await keychain() {
+            return basicHeader(credential)
         }
         return nil
-    }
-
-    private static func isGitHub(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
-        return host == "github.com" || host == "api.github.com"
     }
 
     private static func basicHeader(_ credential: RegistryCredential) -> String {
         let token = Data("\(credential.user):\(credential.password)".utf8).base64EncodedString()
         return "Basic \(token)"
-    }
-
-    private static func bearerHeader(_ token: String) -> String {
-        "Bearer \(token)"
-    }
-
-    private static func nonEmpty(_ value: String?) -> String? {
-        guard let value, !value.isEmpty else { return nil }
-        return value
     }
 }
 
@@ -342,10 +460,6 @@ enum Hashing {
             hasher.update(data: data)
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
-    }
-
-    static func shortRevision(_ revision: String) -> String {
-        String(revision.prefix(12))
     }
 }
 

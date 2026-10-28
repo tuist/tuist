@@ -29,6 +29,10 @@ defmodule Tuist.IngestRepo.Migrations.AddUpdatedAtVersionToBuildRuns do
   because a replacement carries the placeholder's `inserted_at`, which says
   nothing about when the row was written.
 
+  Columns, skipping indexes and projections are all reconstructed from
+  `system.*` so the copy is a faithful reproduction of whatever the instance
+  actually has; hardcoding any of them here drops the rest on the floor.
+
   The old table is left behind as `build_runs_new` — the replay reads from it,
   and it makes the swap reversible. A follow-up migration drops it once the new
   table has been verified, the same sequence used by the previous `build_runs`
@@ -68,15 +72,12 @@ defmodule Tuist.IngestRepo.Migrations.AddUpdatedAtVersionToBuildRuns do
     columns = column_names("build_runs")
     column_definitions = column_definitions("build_runs")
     indexes = index_definitions("build_runs")
+    projections = projection_definitions("build_runs")
 
     IngestRepo.query!("""
     CREATE TABLE build_runs_new (
       #{column_definitions},
-      updated_at DateTime64(6) DEFAULT inserted_at#{if indexes != "", do: ",\n  #{indexes}", else: ""},
-      PROJECTION proj_by_id (
-        SELECT *
-        ORDER BY id
-      )
+      updated_at DateTime64(6) DEFAULT inserted_at#{if indexes != "", do: ",\n  #{indexes}", else: ""}#{if projections != "", do: ",\n  #{projections}", else: ""}
     ) ENGINE = ReplacingMergeTree(updated_at)
     PARTITION BY toYYYYMM(inserted_at)
     ORDER BY (project_id, id)
@@ -142,6 +143,20 @@ defmodule Tuist.IngestRepo.Migrations.AddUpdatedAtVersionToBuildRuns do
       )
 
     rows
+  end
+
+  defp projection_definitions(table_name) do
+    {:ok, %{rows: rows}} =
+      IngestRepo.query(
+        """
+        SELECT name, query
+        FROM system.projections
+        WHERE database = currentDatabase() AND table = {table:String}
+        """,
+        %{table: table_name}
+      )
+
+    Enum.map_join(rows, ",\n  ", fn [name, query] -> "PROJECTION #{name} (#{query})" end)
   end
 
   defp index_definitions(table_name) do

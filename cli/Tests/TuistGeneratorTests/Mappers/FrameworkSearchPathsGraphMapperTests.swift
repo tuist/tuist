@@ -315,6 +315,33 @@ struct FrameworkSearchPathsGraphMapperTests {
         )
     }
 
+    @Test(.inTemporaryDirectory)
+    func registersFrameworkLinkCleanupWhenNoTargetConsolidates() async throws {
+        // Given: a single precompiled dependency, below the consolidation threshold, so no links are emitted. Links
+        // left in the preserved directory by an earlier generation still have to be cleaned up.
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let xcframework = GraphDependency.testXCFramework(
+            path: projectPath.appending(components: "Frameworks", "hash0", "Module0.xcframework"),
+            linking: .dynamic
+        )
+        let graph = appGraph(projectPath: projectPath, targetName: "App", dependencies: [xcframework])
+
+        // When
+        let (_, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        #expect(symbolicLinkDescriptors(in: sideEffects).isEmpty)
+        let cleanupDescriptor = try #require(
+            generatedFilesCleanupDescriptor(
+                in: sideEffects,
+                include: ["Swift/*/*.framework", "Swift/*/*.xcframework"]
+            )
+        )
+        let swiftSearchPathDirectory = projectPath.appending(components: "Derived", "FrameworkSearchPaths")
+        #expect(cleanupDescriptor.directories == [swiftSearchPathDirectory])
+        #expect(cleanupDescriptor.activeFilesByDirectory[swiftSearchPathDirectory, default: []].isEmpty)
+    }
+
     private func arrayValue(_ value: SettingValue?) -> [String] {
         switch value {
         case let .array(values): return values

@@ -1,0 +1,295 @@
+defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.Repo
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Plugs.PublicPageHeaderPlug
+
+  @header "x-tuist-public"
+
+  setup do
+    %{user: AccountsFixtures.user_fixture(preload: [:account])}
+  end
+
+  describe "mark_public_project_page/2" do
+    test "sets the header when the project is public", %{conn: conn} do
+      project =
+        [visibility: :public]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name
+          }
+      }
+
+      conn = PublicPageHeaderPlug.mark_public_project_page(conn, [])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+      assert conn.private[:tuist_public_project]
+    end
+
+    test "allows indexing for a public project overview on the hosted production site", %{conn: conn} do
+      stub(Tuist.Environment, :prod?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      project =
+        [visibility: :public]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name
+          }
+      }
+
+      conn =
+        %{conn | request_path: "/#{project.account.name}/#{project.name}"}
+        |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
+        |> PublicPageHeaderPlug.mark_public_project_page([])
+
+      assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["index, follow"]
+    end
+
+    test "deeper pages remain non-indexable even for public projects", %{conn: conn} do
+      stub(Tuist.Environment, :prod?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      project = Repo.preload(ProjectsFixtures.project_fixture(visibility: :public), :account)
+
+      for suffix <- [
+            "analytics",
+            "builds",
+            "tests",
+            "tests/test-runs/123",
+            "module-cache",
+            "previews/123",
+            "once/builds",
+            "settings",
+            "settings/automations",
+            "runs/123/download",
+            "connect"
+          ] do
+        conn = %{
+          conn
+          | request_path: "/#{project.account.name}/#{project.name}/#{suffix}",
+            path_params: %{"account_handle" => project.account.name, "project_handle" => project.name}
+        }
+
+        conn =
+          conn
+          |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
+          |> PublicPageHeaderPlug.mark_public_project_page([])
+
+        assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+        assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
+      end
+    end
+
+    test "redirects and failed responses do not advertise indexing", %{conn: conn} do
+      stub(Tuist.Environment, :prod?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      project = Repo.preload(ProjectsFixtures.project_fixture(visibility: :public), :account)
+
+      for status <- [302, 403, 404, 500] do
+        conn = %{
+          conn
+          | request_path: "/#{project.account.name}/#{project.name}",
+            path_params: %{"account_handle" => project.account.name, "project_handle" => project.name}
+        }
+
+        conn =
+          conn
+          |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
+          |> PublicPageHeaderPlug.mark_public_project_page([])
+          |> Plug.Conn.send_resp(status, "")
+
+        assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
+      end
+    end
+
+    test "does not set the header when the project is private", %{conn: conn} do
+      project =
+        [visibility: :private]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name
+          }
+      }
+
+      conn = PublicPageHeaderPlug.mark_public_project_page(conn, [])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == []
+      refute conn.private[:tuist_public_project]
+    end
+
+    test "sets the header regardless of whether the current user is signed in", %{conn: conn, user: user} do
+      project =
+        [visibility: :public]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name
+          }
+      }
+
+      conn =
+        conn
+        |> Plug.Conn.assign(:current_user, user)
+        |> PublicPageHeaderPlug.mark_public_project_page([])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+    end
+
+    test "does not set the header when the project cannot be found", %{conn: conn} do
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => "does-not-exist",
+            "project_handle" => "nope"
+          }
+      }
+
+      conn = PublicPageHeaderPlug.mark_public_project_page(conn, [])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == []
+    end
+  end
+
+  describe "mark_public_marketing_page/2" do
+    test "marks a marketing response as public without changing its indexing policy", %{conn: conn} do
+      conn =
+        conn
+        |> Plug.Conn.put_resp_header("x-robots-tag", "index, follow")
+        |> PublicPageHeaderPlug.mark_public_marketing_page([])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+      assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["index, follow"]
+    end
+  end
+
+  describe "mark_public_account_page/2" do
+    test "sets the header when the account is public", %{conn: conn} do
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      {:ok, _account} = Accounts.update_account_visibility(account, :public)
+
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      conn = PublicPageHeaderPlug.mark_public_account_page(conn, [])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+    end
+
+    test "does not set the header when the account is private", %{conn: conn} do
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      conn = PublicPageHeaderPlug.mark_public_account_page(conn, [])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == []
+    end
+
+    test "does not set the header when the account cannot be found", %{conn: conn} do
+      conn = %{conn | path_params: %{"account_handle" => "does-not-exist"}}
+
+      conn = PublicPageHeaderPlug.mark_public_account_page(conn, [])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == []
+    end
+  end
+
+  describe "mark_public_preview_page/2" do
+    test "sets the header when the preview itself is public", %{conn: conn} do
+      project =
+        [visibility: :private]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
+
+      conn = %{conn | path_params: %{"id" => preview.id}}
+
+      conn = PublicPageHeaderPlug.mark_public_preview_page(conn, [])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+    end
+
+    test "a link-shared public preview in a private project stays non-indexable", %{conn: conn} do
+      stub(Tuist.Environment, :prod?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      project = Repo.preload(ProjectsFixtures.project_fixture(visibility: :private), :account)
+      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
+
+      conn = %{
+        conn
+        | request_path: "/#{project.account.name}/#{project.name}/previews/#{preview.id}",
+          path_params: %{"id" => preview.id}
+      }
+
+      conn =
+        conn
+        |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
+        |> PublicPageHeaderPlug.mark_public_preview_page([])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+      assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["noindex, nofollow"]
+    end
+
+    test "sets the header when the parent project is public", %{conn: conn} do
+      project =
+        [visibility: :public]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      conn = %{conn | path_params: %{"id" => preview.id}}
+
+      conn = PublicPageHeaderPlug.mark_public_preview_page(conn, [])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+    end
+
+    test "does not set the header when both the preview and the project are private", %{conn: conn} do
+      project =
+        [visibility: :private]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :private)
+
+      conn = %{conn | path_params: %{"id" => preview.id}}
+
+      conn = PublicPageHeaderPlug.mark_public_preview_page(conn, [])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == []
+    end
+
+    test "does not set the header when the preview cannot be found", %{conn: conn} do
+      conn = %{conn | path_params: %{"id" => UUIDv7.generate()}}
+
+      conn = PublicPageHeaderPlug.mark_public_preview_page(conn, [])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == []
+    end
+  end
+end

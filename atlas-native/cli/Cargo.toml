@@ -1,0 +1,13 @@
+[package]
+name = "atlas-cli"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+
+[[bin]]
+name = "atlas"
+path = "src/main.rs"
+
+[dependencies]
+atlas-core = { path = "../core" }

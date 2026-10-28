@@ -59,6 +59,9 @@ public struct GenerationMetadataStore: GenerationMetadataStoring {
         let path = try metadataPath(for: projectPath)
         guard try await fileSystem.exists(path) else { return nil }
         let metadata: GenerationMetadata = try await fileSystem.readJSONFile(at: path)
+        // A project generated once and then only built for a month still needs this to link its
+        // builds, so a read has to count as a use or retention ages out the entry underneath it.
+        await fileSystem.markCacheEntryUsed(at: path)
         return metadata.generationId
     }
 

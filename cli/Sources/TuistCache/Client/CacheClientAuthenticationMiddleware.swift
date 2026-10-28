@@ -44,7 +44,7 @@ struct CacheClientAuthenticationMiddleware: ClientMiddleware {
         // project an account-wide credential reaches.
         var value = token.value
         if let fullHandle,
-           let cacheToken = await cacheTokenStore.cacheToken(
+           let cacheToken = try await cacheTokenStore.cacheToken(
                authenticationURL: authenticationURL,
                fullHandle: fullHandle
            )

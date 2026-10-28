@@ -22,6 +22,7 @@ defmodule Tuist.Tests.TestRunError do
   `module_name` is the test target, or empty for a run-level error.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 
@@ -33,8 +34,10 @@ defmodule Tuist.Tests.TestRunError do
     field :message, Ch, type: "String"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
-    belongs_to :test_run, Tuist.Tests.Test, foreign_key: :test_run_id, define_field: false
+    belongs_to :test_run, {"test_run_summaries", Tuist.Tests.Test}, foreign_key: :test_run_id, define_field: false
   end
+
+  def query, do: Ecto.Queryable.to_query({"reported_test_run_errors", __MODULE__})
 
   def create_changeset(error, attrs) do
     error

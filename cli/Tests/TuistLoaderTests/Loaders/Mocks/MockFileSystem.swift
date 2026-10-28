@@ -229,6 +229,14 @@ public class MockFileSystem: FileSysteming {
         throw NSError()
     }
 
+    public func glob(
+        directory _: Path.AbsolutePath,
+        include _: [String],
+        exclude _: [String]
+    ) throws -> AnyThrowingAsyncSequenceable<Path.AbsolutePath> {
+        throw NSError()
+    }
+
     public func currentWorkingDirectory() async throws -> Path.AbsolutePath {
         try await currentWorkingDirectoryOverride()
     }

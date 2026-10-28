@@ -25,6 +25,18 @@ defmodule TuistOps.JIT.Policy do
   Owner/Admin/Member default to deny — admin-flavor roles like
   Auditor or Billing admin are not granted any self-approve or
   approver power because they're not engineering identities.
+
+  Staging sits outside the elevation flow entirely — see
+  `always_write_env?/1`. Its write tier is part of every
+  engineering identity's baseline, so the impersonation endpoint
+  hands it out unconditionally and the Slack bot refuses an
+  `/elevate staging` rather than opening an approval for access
+  the requester already holds.
+
+  GitHub organization admin elevations (`github_admin_group/0`, from
+  `/elevate-github`) go through the same two gates, so any
+  engineering role can self-approve making a GitHub account an
+  organization owner for the elevation's TTL.
   """
 
   alias TuistOps.JIT.TailscaleClient
@@ -39,6 +51,21 @@ defmodule TuistOps.JIT.Policy do
     "group:tuist-production-write" => "production"
   }
 
+  # Envs that hand their `tuist-<env>-write` tier to every
+  # engineering identity unconditionally — no request, no second
+  # human, no TTL. Staging serves no customers and holds nothing
+  # we can't rebuild, so gating a pod restart there behind an
+  # approval costs more than the containment it buys. Canary and
+  # production stay elevation-gated: canary is the first stop of
+  # the production release cascade and production is production.
+  @always_write_envs ["staging"]
+
+  # GitHub organization admin elevation. Not a cluster env, so it
+  # stays out of `@group_to_env` (the impersonation endpoint must never
+  # map it to a kubectl tier) but it goes through the same approval
+  # gates as the cluster envs.
+  @github_admin_group "github:org-admin"
+
   @doc """
   Returns true if `actor_email` is allowed to approve their own
   elevation request for `target_group`. Unknown target groups
@@ -46,7 +73,7 @@ defmodule TuistOps.JIT.Policy do
   """
   def self_approval_allowed?(actor_email, target_group)
       when is_binary(actor_email) and is_binary(target_group) do
-    with true <- Map.has_key?(@group_to_env, target_group),
+    with true <- known_group?(target_group),
          {:ok, role} <- TailscaleClient.user_role(actor_email) do
       engineering_role?(role)
     else
@@ -64,7 +91,7 @@ defmodule TuistOps.JIT.Policy do
   """
   def approver_allowed?(approver_email, target_group)
       when is_binary(approver_email) and is_binary(target_group) do
-    with true <- Map.has_key?(@group_to_env, target_group),
+    with true <- known_group?(target_group),
          {:ok, role} <- TailscaleClient.user_role(approver_email) do
       engineering_role?(role)
     else
@@ -83,6 +110,24 @@ defmodule TuistOps.JIT.Policy do
   def env_for(target_group), do: Map.get(@group_to_env, target_group)
 
   @doc """
+  The `target_group` persisted for GitHub organization admin
+  elevations.
+  """
+  def github_admin_group, do: @github_admin_group
+
+  def github_admin_group?(target_group), do: target_group == @github_admin_group
+
+  @doc """
+  Returns true if `env` grants its `tuist-<env>-write` tier to
+  every engineering identity with no elevation. Read by
+  `TuistOpsWeb.PolicyController` when deciding whether to inject
+  the write group, and by the Slack bot to reject an `/elevate`
+  for an env that is already writable.
+  """
+  def always_write_env?(env) when is_binary(env), do: env in @always_write_envs
+  def always_write_env?(_env), do: false
+
+  @doc """
   Returns `{:ok, env}` if the role is allowed to operate on the env,
   `:deny` otherwise. Used by the impersonation policy endpoint when
   deciding whether to inject the elevated impersonation header.
@@ -98,4 +143,7 @@ defmodule TuistOps.JIT.Policy do
   # TuistOpsWeb.PolicyController). Non-engineering roles (Auditor,
   # Billing admin, unrecognized) are not cleared.
   defp engineering_role?(role), do: role in [:owner, :admin, :member]
+
+  defp known_group?(target_group),
+    do: Map.has_key?(@group_to_env, target_group) or github_admin_group?(target_group)
 end

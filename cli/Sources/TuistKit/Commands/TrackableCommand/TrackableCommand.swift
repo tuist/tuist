@@ -21,7 +21,7 @@ public struct TrackableCommandInfo {
     let subcommand: String?
     let commandArguments: [String]
     let durationInMs: Int
-    let status: CommandEvent.Status
+    let status: TuistCore.CommandEvent.Status
     let graph: Graph?
     let graphBinaryBuildDuration: TimeInterval?
     let binaryCacheItems: [AbsolutePath: [String: CacheItem]]
@@ -88,7 +88,7 @@ public class TrackableCommand {
     ) async throws {
         let timer = clock.startTimer()
         let ranAt = clock.now
-        let path = try await CommandArguments.path(in: commandArguments)
+        let path = try await CommandArguments.path(in: commandArguments, command: command)
         let runMetadataStorage = RunMetadataStorage()
 
         // Up front, so that the path holds this run's report or nothing at all. Writing it only
@@ -144,7 +144,7 @@ public class TrackableCommand {
 
     private func uploadCommandEvent(
         timer: any ClockTimer,
-        status: CommandEvent.Status,
+        status: TuistCore.CommandEvent.Status,
         runId: String,
         path: AbsolutePath,
         runMetadataStorage: RunMetadataStorage,
@@ -258,6 +258,8 @@ public class TrackableCommand {
                         fullHandle,
                         serverURL.absoluteString,
                         sessionDirectory.pathString,
+                        "--project-path",
+                        path.pathString,
                     ],
                     environment: ProcessInfo.processInfo.environment
                 )
@@ -272,7 +274,7 @@ public class TrackableCommand {
     }
 
     private func uploadCommandEvent(
-        _ commandEvent: CommandEvent,
+        _ commandEvent: TuistCore.CommandEvent,
         fullHandle: String,
         serverURL: URL,
         isAnalyticsRequired: Bool

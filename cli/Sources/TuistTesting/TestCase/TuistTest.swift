@@ -70,6 +70,7 @@ public enum TuistTest {
     @TaskLocal public static var fixtureDirectory: AbsolutePath?
     @TaskLocal public static var fixtureAccountHandle: String?
     @TaskLocal public static var fixtureFullHandle: String?
+    @TaskLocal public static var fixtureServerURL: URL?
 
     public static func run(
         _ command: (some AsyncParsableCommand).Type,

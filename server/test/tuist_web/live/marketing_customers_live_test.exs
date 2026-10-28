@@ -5,6 +5,12 @@ defmodule TuistWeb.Marketing.MarketingCustomersLiveTest do
   import Phoenix.LiveViewTest
 
   describe "GET /customers" do
+    test "renders the page with the marketing stylesheet", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/customers")
+
+      assert html =~ "/marketing/assets/bundle.css"
+    end
+
     test "renders the localized Hyperconnect title for Korean visitors", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/ko/customers")
 
@@ -24,6 +30,20 @@ defmodule TuistWeb.Marketing.MarketingCustomersLiveTest do
 
       assert html =~
                ~s(href="https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/")
+    end
+
+    test "falls back to the first page when the page param is not an integer", %{conn: conn} do
+      for query <- ["page=1'%20ORDER%20BY%201--%20-", "page[]=1"] do
+        {:ok, _lv, html} = live(conn, "/customers?#{query}")
+
+        assert html =~ "Hyperconnect optimized its multi-service pipeline with Tuist"
+      end
+    end
+
+    test "ignores a search param that is not a string", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, "/customers?search[]=x")
+
+      assert html =~ "Hyperconnect optimized its multi-service pipeline with Tuist"
     end
   end
 end

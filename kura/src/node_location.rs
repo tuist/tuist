@@ -80,9 +80,8 @@ mod tests {
 
     #[test]
     fn country_from_region_omits_synthetic_non_country_prefixes() {
-        // `eu-central` names a region served from France today, so the
+        // `eu-west` names a region served from France today, so the
         // continent prefix must stay unanswered rather than guess a country.
-        assert_eq!(country_from_region("eu-central"), None);
         assert_eq!(country_from_region("eu-west"), None);
         assert_eq!(country_from_region("ap-south"), None);
         assert_eq!(country_from_region("local"), None);
@@ -100,7 +99,7 @@ mod tests {
     /// pure function of configuration, so it cannot reach the network.
     #[test]
     fn resolve_uses_configured_country_and_subdivision_without_probing() {
-        let location = resolve_node_location(Some(" fr "), Some(" fr-idf "), "eu-central");
+        let location = resolve_node_location(Some(" fr "), Some(" fr-idf "), "eu-west");
         assert_eq!(location.country.as_deref(), Some("FR"));
         assert_eq!(location.subdivision.as_deref(), Some("FR-IDF"));
     }

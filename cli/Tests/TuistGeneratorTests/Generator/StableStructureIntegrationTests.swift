@@ -126,7 +126,7 @@ extension XCWorkspaceDataElement {
         case let .file(file):
             let path = file.location.path
             return path.hasSuffix(".xcodeproj") ? [path] : []
-        case let .group(elements):
+        case let .group(elements), let .fileSystemSynchronizedGroup(elements):
             return elements.children.flatMap(\.projectPaths)
         }
     }

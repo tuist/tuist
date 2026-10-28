@@ -48,7 +48,7 @@ func TestGoldenVMName(t *testing.T) {
 // goldenNodeLabel turns a golden VM name into the Node-label key the
 // runners-controller's affinity matches on. The pinned literal is the
 // cross-module contract: runners-controller's podtemplate test asserts its
-// goldenNodeAffinityKey produces this same key for the same image, so a
+// GoldenNodeAffinityKey produces this same key for the same image, so a
 // drift on either side fails a test rather than silently disabling affinity.
 func TestGoldenNodeLabel(t *testing.T) {
 	img := "ghcr.io/tuist/tuist-runner@sha256:" + strings.Repeat("a", 64)

@@ -3,6 +3,7 @@
     import Mockable
     import OpenAPIRuntime
     import TuistCore
+    import TuistHTTP
     import XcodeGraph
 
     @Mockable
@@ -29,27 +30,31 @@
         }
     }
 
-    public struct CreateCommandEventService: CreateCommandEventServicing {
-        private let retryProvider: RetryProviding
-
-        public init(
-            retryProvider: RetryProviding = RetryProvider()
-        ) {
-            self.retryProvider = retryProvider
+    extension CreateCommandEventServiceError: HTTPStatusCodeError {
+        var httpStatusCode: Int {
+            switch self {
+            case let .unknownError(statusCode): return statusCode
+            case .forbidden: return 403
+            case .unauthorized: return 401
+            }
         }
+    }
+
+    /// Sends the event through the server client, whose `RetryMiddleware` replays it after a lost response. The
+    /// server deduplicates the replay by the event's `id`, which is the generation's id or one generated here.
+    public struct CreateCommandEventService: CreateCommandEventServicing {
+        public init() {}
 
         public func createCommandEvent(
             commandEvent: CommandEvent,
             projectId: String,
             serverURL: URL
         ) async throws -> ServerCommandEvent {
-            try await retryProvider.runWithRetries {
-                try await sendCreateCommandEvent(
-                    commandEvent: commandEvent,
-                    projectId: projectId,
-                    serverURL: serverURL
-                )
-            }
+            try await sendCreateCommandEvent(
+                commandEvent: commandEvent,
+                projectId: projectId,
+                serverURL: serverURL
+            )
         }
 
         private func sendCreateCommandEvent(
@@ -58,6 +63,7 @@
             serverURL: URL
         ) async throws -> ServerCommandEvent {
             let client = Client.authenticated(serverURL: serverURL)
+            let id = commandEvent.generationId ?? UUIDv7.generate()
             let errorMessage: String?
             let status: Operations.createCommandEvent.Input.Body.jsonPayload.statusPayload?
             switch commandEvent.status {
@@ -86,7 +92,7 @@
                             git_commit_sha: commandEvent.gitCommitSHA,
                             git_ref: commandEvent.gitRef,
                             git_remote_url_origin: commandEvent.gitRemoteURLOrigin,
-                            id: commandEvent.generationId,
+                            id: id,
                             is_ci: commandEvent.isCI,
                             macos_version: commandEvent.macOSVersion,
                             module_cache_outputs: commandEvent.moduleCacheOutputs.map { map(moduleCacheOutput: $0) },
@@ -109,6 +115,10 @@
                 case let .json(commandEvent):
                     return ServerCommandEvent(commandEvent)
                 }
+            case let .tooManyRequests(tooManyRequests):
+                throw AuthorizationThrottledError(
+                    retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+                )
             case let .undocumented(statusCode: statusCode, _):
                 throw CreateCommandEventServiceError.unknownError(statusCode)
             case let .forbidden(forbiddenResponse):
@@ -124,7 +134,7 @@
             }
         }
 
-        private func map(graph: RunGraph) -> Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload {
+        func map(graph: RunGraph) -> Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload {
             .init(
                 binary_build_duration: graph.binaryBuildDuration.map { Int($0) },
                 name: graph.name,
@@ -151,6 +161,7 @@
                                         return .init(
                                             hash: binaryCacheMetadata.hash,
                                             hit: hit,
+                                            instrumented: binaryCacheMetadata.instrumented,
                                             subhashes: binaryCacheMetadata.subhashes.map { subhashes in
                                                 .init(
                                                     additional_hashing_inputs: subhashes.additionalHashingInputs,
@@ -160,21 +171,31 @@
                                                     core_data_models: subhashes.coreDataModels,
                                                     dependencies: subhashes.dependencies,
                                                     deployment_target: subhashes.deploymentTarget,
+                                                    destinations: subhashes.destinations,
+                                                    embedded_product_references: subhashes.embeddedProductReferences
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     entitlements: subhashes.entitlements,
                                                     environment: subhashes.environment,
                                                     external: subhashes.external,
+                                                    foreign_build: subhashes.foreignBuild
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     headers: subhashes.headers,
                                                     info_plist: subhashes.infoPlist,
                                                     project_settings: subhashes.projectSettings,
                                                     resources: subhashes.resources,
                                                     sources: subhashes.sources,
                                                     target_scripts: subhashes.targetScripts,
-                                                    target_settings: subhashes.targetSettings
+                                                    target_settings: subhashes.targetSettings,
+                                                    test_device: subhashes.testDevice
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
+                                                    test_runtime: subhashes.testRuntime
+                                                        ?? (subhashes.destinations == nil ? nil : "")
                                                 )
                                             }
                                         )
                                     },
                                 bundle_id: target.bundleId,
+                                dependencies: target.dependencies,
                                 destinations: target.destinations.map { map(destination: $0) },
                                 name: target.name,
                                 product: map(product: target.product),
@@ -205,16 +226,25 @@
                                                     core_data_models: subhashes.coreDataModels,
                                                     dependencies: subhashes.dependencies,
                                                     deployment_target: subhashes.deploymentTarget,
+                                                    destinations: subhashes.destinations,
+                                                    embedded_product_references: subhashes.embeddedProductReferences
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     entitlements: subhashes.entitlements,
                                                     environment: subhashes.environment,
                                                     external: subhashes.external,
+                                                    foreign_build: subhashes.foreignBuild
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     headers: subhashes.headers,
                                                     info_plist: subhashes.infoPlist,
                                                     project_settings: subhashes.projectSettings,
                                                     resources: subhashes.resources,
                                                     sources: subhashes.sources,
                                                     target_scripts: subhashes.targetScripts,
-                                                    target_settings: subhashes.targetSettings
+                                                    target_settings: subhashes.targetSettings,
+                                                    test_device: subhashes.testDevice
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
+                                                    test_runtime: subhashes.testRuntime
+                                                        ?? (subhashes.destinations == nil ? nil : "")
                                                 )
                                             }
                                         )

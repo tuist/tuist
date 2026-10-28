@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 import Noora
 import Path
@@ -25,6 +26,7 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
+    private let getCacheTokenService: GetCacheTokenServicing
     private let cacheURLStore: CacheURLStoring
     private let fullHandleService: FullHandleServicing
     private let configLoader: ConfigLoading
@@ -33,6 +35,7 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         cacheURLStore: CacheURLStoring = CacheURLStore(),
+        getCacheTokenService: GetCacheTokenServicing = GetCacheTokenService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
         ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
@@ -41,6 +44,7 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
         self.cacheURLStore = cacheURLStore
+        self.getCacheTokenService = getCacheTokenService
         self.fullHandleService = fullHandleService
         self.configLoader = configLoader
         self.ciOIDCAuthenticator = ciOIDCAuthenticator
@@ -73,13 +77,17 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
             throw CacheConfigCommandServiceError.missingFullHandle
         }
 
-        let token = try await getAuthenticationToken(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
+        try await ensureAuthenticated(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
 
         let (accountHandle, projectHandle) = try fullHandleService.parse(resolvedFullHandle)
         let cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
 
+        let token = try await getCacheTokenService.getCacheToken(serverURL: resolvedServerURL, fullHandle: resolvedFullHandle)
+            .token
+
         let result = CacheConfiguration(
             url: cacheURL.absoluteString,
+            endpoints: [cacheURL.absoluteString],
             token: token,
             accountHandle: accountHandle,
             projectHandle: projectHandle
@@ -98,23 +106,23 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         }
     }
 
-    private func getAuthenticationToken(serverURL: URL, forceRefresh: Bool) async throws -> String {
+    private func ensureAuthenticated(serverURL: URL, forceRefresh: Bool) async throws {
         if forceRefresh {
             try await serverAuthenticationController.refreshToken(serverURL: serverURL)
         }
 
-        if let existingToken = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) {
-            return existingToken.value
+        if try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil {
+            return
         }
 
-        if Environment.current.isCI, let oidcToken = try? await authenticateWithOIDC(serverURL: serverURL) {
-            return oidcToken
+        if Environment.current.isCI, let _ = try? await authenticateWithOIDC(serverURL: serverURL) {
+            return
         }
 
         throw CacheConfigCommandServiceError.notAuthenticated
     }
 
-    private func authenticateWithOIDC(serverURL: URL) async throws -> String {
+    private func authenticateWithOIDC(serverURL: URL) async throws {
         let oidcToken = try await ciOIDCAuthenticator.fetchOIDCToken()
         let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
             oidcToken: oidcToken,
@@ -125,19 +133,20 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
             credentials: ServerCredentials(accessToken: accessToken),
             serverURL: serverURL
         )
-
-        return accessToken
     }
 }
 
 struct CacheConfiguration: Codable {
     let url: String
+    /// The locally resolved endpoint, retaining the legacy JSON array shape.
+    let endpoints: [String]
     let token: String
     let accountHandle: String
     let projectHandle: String
 
     enum CodingKeys: String, CodingKey {
         case url
+        case endpoints
         case token
         case accountHandle = "account_handle"
         case projectHandle = "project_handle"

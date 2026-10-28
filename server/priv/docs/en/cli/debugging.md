@@ -70,15 +70,17 @@ jobs:
           path: /tmp/tuist/sessions/
 ```
 
-### Cache daemon debugging {#cache-daemon-debugging}
+### Xcode cache debugging {#cache-daemon-debugging}
 
-For debugging cache-related issues, Tuist logs cache daemon operations using `os_log` with the subsystem `dev.tuist.cache`. You can stream these logs in real-time using:
+To debug Xcode cache issues, set `TUIST_CAS_LOG` to a file path both when running `tuist setup cache` and when building. Tuist appends cache statistics and errors to that file:
 
 ```bash
-log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
+export TUIST_CAS_LOG=$HOME/.local/state/tuist/cas.log
+tuist setup cache
+xcodebuild build -scheme YourScheme
 ```
 
-These logs are also visible in Console.app by filtering for the `dev.tuist.cache` subsystem. This provides detailed information about cache operations, which can help diagnose cache upload, download, and communication issues.
+On CI, Tuist writes this log to `~/.local/state/tuist/cas.log` without any configuration.
 
 ## Tuning network timeouts and retries {#tuning-network-timeouts}
 

@@ -12,7 +12,7 @@ public struct ServerProject: Codable, Identifiable, CustomStringConvertible {
         defaultBranch: String,
         repositoryURL: String?,
         visibility: Visibility,
-        buildSystem: Components.Schemas.Project.build_systemPayload
+        buildSystem: String
     ) {
         self.id = id
         self.fullName = fullName
@@ -27,7 +27,7 @@ public struct ServerProject: Codable, Identifiable, CustomStringConvertible {
     public let defaultBranch: String
     public let repositoryURL: String?
     public let visibility: Visibility
-    public let buildSystem: Components.Schemas.Project.build_systemPayload
+    public let buildSystem: String
 
     init(_ project: Components.Schemas.Project) {
         id = Int(project.id)
@@ -40,7 +40,7 @@ public struct ServerProject: Codable, Identifiable, CustomStringConvertible {
         case ._public:
             .public
         }
-        buildSystem = project.build_system ?? .xcode
+        buildSystem = project.build_system ?? "xcode"
     }
 
     #if MOCKING
@@ -50,7 +50,7 @@ public struct ServerProject: Codable, Identifiable, CustomStringConvertible {
             defaultBranch: String = "main",
             repositoryURL: String? = nil,
             visibility: Visibility = .private,
-            buildSystem: Components.Schemas.Project.build_systemPayload = .xcode
+            buildSystem: String = "xcode"
         ) -> Self {
             .init(
                 id: id,

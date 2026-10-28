@@ -9,6 +9,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.API.Authorization.AuthorizationPlug
+  alias TuistWeb.RateLimit
 
   setup :set_mimic_global
 
@@ -16,6 +17,25 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     cache = String.to_atom(UUIDv7.generate())
     {:ok, _} = Cachex.start_link(name: cache)
     %{cache: cache}
+  end
+
+  test "a read-only credential cannot borrow a write credential's cached permission", %{cache: cache} do
+    project = ProjectsFixtures.project_fixture()
+
+    write = %AuthenticatedAccount{
+      account: project.account,
+      token_id: UUIDv7.generate(),
+      scopes: ["project:cache:write"],
+      all_projects: true
+    }
+
+    read = %{write | token_id: UUIDv7.generate(), scopes: ["project:cache:read"]}
+    opts = AuthorizationPlug.init(category: :cache, caching: true)
+    request = :post |> build_conn("/") |> assign(:selected_project, project) |> assign(:cache, cache)
+    assert AuthorizationPlug.call(assign(request, :current_subject, write), opts).halted == false
+    denied = AuthorizationPlug.call(assign(request, :current_subject, read), opts)
+    assert denied.halted
+    assert denied.status == 403
   end
 
   test "returns the connection when the authenticated account with project:bundles:read scope can read bundles" do
@@ -188,8 +208,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     assert conn == got
   end
 
-  describe "caching" do
-    test "caches authorization responses", %{cache: cache} do
+  describe "authoritative authorization" do
+    test "rechecks authorization even when caching is requested", %{cache: cache} do
       # Given
       project =
         %{account: %{name: account_handle}} =
@@ -198,8 +218,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       opts =
         AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
 
-      # We check that the authorization API, which hits the DB, is onnly invoked once.
-      expect(Authorization, :authorize, 1, fn :project_cache_read, _, _ ->
+      # Permission checks must observe revocation on every request.
+      expect(Authorization, :authorize, 10, fn :project_cache_read, _, _ ->
         {:error, :forbidden}
       end)
 
@@ -217,7 +237,22 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       end
     end
 
-    test "caches authorization responses by action", %{cache: cache} do
+    test "does not retain a successful authorization after permission revocation" do
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+
+      conn =
+        build_conn()
+        |> assign(:selected_project, project)
+        |> TuistWeb.Authentication.put_current_project(project)
+
+      opts = AuthorizationPlug.init(category: :cache, caching: true)
+      expect(Authorization, :authorize, fn :project_cache_read, _, _ -> :ok end)
+      refute AuthorizationPlug.call(conn, opts).halted
+      expect(Authorization, :authorize, fn :project_cache_read, _, _ -> {:error, :forbidden} end)
+      assert AuthorizationPlug.call(conn, opts).status == 403
+    end
+
+    test "checks authorization by action", %{cache: cache} do
       # Given
       project =
         %{account: %{name: account_handle}} =
@@ -246,6 +281,59 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       assert create_conn |> AuthorizationPlug.call(opts) |> json_response(:forbidden) == %{
                "message" => "#{account_handle} is not authorized to create cache"
              }
+    end
+  end
+
+  describe "authorization failure rate limiting" do
+    setup do
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+
+      conn =
+        build_conn()
+        |> assign(:selected_project, project)
+        |> TuistWeb.Authentication.put_current_project(project)
+
+      stub(Authorization, :authorize, fn _, _, _ -> {:error, :forbidden} end)
+
+      %{conn: conn}
+    end
+
+    test "does not consult the limiter when the subject is authorized", %{conn: conn} do
+      # Given
+      stub(Authorization, :authorize, fn _, _, _ -> :ok end)
+      reject(&RateLimit.Authorization.hit/1)
+
+      # When
+      got = AuthorizationPlug.call(conn, AuthorizationPlug.init(:cache))
+
+      # Then
+      refute got.halted
+    end
+
+    test "returns 403 while the subject is under the limit", %{conn: conn} do
+      # Given
+      stub(RateLimit.Authorization, :hit, fn _conn -> {:allow, 1} end)
+
+      # When
+      conn = AuthorizationPlug.call(conn, AuthorizationPlug.init(:cache))
+
+      # Then
+      assert conn.halted
+      assert json_response(conn, :forbidden)["message"] =~ "not authorized to read cache"
+    end
+
+    test "returns 429 with a retry-after header once the subject exceeds the limit", %{conn: conn} do
+      # Given
+      stub(RateLimit.Authorization, :hit, fn _conn -> {:deny, 30_000} end)
+
+      # When
+      conn = AuthorizationPlug.call(conn, AuthorizationPlug.init(:cache))
+
+      # Then
+      assert conn.halted
+      assert json_response(conn, :too_many_requests)["message"] =~ "too many unauthorized requests"
+      assert get_resp_header(conn, "retry-after") == ["30"]
+      assert get_resp_header(conn, "x-tuist-throttle-reason") == ["authorization"]
     end
   end
 end

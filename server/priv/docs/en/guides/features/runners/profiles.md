@@ -33,16 +33,22 @@ Runners are available on macOS (Apple silicon, virtualized on the Mac fleet) and
 
 {{runner_linux_shapes_table}}
 
+Every Linux profile supports <.localized_link href="/guides/features/runners#android-emulators">hardware-accelerated Android emulators</.localized_link> through `/dev/kvm`. No separate KVM profile is required.
+
 ### macOS {#macos}
 
 {{runner_macos_shapes_table}}
+
+Larger macOS shapes run on fewer machines in the fleet, so a job that asks for one can wait longer to start than the same job on a smaller shape. Reach for a larger shape when a job is limited by CPU, and keep the default shape for everything else. If you are not sure, run the job on both and compare the durations in the dashboard.
 
 macOS profiles also pin an **Xcode version**. The version selects a runner image with that Xcode preinstalled, so jobs start with the toolchain already in place. Supported versions today:
 
 {{runner_macos_xcode_versions}}
 
 > [!NOTE]
-> The catalog evolves as we add hardware and Xcode releases. The **New profile** form in the dashboard always shows the shapes and Xcode versions currently available to your account, so treat it as the source of truth.
+> The catalog evolves as we add hardware and Xcode releases. The **New profile** form in the dashboard and `tuist runner profile catalog` always show the shapes and Xcode versions currently available to your account, so treat them as the source of truth.
+
+A macOS runner's name shows the macOS version it runs, the profile's Xcode version, and its shape, for example `tuist-macos-26.6-xcode-27.0-6vcpu-14gb-1a2b3c4d5e6f`. The name appears in the job's **Set up job** step on GitHub and in the job's details in the Tuist dashboard.
 
 ## Creating a profile {#creating-a-profile}
 
@@ -50,6 +56,17 @@ macOS profiles also pin an **Xcode version**. The version selects a runner image
 2. Choose **New profile**.
 3. Give it a name, pick a platform, and select a shape. For macOS, also choose an Xcode version.
 4. Save, then reference it from a workflow with `runs-on: tuist-<name>`.
+
+You can also manage profiles from the command line. Creating, changing, and deleting profiles requires account administration, as in the dashboard, or an account token with the `account:runners:write` scope:
+
+```bash
+tuist runner profile catalog
+tuist runner profile create linux-large --platform linux --vcpus 8 --memory-gb 32
+tuist runner profile update linux-large --vcpus 16 --memory-gb 32
+tuist runner profile delete linux-large --yes
+```
+
+Agents can do the same through the <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link>.
 
 For example, a profile named `linux-large` on the 8 vCPU / 32 GB shape:
 

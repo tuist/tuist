@@ -34,8 +34,10 @@ cross-call this deployment via the tailnet for the policy lookup.
    - `slack_signing_secret`, `slack_bot_token`, `slack_approvals_channel_id`
    - `github_app_id`, `github_app_installation_id`, `github_app_private_key` —
      GitHub App credentials for dispatching and reading the `preview-deploy.yml`
-     workflow in `tuist/tuist`. The App installation needs read and write access
-     to Actions for `tuist/tuist`; metadata access is always included by GitHub.
+     workflow in `tuist/tuist`, and for `/elevate-github` organization admin
+     elevations. The App installation needs read and write access to Actions for
+     `tuist/tuist` and read and write access to the organization "Members"
+     permission; metadata access is always included by GitHub.
    - `secret_key_base` — generate via `mix phx.gen.secret`
 2. **Update the Slack app**'s slash command URL to
    `https://ops.tuist.dev/webhooks/slack/slash` and the interactivity

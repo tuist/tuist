@@ -12,7 +12,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeTestTargets do
       "properties" => %{
         "test_run_id" => %{
           "type" => "string",
-          "description" => "The ID of the test run."
+          "description" => "The ID of the test run, or a Tuist dashboard URL."
         },
         "hit_status" => %{
           "type" => "string",
@@ -62,6 +62,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeTestTargets do
       "List Xcode test targets with their selective testing status (hit/miss) and hash for a given test run. The test_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/tests/test-runs/{id}."
 
   def execute(conn, %{"test_run_id" => test_run_id} = args) do
+    test_run_id = MCPTool.resource_id(test_run_id)
+
     with {:ok, run, _project} <-
            MCPTool.load_and_authorize(
              Tests.get_test(test_run_id),

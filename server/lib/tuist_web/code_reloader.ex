@@ -62,10 +62,30 @@ defmodule TuistWeb.CodeReloader do
         [CompileElixir.manifests()]
 
       dep ->
-        [Mix.Dep.in_dependency(dep, fn _ -> CompileElixir.manifests() end)]
+        [dep_manifests(dep)]
 
       true ->
         []
+    end
+  end
+
+  # Reads the dependency's manifest out of its build directory instead of
+  # entering its Mix project.
+  #
+  # `Mix.Dep.in_dependency/3` changes the working directory and pushes the
+  # dependency onto Mix's project stack. For a path dependency whose project
+  # module is already loaded, that raises, and this runs on every request in
+  # dev, so one failure leaves the stack dirty and every later request raises
+  # too. The raise also breaks `Plug.Static`, which stops resolving
+  # `priv/static` and serves the dashboard without its stylesheet.
+  #
+  # Mix records each dependency's build directory in its opts, and the
+  # manifest sits at the same `.mix/` path the compiler uses, so the location
+  # is derivable without loading anything.
+  defp dep_manifests(%{opts: opts}) do
+    case Keyword.fetch(opts, :build) do
+      {:ok, build} -> Enum.map(CompileElixir.manifests(), &Path.join([build, ".mix", Path.basename(&1)]))
+      :error -> []
     end
   end
 

@@ -7,6 +7,9 @@ import Testing
 import TuistAutomation
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistGit
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -96,6 +99,99 @@ struct XcodeBuildBuildCommandServiceTests {
         let expectedResultBundlePath = temporaryDirectory.appending(components: "cache", uniqueID)
         await #expect(RunMetadataStorage.current.resultBundlePath == expectedResultBundlePath)
         await #expect(RunMetadataStorage.current.buildRunId == activityLogPath.basenameWithoutExt)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies())
+    func writesTheBuildsPrefixMapsIntoTheTestProducts() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let gitController = MockGitControlling()
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(temporaryDirectory)
+        given(gitController).sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any).willReturn([:])
+        let subject = XcodeBuildBuildCommandService(
+            fileSystem: fileSystem,
+            xcodeBuildController: xcodeBuildController,
+            configLoader: configLoader,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            uniqueIDGenerator: uniqueIDGenerator,
+            xcodeBuildArgumentParser: xcodeBuildArgumentParser,
+            derivedDataLocator: derivedDataLocator,
+            xcActivityLogController: xcActivityLogController,
+            shardPlanService: shardPlanService,
+            serverEnvironmentService: serverEnvironmentService,
+            uploadBuildRunService: uploadBuildRunService,
+            coverageBuildSourcesService: CoverageBuildSourcesService(fileSystem: fileSystem, gitController: gitController)
+        )
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        let targetDirectory = derivedDataPath.appending(
+            components: "Build",
+            "Intermediates.noindex",
+            "App.build",
+            "Debug",
+            "Lib.build"
+        )
+        try await fileSystem.makeDirectory(at: targetDirectory)
+        try await fileSystem.writeAsJSON(
+            ["/^src": temporaryDirectory.appending(component: "Lib").pathString],
+            at: targetDirectory.appending(component: "compilation-prefix-map.json")
+        )
+        let testProductsPath = temporaryDirectory.appending(component: "App.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory.appending(component: "cache"))
+        given(uniqueIDGenerator).uniqueID().willReturn("unique-id")
+        given(xcodeBuildArgumentParser).parse(.any).willReturn(.test(derivedDataPath: derivedDataPath))
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willReturn(nil)
+        given(xcodeBuildController).run(arguments: .any).willReturn()
+        given(configLoader).loadConfig(path: .any).willReturn(.test(fullHandle: "tuist/tuist"))
+
+        try await subject.run(passthroughXcodebuildArguments: [
+            "build-for-testing", "-scheme", "App", "-testProductsPath", testProductsPath.pathString,
+        ])
+
+        let restored = RunMetadataStorage()
+        await restored.restoreCoverageBuildSources(from: testProductsPath)
+        #expect(
+            await restored.coverageBuildSources?.prefixMaps
+                == ["Lib": ["/^src": temporaryDirectory.appending(component: "Lib").pathString]]
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies(), arguments: [true, false])
+    func bumpsCoverageCountersAtomicallyWhenBuildingForTestingWithCoverageUploads(uploadsCoverage: Bool) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory.appending(component: "cache"))
+        given(uniqueIDGenerator)
+            .uniqueID()
+            .willReturn("unique-id")
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(derivedDataPath: temporaryDirectory.appending(component: "DerivedData")))
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willReturn(nil)
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+
+        try await subject.run(passthroughXcodebuildArguments: ["build-for-testing", "-scheme", "MyApp"])
+
+        let resultBundlePath = temporaryDirectory.appending(components: "cache", "unique-id").pathString
+        let arguments = ["build-for-testing", "-scheme", "MyApp", "-resultBundlePath", resultBundlePath]
+        verify(xcodeBuildController)
+            .run(arguments: .value(uploadsCoverage ? AtomicCoverageCounters.adding(to: arguments) : arguments))
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
@@ -279,6 +375,7 @@ struct XcodeBuildBuildCommandServiceTests {
         given(shardPlanService)
             .plan(
                 xctestproductsPath: .any,
+                projectPath: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,
@@ -288,6 +385,7 @@ struct XcodeBuildBuildCommandServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 buildRunId: .any,
+                requestedTestIdentifiers: .any,
                 skipUpload: .any,
                 archivePath: .any
             )
@@ -316,6 +414,7 @@ struct XcodeBuildBuildCommandServiceTests {
         verify(shardPlanService)
             .plan(
                 xctestproductsPath: .value(testProductsPath),
+                projectPath: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,
@@ -325,6 +424,7 @@ struct XcodeBuildBuildCommandServiceTests {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
                 buildRunId: .any,
+                requestedTestIdentifiers: .any,
                 skipUpload: .value(false),
                 archivePath: .value(shardArchivePath)
             )

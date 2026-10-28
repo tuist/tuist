@@ -57,7 +57,8 @@ defmodule TuistWeb.API.BuildsControllerTest do
           status: "success",
           duration: 5000,
           scheme: "MyApp",
-          configuration: "Debug"
+          configuration: "Debug",
+          inserted_at: ~N[2026-10-14 09:30:15.123456]
         )
 
       stub(Builds, :list_build_runs, fn _attrs, _opts ->
@@ -86,6 +87,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
       assert first_build["cacheable_tasks_count"] == build.cacheable_tasks_count
       assert first_build["cacheable_task_local_hits_count"] == build.cacheable_task_local_hits_count
       assert first_build["cacheable_task_remote_hits_count"] == build.cacheable_task_remote_hits_count
+      assert first_build["inserted_at"] == "2026-10-14T09:30:15Z"
     end
 
     test "filters builds by status", %{conn: conn, user: user, project: project} do
@@ -329,12 +331,15 @@ defmodule TuistWeb.API.BuildsControllerTest do
           macos_version: "14.0",
           cacheable_tasks_count: 10,
           cacheable_task_local_hits_count: 3,
-          cacheable_task_remote_hits_count: 5
+          cacheable_task_remote_hits_count: 5,
+          inserted_at: ~N[2026-10-14 09:30:15.123456]
         )
 
       stub(Builds, :get_build, fn _id, _opts ->
         {:ok, build}
       end)
+
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> zero_cas_output_metrics() end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
 
@@ -349,6 +354,65 @@ defmodule TuistWeb.API.BuildsControllerTest do
       assert response["cacheable_tasks_count"] == 10
       assert response["cacheable_task_local_hits_count"] == 3
       assert response["cacheable_task_remote_hits_count"] == 5
+      assert response["inserted_at"] == "2026-10-14T09:30:15Z"
+    end
+
+    test "returns the CAS transfer totals for the build", %{conn: conn, user: user, project: project} do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+
+      expect(Builds, :cas_output_metrics, fn build_run_id ->
+        assert build_run_id == build.id
+
+        %{
+          download_count: 90,
+          upload_count: 10,
+          download_bytes: 9000,
+          upload_bytes: 1000,
+          time_weighted_avg_download_throughput: 0,
+          time_weighted_avg_upload_throughput: 0
+        }
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      assert %{
+               "cas_output_download_count" => 90,
+               "cas_output_upload_count" => 10,
+               "cas_output_download_bytes" => 9000,
+               "cas_output_upload_bytes" => 1000
+             } = json_response(conn, 200)
+    end
+
+    test "returns zeroed CAS transfer totals for a build that transferred nothing", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+
+      expect(Builds, :cas_output_metrics, fn _build_run_id ->
+        %{
+          download_count: 0,
+          upload_count: 0,
+          download_bytes: 0,
+          upload_bytes: 0,
+          time_weighted_avg_download_throughput: 0,
+          time_weighted_avg_upload_throughput: 0
+        }
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      assert %{
+               "cas_output_download_count" => 0,
+               "cas_output_upload_count" => 0,
+               "cas_output_download_bytes" => 0,
+               "cas_output_upload_bytes" => 0
+             } = json_response(conn, 200)
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
@@ -589,6 +653,50 @@ defmodule TuistWeb.API.BuildsControllerTest do
         }
       )
     end
+
+    test "strips credentials from the remote URL in the processing job args", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      build_id = UUIDv7.generate()
+
+      stub(Builds, :get_build, fn _id, _opts -> {:error, :not_found} end)
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+
+      stub(Builds, :create_build, fn attrs ->
+        {:ok,
+         %Build{
+           id: build_id,
+           status: "processing",
+           duration: 0,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           project: project
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds", %{
+          id: build_id,
+          status: "processing",
+          is_ci: true,
+          git_ref: "refs/pull/42/merge",
+          git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git"
+        })
+
+      assert json_response(conn, 200)
+
+      assert_enqueued(
+        worker: ProcessBuildWorker,
+        args: %{
+          "build_id" => build_id,
+          "build_metadata" => %{"git_remote_url_origin" => "https://github.com/tuist/tuist.git"},
+          "vcs_comment_params" => %{"git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
+        }
+      )
+    end
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/builds/upload/start" do
@@ -603,7 +711,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
       build_id = Ecto.UUID.generate()
 
       stub(Storage, :multipart_start, fn _key, _account ->
-        "multipart-upload-id-123"
+        {:ok, "multipart-upload-id-123"}
       end)
 
       conn =
@@ -642,7 +750,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
       stub(Storage, :multipart_start, fn _key, account ->
         send(test_pid, {:multipart_start_account, account.id})
-        "multipart-upload-id-123"
+        {:ok, "multipart-upload-id-123"}
       end)
 
       conn
@@ -722,5 +830,16 @@ defmodule TuistWeb.API.BuildsControllerTest do
       assert response["status"] == "success"
       assert response["data"] == %{}
     end
+  end
+
+  defp zero_cas_output_metrics do
+    %{
+      download_count: 0,
+      upload_count: 0,
+      download_bytes: 0,
+      upload_bytes: 0,
+      time_weighted_avg_download_throughput: 0,
+      time_weighted_avg_upload_throughput: 0
+    }
   end
 end

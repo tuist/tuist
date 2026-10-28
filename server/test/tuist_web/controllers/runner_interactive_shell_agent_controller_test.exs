@@ -66,6 +66,9 @@ defmodule TuistWeb.RunnerInteractiveShellAgentControllerTest do
                workflow_job_id: workflow_job_id,
                account_id: account.id,
                fleet_name: "macos-xcode-26-5",
+               platform: :macos,
+               vcpus: 6,
+               memory_gb: 14,
                pod_name: live_pod_name,
                started_at: DateTime.utc_now()
              })

@@ -1,10 +1,69 @@
 package dev.tuist.gradle
 
+import org.gradle.api.provider.ValueSource
+import org.gradle.api.provider.ValueSourceParameters
+import org.gradle.process.ExecOperations
+import java.io.ByteArrayOutputStream
+import java.io.Serializable
+import javax.inject.Inject
+
 interface GitInfoProvider {
     fun branch(): String?
     fun commitSha(): String?
     fun ref(): String?
     fun remoteUrlOrigin(): String?
+}
+
+object EmptyGitInfoProvider : GitInfoProvider {
+    override fun branch(): String? = null
+    override fun commitSha(): String? = null
+    override fun ref(): String? = null
+    override fun remoteUrlOrigin(): String? = null
+}
+
+data class GitInfo(
+    private val branch: String?,
+    private val commitSha: String?,
+    private val ref: String?,
+    private val remoteUrlOrigin: String?
+) : GitInfoProvider, Serializable {
+    override fun branch(): String? = branch
+    override fun commitSha(): String? = commitSha
+    override fun ref(): String? = ref
+    override fun remoteUrlOrigin(): String? = remoteUrlOrigin
+}
+
+abstract class GitInfoValueSource : ValueSource<GitInfo, ValueSourceParameters.None> {
+    @get:Inject
+    abstract val execOperations: ExecOperations
+
+    override fun obtain(): GitInfo {
+        val provider = ProcessGitInfoProvider(gitCommandRunner = ::runGitCommand)
+
+        return GitInfo(
+            branch = provider.branch(),
+            commitSha = provider.commitSha(),
+            ref = provider.ref(),
+            remoteUrlOrigin = provider.remoteUrlOrigin()
+        )
+    }
+
+    private fun runGitCommand(args: List<String>): String {
+        val output = ByteArrayOutputStream()
+        val result = execOperations.exec {
+            commandLine(listOf("git") + args)
+            standardOutput = output
+            errorOutput = output
+            isIgnoreExitValue = true
+        }
+        val value = output.toString(Charsets.UTF_8).lineSequence().firstOrNull()?.trim()
+
+        if (result.exitValue != 0 || value.isNullOrBlank()) {
+            throw RuntimeException("git ${args.first()} failed (exit code ${result.exitValue})")
+        }
+
+        return value
+    }
 }
 
 class ProcessGitInfoProvider(
@@ -13,23 +72,42 @@ class ProcessGitInfoProvider(
 ) : GitInfoProvider {
 
     override fun branch(): String? {
-        val gitBranch = runCatching { gitCommandRunner(listOf("rev-parse", "--abbrev-ref", "HEAD")) }.getOrNull()
+        val gitBranch =
+            runCatching { gitCommandRunner(listOf("rev-parse", "--abbrev-ref", "HEAD")) }
+                .getOrNull()
+                ?.takeIf(String::isNotBlank)
         if (gitBranch != null && gitBranch != "HEAD") {
             return gitBranch
         }
         return ciBranch()
     }
 
-    override fun commitSha(): String? = runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()
+    /**
+     * On a pull request's merge ref (`refs/pull/N/merge`), HEAD is a merge commit that exists only in
+     * the checkout, so the pull request's head, its second parent, is reported instead. A shallow
+     * checkout without that parent reports HEAD. On GitHub Actions, `GITHUB_SHA` is that merge
+     * commit: a workflow that checked out another commit, such as the pull request's head, reports
+     * HEAD, since that commit's second parent, if it has one, is not the pull request.
+     */
+    override fun commitSha(): String? {
+        val head = runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()?.takeIf(String::isNotBlank)
+        val mergeCommit = environmentProvider("GITHUB_SHA")?.takeIf(String::isNotEmpty)
+        if (ref()?.startsWith("refs/pull/") == true && (mergeCommit == null || mergeCommit == head)) {
+            runCatching { gitCommandRunner(listOf("rev-parse", "HEAD^2")) }.getOrNull()
+                ?.takeIf(String::isNotBlank)
+                ?.let { return it }
+        }
+        return head
+    }
 
     override fun ref(): String? {
         val ciRef = ciRef()
         if (ciRef != null) return ciRef
-        return runCatching { gitCommandRunner(listOf("describe", "--tags", "--always")) }.getOrNull()
+        return runCatching { gitCommandRunner(listOf("describe", "--tags", "--always")) }.getOrNull()?.takeIf(String::isNotBlank)
     }
 
     override fun remoteUrlOrigin(): String? =
-        runCatching { gitCommandRunner(listOf("config", "--get", "remote.origin.url")) }.getOrNull()
+        runCatching { gitCommandRunner(listOf("config", "--get", "remote.origin.url")) }.getOrNull()?.takeIf(String::isNotBlank)
 
     private fun ciRef(): String? =
         refEnvironmentVariables
@@ -75,13 +153,14 @@ class ProcessGitInfoProvider(
 }
 
 private fun runGitProcess(args: List<String>): String {
-    val process = ProcessBuilder(listOf("git") + args)
-        .redirectErrorStream(true)
-        .start()
+    val process =
+        ProcessBuilder(listOf("git") + args)
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .start()
     try {
-        val output = process.inputStream.bufferedReader().use { it.readLine()?.trim() }
+        val output = process.inputStream.bufferedReader().use { it.readLine()?.trim().orEmpty() }
         val exitCode = process.waitFor()
-        if (exitCode != 0 || output.isNullOrBlank()) {
+        if (exitCode != 0) {
             throw RuntimeException("git ${args.first()} failed (exit code $exitCode)")
         }
         return output

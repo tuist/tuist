@@ -31,6 +31,11 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_recovery, do: [:tuist, :runners, :recovery]
   def event_name_webhook, do: [:tuist, :runners, :webhook]
 
+  # The Buildkite lane's counterpart to `event_name_webhook`. Carries both
+  # what the queue held and what we reserved: the gap between them is a
+  # sibling stack taking our jobs, which no other signal would show.
+  def event_name_buildkite_poll, do: [:tuist, :runners, :buildkite, :poll]
+
   def event_name_queue_length, do: [:tuist, :runners, :queue, :length]
 
   # Queued jobs excluded from the autoscaler's demand signal because
@@ -42,4 +47,8 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_claims_count, do: [:tuist, :runners, :claims, :count]
   def event_name_pool_replicas, do: [:tuist, :runners, :pool, :replicas]
   def event_name_session_clamp, do: [:tuist, :runners, :session, :clamped]
+
+  # Jobs whose ClickHouse row is still non-terminal after the outbox
+  # flush has had time to settle, while Postgres holds a terminal state.
+  def event_name_replica_divergence, do: [:tuist, :runners, :replica, :divergence]
 end

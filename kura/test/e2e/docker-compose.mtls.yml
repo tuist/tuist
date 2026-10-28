@@ -7,21 +7,33 @@ services:
       KURA_INTERNAL_TLS_CA_CERT_PATH: /etc/kura/mtls/ca.pem
       KURA_INTERNAL_TLS_CERT_PATH: /etc/kura/mtls/peer.pem
       KURA_INTERNAL_TLS_KEY_PATH: /etc/kura/mtls/peer.key
+      KURA_PEER_TOPOLOGY: '{"provider":"ovh","private_network":"test-vrack","private_url":"https://private-us.kura.internal:7443"}'
     volumes:
       - ${KURA_MTLS_CERT_DIR}:/etc/kura/mtls:ro
+    networks:
+      default:
+        aliases: [private-us.kura.internal]
 
   kura-eu:
     environment:
       <<: *peer_tls_env
       KURA_NODE_URL: https://kura-eu.kura.internal:7443
       KURA_OTEL_SERVICE_NAME: kura-eu
+      KURA_PEER_TOPOLOGY: '{"provider":"ovh","private_network":"test-vrack","private_url":"https://private-eu.kura.internal:7443"}'
     volumes:
       - ${KURA_MTLS_CERT_DIR}:/etc/kura/mtls:ro
+    networks:
+      default:
+        aliases: [private-eu.kura.internal]
 
   kura-ap:
     environment:
       <<: *peer_tls_env
       KURA_NODE_URL: https://kura-ap.kura.internal:7443
       KURA_OTEL_SERVICE_NAME: kura-ap
+      KURA_PEER_TOPOLOGY: '{"provider":"vultr","private_network":"test-vpc","private_url":"https://private-ap.kura.internal:7443"}'
     volumes:
       - ${KURA_MTLS_CERT_DIR}:/etc/kura/mtls:ro
+    networks:
+      default:
+        aliases: [private-ap.kura.internal]

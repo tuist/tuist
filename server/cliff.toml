@@ -86,8 +86,11 @@ filter_commits = true
 tag_pattern = "server@[0-9].*"
 # regex for skipping tags
 skip_tags = "beta|alpha"
-# regex for ignoring tags
-ignore_tags = "rc"
+# regex for ignoring tags. Canary and RC tags are excluded from cliff's
+# --bumped-version base so a fresh canary can be cut against the last stable
+# instead of chasing the previous canary, and so RCs on a soaking line don't
+# freeze the next stable bump computation.
+ignore_tags = "rc|canary"
 # sort the tags topologically
 topo_order = false
 # sort the commits inside sections by oldest/newest order

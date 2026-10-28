@@ -1,4 +1,5 @@
 export const NOORA_CSS = String.raw`
+
 /* tokens.css */
 :root {
   color-scheme: light dark;
@@ -43,7 +44,7 @@ export const NOORA_CSS = String.raw`
   --noora-orange-300: oklch(81.9% 0.111 48.6);
   --noora-orange-400: oklch(76.9% 0.149 48.6);
   --noora-orange-500: oklch(71.9% 0.185 48.7);
-  --noora-orange-600: oklch(0.62 0.1659 48.81);
+  --noora-orange-600: oklch(62% 0.1659 48.81);
   --noora-orange-700: oklch(48% 0.129 49);
   --noora-orange-800: oklch(33.7% 0.091 48.5);
   --noora-orange-900: oklch(20.9% 0.057 48.2);
@@ -222,15 +223,25 @@ export const NOORA_CSS = String.raw`
     linear-gradient(
       180deg,
       oklch(78.4% 0.005 247.894 / 0) 0%,
-      light-dark(oklch(78.4% 0.005 247.894 / 0.06), oklch(78.4% 0.005 247.894 / 0.13))
+      light-dark(
+          oklch(78.4% 0.005 247.894 / 0.06),
+          oklch(78.4% 0.005 247.894 / 0.13)
+        )
         100%
     ),
     var(--noora-button-secondary-background);
   --noora-button-dropdown-trigger-background-hover:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.4% 0.005 247.894 / 0.03), oklch(78.4% 0.005 247.894 / 0)) 0%,
-      light-dark(oklch(78.4% 0.005 247.894 / 0.13), oklch(78.4% 0.005 247.894 / 0.255))
+      light-dark(
+          oklch(78.4% 0.005 247.894 / 0.03),
+          oklch(78.4% 0.005 247.894 / 0)
+        )
+        0%,
+      light-dark(
+          oklch(78.4% 0.005 247.894 / 0.13),
+          oklch(78.4% 0.005 247.894 / 0.255)
+        )
         100%
     ),
     var(--noora-button-secondary-background);
@@ -238,7 +249,10 @@ export const NOORA_CSS = String.raw`
     linear-gradient(
       180deg,
       oklch(78.4% 0.005 247.894 / 0) 0%,
-      light-dark(oklch(78.4% 0.005 247.894 / 0.06), oklch(78.4% 0.005 247.894 / 0.13))
+      light-dark(
+          oklch(78.4% 0.005 247.894 / 0.06),
+          oklch(78.4% 0.005 247.894 / 0.13)
+        )
         100%
     ),
     var(--noora-button-secondary-disabled-background);
@@ -475,8 +489,8 @@ export const NOORA_CSS = String.raw`
   );
 
   --noora-badge-light-fill-neutral-background: light-dark(
-    var(--noora-neutral-light-400),
-    color-mix(in oklch, var(--noora-neutral-dark-900) 50%, transparent)
+    var(--noora-neutral-light-300),
+    var(--noora-neutral-gray-50)
   );
   --noora-badge-light-fill-neutral-label: light-dark(
     var(--noora-neutral-light-1100),
@@ -484,39 +498,39 @@ export const NOORA_CSS = String.raw`
   );
   --noora-badge-light-fill-destructive-background: light-dark(
     var(--noora-red-50),
-    color-mix(in oklch, var(--noora-red-500) 16%, transparent)
+    var(--noora-alpha-red)
   );
   --noora-badge-light-fill-destructive-label: light-dark(
     var(--noora-red-600),
-    var(--noora-red-500)
+    var(--noora-red-400)
   );
   --noora-badge-light-fill-warning-background: light-dark(
     var(--noora-orange-50),
-    color-mix(in oklch, var(--noora-orange-500) 16%, transparent)
+    var(--noora-alpha-orange)
   );
   --noora-badge-light-fill-warning-label: light-dark(
     var(--noora-orange-600),
-    var(--noora-orange-500)
+    var(--noora-orange-400)
   );
   --noora-badge-light-fill-attention-background: light-dark(
     var(--noora-yellow-50),
-    color-mix(in oklch, var(--noora-yellow-500) 16%, transparent)
+    var(--noora-alpha-yellow)
   );
   --noora-badge-light-fill-attention-label: light-dark(
     var(--noora-yellow-700),
-    var(--noora-yellow-500)
+    var(--noora-yellow-400)
   );
   --noora-badge-light-fill-success-background: light-dark(
     var(--noora-green-50),
-    color-mix(in oklch, var(--noora-green-500) 16%, transparent)
+    var(--noora-alpha-green)
   );
   --noora-badge-light-fill-success-label: light-dark(
     var(--noora-green-700),
-    var(--noora-green-500)
+    var(--noora-green-400)
   );
   --noora-badge-light-fill-information-background: light-dark(
     var(--noora-azure-50),
-    color-mix(in oklch, var(--noora-azure-500) 16%, transparent)
+    var(--noora-alpha-azure)
   );
   --noora-badge-light-fill-information-label: light-dark(
     var(--noora-azure-700),
@@ -524,15 +538,15 @@ export const NOORA_CSS = String.raw`
   );
   --noora-badge-light-fill-focus-background: light-dark(
     var(--noora-blue-50),
-    color-mix(in oklch, var(--noora-blue-700) 16%, transparent)
+    var(--noora-alpha-blue)
   );
   --noora-badge-light-fill-focus-label: light-dark(
     var(--noora-blue-700),
-    var(--noora-blue-500)
+    var(--noora-blue-400)
   );
   --noora-badge-light-fill-primary-background: light-dark(
     var(--noora-purple-50),
-    color-mix(in oklch, var(--noora-purple-700) 16%, transparent)
+    var(--noora-alpha-purple)
   );
   --noora-badge-light-fill-primary-label: light-dark(
     var(--noora-purple-700),
@@ -540,11 +554,11 @@ export const NOORA_CSS = String.raw`
   );
   --noora-badge-light-fill-secondary-background: light-dark(
     var(--noora-pink-50),
-    color-mix(in oklch, var(--noora-pink-700) 16%, transparent)
+    var(--noora-alpha-pink)
   );
   --noora-badge-light-fill-secondary-label: light-dark(
     var(--noora-pink-600),
-    var(--noora-pink-500)
+    var(--noora-pink-400)
   );
 
   --noora-badge-disabled-background: light-dark(
@@ -641,8 +655,8 @@ export const NOORA_CSS = String.raw`
 
   /* Divider */
   --noora-content-divider-line: light-dark(
-    var(--noora-neutral-light-500),
-    var(--noora-alpha-black)
+    var(--noora-neutral-light-400),
+    var(--noora-neutral-dark-900)
   );
 
   /* Charts */
@@ -770,6 +784,7 @@ export const NOORA_CSS = String.raw`
   --noora-spacing-14: 4.5rem;
   --noora-spacing-15: 5rem;
   --noora-spacing-16: 6rem;
+  --noora-spacing-17: 7rem;
 
   /* Z-index */
   --noora-z-index-0: auto;
@@ -821,11 +836,7 @@ export const NOORA_CSS = String.raw`
     0px -1px 0px 0px oklch(32% 0.005 247.968 / 0.16) inset,
     0px 8px 6px 0px oklch(32% 0.005 247.968 / 0.02),
     0px 2px 4px 0px oklch(32% 0.005 247.968 / 0.04);
-  --noora-border-section:
-    0px 1px 0px 0px oklch(100% 0 0 / 0.9) inset,
-    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.05),
-    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
-    0px 2px 2px 0px oklch(32% 0.005 247.968 / 0.06);
+  --noora-border-section: 0 0 0 1px oklch(32% 0.005 247.968 / 0.06);
   --noora-border-heavy:
     0px 0px 0px 1.5px oklch(32% 0.005 247.968 / 0.1) inset,
     0px -1.5px 0px 0px oklch(32% 0.005 247.968 / 0.12) inset,
@@ -850,8 +861,8 @@ export const NOORA_CSS = String.raw`
   --noora-icon-size-large: 1.25rem;
 
   /* Typography */
-  --noora-font-heading: "Inter Variable", sans-serif;
-  --noora-font-body: "Inter Variable", sans-serif;
+  --noora-font-heading: "Inter Variable", "Noto Sans Georgian", sans-serif;
+  --noora-font-body: "Inter Variable", "Noto Sans Georgian", sans-serif;
   --noora-font-code: "Geist Mono", monospace;
 
   --noora-font-weight-regular: 400;
@@ -961,11 +972,7 @@ export const NOORA_CSS = String.raw`
       0px 1px 0px 0px oklch(54.9% 0 0 / 0.3) inset,
       0px 0px 0px 1px oklch(54.9% 0 0 / 0.2) inset,
       0px 2px 4px 0px oklch(0% 0 0 / 0.12), 0px 4px 8px 0px oklch(0% 0 0 / 0.24);
-    --noora-border-section:
-      0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-      0px 1px 1px 0px oklch(16.2% 0 0 / 0.8),
-      0px 0px 0px 1px oklch(34.8% 0 0 / 0.7),
-      0px 2px 2px 0px oklch(0% 0 0 / 0.24);
+    --noora-border-section: 0 0 0 1px oklch(34.8% 0 0 / 0.55);
     --noora-border-heavy:
       0px 1.5px 0px 0px oklch(54.9% 0 0 / 0.3) inset,
       0px 0px 0px 1.5px oklch(54.9% 0 0 / 0.2) inset,
@@ -986,7 +993,7 @@ export const NOORA_CSS = String.raw`
 
   --noora-font-color-primary: light-dark(
     var(--noora-neutral-light-1100),
-    var(-noora-neutral-light-100)
+    var(--noora-neutral-light-100)
   );
   --noora-font-color-secondary: light-dark(
     var(--noora-neutral-light-1000),
@@ -997,8 +1004,8 @@ export const NOORA_CSS = String.raw`
     var(--noora-neutral-light-900)
   );
   --noora-font-color-information: light-dark(
-    var(--noora-neutral-azure-500),
-    var(--noora-neutral-azure-300)
+    var(--noora-azure-500),
+    var(--noora-azure-300)
   );
   --noora-font-color-success: light-dark(
     var(--noora-green-600),
@@ -1012,6 +1019,28 @@ export const NOORA_CSS = String.raw`
     var(--noora-red-500),
     var(--noora-red-300)
   );
+
+  /* Easing */
+  --ease-in-quad: cubic-bezier(0.55, 0.085, 0.68, 0.53);
+  --ease-in-cubic: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  --ease-in-quart: cubic-bezier(0.895, 0.03, 0.685, 0.22);
+  --ease-in-quint: cubic-bezier(0.755, 0.05, 0.855, 0.06);
+  --ease-in-expo: cubic-bezier(0.95, 0.05, 0.795, 0.035);
+  --ease-in-circ: cubic-bezier(0.6, 0.04, 0.98, 0.335);
+
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+  --ease-out-circ: cubic-bezier(0.075, 0.82, 0.165, 1);
+
+  --ease-in-out-quad: cubic-bezier(0.455, 0.03, 0.515, 0.955);
+  --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --ease-in-out-quart: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-in-out-quint: cubic-bezier(0.86, 0, 0.07, 1);
+  --ease-in-out-expo: cubic-bezier(1, 0, 0, 1);
+  --ease-in-out-circ: cubic-bezier(0.785, 0.135, 0.15, 0.86);
 }
 
 /* Dark mode for Storybook only */
@@ -1019,92 +1048,164 @@ export const NOORA_CSS = String.raw`
   color-scheme: dark;
 }
 
-/* card.css */
-.noora-card {
+/* alert.css */
+.noora-alert {
+  --noora-alert-error-icon: var(--noora-red-500);
+  --noora-alert-error-secondary-background: light-dark(
+    var(--noora-red-50),
+    var(--noora-alpha-red)
+  );
+  --noora-alert-success-icon: var(--noora-green-600);
+  --noora-alert-success-secondary-background: light-dark(
+    var(--noora-green-50),
+    var(--noora-alpha-green)
+  );
+  --noora-alert-warning-icon: var(--noora-orange-600);
+  --noora-alert-warning-secondary-background: light-dark(
+    var(--noora-orange-50),
+    var(--noora-alpha-orange)
+  );
+  --noora-alert-information-icon: var(--noora-azure-500);
+  --noora-alert-information-secondary-background: light-dark(
+    var(--noora-azure-50),
+    var(--noora-alpha-azure)
+  );
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--noora-spacing-5);
-  box-shadow: var(--noora-border-section);
-  border-radius: var(--noora-radius-6);
-  background: var(--noora-surface-background-tertiary);
-  justify-section: center;
-  box-sizing: border-box;
-  padding: var(--noora-spacing-2);
 
-  & > [data-part="header"] {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--noora-spacing-3);
-    box-sizing: border-box;
-    padding: var(--noora-spacing-4) var(--noora-spacing-4) 0;
-    width: 100%;
+  border-radius: var(--noora-radius-4);
 
-    & [data-part="icon-with-title"] {
+  & > [data-part="title"] {
+    color: var(--noora-surface-label-primary);
+  }
+
+  & [data-part="description"] {
+    margin-top: var(--noora-spacing-2);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="dismiss-icon"] {
+    flex-shrink: 0;
+  }
+
+  &[data-type="primary"] {
+    box-shadow: var(--noora-border-medium);
+    background: var(--noora-surface-background-primary);
+  }
+
+  &[data-type="secondary"] {
+    &[data-status="information"] {
+      background: var(--noora-alert-information-secondary-background);
+    }
+    &[data-status="success"] {
+      background: var(--noora-alert-success-secondary-background);
+    }
+    &[data-status="warning"] {
+      background: var(--noora-alert-warning-secondary-background);
+    }
+    &[data-status="error"] {
+      background: var(--noora-alert-error-secondary-background);
+    }
+  }
+
+  &[data-size="small"],
+  &[data-size="medium"] {
+    & > [data-part="actions"] {
       display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--noora-spacing-3);
+    }
+  }
 
-      & [data-part="icon"] {
-        display: flex;
-        gap: 10px;
-        box-shadow: var(--noora-border-light-default);
-        border-radius: var(--noora-radius-3);
-        background: var(--noora-surface-background-primary);
-        padding: var(--noora-spacing-3);
-        width: var(--noora-icon-size-medium);
-        height: var(--noora-icon-size-medium);
-        color: var(--noora-surface-label-primary);
+  &[data-size="small"] {
+    gap: var(--noora-spacing-4);
+    padding: var(--noora-spacing-4);
+    & > [data-part="icon"] {
+      display: flex;
+      flex-shrink: 0;
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
 
-        & svg {
-          width: 100%;
-          height: 100%;
-        }
-      }
-
-      & [data-part="title"] {
-        display: inline-flex;
-        flex: 1 0 0;
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      & svg {
+        width: 100%;
+        height: 100%;
       }
     }
 
-    @media (max-width: 768px) {
-      & {
-        flex-direction: column;
-        align-items: flex-start;
+    & [data-part="title"] {
+      font: var(--noora-font-body-small);
+    }
+  }
+
+  &[data-size="medium"] {
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-4) var(--noora-spacing-5);
+
+    & > [data-part="icon"] {
+      display: flex;
+      flex-shrink: 0;
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+
+      & svg {
+        width: 100%;
+        height: 100%;
       }
     }
 
-    & [data-part="actions"] {
-      display: flex;
-      align-items: center;
-      gap: var(--noora-spacing-4);
+    & [data-part="title"] {
+      font: var(--noora-font-body-medium);
+    }
+  }
 
-      @media (max-width: 768px) {
-        & {
-          flex-direction: column;
-          align-items: flex-start;
-        }
+  &[data-size="large"] {
+    gap: var(--noora-spacing-6);
+    padding: var(--noora-spacing-6);
+
+    & > [data-part="icon"] {
+      display: flex;
+      flex-shrink: 0;
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+
+      & svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+
+    & > [data-part="column"] {
+      display: flex;
+      flex-direction: column;
+
+      & > [data-part="title"] {
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="actions"] {
+        margin-top: var(--noora-spacing-4);
       }
     }
   }
-}
 
-.noora-card__section {
-  display: flex;
-  position: relative;
-  flex-direction: column;
-  gap: var(--noora-spacing-5);
-  box-sizing: border-box;
-  box-shadow: var(--noora-border-light-default);
-  border-radius: var(--noora-radius-4);
-  background: var(--noora-surface-background-primary);
-  padding: var(--noora-spacing-7);
-  color: var(--noora-surface-label-primary);
+  &[data-status="information"] {
+    & [data-part="icon"] {
+      color: var(--noora-alert-information-icon);
+    }
+  }
+  &[data-status="error"] {
+    & [data-part="icon"] {
+      color: var(--noora-alert-error-icon);
+    }
+  }
+  &[data-status="success"] {
+    & [data-part="icon"] {
+      color: var(--noora-alert-success-icon);
+    }
+  }
+  &[data-status="warning"] {
+    & [data-part="icon"] {
+      color: var(--noora-alert-warning-icon);
+    }
+  }
 }
 
 /* badge.css */
@@ -1364,107 +1465,245 @@ export const NOORA_CSS = String.raw`
   }
 }
 
-/* banner.css */
-.noora-banner {
-  --noora-banner-label: light-dark(
-    var(--noora-neutral-light-1200),
-    var(--noora-neutral-light-50)
-  );
-  --noora-banner-label-secondary: light-dark(
-    var(--noora-neutral-light-800),
-    var(--noora-neutral-light-500)
-  );
-  --noora-banner-primary-background: light-dark(
-    var(--noora-neutral-light-100),
-    var(--noora-neutral-dark-1100)
-  );
-  --noora-banner-primary-border: light-dark(
-    var(--noora-neutral-light-400),
-    var(--noora-neutral-dark-700)
-  );
-  --noora-banner-error-background: light-dark(
-    var(--noora-red-50),
-    oklch(58.7% 0.23 30.7 / 0.16)
-  );
-  --noora-banner-error-border: var(--noora-red-500);
-  --noora-banner-success-background: light-dark(
-    var(--noora-green-50),
-    oklch(63.8% 0.19 143.8 / 0.16)
-  );
-  --noora-banner-success-border: var(--noora-green-600);
-  --noora-banner-warning-background: light-dark(
-    var(--noora-orange-50),
-    oklch(71.9% 0.185 48.7 / 0.16)
-  );
-  --noora-banner-warning-border: var(--noora-orange-600);
-  --noora-banner-information-background: light-dark(
-    var(--noora-azure-50),
-    oklch(57% 0.127 238.5 / 0.16)
-  );
-  --noora-banner-information-border: var(--noora-azure-500);
-  --noora-banner-grid-color: light-dark(
-    oklch(21.7% 0.002 247.941),
-    oklch(99.4% 0 0)
-  );
-  display: flex;
-  position: relative;
+/* button.css */
+.noora-button,
+.noora-link-button,
+.noora-neutral-button {
+  display: inline-flex;
   justify-content: center;
-
   align-items: center;
-  gap: var(--noora-spacing-5);
-  padding: var(--noora-spacing-5) var(--noora-spacing-11);
-  width: 100%;
-  overflow-x: hidden;
-  color: var(--noora-banner-label);
+  box-sizing: border-box;
+  -webkit-appearance: button;
+  border: 0;
+  border-radius: var(--noora-radius-3);
+  padding: 0;
+  text-decoration: none;
 
-  & [data-part="background"] {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: auto;
-    height: 100%;
-    color: var(--noora-banner-grid-color);
+  & svg {
+    pointer-events: none;
+  }
+}
+
+.noora-button {
+  --noora-button-icon-size: var(--noora-icon-size-large);
+
+  cursor: pointer;
+  outline: unset;
+  transition: transform 150ms var(--ease-out-cubic);
+  /* Reserve space for box-shadow to ensure consistent height across variants */
+  box-shadow:
+    0px 0px 0px 0px transparent,
+    0px 0px 0px 0px transparent,
+    0px 0px 0px 0px transparent,
+    0px 0px 0px 0px transparent;
+
+  &[disabled] {
+    cursor: not-allowed;
   }
 
-  & [data-part="icon"] {
-    display: flex;
-    flex: 0 0 auto;
-    width: var(--noora-icon-size-large);
-    height: var(--noora-icon-size-large);
+  &:not(:disabled):active {
+    transform: scale(0.97);
+  }
 
-    & svg {
-      flex-shrink: 0;
-      width: 100%;
-      height: 100%;
+  & > span {
+    padding: 0rem var(--noora-spacing-2);
+  }
+
+  &[data-variant="primary"] {
+    box-shadow: var(--noora-button-border-primary);
+    background: var(--noora-button-background-primary);
+    color: var(--noora-button-primary-label);
+
+    &:hover {
+      box-shadow: var(--noora-button-border-primary-hover);
+      background: var(--noora-button-background-primary-hover);
+    }
+
+    &:focus-visible {
+      box-shadow: var(--noora-button-border-primary-focus);
+    }
+
+    &[disabled] {
+      box-shadow: var(--noora-button-border-primary-disabled);
+      background: var(--noora-button-background-primary-disabled);
+      color: var(--noora-button-primary-disabled-label);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: var(--noora-button-border-primary-active);
+      background: var(--noora-button-background-primary-active);
     }
   }
 
-  & [data-part="title"] {
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  &[data-variant="secondary"] {
+    box-shadow: var(--noora-button-border-secondary);
+    background: var(--noora-button-background-secondary);
+    color: var(--noora-button-secondary-label);
+
+    &:hover {
+      background: var(--noora-button-background-secondary-hover);
+    }
+
+    &:focus-visible {
+      box-shadow: var(--noora-button-border-secondary-focus);
+    }
+
+    &[disabled] {
+      box-shadow: var(--noora-button-border-secondary-disabled);
+      background: var(--noora-button-background-secondary-disabled);
+      color: var(--noora-button-secondary-disabled-label);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: var(--noora-button-border-secondary-active);
+      background: var(--noora-button-background-secondary-active);
+    }
   }
 
-  & [data-part="dot"] {
+  &[data-variant="destructive"] {
+    box-shadow: var(--noora-button-border-destructive);
+    background: var(--noora-button-background-destructive);
+
+    color: var(--noora-button-destructive-label);
+
+    &:hover {
+      box-shadow: var(--noora-button-border-destructive-hover);
+      background: var(--noora-button-background-destructive-hover);
+    }
+
+    &:focus-visible {
+      box-shadow: var(--noora-button-border-destructive-focus);
+    }
+
+    &[disabled] {
+      box-shadow: var(--noora-button-border-destructive-disabled);
+      background: var(--noora-button-background-destructive-disabled);
+      color: var(--noora-button-destructive-disabled-label);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: var(--noora-button-border-destructive-active);
+      background: var(--noora-button-destructive-background);
+    }
+  }
+
+  &[data-icon-only] {
+    padding: var(--noora-spacing-3);
+  }
+
+  &[data-size="small"] {
+    --noora-button-icon-size: var(--noora-icon-size-small);
+
     font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    }
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
   }
 
-  & [data-part="description"] {
-    font: var(--noora-font-body-medium);
-    line-height: var(--noora-body-medium-line-height);
+  &[data-size="medium"],
+  &[data-size="large"] {
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3);
+    }
   }
 
-  & [data-part="dismiss-icon"] {
-    display: flex;
-    position: absolute;
-    top: 50%;
-    right: var(--noora-spacing-5);
-    justify-content: center;
-    transform: translateY(-50%);
-    cursor: pointer;
-    border: none;
-    background: none;
-    padding: 0;
-    color: var(--noora-banner-label-secondary);
+  &[data-size="medium"] {
+    --noora-button-icon-size: var(--noora-icon-size-medium);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  &[data-size="large"] {
+    --noora-button-icon-size: var(--noora-icon-size-large);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+}
+
+.noora-link-button {
+  --noora-link-button-primary-label: light-dark(
+    var(--noora-purple-500),
+    var(--noora-purple-300)
+  );
+  --noora-link-button-secondary-label: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-light-50)
+  );
+  --noora-link-button-destructive-label: light-dark(
+    var(--noora-red-500),
+    var(--noora-red-300)
+  );
+  --noora-link-button-disabled-label: light-dark(
+    var(--noora-neutral-light-600),
+    var(--noora-neutral-light-300)
+  );
+
+  display: inline-flex;
+  gap: var(--noora-spacing-1);
+  border-radius: var(--noora-radius-1);
+  background: transparent;
+
+  &:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    color: var(--noora-link-button-disabled-label) !important;
+  }
+
+  &:not(:disabled)[data-underline] {
+    text-decoration: underline;
+
+    &:hover {
+      text-decoration-style: dotted;
+    }
+  }
+
+  &:not(:disabled):not([data-underline]):hover {
+    text-decoration: underline;
+  }
+
+  &[data-variant="primary"] {
+    color: var(--noora-link-button-primary-label);
+  }
+
+  &[data-variant="secondary"] {
+    color: var(--noora-link-button-secondary-label);
+  }
+
+  &[data-variant="destructive"] {
+    color: var(--noora-link-button-destructive-label);
+  }
+
+  &[data-size="small"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
+    & svg {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+    }
+  }
+
+  &[data-size="medium"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
     & svg {
       width: var(--noora-icon-size-medium);
@@ -1472,48 +1711,204 @@ export const NOORA_CSS = String.raw`
     }
   }
 
-  &[data-status="primary"] {
-    border-bottom: 2px solid var(--noora-banner-primary-border);
-    background: var(--noora-banner-primary-background);
+  &[data-size="large"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
-    & [data-part="icon"] {
-      color: var(--noora-banner-label);
+    & svg {
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+    }
+  }
+}
+
+.noora-neutral-button {
+  cursor: pointer;
+  border-radius: var(--noora-radius-3);
+  background: unset;
+  padding: var(--noora-spacing-3);
+  color: var(--noora-button-neutral-label);
+  transition: transform 150ms var(--ease-out-cubic);
+
+  &:not(:disabled):hover {
+    background: var(--noora-button-neutral-background-hover);
+  }
+
+  &:not(:disabled):active {
+    background: var(--noora-button-neutral-background-active);
+    transform: scale(0.97);
+  }
+
+  &[disabled] {
+    cursor: not-allowed;
+    color: var(--noora-button-neutral-disabled-label);
+  }
+
+  &[data-size="large"] {
+    & > svg {
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
     }
   }
 
-  &[data-status="error"] {
-    border-bottom: 2px solid var(--noora-banner-error-border);
-    background: var(--noora-banner-error-background);
-
-    & [data-part="icon"] {
-      color: var(--noora-red-500);
+  &[data-size="medium"] {
+    & > svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
     }
   }
 
-  &[data-status="success"] {
-    border-bottom: 2px solid var(--noora-banner-success-border);
-    background: var(--noora-banner-success-background);
+  &[data-size="small"] {
+    & > svg {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+    }
+  }
+}
 
-    & [data-part="icon"] {
-      color: var(--noora-green-600);
+@media (prefers-reduced-motion: reduce) {
+  .noora-button,
+  .noora-neutral-button {
+    transition: none;
+
+    &:not(:disabled):active {
+      transform: none;
+    }
+  }
+}
+
+/* button_group.css */
+.noora-button-group {
+  --noora-button-group-background: light-dark(
+    var(--noora-neutral-light-50),
+    var(--noora-neutral-dark-1200)
+  );
+  --noora-button-group-label: light-dark(
+    var(--noora-neutral-light-1000),
+    var(--noora-neutral-light-50)
+  );
+  --noora-button-group-hover-background: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-dark-1100)
+  );
+  --noora-button-group-hover-label: light-dark(
+    var(--noora-neutral-light-1100),
+    var(--noora-neutral-light-100)
+  );
+  --noora-button-group-active-background: light-dark(
+    var(--noora-neutral-light-200),
+    var(--noora-neutral-dark-1000)
+  );
+  --noora-button-group-active-label: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-light-50)
+  );
+  --noora-button-group-disabled-background: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-dark-1000)
+  );
+  --noora-button-group-disabled-label: light-dark(
+    var(--noora-neutral-light-600),
+    var(--noora-neutral-dark-600)
+  );
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+
+  box-shadow: var(--noora-border-light-default);
+  border-radius: var(--noora-radius-3);
+  background-color: var(--noora-button-group-background);
+  padding: var(--noora-spacing-1);
+  overflow: hidden;
+
+  &[data-size="small"] {
+    gap: var(--noora-spacing-1);
+  }
+  &[data-size="medium"],
+  &[data-size="large"] {
+    gap: var(--noora-spacing-2);
+  }
+}
+
+.noora-button-group-item {
+  --noora-border-button-group:
+    inset 0px 2px 2px 0px oklch(32% 0.005 247.968 / 0.06),
+    inset 0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.08);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--noora-spacing-1);
+  cursor: pointer;
+  outline: unset;
+  border: unset;
+  border-radius: var(--noora-radius-2);
+
+  background-color: unset;
+  overflow: hidden;
+  color: var(--noora-button-group-label);
+  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  user-select: none;
+  text-decoration: unset;
+
+  html[data-theme="dark"] & {
+    --noora-border-button-group:
+      inset 0px 3px 3px 0px oklch(0% 0 0 / 0.3),
+      inset 0px 1px 1px 0px oklch(0% 0 0 / 0.3);
+  }
+
+  &:hover {
+    background-color: var(--noora-button-group-hover-background);
+    color: var(--noora-button-group-hover-label);
+  }
+
+  &:active,
+  &[data-selected] {
+    box-shadow: var(--noora-border-button-group);
+    background-color: var(--noora-button-group-active-background);
+    color: var(--noora-button-group-active-label);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    background: var(--noora-button-group-disabled-background) !important;
+    color: var(--noora-button-group-disabled-label) !important;
+  }
+
+  & > [data-part="label"] {
+    padding: var(--noora-spacing-0) var(--noora-spacing-2);
+  }
+
+  .noora-button-group[data-size="small"] & {
+    padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
+    & svg {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
     }
   }
 
-  &[data-status="warning"] {
-    border-bottom: 2px solid var(--noora-banner-warning-border);
-    background: var(--noora-banner-warning-background);
+  .noora-button-group[data-size="medium"] & {
+    gap: var(--noora-spacing-1);
+    padding: var(--noora-spacing-2) var(--noora-spacing-2);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
-    & [data-part="icon"] {
-      color: var(--noora-orange-600);
+    & > [data-part="label"] {
+      padding: var(--noora-spacing-0) var(--noora-spacing-2);
+    }
+
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
     }
   }
 
-  &[data-status="information"] {
-    border-bottom: 2px solid var(--noora-banner-information-border);
-    background: var(--noora-banner-information-background);
+  .noora-button-group[data-size="large"] & {
+    padding: var(--noora-spacing-2) var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
-    & [data-part="icon"] {
-      color: var(--noora-azure-500);
+    & svg {
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
     }
   }
 }
@@ -1522,30 +1917,32 @@ export const NOORA_CSS = String.raw`
 .noora-line-divider {
   --noora-content-divider-line: light-dark(
     var(--noora-neutral-light-400),
-    oklch(0% 0 0 / 80%)
+    var(--noora-neutral-dark-900)
   );
-  --noora-content-divider: 0px 1px 0px 0px
-    light-dark(
-      oklch(from var(--noora-neutral-light-500) l c h / 30%),
-      oklch(from var(--noora-neutral-dark-900) l c h / 35%)
-    );
   --noora-content-divider-label: light-dark(
     var(--noora-neutral-light-700),
     var(--noora-neutral-dark-500)
   );
-  display: flex;
-  flex-direction: row;
 
-  align-items: center;
   z-index: 1;
   width: 100%;
+  height: 1px;
+  background-color: var(--noora-content-divider-line);
 
-  & [data-part="line"] {
-    transform: translateY(-0.5px);
-    box-shadow: var(--noora-content-divider);
-    background-color: var(--noora-content-divider-line);
-    width: 100%;
-    height: 1px;
+  &:has([data-part="text"]) {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: auto;
+    background-color: transparent;
+
+    &::before,
+    &::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background-color: var(--noora-content-divider-line);
+    }
   }
 
   & [data-part="text"] {

@@ -38,7 +38,40 @@ defmodule Tuist.Projects.VCSConnectionTest do
       assert "can't be blank" in errors_on(changeset).project_id
       assert "can't be blank" in errors_on(changeset).provider
       assert "can't be blank" in errors_on(changeset).repository_full_handle
-      assert "can't be blank" in errors_on(changeset).github_app_installation_id
+      refute Map.has_key?(errors_on(changeset), :github_app_installation_id)
+      refute Map.has_key?(errors_on(changeset), :origin_app_installation_id)
+    end
+
+    test "requires the installation for the selected provider" do
+      for {provider, field} <- [github: :github_app_installation_id, origin: :origin_app_installation_id] do
+        changeset =
+          VCSConnection.changeset(%{
+            project_id: 1,
+            provider: provider,
+            repository_full_handle: "tuist/tuist"
+          })
+
+        assert "can't be blank" in errors_on(changeset)[field]
+      end
+    end
+
+    test "accepts only the installation for the selected provider" do
+      for {provider, field, other_field} <- [
+            {:github, :github_app_installation_id, :origin_app_installation_id},
+            {:origin, :origin_app_installation_id, :github_app_installation_id}
+          ] do
+        attrs = %{
+          field => UUIDv7.generate(),
+          :project_id => 1,
+          :provider => provider,
+          :repository_full_handle => "tuist/tuist"
+        }
+
+        assert VCSConnection.changeset(attrs).valid?
+
+        changeset = VCSConnection.changeset(Map.put(attrs, other_field, UUIDv7.generate()))
+        assert "must be absent for this provider" in errors_on(changeset)[other_field]
+      end
     end
 
     test "is valid without created_by_id" do

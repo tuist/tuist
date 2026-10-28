@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Foundation
 import Path
@@ -9,6 +8,7 @@ import TuistGit
 import TuistHTTP
 import TuistLoader
 import TuistLogging
+import TuistProcess
 import TuistScaffold
 import TuistSupport
 
@@ -238,6 +238,7 @@ public struct PluginService: PluginServicing {
                 releaseUrl: releaseUrl
             )
         }
+        await fileSystem.markCacheEntryUsed(at: pluginCacheDirectory)
     }
 
     private func pluginCacheDirectory(
@@ -301,7 +302,7 @@ public struct PluginService: PluginServicing {
                 if try await fileSystem.exists(downloadZipPath) {
                     try await fileSystem.remove(downloadZipPath)
                 }
-                try await fileClient.download(url: releaseURL, to: downloadZipPath)
+                try await downloadRelease(from: releaseURL, to: downloadZipPath)
                 let unarchiver = try fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
                 fileUnarchiver = unarchiver
 
@@ -332,6 +333,13 @@ public struct PluginService: PluginServicing {
             try? await fileSystem.remove(downloadZipPath)
 
             if let thrownError { throw thrownError }
+        }
+    }
+
+    /// Downloads again after a transport error or a 408, 429 or 5xx response.
+    func downloadRelease(from url: URL, to path: AbsolutePath) async throws {
+        try await HTTPRetryPolicy().run {
+            try await fileClient.download(url: url, to: path)
         }
     }
 

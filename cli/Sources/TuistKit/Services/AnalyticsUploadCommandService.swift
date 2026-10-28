@@ -42,7 +42,8 @@ struct AnalyticsUploadCommandService {
         eventFilePath: String,
         fullHandle: String,
         serverURL: String,
-        sessionDirectory: String? = nil
+        sessionDirectory: String? = nil,
+        projectPath: String? = nil
     ) async throws {
         let eventPath = try AbsolutePath(validating: eventFilePath)
         let sessionDirectory = try sessionDirectory.map { try AbsolutePath(validating: $0) }
@@ -52,7 +53,10 @@ struct AnalyticsUploadCommandService {
             }
 
             let commandEvent: CommandEvent = try await fileSystem.readJSONFile(at: eventPath)
-            let optionalAuthentication = await resolveOptionalAuthentication(commandArguments: commandEvent.commandArguments)
+            let optionalAuthentication = await resolveOptionalAuthentication(
+                commandArguments: commandEvent.commandArguments,
+                projectPath: projectPath
+            )
             try await ServerAuthenticationConfig.withOptionalAuthentication(optionalAuthentication) {
                 try await withTimeout(
                     bestEffortUploadTimeout,
@@ -72,8 +76,14 @@ struct AnalyticsUploadCommandService {
         }
     }
 
-    private func resolveOptionalAuthentication(commandArguments: [String]) async -> Bool {
-        guard let path = try? await CommandArguments.path(in: commandArguments),
+    private func resolveOptionalAuthentication(commandArguments: [String], projectPath: String?) async -> Bool {
+        let path: AbsolutePath?
+        if let projectPath {
+            path = try? AbsolutePath(validating: projectPath)
+        } else {
+            path = try? await CommandArguments.path(in: commandArguments)
+        }
+        guard let path,
               let config = try? await configLoader.loadConfig(path: path)
         else { return false }
 

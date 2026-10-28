@@ -55,6 +55,13 @@ Describe 'warm rollout lifecycle'
     liveness_status="$(status_only "${KURA_US_URL}/up")"
     The variable liveness_status should eq 200
 
+    capture_into liveness_body curl -sS "${KURA_US_URL}/up" || return 1
+    The variable liveness_body should include '"status":"ok"'
+    The variable liveness_body should not include '"ring_members"'
+
+    capture_into liveness_cluster_body curl -sS "${KURA_US_URL}/status/cluster" || return 1
+    The variable liveness_cluster_body should include '"ring_members"'
+
     capture_into draining_headers \
       sh -lc "curl -sS --http1.1 -D - -o /dev/null '${KURA_US_URL}/api/cache/cas/warm-rollout-artifact?tenant_id=acme&namespace_id=ios' | tr '[:upper:]' '[:lower:]'" || return 1
     The variable draining_headers should include 'http/1.1 503 service unavailable'

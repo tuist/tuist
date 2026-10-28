@@ -38,7 +38,8 @@ class TuistTestQuarantineTest {
                 )
             },
             connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000
+            readTimeoutMs = 10_000,
+            retryPolicy = RetryPolicy(sleeper = {})
         )
         return TuistTestQuarantineService(httpClient = httpClient, baseUrl = baseUrl)
     }
@@ -255,7 +256,8 @@ class TuistTestQuarantineTest {
                 )
             },
             connectTimeoutMs = 100,
-            readTimeoutMs = 100
+            readTimeoutMs = 100,
+            retryPolicy = RetryPolicy(sleeper = {})
         )
         val service = TuistTestQuarantineService(httpClient = httpClient, baseUrl = baseUrl)
 
@@ -273,6 +275,34 @@ class TuistTestQuarantineTest {
         val result = service.getQuarantinedTests()
 
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `getQuarantinedTests retries a 503 and returns the quarantined tests`() {
+        val service = createService()
+
+        mockWebServer.enqueue(MockResponse().setResponseCode(503))
+        mockWebServer.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                Gson().toJson(
+                    QuarantinedTestCasesResponse(
+                        testCases = listOf(
+                            QuarantinedTestCase(
+                                name = "testLogin",
+                                module = QuarantinedModule(id = "1", name = ":app"),
+                                suite = QuarantinedSuite(id = "1", name = "com.example.LoginTest"),
+                                state = "muted"
+                            )
+                        )
+                    )
+                )
+            )
+        )
+
+        val result = service.getQuarantinedTests()
+
+        assertEquals(listOf(TestIdentifier("com.example.LoginTest", "testLogin")), result.muted[":app"])
+        assertEquals(2, mockWebServer.requestCount)
     }
 
     @Test

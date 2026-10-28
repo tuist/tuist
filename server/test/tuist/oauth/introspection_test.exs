@@ -1,16 +1,144 @@
 defmodule Tuist.OAuth.IntrospectionTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Cache
   alias Tuist.OAuth.Introspection
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "token_response/1" do
     test "returns inactive for unknown tokens" do
       assert Introspection.token_response("unknown-token") == %{active: false}
+    end
+
+    # Every managed cache node authenticates as the control-plane client and so
+    # lands here whenever it cannot read the token itself. Answering inactive
+    # made it deny every request from a CLI that sends one.
+    test "answers a cache token from the grants it carries" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "control-plane-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+      full_handle = "#{organization.account.name}/#{project.name}"
+
+      {:ok, token, _claims} = Cache.issue_cache_token(user, scope: full_handle)
+
+      assert %{
+               active: true,
+               cache_grants: %{
+                 "project" => %{"read" => project_reads, "write" => project_writes}
+               }
+             } = Introspection.token_response(token)
+
+      assert full_handle in project_reads
+      assert full_handle in project_writes
+    end
+
+    # A cache token outlives the deploy that minted it, so the key it was signed
+    # with has to keep answering for its whole lifetime. Without this every build
+    # holding a token from the previous release is cut off mid-flight.
+    test "answers a cache token signed with the API-credential key" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "overlap-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+      full_handle = "#{organization.account.name}/#{project.name}"
+
+      grants = %{
+        "account" => %{"read" => [], "write" => []},
+        "project" => %{"read" => [full_handle], "write" => [full_handle]}
+      }
+
+      {:ok, token, _claims} =
+        Tuist.Guardian.encode_and_sign(user, %{"cache_grants" => grants},
+          token_type: "cache",
+          ttl: {Cache.cache_token_ttl_seconds(), :second}
+        )
+
+      assert %{active: true, cache_grants: %{"project" => %{"read" => reads}}} =
+               Introspection.token_response(token)
+
+      assert full_handle in reads
+    end
+
+    # The skew this rollout's two steps exist to close. Installing the key and
+    # switching on issuance are separate rollouts, so partway through the second
+    # one a replica still signing with the old key receives, for introspection,
+    # a token a replica ahead of it has already signed with the new one. It
+    # holds the key from the first step, so it answers rather than reporting a
+    # valid token inactive and 401ing a request that was fine.
+    test "answers a cache token signed by a replica already issuing them" do
+      stub(Tuist.Environment, :cache_token_signing_enabled?, fn -> false end)
+
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "skew-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+      full_handle = "#{organization.account.name}/#{project.name}"
+
+      refute Tuist.CacheGuardian.signing?()
+      assert Tuist.CacheGuardian.configured?()
+
+      grants = %{
+        "account" => %{"read" => [], "write" => []},
+        "project" => %{"read" => [full_handle], "write" => [full_handle]}
+      }
+
+      {:ok, token, _claims} =
+        Tuist.CacheGuardian.encode_and_sign(user, %{"cache_grants" => grants},
+          token_type: "cache",
+          ttl: {Cache.cache_token_ttl_seconds(), :second}
+        )
+
+      assert %{active: true, cache_grants: %{"project" => %{"read" => reads}}} =
+               Introspection.token_response(token)
+
+      assert full_handle in reads
+    end
+
+    # The tenant-scoped path narrows to one account. This one serves every
+    # tenant, so a token minted for a project in one organization has to come
+    # back carrying that project rather than being filtered to nothing.
+    test "answers a cache token whatever tenant it was minted for" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      first = AccountsFixtures.organization_fixture(name: "first-tenant", creator: user)
+      second = AccountsFixtures.organization_fixture(name: "second-tenant", creator: user)
+      Accounts.add_user_to_organization(user, first, role: :admin)
+      Accounts.add_user_to_organization(user, second, role: :admin)
+      ProjectsFixtures.project_fixture(account: first.account, name: "ios")
+      ProjectsFixtures.project_fixture(account: second.account, name: "android")
+
+      for handle <- ["first-tenant/ios", "second-tenant/android"] do
+        {:ok, token, _claims} = Cache.issue_cache_token(user, scope: handle)
+
+        assert %{active: true, cache_grants: %{"project" => %{"read" => reads}}} =
+                 Introspection.token_response(token)
+
+        assert handle in reads
+      end
+    end
+
+    # The refusal answering a cache token depends on: resolving one as a subject
+    # would make a token minted for the cache work on every API endpoint, and its
+    # `sub` is a project id that the user lookup would read as a user id.
+    test "a cache token still resolves to no API subject" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "no-api-control-plane", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      ProjectsFixtures.project_fixture(account: organization.account)
+
+      {:ok, token, _claims} = Cache.issue_cache_token(user)
+
+      assert Tuist.Authentication.authenticated_subject(token) == nil
+    end
+
+    test "reports a tampered cache token inactive" do
+      assert Introspection.token_response("not.a.jwt") == %{active: false}
     end
 
     test "returns user cache grants for personal and organization accounts" do
@@ -242,6 +370,23 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert Tuist.Authentication.authenticated_subject(token) == nil
     end
 
+    # A user reaching two tenants carries both in the lists of accounts refused
+    # for billing. One tenant's node must not learn the other's billing status.
+    test "names no other tenant among the accounts refused for billing" do
+      %{user: user, granted: granted, refused: refused} = two_tenants_one_refused_for_a_failed_payment()
+      {:ok, cache_token, _claims} = Cache.issue_cache_token(user)
+
+      for token <- [user.token, cache_token] do
+        assert %{active: true, cache_payment_required: [], cache_payment_failed: []} =
+                 Introspection.token_response(token, granted.account)
+      end
+
+      assert %{active: true, cache_payment_required: [handle], cache_payment_failed: [handle]} =
+               Introspection.token_response(cache_token, refused.account)
+
+      assert handle == refused.account.name
+    end
+
     test "constrains grants to the given account and drops other tenants" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(name: "scoped-org", creator: user)
@@ -360,5 +505,25 @@ defmodule Tuist.OAuth.IntrospectionTest do
     :tuist
     |> Application.fetch_env!(Tuist.Guardian)
     |> Keyword.fetch!(:issuer)
+  end
+
+  defp two_tenants_one_refused_for_a_failed_payment do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    granted = AccountsFixtures.organization_fixture(name: "granted-tenant", creator: user)
+    Accounts.add_user_to_organization(user, granted, role: :admin)
+    ProjectsFixtures.project_fixture(account: granted.account)
+
+    refused =
+      AccountsFixtures.organization_fixture(
+        name: "refused-tenant",
+        creator: user,
+        current_month_cache_requests: UsagePricing.included_requests()
+      )
+
+    Accounts.add_user_to_organization(user, refused, role: :admin)
+    ProjectsFixtures.project_fixture(account: refused.account)
+    BillingFixtures.subscription_fixture(account_id: refused.account.id, plan: :pro, status: "unpaid")
+
+    %{user: user, granted: granted, refused: refused}
   end
 end

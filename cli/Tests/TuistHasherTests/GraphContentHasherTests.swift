@@ -29,7 +29,7 @@ struct GraphContentHasherTests {
             for: graph,
             include: { _ in true },
             destination: nil,
-            additionalStrings: []
+            additionalStrings: { _ in [] }
         )
 
         // Then
@@ -99,7 +99,7 @@ struct GraphContentHasherTests {
                 $0.target.product == .framework
             },
             destination: nil,
-            additionalStrings: []
+            additionalStrings: { _ in [] }
         )
         let hashedTargets: [GraphTarget] = hashes.keys.sorted { left, right -> Bool in
             left.path.pathString < right.path.pathString
@@ -159,7 +159,7 @@ struct GraphContentHasherTests {
             for: graph,
             include: { _ in true },
             destination: nil,
-            additionalStrings: []
+            additionalStrings: { _ in [] }
         )
 
         // Then

@@ -1,20 +1,32 @@
 .noora-alert {
-  --noora-alert-error-icon: var(--noora-red-500);
+  --noora-alert-error-icon: light-dark(
+    var(--noora-red-500),
+    var(--noora-red-400)
+  );
   --noora-alert-error-secondary-background: light-dark(
     var(--noora-red-50),
     var(--noora-alpha-red)
   );
-  --noora-alert-success-icon: var(--noora-green-600);
+  --noora-alert-success-icon: light-dark(
+    var(--noora-green-600),
+    var(--noora-green-400)
+  );
   --noora-alert-success-secondary-background: light-dark(
     var(--noora-green-50),
     var(--noora-alpha-green)
   );
-  --noora-alert-warning-icon: var(--noora-orange-600);
+  --noora-alert-warning-icon: light-dark(
+    var(--noora-orange-600),
+    var(--noora-orange-400)
+  );
   --noora-alert-warning-secondary-background: light-dark(
     var(--noora-orange-50),
     var(--noora-alpha-orange)
   );
-  --noora-alert-information-icon: var(--noora-azure-500);
+  --noora-alert-information-icon: light-dark(
+    var(--noora-azure-500),
+    var(--noora-azure-400)
+  );
   --noora-alert-information-secondary-background: light-dark(
     var(--noora-azure-50),
     var(--noora-alpha-azure)

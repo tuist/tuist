@@ -24,15 +24,16 @@ import Foundation
     /// a self-hosted Tuist/Kura server with a private CA on hosts where installing a
     /// trusted root in the System keychain isn't practical (for example headless CI).
     ///
-    /// `@unchecked Sendable` is safe because the only stored state,
-    /// `additionalCertificates`, is an immutable `[SecCertificate]` assigned once at init
-    /// and never mutated, so the instance can be shared across the URLSession delegate
+    /// `@unchecked Sendable` is safe because the stored certificates and redirect policy
+    /// are immutable, assigned once at init and never mutated, so the instance can be shared across the URLSession delegate
     /// queue. Adding mutable state here would need to re-establish that invariant.
     final class TuistURLSessionDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         private let additionalCertificates: [SecCertificate]
+        private let followRedirects: Bool
 
-        init(additionalCertificates: [SecCertificate]) {
+        init(additionalCertificates: [SecCertificate], followRedirects: Bool = true) {
             self.additionalCertificates = additionalCertificates
+            self.followRedirects = followRedirects
             super.init()
         }
 
@@ -53,6 +54,13 @@ import Foundation
             } else {
                 completionHandler(.cancelAuthenticationChallenge, nil)
             }
+        }
+
+        func urlSession(
+            _: URLSession, task _: URLSessionTask, willPerformHTTPRedirection _: HTTPURLResponse,
+            newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+        ) {
+            completionHandler(followRedirects ? request : nil)
         }
 
         #if canImport(TuistHAR)

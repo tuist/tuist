@@ -1,0 +1,51 @@
+name: CLI release manifest tests
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/cli-*.yml
+      - .github/scripts/cli-packslip.test.sh
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/cli-*.yml
+      - .github/scripts/cli-packslip.test.sh
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked yq jq"
+          cache: "false"
+      - name: Read the production Packslip pin
+        id: pin
+        run: |
+          set -euo pipefail
+          action=$(yq -r '.jobs.sign-cli.steps[] | select(.id == "packslip") | .uses' .github/workflows/cli-build-publish.yml)
+          ref=${action#jdx/packslip@}
+          [[ "$action" == jdx/packslip@* && "$ref" =~ ^[0-9a-f]{40}$ ]]
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: jdx/packslip
+          ref: ${{ steps.pin.outputs.ref }}
+          path: .packslip-action
+          persist-credentials: false
+      - name: Install the pinned Packslip CLI
+        env:
+          PACKSLIP_ACTION_ROOT: ${{ github.workspace }}/.packslip-action
+          PACKSLIP_PATH: ""
+          PACKSLIP_VERSION: ""
+          GH_TOKEN: ${{ github.token }}
+        run: bash .packslip-action/scripts/install-packslip.sh
+      - name: Test release manifests with offline signing
+        run: bash .github/scripts/cli-packslip.test.sh

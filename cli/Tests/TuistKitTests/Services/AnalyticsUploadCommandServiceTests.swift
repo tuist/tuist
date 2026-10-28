@@ -186,6 +186,64 @@ struct AnalyticsUploadCommandServiceTests {
 
     @Test(
         .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        arguments: [["generate"], ["generate", "--path", "/wrong-project"]],
+        [false, true]
+    )
+    func run_loads_authentication_policy_from_the_resolved_project_path(
+        commandArguments: [String],
+        optionalAuthentication: Bool
+    ) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "app")
+        let eventFilePath = temporaryDirectory.appending(component: "event.json")
+        try await FileSystem().writeAsJSON(CommandEvent.test(commandArguments: commandArguments), at: eventFilePath)
+        let arguments = [
+            eventFilePath.pathString, fullHandle, serverURL, temporaryDirectory.pathString,
+            "--project-path", projectPath.pathString,
+        ]
+        let command = try AnalyticsUploadCommand.parse(arguments)
+        let resolvedPath = try await CommandArguments.path(in: arguments, command: command)
+        #expect(resolvedPath == projectPath)
+        let recorder = AuthenticationConfigRecorder()
+        let configLoader = MockConfigLoading()
+        given(configLoader)
+            .loadConfig(path: .value(projectPath))
+            .willReturn(
+                .test(project: .generated(.test(generationOptions: .test(optionalAuthentication: optionalAuthentication))))
+            )
+        let subject = AnalyticsUploadCommandService(
+            fileSystem: FileSystem(),
+            uploadAnalyticsService: RecordingUploadAnalyticsService(recorder: recorder),
+            configLoader: configLoader
+        )
+
+        try await subject.run(
+            eventFilePath: command.eventFilePath,
+            fullHandle: command.fullHandle,
+            serverURL: command.serverURL,
+            sessionDirectory: command.sessionDirectory,
+            projectPath: command.projectPath
+        )
+
+        #expect(await recorder.values() == [optionalAuthentication])
+        verify(configLoader).loadConfig(path: .value(projectPath)).called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func legacy_analytics_upload_invocation_keeps_the_working_directory_default() async throws {
+        let arguments = ["/event.json", fullHandle, serverURL, "/session"]
+        let command = try AnalyticsUploadCommand.parse(arguments)
+
+        let path = try await CommandArguments.path(in: arguments, command: command)
+
+        #expect(command.projectPath == nil)
+        #expect(command.sessionDirectory == "/session")
+        #expect(path == (try await Environment.current.currentWorkingDirectory()))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func run_enables_optional_authentication_from_repo_config_when_using_short_path_option() async throws {
         // Given

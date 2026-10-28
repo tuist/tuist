@@ -1,0 +1,1 @@
+<ts:testsuites xmlns:ts="urn:test"><ts:testsuite ts:name=" Suite "><ts:testcase ts:classname=" RealClass " ts:name=" test "><ts:failure/></ts:testcase><ts:testcase ts:name="fallback"><ts:error/></ts:testcase></ts:testsuite><testsuite name="Other"><testcase ts:classname="MixedClass" ts:name="mixed"><failure/></testcase></testsuite></ts:testsuites>

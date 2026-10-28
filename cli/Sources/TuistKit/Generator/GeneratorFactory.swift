@@ -1,8 +1,10 @@
 import Foundation
 import Mockable
+import TuistCache
 import TuistConfig
 import TuistCore
 import TuistGenerator
+import TuistHasher
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -36,7 +38,8 @@ public protocol GeneratorFactorying {
         ignoreSelectiveTesting: Bool,
         cacheStorage: CacheStoring,
         destination: SimulatorDeviceAndRuntime?,
-        schemeName: String?
+        schemeName: String?,
+        coverage: BinaryCacheCoverage
     ) -> Generating
 
     /// Returns the generator for focused projects.
@@ -51,7 +54,8 @@ public protocol GeneratorFactorying {
         includedTargets: Set<TargetQuery>,
         configuration: String?,
         cacheProfile: CacheProfile,
-        cacheStorage: CacheStoring
+        cacheStorage: CacheStoring,
+        coverage: BinaryCacheCoverage
     ) -> Generating
 
     /// Returns a generator for building a project.
@@ -65,7 +69,8 @@ public protocol GeneratorFactorying {
         config: Tuist,
         configuration: String?,
         ignoreBinaryCache: Bool,
-        cacheStorage: CacheStoring
+        cacheStorage: CacheStoring,
+        coverage: BinaryCacheCoverage
     ) -> Generating
 
     /// Returns the default generator.
@@ -74,7 +79,8 @@ public protocol GeneratorFactorying {
     /// - Returns: A Generator instance.
     func defaultGenerator(
         config: Tuist,
-        includedTargets: Set<TargetQuery>
+        includedTargets: Set<TargetQuery>,
+        coverage: BinaryCacheCoverage
     ) -> Generating
 }
 
@@ -97,8 +103,10 @@ public struct GeneratorFactory: GeneratorFactorying {
         ignoreSelectiveTesting _: Bool,
         cacheStorage _: CacheStoring,
         destination _: SimulatorDeviceAndRuntime?,
-        schemeName: String? = nil
+        schemeName: String? = nil,
+        coverage: BinaryCacheCoverage
     ) -> Generating {
+        let config = config.resolvingCoverage(coverage)
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
         let projectMappers = projectMapperFactory.automation(
@@ -136,24 +144,28 @@ public struct GeneratorFactory: GeneratorFactorying {
         includedTargets: Set<TargetQuery>,
         configuration _: String?,
         cacheProfile _: CacheProfile,
-        cacheStorage _: CacheStoring
+        cacheStorage _: CacheStoring,
+        coverage: BinaryCacheCoverage
     ) -> Generating {
-        defaultGenerator(config: config, includedTargets: includedTargets)
+        defaultGenerator(config: config, includedTargets: includedTargets, coverage: coverage)
     }
 
     public func building(
         config: Tuist,
         configuration _: String?,
         ignoreBinaryCache _: Bool,
-        cacheStorage _: CacheStoring
+        cacheStorage _: CacheStoring,
+        coverage: BinaryCacheCoverage
     ) -> Generating {
-        defaultGenerator(config: config, includedTargets: [])
+        defaultGenerator(config: config, includedTargets: [], coverage: coverage)
     }
 
     public func defaultGenerator(
         config: Tuist,
-        includedTargets: Set<TargetQuery>
+        includedTargets: Set<TargetQuery>,
+        coverage: BinaryCacheCoverage
     ) -> Generating {
+        let config = config.resolvingCoverage(coverage)
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
         let projectMappers = projectMapperFactory.default(
@@ -192,12 +204,20 @@ public struct GeneratorFactory: GeneratorFactorying {
         /// - Parameter targetsToBinaryCache: The targets to binary cache.
         /// - Parameter configuration: The configuration to generate for.
         /// - Parameter cacheStorage: The cache storage instance.
+        /// - Parameter targetHashes: Content hashes the caller already computed for the same graph. Binary
+        /// replacement reuses them instead of hashing the graph again; pass an empty map to have it hash.
+        /// - Parameter coverage: The variant of the binary cache the warm fills: `.on` builds the
+        /// repository-owned targets with coverage counters under the coverage key.
+        /// Every factory method sets the config's `coverage.enabled` to the variant it's given, which the mappers
+        /// and the binary-cache hashes read.
         /// - Returns: A Generator instance.
         func binaryCacheWarming(
             config: Tuist,
             targetsToBinaryCache: [Platform: Set<TargetQuery>],
             configuration: String,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            targetHashes: [TargetReference: TargetContentHash],
+            coverage: BinaryCacheCoverage
         ) -> Generating
 
         /// Returns a generator to load the graph before generating the project to warm the cache
@@ -207,7 +227,8 @@ public struct GeneratorFactory: GeneratorFactorying {
         /// - Returns: A Generator instance.
         func binaryCacheWarmingPreload(
             config: Tuist,
-            targetsToBinaryCache: Set<TargetQuery>
+            targetsToBinaryCache: Set<TargetQuery>,
+            coverage: BinaryCacheCoverage
         ) -> Generating
 
         /// Returns the generator to generate a project to run tests on.
@@ -229,7 +250,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
-            schemeName: String?
+            schemeName: String?,
+            coverage: BinaryCacheCoverage
         ) -> Generating
 
         /// Returns the generator for focused projects.
@@ -244,7 +266,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             includedTargets: Set<TargetQuery>,
             configuration: String?,
             cacheProfile: CacheProfile,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            coverage: BinaryCacheCoverage
         ) -> Generating
 
         /// Returns a generator for building a project.
@@ -258,7 +281,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             config: Tuist,
             configuration: String?,
             ignoreBinaryCache: Bool,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            coverage: BinaryCacheCoverage
         ) -> Generating
 
         /// Returns the default generator.
@@ -267,7 +291,8 @@ public struct GeneratorFactory: GeneratorFactorying {
         /// - Returns: A Generator instance.
         func defaultGenerator(
             config: Tuist,
-            includedTargets: Set<TargetQuery>
+            includedTargets: Set<TargetQuery>,
+            coverage: BinaryCacheCoverage
         ) -> Generating
     }
 
@@ -277,11 +302,13 @@ public struct GeneratorFactory: GeneratorFactorying {
         /// - Parameter sources: The list of targets whose sources should be included.
         /// - Returns: A Generator instance.
         func defaultGenerator(
-            config: Tuist
+            config: Tuist,
+            coverage: BinaryCacheCoverage
         ) -> Generating {
             defaultGenerator(
                 config: config,
-                includedTargets: Set()
+                includedTargets: Set(),
+                coverage: coverage
             )
         }
     }
@@ -298,8 +325,10 @@ public struct GeneratorFactory: GeneratorFactorying {
             includedTargets: Set<TargetQuery>,
             configuration: String?,
             cacheProfile: CacheProfile,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            coverage: BinaryCacheCoverage
         ) -> Generating {
+            let config = config.resolvingCoverage(coverage)
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
             let projectMappers = projectMapperFactory.default(tuist: config)
@@ -337,8 +366,10 @@ public struct GeneratorFactory: GeneratorFactorying {
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
-            schemeName: String? = nil
+            schemeName: String? = nil,
+            coverage: BinaryCacheCoverage
         ) -> Generating {
+            let config = config.resolvingCoverage(coverage)
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
             let projectMappers = projectMapperFactory.automation(
@@ -377,8 +408,10 @@ public struct GeneratorFactory: GeneratorFactorying {
             config: Tuist,
             configuration: String?,
             ignoreBinaryCache: Bool,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            coverage: BinaryCacheCoverage
         ) -> Generating {
+            let config = config.resolvingCoverage(coverage)
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
             let projectMappers = projectMapperFactory.automation(
@@ -407,8 +440,10 @@ public struct GeneratorFactory: GeneratorFactorying {
 
         func binaryCacheWarmingPreload(
             config: Tuist,
-            targetsToBinaryCache: Set<TargetQuery>
+            targetsToBinaryCache: Set<TargetQuery>,
+            coverage: BinaryCacheCoverage
         ) -> Generating {
+            let config = config.resolvingCoverage(coverage)
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
             let projectMappers = projectMapperFactory.default(tuist: config)
@@ -437,8 +472,11 @@ public struct GeneratorFactory: GeneratorFactorying {
             config: Tuist,
             targetsToBinaryCache: [XcodeGraph.Platform: Set<TargetQuery>],
             configuration: String,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            targetHashes: [TargetReference: TargetContentHash],
+            coverage: BinaryCacheCoverage
         ) -> Generating {
+            let config = config.resolvingCoverage(coverage)
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
             let projectMappers = projectMapperFactory.default(tuist: config)
@@ -453,7 +491,8 @@ public struct GeneratorFactory: GeneratorFactorying {
                 targets: targetsToBinaryCache,
                 cacheSources: Set(targetsToBinaryCache.flatMap(\.value)),
                 configuration: configuration,
-                cacheStorage: cacheStorage
+                cacheStorage: cacheStorage,
+                targetHashes: targetHashes
             )
             graphMappers = graphMappers.filter { !($0 is ExplicitDependencyGraphMapper) }
 
@@ -469,9 +508,9 @@ public struct GeneratorFactory: GeneratorFactorying {
             )
         }
 
-        func defaultGenerator(config: Tuist, includedTargets: Set<TargetQuery>) -> Generating {
+        func defaultGenerator(config: Tuist, includedTargets: Set<TargetQuery>, coverage: BinaryCacheCoverage) -> Generating {
             TuistKit.GeneratorFactory().defaultGenerator(
-                config: config, includedTargets: includedTargets
+                config: config, includedTargets: includedTargets, coverage: coverage
             )
         }
     }

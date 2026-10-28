@@ -1,10 +1,6 @@
 import Foundation
-#if canImport(FoundationNetworking)
-    import FoundationNetworking
-#endif
 import Mockable
 import TuistEnvironment
-import TuistLogging
 import TuistServer
 
 @Mockable
@@ -12,190 +8,93 @@ public protocol CacheURLStoring: Sendable {
     func getCacheURL(for serverURL: URL, accountHandle: String?) async throws -> URL
 }
 
+/// Source compatibility for the pinned cache module. Stable hostname resolution does not poll readiness.
+@available(*, deprecated, message: "Cache requests handle provisioning readiness; URL resolution does not poll.")
+public enum CacheProvisioningWait: Equatable, Sendable {
+    case none
+    case upTo(Duration)
+
+    public static let forInteractiveCommands: CacheProvisioningWait = .upTo(.seconds(30))
+}
+
 public struct CacheURLStore: CacheURLStoring {
-    private let cachedValueStore: CachedValueStoring
-    private let getCacheEndpointsService: GetCacheEndpointsServicing
-    private let endpointLatencyService: EndpointLatencyServicing
-    private let localCache: NSCache<NSString, NSString>
+    private static let configurations = CachedValueStore()
+    private let getCacheEndpointService: any GetCacheEndpointServicing
+    private let configurationCache: any CachedValueStoring
 
-    public init() {
-        self.init(
-            cachedValueStore: CachedValueStore(backend: .inSystemProcess),
-            getCacheEndpointsService: GetCacheEndpointsService(),
-            endpointLatencyService: EndpointLatencyService()
-        )
-    }
-
-    public init(cachedValueStore: CachedValueStoring) {
-        self.init(
-            cachedValueStore: cachedValueStore,
-            getCacheEndpointsService: GetCacheEndpointsService(),
-            endpointLatencyService: EndpointLatencyService()
-        )
-    }
-
-    init(
-        cachedValueStore: CachedValueStoring,
-        getCacheEndpointsService: GetCacheEndpointsServicing,
-        endpointLatencyService: EndpointLatencyServicing
+    public init(
+        getCacheEndpointService: any GetCacheEndpointServicing = GetCacheEndpointService(),
+        configurationCache: (any CachedValueStoring)? = nil
     ) {
-        self.cachedValueStore = cachedValueStore
-        self.getCacheEndpointsService = getCacheEndpointsService
-        self.endpointLatencyService = endpointLatencyService
-        localCache = NSCache<NSString, NSString>()
+        self.getCacheEndpointService = getCacheEndpointService
+        self.configurationCache = configurationCache ?? Self.configurations
+    }
+
+    @available(*, deprecated, message: "Use init(configurationCache:); provisioning readiness is handled by cache requests.")
+    public init(cachedValueStore: CachedValueStoring, provisioningWait _: CacheProvisioningWait = .none) {
+        self.init(configurationCache: cachedValueStore)
     }
 
     public func getCacheURL(for serverURL: URL, accountHandle: String?) async throws -> URL {
         if let overrideEndpoint = Environment.current.variables["TUIST_CACHE_ENDPOINT"] {
-            guard let url = URL(string: overrideEndpoint) else {
-                throw CacheURLStoreError.invalidURL(overrideEndpoint)
+            return try validatedURL(overrideEndpoint)
+        }
+
+        let suffix: String?
+        if serverURL.scheme?.lowercased() == "https",
+           serverURL.port == nil || serverURL.port == 443,
+           serverURL.path.isEmpty || serverURL.path == "/"
+        {
+            switch serverURL.host?.lowercased() {
+            case "tuist.dev", "tuist.io": suffix = ""
+            case "canary.tuist.dev": suffix = "-canary"
+            case "staging.tuist.dev": suffix = "-staging"
+            default: suffix = nil
             }
-            Logger.current.debug("Using cache endpoint override: \(overrideEndpoint)")
-            return url
-        }
-
-        let key =
-            "cache_url_\(serverURL.absoluteString)_\(accountHandle ?? "global")_\(currentCacheEndpointKeySuffix())"
-        let nsKey = key as NSString
-
-        if let cachedURLString = localCache.object(forKey: nsKey) as? String {
-            Logger.current.debug("Returning cached endpoint from local cache: \(cachedURLString)")
-
-            Task {
-                await refreshCacheInBackground(for: serverURL, accountHandle: accountHandle, key: key)
-            }
-
-            guard let url = URL(string: cachedURLString) else {
-                throw CacheURLStoreError.invalidURL(cachedURLString)
-            }
-            return url
-        }
-
-        guard let urlString = try await cachedValueStore.getValue(key: key, computeIfNeeded: {
-            try await self.selectBestEndpoint(for: serverURL, accountHandle: accountHandle)
-        }) else {
-            throw CacheURLStoreError.noEndpointsAvailable
-        }
-
-        localCache.setObject(urlString as NSString, forKey: nsKey)
-
-        guard let url = URL(string: urlString) else {
-            throw CacheURLStoreError.invalidURL(urlString)
-        }
-
-        return url
-    }
-
-    private func refreshCacheInBackground(for serverURL: URL, accountHandle: String?, key: String) async {
-        Logger.current.debug("Refreshing best cache endpoint in background for \(serverURL.absoluteString)")
-
-        do {
-            if let urlString = try await cachedValueStore.getValue(key: key, computeIfNeeded: {
-                try await self.selectBestEndpoint(for: serverURL, accountHandle: accountHandle)
-            }) {
-                localCache.setObject(urlString as NSString, forKey: key as NSString)
-            }
-        } catch {
-            Logger.current.warning("Failed to refresh best cache endpoint for \(serverURL.absoluteString): \(error)")
-        }
-    }
-
-    private func selectBestEndpoint(for serverURL: URL, accountHandle: String?) async throws
-        -> (value: String, expiresAt: Date?)?
-    {
-        Logger.current.debug("Selecting best cache endpoint for \(serverURL.absoluteString)")
-
-        let endpoints = try await getCacheEndpointsService.getCacheEndpoints(
-            serverURL: serverURL,
-            accountHandle: accountHandle
-        )
-
-        guard !endpoints.isEmpty else {
-            throw CacheURLStoreError.noEndpointsAvailable
-        }
-
-        if endpoints.count == 1 {
-            Logger.current.debug("Only one endpoint available, using it directly: \(endpoints[0])")
-            let expirationDate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())
-            return (value: endpoints[0], expiresAt: expirationDate)
-        }
-
-        let endpointLatencies: [(String, TimeInterval?)] = try await endpoints.concurrentMap { endpoint in
-            guard let endpointURL = URL(string: endpoint) else {
-                Logger.current.warning("Invalid endpoint URL: \(endpoint)")
-                return (endpoint, nil)
-            }
-            let latency = await endpointLatencyService.measureLatency(for: endpointURL)
-            return (endpoint, latency)
-        }
-
-        let reachableEndpoints = endpointLatencies.compactMap { endpoint, latency -> (String, TimeInterval)? in
-            guard let latency else { return nil }
-            return (endpoint, latency)
-        }
-
-        for (endpoint, latency) in endpointLatencies {
-            if let latency {
-                Logger.current.debug("Endpoint \(endpoint) latency: \(String(format: "%.3f", latency))s")
-            } else {
-                Logger.current.debug("Endpoint \(endpoint) is unreachable")
-            }
-        }
-
-        guard !reachableEndpoints.isEmpty else {
-            throw CacheURLStoreError.noReachableEndpoints
-        }
-
-        let bestEndpoint = reachableEndpoints.min(by: { $0.1 < $1.1 })!
-
-        Logger.current
-            .debug(
-                "Selected endpoint \(bestEndpoint.0) with latency \(String(format: "%.3f", bestEndpoint.1))s"
-            )
-
-        let expirationDate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())
-        return (value: bestEndpoint.0, expiresAt: expirationDate)
-    }
-
-    private func currentCacheEndpointKeySuffix() -> String {
-        if ClientFeatureFlags.contains("kura") {
-            "kura"
         } else {
-            "default"
+            suffix = nil
         }
+
+        guard let suffix else {
+            let configuration: CacheEndpointResolution? = try await configurationCache.getValue(
+                key: "cache-endpoint:\(serverURL.absoluteString)"
+            ) {
+                let value = try await getCacheEndpointService.getCacheEndpoint(serverURL: serverURL)
+                return (value, Date().addingTimeInterval(max(0, min(value.maxAge ?? 60, 60))))
+            }
+            guard let endpoint = configuration?.endpoint else { throw CacheURLStoreError.noEndpointsAvailable }
+            return try validatedURL(endpoint)
+        }
+
+        guard let handle = accountHandle?.lowercased(),
+              handle.range(of: "\\A[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?\\z", options: .regularExpression) != nil,
+              !handle.hasSuffix("-staging"), !handle.hasSuffix("-canary")
+        else { throw CacheURLStoreError.invalidAccountHandle(accountHandle) }
+
+        return URL(string: "https://\(handle)\(suffix).cache.tuist.dev")!
+    }
+
+    private func validatedURL(_ endpoint: String) throws -> URL {
+        guard let url = URL(string: endpoint),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host, !host.isEmpty
+        else { throw CacheURLStoreError.invalidURL(endpoint) }
+        return url
     }
 }
 
 public enum CacheURLStoreError: LocalizedError, Equatable {
-    case noEndpointsAvailable
-    case noReachableEndpoints
     case invalidURL(String)
-
+    case invalidAccountHandle(String?)
+    case noEndpointsAvailable
     public var errorDescription: String? {
         switch self {
-        case .noEndpointsAvailable:
-            return "No cache endpoints are available."
-        case .noReachableEndpoints:
-            return "None of the cache endpoints are reachable."
         case let .invalidURL(url):
             return "Invalid cache endpoint URL: \(url)."
+        case let .invalidAccountHandle(handle):
+            return "A valid account handle is required to derive the cache endpoint: \(handle ?? "missing")."
+        case .noEndpointsAvailable:
+            return "No remote cache endpoint is available."
         }
-    }
-}
-
-extension Array where Element: Sendable {
-    fileprivate func concurrentMap<B: Sendable>(
-        _ transform: @Sendable @escaping (Element) async throws -> B
-    ) async throws -> [B] {
-        let tasks = map { element in
-            Task {
-                try await transform(element)
-            }
-        }
-        var values = [B]()
-        for task in tasks {
-            try await values.append(task.value)
-        }
-        return values
     }
 }

@@ -4,7 +4,7 @@ date: "2026-04-24"
 url: "https://www.hyperconnect.com/en/"
 founded_date: "2014"
 company: "Hyperconnect"
-excerpt: "Hyperconnect adopted Tuist to optimize a multi-service build pipeline, improving feedback loops in local development and CI with Module Cache and Selective Testing."
+excerpt: "Hyperconnect adopted Tuist to speed up local development and CI with Module Cache and Selective Testing."
 translations:
   ko:
     title: "Hyperconnect가 Tuist로 멀티 서비스 파이프라인을 최적화한 방법"

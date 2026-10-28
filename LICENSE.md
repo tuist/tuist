@@ -4,7 +4,7 @@ This repository contains software under multiple licenses:
 
 ## MIT License (Default)
 
-All content in this repository is licensed under the MIT License except for content in the `server/` and `kura/` directories.
+All content in this repository is licensed under the MIT License except for content in the `server/`, `kura/`, and `atlas/` directories, which are licensed under the Mozilla Public License 2.0. See each directory's `LICENSE.md` for the full text.
 
 MIT License
 

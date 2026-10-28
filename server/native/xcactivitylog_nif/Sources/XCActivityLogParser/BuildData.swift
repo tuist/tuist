@@ -14,4 +14,5 @@ public struct BuildData: Encodable, Sendable {
     public let files: [File]
     public let cacheable_tasks: [CacheableTask]
     public let cas_outputs: [CASOutput]
+    public let build_steps: [BuildStepData]
 }

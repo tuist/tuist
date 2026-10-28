@@ -9,6 +9,8 @@ use std::time::Duration;
 
 use tracing::warn;
 
+use jsonwebtoken::Algorithm;
+
 use super::tuist::{IntrospectionCredentials, JwtVerifier};
 
 const ENABLED: &str = "KURA_AUTH_ENABLED";
@@ -16,6 +18,7 @@ const TUIST_URL: &str = "KURA_AUTH_TUIST_URL";
 const CONNECT_TIMEOUT_MS: &str = "KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS";
 const REQUEST_TIMEOUT_MS: &str = "KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS";
 const JWT_SECRET: &str = "KURA_AUTH_JWT_SECRET";
+const JWT_PUBLIC_KEY: &str = "KURA_AUTH_JWT_PUBLIC_KEY";
 const JWT_ALGORITHM: &str = "KURA_AUTH_JWT_ALGORITHM";
 const JWT_ISSUER: &str = "KURA_AUTH_JWT_ISSUER";
 const JWT_AUDIENCES: &str = "KURA_AUTH_JWT_AUDIENCES";
@@ -24,6 +27,11 @@ const CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
 const CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
 
 const DEFAULT_CACHE_MAX_ENTRIES: usize = 100_000;
+// Each key kind has the algorithm it is actually used with, so neither has to
+// be spelled out alongside the key. The secret default is what self-hosted
+// manifests already rely on and cannot change.
+const DEFAULT_SECRET_ALGORITHM: &str = "HS256";
+const DEFAULT_PUBLIC_KEY_ALGORITHM: &str = "ES256";
 // What the managed provisioner renders. A node that is not rendered by it —
 // self-hosted, or a manifest that predates those variables — used to fall back
 // to 500/1500, where one dropped SYN (first retransmit at ~1s) fails the
@@ -113,18 +121,52 @@ impl AuthConfig {
     }
 }
 
-/// Without a verification key the node cannot read a token itself and asks the
-/// server about every request, which works but costs a round trip.
+/// Without key material the node cannot read a token itself and asks the server
+/// about every request, which works but costs a round trip.
+///
+/// Two shapes, and which one a node is given is a trust decision rather than a
+/// preference. A shared secret signs as well as it verifies, so a node holding
+/// one can mint the tokens it checks; that is only tenable where the node and
+/// the server are the same trust boundary. The public half of a dedicated
+/// cache-token keypair verifies and nothing else, which is what an
+/// internet-facing node is given.
 fn jwt_verifier_from_env() -> Result<Option<JwtVerifier>, String> {
-    let Some(secret) = env_value(JWT_SECRET) else {
-        return Ok(None);
+    let secret = env_value(JWT_SECRET);
+    let public_key = env_value(JWT_PUBLIC_KEY);
+
+    let (keys, algorithm) = match (secret.as_deref(), public_key.as_deref()) {
+        // Which one a node verifies with decides what it could forge, so a
+        // manifest naming both is a question rather than a preference to
+        // resolve quietly.
+        (Some(_), Some(_)) => {
+            return Err(format!(
+                "{JWT_SECRET} and {JWT_PUBLIC_KEY} are both set; a node verifies with one or the other"
+            ));
+        }
+        (None, None) => return Ok(None),
+        (Some(secret), None) => {
+            let algorithm = algorithm_from_env(DEFAULT_SECRET_ALGORITHM)?;
+            if algorithm == Algorithm::ES256 {
+                return Err(format!(
+                    "{JWT_ALGORITHM} is ES256, which reads a key from {JWT_PUBLIC_KEY} rather than {JWT_SECRET}"
+                ));
+            }
+            (JwtVerifier::secret_keys(secret), algorithm)
+        }
+        (None, Some(public_key)) => {
+            let algorithm = algorithm_from_env(DEFAULT_PUBLIC_KEY_ALGORITHM)?;
+            if algorithm != Algorithm::ES256 {
+                return Err(format!(
+                    "{JWT_ALGORITHM} is {algorithm:?}, which reads a key from {JWT_SECRET} rather than {JWT_PUBLIC_KEY}"
+                ));
+            }
+            (JwtVerifier::public_keys(public_key)?, algorithm)
+        }
     };
 
     Ok(Some(JwtVerifier {
-        algorithm: JwtVerifier::parse_algorithm(
-            &env_value(JWT_ALGORITHM).unwrap_or_else(|| "HS256".into()),
-        )?,
-        secret,
+        algorithm,
+        keys,
         issuer: env_value(JWT_ISSUER),
         audiences: env_value(JWT_AUDIENCES)
             .map(|audiences| {
@@ -137,6 +179,10 @@ fn jwt_verifier_from_env() -> Result<Option<JwtVerifier>, String> {
             })
             .unwrap_or_default(),
     }))
+}
+
+fn algorithm_from_env(default: &str) -> Result<Algorithm, String> {
+    JwtVerifier::parse_algorithm(&env_value(JWT_ALGORITHM).unwrap_or_else(|| default.into()))
 }
 
 fn introspection_from_env() -> Option<IntrospectionCredentials> {
@@ -206,6 +252,7 @@ mod tests {
     fn parses_the_algorithms_the_server_signs_with() {
         assert!(JwtVerifier::parse_algorithm("hs512").is_ok());
         assert!(JwtVerifier::parse_algorithm(" HS256 ").is_ok());
+        assert_eq!(JwtVerifier::parse_algorithm("es256"), Ok(Algorithm::ES256));
         assert!(JwtVerifier::parse_algorithm("RS256").is_err());
     }
 

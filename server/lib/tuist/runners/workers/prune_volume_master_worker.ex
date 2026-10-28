@@ -4,14 +4,15 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterWorker do
   has elapsed.
 
   The master object is content-addressed and immutable
-  (`runner-volume-masters/<account>/tuist-cache/<digest>.image`), so a promote no
+  (`runner-volume-masters/<account>/<volume>/<master id>.image`), so a promote no
   longer overwrites the previous object — without this it would accumulate one
   multi-GB object per distinct inventory forever, cleaned only on account
-  deletion. `Runners.report_volume_head/4` enqueues this with a delay equal to the
-  presigned-URL TTL when a new digest supersedes an old one, so the object
+  deletion. `Runners.report_volume_head/6` and `Runners.clear_volume_master/2`
+  enqueue this with a delay equal to the presigned-URL TTL when a new digest
+  supersedes an old one, so the object
   survives as long as any in-flight convergence could still fetch it.
 
-  Best-effort: `Runners.prune_superseded_volume_master/2` re-checks the HEAD and
+  Best-effort: `Runners.prune_superseded_volume_master/3` re-checks the HEAD and
   skips the delete if the digest is (again) the current master. A transient
   storage error is retried across attempts; a persistent one just leaves the
   object for the account-deletion prefix cleanup.
@@ -23,17 +24,24 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterWorker do
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"account_id" => account_id, "tree_digest" => tree_digest}}) do
-    case Runners.prune_superseded_volume_master(account_id, tree_digest) do
+  def perform(%Oban.Job{args: %{"account_id" => account_id, "volume_name" => volume_name} = args}) do
+    master_id = master_id(args)
+
+    case Runners.prune_superseded_volume_master(account_id, volume_name, master_id) do
       :ok ->
         :ok
 
       {:error, reason} = error ->
         Logger.warning(
-          "runners: superseded volume master prune failed for #{account_id}/#{tree_digest}: #{inspect(reason)}"
+          "runners: superseded volume master prune failed for #{account_id}/#{master_id}: #{inspect(reason)}"
         )
 
         error
     end
   end
+
+  # Jobs enqueued before master ids could carry a content digest name the object
+  # by its inventory digest, which is still that object's id.
+  defp master_id(%{"master_id" => master_id}), do: master_id
+  defp master_id(%{"tree_digest" => tree_digest}), do: tree_digest
 end

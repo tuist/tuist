@@ -8,6 +8,10 @@
     &[data-disabled] {
       cursor: not-allowed;
     }
+
+    &:has([data-part="description"]) {
+      align-items: start;
+    }
   }
 
   & [data-part="control"] {
@@ -42,6 +46,7 @@
   }
 
   & [data-part="description"] {
+    display: block;
     margin-top: var(--noora-spacing-2);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-small);

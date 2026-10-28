@@ -1,0 +1,4 @@
+exports_files(
+    ["rust_junit_test.bzl"],
+    visibility = ["//visibility:public"],
+)

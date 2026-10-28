@@ -15,10 +15,20 @@ cd "$SCRIPT_DIR"
 
 mkdir -p "$PRIV_DIR"
 
-echo "==> Building Swift NIF library..."
-swift build -c release --replace-scm-with-registry 2>&1
+# CI checks out onto a persistent workspace and `actions/checkout` runs
+# `git clean -ffdx`, which deletes an in-tree .build and forces a cold Swift
+# compile on every run. TUIST_NIF_BUILD_ROOT moves the scratch directory
+# outside the workspace so it survives the clean.
+if [ -n "${TUIST_NIF_BUILD_ROOT:-}" ]; then
+    SCRATCH_PATH="${TUIST_NIF_BUILD_ROOT}/xcresult_nif"
+else
+    SCRATCH_PATH="${SCRIPT_DIR}/.build"
+fi
 
-SWIFT_BUILD_DIR=".build/release"
+echo "==> Building Swift NIF library..."
+swift build -c release --replace-scm-with-registry --scratch-path "$SCRATCH_PATH" 2>&1
+
+SWIFT_BUILD_DIR="${SCRATCH_PATH}/release"
 DYLIB_NAME="libXCResultNIF.dylib"
 
 if [ ! -f "$SWIFT_BUILD_DIR/$DYLIB_NAME" ]; then

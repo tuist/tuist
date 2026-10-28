@@ -89,23 +89,32 @@ struct InstallService: InstallServicing {
             packagePath: packageManifestPath.parentDirectory,
             arguments: mergedArguments
         )
+        let packageManifestEnvironment = config.project.generatedProject?.installOptions.packageManifestEnvironment ?? .init()
 
-        if update {
-            Logger.current.notice("Updating dependencies.", metadata: .section)
-
-            try await swiftPackageManagerController.update(
-                at: packageManifestPath.parentDirectory,
-                arguments: mergedArguments,
-                printOutput: true
+        try await PackageManifestEnvironment.withConfiguration(
+            .init(
+                usesAutomaticProviderDefaults: packageManifestEnvironment.usesAutomaticProviderDefaults,
+                includedVariablePatterns: packageManifestEnvironment.includedVariablePatterns,
+                excludedVariablePatterns: packageManifestEnvironment.excludedVariablePatterns
             )
-        } else {
-            Logger.current.notice("Resolving and fetching dependencies.", metadata: .section)
+        ) {
+            if update {
+                Logger.current.notice("Updating dependencies.", metadata: .section)
 
-            try await swiftPackageManagerController.resolve(
-                at: packageManifestPath.parentDirectory,
-                arguments: mergedArguments,
-                printOutput: true
-            )
+                try await swiftPackageManagerController.update(
+                    at: packageManifestPath.parentDirectory,
+                    arguments: mergedArguments,
+                    printOutput: true
+                )
+            } else {
+                Logger.current.notice("Resolving and fetching dependencies.", metadata: .section)
+
+                try await swiftPackageManagerController.resolve(
+                    at: packageManifestPath.parentDirectory,
+                    arguments: mergedArguments,
+                    printOutput: true
+                )
+            }
         }
 
         try await savePackageResolved(

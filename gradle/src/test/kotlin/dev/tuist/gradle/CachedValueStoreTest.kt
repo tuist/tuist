@@ -4,9 +4,12 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class CachedValueStoreTest {
 
@@ -112,6 +115,71 @@ class CachedValueStoreTest {
 
         val result = store.getValue { Pair("recovered", null) }
         assertEquals("recovered", result)
+    }
+
+    @Test
+    fun `a caller waiting for another caller's computation gives up at its deadline`() {
+        val store = CachedValueStore<String>()
+        val computing = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val owner = Thread {
+            store.getValue {
+                computing.countDown()
+                release.await()
+                Pair("value", null)
+            }
+        }
+        owner.start()
+        computing.await()
+
+        try {
+            val start = System.nanoTime()
+            assertFailsWith<TimeoutException> {
+                store.getValue(deadlineNanos = start + TimeUnit.MILLISECONDS.toNanos(200)) { Pair("other", null) }
+            }
+            val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)
+            assertTrue(elapsedMs < 1_000, "Waited ${elapsedMs}ms with a 200ms deadline")
+        } finally {
+            release.countDown()
+            owner.join()
+        }
+    }
+
+    @Test
+    fun `waiting for a file lock held by another process gives up at the deadline`() {
+        val lockFile = File(tempDir, "test.lock")
+        val holder = FileLockHolder.start(lockFile)
+        val store = CachedValueStore<String>(lockFilePath = lockFile)
+
+        try {
+            val start = System.nanoTime()
+            assertFailsWith<TimeoutException> {
+                store.getValue(deadlineNanos = start + TimeUnit.MILLISECONDS.toNanos(200)) { Pair("value", null) }
+            }
+            val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)
+            assertTrue(elapsedMs < 1_000, "Waited ${elapsedMs}ms with a 200ms deadline")
+        } finally {
+            holder.destroy()
+            holder.waitFor()
+        }
+    }
+
+    @Test
+    fun `a file lock released before the deadline is taken`() {
+        val lockFile = File(tempDir, "test.lock")
+        val holder = FileLockHolder.start(lockFile)
+        val store = CachedValueStore<String>(lockFilePath = lockFile)
+        Thread {
+            Thread.sleep(200)
+            holder.destroy()
+        }.start()
+
+        val result = store.getValue(deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)) {
+            Pair("value", null)
+        }
+
+        assertEquals("value", result)
+        holder.waitFor()
     }
 
     @Test

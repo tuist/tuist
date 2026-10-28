@@ -3,12 +3,10 @@ defmodule TuistWeb.APIController do
 
   import Plug.Conn
 
-  alias TuistWeb.Helpers.OpenGraph
-
   def docs(conn, _params) do
     head_image =
       if Tuist.Environment.tuist_hosted?() do
-        Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing_api_docs, title: "API Docs"))
+        Tuist.Environment.app_url(path: "/images/open-graph/api-docs-card.jpeg")
       end
 
     bearer_token =

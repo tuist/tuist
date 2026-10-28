@@ -1,0 +1,84 @@
+{{- if .Values.postgres.enabled }}
+{{- if .Values.postgres.backup.enabled }}
+# ESO syncs Hetzner Object Storage credentials. CNPG's barmanObjectStore
+# expects keys named `ACCESS_KEY_ID` and `ACCESS_SECRET_KEY`.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.postgres.backup.credentialsSecretName }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+spec:
+  refreshInterval: {{ .Values.externalSecrets.refreshInterval | quote }}
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.storeRef.name }}
+    kind: {{ .Values.externalSecrets.storeRef.kind }}
+  target:
+    name: {{ .Values.postgres.backup.credentialsSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        ACCESS_KEY_ID: "{{ `{{ .access_key_id | trim }}` }}"
+        ACCESS_SECRET_KEY: "{{ `{{ .secret_access_key | trim }}` }}"
+  data:
+    - secretKey: access_key_id
+      remoteRef:
+        key: {{ .Values.postgres.backup.externalSecret.accessKeyRemoteRef | quote }}
+    - secretKey: secret_access_key
+      remoteRef:
+        key: {{ .Values.postgres.backup.externalSecret.secretKeyRemoteRef | quote }}
+---
+{{- end }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "atlas.postgresClusterName" . }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.postgres.instances }}
+  imageName: {{ .Values.postgres.imageName }}
+  storage:
+    size: {{ .Values.postgres.storageSize }}
+    storageClass: {{ .Values.postgres.storageClass }}
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgres.database }}
+      owner: {{ .Values.postgres.owner }}
+  resources:
+    {{- toYaml .Values.postgres.resources | nindent 4 }}
+  {{- if .Values.postgres.backup.enabled }}
+  backup:
+    retentionPolicy: {{ .Values.postgres.backup.retention | quote }}
+    barmanObjectStore:
+      destinationPath: {{ .Values.postgres.backup.destinationPath | quote }}
+      endpointURL: {{ .Values.postgres.backup.endpointURL | quote }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.postgres.backup.credentialsSecretName }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ .Values.postgres.backup.credentialsSecretName }}
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+{{- end }}
+{{- if .Values.postgres.backup.enabled }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "atlas.postgresClusterName" . }}-daily
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.postgres.backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: {{ include "atlas.postgresClusterName" . }}
+  immediate: true
+{{- end }}
+{{- end }}

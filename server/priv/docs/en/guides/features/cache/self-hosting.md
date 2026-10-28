@@ -8,7 +8,7 @@
 
 # Self-hosted cache {#self-hosted-cache}
 
-Self-hosted cache nodes let you keep build artifacts and cache metadata close to the machines that produce and consume build outputs. Use them when cache latency matters across CI, developer offices, remote workstations, or regional compute clusters, while keeping endpoint discovery centralized through Tuist.
+Self-hosted cache nodes let you keep build artifacts and cache metadata close to the machines that produce and consume build outputs. Use them when cache latency matters across CI, developer offices, remote workstations, or regional compute clusters.
 
 The goal is low-latency caching everywhere, not only in the one environment where a central cache happens to be nearby. Each cache node serves reads and writes from local disk, while the mesh replicates artifacts and metadata between peers so other locations can benefit from the same cache over time.
 
@@ -17,7 +17,17 @@ The goal is low-latency caching everywhere, not only in the one environment wher
 
 ## How self-hosted cache fits with Tuist {#how-self-hosted-cache-fits-with-tuist}
 
-The Tuist server tells clients which cache endpoints to use. This keeps endpoint discovery centralized while allowing the cache itself to stay decentralized and close to the compute that needs it.
+Tuist’s managed cache uses `https://<account>.cache.tuist.dev`. With a self-hosted Tuist server, the CLI retrieves the cache URL from the server’s `TUIST_CACHE_ENDPOINTS` setting. Set it to the URL of your main cache server or load balancer. If it contains multiple URLs, the first is used.
+
+For private/custom cache nodes connected to the **hosted Tuist server**, set an explicit endpoint in developer shells and CI:
+
+```sh
+export TUIST_CACHE_ENDPOINT=https://cache.example.com
+```
+
+This override takes precedence on both server types and is optional for self-hosted Tuist servers. For the Xcode cache daemon, rerun `tuist setup cache` after setting it so the LaunchAgent receives the updated environment.
+
+A self-hosted Tuist server takes endpoints from static configuration. On the Tuist-hosted server, nodes authenticate with a credential and register themselves. Deploy a node first with one of the two sections below, then see [Connect nodes to Tuist](#connect-nodes-to-tuist).
 
 ## Deploy on Kubernetes {#deploy-on-kubernetes}
 
@@ -32,14 +42,14 @@ helm upgrade --install kura oci://ghcr.io/tuist/charts/kura \
   --set config.region=local
 ```
 
-For a self-hosted Tuist server running in the same cluster, tell the server which cache endpoints to hand to clients:
+For a self-hosted Tuist server in the same cluster, configure its main cache endpoint:
 
 ```yaml
 server:
   cacheEndpointUrl: "http://kura.kura.svc.cluster.local:4000"
 ```
 
-This renders `TUIST_CACHE_ENDPOINTS` in the server pod. On a self-hosted server the CLI is routed to whatever `TUIST_CACHE_ENDPOINTS` lists, so point it at your Kura service. For multiple nodes, use a comma-separated list.
+This sets `TUIST_CACHE_ENDPOINTS` in the server pod. Use an address that developer machines and CI can reach; the cluster-local service name above is suitable for clients running inside the cluster.
 
 > [!IMPORTANT]
 > Every Kura node must own its own `KURA_DATA_DIR`. Kura takes an application-level writer lock on the data directory and expects exactly one process to own it. In Kubernetes, use one persistent volume per pod. Outside Kubernetes, do not point multiple processes at the same mounted directory.
@@ -66,11 +76,176 @@ docker run -d --name kura \
   ghcr.io/tuist/kura:<tag>
 ```
 
-Then configure the Tuist server with the URLs that clients can reach:
+On a self-hosted Tuist server, configure the main cache URL that developer machines and CI can reach:
 
 ```bash
-TUIST_CACHE_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
+TUIST_CACHE_ENDPOINTS=https://cache.example.com
 ```
+
+## Put nodes behind a load balancer {#load-balancers}
+
+Clients use each cache endpoint URL for both HTTP and gRPC: HTTP for health checks and the HTTP cache API, and gRPC for the module cache and Bazel's remote cache. Any ingress, load balancer, or CDN between clients and Kura must forward both on the same hostname and port. This applies to every endpoint clients receive, because the CLI picks whichever one responds fastest. If gRPC does not reach Kura, the CLI warns that remote module caching is unavailable and uses only the local module cache.
+
+Route these path prefixes to Kura as gRPC over HTTP/2, and everything else as HTTP:
+
+| Path prefix | Used by |
+| --- | --- |
+| `/build.bazel.remote.execution.v2.` | Module cache, Bazel |
+| `/google.bytestream.` | Module cache, Bazel |
+| `/build.bazel.remote.asset.v1.` | Bazel |
+| `/google.devtools.build.v1.` | Bazel build events |
+
+Kura accepts plaintext HTTP/2 (h2c) on `KURA_PORT`, and HTTP/2 over TLS on `KURA_HTTPS_PORT` when `KURA_PUBLIC_TLS_CERT_PATH` and `KURA_PUBLIC_TLS_KEY_PATH` are set. If your proxy reuses upstream connections across requests, as ingress-nginx does, set `KURA_GATEWAY_GRPC_PORT` and send gRPC traffic to that port instead. It serves only gRPC, so HTTP/1.1 and gRPC requests never share a connection.
+
+Configure the gRPC routes with:
+
+- No request body size limit. An upload sends one file in a single request, up to 2 GiB.
+- Request and response buffering turned off.
+- Read, send, and idle timeouts of at least 300 seconds.
+
+Kura does not serve the gRPC health checking service. Health-check nodes over HTTP at `/ready`. If your load balancer requires a gRPC health check, call `/build.bazel.remote.execution.v2.Capabilities/GetCapabilities` and accept the gRPC status codes `0` and `16`. A node with authorization enabled answers a request without a token with `16` (`UNAUTHENTICATED`).
+
+### ingress-nginx {#load-balancers-ingress-nginx}
+
+With the Helm chart, keep the HTTP ingress on `/` and add a gRPC ingress for the same host. Only the HTTP ingress declares TLS:
+
+```yaml
+service:
+  gatewayGrpcPort: 4001
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: kura.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - kura.example.com
+      secretName: kura-tls
+
+grpcIngress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: kura.example.com
+      paths:
+        - path: /build\.bazel\.remote\.execution\.v2\.
+          pathType: ImplementationSpecific
+        - path: /google\.bytestream\.
+          pathType: ImplementationSpecific
+        - path: /build\.bazel\.remote\.asset\.v1\.
+          pathType: ImplementationSpecific
+        - path: /google\.devtools\.build\.v1\.
+          pathType: ImplementationSpecific
+```
+
+### AWS Application Load Balancer {#load-balancers-aws-alb}
+
+gRPC target groups need an HTTPS listener. On that listener:
+
+1. Forward the default rule to a target group with protocol version `HTTP1` on `KURA_PORT`, health-checked over HTTP at `/ready`.
+2. Create a second target group with protocol version `gRPC`, using protocol `HTTP` on `KURA_GATEWAY_GRPC_PORT` (or `KURA_PORT`), or protocol `HTTPS` on `KURA_HTTPS_PORT`. Configure its health check as described above.
+3. Add a rule that forwards the path patterns `/build.bazel.remote.execution.v2.*`, `/google.bytestream.*`, `/build.bazel.remote.asset.v1.*`, and `/google.devtools.build.v1.*` to the second target group.
+4. Raise the load balancer's idle timeout to at least 300 seconds.
+
+### CDNs {#load-balancers-cdns}
+
+A CDN in front of a node must support gRPC and must not block the gRPC paths in its firewall rules. Clients upload large artifacts in chunks of at most 2 MiB and have the node assemble them, so no request needs a large body or a long upload. The module cache and the Xcode compilation cache do this, and Bazel does when built with `--experimental_remote_cache_chunking` (Bazel 8.7, and 9.1 or later). Without that flag, Bazel uploads each output in a single request, so the CDN must also allow large request bodies and uploads that take as long as your largest outputs need on your slowest link. If your CDN cannot meet these requirements, give clients a hostname that bypasses it, for example a DNS-only record.
+
+#### Cloudflare {#load-balancers-cloudflare}
+
+Module caching works through a proxied Cloudflare hostname on any plan. In the zone:
+
+1. Under **Network**, turn on **gRPC**.
+2. Under **SSL/TLS**, set the encryption mode to **Full** or **Full (strict)**. Cloudflare connects to the origin on port 443, so the origin must serve TLS there and offer HTTP/2 through ALPN.
+3. Make sure no WAF custom rule or managed rule blocks the gRPC paths listed above.
+
+Cloudflare ends a request when the origin has not started responding after about two minutes. A Bazel upload without `--experimental_remote_cache_chunking` is answered only once its last byte arrives, so on Cloudflare such uploads fail when they take longer than that.
+
+## Connect nodes to Tuist {#connect-nodes-to-tuist}
+
+Configure client routing and register your nodes with Tuist so their addresses, readiness, and usage appear in the dashboard.
+
+On a **self-hosted Tuist server**, you declare endpoints statically with `TUIST_CACHE_ENDPOINTS`, as shown in the deployment sections above. The CLI uses the first configured URL. `TUIST_CACHE_ENDPOINT` overrides that URL for an individual client.
+
+On the **Tuist-hosted server**, set `TUIST_CACHE_ENDPOINT` in developer shells and CI to route cache requests to your nodes. Each node authenticates with a credential you generate, then registers its address and reports its readiness to the dashboard. This section covers node registration.
+
+> [!IMPORTANT]
+> **Enterprise plan**
+>
+> Self-hosted cache nodes are available on the Enterprise plan. The **Self-hosted servers** section described below only appears for accounts on that plan.
+
+### Generate a node credential {#generate-a-node-credential}
+
+In the Tuist dashboard, open your account, go to **Cache**, and find **Self-hosted servers**. Choose **Generate credential** to mint a client ID and secret.
+
+The credential only authorizes traffic for the account that created it.
+
+The secret is displayed once and is not recoverable after you close the dialog, so copy it straight into the secret store your nodes read from. Revoking a credential immediately stops every node using it from authenticating, so generate a replacement before revoking one that is in service.
+
+### Enroll the node on boot {#enroll-the-node-on-boot}
+
+Enrollment is the recommended way to bring a node up. Set `KURA_ENROLL_ON_BOOT` and give the node its credential and its own peer URL:
+
+```bash
+KURA_ENROLL_ON_BOOT=true
+KURA_CONTROL_PLANE_URL=https://tuist.dev
+KURA_CONTROL_PLANE_CLIENT_ID=<client ID>
+KURA_CONTROL_PLANE_CLIENT_SECRET=<client secret>
+KURA_NODE_URL=https://kura-1.internal:7443
+```
+
+The node generates its keypair locally, so the private key never leaves it, and receives a signed peer certificate, the account CA, its tenant identifier, and the peer list. That is everything you would otherwise configure by hand: an enrolled node needs no `KURA_TENANT_ID`, no `KURA_PEERS`, and no peer TLS setup.
+
+Leave `KURA_INTERNAL_TLS_*` unset: enrollment writes the certificate material to a `tls` directory under `KURA_DATA_DIR`. Set those paths yourself only when you supply the certificates instead of enrolling, as described in [Build a cache mesh](#build-a-cache-mesh).
+
+A node joining an account's mesh for the first time pulls the account's existing cache before it becomes a serving member of the ring. Size the data volume for the whole cache, and expect the first join to take a while over a wide-area link. The node reports `joining` until it has caught up, then `serving`.
+
+### Advertise the endpoint {#advertise-the-endpoint}
+
+Enrollment joins the mesh. Registration reports the node’s client-facing address and readiness to Tuist. Set the registration variables:
+
+```bash
+KURA_REGISTRATION_URL=https://tuist.dev/_internal/kura/mesh/registrations
+KURA_ADVERTISED_HTTP_URL=https://kura-1.example.com:4443
+```
+
+The node heartbeats every 60 seconds against a 180-second lease. Tuist considers its registration unavailable when the lease expires. Tuist never calls the node, so it only has to be reachable by your clients, not from the internet.
+
+### Verify the node is serving {#verify-the-node-is-serving}
+
+Back in **Cache** in the dashboard, the node appears under **Registered nodes** with its endpoint, region, status, and last heartbeat. A node that never appears is not reaching the registration endpoint or is failing authorization. A node that appears and then disappears has stopped heartbeating or has stopped reporting itself ready.
+
+### Match the tenant identifier to your account handle {#match-the-tenant-identifier}
+
+`KURA_TENANT_ID` must equal your Tuist account handle. The control plane compares the heartbeat's tenant against the account resolved from the credential and rejects a mismatch with `409 tenant_mismatch`, so a node with the wrong value authenticates successfully and still never registers.
+
+> [!IMPORTANT]
+> Both the Helm chart and the container example earlier in this guide default this to `default`. That value is correct for a self-hosted Tuist server, where the tenant is a local label, and wrong for an account on the Tuist-hosted server, where it has to name the account. Enrolling the node avoids the question entirely, because the control plane supplies the value.
+
+An unset `KURA_TENANT_ID` does not skip the check. It disables registration altogether: the node keeps serving cache traffic, nothing appears in the dashboard, and no error is reported. If a node is healthy but missing from **Registered nodes**, check this variable first.
+
+### Choose an advertised URL your clients can reach {#choose-an-advertised-url}
+
+Use a client-reachable address for `KURA_ADVERTISED_HTTP_URL` and for the cache URL configured on the Tuist server or CLI.
+
+An internal-only hostname is suitable when every client configured to use it can resolve and reach that name. For clients on different networks, use a shared reachable address or configure a reachable cache node for each environment.
 
 ## Build a cache mesh {#build-a-cache-mesh}
 
@@ -79,6 +254,9 @@ A cache mesh lets you place cache capacity next to the compute that needs it. A 
 The mesh only works if nodes can reach each other on Kura's internal peer port. That peer plane is separate from the public cache endpoints that Tuist clients use. Kura uses it to check membership, backfill newly joined nodes, and replicate artifacts after local writes are accepted.
 
 We strongly recommend securing the peer plane with [mTLS](https://en.wikipedia.org/wiki/Mutual_authentication) when nodes communicate across regions, clouds, VPCs, offices, or any network that is not fully private to the cache deployment. With mTLS enabled, Kura only serves internal replication endpoints to peers presenting a certificate signed by the configured CA. The peer certificates must cover the DNS names nodes use to call each other, and peer URLs must use `https://` on the internal port.
+
+> [!NOTE]
+> Nodes that enroll against a Tuist-hosted control plane receive their peer certificate and the account CA during enrollment, so the manual steps below apply to meshes that do not enroll.
 
 For example, this generates a private CA and one peer certificate that can be mounted by every node in a small mesh. Replace the DNS names with the internal names your nodes use in `KURA_NODE_URL` and `KURA_PEERS`.
 
@@ -141,12 +319,13 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | Yes | No default | Derived from the pod DNS name and `peerTls.internalPort` |
 | `KURA_PEERS` | Seed peer list used before discovery converges. | No | `KURA_NODE_URL` | Derived from the StatefulSet replicas |
 | `KURA_DISCOVERY_DNS_NAME` | DNS name used for automatic peer discovery. | No | Disabled | Enabled by `config.discovery.enabled` |
-| `KURA_INTERNAL_TLS_CA_CERT_PATH` | CA certificate used to verify peer mTLS. | No | Disabled | `peerTls.enabled` and `peerTls.caCertFileName` |
-| `KURA_INTERNAL_TLS_CERT_PATH` | Certificate used by the internal peer mTLS listener. | No | Disabled | `peerTls.enabled` and `peerTls.certFileName` |
-| `KURA_INTERNAL_TLS_KEY_PATH` | Private key used by the internal peer mTLS listener. | No | Disabled | `peerTls.enabled` and `peerTls.keyFileName` |
+| `KURA_INTERNAL_TLS_CA_CERT_PATH` | CA certificate used to verify peer mTLS. | No | Disabled, or derived under `KURA_DATA_DIR` when the node enrolls | `peerTls.enabled` and `peerTls.caCertFileName` |
+| `KURA_INTERNAL_TLS_CERT_PATH` | Certificate used by the internal peer mTLS listener. | No | Disabled, or derived under `KURA_DATA_DIR` when the node enrolls | `peerTls.enabled` and `peerTls.certFileName` |
+| `KURA_INTERNAL_TLS_KEY_PATH` | Private key used by the internal peer mTLS listener. | No | Disabled, or derived under `KURA_DATA_DIR` when the node enrolls | `peerTls.enabled` and `peerTls.keyFileName` |
 | `KURA_PUBLIC_TLS_CERT_PATH` | Certificate used to terminate TLS on the co-hosted HTTPS listener (`KURA_HTTPS_PORT`). | No | Disabled | `extraEnv` |
 | `KURA_PUBLIC_TLS_KEY_PATH` | Private key paired with `KURA_PUBLIC_TLS_CERT_PATH`. | No | Disabled | `extraEnv` |
 | `KURA_HTTPS_PORT` | TLS port serving the same co-hosted HTTP + gRPC surface (ALPN-negotiated). Only bound when the public TLS paths are set. | No | `4443` | `extraEnv` |
+| `KURA_GATEWAY_GRPC_PORT` | Plaintext HTTP/2 port that serves only the gRPC APIs, for proxies that reuse upstream connections. See [Put nodes behind a load balancer](#load-balancers). | No | Disabled | `service.gatewayGrpcPort` |
 | `KURA_FILE_DESCRIPTOR_POOL_SIZE` | File-descriptor budget for request and background I/O. | No | Auto-derived | `config.fileDescriptors.poolSize` |
 | `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | How long a request waits before FD backpressure fails the checkout. | No | `5000` | `config.fileDescriptors.acquireTimeoutMs` |
 | `KURA_SEGMENT_HANDLE_CACHE_SIZE` | Maximum number of pinned segment read handles. | No | Auto-derived | `config.fileDescriptors.segmentHandleCacheSize` |
@@ -161,7 +340,6 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` | Total memory budget reserved for metadata write buffering. | No | Auto-derived | `extraEnv` |
 | `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | Size of each metadata write buffer before flush. | No | Auto-derived | `extraEnv` |
 | `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` | Maximum number of metadata write buffers kept in memory. | No | Auto-derived | `extraEnv` |
-| `KURA_OUTBOX_MAX_DEPTH` | Maximum replication outbox depth before public writes return backpressure. | No | `100000` | `extraEnv` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before expiring. | No | `86400000` | `extraEnv` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often Kura scans for stale multipart uploads. | No | `600000` | `extraEnv` |
 | `KURA_BACKFILL_MARGIN_PERCENT` | Share of the age-ordered segment ring, counted from the newest, that bounds how far back a backfill pass reaches. | No | `40` | `config.backfill.marginPercent` |
@@ -178,10 +356,18 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_AUTH_TUIST_URL` | Tuist server the node authorizes against. Enables authorization on its own. | Required when authorization is enabled | No default | `auth.tuistUrl` |
 | `KURA_AUTH_TUIST_CONNECT_TIMEOUT_MS` | Connect timeout for calls to that server. | No | `500` | `extraEnv` |
 | `KURA_AUTH_TUIST_REQUEST_TIMEOUT_MS` | Request timeout for calls to that server. | No | `1500` | `extraEnv` |
-| `KURA_AUTH_JWT_SECRET` | Verification key for tokens the node can read itself, skipping a round trip. Self-hosted nodes normally leave this unset. | No | Disabled | `extraEnv` or `extraEnvFrom` |
-| `KURA_AUTH_JWT_ALGORITHM` | Algorithm for that key (`HS256`, `HS384` or `HS512`). | No | `HS256` | `extraEnv` |
+| `KURA_AUTH_JWT_SECRET` | Shared secret for tokens the node can read itself, skipping a round trip. It signs as well as it verifies, so only use it where the node and the server are the same trust boundary. Self-hosted nodes normally leave this unset. | No | Disabled | `extraEnv` or `extraEnvFrom` |
+| `KURA_AUTH_JWT_PUBLIC_KEY` | Public half of the keypair the server signs cache tokens with, as one or more concatenated PEM blocks. Reads those tokens without being able to mint one, which is what a node reachable from the internet should hold. Mutually exclusive with `KURA_AUTH_JWT_SECRET`. | No | Disabled | `extraEnvFrom` |
+| `KURA_AUTH_JWT_ALGORITHM` | Algorithm for that key: `HS256`, `HS384` or `HS512` with a secret, `ES256` with a public key. | No | `HS256` with a secret, `ES256` with a public key | `extraEnv` |
 | `KURA_AUTH_JWT_ISSUER` | Issuer that tokens must carry. | No | Unchecked | `extraEnv` |
 | `KURA_AUTH_JWT_AUDIENCES` | Comma-separated audiences that tokens must carry. | No | Unchecked | `extraEnv` |
 | `KURA_AUTH_CACHE_MAX_ENTRIES` | Maximum entries kept in each of the authentication and authorization caches. | No | `100000` | `extraEnv` |
+| `KURA_ENROLL_ON_BOOT` | Enrolls the node with the control plane on every boot, provisioning its peer certificate and supplying `KURA_TENANT_ID` and `KURA_PEERS`. | No | Disabled | `extraEnv` |
+| `KURA_CONTROL_PLANE_URL` | Tuist server the node enrolls against. | Required when enrolling | No default | `extraEnv` |
+| `KURA_CONTROL_PLANE_CLIENT_ID` | Client ID of the node credential generated in the dashboard. | Required when enrolling or registering | No default | `extraEnv` |
+| `KURA_CONTROL_PLANE_CLIENT_SECRET` | Client secret paired with `KURA_CONTROL_PLANE_CLIENT_ID`. | Required when enrolling or registering | No default | `extraEnv` |
+| `KURA_REGISTRATION_URL` | Absolute URL the node posts registration heartbeats to, advertising its client-facing endpoint. | Required when registering | No default | `extraEnv` |
+| `KURA_ADVERTISED_HTTP_URL` | Client-facing cache URL the control plane hands to clients. Must be reachable by every client on the account. | Required when registering | No default | `extraEnv` |
+| `KURA_REGISTRATION_INTERVAL_MS` | Registration heartbeat cadence. The lease is several missed heartbeats wide, so a single dropped heartbeat does not drop the endpoint. | No | `60000` | `extraEnv` |
 
 If you enable internal peer mTLS, set `KURA_INTERNAL_TLS_CA_CERT_PATH`, `KURA_INTERNAL_TLS_CERT_PATH`, and `KURA_INTERNAL_TLS_KEY_PATH` together. `KURA_NODE_URL` and every value in `KURA_PEERS` must then use `https://` with the internal peer port.

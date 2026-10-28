@@ -25,7 +25,14 @@
     "fiscalYearStartMonth": 0,
     "graphTooltip": 1,
     "id": null,
-    "links": [],
+    "links": [
+      {
+        "title": "Application database queues and query timings",
+        "type": "link",
+        "url": "/d/tuist-processor-service?var-workload=xcresult_processor",
+        "keepTime": true
+      }
+    ],
     "panels": [
       {
         "collapsed": false,

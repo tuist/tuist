@@ -1,0 +1,11 @@
+# CI settings, enabled with --config=ci.
+
+# The workflow persists this directory across runs. Archives are stored by the hashes pinned in
+# MODULE.bazel.lock, so a warm cache serves them without contacting their origin.
+common:ci --repository_cache=~/.cache/swifterpm/bazel/repository
+
+# Bazel retries 408, 429 and most 5xx download responses with exponential backoff, but the default
+# eight attempts give up after about 13 seconds. Cap each delay at 10 seconds and allow four more
+# attempts, so a download keeps retrying for about a minute before failing the build.
+common:ci --http_connector_attempts=12
+common:ci --http_connector_retry_max_timeout=10s

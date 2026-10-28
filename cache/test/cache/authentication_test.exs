@@ -33,7 +33,7 @@ defmodule Cache.AuthenticationTest do
     end
 
     test "returns ok with auth header when project is accessible", %{cache_name: cache_name} do
-      projects = [%{"full_name" => "account/project"}]
+      projects = ["account/project"]
       conn = build_conn([{"authorization", @test_auth_header}])
 
       stub_api_call(200, %{"projects" => projects})
@@ -43,8 +43,54 @@ defmodule Cache.AuthenticationTest do
       assert {:ok, @test_auth_header} = result
     end
 
+    # Cache access resolution comes from the server's cache-scoped endpoint,
+    # which already drops accounts that have exhausted the free tier.
+    test "resolves access from the cache access endpoint", %{cache_name: cache_name} do
+      conn = build_conn([{"authorization", @test_auth_header}])
+
+      stub_api_call(200, %{"accounts" => [], "projects" => ["account/project"]})
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+
+      assert {:ok, @test_auth_header} = result
+    end
+
+    test "denies a project the cache access endpoint leaves out", %{cache_name: cache_name} do
+      conn = build_conn([{"authorization", @test_auth_header}])
+
+      stub_api_call(200, %{"accounts" => [], "projects" => []})
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+
+      assert {:error, 403, _} = result
+    end
+
+    # Absence from the grants is how an exhausted plan reaches a cache node, and
+    # on its own it is indistinguishable from never having had access. Answering
+    # 403 sends the caller looking for a permissions problem they do not have.
+    test "answers payment required when the access endpoint names the account", %{cache_name: cache_name} do
+      conn = build_conn([{"authorization", @test_auth_header}])
+
+      stub_api_call(200, %{"accounts" => [], "projects" => [], "payment_required" => ["account"]})
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+
+      assert {:error, 402, message} = result
+      assert message =~ "Tuist Air"
+    end
+
+    test "still answers forbidden when the account is simply out of reach", %{cache_name: cache_name} do
+      conn = build_conn([{"authorization", @test_auth_header}])
+
+      stub_api_call(200, %{"accounts" => [], "projects" => [], "payment_required" => []})
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+
+      assert {:error, 403, _} = result
+    end
+
     test "handles case-insensitive project handles", %{cache_name: cache_name} do
-      projects = [%{"full_name" => "Account/Project"}]
+      projects = ["Account/Project"]
       conn = build_conn([{"authorization", @test_auth_header}])
 
       stub_api_call(200, %{"projects" => projects})
@@ -55,7 +101,7 @@ defmodule Cache.AuthenticationTest do
     end
 
     test "returns error when project is not in accessible list", %{cache_name: cache_name} do
-      projects = [%{"full_name" => "other-account/other-project"}]
+      projects = ["other-account/other-project"]
       conn = build_conn([{"authorization", @test_auth_header}])
 
       stub_api_call(200, %{"projects" => projects})
@@ -96,7 +142,7 @@ defmodule Cache.AuthenticationTest do
     end
 
     test "forwards x-request-id header to server", %{cache_name: cache_name} do
-      projects = [%{"full_name" => "account/project"}]
+      projects = ["account/project"]
       conn = build_conn([{"authorization", @test_auth_header}, {"x-request-id", "req-123"}])
 
       stub_api_call_with_headers(
@@ -113,7 +159,7 @@ defmodule Cache.AuthenticationTest do
 
   describe "caching behavior" do
     test "caches successful authorization responses", %{cache_name: cache_name} do
-      projects = [%{"full_name" => "account/project"}]
+      projects = ["account/project"]
       conn = build_conn([{"authorization", @test_auth_header}])
 
       stub_api_call(200, %{"projects" => projects})
@@ -126,7 +172,7 @@ defmodule Cache.AuthenticationTest do
     end
 
     test "uses cached result on subsequent calls", %{cache_name: cache_name} do
-      projects = [%{"full_name" => "account/project"}]
+      projects = ["account/project"]
       conn = build_conn([{"authorization", @test_auth_header}])
 
       Req.Test.expect(Authentication, fn conn ->
@@ -138,7 +184,7 @@ defmodule Cache.AuthenticationTest do
     end
 
     test "deduplicates in-flight server requests", %{cache_name: cache_name} do
-      projects = [%{"full_name" => "account/project"}]
+      projects = ["account/project"]
       conn = build_conn([{"authorization", @test_auth_header}])
       counter = start_supervised!({Agent, fn -> 0 end})
 
@@ -189,8 +235,8 @@ defmodule Cache.AuthenticationTest do
 
     test "different auth headers have different cache keys", %{cache_name: cache_name} do
       other_auth_header = "Bearer other-token-456"
-      projects1 = [%{"full_name" => "account1/project1"}]
-      projects2 = [%{"full_name" => "account2/project2"}]
+      projects1 = ["account1/project1"]
+      projects2 = ["account2/project2"]
 
       conn1 = build_conn([{"authorization", @test_auth_header}])
       conn2 = build_conn([{"authorization", other_auth_header}])
@@ -272,7 +318,7 @@ defmodule Cache.AuthenticationTest do
       auth_header = "Bearer #{jwt_token}"
       conn = build_conn([{"authorization", auth_header}])
 
-      api_projects = [%{"full_name" => "account/project"}]
+      api_projects = ["account/project"]
       stub_api_call(200, %{"projects" => api_projects})
 
       result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
@@ -297,7 +343,7 @@ defmodule Cache.AuthenticationTest do
       auth_header = "Bearer #{jwt_token}"
       conn = build_conn([{"authorization", auth_header}])
 
-      api_projects = [%{"full_name" => "other/project"}]
+      api_projects = ["other/project"]
       stub_api_call(200, %{"projects" => api_projects})
 
       result = Authentication.ensure_project_accessible(conn, "nonexistent", "project", cache_name: cache_name)
@@ -314,7 +360,7 @@ defmodule Cache.AuthenticationTest do
       auth_header = "Bearer #{invalid_token}"
       conn = build_conn([{"authorization", auth_header}])
 
-      projects = [%{"full_name" => "account/project"}]
+      projects = ["account/project"]
       stub_api_call(200, %{"projects" => projects})
 
       result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
@@ -327,7 +373,7 @@ defmodule Cache.AuthenticationTest do
       auth_header = "Bearer #{project_token}"
       conn = build_conn([{"authorization", auth_header}])
 
-      projects = [%{"full_name" => "account/project"}]
+      projects = ["account/project"]
       stub_api_call(200, %{"projects" => projects})
 
       result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
@@ -343,7 +389,7 @@ defmodule Cache.AuthenticationTest do
       auth_header = "Bearer some-jwt-token"
       conn = build_conn([{"authorization", auth_header}])
 
-      projects = [%{"full_name" => "account/project"}]
+      projects = ["account/project"]
       stub_api_call(200, %{"projects" => projects})
 
       result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
@@ -412,7 +458,7 @@ defmodule Cache.AuthenticationTest do
       auth_header = "Bearer #{jwt_token}"
       conn = build_conn([{"authorization", auth_header}])
 
-      projects = [%{"full_name" => "account/project"}]
+      projects = ["account/project"]
       stub_api_call(200, %{"projects" => projects})
 
       result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
@@ -504,6 +550,58 @@ defmodule Cache.AuthenticationTest do
                )
     end
 
+    test "denies a project a cache token's grants do not name, without asking the server", %{cache_name: cache_name} do
+      Req.Test.stub(Authentication, fn _conn ->
+        flunk("a cache token's grants are complete")
+      end)
+
+      auth_header = grants_auth_header(write: ["account/other-project"])
+      conn = build_conn([{"authorization", auth_header}], "GET")
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+
+      assert {:error, 403, _message} = result
+    end
+
+    test "asks the server about a project an access token's grants leave out", %{cache_name: cache_name} do
+      stub_api_call(200, %{"projects" => ["account/project"]})
+
+      auth_header = grants_auth_header(write: ["account/other-project"], typ: "access")
+
+      for method <- ["GET", "PUT"] do
+        conn = build_conn([{"authorization", auth_header}], method)
+
+        assert {:ok, ^auth_header} =
+                 Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+      end
+    end
+
+    test "denies a project neither an access token's grants nor the server name", %{cache_name: cache_name} do
+      stub_api_call(200, %{"projects" => ["account/other-project"]})
+
+      auth_header = grants_auth_header(write: ["account/other-project"], typ: "access")
+      conn = build_conn([{"authorization", auth_header}], "GET")
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+
+      assert {:error, 403, _message} = result
+    end
+
+    test "denies a write on a project an access token grants only reads to, without asking the server", %{
+      cache_name: cache_name
+    } do
+      Req.Test.stub(Authentication, fn _conn ->
+        flunk("the grants name this project, so they are the answer")
+      end)
+
+      auth_header = grants_auth_header(read: ["account/project"], typ: "access")
+      conn = build_conn([{"authorization", auth_header}], "PUT")
+
+      result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+
+      assert {:error, 403, _message} = result
+    end
+
     test "an account grant is not access to the projects in it", %{cache_name: cache_name} do
       claims = %{
         "cache_grants" => %{
@@ -537,7 +635,7 @@ defmodule Cache.AuthenticationTest do
       "exp" => System.system_time(:second) + 3600,
       "iat" => System.system_time(:second),
       "sub" => "user-123",
-      "typ" => "cache"
+      "typ" => Keyword.get(buckets, :typ, "cache")
     }
 
     {:ok, jwt_token, _claims} = Cache.Guardian.encode_and_sign(%{}, claims)

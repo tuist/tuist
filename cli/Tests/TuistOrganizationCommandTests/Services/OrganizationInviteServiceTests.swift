@@ -30,6 +30,7 @@ struct OrganizationInviteServiceTests {
             .createOrganizationInvite(
                 organizationName: .value("tuist"),
                 email: .value("tuist@test.io"),
+                role: .value(.admin),
                 serverURL: .value(serverURL)
             )
             .willReturn(
@@ -43,6 +44,7 @@ struct OrganizationInviteServiceTests {
         try await subject.run(
             organizationName: "tuist",
             email: "tuist@test.io",
+            role: .admin,
             directory: nil
         )
 

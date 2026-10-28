@@ -13,3 +13,8 @@ config :tuist, Tuist.Mailer, adapter: Bamboo.MailgunAdapter
 # which you should run after static files are built and
 # before starting your production server.
 config :tuist, TuistWeb.Endpoint, cache_static_manifest: "priv/static/cache_manifest.json"
+
+# TLS terminates at Cloudflare in front of the origin, so browsers always
+# reach the app over HTTPS. Flag session cookies Secure so they never ride
+# a downgraded connection if someone lands on http:// directly.
+config :tuist, :session_cookie_secure, true

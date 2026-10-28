@@ -60,6 +60,13 @@ public struct ConfigLoader: ConfigLoading {
         return .default
     }
 
+    public func loadCargoConfig(path: AbsolutePath) async throws -> TuistConfig.Tuist {
+        let toml = try await tomlConfigLoader.loadConfig(at: path)
+        let config = toml.map(configFromToml) ?? .default
+        applyRuntimeSettings(from: config)
+        return config
+    }
+
     private func configFromToml(_ tomlConfig: TuistTomlConfig) -> TuistConfig.Tuist {
         return TuistConfig.Tuist(
             project: .defaultGeneratedProject(),

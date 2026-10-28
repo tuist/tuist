@@ -14,7 +14,7 @@ defmodule Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker do
     unique: [
       keys: [:batch_id],
       period: :infinity,
-      states: [:available, :scheduled, :executing, :retryable]
+      states: :incomplete
     ]
 
   alias Tuist.Tests

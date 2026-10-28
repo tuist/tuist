@@ -1,7 +1,10 @@
 #if os(macOS)
+    import FileSystem
+    import FileSystemTesting
     import Foundation
     import Security
     import Testing
+    import TuistEnvironment
 
     @testable import TuistHTTP
 
@@ -48,6 +51,30 @@
         wwJp2Lu3iXN62t6OCSv/QczDa/Q6ShpV8IQkikmAtEtecbzAmZz6m9utqQsugA==
         -----END CERTIFICATE-----
         """
+
+        @Test(.inTemporaryDirectory)
+        func discovery_uses_the_configured_private_CA_without_following_redirects() async throws {
+            let directory = try #require(FileSystem.temporaryTestDirectory)
+            let path = directory.appending(component: "ca.pem")
+            try await FileSystem().writeText(Self.caPEM, at: path)
+            let environment = Environment(variables: ["TUIST_CA_CERTIFICATE": path.pathString], arguments: [])
+            try await Environment.$current.withValue(environment) {
+                let session = URLSession.tuistDiscovery
+                defer { session.invalidateAndCancel() }
+                let delegate = try #require(session.delegate as? TuistURLSessionDelegate)
+                let url = try #require(URL(string: "https://tuist.example"))
+                let response = try #require(HTTPURLResponse(url: url, statusCode: 302, httpVersion: nil, headerFields: nil))
+                await confirmation("Private CA discovery refuses redirects") { completed in
+                    delegate.urlSession(
+                        session, task: session.dataTask(with: url), willPerformHTTPRedirection: response,
+                        newRequest: URLRequest(url: url)
+                    ) { request in
+                        #expect(request == nil)
+                        completed()
+                    }
+                }
+            }
+        }
 
         @Test
         func parses_single_PEM_certificate() {

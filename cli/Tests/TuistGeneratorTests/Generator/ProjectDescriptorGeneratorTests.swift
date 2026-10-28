@@ -186,6 +186,107 @@ struct ProjectDescriptorGeneratorTests {
     @Test(
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedXcodeController,
+        arguments: [Product.staticFramework, .staticLibrary, .dynamicLibrary], [false, true]
+    ) func generate_buildableFolders_catalogsHaveExactlyOneMembership(
+        product: Product,
+        explicitlyDeclared: Bool
+    ) async throws {
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let folder = temporaryPath.appending(components: "Sources", "Feature UI")
+        let assets = folder.appending(components: "Resources", "Assets.xcassets")
+        let strings = folder.appending(components: "Resources", "Localizable.xcstrings")
+        let swift = folder.appending(component: "Feature.swift")
+        let image = folder.appending(components: "Resources", "image.png")
+        let target = Target.test(
+            name: "Feature",
+            destinations: [.iPhone, .mac],
+            product: product,
+            sources: [],
+            resources: .init(explicitlyDeclared ? [
+                .file(path: assets, tags: ["images"], inclusionCondition: .when([.ios])),
+                .file(path: strings, tags: ["strings"], inclusionCondition: .when([.ios])),
+            ] : []),
+            buildableFolders: [
+                BuildableFolder(
+                    path: folder,
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [assets, strings, swift, image].map { BuildableFolderFile(path: $0, compilerFlags: nil) }
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: temporaryPath,
+            sourceRootPath: temporaryPath,
+            name: "Project",
+            targets: [target]
+        )
+        let contentHasher = MockContentHashing()
+        given(contentHasher).hash(Parameter<Data>.any).willReturn("hash")
+        let (mappedProject, _) = try await ResourcesProjectMapper(contentHasher: contentHasher).map(project: project)
+        let graph = Graph.test(projects: [mappedProject.path: mappedProject])
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock).selectedVersion().willReturn(Version(16, 0, 0))
+
+        let generatedProject = try await subject.generate(
+            project: mappedProject,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+
+        let pbxproj = generatedProject.xcodeProj.pbxproj
+        let mainTarget = try #require(pbxproj.nativeTargets.first { $0.name == "Feature" })
+        let bundleTarget = try #require(pbxproj.nativeTargets.first { $0.name == "Project_Feature" })
+        let catalogReferences = pbxproj.fileReferences.filter {
+            $0.path?.hasSuffix(".xcassets") == true || $0.path?.hasSuffix(".xcstrings") == true
+        }
+        #expect(catalogReferences.count == (explicitlyDeclared ? 2 : 0))
+        #expect(try mainTarget.resourcesBuildPhase() != nil)
+        let debugConfig = try #require(mainTarget.buildConfigurationList?.configuration(name: "Debug"))
+        #expect(debugConfig.buildSettings["PACKAGE_RESOURCE_BUNDLE_NAME"] == .string("Project_Feature"))
+        let mainGroup = try #require(mainTarget.fileSystemSynchronizedGroups?.first)
+        #expect(mainGroup == bundleTarget.fileSystemSynchronizedGroups?.first)
+        let exclusions = mainGroup.exceptions?
+            .compactMap { $0 as? PBXFileSystemSynchronizedBuildFileExceptionSet }
+            .filter { $0.target == mainTarget }
+            .flatMap { $0.membershipExceptions ?? [] } ?? []
+        let catalogs = ["Resources/Assets.xcassets", "Resources/Localizable.xcstrings"]
+        #expect(Set(exclusions) == Set(["Resources/image.png"] + (explicitlyDeclared ? catalogs : [])))
+        let bundleExclusions = mainGroup.exceptions?
+            .compactMap { $0 as? PBXFileSystemSynchronizedBuildFileExceptionSet }
+            .filter { $0.target == bundleTarget }
+            .flatMap { $0.membershipExceptions ?? [] } ?? []
+        #expect(Set(bundleExclusions) == Set(["Feature.swift"] + (explicitlyDeclared ? catalogs : [])))
+        if explicitlyDeclared {
+            #expect(try mainTarget.sourcesBuildPhase()?.files?.filter { $0.file?.path?.hasSuffix(".xcassets") == true }
+                .count == 1)
+            #expect(try mainTarget.resourcesBuildPhase()?.files?.filter { $0.file?.path?.hasSuffix(".xcstrings") == true }
+                .count == 1)
+            let bundleFiles = try #require(try bundleTarget.resourcesBuildPhase()?.files)
+            #expect(bundleFiles.count == 2)
+            let bundleAsset = try #require(bundleFiles.first { $0.file?.path?.hasSuffix(".xcassets") == true })
+            let bundleStrings = try #require(bundleFiles.first { $0.file?.path?.hasSuffix(".xcstrings") == true })
+            #expect(bundleAsset.settings?["ASSET_TAGS"] == .array(["images"]))
+            #expect(bundleStrings.settings?["ASSET_TAGS"] == .array(["strings"]))
+            #expect(bundleAsset.platformFilter == "ios")
+            #expect(bundleStrings.platformFilter == "ios")
+        }
+
+        let regeneratedProject = try await subject.generate(
+            project: mappedProject,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+        let output = try #require(try pbxproj.dataRepresentation(outputSettings: PBXOutputSettings()))
+        let regeneratedOutput = try regeneratedProject.xcodeProj.pbxproj.dataRepresentation(outputSettings: PBXOutputSettings())
+        #expect(output == regeneratedOutput)
+        #expect(!String(decoding: output, as: UTF8.self).contains("TEMP_"))
+        let jsonOutput = try pbxproj.xcprojData()
+        let regeneratedJSONOutput = try regeneratedProject.xcodeProj.pbxproj.xcprojData()
+        #expect(jsonOutput == regeneratedJSONOutput)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
         .withMockedXcodeController
     ) func objectVersion_when_xcode11_and_spm() async throws {
         let xcodeControllerMock = try #require(XcodeController.mocked)

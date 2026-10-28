@@ -52,7 +52,7 @@
 
     // swiftlint:disable:next type_body_length
     public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand,
-        RunReportingCommand
+        RunReportingCommand, ProjectPathProviding
     {
         public init() {}
 
@@ -100,7 +100,7 @@
             completion: .directory,
             envKey: .testPath
         )
-        var path: String?
+        public var path: String?
 
         @Option(
             name: .shortAndLong,
@@ -159,6 +159,13 @@
             envKey: .testResultBundlePath
         )
         var resultBundlePath: String?
+
+        @Option(
+            help: "Directory where each run's code coverage will be saved as LCOV (<result bundle name>.lcov), with repository-relative paths. Requires coverage uploads.",
+            completion: .directory,
+            envKey: .testCoverageOutputPath
+        )
+        var coverageOutputPath: String?
 
         @Option(
             help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
@@ -341,6 +348,13 @@
 
         @Option(
             name: .long,
+            help: "Rerun the test cases this branch adds, priced by duration, and flag any that prove flaky. 'report' warns; 'enforce' fails the run on a flaky test case. Off when omitted.",
+            envKey: .testStressNewTests
+        )
+        var stressNewTests: StressNewTestsMode?
+
+        @Option(
+            name: .long,
             help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing, 'off' skips test analysis entirely (no xcresult parsing, archiving, or upload — the Tests dashboard is not populated). When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
             envKey: .inspectTestMode
         )
@@ -407,6 +421,12 @@
                     .test
                 }
 
+            if let coverageOutputPath {
+                await RunMetadataStorage.current.update(
+                    coverageOutputPath: try await Environment.current.pathRelativeToWorkingDirectory(coverageOutputPath)
+                )
+            }
+
             try await TestService(
                 generatorFactory: Extension.generatorFactory,
                 cacheStorageFactory: Extension.cacheStorageFactory
@@ -462,7 +482,8 @@
                     }
                     return nil
                 }(),
-                mode: inspectMode
+                mode: inspectMode,
+                stressNewTests: stressNewTests
             )
         }
     }

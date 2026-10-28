@@ -57,33 +57,27 @@ rollout_collect_status_with_retry() {
   return 1
 }
 
-rollout_collect_cluster_load_totals() {
-  local node body outbox fd_timeouts
-  local total_outbox=0
+rollout_collect_cluster_fd_timeouts() {
+  local node body fd_timeouts
   local total_fd_timeouts=0
 
   for node in "$@"; do
     body="$(rollout_collect_status_with_retry "${node}")" || return 1
-    outbox="$(rollout_json_number "${body}" "outbox_messages")"
     fd_timeouts="$(rollout_json_number "${body}" "fd_timeout_count")"
-    outbox="${outbox:-0}"
     fd_timeouts="${fd_timeouts:-0}"
-    total_outbox=$((total_outbox + outbox))
     total_fd_timeouts=$((total_fd_timeouts + fd_timeouts))
   done
 
-  printf '%s %s\n' "${total_outbox}" "${total_fd_timeouts}"
+  printf '%s\n' "${total_fd_timeouts}"
 }
 
 rollout_wait_for_gate() {
   local target_node="$1"
   local expected_ring_members="$2"
-  local baseline_cluster_outbox="$3"
-  local previous_cluster_fd_timeouts="$4"
-  local steady_seconds="$5"
-  shift 5
+  local previous_cluster_fd_timeouts="$3"
+  local steady_seconds="$4"
+  shift 4
   local cluster_nodes=("$@")
-  local threshold_outbox=$((baseline_cluster_outbox + ((baseline_cluster_outbox + 9) / 10)))
   local steady_since=""
   local deadline=$((SECONDS + ROLLOUT_TIMEOUT_SECONDS))
 
@@ -92,8 +86,8 @@ rollout_wait_for_gate() {
     local target_seen=0
     local target_generation=""
     local observed_generation=""
-    local cluster_outbox=0 cluster_fd_timeouts=0 fd_timeout_delta=0
-    local node body ready state generation ring_members outbox fd_timeouts pressure backfill_mode
+    local cluster_fd_timeouts=0 fd_timeout_delta=0
+    local node body ready state generation ring_members fd_timeouts pressure backfill_mode
 
     for node in "${cluster_nodes[@]}"; do
       if ! body="$(rollout_collect_status_with_retry "${node}")"; then
@@ -106,7 +100,6 @@ rollout_wait_for_gate() {
       generation="$(rollout_json_number "${body}" "generation")"
       ring_members="$(rollout_json_number "${body}" "ring_members")"
       backfill_mode="$(rollout_json_string "${body}" "backfill_initial_cycle")"
-      outbox="$(rollout_json_number "${body}" "outbox_messages")"
       fd_timeouts="$(rollout_json_number "${body}" "fd_timeout_count")"
       pressure="$(rollout_json_number "${body}" "memory_pressure_state")"
 
@@ -114,11 +107,9 @@ rollout_wait_for_gate() {
       state="${state:-unknown}"
       generation="${generation:-0}"
       ring_members="${ring_members:-0}"
-      outbox="${outbox:-0}"
       fd_timeouts="${fd_timeouts:-0}"
       pressure="${pressure:-0}"
 
-      cluster_outbox=$((cluster_outbox + outbox))
       cluster_fd_timeouts=$((cluster_fd_timeouts + fd_timeouts))
 
       if [[ "${node}" == "${target_node}" ]]; then
@@ -141,11 +132,11 @@ rollout_wait_for_gate() {
       if [[ "${ring_members}" != "${expected_ring_members}" ]]; then
         ok=0
       fi
-      # Catch-up gate: pending until the node's initial backfill cycle
-      # settles; complete and degraded are both settled. A node that reports
-      # no mode at all predates the walker and has no catch-up state this
-      # gate can model — the ready/state/ring checks above still cover it,
-      # so a mid-rollout mesh is not blocked by its own overlap.
+      # Catch-up gate: pending until the node's pull links settle; complete
+      # and degraded are both settled. A node that reports no mode at all
+      # predates the walker and has no catch-up state this gate can model —
+      # the ready/state/ring checks above still cover it, so a mid-rollout
+      # mesh is not blocked by its own overlap.
       if [[ "${backfill_mode}" == "pending" ]]; then
         ok=0
       fi
@@ -165,9 +156,6 @@ rollout_wait_for_gate() {
       ok=0
     fi
     if [[ -n "${observed_generation}" && -n "${target_generation}" && "${target_generation}" != "${observed_generation}" ]]; then
-      ok=0
-    fi
-    if (( cluster_outbox > threshold_outbox )); then
       ok=0
     fi
     if (( fd_timeout_delta > 0 )); then

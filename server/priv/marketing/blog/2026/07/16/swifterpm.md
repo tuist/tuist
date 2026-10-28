@@ -1,8 +1,8 @@
 ---
-title: "SwifterPM: faster Swift package resolution for generated, Bazel, and Buck2 projects"
+title: "SwifterPM: faster Swift Package Resolution"
 category: "product"
 tags: ["product", "swift", "spm", "cli", "bazel", "buck2", "performance"]
-excerpt: "Our users kept telling us that resolving Swift packages was slow, and that the directories where they get resolved ate gigabytes of disk. That pain has only grown as people run several agents across worktrees at once. So we built SwifterPM. It leaves resolution to the Swift Package Manager and speeds up everything around it: fetching the pinned sources, putting them on disk, and reading their manifests. Starting today it's the default for Tuist generated projects, with an environment variable to opt out, and it ships as a rule for Bazel and Buck2."
+excerpt: "SwifterPM makes Swift package resolution faster and more storage-efficient, especially when running multiple agents across worktrees."
 author: pepicrft
 live: true
 og_image_path: /marketing/images/blog/2026/07/16/swifterpm/og.jpg

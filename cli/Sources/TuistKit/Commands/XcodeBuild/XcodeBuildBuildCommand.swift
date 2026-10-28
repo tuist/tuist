@@ -4,7 +4,9 @@ import TuistEnvKey
 import TuistSupport
 import XcodeGraph
 
-public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCommand, RunReportingCommand {
+public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCommand, RunReportingCommand,
+    XcodeBuildPassthroughCommand
+{
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",
@@ -23,6 +25,8 @@ public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCom
     )
     public var passthroughXcodebuildArguments: [String] = []
 
+    var xcodebuildActionIndex: Int = 0
+
     @Option(
         name: .long,
         help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
@@ -34,7 +38,7 @@ public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCom
     public func run() async throws {
         try await XcodeBuildBuildCommandService()
             .run(
-                passthroughXcodebuildArguments: ["build"] + passthroughXcodebuildArguments
+                passthroughXcodebuildArguments: xcodebuildArguments
             )
     }
 }

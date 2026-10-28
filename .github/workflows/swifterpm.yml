@@ -16,9 +16,6 @@ on:
 permissions:
   contents: read
 
-env:
-  MISE_VERSION: "2026.5.15"
-
 concurrency:
   group: swifterpm-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -26,17 +23,61 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: tuist/cache-volume@v1
         with:
-          version: ${{ env.MISE_VERSION }}
+          key: ci-swifterpm-${{ github.job }}-bazel-repository-v1
+          path: ~/.cache/swifterpm/bazel/repository
+      - uses: ./.github/actions/mise
+        with:
           install_args: "bazel"
           working_directory: swifterpm
           cache: "false"
           github_token: ${{ github.token }}
       - name: Test
         working-directory: swifterpm
-        run: mise run test:unit
+        run: mise run test:unit -- --config=ci
+
+  e2e:
+    name: E2E
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 45
+    if: github.repository == 'tuist/tuist'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-swifterpm-${{ github.job }}-bazel-repository-v1
+          path: ~/.cache/swifterpm/bazel/repository
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "bazel buck2 jq shellspec"
+          working_directory: swifterpm
+          cache: "false"
+          github_token: ${{ github.token }}
+      - name: E2E
+        working-directory: swifterpm
+        env:
+          SWIFTERPM_E2E_GIT_TOKEN: ${{ github.token }}
+        run: mise run test:e2e -- --config=ci
+      - name: Diagnose public Git access
+        if: failure()
+        shell: bash
+        run: |
+          directory=$(mktemp -d)
+          trap 'rm -rf "$directory"' EXIT
+          mkdir -p "$directory/home"
+          swift --version
+          git --version
+          curl --silent --show-error --max-time 30 --output /dev/null \
+            --write-out 'Anonymous Git HTTP status: %{http_code}\n' \
+            'https://github.com/apple/swift-atomics.git/info/refs?service=git-upload-pack' || true
+          (
+            cd "$directory"
+            env HOME="$directory/home" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 \
+              git -c credential.helper= ls-remote https://github.com/apple/swift-atomics.git HEAD
+          ) || true

@@ -1,15 +1,16 @@
 defmodule Tuist.Runners.ConcurrencyTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts.Account
   alias Tuist.IngestRepo
   alias Tuist.Repo
-  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
-  alias Tuist.Runners.Job
+  alias Tuist.Runners.ConcurrencyLimit
+  alias Tuist.Runners.ConcurrencySession
 
   test "returns the default platform limits and empty usage" do
     account = account_fixture()
@@ -120,36 +121,36 @@ defmodule Tuist.Runners.ConcurrencyTest do
     start_dt = datetime("2026-07-10T10:00:00Z")
     end_dt = datetime("2026-07-10T14:00:00Z")
 
-    insert_completed_job(account.id, 91_001,
+    replica_fixture(account,
       platform: "linux",
       vcpus: 4,
       memory_gb: 8,
-      claimed_at: datetime("2026-07-10T10:10:00Z"),
-      completed_at: datetime("2026-07-10T11:40:00Z")
+      started_at: datetime("2026-07-10T10:10:00Z"),
+      released_at: datetime("2026-07-10T11:40:00Z")
     )
 
-    insert_completed_job(account.id, 91_002,
+    replica_fixture(account,
       platform: "linux",
       vcpus: 4,
       memory_gb: 16,
-      claimed_at: datetime("2026-07-10T10:30:00Z"),
-      completed_at: datetime("2026-07-10T10:45:00Z")
+      started_at: datetime("2026-07-10T10:30:00Z"),
+      released_at: datetime("2026-07-10T10:45:00Z")
     )
 
-    insert_completed_job(account.id, 91_003,
+    replica_fixture(account,
       platform: "macos",
       vcpus: 6,
       memory_gb: 14,
-      claimed_at: datetime("2026-07-10T12:10:00Z"),
-      completed_at: datetime("2026-07-10T12:50:00Z")
+      started_at: datetime("2026-07-10T12:10:00Z"),
+      released_at: datetime("2026-07-10T12:50:00Z")
     )
 
-    insert_completed_job(account.id, 91_004,
+    replica_fixture(account,
       platform: "macos",
       vcpus: 6,
       memory_gb: 14,
-      claimed_at: datetime("2026-07-10T12:20:00Z"),
-      completed_at: datetime("2026-07-10T12:40:00Z")
+      started_at: datetime("2026-07-10T12:20:00Z"),
+      released_at: datetime("2026-07-10T12:40:00Z")
     )
 
     usage = Concurrency.usage_over_time(account.id, start_dt, end_dt, :hour)
@@ -159,6 +160,28 @@ defmodule Tuist.Runners.ConcurrencyTest do
     assert usage.linux.memory_gb == [24, 8, 0, 0, 0]
     assert usage.macos.vcpus == [0, 0, 12, 0, 0]
     assert usage.macos.memory_gb == [0, 0, 28, 0, 0]
+  end
+
+  test "buckets by day as well as by hour" do
+    account = account_fixture()
+
+    replica_fixture(account,
+      platform: "linux",
+      vcpus: 4,
+      memory_gb: 8,
+      started_at: datetime("2026-07-11T10:10:00Z"),
+      released_at: datetime("2026-07-11T11:40:00Z")
+    )
+
+    usage =
+      Concurrency.usage_over_time(
+        account.id,
+        datetime("2026-07-10T00:00:00Z"),
+        datetime("2026-07-12T00:00:00Z"),
+        :day
+      )
+
+    assert usage.linux.vcpus == [0, 4, 0]
   end
 
   test "keeps hourly resolution across a 30-day window" do
@@ -174,95 +197,22 @@ defmodule Tuist.Runners.ConcurrencyTest do
     assert length(usage.macos.memory_gb) == 721
   end
 
-  test "uses fleet platform and default resources for legacy rows" do
+  # The tailer is at-least-once, so one session can land more than
+  # once. Counting both would double its resources.
+  test "counts a session once when it has been ingested more than once" do
     account = account_fixture()
-    default = Catalog.default_shape(:linux)
+    session_id = System.unique_integer([:positive])
 
-    insert_completed_job(account.id, 92_001,
-      platform: "",
-      fleet_name: "linux-amd64",
-      vcpus: 0,
-      memory_gb: 0,
-      claimed_at: datetime("2026-07-10T10:10:00Z"),
-      completed_at: datetime("2026-07-10T10:40:00Z")
-    )
-
-    usage =
-      Concurrency.usage_over_time(
-        account.id,
-        datetime("2026-07-10T10:00:00Z"),
-        datetime("2026-07-10T11:00:00Z"),
-        :hour
+    for released_at <- [datetime("2026-07-10T10:40:00Z"), datetime("2026-07-10T10:50:00Z")] do
+      replica_fixture(account,
+        id: session_id,
+        platform: "linux",
+        vcpus: 4,
+        memory_gb: 16,
+        started_at: datetime("2026-07-10T10:10:00Z"),
+        released_at: released_at
       )
-
-    assert usage.linux.vcpus == [default.vcpus, 0]
-    assert usage.linux.memory_gb == [default.memory_gb, 0]
-  end
-
-  test "uses the fleet's configured shape for legacy history" do
-    account = account_fixture()
-    shape = Enum.find(Catalog.shapes(:linux), &(!&1.default?))
-    fleet_name = Catalog.pool_name(Map.put(shape, :platform, :linux))
-
-    insert_completed_job(account.id, 92_101,
-      platform: "",
-      fleet_name: fleet_name,
-      vcpus: 0,
-      memory_gb: 0,
-      claimed_at: datetime("2026-07-10T10:10:00Z"),
-      completed_at: datetime("2026-07-10T10:40:00Z")
-    )
-
-    usage =
-      Concurrency.usage_over_time(
-        account.id,
-        datetime("2026-07-10T10:00:00Z"),
-        datetime("2026-07-10T11:00:00Z"),
-        :hour
-      )
-
-    assert usage.linux.vcpus == [shape.vcpus, 0]
-    assert usage.linux.memory_gb == [shape.memory_gb, 0]
-  end
-
-  test "does not count a requeued job as continuously claimed" do
-    account = account_fixture()
-    workflow_job_id = 93_001 + System.unique_integer([:positive])
-    claimed_at = datetime("2026-07-10T10:10:00Z")
-    requeued_at = datetime("2026-07-10T10:30:00Z")
-
-    base_row = %{
-      workflow_job_id: workflow_job_id,
-      account_id: account.id,
-      fleet_name: "linux-pool",
-      platform: "linux",
-      vcpus: 4,
-      memory_gb: 16,
-      repository: "tuist/tuist",
-      workflow_run_id: workflow_job_id,
-      run_attempt: 1,
-      workflow_name: "CI",
-      job_name: "Test",
-      head_branch: "main",
-      head_sha: "abcdef0",
-      conclusion: "",
-      enqueued_at: claimed_at,
-      started_at: nil,
-      completed_at: nil,
-      pod_name: "",
-      runner_name: "",
-      requested_dispatch_label: ""
-    }
-
-    {1, _} =
-      IngestRepo.insert_all(Job, [
-        Map.merge(base_row, %{status: "claimed", claimed_at: claimed_at, updated_at: claimed_at})
-      ])
-
-    {1, _} =
-      IngestRepo.insert_all(Job, [
-        Map.merge(base_row, %{status: "queued", claimed_at: nil, updated_at: requeued_at})
-      ])
+    end
 
     usage =
       Concurrency.usage_over_time(
@@ -272,42 +222,72 @@ defmodule Tuist.Runners.ConcurrencyTest do
         :hour
       )
 
-    assert usage.linux.vcpus == [0, 0, 0]
-    assert usage.linux.memory_gb == [0, 0, 0]
+    assert usage.linux.vcpus == [4, 0, 0]
+    assert usage.linux.memory_gb == [16, 0, 0]
   end
 
-  defp insert_completed_job(account_id, workflow_job_id, opts) do
-    claimed_at = Keyword.fetch!(opts, :claimed_at)
-    completed_at = Keyword.fetch!(opts, :completed_at)
+  test "counts a session claimed before the window that is still holding its slot inside it" do
+    account = account_fixture()
 
-    {1, _} =
-      IngestRepo.insert_all(Job, [
-        %{
-          workflow_job_id: workflow_job_id + System.unique_integer([:positive]),
-          account_id: account_id,
-          fleet_name: Keyword.get(opts, :fleet_name, "#{Keyword.fetch!(opts, :platform)}-pool"),
-          platform: Keyword.fetch!(opts, :platform),
-          vcpus: Keyword.fetch!(opts, :vcpus),
-          memory_gb: Keyword.fetch!(opts, :memory_gb),
-          repository: "tuist/tuist",
-          workflow_run_id: workflow_job_id,
-          run_attempt: 1,
-          workflow_name: "CI",
-          job_name: "Test",
-          head_branch: "main",
-          head_sha: "abcdef0",
-          status: "completed",
-          conclusion: "success",
-          enqueued_at: claimed_at,
-          claimed_at: claimed_at,
-          started_at: claimed_at,
-          completed_at: completed_at,
-          pod_name: "",
-          runner_name: "",
-          requested_dispatch_label: "",
-          updated_at: completed_at
-        }
-      ])
+    replica_fixture(account,
+      platform: "linux",
+      vcpus: 4,
+      memory_gb: 16,
+      started_at: datetime("2026-07-10T10:00:00Z"),
+      released_at: datetime("2026-07-10T16:00:00Z")
+    )
+
+    usage =
+      Concurrency.usage_over_time(
+        account.id,
+        datetime("2026-07-10T12:00:00Z"),
+        datetime("2026-07-10T16:00:00Z"),
+        :hour
+      )
+
+    assert usage.linux.vcpus == [4, 4, 4, 4, 0]
+  end
+
+  test "ignores sessions belonging to another account" do
+    account = account_fixture()
+    other = account_fixture()
+
+    replica_fixture(other,
+      platform: "linux",
+      vcpus: 4,
+      memory_gb: 16,
+      started_at: datetime("2026-07-10T10:10:00Z"),
+      released_at: datetime("2026-07-10T10:40:00Z")
+    )
+
+    usage =
+      Concurrency.usage_over_time(
+        account.id,
+        datetime("2026-07-10T10:00:00Z"),
+        datetime("2026-07-10T11:00:00Z"),
+        :hour
+      )
+
+    assert usage.linux.vcpus == [0, 0]
+  end
+
+  defp replica_fixture(account, attrs) do
+    attrs = Map.new(attrs)
+    started_at = Map.fetch!(attrs, :started_at)
+
+    defaults = %{
+      id: System.unique_integer([:positive]),
+      account_id: account.id,
+      platform: "linux",
+      vcpus: 4,
+      memory_gb: 16,
+      started_at: started_at,
+      released_at: started_at,
+      source_updated_at: started_at,
+      ingested_at: DateTime.utc_now()
+    }
+
+    {1, _} = IngestRepo.insert_all(ConcurrencySession, [Map.merge(defaults, attrs)])
 
     :ok
   end
@@ -398,6 +378,81 @@ defmodule Tuist.Runners.ConcurrencyTest do
       assert Concurrency.headroom_jobs(account.id, %{platform: :macos, vcpus: 0, memory_gb: 14}) == 0
       assert Concurrency.headroom_jobs(account.id, %{platform: :bsd, vcpus: 1, memory_gb: 1}) == 0
       assert Concurrency.headroom_jobs(account.id, %{}) == 0
+    end
+  end
+
+  describe "usage_snapshot/2 and headroom_from_snapshot/3" do
+    test "separates a missing limit row from a genuinely exhausted one" do
+      capped = account_fixture()
+      unlimited = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+
+      assert {:ok, _} = Claims.attempt(11_401, capped.id, "macos-pool", "p1", shape)
+      assert {:ok, _} = Claims.attempt(11_402, capped.id, "macos-pool", "p2", shape)
+      Repo.delete_all(from(limit in ConcurrencyLimit, where: limit.account_id == ^unlimited.id))
+
+      snapshot = Concurrency.usage_snapshot([capped.id, unlimited.id], :macos)
+
+      assert Concurrency.headroom_from_snapshot(snapshot, capped.id, shape) == {:ok, 0}
+      assert Concurrency.headroom_from_snapshot(snapshot, unlimited.id, shape) == {:error, :missing_limit}
+    end
+
+    test "one snapshot serves several shapes without re-reading" do
+      account = account_fixture()
+      snapshot = Concurrency.usage_snapshot([account.id], :macos)
+
+      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 6, memory_gb: 14}) ==
+               {:ok, 2}
+
+      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 1, memory_gb: 14}) ==
+               {:ok, 2}
+
+      assert Concurrency.headroom_from_snapshot(snapshot, account.id, %{platform: :macos, vcpus: 12, memory_gb: 28}) ==
+               {:ok, 1}
+    end
+  end
+
+  describe "headroom_jobs_by_account/2" do
+    test "agrees with headroom_jobs/2 for every account" do
+      first = account_fixture()
+      second = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+
+      assert {:ok, _} = Claims.attempt(11_301, first.id, "macos-pool", "p1", shape)
+
+      assert Concurrency.headroom_jobs_by_account([first.id, second.id], shape) == %{
+               first.id => Concurrency.headroom_jobs(first.id, shape),
+               second.id => Concurrency.headroom_jobs(second.id, shape)
+             }
+    end
+
+    test "reports 0 for an account with no limit row rather than omitting it" do
+      account = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+
+      assert Concurrency.headroom_jobs_by_account([account.id, -1], shape) == %{
+               account.id => 2,
+               -1 => 0
+             }
+    end
+
+    # `Claims.attempt/5` fails a missing limit row as
+    # `:concurrency_limit_missing` — admission cannot proceed at all — so
+    # callers that need to tell that apart from a real cap must not read
+    # the 0 this returns as "at the limit".
+    test "flattens a missing limit row to 0 so the autoscaler still fails closed" do
+      account = account_fixture()
+      shape = %{platform: :macos, vcpus: 6, memory_gb: 14}
+      Repo.delete_all(from(limit in ConcurrencyLimit, where: limit.account_id == ^account.id))
+
+      assert Concurrency.headroom_jobs_by_account([account.id], shape) == %{account.id => 0}
+    end
+
+    test "returns an empty map for no accounts and 0s for a malformed shape" do
+      account = account_fixture()
+
+      assert Concurrency.headroom_jobs_by_account([], %{platform: :macos, vcpus: 6, memory_gb: 14}) == %{}
+      assert Concurrency.headroom_jobs_by_account([account.id], %{}) == %{account.id => 0}
     end
   end
 end

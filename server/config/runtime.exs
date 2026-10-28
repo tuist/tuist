@@ -32,6 +32,17 @@ alias Tuist.Oban.RuntimeConfig
 # A boot failure here is caught in the canary stage before production.
 alias Tuist.Runners.Catalog
 
+if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
+  case Tuist.Accounts.SSOLoginDomainTrust.parse_config(value) do
+    {:ok, enabled} -> config :tuist, :sso_require_login_domain_verification, enabled
+    {:error, reason} -> raise reason
+  end
+end
+
+config :tuist, :network_trusted_report_publishing, System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING") == "true"
+config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
+config :tuist, :runner_macos_cache_volumes, System.get_env("TUIST_RUNNER_MACOS_CACHE_VOLUMES") == "true"
+
 case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
   nil ->
     :ok
@@ -62,6 +73,23 @@ case System.get_env("TUIST_RUNNER_LINUX_POOLS") do
 
       pools ->
         config :tuist, :runner_linux_pools, pools
+    end
+end
+
+case System.get_env("TUIST_RUNNER_FREE_MONTHLY_MINUTES") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  raw ->
+    case Integer.parse(raw) do
+      {minutes, ""} when minutes >= 0 ->
+        config :tuist, :runner_free_monthly_minutes, minutes
+
+      _ ->
+        raise "TUIST_RUNNER_FREE_MONTHLY_MINUTES must be a non-negative integer. Got: #{inspect(raw)}"
     end
 end
 
@@ -231,16 +259,19 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
   dns_name = System.get_env("TUIST_CLUSTER_DNS_SERVICE")
   app_name = System.get_env("TUIST_CLUSTER_APP_NAME")
 
-  config :libcluster,
-    topologies: [
-      k8s: [
-        strategy: Cluster.Strategy.Kubernetes.DNS,
-        config: [
-          service: dns_name,
-          application_name: app_name
+  topologies =
+    if dns_name not in [nil, ""] and app_name not in [nil, ""] do
+      [
+        k8s: [
+          strategy: Cluster.Strategy.Kubernetes.DNS,
+          config: [service: dns_name, application_name: app_name]
         ]
       ]
-    ]
+    else
+      []
+    end
+
+  config :libcluster, topologies: topologies
 
   # ## SSL Support
   #
@@ -280,13 +311,19 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
     pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
     queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
     queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+    # The client gives up on a query after this long. ClickHouse's own limit
+    # below is shorter so a slow read fails with TIMEOUT_EXCEEDED (159), which
+    # the server records in query_log and the app can tell from a dropped
+    # connection.
+    timeout: to_timeout(second: 20),
     settings: [
       readonly: 1,
+      max_execution_time: 15,
       max_threads: Tuist.Environment.clickhouse_read_max_threads(secrets),
       # Per-query memory ceiling so one heavy read fails on its own with a
       # `(for query)` error (retryable) rather than driving the process to its
       # `(total)` server ceiling and killing unrelated queries. Read path only:
-      # writes and backfills go through IngestRepo, which sets its own per-query
+      # writes go through IngestRepo, which sets its own per-query
       # limits where needed.
       max_memory_usage: Tuist.Environment.clickhouse_max_memory_usage_bytes(secrets),
       # Shared across every query issued by the application user on one
@@ -443,7 +480,8 @@ if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
         log_protocol_errors: :verbose
       ],
       thousand_island_options: [
-        read_timeout: to_timeout(second: 15)
+        read_timeout: to_timeout(second: 15),
+        shutdown_timeout: to_timeout(second: 15)
       ]
     ]
 
@@ -466,15 +504,32 @@ if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
 
+# Identity of the instance this node runs as, when the platform supplies one.
+#
+# Sentry and Oban both default to the OS hostname. That is unique per Pod on
+# the Linux deployments, but every VM booted from the xcresult-processor Tart
+# image reports the image's hostname, so on that fleet the default names all
+# Pods identically and an event cannot be traced back to the Pod that produced
+# it. The chart binds POD_NAME to metadata.name there.
+pod_name =
+  case System.get_env("POD_NAME") do
+    name when is_binary(name) and name != "" -> name
+    _ -> nil
+  end
+
 if Tuist.Environment.error_tracking_enabled?() do
   config :sentry,
     client: TuistCommon.SentryHTTPClient,
     dsn: Tuist.Environment.sentry_dsn(secrets),
-    environment_name: env,
+    environment_name: Tuist.Environment.deploy_env_name(),
     release: Tuist.Environment.version(),
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
     before_send: {Tuist.SentryEventFilter, :before_send}
+
+  if pod_name do
+    config :sentry, server_name: pod_name
+  end
 end
 
 if Tuist.Environment.env() not in [:test] do
@@ -593,12 +648,15 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 #
 #   * Web/server (default): every queue. Self-hosted installs without
 #     dedicated processors stay on this shape.
-#   * Build processor (TUIST_MODE=processor): only :process_build. CPU-
-#     heavy xcactivitylog parse, runs in-cluster on Linux.
+#   * Build processor (TUIST_MODE=processor): :process_build for CPU-heavy
+#     xcactivitylog parsing and :process_bazel_tests for memory- and
+#     input/output-bound JUnit report processing. Both run in-cluster on Linux
+#     with independent concurrency limits.
 #   * Xcresult processor (TUIST_MODE=xcresult_processor): only
 #     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
 #     Tart VM because xcresulttool is Xcode-only.
 #   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
+#     TUIST_DELEGATE_PROCESS_BAZEL_TESTS=1 /
 #     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
 #     jobs land exclusively on the dedicated fleet — without those
 #     flags the server would race the processors on SKIP LOCKED, and
@@ -610,8 +668,28 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # to one job per subscribed endpoint.
 # Alert evaluations are isolated at one worker per server Pod because their
 # rolling ClickHouse aggregates are memory-heavy even after query-level limits.
-base_queues = [default: 10, alert_evaluations: 1, vcs_comments: 20, webhooks: 20, storage_retention: 1]
+# GitLab coordinator requests may long-poll; isolate them from general background work.
+# Kura instances coming up for a client that asked for its cache: bringing one
+# up and polling its endpoint twice a second, kept off :default so a busy queue
+# cannot delay either.
+# Coverage file deltas: a project's writes take turns on an advisory lock, so a
+# burst for one project would otherwise hold :default's slots while it waits.
+base_queues = [
+  runner_gitlab: 10,
+  default: 10,
+  alert_evaluations: 1,
+  alert_evaluation_batches: 1,
+  automation_notifications: 5,
+  vcs_comments: 20,
+  webhooks: 20,
+  mcp_events: 5,
+  storage_retention: 1,
+  kura_provisioning: 10,
+  coverage_deltas: 2
+]
+
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
+process_bazel_tests_queue = {:process_bazel_tests, Tuist.Environment.process_bazel_tests_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 # Swift registry sync queues. Consumed only by
 # `TUIST_MODE=swift_registry_sync` pods so the web tier doesn't
@@ -624,10 +702,14 @@ swift_registry_sync_queues = [swift_registry_sync: 1, swift_registry_release: 5]
 oban_queues =
   cond do
     Tuist.Environment.processor_mode?() ->
-      [process_build_queue]
+      [process_build_queue, process_bazel_tests_queue]
 
     Tuist.Environment.xcresult_processor_mode?() ->
-      [process_xcresult_queue]
+      # Every queue start, including an Oban-only supervisor restart, is
+      # paused until the local drain monitor confirms no termination request.
+      [
+        {:process_xcresult, limit: Tuist.Environment.process_xcresult_queue_concurrency(), paused: true}
+      ]
 
     Tuist.Environment.swift_registry_sync_mode?() ->
       swift_registry_sync_queues
@@ -635,6 +717,12 @@ oban_queues =
     true ->
       base = base_queues
       base = if Tuist.Environment.delegate_process_build?(), do: base, else: base ++ [process_build_queue]
+
+      base =
+        if Tuist.Environment.delegate_process_bazel_tests?(),
+          do: base,
+          else: base ++ [process_bazel_tests_queue]
+
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 
@@ -687,6 +775,13 @@ if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false
 end
 
+# Oban stamps this onto `oban_jobs.attempted_by`, which is what makes per-Pod
+# throughput answerable: given the Pod a failure came from, the jobs it
+# completed over the same window say whether it was wedged or working.
+if pod_name do
+  config :tuist, Oban, node: pod_name
+end
+
 # Registry config.
 #
 # The bucket name is shared across ecosystems (one Tigris bucket). The web
@@ -705,10 +800,25 @@ swift_registry_sync_allowlist =
     value -> value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
   end
 
+# The batch size has to stay under the GitHub request budget a single pass can
+# spend: each package costs at least one tag-listing request, plus one per extra
+# page. A limit above the budget exhausts the quota mid-pass, which is what the
+# July 2026 registry incident hit while the pod still reported healthy. An
+# explicitly configured limit that cannot be honoured is rejected rather than
+# clamped, so a typo surfaces at boot instead of silently halving coverage.
 swift_registry_sync_limit =
   case System.get_env("SWIFT_REGISTRY_SYNC_LIMIT") do
-    nil -> 1_000
-    value -> String.to_integer(value)
+    nil ->
+      600
+
+    value ->
+      case Integer.parse(value) do
+        {limit, ""} when limit > 0 ->
+          limit
+
+        _ ->
+          raise "SWIFT_REGISTRY_SYNC_LIMIT must be a positive integer, got: #{inspect(value)}"
+      end
   end
 
 first_registry_env = fn names ->
@@ -799,6 +909,11 @@ config :tuist, :registry,
   s3_config: registry_s3_config,
   url: System.get_env("TUIST_REGISTRY_URL"),
   swift_github_token: System.get_env("SWIFT_REGISTRY_GITHUB_TOKEN"),
+  # When set, the mirror authenticates as this GitHub App installation and the
+  # personal access token above is only the fallback. Accepts the organization
+  # the App is installed on (resolved and cached at runtime) or a numeric
+  # installation id. See `Tuist.Registry.swift_registry_github_token/0`.
+  swift_github_app_installation: System.get_env("SWIFT_REGISTRY_GITHUB_APP_INSTALLATION"),
   swift_sync_enabled: swift_registry_sync_enabled,
   swift_sync_allowlist: swift_registry_sync_allowlist,
   swift_sync_limit: swift_registry_sync_limit
@@ -820,6 +935,21 @@ if Tuist.Environment.swift_registry_sync_mode?() do
     secret_access_key: registry_s3_secret_access_key,
     region: registry_s3_region
 end
+
+# Cache tokens are signed with their own keypair where one is configured, so a
+# cache node can be handed a half that reads them and cannot mint them. Parsed
+# and proven here rather than per token: a key that cannot sign would otherwise
+# boot cleanly and fail the token exchange on the first request.
+cache_token_signing_jwk =
+  case Tuist.Environment.secret_key_cache_tokens(secrets) do
+    nil -> nil
+    pem -> Tuist.CacheGuardian.signing_jwk!(pem)
+  end
+
+config :tuist, Tuist.CacheGuardian,
+  issuer: "tuist",
+  allowed_algos: ["ES256"],
+  secret_key: cache_token_signing_jwk
 
 # Guardian
 config :tuist, Tuist.Guardian,
@@ -861,18 +991,10 @@ else
     traces_exporter: :none
 end
 
-if Tuist.Environment.analytics_enabled?(secrets) do
-  config :posthog,
-    api_url: Tuist.Environment.posthog_url(secrets),
-    api_key: Tuist.Environment.posthog_api_key(secrets)
+config :tuist,
+       :runner_cache_volumes_namespace,
+       System.get_env("TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE", System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners"))
 
-  config :posthog,
-    json_library: Jason,
-    enabled_capture: true,
-    http_client: Tuist.PostHog.HTTPClient,
-    http_client_opts: [
-      timeout: 5_000,
-      retries: 3,
-      retry_delay: 1_000
-    ]
-end
+config :tuist,
+       :runner_cache_volumes_sa_name,
+       System.get_env("TUIST_RUNNER_CACHE_VOLUMES_SA_NAME", "tuist-runner-cache-volumes")

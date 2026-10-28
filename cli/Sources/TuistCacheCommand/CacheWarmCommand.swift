@@ -8,7 +8,7 @@
     import TuistExtension
     import TuistSupport
 
-    public struct CacheWarmCommand: AsyncParsableCommand {
+    public struct CacheWarmCommand: AsyncParsableCommand, ProjectPathProviding {
         public init() {}
 
         public static var configuration: CommandConfiguration {
@@ -25,7 +25,7 @@
             completion: .directory,
             envKey: .cachePath
         )
-        var path: String?
+        public var path: String?
 
         @Option(
             name: .shortAndLong,

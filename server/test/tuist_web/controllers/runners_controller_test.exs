@@ -108,17 +108,17 @@ defmodule TuistWeb.RunnersControllerTest do
   end
 
   describe "POST /api/internal/runners/dispatch" do
-    test "returns the jit, workflow_job_id, and a per-job log token", %{conn: conn} do
+    test "returns the GitHub JIT config, workflow_job_id, and a per-job log token", %{conn: conn} do
       account = account_fixture()
 
       stub(K8sClient, :create_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1", %{} ->
         {:ok,
          %{
-           jit: "JITCONFIG",
+           credential: %{kind: :github, jit: "JITCONFIG"},
            account: account,
            runner_name: "pod-1",
            workflow_job_id: 4242,
@@ -137,6 +137,82 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["owner"] == account.name
       assert body["workflow_job_id"] == 4242
       refute Map.has_key?(body, "cache_endpoint_url")
+
+      assert [%{"group" => "Tuist Runner", "detail" => detail}] = body["setup_info"]
+      assert detail =~ "/#{account.name}/runners/by-runner/pod-1"
+    end
+
+    test "passes the guest's reported macOS version on and drops one that is not a version", %{conn: conn} do
+      test_pid = self()
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1", guest ->
+        send(test_pid, {:guest, guest})
+        {:error, :no_work_yet}
+      end)
+
+      dispatch = fn body ->
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/internal/runners/dispatch", JSON.encode!(body))
+        |> response(204)
+      end
+
+      dispatch.(%{os_version: "26.6"})
+      assert_receive {:guest, %{os_version: "26.6"}}
+
+      dispatch.(%{os_version: "26.6\"-evil"})
+      assert_receive {:guest, guest}
+      assert guest == %{}
+
+      dispatch.(%{})
+      assert_receive {:guest, guest}
+      assert guest == %{}
+    end
+
+    test "returns a Buildkite acquisition token instead of a JIT config", %{conn: conn} do
+      account = account_fixture()
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1", %{} ->
+        {:ok,
+         %{
+           credential: %{
+             kind: :buildkite,
+             token: "bkjat_opaque",
+             job_uuid: "0189abcd-0000-4000-8000-000000000000",
+             organization_slug: "acme",
+             report_token: "report-token"
+           },
+           account: account,
+           runner_name: "pod-1",
+           workflow_job_id: 1_000_000_000_000_123,
+           fleet_on_cluster_network: false,
+           fleet_platform: :macos
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+
+      body = json_response(conn, 200)
+      assert body["buildkite_acquisition_token"] == "bkjat_opaque"
+      assert body["buildkite_job_uuid"] == "0189abcd-0000-4000-8000-000000000000"
+      assert body["buildkite_organization_slug"] == "acme"
+      assert body["buildkite_report_token"] == "report-token"
+      # The poll script selects the agent to launch on which credential
+      # key is present, so the two must never appear together.
+      refute Map.has_key?(body, "encoded_jit_config")
+      refute Map.has_key?(body, "setup_info")
     end
 
     test "routes cache_endpoint_url by fleet platform and cluster-network reachability", %{conn: conn} do
@@ -162,7 +238,7 @@ defmodule TuistWeb.RunnersControllerTest do
         url: scw_url,
         # Fresh readiness heartbeat so the node-port server is served
         # rather than failed over to the public cache (see
-        # Kura.runner_cache_endpoint_url/2).
+        # Kura.runner_cache_endpoint_url/3).
         last_ready_at: DateTime.truncate(DateTime.utc_now(), :second),
         provisioner_node_ref: "kura-#{account.name}-scw-fr-par-runners"
       })
@@ -172,10 +248,10 @@ defmodule TuistWeb.RunnersControllerTest do
       end)
 
       dispatch = fn fleet_on_cluster_network, fleet_platform ->
-        stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+        stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1", %{} ->
           {:ok,
            %{
-             jit: "JITCONFIG",
+             credential: %{kind: :github, jit: "JITCONFIG"},
              account: account,
              runner_name: "pod-1",
              workflow_job_id: 4242,
@@ -212,12 +288,12 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Tuist.Kura, :runner_cache_endpoint_url, fn _account, :linux ->
+      stub(Tuist.Kura, :runner_cache_endpoint_url, fn _account, :linux, nil ->
         "http://kura-acme.kura.svc.cluster.local:4000"
       end)
 
       base = %{
-        jit: "JITCONFIG",
+        credential: %{kind: :github, jit: "JITCONFIG"},
         account: account,
         runner_name: "pod-1",
         workflow_job_id: 4242,
@@ -225,7 +301,7 @@ defmodule TuistWeb.RunnersControllerTest do
       }
 
       # Cluster-networked fleet (Linux): the in-cluster URL is handed out.
-      stub(Runners, :dispatch_for_sa, fn _, _ ->
+      stub(Runners, :dispatch_for_sa, fn _, _, _ ->
         {:ok, Map.put(base, :fleet_on_cluster_network, true)}
       end)
 
@@ -240,7 +316,7 @@ defmodule TuistWeb.RunnersControllerTest do
       # Off-cluster fleet (e.g. macOS Tart on vmnet): URL withheld so the
       # client falls back to default cache resolution instead of getting
       # an unreachable hard override.
-      stub(Runners, :dispatch_for_sa, fn _, _ ->
+      stub(Runners, :dispatch_for_sa, fn _, _, _ ->
         {:ok, Map.put(base, :fleet_on_cluster_network, false)}
       end)
 
@@ -252,249 +328,93 @@ defmodule TuistWeb.RunnersControllerTest do
 
       refute Map.has_key?(off_cluster, "cache_endpoint_url")
     end
-  end
 
-  describe "POST /api/internal/runners/volume-head/upload-url" do
-    test "returns a presigned upload URL for the reported digest", %{conn: conn} do
-      digest = String.duplicate("a", 40)
+    test "hands a site's fleet the cache racked at its site", %{conn: conn} do
+      account = account_fixture()
 
       stub(K8sClient, :create_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :account_id_for_sa, fn "tuist-runners", "pod-1" -> {:ok, 77} end)
-      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
+      stub(Tuist.Kura, :runner_cache_endpoint_url, fn _account, :macos, "ber1" ->
+        "https://acme-ber1-runners.kura.tuist.dev"
+      end)
 
-      body =
+      stub(Runners, :dispatch_for_sa, fn _, _, _ ->
+        {:ok,
+         %{
+           credential: %{kind: :github, jit: "JITCONFIG"},
+           account: account,
+           runner_name: "pod-1",
+           workflow_job_id: 4242,
+           fleet_on_cluster_network: true,
+           fleet_platform: :macos,
+           fleet_site: "ber1"
+         }}
+      end)
+
+      response =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => digest})
+        |> post("/api/internal/runners/dispatch")
         |> json_response(200)
 
-      assert body["upload_url"] == "https://bucket.example.com/put"
+      assert response["cache_endpoint_url"] == "https://acme-ber1-runners.kura.tuist.dev"
     end
 
-    test "422 when the digest is rejected", %{conn: conn} do
-      stub(K8sClient, :create_token_review, fn "valid-token" ->
-        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
-      end)
-
-      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
-      stub(Runners, :volume_master_upload_url, fn 77, "bad" -> :error end)
-
-      body =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => "bad"})
-        |> json_response(422)
-
-      assert body["error"] == "invalid digest"
-    end
-
-    test "401 without a bearer token", %{conn: conn} do
-      conn = post(conn, "/api/internal/runners/volume-head/upload-url", %{"tree_digest" => "x"})
-      assert json_response(conn, 401)
-    end
-
-    test "409 before minting when the base generation has been advanced past", %{conn: conn} do
-      digest = String.duplicate("a", 40)
+    test "sends no cache mode to any job", %{conn: conn} do
+      account = account_fixture()
 
       stub(K8sClient, :create_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
-      stub(Runners, :fast_forward_viable?, fn 77, 4, nil -> false end)
-      # The whole point: no URL is minted, so the runner never uploads an image
-      # for a promote that is certain to be rejected.
-      stub(Runners, :volume_master_upload_url, fn _account_id, _digest ->
-        flunk("minted an upload URL for a promote that cannot win")
-      end)
+      github = %{kind: :github, jit: "JITCONFIG"}
 
-      body =
+      buildkite = %{
+        kind: :buildkite,
+        token: "bkjat_opaque",
+        job_uuid: "0189abcd-0000-4000-8000-000000000000",
+        organization_slug: "acme",
+        report_token: "report-token"
+      }
+
+      gitlab = %{
+        kind: :gitlab,
+        url: "https://gitlab.example.com",
+        payload: %{},
+        report_token: "report-token",
+        waiting_trace: nil
+      }
+
+      dispatch = fn account, platform, credential ->
+        stub(Runners, :dispatch_for_sa, fn _, _, _ ->
+          {:ok,
+           %{
+             credential: credential,
+             account: account,
+             runner_name: "pod-1",
+             workflow_job_id: 4242,
+             fleet_on_cluster_network: false,
+             fleet_platform: platform
+           }}
+        end)
+
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/volume-head/upload-url", %{
-          "tree_digest" => digest,
-          "base_generation" => 4
-        })
-        |> json_response(409)
-
-      assert body["error"] == "stale base generation"
-    end
-
-    test "mints when the base generation can still win", %{conn: conn} do
-      digest = String.duplicate("a", 40)
-
-      stub(K8sClient, :create_token_review, fn "valid-token" ->
-        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
-      end)
-
-      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
-      stub(Runners, :fast_forward_viable?, fn 77, 4, nil -> true end)
-      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
-
-      body =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/volume-head/upload-url", %{
-          "tree_digest" => digest,
-          "base_generation" => "4"
-        })
+        |> post("/api/internal/runners/dispatch")
         |> json_response(200)
+      end
 
-      assert body["upload_url"] == "https://bucket.example.com/put"
-    end
+      responses = [
+        dispatch.(account, :linux, github)
+        | for(credential <- [github, buildkite, gitlab], do: dispatch.(account, :macos, credential))
+      ]
 
-    test "skips the pre-check entirely for a runner that sends no base generation", %{conn: conn} do
-      digest = String.duplicate("a", 40)
-
-      stub(K8sClient, :create_token_review, fn "valid-token" ->
-        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
-      end)
-
-      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
-
-      # A runner image predating the pre-flight must keep its upload-then-arbitrate
-      # path rather than have a missing base read as the cold base 0 and 409.
-      stub(Runners, :fast_forward_viable?, fn _account_id, _base, _unverifiable ->
-        flunk("pre-checked a runner that sent no base generation")
-      end)
-
-      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
-
-      assert %{"upload_url" => "https://bucket.example.com/put"} =
-               conn
-               |> put_req_header("authorization", "Bearer valid-token")
-               |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => digest})
-               |> json_response(200)
-    end
-
-    test "gives the pre-flight the host's unverifiable-HEAD report", %{conn: conn} do
-      digest = String.duplicate("a", 40)
-      poisoned = String.duplicate("b", 40)
-
-      stub(K8sClient, :create_token_review, fn "valid-token" ->
-        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
-      end)
-
-      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
-
-      # The pre-flight decides whether the multi-GB upload happens at all, so a
-      # cold promote that can retire a poisoned HEAD has to be judged on the same
-      # inputs as the bump — otherwise it 409s here and the bump is never reached.
-      stub(Runners, :fast_forward_viable?, fn 77, 0, ^poisoned -> true end)
-      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
-
-      assert %{"upload_url" => "https://bucket.example.com/put"} =
-               conn
-               |> put_req_header("authorization", "Bearer valid-token")
-               |> post("/api/internal/runners/volume-head/upload-url", %{
-                 "tree_digest" => digest,
-                 "base_generation" => 0,
-                 "unverifiable_digest" => poisoned
-               })
-               |> json_response(200)
-    end
-  end
-
-  describe "POST /api/internal/runners/volume-head" do
-    setup %{conn: conn} do
-      stub(K8sClient, :create_token_review, fn "valid-token" ->
-        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
-      end)
-
-      stub(Runners, :account_id_for_sa, fn "tuist-runners", "pod-1" -> {:ok, 77} end)
-      {:ok, conn: put_req_header(conn, "authorization", "Bearer valid-token")}
-    end
-
-    test "returns the accepted generation on a fast-forward", %{conn: conn} do
-      digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, "node-1", ^digest, 5, nil -> {:ok, 6} end)
-
-      body =
-        conn
-        |> post("/api/internal/runners/volume-head", %{
-          "tree_digest" => digest,
-          "node_name" => "node-1",
-          "base_generation" => 5
-        })
-        |> json_response(200)
-
-      assert body["generation"] == 6
-    end
-
-    test "409 when the fast-forward is rejected as stale", %{conn: conn} do
-      digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, _node, ^digest, _base, nil -> :conflict end)
-
-      body =
-        conn
-        |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest, "base_generation" => 1})
-        |> json_response(409)
-
-      assert body["error"] == "stale base generation"
-    end
-
-    test "parses a string base_generation and defaults a missing one to 0", %{conn: conn} do
-      digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, _node, ^digest, base, nil -> {:ok, base + 1} end)
-
-      # A string body value is parsed to an integer.
-      assert %{"generation" => 4} =
-               conn
-               |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest, "base_generation" => "3"})
-               |> json_response(200)
-
-      # A missing base_generation is treated as 0 (a cold job).
-      assert %{"generation" => 1} =
-               conn
-               |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest})
-               |> json_response(200)
-    end
-
-    test "422 when the digest is invalid", %{conn: conn} do
-      stub(Runners, :report_volume_head, fn 77, _node, "bad", _base, nil -> :error end)
-
-      body =
-        conn
-        |> post("/api/internal/runners/volume-head", %{"tree_digest" => "bad", "base_generation" => 0})
-        |> json_response(422)
-
-      assert body["error"] == "invalid digest"
-    end
-
-    test "carries the host's unverifiable-HEAD report through to the bump", %{conn: conn} do
-      digest = String.duplicate("a", 40)
-      poisoned = String.duplicate("b", 40)
-
-      # This is what lets a cold promote retire a HEAD whose object no host can
-      # verify. Dropping it here would leave the account wedged with the symptom
-      # visible only in host logs.
-      stub(Runners, :report_volume_head, fn 77, _node, ^digest, 0, ^poisoned -> {:ok, 9} end)
-
-      assert %{"generation" => 9} =
-               conn
-               |> post("/api/internal/runners/volume-head", %{
-                 "tree_digest" => digest,
-                 "base_generation" => 0,
-                 "unverifiable_digest" => poisoned
-               })
-               |> json_response(200)
-    end
-
-    test "reads a non-string unverifiable digest as no report", %{conn: conn} do
-      digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, _node, ^digest, 0, nil -> {:ok, 1} end)
-
-      assert %{"generation" => 1} =
-               conn
-               |> post("/api/internal/runners/volume-head", %{
-                 "tree_digest" => digest,
-                 "base_generation" => 0,
-                 "unverifiable_digest" => 42
-               })
-               |> json_response(200)
+      for response <- responses do
+        refute Map.has_key?(response, "automatic_caches")
+        refute Map.has_key?(response, "managed_cache_volumes")
+      end
     end
   end
 end

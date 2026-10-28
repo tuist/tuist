@@ -286,7 +286,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             project: externalProject
         )
 
-        let theme = Target.test(name: "Theme", destinations: [.iPhone], product: .framework)
+        let theme = Target.test(name: "Theme", destinations: [.iPhone], product: .staticFramework)
         let themeProject = Project.test(path: path.appending(component: "Theme"), name: "Theme", targets: [theme])
         let themeGraphTarget = GraphTarget.test(path: themeProject.path, target: theme, project: themeProject)
 
@@ -320,7 +320,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
         artifactLoader.loadStub = { path in
             if path == themeXCFrameworkPath {
-                return .testXCFramework(path: themeXCFrameworkPath, linking: .dynamic)
+                return .testXCFramework(path: themeXCFrameworkPath, linking: .static)
             } else if path == externalBundlePath {
                 return .bundle(path: externalBundlePath)
             } else {
@@ -336,7 +336,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         XCTAssertEqual(
-            got.dependencies[.testXCFramework(path: themeXCFrameworkPath, linking: .dynamic), default: Set()],
+            got.dependencies[.testXCFramework(path: themeXCFrameworkPath, linking: .static), default: Set()],
             [
                 .bundle(path: externalBundlePath),
             ]
@@ -347,6 +347,107 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             graphTraverser.resourceBundleDependencies(path: appGraphTarget.path, name: app.name),
             [
                 .bundle(path: externalBundlePath),
+            ]
+        )
+    }
+
+    func test_map_keeps_external_bundles_as_source_when_reachable_from_cached_dynamic_framework() async throws {
+        let path = try temporaryPath()
+
+        let externalBundle = Target.test(name: "ExternalResources", destinations: [.iPhone], product: .bundle)
+        let externalLibrary = Target.test(name: "ExternalLibrary", destinations: [.iPhone], product: .staticFramework)
+        let externalProject = Project.test(
+            path: path.appending(component: "ExternalPackage"),
+            name: "ExternalPackage",
+            targets: [externalLibrary, externalBundle],
+            type: .external()
+        )
+        let externalBundleGraphTarget = GraphTarget.test(
+            path: externalProject.path,
+            target: externalBundle,
+            project: externalProject
+        )
+        let externalLibraryGraphTarget = GraphTarget.test(
+            path: externalProject.path,
+            target: externalLibrary,
+            project: externalProject
+        )
+
+        let framework = Target.test(name: "Framework", destinations: [.iPhone], product: .framework)
+        let frameworkTests = Target.test(name: "FrameworkTests", destinations: [.iPhone], product: .unitTests)
+        let project = Project.test(
+            path: path.appending(component: "Project"),
+            name: "Project",
+            targets: [framework, frameworkTests]
+        )
+        let frameworkGraphTarget = GraphTarget.test(path: project.path, target: framework, project: project)
+        let frameworkTestsGraphTarget = GraphTarget.test(path: project.path, target: frameworkTests, project: project)
+
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+                externalProject.path: externalProject,
+            ],
+            dependencies: [
+                .target(name: frameworkTests.name, path: frameworkTestsGraphTarget.path): [
+                    .target(name: framework.name, path: frameworkGraphTarget.path),
+                    .target(name: externalLibrary.name, path: externalLibraryGraphTarget.path),
+                ],
+                .target(name: framework.name, path: frameworkGraphTarget.path): [
+                    .target(name: externalLibrary.name, path: externalLibraryGraphTarget.path),
+                ],
+                .target(name: externalLibrary.name, path: externalLibraryGraphTarget.path): [
+                    .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+                ],
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path): [],
+            ]
+        )
+
+        let frameworkXCFrameworkPath = path.appending(component: "Framework.xcframework")
+        let externalLibraryXCFrameworkPath = path.appending(component: "ExternalLibrary.xcframework")
+        let externalBundlePath = path.appending(component: "ExternalResources.bundle")
+        let precompiledArtifacts = [
+            frameworkGraphTarget: frameworkXCFrameworkPath,
+            externalLibraryGraphTarget: externalLibraryXCFrameworkPath,
+            externalBundleGraphTarget: externalBundlePath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == frameworkXCFrameworkPath {
+                return .testXCFramework(path: frameworkXCFrameworkPath, linking: .dynamic)
+            } else if path == externalLibraryXCFrameworkPath {
+                return .testXCFramework(path: externalLibraryXCFrameworkPath, linking: .static)
+            } else if path == externalBundlePath {
+                return .bundle(path: externalBundlePath)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: precompiledArtifacts,
+            sources: Set(["FrameworkTests"]),
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(
+            got.dependencies[.testXCFramework(path: externalLibraryXCFrameworkPath, linking: .static), default: Set()],
+            [
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+            ]
+        )
+        XCTAssertEqual(
+            got.projects[externalProject.path]?.targets[externalBundle.name]?.metadata.tags.contains("tuist:prunable"),
+            false
+        )
+        XCTAssertEqual(
+            GraphTraverser(graph: got).resourceBundleDependencies(
+                path: frameworkTestsGraphTarget.path,
+                name: frameworkTests.name
+            ),
+            [
+                .product(target: externalBundle.name, productName: externalBundle.productNameWithExtension),
             ]
         )
     }

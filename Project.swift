@@ -100,7 +100,8 @@ func schemes() -> [Scheme] {
             name: "TuistAcceptanceTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
-                    .map { .target($0) } + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
+                    .map { .target($0) } + [.target(Module.serverAcceptanceTestsTargetName)]
+                    + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
                 postActions: [
                     inspectBuildPostAction(target: "TuistKitAcceptanceTests"),
                 ],
@@ -109,10 +110,14 @@ func schemes() -> [Scheme] {
             testAction: .targets(
                 Module.allCases.flatMap(\.acceptanceTestTargets).map {
                     .testableTarget(target: .target($0.name), parallelization: .enabled)
-                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"), parallelization: .enabled)] : []),
+                } + [.testableTarget(target: .target(Module.serverAcceptanceTestsTargetName), parallelization: .enabled)]
+                    + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"), parallelization: .enabled)] : []),
                 postActions: [
                     inspectTestPostAction(target: "TuistKitAcceptanceTests"),
-                ]
+                ],
+                // Explicit, so mise.toml's TUIST_COVERAGE_ENABLED doesn't turn it on: the tests mostly
+                // exercise nested xcodebuild processes, which coverage doesn't measure.
+                options: .options(coverage: false)
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -162,6 +167,51 @@ func schemes() -> [Scheme] {
             runAction: nil
         ),
     ]
+
+    // What .github/workflows/server-production-deployment.yml runs against the freshly deployed
+    // canary before promoting to production. Deliberately a chosen set rather than the whole
+    // acceptance suite: it has to stay short enough to sit on the promotion path, and broad enough
+    // that a change which breaks a headline feature cannot promote green. Add a target here when a
+    // feature is important enough that shipping it broken is worse than a slower deploy.
+    schemes.append(.scheme(
+        name: "TuistServerProductionDeployAcceptanceTests",
+        buildAction: .buildAction(
+            targets: [.target(Module.serverAcceptanceTestsTargetName)]
+                + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
+            postActions: [
+                inspectBuildPostAction(target: TargetReference(stringLiteral: Module.serverAcceptanceTestsTargetName)),
+            ],
+            runPostActionsOnFailure: true
+        ),
+        // xcodebuild hands out one xctest worker per target, and Swift Testing parallelises the
+        // suites and cases inside each. Two targets therefore run at two workers, which is the
+        // ceiling TuistAcceptanceTests already runs at on the same fleet after the worker cap in
+        // tuist-project-tests.yml, against the same EE target and the same cases. tuist/tuist#12512 measured the
+        // oversubscription that cap exists to prevent, but it measured the whole 207-test suite at
+        // 16x concurrency; this plan is 15 tests and does not add a worker beyond that ceiling.
+        testAction: .targets(
+            [.testableTarget(target: .target(Module.serverAcceptanceTestsTargetName), parallelization: .enabled)]
+                + (
+                    Module.includeEE()
+                        ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"), parallelization: .enabled)]
+                        : []
+                ),
+            postActions: [
+                inspectTestPostAction(target: TargetReference(stringLiteral: Module.serverAcceptanceTestsTargetName)),
+            ],
+            // Explicit, like TuistAcceptanceTests, so mise.toml's TUIST_COVERAGE_ENABLED doesn't turn it on.
+            options: .options(
+                language: "en",
+                coverage: false
+            )
+        ),
+        runAction: .runAction(
+            arguments: .arguments(
+                environmentVariables: acceptanceTestsEnvironmentVariables()
+            )
+        )
+    ))
+
     if Module.includeEE() {
         schemes.append(.scheme(
             name: "TuistCacheEEAcceptanceTests",
@@ -242,7 +292,8 @@ func schemes() -> [Scheme] {
 
     schemes.append(
         contentsOf: (Module.allCases
-            .compactMap(\.acceptanceTestsTargetName) + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"] : [])
+            .compactMap(\.acceptanceTestsTargetName) + [Module.serverAcceptanceTestsTargetName]
+            + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"] : [])
         ).map {
             .scheme(
                 name: $0,
@@ -269,6 +320,22 @@ func schemes() -> [Scheme] {
         }
     )
 
+    schemes.append(.scheme(
+        name: "TuistProcessSchemeIntegration",
+        buildAction: .buildAction(
+            targets: ["TuistProcessSchemeIntegration"],
+            postActions: [.executionAction(
+                title: "Verify process runners in a scheme post-action",
+                scriptText: """
+                if [ -n "$TUIST_PROCESS_TEST_OUTPUT" ]; then
+                    "$BUILT_PRODUCTS_DIR/TuistProcessSchemeIntegration" post-action "$TUIST_PROCESS_TEST_OUTPUT"
+                fi
+                """,
+                target: "TuistProcessSchemeIntegration"
+            )]
+        )
+    ))
+
     return schemes
 }
 
@@ -284,7 +351,15 @@ let project = Project(
             .release(name: "Release", settings: releaseSettings(), xcconfig: nil),
         ]
     ),
-    targets: Module.allTargets(),
+    targets: Module.allTargets() + [.target(
+        name: "TuistProcessSchemeIntegration",
+        destinations: [.mac],
+        product: .commandLineTool,
+        bundleId: "dev.tuist.ProcessSchemeIntegration",
+        deploymentTargets: .macOS("15.0"),
+        buildableFolders: [.folder("cli/Tests/Fixtures/ProcessSchemeIntegration", exceptions: [.exception(excluded: ["*.sh"])])],
+        dependencies: [.target(name: "TuistProcess")]
+    )],
     schemes: schemes(),
     additionalFiles: []
 )

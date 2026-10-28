@@ -15,6 +15,7 @@ defmodule TuistWeb.TestCaseRunLive do
   alias Tuist.Storage
   alias Tuist.Tests
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -31,7 +32,7 @@ defmodule TuistWeb.TestCaseRunLive do
              ]
            ) do
         {:ok, run} ->
-          Tuist.Repo.preload(run, :ran_by_account)
+          Tuist.Repo.preload(run, [:ran_by_account, :actor_account])
 
         {:error, :not_found} ->
           raise NotFoundError, dgettext("dashboard_tests", "Test case run not found.")
@@ -71,7 +72,21 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:test_run, test_run)
       |> assign(:test_case, test_case)
       |> assign(:flaky_run_group, flaky_run_group)
+      # The gate's reruns are repetitions of this test case run like any other; the
+      # column says which of them it asked for.
+      |> assign(
+        :stress_repetitions,
+        Enum.filter(test_case_run.repetitions || [], &(&1.source == "stress"))
+      )
       |> assign(:head_title, "#{test_case_run.name} · #{slug} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: test_case_run.name,
+          subtitle:
+            Enum.join(Enum.reject([test_case_run.module_name, test_case_run.suite_name], &(&1 in [nil, ""])), " · "),
+          badge: test_case_run.status |> to_string() |> String.capitalize()
+        )
+      )
       |> assign_text_attachment_urls(test_case_run)
 
     {:ok, socket}
@@ -88,6 +103,25 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:uri, uri)
 
     {:noreply, socket}
+  end
+
+  @doc false
+  def stress_repetitions_failed?(repetitions), do: Enum.any?(repetitions, &(&1.status == "failure"))
+
+  @doc false
+  def stress_repetitions_duration(repetitions), do: Enum.sum_by(repetitions, & &1.duration)
+
+  @doc false
+  def stress_repetitions_summary(repetitions) do
+    count = length(repetitions)
+
+    dngettext(
+      "dashboard_tests",
+      "%{count} repetition passed",
+      "All %{count} repetitions passed",
+      count,
+      count: count
+    )
   end
 
   # Renders a failure message span without whitespace around the content.

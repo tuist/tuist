@@ -5,9 +5,11 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Ecto.Changeset
   alias Tuist.Accounts
   alias Tuist.Accounts.SSOLoginDomainVerification
   alias Tuist.Environment
+  alias Tuist.Repo
   alias Tuist.SCIM
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -30,6 +32,163 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     %{conn: conn, user: user, account: account, organization: organization}
   end
 
+  describe "instance-trusted login domains" do
+    setup %{organization: organization} do
+      {:ok, organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "company.okta.com",
+          sso_login_domain: "example.com",
+          oauth2_client_id: "client",
+          oauth2_client_secret: "secret"
+        })
+
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      %{organization: organization}
+    end
+
+    test "unlocks switches and shows instance trust rather than a DNS proof", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+      assert html =~ "Trusted by instance configuration"
+      assert has_element?(lv, ~s([data-part="domain-verification-status"][data-status="instance"]))
+      refute has_element?(lv, "#verify-sso-login-domain-button")
+      refute has_element?(lv, "#sso-login-domain-record-value")
+      refute has_element?(lv, ~s([data-testid="sso-automatic-enrollment-toggle"][data-disabled]))
+      refute has_element?(lv, ~s([data-testid="sso-enforced-toggle"][data-disabled]))
+    end
+
+    test "shared domains keep DNS verification available as a discovery tie-breaker", %{
+      conn: conn,
+      account: account,
+      user: user
+    } do
+      AccountsFixtures.organization_fixture(
+        creator: user,
+        sso_provider: :okta,
+        sso_organization_id: "other.okta.com",
+        sso_login_domain: "example.com",
+        oauth2_client_id: "client",
+        oauth2_client_secret: "secret"
+      )
+
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/authentication")
+      assert has_element?(lv, "#sso-shared-login-domain")
+      assert has_element?(lv, "#verify-sso-login-domain-button")
+      assert has_element?(lv, "#sso-login-domain-record-value")
+    end
+
+    test "persists enrollment without a TXT verification", %{conn: conn, account: account, organization: organization} do
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/authentication")
+      render_hook(lv, "toggle_sso_automatic_enrollment")
+
+      lv
+      |> form("#sso-form", %{
+        "sso" => %{
+          "okta_domain" => "company.okta.com",
+          "sso_login_domain" => "example.com",
+          "oauth2_client_id" => "client",
+          "oauth2_client_secret" => ""
+        }
+      })
+      |> render_submit()
+
+      {:ok, saved} = Accounts.get_organization_by_id(organization.id)
+      assert saved.sso_automatic_enrollment
+      refute saved.sso_login_domain_verified_at
+    end
+
+    test "still requires the administrator to authenticate before enforcing SSO", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/authentication")
+      render_hook(lv, "toggle_sso_enforced")
+      html = render_submit(lv, "save_sso", %{})
+      assert html =~ "You must authenticate with the SSO provider before enforcing SSO"
+      {:ok, saved} = Accounts.get_organization_by_id(organization.id)
+      refute saved.sso_enforced
+    end
+
+    test "instance administrators can change issuers without new operator bindings", %{conn: conn, account: account} do
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      lv
+      |> form("#sso-form", %{
+        "sso" => %{
+          "okta_domain" => "different.okta.com",
+          "sso_login_domain" => "example.com",
+          "oauth2_client_id" => "client"
+        }
+      })
+      |> render_change()
+
+      refute has_element?(lv, ~s([data-testid="sso-automatic-enrollment-toggle"][data-disabled]))
+      refute has_element?(lv, ~s([data-testid="sso-enforced-toggle"][data-disabled]))
+      assert has_element?(lv, ~s([data-part="domain-verification-status"][data-status="instance"]))
+    end
+  end
+
+  test "instance trust preserves ordinary organization authorization on every save", %{
+    conn: conn,
+    account: account,
+    user: user,
+    organization: organization
+  } do
+    stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+    {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/authentication")
+    assert has_element?(lv, "#sso-form")
+    assert has_element?(lv, ~s([data-part="scim-card"]))
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+    Process.flag(:trap_exit, true)
+    assert catch_exit(render_hook(lv, "save_sso", %{}))
+  end
+
+  test "rejects a save from an administrator demoted while the page is open", %{
+    conn: conn,
+    account: account,
+    user: user,
+    organization: organization
+  } do
+    # Given — the page open while the user could still change settings.
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+    # When — demoted without reloading. The socket outlives the role that opened
+    # it, so mount's answer must not be what the write is checked against.
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+    # Then
+    Process.flag(:trap_exit, true)
+    assert catch_exit(render_hook(lv, "save_sso", %{}))
+
+    {:ok, unchanged} = Accounts.get_organization_by_id(organization.id)
+    assert is_nil(unchanged.sso_provider)
+  end
+
+  test "rejects minting a SCIM token after demotion", %{
+    conn: conn,
+    account: account,
+    user: user,
+    organization: organization
+  } do
+    # Given — tokens are provisioning credentials, so this is the write that
+    # matters most on this page.
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+    # When
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+    # Then
+    Process.flag(:trap_exit, true)
+    assert catch_exit(render_hook(lv, "generate_scim_token", %{"scim_token" => %{"name" => "idp"}}))
+
+    assert SCIM.list_tokens(organization) == []
+  end
+
   test "sets the right title", %{conn: conn, account: account} do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     assert html =~ "Authentication · #{account.name} · Tuist"
@@ -43,9 +202,20 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     assert html =~ "/scim/v2"
   end
 
-  test "raises NotFoundError for personal accounts", %{conn: conn, user: user} do
-    assert_raise TuistWeb.Errors.NotFoundError, fn ->
-      live(conn, ~p"/#{user.account.name}/settings/authentication")
+  test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do
+    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+    assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
+    lv |> element("#oidc-configuration-toggle") |> render_click()
+    refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
+    refute has_element?(lv, "#sso-form")
+    refute has_element?(lv, "[data-part=scim-card]")
+    refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Workload identities")
+
+    for event <- ["toggle_sso", "save_sso", "generate_scim_token", "revoke_scim_token"] do
+      render_hook(lv, event, %{})
+      assert has_element?(lv, "#oidc-trust-policy-form")
+      refute has_element?(lv, "#sso-form")
+      refute has_element?(lv, "[data-part=scim-card]")
     end
   end
 
@@ -84,6 +254,75 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   end
 
   describe "Google SSO" do
+    for {previous_provider, verified?} <- [{:okta, false}, {:google, true}] do
+      test "saves Google SSO under instance trust after #{previous_provider}", %{
+        conn: conn,
+        account: account,
+        user: user,
+        organization: organization
+      } do
+        organization
+        |> Changeset.change(
+          sso_provider: unquote(previous_provider),
+          sso_organization_id: "example.com",
+          sso_login_domain: "example.com",
+          sso_login_domain_verified_at: if(unquote(verified?), do: DateTime.truncate(DateTime.utc_now(), :second))
+        )
+        |> Repo.update!()
+
+        stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+        Accounts.link_oauth_identity_to_user(user, %{
+          provider: :google,
+          id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+          provider_organization_id: "example.com"
+        })
+
+        {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+        render_hook(lv, "select_provider", %{"value" => ["google"]})
+
+        lv
+        |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
+        |> render_change()
+
+        render_hook(lv, "toggle_sso_enforced")
+
+        lv
+        |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
+        |> render_submit()
+
+        {:ok, updated} = Accounts.get_organization_by_id(organization.id)
+        assert updated.sso_provider == :google
+        assert updated.sso_enforced
+      end
+    end
+
+    test "renders changeset errors instead of crashing on a rejected save", %{
+      conn: conn,
+      account: account,
+      user: user,
+      organization: organization
+    } do
+      Accounts.link_oauth_identity_to_user(user, %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: "example.com"
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+      render_hook(lv, "toggle_sso")
+      changeset = organization |> Changeset.change() |> Changeset.add_error(:sso_provider, "configuration changed")
+      expect(Accounts, :update_organization, fn _, _ -> {:error, changeset} end)
+
+      html =
+        lv
+        |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
+        |> render_submit()
+
+      assert html =~ "configuration changed"
+      assert has_element?(lv, "#sso-form")
+    end
+
     test "disables save button when domain is empty", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
@@ -166,6 +405,75 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       refute html =~ "Failed to configure"
       assert html =~ "Enable Single Sign-On"
+    end
+
+    test "offers the verification record for a login domain it did not enter itself", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      configured_organization
+      |> Changeset.change(%{
+        sso_login_domain: "customer.example",
+        sso_login_domain_verification_token: "backfilled-token",
+        sso_login_domain_verified_at: nil
+      })
+      |> Repo.update!()
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      assert html =~ "customer.example"
+      assert html =~ "Pending verification"
+      assert html =~ "_tuist-verification.customer.example"
+      assert html =~ "tuist-domain-verification=backfilled-token"
+    end
+
+    test "describes the settings a lapsed verification keeps and still saves the configuration", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      configured_organization
+      |> Changeset.change(%{
+        sso_login_domain: "customer.example",
+        sso_login_domain_verification_token: "verification-token",
+        sso_login_domain_verified_at: nil,
+        sso_login_domain_last_verified_at: ~U[2026-09-01 12:00:00Z],
+        sso_automatic_enrollment: true,
+        sso_enforced: true
+      })
+      |> Repo.update!()
+
+      {:ok, _lv, html} =
+        conn
+        |> init_test_session(%{auth_method: :okta})
+        |> live(~p"/#{account.name}/settings/authentication")
+
+      assert html =~ "Automatic enrollment is paused until the login email domain is verified"
+      refute html =~ "This existing configuration allows any email address reported by the provider"
+      refute html =~ "Verify a login email domain before enforcing single sign-on"
+      assert html =~ "tuist-domain-verification=verification-token"
+
+      assert {:ok, _organization} =
+               Accounts.update_sso_configuration(organization.id, :okta, %{
+                 sso_organization_id: "company.okta.com",
+                 oauth2_client_id: "test_client_id",
+                 oauth2_client_secret: "rotated_client_secret"
+               })
     end
   end
 
@@ -391,7 +699,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       assert updated_organization.sso_login_domain_verification_token
     end
 
-    test "keeps legacy enforcement while an existing organization adds its replacement login domain", %{
+    test "keeps existing policies while an unverified organization adds its login domain", %{
       conn: conn,
       account: account,
       organization: organization,
@@ -409,12 +717,11 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       {:ok, _legacy_organization} =
         configured_organization
-        |> Ecto.Changeset.change(
+        |> Changeset.change(
           sso_enforced: true,
-          sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true
+          sso_automatic_enrollment: true
         )
-        |> Tuist.Repo.update()
+        |> Repo.update()
 
       Accounts.link_oauth_identity_to_user(user, %{
         provider: :oauth2,
@@ -425,9 +732,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       conn = put_session(conn, :auth_method, :oauth2)
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
-      html =
-        lv
-        |> form("#sso-form", %{
+      sso_form =
+        form(lv, "#sso-form", %{
           "sso" => %{
             "oauth2_site" => "https://login.vendor.example",
             "sso_login_domain" => "customer.example",
@@ -438,15 +744,16 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
             "oauth2_user_info_url" => "https://login.vendor.example/userinfo"
           }
         })
-        |> render_submit()
+
+      render_change(sso_form)
+      html = render_submit(sso_form)
 
       assert html =~ "Pending verification"
-      assert html =~ "This existing configuration allows any email address reported by the provider"
+      assert html =~ "Automatic enrollment is paused until the login email domain is verified"
 
       {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
       assert updated_organization.sso_enforced
       assert updated_organization.sso_automatic_enrollment
-      assert updated_organization.sso_legacy_email_domain_fallback
       assert updated_organization.sso_login_domain == "customer.example"
       refute updated_organization.sso_login_domain_verified_at
     end
@@ -476,11 +783,124 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
       assert html =~ "Pending verification"
 
-      html = render_hook(lv, "verify_sso_login_domain")
+      lv |> element("#verify-sso-login-domain-button") |> render_click()
 
-      assert html =~ "The login domain has been verified."
-      assert html =~ "Verified"
-      refute html =~ "Pending verification"
+      assert has_element?(
+               lv,
+               ~s([data-section="login-domain"] [data-part="domain-verification-status"][data-status="verified"])
+             )
+
+      refute has_element?(lv, "#verify-sso-login-domain-button")
+      refute has_element?(lv, "#sso-login-domain-verification")
+      refute render(lv) =~ "Pending verification"
+    end
+
+    test "shows a missing verification record next to the Verify domain button", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        })
+
+      stub(SSOLoginDomainVerification, :verified?, fn _domain, _token -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      html = lv |> element("#verify-sso-login-domain-button") |> render_click()
+
+      assert has_element?(
+               lv,
+               ~s(#sso-login-domain-verification [data-part="domain-verification-error"][data-status="error"]),
+               "No TXT record with the verification value was found at _tuist-verification.customer.example. DNS changes can take a while to propagate"
+             )
+
+      assert has_element?(
+               lv,
+               ~s([data-section="login-domain"] [data-part="domain-verification-status"][data-status="pending"])
+             )
+
+      assert html |> String.split("No TXT record with the verification value was found") |> length() == 2
+    end
+
+    test "clears the verification result when the login domain changes", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, _configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        })
+
+      stub(SSOLoginDomainVerification, :verified?, fn _domain, _token -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+      lv |> element("#verify-sso-login-domain-button") |> render_click()
+      assert has_element?(lv, "#sso-login-domain-verification-error")
+
+      lv
+      |> form("#sso-form", %{"sso" => %{"sso_login_domain" => "Customer.Example"}})
+      |> render_change()
+
+      assert has_element?(lv, "#sso-login-domain-verification-error")
+
+      lv
+      |> form("#sso-form", %{"sso" => %{"sso_login_domain" => "other.example"}})
+      |> render_change()
+
+      refute has_element?(lv, "#sso-login-domain-verification-error")
+    end
+
+    test "offers the verification record as a TXT record with copy buttons", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      assert has_element?(
+               lv,
+               ~s([data-part="label"] [data-part="description"]),
+               "Add the TXT record below at your DNS provider, then click Verify domain."
+             )
+
+      assert has_element?(lv, ~s(#sso-login-domain-verification [data-part="domain-records"]), "TXT")
+
+      assert has_element?(
+               lv,
+               ~s(#sso-login-domain-record-name-copy-button[phx-hook="Clipboard"][data-clipboard-value="_tuist-verification.customer.example"])
+             )
+
+      assert has_element?(
+               lv,
+               ~s(#sso-login-domain-record-value-copy-button[phx-hook="Clipboard"][data-clipboard-value="tuist-domain-verification=#{configured_organization.sso_login_domain_verification_token}"])
+             )
     end
 
     test "does not verify a domain that changed after the form was rendered", %{
@@ -508,9 +928,14 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       reject(SSOLoginDomainVerification, :verified?, 2)
 
-      html = render_hook(lv, "verify_sso_login_domain")
+      lv |> element("#verify-sso-login-domain-button") |> render_click()
 
-      assert html =~ "Save the login domain before verifying it."
+      assert has_element?(
+               lv,
+               ~s(#sso-login-domain-verification [data-part="domain-verification-error"][data-status="error"]),
+               "Save the login domain before verifying it."
+             )
+
       assert changed_organization.sso_login_domain == "other.example"
       refute changed_organization.sso_login_domain_verified_at
     end
@@ -558,6 +983,51 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
       assert updated_organization.sso_automatic_enrollment
+    end
+
+    test "persists the role automatic enrollment grants", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        })
+
+      expect(SSOLoginDomainVerification, :verified?, fn _domain, token ->
+        assert token == configured_organization.sso_login_domain_verification_token
+        true
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+      render_hook(lv, "verify_sso_login_domain")
+      render_hook(lv, "toggle_sso_automatic_enrollment")
+      render_hook(lv, "select_sso_default_role", %{"value" => ["viewer"]})
+
+      lv
+      |> form("#sso-form", %{
+        "sso" => %{
+          "oauth2_site" => "https://login.vendor.example",
+          "sso_login_domain" => "customer.example",
+          "oauth2_client_id" => "test_client_id",
+          "oauth2_client_secret" => "",
+          "oauth2_authorize_url" => "https://login.vendor.example/authorize",
+          "oauth2_token_url" => "https://login.vendor.example/token",
+          "oauth2_user_info_url" => "https://login.vendor.example/userinfo"
+        }
+      })
+      |> render_submit()
+
+      {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
+      assert updated_organization.sso_default_role == "viewer"
+      assert Accounts.sso_default_role(updated_organization) == "viewer"
     end
 
     test "turns off automatic enrollment and enforcement when switching to an unverified custom provider", %{

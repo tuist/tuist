@@ -148,9 +148,9 @@ The version history of this document can be found in Tuist's [handbook](https://
 
 | Rank | Asset | Affected Assets | Business Impact | Users | Owners | Recovery Time Objective (RTO) | Recovery Point Objective (RPO) | Comments / Gaps |
 | ---- | ------------ | ----------- | ----  | ----- | ----------- | ----------------------------- | ------------------------------ | --------------- |
-| 1 | Fly servers | Network | Core services | All | Engineering | 1 hour  |  | The recovery might depend on the vendor. |
+| 1 | Kubernetes clusters | Network | Core services | All | Engineering | 1 hour  |  | The recovery might depend on the vendor. |
 | 2 | Tigris Storage | Network | Core services | All | Engineering | 1 hour | | The recovery might depend on the vendor. |
-| 3 | Supabase Database | Network | Core services | All | Engineering | 1 hour | | The recovery might depend on the vendor. |
+| 3 | PostgreSQL database | Network | Core services | All | Engineering | 1 hour | | The recovery might depend on the vendor. |
 | 4 | GitHub | Network | Inability to deploy critical fixes to our production infrastructure | All | Engineering | 30 min | | The recovery might depend on the vendor. |
 | 5 | Slack | Network | Inability to communicate with the team | All | Engineering | 30 min | | The recovery might depend on the vendor. |
 | 6 | Google Workspace | Network | Inability to perform administrative tasks | All | Engineering | 30 min | | The recovery might depend on the vendor. |

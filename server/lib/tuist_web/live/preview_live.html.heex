@@ -176,6 +176,16 @@
     </.card_section>
   </.card>
   <.card
+    :if={@preview.release_notes not in [nil, ""]}
+    data-part="release-notes-card"
+    icon="file_text"
+    title={dgettext("dashboard_previews", "Release notes")}
+  >
+    <.card_section>
+      <p data-part="release-notes">{@preview.release_notes}</p>
+    </.card_section>
+  </.card>
+  <.card
     data-part="install-app-card"
     icon="devices_down"
     title={dgettext("dashboard_previews", "Install App")}

@@ -21,8 +21,8 @@ defmodule Tuist.MCP.Components.Tools.AddOrganizationMember do
         },
         "role" => %{
           "type" => "string",
-          "enum" => ["user", "admin"],
-          "description" => "The role to assign to the new or existing member. Defaults to user."
+          "enum" => ["user", "admin", "viewer"],
+          "description" => "The role to assign to the new or existing member. Defaults to user. `viewer` is read-only."
         }
       },
       "required" => ["organization_handle", "email"]
@@ -34,7 +34,7 @@ defmodule Tuist.MCP.Components.Tools.AddOrganizationMember do
         "email" => %{"type" => "string"},
         "name" => %{"type" => "string"},
         "organization_handle" => %{"type" => "string"},
-        "role" => %{"type" => "string", "enum" => ["user", "admin"]}
+        "role" => %{"type" => "string", "enum" => ["user", "admin", "viewer"]}
       },
       "required" => ["id", "email", "name", "organization_handle", "role"],
       "additionalProperties" => false
@@ -58,8 +58,8 @@ defmodule Tuist.MCP.Components.Tools.AddOrganizationMember do
       Authorization.authorize(:member_update, user, organization_account.account) != :ok ->
         {:error, not_authorized_error()}
 
-      role not in ["user", "admin"] ->
-        {:error, "role must be either user or admin."}
+      role not in ["user", "admin", "viewer"] ->
+        {:error, "role must be one of user, admin, or viewer."}
 
       true ->
         add_member(organization_account.organization, organization_account.account, email, role)

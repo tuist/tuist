@@ -13,7 +13,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
   defp insert_test_case(attrs) do
     project = ProjectsFixtures.project_fixture()
     test_case = RunsFixtures.test_case_fixture([project_id: project.id] ++ attrs)
-    IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+    IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
     test_case
   end
 
