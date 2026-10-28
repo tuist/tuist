@@ -1795,6 +1795,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "ArgumentParser"),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
                 ]
             case .bazelCommand:
                 [

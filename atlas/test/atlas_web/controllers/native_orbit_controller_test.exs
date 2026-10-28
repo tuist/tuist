@@ -21,6 +21,7 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
           {:post, "/api/native/orbit/threads"},
           {:post, "/api/native/orbit/threads/private"},
           {:patch, "/api/native/orbit/threads/#{id}"},
+          {:patch, "/api/native/orbit/threads/#{id}/environment"},
           {:get, "/api/native/orbit/threads/#{id}/people"},
           {:get, "/api/native/orbit/threads/#{id}/messages"},
           {:post, "/api/native/orbit/threads/#{id}/messages"},
@@ -39,7 +40,12 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     api = bearer(user)
 
     assert %{
-             "assistant" => %{"name" => "Pip", "configured" => false, "can_create_private" => true},
+             "assistant" => %{
+               "name" => "Pip",
+               "configured" => false,
+               "can_create_private" => true,
+               "environments" => true
+             },
              "threads" => %{"items" => [], "page" => 1}
            } =
              api |> get("/api/native/orbit/threads?page=1") |> json_response(200)
@@ -50,15 +56,23 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert api |> post("/api/native/orbit/threads/private", %{}) |> json_response(200) == private
 
     body = api |> get("/api/native/orbit/threads") |> json_response(200)
-    assert body["assistant"] == %{"name" => "Pip", "configured" => true, "can_create_private" => true}
+
+    assert body["assistant"] == %{
+             "name" => "Pip",
+             "configured" => true,
+             "can_create_private" => true,
+             "environments" => true
+           }
+
     assert %{"page" => 1, "total_pages" => 1, "total_count" => 2, "items" => [first, second]} = body["threads"]
     assert first["id"] == private["thread"]["id"]
     assert first["kind"] == "private" and first["title"] == "New conversation"
     assert second["kind"] == "shared" and second["title"] == "Team"
 
     assert Map.keys(first) |> Enum.sort() ==
-             ~w(agent_status id kind latest_seq origin owner_id participants status summary title updated_at)
+             ~w(agent_status environment_id environment_name id kind latest_seq origin owner_id participants project_id status summary title updated_at)
 
+    assert is_nil(first["environment_id"]) and is_nil(first["environment_name"]) and is_nil(first["project_id"])
     assert first["participants"] == [%{"id" => user.id, "name" => user.name}]
     assert first["status"] == "active" and first["origin"] == "manual" and first["summary"] == ""
 

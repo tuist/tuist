@@ -4,6 +4,15 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+`actions/setup-docker-builder/` configures a persistent Buildx builder on Linux
+runners; see its `AGENTS.md`. Linux runner CI validates its persistence contract
+against real Docker 28 with isolated ext4 storage and retains timing evidence.
+`docker-build-cache-benchmark.yml` measures separate fleet jobs after deployment.
+Use one experiment key and revision for cold, warm-layer and changed-source phases,
+waiting for saved-cache publication between dispatches. Fail on unavailable cache,
+missing layer hits or missing prior-job cache-mount contents; never present a
+fallback or an unverified run as a warm-cache measurement.
+
 `mgmt-cluster-tests.yml` checks the management health gates, disruption budgets
 and reconciliation shell scripts without credentials on PRs and main.
 `mgmt-cluster-apply.yml` synchronizes Flannel arguments and verifies private
@@ -86,7 +95,7 @@ profiles in the disposable validation directory, outside uploaded artifacts.
 
 ## Atlas native
 
-`workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once
+`workflows/atlas-mobile.yml` builds Android, iOS, macOS and the Rust CLI through Once
 using `actions/atlas-native/` (see its `AGENTS.md`). Fork jobs have no OIDC permission
 and use only the local cache. Trusted builds use the `tuist/atlas-mobile` cache
 when authentication succeeds, except for Android and iOS device builds, which use local caching
@@ -136,6 +145,17 @@ Simulator uploads use `TUIST_PREVIEW_BUILD_VERSION` with a fresh Unix timestamp
 so cached binaries do not collide with existing previews. This overrides upload
 metadata without mutating or re-signing the bundle; device packaging already
 stamps its delivery copy before distribution signing.
+
+`atlas-macos-release.yml` distributes the separate native desktop app through
+Sparkle after trusted main build/test/lint/packaging gates. macOS release builds
+avoid PR-writable shared caches. Only the protected `atlas-macos-releases`
+environment receives distribution credentials. Signing requires a Push-enabled
+Developer ID profile for the desktop App ID, derives its macOS APNs entitlement,
+and notarizes/staples before creating the final signed update. Publish the
+immutable `atlas-macos@<epoch>` payload before replacing the separate
+`atlas-appcast` feed. Credential-free profile/signing/appcast fixtures gate this
+path; they do not establish Apple provisioning, live APNs or update-installation
+acceptance. See `atlas-native/macos/distribution/AGENTS.md` for operator setup.
 
 ## Community notifications
 
@@ -462,6 +482,8 @@ The macOS CLI unit-test job installs the stable Rust toolchain pinned by `cas-pl
 
 Cargo compilation caching is implemented in Swift inside `tuist`. Do not package a separate Cargo cache executable or import an external cache engine. The existing Xcode CAS plugin and proxy remain separate Rust artifacts.
 
+`cas-plugin.yml` dogfoods `tuist/cas-plugin` through the component's pinned Tuist CLI and mise build/test tasks. Trusted jobs authenticate with GitHub OIDC (`id-token: write`); the hosted project must remain linked to `tuist/tuist`. Fork pull requests use plain Cargo without Tuist credentials or OIDC permission. Check hosted build/test reports and actual cache transfer counters separately from job success; Cargo's experimental cache does not cover the entire build graph.
+
 ## CLI Linux builds
 
 The Linux release ships a static musl binary built with the Swift Static Linux SDK. The PR `Linux Build` job in `cli.yml` compiles against the same SDK, installed through `mise/utilities/install_static_linux_sdk.sh` (shared with `mise/tasks/cli/bundle-linux.sh`), so it catches code that only builds against glibc. Its `.build` cache key uses the `linux-cli-musl-` prefix to stay separate from the glibc cache used by `Linux Unit Tests`, which keeps running on glibc.
@@ -507,7 +529,7 @@ are rejected.
 ## CLI Linux release
 
 `release-cli-linux` in `workflows/cli-build-publish.yml` builds both Linux
-tarballs on `tuist-linux-large` inside `swift:6.2`. The fleet is amd64-only,
+tarballs on `tuist-linux-large` inside `swift:6.4.1-noble`. The fleet is amd64-only,
 so aarch64 is cross-compiled through the static Linux SDK and the bundle
 script checks the architecture and that the binary is static before packaging.
 The job builds `inputs.ref` with the bundler and SDK setup from the
@@ -548,6 +570,23 @@ covered only by the production schedule.
   that wait, so the in-run dispatch watchdog fails and cancels the run past the
   pickup bound. That is why the gate dispatches a separate run instead of
   calling the workflow: cancelling it must not cancel the cascade.
+- Each Linux target runs a native probe (image/toolchains, KVM, Docker, Go,
+  setup-beam, process file limits, and Kura) and a
+  real job-container probe (workspace/actions/externals mounts and environment
+  files). Count both in the dispatch watchdog. The cascade gate rejects missing,
+  skipped, or unsuccessful native/container Linux probes even if the workflow
+  conclusion is successful. Validate this contract with
+  `node --test .github/scripts/runners-acceptance/acceptance.test.cjs` after
+  `npm ci --ignore-scripts` at the repository root.
+- Canary also runs five sequential Docker-cache phases through
+  `runners-docker-cache-probe.yml` after both ordinary Linux probes. Count the
+  five `Linux Docker cache ... / Build` jobs in the watchdog; exclude their
+  GitHub-hosted publication-window jobs. Require every phase in `gate.sh`,
+  including final reuse, and pass the deploy's intended Linux image digest
+  before staging holds. A mounted cache, correct compile output and actual
+  cross-job layer/mutable-cache reuse are mandatory. The 120-second pauses are
+  allowances, not publication proof; slow publication fails rather than retries.
+  Keep production's scheduled probes usable while its Docker cache is disabled.
 - Health checks are not enough: a Kura that cannot reach the server's token
   introspection answers `/up` and degrades every lookup into a slow miss. Keep
   the authenticated blob round trip and the rebuild from an empty local CAS,

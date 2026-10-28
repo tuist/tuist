@@ -47,6 +47,7 @@ defmodule Atlas.Orbit.Runs do
   import Ecto.Query
 
   alias Atlas.Agents.Sessions
+  alias Atlas.Environments.Commands
   alias Atlas.Inference
   alias Atlas.LLMs.Runner
   alias Atlas.Orbit
@@ -181,6 +182,7 @@ defmodule Atlas.Orbit.Runs do
       run.status != "queued" -> :not_queued
       not is_nil(run.cancel_requested_at) -> :cancelled
       thread.status != "active" or not Access.can_read?(thread, acting_user) -> :access_changed
+      not Commands.continuation_allowed?(thread, run.trigger_seq) -> :access_changed
       true -> :ok
     end
   end
@@ -471,6 +473,8 @@ defmodule Atlas.Orbit.Runs do
   # The caller holds the archived thread's row lock. Finish queued/running work
   # here so a restore before its worker exits cannot restart pre-archive follow-ups.
   def archive!(%Thread{status: "archived"} = thread) do
+    Commands.archive!(thread.id)
+
     from(run in Run,
       where: run.thread_id == ^thread.id and run.status in ^Run.active_statuses(),
       lock: "FOR UPDATE"
@@ -499,7 +503,8 @@ defmodule Atlas.Orbit.Runs do
           not is_nil(run.cancel_requested_at) ->
             finalize!(run, "cancelled", nil, "Stopped. The assistant's reply was discarded.", thread)
 
-          thread.status != "active" or not Access.can_read?(thread, acting_user) ->
+          thread.status != "active" or not Access.can_read?(thread, acting_user) or
+              not Commands.continuation_allowed?(thread, run.trigger_seq) ->
             finalize!(
               run,
               "cancelled",
@@ -560,6 +565,7 @@ defmodule Atlas.Orbit.Runs do
 
   # Terminal statuses drop the cached snapshot; the log is the durable record.
   defp finalize!(run, status, category, notice, thread) do
+    if status != "succeeded", do: Commands.cancel_run!(run.id)
     close_running_tools!(run, "The run finished before this tool completed.")
 
     run
@@ -737,14 +743,15 @@ defmodule Atlas.Orbit.Runs do
     last_trigger =
       Repo.one(from run in Run, where: run.thread_id == ^thread.id, select: max(run.trigger_seq)) || 0
 
-    Repo.one(
+    Repo.all(
       from message in Message,
         where:
           message.thread_id == ^thread.id and message.address_agent == true and
             message.position > ^last_trigger,
         order_by: [desc: message.position],
-        limit: 1
+        limit: 32
     )
+    |> Enum.find(&Commands.continuation_allowed?(thread, &1.position))
   end
 
   # Human messages act as their author; signal notices act as the owner.

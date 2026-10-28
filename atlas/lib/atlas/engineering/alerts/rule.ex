@@ -16,12 +16,13 @@ defmodule Atlas.Engineering.Alerts.Rule do
 
   alias Atlas.Engineering.Alerts.Notification
   alias Atlas.Engineering.Projects.Project
+  alias Atlas.Moodboard.SafeHTTP
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
   @sources [:error_issue]
-  @triggers [:event_rate, :regression]
+  @triggers [:event_rate, :regression, :event_spike]
   @tiers [:attention, :incident]
   @levels [:fatal, :error, :warning, :info, :debug]
   @mentions [:none, :here, :channel]
@@ -35,6 +36,7 @@ defmodule Atlas.Engineering.Alerts.Rule do
     field :enabled, :boolean, default: true
 
     field :threshold_event_count, :integer
+    field :threshold_window_minutes, :integer
 
     field :min_level, Ecto.Enum, values: @levels
     field :environment, :string
@@ -76,6 +78,7 @@ defmodule Atlas.Engineering.Alerts.Rule do
       :tier,
       :enabled,
       :threshold_event_count,
+      :threshold_window_minutes,
       :min_level,
       :environment,
       :cooldown_minutes,
@@ -98,13 +101,22 @@ defmodule Atlas.Engineering.Alerts.Rule do
 
   defp validate_threshold_fields(changeset) do
     case get_field(changeset, :trigger) do
+      :event_spike ->
+        changeset
+        |> validate_required([:threshold_event_count, :threshold_window_minutes, :environment, :min_level])
+        |> validate_number(:threshold_event_count, greater_than: 0)
+        |> validate_number(:threshold_window_minutes, greater_than: 0, less_than_or_equal_to: 60)
+
       :event_rate ->
         changeset
+        |> put_change(:threshold_window_minutes, nil)
         |> put_change_default(:threshold_event_count, 5)
         |> validate_number(:threshold_event_count, greater_than: 0)
 
       _other ->
-        put_change(changeset, :threshold_event_count, nil)
+        changeset
+        |> put_change(:threshold_event_count, nil)
+        |> put_change(:threshold_window_minutes, nil)
     end
   end
 
@@ -151,8 +163,8 @@ defmodule Atlas.Engineering.Alerts.Rule do
       blank?(url) ->
         add_error(changeset, :webhook_url, "enter an HTTPS URL to POST alerts to")
 
-      not valid_webhook_url?(url) ->
-        add_error(changeset, :webhook_url, "must be a valid http(s) URL")
+      not SafeHTTP.public_url?(url) ->
+        add_error(changeset, :webhook_url, "must be a public HTTPS URL on port 443 without credentials")
 
       true ->
         changeset
@@ -165,19 +177,6 @@ defmodule Atlas.Engineering.Alerts.Rule do
       _ -> put_change(changeset, :webhook_signing_secret, generate_webhook_signing_secret())
     end
   end
-
-  defp valid_webhook_url?(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{scheme: scheme, host: host}
-      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        true
-
-      _ ->
-        false
-    end
-  end
-
-  defp valid_webhook_url?(_), do: false
 
   defp blank?(nil), do: true
   defp blank?(value) when is_binary(value), do: String.trim(value) == ""

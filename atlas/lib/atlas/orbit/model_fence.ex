@@ -26,6 +26,7 @@ defmodule Atlas.Orbit.ModelFence do
   import Ecto.Query
   import Plug.Conn
 
+  alias Atlas.Environments.Commands
   alias Atlas.Orbit.Access
   alias Atlas.Orbit.Run
   alias Atlas.Orbit.Thread
@@ -74,7 +75,7 @@ defmodule Atlas.Orbit.ModelFence do
     with %Run{acting_user_id: user_id, thread_id: thread_id} when is_binary(user_id) <- run,
          %Thread{status: "active"} = thread <- Repo.get(Thread, thread_id),
          %User{} = user <- Repo.get(User, user_id) do
-      Access.can_read?(thread, user)
+      Access.can_read?(thread, user) and Commands.continuation_allowed?(thread, run.trigger_seq)
     else
       _ -> false
     end

@@ -1,5 +1,5 @@
 defmodule Atlas.Moodboard.SafeHTTP do
-  @moduledoc "Bounded, credential-free HTTPS reads with DNS validation and a pinned destination on every redirect."
+  @moduledoc "Bounded public HTTPS with pinned DNS: credential-free reads and non-redirecting webhook POSTs."
 
   alias Atlas.Moodboard.Resolver
   alias Atlas.URL
@@ -9,6 +9,23 @@ defmodule Atlas.Moodboard.SafeHTTP do
   @timeout 12_000
 
   def fetch(url), do: fetch(url, 3, System.monotonic_time(:millisecond) + @timeout)
+
+  # Reuse the address-pinned transport for signed webhooks rather than checking
+  # DNS and then letting a hostname-based client resolve it again.
+  def post(url, headers, body) do
+    deadline = System.monotonic_time(:millisecond) + @timeout
+
+    with {:ok, uri, address} <- destination(url, deadline),
+         {:ok, response} <- request(uri, address, deadline, "POST", [{"accept-encoding", "identity"} | headers], body) do
+      {:ok, response}
+    else
+      {:error, :unsafe_url} -> {:error, :unsafe_url}
+      {:error, :dns_unavailable} -> {:error, :dns_unavailable}
+      _ -> {:error, :fetch_failed}
+    end
+  rescue
+    _ -> {:error, :fetch_failed}
+  end
 
   def public_url?(url) when is_binary(url) and byte_size(url) <= 2048 do
     with {:ok, uri} <- URI.new(url),
@@ -37,13 +54,8 @@ defmodule Atlas.Moodboard.SafeHTTP do
   def public_address?(_address), do: false
 
   defp fetch(url, redirects_left, deadline) do
-    with true <- public_url?(url),
-         true <- System.monotonic_time(:millisecond) < deadline,
-         uri = URI.parse(url),
-         {:ok, [_ | _] = addresses} <- Resolver.resolve(uri.host),
-         true <- System.monotonic_time(:millisecond) < deadline,
-         true <- Enum.all?(addresses, &public_address?/1),
-         {:ok, response} <- request(uri, hd(addresses), deadline) do
+    with {:ok, uri, address} <- destination(url, deadline),
+         {:ok, response} <- request(uri, address, deadline) do
       if response.status in [301, 302, 303, 307, 308] do
         with true <- redirects_left > 0,
              {_, location} <- List.keyfind(response.headers, "location", 0) do
@@ -56,6 +68,7 @@ defmodule Atlas.Moodboard.SafeHTTP do
         {:ok, Map.put(response, :url, url)}
       end
     else
+      {:error, :unsafe_url} -> {:error, :unsafe_url}
       {:error, :dns_unavailable} -> {:error, :dns_unavailable}
       {:error, _reason} -> {:error, :fetch_failed}
       {:error, _conn, _reason} -> {:error, :fetch_failed}
@@ -65,7 +78,31 @@ defmodule Atlas.Moodboard.SafeHTTP do
     _ -> {:error, :fetch_failed}
   end
 
+  defp destination(url, deadline) do
+    with true <- public_url?(url),
+         true <- System.monotonic_time(:millisecond) < deadline,
+         uri = URI.parse(url),
+         {:ok, [_ | _] = addresses} <- Resolver.resolve(uri.host),
+         true <- System.monotonic_time(:millisecond) < deadline,
+         true <- Enum.all?(addresses, &public_address?/1) do
+      {:ok, uri, hd(addresses)}
+    else
+      {:error, :dns_unavailable} -> {:error, :dns_unavailable}
+      _ -> {:error, :unsafe_url}
+    end
+  end
+
   defp request(uri, address, deadline) do
+    headers = [
+      {"accept", "text/html, application/json, text/plain;q=0.8"},
+      {"accept-encoding", "identity"},
+      {"user-agent", "Atlas-Moodboard/1.0"}
+    ]
+
+    request(uri, address, deadline, "GET", headers, nil)
+  end
+
+  defp request(uri, address, deadline, method, headers, body) do
     opts = [
       hostname: uri.host,
       protocols: [:http1],
@@ -78,13 +115,7 @@ defmodule Atlas.Moodboard.SafeHTTP do
       try do
         path = URI.to_string(%URI{path: uri.path || "/", query: uri.query})
 
-        headers = [
-          {"accept", "text/html, application/json, text/plain;q=0.8"},
-          {"accept-encoding", "identity"},
-          {"user-agent", "Atlas-Moodboard/1.0"}
-        ]
-
-        with {:ok, conn, _ref} <- HTTP.request(conn, "GET", path, headers, nil) do
+        with {:ok, conn, _ref} <- HTTP.request(conn, method, path, headers, body) do
           receive_response(conn, %{status: nil, headers: [], body: "", done: false}, deadline)
         end
       after
