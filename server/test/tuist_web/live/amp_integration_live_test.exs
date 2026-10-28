@@ -16,7 +16,7 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
 
   test "connects, replaces and disconnects without rendering saved credentials", %{conn: conn, account: account} do
     {:ok, view, _} = live(conn, "/#{account.name}/settings/integrations")
-    assert has_element?(view, "#amp-integration", "Not connected")
+    assert has_element?(view, "#amp-integration button", "Connect Amp")
     view |> element("#amp-integration button", "Connect Amp") |> render_click()
     token = "aop_live_fixture_secret"
     view |> form("#amp-token-form-0", provider_token: token) |> render_submit()

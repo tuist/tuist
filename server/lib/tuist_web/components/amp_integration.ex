@@ -68,7 +68,6 @@ defmodule TuistWeb.Components.AmpIntegration do
     assign(socket, account: account, integration: integration, available: FeatureFlags.sandboxes_enabled?(account))
   end
 
-  defp status(nil), do: dgettext("dashboard_integrations", "Not connected")
   defp status(%{status: :pending}), do: dgettext("dashboard_integrations", "Starting provider")
   defp status(%{status: :running}), do: dgettext("dashboard_integrations", "Provider running")
   defp status(%{status: :error}), do: dgettext("dashboard_integrations", "Needs attention")
@@ -88,7 +87,7 @@ defmodule TuistWeb.Components.AmpIntegration do
       <div data-part="header">
         <div data-part="heading">
           <span data-part="title">Amp</span>
-          <span data-part="status">{status(@integration)}</span>
+          <span :if={@integration} data-part="status">{status(@integration)}</span>
         </div>
         <p data-part="subtitle">
           {dgettext(

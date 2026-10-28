@@ -5,12 +5,6 @@
     current_path={@current_path}
     current_user={@current_user}
   />
-  <.live_component
-    module={TuistWeb.Components.AmpIntegration}
-    id="amp-integration"
-    account={@selected_account}
-    current_user={@current_user}
-  />
   <.card_section :if={@github_card_visible?} data-part="github-card-section">
     <div data-part="header">
       <span data-part="title">
@@ -816,4 +810,10 @@
       </div>
     </div>
   </.card_section>
+  <.live_component
+    module={TuistWeb.Components.AmpIntegration}
+    id="amp-integration"
+    account={@selected_account}
+    current_user={@current_user}
+  />
 </div>
