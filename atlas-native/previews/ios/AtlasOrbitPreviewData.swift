@@ -95,7 +95,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 }
             }
         case "create": select(thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared"))
-        case "leave": select(nil)
+        case "leave":
+            if command["id"] as? String == selected?["id"] as? String { select(nil) }
         case "people":
             let query = command["query"] as? String ?? ""
             mentionCandidates = query.isEmpty || "Alex Morgan".localizedCaseInsensitiveContains(query)
@@ -103,7 +104,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
         case "history":
             if command["older"] as? Bool == true {
                 if ProcessInfo.processInfo.arguments.contains("--delayed-orbit-history") {
-                    try await Task.sleep(for: .seconds(8))
+                    try await Task.sleep(for: .seconds(20))
                 }
                 olderPromptsLoaded = true
             }

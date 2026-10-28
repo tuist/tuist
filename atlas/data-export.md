@@ -117,7 +117,7 @@ Orbit threads store people's messages to each other and to Pip, Atlas's fixed-na
 - `orbit_threads`: kind (`private`/`shared`), title, status, optional signal summary and source type/ID, owner (`owner_id`, cleared on user deletion), an optional owner-scoped private-creation replay UUID (`request_id`), the scopes its history requires (`required_scopes`), the latest sequence number, and timestamps. Each person may have multiple independent owner-only private conversations. Their default title is "New conversation" until the first nonempty human prompt supplies a whitespace-normalized title bounded to 200 Unicode codepoints. The multi-conversation migration derives titles for legacy default-titled private threads from their existing first prompt without rewriting messages or IDs. Creation UUIDs remain with the thread for its lifetime; native uncertain-creation IDs and per-thread drafts are memory-only and cleared at sign-out.
 - `orbit_participants`: thread and user references, role (`owner`/`member`), and join time. User deletion cascades.
 - `orbit_messages`: message kind (`human`, `agent`, `tool`, `system`), Markdown body, author reference and an author-name snapshot, the client's idempotency UUID, whether the assistant was addressed, run reference, ordering numbers, and timestamps. Tool messages store the tool name, status, and redacted, bounded renderings of the input (≤2,000 characters) and output (≤4,000 characters). Values under credential-like or signed-link keys are replaced before storage. While a run is active, a completed tool card also holds the bounded result given to the model (`tool_result`, encrypted with Atlas's Cloak vault) and a hash of the call (`tool_call_key`), so a run resumed after a deploy does not execute the call again. The encrypted result is cleared when the run finishes. User deletion clears the author reference but keeps the message, its author-name snapshot, and the thread history of other participants.
-- `orbit_runs`: assistant run status, nullable transient `activity` (`compacting` while Condukt prunes context; cleared on completion/retry), acting and initiating users, inference profile, trigger position, attempt counter, error category, cancellation and timing fields, the attempt's Condukt session ID, and `checkpoint`. The checkpoint is the exact model protocol messages at the start of the run's latest turn, including the request transcript and tool results, encrypted with Atlas's Cloak vault. It exists only while a run is queued or running and is cleared when the run finishes.
+- `orbit_runs`: assistant run status, nullable transient `activity` (`compacting` while Condukt prunes context; cleared on completion/retry), acting and initiating users, inference profile, trigger position, attempt counter, error category, cancellation and timing fields, the attempt's Condukt session ID, and `checkpoint`. The checkpoint is the exact model protocol messages at the start of the run's latest turn, including the request transcript, tool results and provider reasoning items (including opaque encrypted Codex state), encrypted with Atlas's Cloak vault. Reasoning is continuation state, not user-visible reply content or audit data, and is omitted before workspace-provider fallback. It exists only while a run is queued or running and is cleared when the run finishes.
 - `orbit_viewers`: short-lived viewing leases with a random connection ID, thread and user references, typing expiry, and database-clock expiry. They are not audited, are renewed every ten seconds, and are swept after expiry. User and thread deletion cascade. Drafts never reach the server.
 
 Thread run audit rows in `agent_sessions` store only an `orbit_run:<id>` label, a redacted result marker and fixed error categories. `agent_session_events` keep tool names, statuses and timings. Tool calls produce `mcp.tool_called` audit events with the thread and run IDs but without arguments. Membership changes, creation and signals produce `thread.*` audit events. Inference usage rows follow the existing relay retention.
@@ -139,6 +139,85 @@ An export must include attachment rows and actual object bytes for exported mess
 The terminology migration renames the original draft tables and foreign keys in place, preserving IDs, history, encrypted execution caches and membership. Historical message text and audit events are not rewritten.
 
 There is no automatic expiry for threads or messages. Administrators cannot read private threads through Atlas interfaces, but database operators and backups can. For a verified data request, select all the user's private conversations and every thread where they participate, and export all `orbit_messages` for those threads, including each thread's creation replay UUID where present. Messages authored by others are part of shared history and may require redaction before disclosure. Also include `orbit_runs` where the user is the initiating or acting user (excluding encrypted checkpoints, which are transient caches), any current `orbit_viewers` rows, and related audit events by `actor_id` or thread target. The paginated native API returns only threads the user can currently read and is not a complete legal export; the optional `kind=private` list filter intentionally omits shared threads but does not change direct-read authorization.
+
+## Personal execution environments
+
+`personal_environments` stores the owner's UUID (deletion cascades), immutable
+native OAuth client UUID, installation UUID, bounded device name, opt-in enabled /
+terminal / display booleans, and up to 100 project UUID/name pairs. Absolute local
+project paths and OS permissions stay on the device and are never registered.
+Version, current connection UUID and 20-second online expiry fence stale leases;
+there is no navigation/activity history. Disable keeps an offline row, and no
+automatic expiry is currently applied. Include disabled rows in legal exports.
+
+`orbit_threads` additionally stores selected `environment_id`, its name snapshot,
+`project_id`, and the permanent `personal_environment_dispatched` privacy marker.
+`orbit_runs.environment_id` / `project_id` freeze selection when a run is created;
+deployment/resume does not retarget existing commands. Shared threads cannot
+dispatch personal commands. A thread that has dispatched cannot subsequently be
+promoted/shared, even after clearing its selection. Selection alone may be cleared
+on promotion without dispatching or collecting local content.
+
+`environment_commands` is the at-most-once ledger for an Orbit tool card:
+environment/version, thread/run/message UUIDs, fixed tool name, encrypted JSON
+arguments (file-relative path or terminal command, plus the frozen opaque project UUID),
+SHA-256 payload digest (binding command/environment/version/project/timeout),
+single claim UUID, status, and timestamps. File commands retain their original
+60-second expiry. Terminal additionally retains frozen environment/project display
+labels and project UUID, fixed
+600-second dispatch expiry, 1,800-second execution policy, execution and
+result-delivery deadlines (five-minute grace), cancellation-request boolean,
+monotonic progress sequence, encrypted UTF-8 tail output (48 KiB maximum), and the
+continuation notice message UUID. The final UTF-8 output is bounded to 64 KiB and
+stored as encrypted JSON `{success, output}`. Neither progress nor retries extend deadlines.
+No claim is reassigned after disconnect/deployment/timeout. Known results are
+retained; missing claimed outcomes are explicitly unknown, never presumed stopped
+or silently retried. Owner cancellation cannot claim a disconnected process stopped.
+Terminal dispatch requires the owner's explicit per-Mac terminal opt-in, without
+per-command decisions. OAuth installation binding restricts claim/progress/result
+to the original Mac.
+
+`orbit_messages.device_input` / `device_output` retain encrypted, redacted bounded
+native tool-card renderings (same 2,000/4,000 character budgets as other cards),
+instead of copying paths/commands/file contents into plaintext card columns.
+Active-run model results/checkpoints retain their existing encrypted transient
+lifetime. Accepted ledger results and encrypted renderings follow message/thread
+history retention, with no automatic expiry. Thread/run/message deletion cascades
+the ledger; owner deletion cascades registrations and their ledger. Backups follow
+the existing database policy. Authorized local content may appear in private final
+replies and be sent to the acting person's selected model provider under Orbit's
+existing provider policy; device execution does not move orchestration or model
+credentials off-server. File tools are contained in the selected project. Terminal
+commands (at most 8,000 UTF-8 bytes) start
+in that project, but run as the macOS user without a folder sandbox and can access
+outside it. The display setting does not enable screen capture or control tools.
+
+Confirmed terminal completion updates its original encrypted card and appends one
+generic system notice carrying bounded encrypted/redacted `device_output` evidence
+(4,000 characters). The command's continuation notice UUID deduplicates completion
+under the thread lock. Output is not stored in the plaintext notice body, Oban
+arguments, audits or telemetry. The existing addressed-message/follow-up run and
+Oban job recovery continue the conversation using current selection, possibly
+server-only or another Mac, while the command retains its original source. A
+bounded outbox sweep recovers unconsumed completion notices if a replica dies
+before follow-up creation. Archive permanently retires their addressed flag.
+Cancellation/unknown do not trigger inference; automatic continuation
+reauthorizes history and source configuration. Notices/evidence use ordinary Orbit
+history retention and legal-export authorization. The owner activity API exposes
+only terminal metadata and bounded output (32 entries, 48 KiB per tail, 256 KiB
+aggregate, additionally bounded for JSON escaping), without claim tokens or local
+project roots. This is not a complete legal export.
+
+For a verified legal export, select every `personal_environments.owner_id` row,
+the selected/frozen metadata on that person's Orbit threads/runs, and every
+associated `environment_commands` row, including decisions/deadlines/progress and
+continuation notice relationships. Decrypt arguments/results/progress and message
+device renderings with the operator-authorized Atlas vault tooling, not public
+URLs. Treat local files, terminal output and any third-party content as sensitive.
+Include `environment.*` and `thread.environment_selected` audits by actor/target;
+these contain IDs, permission booleans, project counts and fixed action/tool names,
+never command/argument/output payloads. Native environment and thread endpoints
+are currently access-filtered and are not a complete operator-level legal export.
 
 ## Native push notification registrations
 

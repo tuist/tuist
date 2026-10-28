@@ -59,7 +59,9 @@ struct AtlasConnectionsView: View {
         }
         .defaultScrollAnchor(.top)
         .navigationTitle("Connections")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
+        #endif
         .modifier(AtlasThemedContent())
         .onAppear { presence?.show() }
         .task { await model.load() }

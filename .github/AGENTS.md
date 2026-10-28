@@ -95,7 +95,7 @@ profiles in the disposable validation directory, outside uploaded artifacts.
 
 ## Atlas native
 
-`workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once
+`workflows/atlas-mobile.yml` builds Android, iOS, macOS and the Rust CLI through Once
 using `actions/atlas-native/` (see its `AGENTS.md`). Fork jobs have no OIDC permission
 and use only the local cache. Trusted builds use the `tuist/atlas-mobile` cache
 when authentication succeeds, except for Android and iOS device builds, which use local caching
@@ -145,6 +145,17 @@ Simulator uploads use `TUIST_PREVIEW_BUILD_VERSION` with a fresh Unix timestamp
 so cached binaries do not collide with existing previews. This overrides upload
 metadata without mutating or re-signing the bundle; device packaging already
 stamps its delivery copy before distribution signing.
+
+`atlas-macos-release.yml` distributes the separate native desktop app through
+Sparkle after trusted main build/test/lint/packaging gates. macOS release builds
+avoid PR-writable shared caches. Only the protected `atlas-macos-releases`
+environment receives distribution credentials. Signing requires a Push-enabled
+Developer ID profile for the desktop App ID, derives its macOS APNs entitlement,
+and notarizes/staples before creating the final signed update. Publish the
+immutable `atlas-macos@<epoch>` payload before replacing the separate
+`atlas-appcast` feed. Credential-free profile/signing/appcast fixtures gate this
+path; they do not establish Apple provisioning, live APNs or update-installation
+acceptance. See `atlas-native/macos/distribution/AGENTS.md` for operator setup.
 
 ## Community notifications
 

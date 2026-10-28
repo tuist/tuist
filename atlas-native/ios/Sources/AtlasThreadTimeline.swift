@@ -7,29 +7,26 @@ struct AtlasThreadTimeline: View {
     let action: (String, String) async -> Bool
 
     var body: some View {
-        LazyVStack(spacing: 14) {
-            ForEach(timeline.groups) { group in
-                VStack(spacing: 14) {
-                    if let first = group.messages.first {
-                        if let date = group.date {
-                            Text(date, format: .dateTime.month(.abbreviated).day().year())
-                                .font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.vertical, 8)
-                        }
-                        if !group.children.isEmpty {
-                            AtlasToolActivity(messages: group.children, selfId: selfId, parent: first, action: action)
-                        } else if group.tools {
-                            AtlasToolActivity(messages: group.messages, selfId: selfId, action: action)
-                        } else {
-                            AtlasThreadMessageView(message: first, selfId: selfId, openAttachment: openAttachment) { event in
-                                await action(first.id, event)
-                            }
+        ForEach(timeline.groups) { group in
+            VStack(spacing: 14) {
+                if let first = group.messages.first {
+                    if let date = group.date {
+                        Text(date, format: .dateTime.month(.abbreviated).day().year())
+                            .font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.vertical, 8)
+                    }
+                    if !group.children.isEmpty {
+                        AtlasToolActivity(messages: group.children, selfId: selfId, parent: first, action: action)
+                    } else if group.tools {
+                        AtlasToolActivity(messages: group.messages, selfId: selfId, action: action)
+                    } else {
+                        AtlasThreadMessageView(message: first, selfId: selfId, openAttachment: openAttachment) { event in
+                            await action(first.id, event)
                         }
                     }
                 }
-                .id(group.id)
             }
+            .id(group.id)
         }
-        .scrollTargetLayout()
     }
 }
 
@@ -99,7 +96,10 @@ struct AtlasThreadNavigation: View {
                     .accessibilityIdentifier("thread-prompt-\(message.id)")
                 }
             }
-            .navigationTitle("Prompts").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Prompts")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingPrompts = false } } }
         }
         .frame(idealWidth: 380, idealHeight: 440)

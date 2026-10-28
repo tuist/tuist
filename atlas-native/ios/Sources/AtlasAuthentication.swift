@@ -18,10 +18,27 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     private var accountModel: AtlasAIAccounts?
     private var connectionsModel: AtlasConnections?
     private var presenceModel: AtlasPresence?
+    #if os(iOS)
     @Published private(set) var sharedItems: AtlasSharedItems?
+    #endif
     private var sessionIdentity = UUID()
     let pushNotifications = AtlasPushNotifications()
+
+    var environmentRequest: AtlasEnvironmentRequest { authenticatedRequest(operation: "environment") }
+
+    #if os(macOS)
+    private var workstationModel: AtlasWorkstation?
+    var workstation: AtlasWorkstation? {
+        guard let server else { return nil }
+        if let workstationModel { return workstationModel }
+        let model = AtlasWorkstation(origin: server, request: environmentRequest, live: liveRequest(operation: "environment"))
+        workstationModel = model
+        return model
+    }
+    #endif
+    #if os(iOS)
     let liveActivity = AtlasOrbitLiveActivity()
+    #endif
 
     var pushRequest: ([String: Any]) async throws -> Data {
         authenticatedRequest(operation: "push")
@@ -73,10 +90,10 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         defer { releaseAPI() }
         do {
             guard let session = try AtlasSecureStorage.load("session") else { return }
-            let local = try await command(["operation": "bootstrap", "session": try object(session)])
+            let local = try await AtlasAuthBridge.command(["operation": "bootstrap", "session": try AtlasAuthBridge.object(session)])
             // Persist the namespace before rendering; protected requests still wait for rotation.
             try accept(local)
-            let restored = try await command(["operation": "restore", "session": local])
+            let restored = try await AtlasAuthBridge.command(["operation": "restore", "session": local])
             try accept(restored)
         } catch {
             if let failure = error as? AtlasAuthenticationError, failure.kind == "rejected" {
@@ -95,20 +112,24 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         defer { busy = false; browser = nil }
         do {
             try AtlasSecureStorage.delete("automation.admission")
+            #if os(iOS)
             try AtlasSecureStorage.delete("share.recipient")
             try? AtlasShareInbox.shared().configure(nil)
+            #endif
             let address = selfHosted ? selfHostedAddress : "https://atlas.tuist.dev"
             var request: [String: Any] = ["operation": "begin", "server": address]
             if let provider { request["provider"] = provider.rawValue }
-            if let saved = try AtlasSecureStorage.load("registration") { request["registration"] = try object(saved) }
-            let login = try await command(request)
+            if let saved = try AtlasSecureStorage.load("registration") { request["registration"] = try AtlasAuthBridge.object(saved) }
+            let login = try await AtlasAuthBridge.command(request)
             guard let authorizationURL = login["authorization_url"] as? String,
                   let url = URL(string: authorizationURL), let pending = login["pending"],
-                  let registration = login["registration"] else { throw invalidResponse() }
-            try AtlasSecureStorage.save("registration", value: try json(registration))
+                  let registration = login["registration"] else { throw AtlasAuthBridge.invalidResponse() }
+            try AtlasSecureStorage.save("registration", value: try AtlasAuthBridge.json(registration))
             if selfHosted { UserDefaults.standard.set(address, forKey: "atlas.selfHostedServer") }
             guard let callback = try await authenticate(url) else { return }
-            let session = try await command(["operation": "complete", "pending": pending, "callback": callback.absoluteString])
+            let session = try await AtlasAuthBridge.command([
+                "operation": "complete", "pending": pending, "callback": callback.absoluteString
+            ])
             try accept(session)
         } catch {
             if let failure = error as? AtlasAuthenticationError, failure.kind == "rejected" {
@@ -120,10 +141,15 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
 
     func signOut() {
         Task {
+            #if os(macOS)
+            await workstationModel?.signOut()
+            #endif
             await presenceModel?.stop()
             await accountModel?.cancelLogin()
             await pushNotifications.signOut()
+            #if os(iOS)
             await liveActivity.signOut()
+            #endif
             await acquireAPI()
             defer { releaseAPI() }
             do {
@@ -137,16 +163,24 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         var origin = server?.absoluteString
         sessionIdentity = UUID()
         server = nil
-        if let saved = try? AtlasSecureStorage.load("session"), let session = try? object(saved) {
+        if let saved = try? AtlasSecureStorage.load("session"), let session = try? AtlasAuthBridge.object(saved) {
             origin = (session["registration"] as? [String: Any])?["server"] as? String ?? origin
-            _ = try? await command(["operation": "forget_cache", "session": session, "directory": AtlasSecureStorage.readCacheURL.path])
+            _ = try? await AtlasAuthBridge.command([
+                "operation": "forget_cache", "session": session, "directory": AtlasSecureStorage.readCacheURL.path
+            ])
         }
         pushNotifications.prepareForSessionEnd(origin: origin)
+        #if os(macOS)
+        workstationModel?.invalidate()
+        workstationModel = nil
+        #endif
+        #if os(iOS)
         liveActivity.invalidate()
         if let inbox = try? AtlasShareInbox.shared() { try inbox.configure(nil) }
         try AtlasSecureStorage.delete("share.recipient")
         sharedItems?.invalidate()
         sharedItems = nil
+        #endif
         try AtlasSecureStorage.delete("automation.admission")
         try AtlasSecureStorage.delete("session")
         presenceModel?.setActive(false)
@@ -179,14 +213,14 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             throw AtlasAuthenticationError(kind: "sign_in_required", message: "Sign in to Atlas again.")
         }
         do {
-            let restored = try await command(["operation": "restore", "session": try object(saved)])
+            let restored = try await AtlasAuthBridge.command(["operation": "restore", "session": try AtlasAuthBridge.object(saved)])
             // Persist rotation before the API call, including when that call fails.
             try accept(restored)
             try Task.checkCancellation()
             var request = action
             request["operation"] = "ai_accounts"
             request["session"] = restored
-            let response = try await command(request)
+            let response = try await AtlasAuthBridge.command(request)
             return try JSONSerialization.data(withJSONObject: response)
         } catch let failure as AtlasAuthenticationError where failure.kind == "rejected" {
             errorMessage = failure.message
@@ -210,7 +244,9 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     var orbitLocalRequest: ([String: Any]) async throws -> Data {
         liveRequest(operation: "orbit_session")
     }
+}
 
+extension AtlasAuthentication {
     private func liveRequest(operation: String) -> ([String: Any]) async throws -> Data {
         let open = authenticatedRequest(operation: operation)
         return { action in
@@ -237,17 +273,17 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             }
             let localOpen = operation == "orbit_session" && action["action"] as? String == "open"
             let saved = try (localOpen ? AtlasSecureStorage.load("session") : nil)
-            let session = if let saved { try self.object(saved) } else { try await self.apiSession(identity: identity) }
+            let session = if let saved { try AtlasAuthBridge.object(saved) } else { try await self.apiSession(identity: identity) }
             try Task.checkCancellation()
             guard self.sessionIdentity == identity else { throw CancellationError() }
             var request = action
             request["operation"] = operation
             request["session"] = session
             if localOpen { request["cache_directory"] = await AtlasSecureStorage.prepareReadCache() }
-            let response = try await self.command(request)
+            let response = try await AtlasAuthBridge.command(request)
             guard self.sessionIdentity == identity else {
-                if ["presence", "orbit_session"].contains(operation), let connection = response["connection"] as? String {
-                    _ = try? await self.command(["operation": operation, "action": "close", "connection": connection])
+                if ["presence", "orbit_session", "environment"].contains(operation), let connection = response["connection"] as? String {
+                    _ = try? await AtlasAuthBridge.command(["operation": operation, "action": "close", "connection": connection])
                 }
                 throw CancellationError()
             }
@@ -262,7 +298,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         guard sessionIdentity == identity, server != nil,
               let saved = try AtlasSecureStorage.load("session") else { throw CancellationError() }
         do {
-            let restored = try await command(["operation": "restore", "session": try object(saved)])
+            let restored = try await AtlasAuthBridge.command(["operation": "restore", "session": try AtlasAuthBridge.object(saved)])
             try accept(restored)
             return restored
         } catch let failure as AtlasAuthenticationError where failure.kind == "rejected" {
@@ -271,24 +307,12 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         }
     }
 
-    func destination(_ url: URL) -> URL {
-        guard let server, var destination = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let origin = URLComponents(url: server, resolvingAgainstBaseURL: false) else { return url }
-        destination.scheme = origin.scheme
-        destination.host = origin.host
-        destination.port = origin.port
-        return destination.url ?? url
-    }
-
-}
-
-extension AtlasAuthentication {
     func native(_ request: [String: Any]) async throws -> [String: Any] {
         let identity = sessionIdentity
         let session = try await apiSession(identity: identity)
         try checkSession(identity)
         do {
-            let response = try await command(["operation": "native", "session": session, "request": request])
+            let response = try await AtlasAuthBridge.command(["operation": "native", "session": session, "request": request])
             try checkSession(identity)
             return response
         } catch {
@@ -298,7 +322,7 @@ extension AtlasAuthentication {
     }
 
     func pendingLaunch() throws -> [String: Any]? {
-        try AtlasSecureStorage.load("automation.admission").map { try object($0) }
+        try AtlasSecureStorage.load("automation.admission").map { try AtlasAuthBridge.object($0) }
     }
 
     func launch(_ request: [String: Any]) async throws -> [String: Any] {
@@ -308,7 +332,7 @@ extension AtlasAuthentication {
                                                message: "Retry your pending launch before starting another workflow.")
             }
         } else {
-            try AtlasSecureStorage.save("automation.admission", value: try json(request))
+            try AtlasSecureStorage.save("automation.admission", value: try AtlasAuthBridge.json(request))
         }
         let response: [String: Any]
         do { response = try await native(request) } catch {
@@ -325,11 +349,6 @@ extension AtlasAuthentication {
     private func checkSession(_ identity: UUID) throws {
         try Task.checkCancellation()
         guard sessionIdentity == identity, server != nil else { throw CancellationError() }
-    }
-
-    func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        return scenes.flatMap(\.windows).first(where: \.isKeyWindow) ?? ASPresentationAnchor()
     }
 
     private func authenticate(_ url: URL) async throws -> URL? {
@@ -350,21 +369,14 @@ extension AtlasAuthentication {
         }
     }
 
-    private func command(_ value: [String: Any]) async throws -> [String: Any] {
-        let input = try json(value)
-        let result = try object(await AtlasAuthBridge.execute(input))
-        if let failure = result["error"] as? [String: String] {
-            throw AtlasAuthenticationError(kind: failure["kind"] ?? "internal", message: failure["message"] ?? "Sign-in failed.")
-        }
-        guard let value = result["ok"] as? [String: Any] else { throw invalidResponse() }
-        return value
-    }
-
     private func accept(_ session: [String: Any]) throws {
         guard let registration = session["registration"] as? [String: Any],
-              let address = registration["server"] as? String, let url = URL(string: address) else { throw invalidResponse() }
-        try AtlasSecureStorage.save("session", value: try json(session))
+              let address = registration["server"] as? String, let url = URL(string: address) else {
+            throw AtlasAuthBridge.invalidResponse()
+        }
+        try AtlasSecureStorage.save("session", value: try AtlasAuthBridge.json(session))
         server = url
+        #if os(iOS)
         if sharedItems == nil {
             do {
                 let nonce = try AtlasSecureStorage.load("share.recipient").flatMap(UUID.init(uuidString:)) ?? UUID()
@@ -380,20 +392,6 @@ extension AtlasAuthentication {
                 errorMessage = "Sharing is unavailable on this installation. Your Atlas session is still available."
             }
         }
-    }
-
-    private func json(_ value: Any) throws -> String {
-        let data = try JSONSerialization.data(withJSONObject: value)
-        guard let value = String(data: data, encoding: .utf8) else { throw invalidResponse() }
-        return value
-    }
-
-    private func object(_ value: String) throws -> [String: Any] {
-        guard let object = try JSONSerialization.jsonObject(with: Data(value.utf8)) as? [String: Any] else { throw invalidResponse() }
-        return object
-    }
-
-    private func invalidResponse() -> AtlasAuthenticationError {
-        AtlasAuthenticationError(kind: "invalid_response", message: "The server returned an invalid OAuth response.")
+        #endif
     }
 }

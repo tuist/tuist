@@ -146,7 +146,9 @@ struct AtlasWorkflowField: View {
         case "text": TextField(label, text: $value, axis: .vertical).lineLimit(3...8)
         default:
             TextField(label, text: $value)
+                #if os(iOS)
                 .keyboardType(["integer", "number"].contains(field.kind) ? .numbersAndPunctuation : .default)
+                #endif
         }
     }
     @ViewBuilder private var dateInput: some View {

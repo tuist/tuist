@@ -217,7 +217,7 @@ final class AtlasOrbit: ObservableObject {
             let handle = try await ensureConnection()
             let snapshot: Snapshot = try decode(await request(["action": "request", "connection": handle, "command": command]))
             apply(snapshot)
-            adapterError = nil
+            if adapterError != nil { adapterError = nil }
             return snapshot.error == nil
         } catch is CancellationError { return false } catch {
             adapterError = error.localizedDescription

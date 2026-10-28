@@ -42,7 +42,11 @@ final class AtlasVoiceInput: ObservableObject {
         },
         microphonePermission: @escaping () async -> Bool = {
             await withCheckedContinuation { continuation in
+                #if os(macOS)
+                AVCaptureDevice.requestAccess(for: .audio) { continuation.resume(returning: $0) }
+                #else
                 AVAudioApplication.requestRecordPermission { continuation.resume(returning: $0) }
+                #endif
             }
         }
     ) {
@@ -182,7 +186,9 @@ private final class AtlasOnDeviceVoiceCapture: AtlasVoiceCapturing {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var recognition: SFSpeechRecognitionTask?
     private var hasTap = false
+    #if os(iOS)
     private var audioActive = false
+    #endif
 
     func start(update: @escaping @MainActor (AtlasVoiceCaptureUpdate) -> Void) throws {
         guard let recognizer = SFSpeechRecognizer(locale: .current), recognizer.isAvailable,
@@ -196,10 +202,12 @@ private final class AtlasOnDeviceVoiceCapture: AtlasVoiceCapturing {
         request.shouldReportPartialResults = true
         request.taskHint = .dictation
         self.request = request
+        #if os(iOS)
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.record, mode: .measurement, options: .duckOthers)
         try session.setActive(true)
         audioActive = true
+        #endif
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
@@ -232,9 +240,11 @@ private final class AtlasOnDeviceVoiceCapture: AtlasVoiceCapturing {
         recognition = nil
         recognizer = nil
         request = nil
+        #if os(iOS)
         if audioActive {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             audioActive = false
         }
+        #endif
     }
 }
