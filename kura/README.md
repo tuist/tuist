@@ -441,6 +441,9 @@ observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts onl
 controller sets it only for deployment-selected instances. A dedicated thread
 and async runtime keep network waits and diagnostic failures out of startup and
 readiness decisions; this remains telemetry inside Kura's process resource budget.
+Each cycle includes four fixed server `/ready` checks and two Alloy OTLP HTTP
+header checks on port 4318, followed by a 60-second pause. Alloy checks use GET,
+not span submission; a 405 response measures reachability, not telemetry delivery.
 See the [connectivity runbook](../infra/kura-controller/connectivity-diagnostics.md)
 for fixed targets, sample interpretation, access boundaries, and rollout.
 

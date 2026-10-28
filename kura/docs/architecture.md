@@ -381,6 +381,10 @@ shutdown joins. A single outstanding blocking DNS lookup, serial deadline-bound
 samples, and bounded response/resolver buffers limit work. Results go to ordinary
 JSON logs. This shares the runtime process resource budget; it is not a separate
 security sandbox. See the [runbook](../../infra/kura-controller/connectivity-diagnostics.md).
+The fixed profile compares server `/ready` and Alloy `/v1/traces` header timings,
+including normal and absolute DNS names. Alloy receives unauthenticated GETs on
+port 4318, never spans. Six serial samples precede a 60-second pause; there is no
+additional worker, retry queue or application startup dependency.
 
 Each node exposes:
 
