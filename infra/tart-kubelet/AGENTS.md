@@ -106,7 +106,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   the same before it dispatches the release's deploy. Both give up an hour
   after the announcement (`tuist.dev/runner-image-announced-at`), and a
   release dispatched with `skip_staging` moves the pools at once
-  (`tuist.dev/runner-image-staging: skip`). A pool is
+  (`tuist.dev/runner-image-staging: skip`). Canary's deploy instead waits up
+  to 30 minutes for staging, ignoring the hour, and fails closed, so runners
+  acceptance qualifies the images production moves to. A pool is
   matched by its `tuist.dev/xcode-version` and `tuist.dev/runner-image-variant`
   (`standalone` or `stacked`) labels, which the chart renders only on catalog
   pools that follow releases; an entry outside the pool's repository is

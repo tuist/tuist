@@ -112,6 +112,9 @@ on:
       linux_runner_image:
         description: Intended Linux runner image before per-pool staging holds
         value: ${{ jobs.deploy.outputs.linux_runner_image }}
+      macos_runner_images:
+        description: JSON array of the macOS catalog runner images this deploy targets
+        value: ${{ jobs.deploy.outputs.macos_runner_images }}
     inputs:
       sandbox_template_image_tag:
         description: Published sandbox template tag; fresh deploys build it, pre-built server deploys preserve the live template when unset
@@ -877,6 +880,7 @@ jobs:
   deploy:
     outputs:
       linux_runner_image: ${{ steps.deploy-chart.outputs.linux_runner_image }}
+      macos_runner_images: ${{ steps.macos-images.outputs.macos_runner_images }}
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
     needs: [build, build-images, build-sandbox-template, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
@@ -1104,12 +1108,33 @@ jobs:
         # announcement, the pool keeps the digest it runs now, so no job
         # waits on the pull. A gate that cannot read the cluster moves the
         # pools as before, and a checkout predating the gate has none.
+        # Canary qualifies the release, as for Linux: it waits for staging,
+        # never accepts the announcement's age, and fails closed, so runners
+        # acceptance runs on the images production will move to.
+        id: macos-images
         if: env.RUNNER_IMAGE_DIGESTS != ''
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
         run: |
           set -euo pipefail
           gate=.github/scripts/runner-image-staging-gate.sh
+          stacked="${RUNNER_IMAGE_STACKED_DIGESTS:-"{}"}"
+          echo "macos_runner_images=$(jq -cn --argjson a "$RUNNER_IMAGE_DIGESTS" --argjson b "$stacked" \
+            '[$a, $b | .[] | "ghcr.io/tuist/tuist-runner@" + .] | unique')" >> "$GITHUB_OUTPUT"
           [ -x "$gate" ] || exit 0
-          if ! gated="$("$gate" "$RUNNER_IMAGE_DIGESTS" "${RUNNER_IMAGE_STACKED_DIGESTS:-"{}"}")"; then
+          if [ "$TARGET_ENVIRONMENT" = canary ]; then
+            want="$(jq -cn --argjson digests "$RUNNER_IMAGE_DIGESTS" --argjson stacked "$stacked" '{digests: $digests, stacked: $stacked}')"
+            deadline=$((SECONDS + 1800))
+            until gated="$(RUNNER_IMAGE_STAGING_TIMEOUT_SECONDS=31536000 "$gate" "$RUNNER_IMAGE_DIGESTS" "$stacked")" && [ "$gated" = "$want" ]; do
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::Canary's macOS hosts have not staged the release's runner images within 30 minutes; refusing to qualify old images."
+                exit 1
+              fi
+              sleep 30
+            done
+            exit 0
+          fi
+          if ! gated="$("$gate" "$RUNNER_IMAGE_DIGESTS" "$stacked")"; then
             echo "::warning::Could not check which runner images the hosts have staged; moving the pools to the release's images."
             exit 0
           fi

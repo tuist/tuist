@@ -647,6 +647,14 @@ covered only by the production schedule.
   The pattern must match `errExecutionPending` in
   `infra/linux-runner-image/cmd/tuist-cache-volume/main.go`.
   `macos-cache-volumes-smoke.yml` covers the released `tuist/cache-volume`.
+- Canary qualifies runner image releases on both platforms. Its deploy waits for
+  host staging and fails closed (Linux 300 s, macOS 30 minutes, never accepting
+  an announcement's age), and the cascade passes the deployed images to the
+  probes: Linux checks `EXPECTED_LINUX_IMAGE`, the macOS probe requires its
+  `TUIST_RUNNER_IMAGE` to be one of `EXPECTED_MACOS_IMAGES`.
+- Linux runner images release from `linux-runner-image-release.yml`, outside the
+  cascade, like macOS's `runner-image-release.yml`: build, tag, stage on canary
+  and production (up to an hour), then dispatch the deployment.
 - To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
   wrong URL; it skips the expected-host check and overrides what dispatch hands
   each job.
