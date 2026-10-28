@@ -197,7 +197,10 @@ func (k *KubeCapacity) Release(ctx context.Context, r *Record) error {
 	if _, err = k.Kube.CoreV1().Pods(k.Namespace).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
 		return err
 	}
-	err = k.Kube.CoreV1().Pods(k.Namespace).Delete(ctx, name, metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &pod.UID}})
+	// The caller has already fenced the VM. No ordinary kubelet services this
+	// reservation, so a graceful API delete would leave it Terminating forever.
+	zero := int64(0)
+	err = k.Kube.CoreV1().Pods(k.Namespace).Delete(ctx, name, metav1.DeleteOptions{GracePeriodSeconds: &zero, Preconditions: &metav1.Preconditions{UID: &pod.UID}})
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
