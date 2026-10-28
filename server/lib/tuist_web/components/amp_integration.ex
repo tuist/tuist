@@ -247,26 +247,24 @@ defmodule TuistWeb.Components.AmpIntegration do
         :if={@available}
         id="disconnect-amp-modal"
         title={dgettext("dashboard_integrations", "Disconnect")}
+        description={
+          dgettext(
+            "dashboard_integrations",
+            "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
+          )
+        }
         header_size="large"
       >
         <:trigger :let={attrs}>
           <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
         </:trigger>
-        <.line_divider />
-        <div data-part="amp-form">
+        <div :if={@disconnect_error} data-part="amp-form">
           <.alert
-            :if={@disconnect_error}
             status="error"
             type="secondary"
             size="small"
             title={@disconnect_error}
           />
-          <p>
-            {dgettext(
-              "dashboard_integrations",
-              "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
-            )}
-          </p>
         </div>
         <.line_divider />
         <div data-part="amp-form">
