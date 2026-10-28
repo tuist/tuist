@@ -41,7 +41,7 @@ func TestBorrowedRealStack(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Fatal("requires root")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Minute)
 	defer cancel()
 	root, err := os.MkdirTemp("/var/tmp", "kura-borrowed-")
 	if err != nil {
@@ -57,7 +57,7 @@ func TestBorrowedRealStack(t *testing.T) {
 		return strings.TrimSpace(string(b))
 	}
 	backing := filepath.Join(root, "disk.img")
-	run("truncate", "-s", "32G", backing)
+	run("truncate", "-s", "48G", backing)
 	loop := run("losetup", "--direct-io=on", "--find", "--show", backing)
 	exports := filepath.Join(root, "exports")
 	id := func(n int) string { return fmt.Sprintf("pvc-00000000-0000-0000-0001-%012d", n) }
@@ -87,6 +87,13 @@ func TestBorrowedRealStack(t *testing.T) {
 				}
 			}
 			time.Sleep(250 * time.Millisecond)
+		}
+		records, _ := filepath.Glob(filepath.Join(root, "state", "*-unit-*.thin.json"))
+		for _, record := range records {
+			child := strings.TrimSuffix(filepath.Base(record), ".thin.json")
+			if childVolumeIDPattern.MatchString(child) {
+				_, _ = (ExecRunner{}).Run(context.Background(), nil, "cryptsetup", "close", "kura-"+child)
+			}
 		}
 		for n := 1; n <= 12; n++ {
 			_, _ = (ExecRunner{}).Run(context.Background(), nil, "cryptsetup", "close", "kura-"+id(n))
@@ -164,6 +171,7 @@ func TestBorrowedRealStack(t *testing.T) {
 		Volume *csi.Volume
 		Target string
 		Owner  string
+		Thick  bool
 	}
 	allocations := map[int]allocation{}
 	var mu sync.Mutex
@@ -177,12 +185,15 @@ func TestBorrowedRealStack(t *testing.T) {
 		mu.Lock()
 		defer mu.Unlock()
 		var q struct {
-			Op    string `json:"op"`
-			ID    int    `json:"id"`
-			Owner string `json:"owner"`
-			Kind  string `json:"kind"`
-			Bytes int64  `json:"bytes"`
-			Fail  bool   `json:"fail"`
+			Layout string           `json:"layout"`
+			PodUID string           `json:"pod_uid"`
+			Unit   *BorrowedRequest `json:"unit"`
+			Op     string           `json:"op"`
+			ID     int              `json:"id"`
+			Owner  string           `json:"owner"`
+			Kind   string           `json:"kind"`
+			Bytes  int64            `json:"bytes"`
+			Fail   bool             `json:"fail"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		if e := json.NewDecoder(r.Body).Decode(&q); e != nil {
@@ -192,6 +203,12 @@ func TestBorrowedRealStack(t *testing.T) {
 		var value any
 		var e error
 		switch q.Op {
+		case "unit":
+			if q.Unit == nil {
+				e = fmt.Errorf("unit request required")
+			} else {
+				value, e = d.ChangeBorrowedUnit(ctx, *q.Unit)
+			}
 		case "observe":
 			value, e = d.ThinStatus(ctx)
 		case "restart":
@@ -199,6 +216,30 @@ func TestBorrowedRealStack(t *testing.T) {
 			if e == nil {
 				value, e = d.ThinStatus(ctx)
 			}
+		case "cold-parent":
+			a, ok := allocations[q.ID]
+			if !ok {
+				e = fmt.Errorf("missing parent")
+				break
+			}
+			if _, e = d.NodeUnpublishVolume(ctx, &csi.NodeUnpublishVolumeRequest{VolumeId: id(q.ID), TargetPath: a.Target}); e != nil {
+				break
+			}
+			stage := filepath.Join(root, "stage", id(q.ID))
+			if _, e = d.NodeUnstageVolume(ctx, &csi.NodeUnstageVolumeRequest{VolumeId: id(q.ID), StagingTargetPath: stage}); e != nil {
+				break
+			}
+			d, e = New(cfg)
+			if e != nil {
+				break
+			}
+			if _, e = d.NodeStageVolume(ctx, &csi.NodeStageVolumeRequest{VolumeId: id(q.ID), StagingTargetPath: stage, VolumeCapability: capability, VolumeContext: a.Volume.VolumeContext}); e != nil {
+				break
+			}
+			if _, e = d.NodePublishVolume(ctx, &csi.NodePublishVolumeRequest{VolumeId: id(q.ID), StagingTargetPath: stage, TargetPath: a.Target, VolumeCapability: capability, VolumeContext: map[string]string{"csi.storage.k8s.io/pod.uid": q.PodUID}}); e != nil {
+				break
+			}
+			value, e = d.ThinStatus(ctx)
 		case "fail-trim":
 			runner.failTrim.Store(q.Fail)
 			value = true
@@ -241,7 +282,7 @@ func TestBorrowedRealStack(t *testing.T) {
 			value = []result{<-results, <-results}
 		case "create":
 
-			if q.ID < 1 || q.ID > 12 || (q.Owner != "a" && q.Owner != "b" && q.Owner != "bench") || (q.Kind != "base" && q.Kind != "unit") || q.Bytes < 1<<30 || q.Bytes > 8<<30 {
+			if q.ID < 1 || q.ID > 12 || (q.Owner != "a" && q.Owner != "b" && q.Owner != "bench") || (q.Kind != "base" && q.Kind != "unit" && q.Kind != "parent") || q.Bytes < 1<<30 || q.Bytes > 16<<30 {
 				e = fmt.Errorf("invalid fixture request")
 				break
 			}
@@ -249,22 +290,48 @@ func TestBorrowedRealStack(t *testing.T) {
 				e = fmt.Errorf("fixture identity already allocated")
 				break
 			}
+			allocator := d
+			if q.Layout == "thick" {
+				legacy := cfg
+				legacy.Thin = ThinConfig{}
+				allocator, e = New(legacy)
+				if e != nil {
+					break
+				}
+			} else if q.Layout != "" {
+				e = fmt.Errorf("unknown layout")
+				break
+			}
 			var created *csi.CreateVolumeResponse
-			created, e = d.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: id(q.ID), CapacityRange: &csi.CapacityRange{RequiredBytes: q.Bytes}, VolumeCapabilities: []*csi.VolumeCapability{capability}, Parameters: map[string]string{"layout": ThinLayout}, AccessibilityRequirements: &csi.TopologyRequirement{Requisite: []*csi.Topology{{Segments: map[string]string{TopologyKey: "borrowed-test"}}}}})
+			parameters := map[string]string{"layout": ThinLayout}
+			if q.Layout == "thick" {
+				parameters = map[string]string{}
+			}
+			if q.Kind == "parent" {
+				parameters["borrowed_units"] = "v1"
+			}
+			created, e = allocator.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: id(q.ID), CapacityRange: &csi.CapacityRange{RequiredBytes: q.Bytes}, VolumeCapabilities: []*csi.VolumeCapability{capability}, Parameters: parameters, AccessibilityRequirements: &csi.TopologyRequirement{Requisite: []*csi.Topology{{Segments: map[string]string{TopologyKey: "borrowed-test"}}}}})
 			if e != nil {
 				break
 			}
 			target := filepath.Join(exports, q.Owner, "base")
+			if q.Kind == "parent" {
+				target = filepath.Join(exports, q.Owner)
+			}
 			if q.Kind == "unit" {
 				target = filepath.Join(exports, q.Owner, "units", id(q.ID))
 			}
-			allocations[q.ID] = allocation{created.Volume, target, q.Owner}
-			_, e = d.NodeStageVolume(ctx, &csi.NodeStageVolumeRequest{VolumeId: id(q.ID), StagingTargetPath: filepath.Join(root, "stage", id(q.ID)), VolumeCapability: capability, VolumeContext: created.Volume.VolumeContext})
+			allocations[q.ID] = allocation{created.Volume, target, q.Owner, q.Layout == "thick"}
+			_, e = allocator.NodeStageVolume(ctx, &csi.NodeStageVolumeRequest{VolumeId: id(q.ID), StagingTargetPath: filepath.Join(root, "stage", id(q.ID)), VolumeCapability: capability, VolumeContext: created.Volume.VolumeContext})
 			if e != nil {
 				break
 			}
-			_, e = d.NodePublishVolume(ctx, &csi.NodePublishVolumeRequest{VolumeId: id(q.ID), StagingTargetPath: filepath.Join(root, "stage", id(q.ID)), TargetPath: target, VolumeCapability: capability, VolumeContext: map[string]string{"csi.storage.k8s.io/pod.uid": "11111111-1111-1111-1111-111111111111"}})
+			_, e = allocator.NodePublishVolume(ctx, &csi.NodePublishVolumeRequest{VolumeId: id(q.ID), StagingTargetPath: filepath.Join(root, "stage", id(q.ID)), TargetPath: target, VolumeCapability: capability, VolumeContext: map[string]string{"csi.storage.k8s.io/pod.uid": "11111111-1111-1111-1111-111111111111"}})
 			if e != nil {
+				break
+			}
+			if q.Kind == "parent" {
+				value = allocations[q.ID]
 				break
 			}
 			// A root-owned marker remains on the filesystem, not the mountpoint below.
@@ -301,15 +368,24 @@ func TestBorrowedRealStack(t *testing.T) {
 				e = fmt.Errorf("unknown fixture allocation")
 				break
 			}
-			_, e = d.NodeUnpublishVolume(ctx, &csi.NodeUnpublishVolumeRequest{VolumeId: id(q.ID), TargetPath: a.Target})
+			allocator := d
+			if a.Thick {
+				legacy := cfg
+				legacy.Thin = ThinConfig{}
+				allocator, e = New(legacy)
+				if e != nil {
+					break
+				}
+			}
+			_, e = allocator.NodeUnpublishVolume(ctx, &csi.NodeUnpublishVolumeRequest{VolumeId: id(q.ID), TargetPath: a.Target})
 			if e != nil {
 				break
 			}
-			_, e = d.NodeUnstageVolume(ctx, &csi.NodeUnstageVolumeRequest{VolumeId: id(q.ID), StagingTargetPath: filepath.Join(root, "stage", id(q.ID))})
+			_, e = allocator.NodeUnstageVolume(ctx, &csi.NodeUnstageVolumeRequest{VolumeId: id(q.ID), StagingTargetPath: filepath.Join(root, "stage", id(q.ID))})
 			if e != nil {
 				break
 			}
-			_, e = d.DeleteVolume(ctx, &csi.DeleteVolumeRequest{VolumeId: id(q.ID)})
+			_, e = allocator.DeleteVolume(ctx, &csi.DeleteVolumeRequest{VolumeId: id(q.ID)})
 			if e == nil {
 				delete(allocations, q.ID)
 				value = true

@@ -60,6 +60,7 @@ defmodule Tuist.Kura.VolumeKeys do
   @kura_namespace "kura"
   @instance_label "app.kubernetes.io/instance"
   @kubernetes_timeout_ms 5_000
+  @child_volume_id_format ~r/\A(pvc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-unit-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\z/
   @volume_id_format ~r/\A[a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?\z/
 
   def available?, do: match?({:ok, _, _}, wrapping_target())
@@ -147,8 +148,8 @@ defmodule Tuist.Kura.VolumeKeys do
          :ok <- validate_public_key(client_public_key),
          :ok <- ensure_available(),
          {:ok, node_name} <- authenticate(token),
-         {:ok, claim_ref} <- authorize_volume(volume_id, node_name),
-         {:ok, account} <- claim_account(claim_ref, volume_id),
+         {:ok, claim_ref, parent_id} <- authorize_volume(volume_id, node_name),
+         {:ok, account} <- claim_account(claim_ref, parent_id),
          {:ok, tenant_key} <- tenant_key(account, Keyword.get(opts, :key_version)),
          {:ok, passphrase} <- volume_passphrase(account, tenant_key, volume_id),
          {:ok, sealed} <- seal(passphrase, volume_id, client_public_key) do
@@ -338,17 +339,46 @@ defmodule Tuist.Kura.VolumeKeys do
 
   defp authenticate(_token), do: {:error, :unauthenticated}
 
+  # A child identity embeds its parent permanently. Authorization follows the
+  # live parent PV/PVC on every reopen; derivation and sealing still use the FULL
+  # child identity. Trusted CSI may create children only for explicitly opted-in
+  # parents. No new Kubernetes identity or caller-selected tenant is accepted.
   defp authorize_volume(volume_id, node_name) do
-    case Client.get_persistent_volume(volume_id, timeout: @kubernetes_timeout_ms) do
-      {:ok, volume} ->
-        volume_claim(volume, volume_id, node_name)
+    with {:ok, parent_id, child?} <- parent_identity(volume_id) do
+      case Client.get_persistent_volume(parent_id, timeout: @kubernetes_timeout_ms) do
+        {:ok, volume} ->
+          with :ok <- authorize_child(volume, child?),
+               {:ok, claim_ref} <- volume_claim(volume, parent_id, node_name) do
+            {:ok, claim_ref, parent_id}
+          end
 
-      {:error, :not_found} ->
-        {:error, :volume_not_found}
+        {:error, :not_found} ->
+          {:error, :volume_not_found}
 
-      {:error, reason} ->
-        {:error, {:kubernetes, reason}}
+        {:error, reason} ->
+          {:error, {:kubernetes, reason}}
+      end
     end
+  end
+
+  defp parent_identity(volume_id) do
+    case Regex.run(@child_volume_id_format, volume_id) do
+      [_, parent_id, _unit_id] ->
+        {:ok, parent_id, true}
+
+      nil ->
+        if String.contains?(volume_id, "-unit-"),
+          do: {:error, :invalid_volume_id},
+          else: {:ok, volume_id, false}
+    end
+  end
+
+  defp authorize_child(_volume, false), do: :ok
+
+  defp authorize_child(volume, true) do
+    if get_in(volume, ["spec", "csi", "volumeAttributes", "borrowed_units"]) == "v1",
+      do: :ok,
+      else: {:error, :forbidden}
   end
 
   defp volume_claim(%{"spec" => %{"csi" => csi, "claimRef" => claim_ref} = spec}, volume_id, node_name) do

@@ -60,6 +60,10 @@ func ThinVirtualBytes(cache int64) (int64, error) {
 }
 
 type ThinVolume struct {
+	UnitOperation *BorrowedOperation `json:"unit_operation,omitempty"`
+	BorrowedUnits bool               `json:"borrowed_units,omitempty"`
+	UnitPhase     string             `json:"unit_phase,omitempty"`
+
 	Version       int               `json:"version"`
 	VolumeID      string            `json:"volume_id"`
 	LVUUID        string            `json:"lv_uuid"`
@@ -462,7 +466,7 @@ func (d *Driver) createThin(ctx context.Context, v volume, cache int64, req *csi
 	if err != nil {
 		return nil, err
 	}
-	if r != nil && r.CeilingBytes != cache {
+	if r != nil && (r.CeilingBytes != cache || r.BorrowedUnits != (req.GetParameters()["borrowed_units"] == "v1")) {
 		return nil, status.Error(codes.AlreadyExists, "thin volume ceiling differs")
 	}
 	info, err := imageInfo(v)
@@ -500,7 +504,7 @@ func (d *Driver) createThin(ctx context.Context, v volume, cache int64, req *csi
 		if virtual > s.AvailableCommitment || len(s.Volumes) >= d.thin.MaxVolumes {
 			return nil, status.Error(codes.ResourceExhausted, "complete virtual ceiling cannot be physically backed")
 		}
-		r = &ThinVolume{Version: 1, VolumeID: v.id, PoolUUID: s.PoolUUID, VirtualBytes: virtual, FloorBytes: cache, GrantBytes: cache, CeilingBytes: cache, Generation: 1}
+		r = &ThinVolume{BorrowedUnits: req.GetParameters()["borrowed_units"] == "v1", Version: 1, VolumeID: v.id, PoolUUID: s.PoolUUID, VirtualBytes: virtual, FloorBytes: cache, GrantBytes: cache, CeilingBytes: cache, Generation: 1}
 		if err = d.saveThin(v, r); err != nil {
 			return nil, err
 		}
@@ -531,7 +535,7 @@ func (d *Driver) createThin(ctx context.Context, v volume, cache int64, req *csi
 	if err = d.saveThin(v, r); err != nil {
 		return nil, err
 	}
-	return &csi.CreateVolumeResponse{Volume: &csi.Volume{VolumeId: v.id, CapacityBytes: virtual, AccessibleTopology: []*csi.Topology{d.topology()}, VolumeContext: map[string]string{encryptionParameter: encryptionLUKS2, "backing": "thin", "layout": ThinLayout, "lv_uuid": r.LVUUID, "pool_uuid": r.PoolUUID, "capacity_mode": ThinMode, "cache_ceiling_bytes": strconv.FormatInt(cache, 10)}}}, nil
+	return &csi.CreateVolumeResponse{Volume: &csi.Volume{VolumeId: v.id, CapacityBytes: virtual, AccessibleTopology: []*csi.Topology{d.topology()}, VolumeContext: map[string]string{encryptionParameter: encryptionLUKS2, "backing": "thin", "layout": ThinLayout, "lv_uuid": r.LVUUID, "pool_uuid": r.PoolUUID, "capacity_mode": ThinMode, "cache_ceiling_bytes": strconv.FormatInt(cache, 10), "borrowed_units": req.GetParameters()["borrowed_units"]}}}, nil
 }
 
 // LoadThinConfig supports node-by-node opt-in without changing the fleet-wide

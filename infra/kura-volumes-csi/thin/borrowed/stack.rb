@@ -168,9 +168,10 @@ class BorrowedProbe
   def benchmarks
     # All runs use the same experimental binary, 4 GiB ring, 1 CPU, 768 MiB,
     # authenticated client and workload. Production mode simply omits opt-in.
-    %w[plain mono multi multi mono plain].each_with_index do |layout,round|
-      warn "BENCH #{round+1}/6 #{layout}"
-      owner='bench';n=5+round
+    %w[plain thick mono multi thick_multi thick_multi multi mono thick plain].each_with_index do |layout,round|
+      warn "BENCH #{round+1}/10 #{layout}"
+      owner='bench';n=6
+      multi=layout.end_with?('multi'); thick=layout.start_with?('thick')
       FileUtils.mkdir_p(File.join(@exports,owner,'units'))
       if layout=='plain'
         @plain_file=File.join(@root,'plain.img');File.open(@plain_file,'wb'){|f|f.truncate(13*GIB)}
@@ -179,11 +180,11 @@ class BorrowedProbe
         @plain_mount=File.join(@exports,owner,'base');FileUtils.mkdir_p(@plain_mount)
         run('mount','-o','nodev,nosuid,noatime',@plain_loop,@plain_mount);File.chown(1000,1000,@plain_mount)
       else
-        create(n,owner,'base',layout=='mono' ? 8*GIB : 4*GIB)
-        create(11+round%2,owner,'unit') if layout=='multi'
+        call('create',id:n,owner:owner,kind:'base',bytes:thick ? (multi ? 13*GIB/2 : 13*GIB) : (multi ? 4*GIB : 10*GIB+(192<<20)),layout:thick ? 'thick' : '')
+call('create',id:12,owner:owner,kind:'unit',bytes:thick ? 13*GIB/2 : 4*GIB,layout:thick ? 'thick' : '') if multi
       end
-      control(owner,layout=='multi' ? ['base',id(11+round%2)] : ['base'])
-      start(owner,prototype:layout=='multi',cache:4*GIB)
+      control(owner,multi ? ['base',id(12)] : ['base'])
+      start(owner,prototype:multi,cache:4*GIB)
       vm_before=File.read("/proc/stat").lines.first;before=stats(owner);phases=bench(owner);after=stats(owner);vm_after=File.read("/proc/stat").lines.first
       @report[:benchmarks]<<{layout:layout,round:round,phases:phases,before:before,after:after,whole_vm_cpu_before:vm_before,whole_vm_cpu_after:vm_after,whole_vm_cpu_scope:"includes HTTP load client and host crypto workers",physical:snapshot}
       @report[:benchmarks].last[:working_set]=bench(owner,working:true)
@@ -191,7 +192,7 @@ class BorrowedProbe
       if layout=='plain'
         cleanup_plain
       else
-        call('delete',id:n);call('delete',id:11+round%2) if layout=='multi'
+        call('delete',id:n);call('delete',id:12) if multi
       end
     end
   end
@@ -212,6 +213,7 @@ class BorrowedProbe
     @report[:containers_cleaned]=true
   end
 end
+if $PROGRAM_NAME == __FILE__
 probe=BorrowedProbe.new(ARGV.fetch(0))
 begin
   probe.transfer
@@ -224,4 +226,6 @@ ensure
     File.write(ENV.fetch('KURA_BORROWED_REPORT','/tmp/kura-borrowed-results.json'),JSON.pretty_generate(probe.report))
     puts JSON.generate(probe.report.reject{|k,_|k==:runtime_logs})
   end
+end
+
 end

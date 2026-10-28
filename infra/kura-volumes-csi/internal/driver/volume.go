@@ -37,7 +37,7 @@ type volume struct {
 func (v volume) mapperPath() string { return "/dev/mapper/" + v.mapper }
 
 func (d *Driver) volume(id string) (volume, error) {
-	if !volumeIDPattern.MatchString(id) {
+	if !volumeIDPattern.MatchString(id) && !childVolumeIDPattern.MatchString(id) {
 		return volume{}, status.Errorf(codes.InvalidArgument, "invalid volume id %q", id)
 	}
 	base := filepath.Join(d.stateDir, id)
@@ -58,7 +58,7 @@ func (d *Driver) volume(id string) (volume, error) {
 // goroutines and any other process on the node. It polls so a cancelled
 // request releases its wait instead of blocking a gRPC worker.
 func (d *Driver) lockVolume(ctx context.Context, v volume) (func(), error) {
-	if d.thin.Pool == "" {
+	if d.thin.Pool == "" || ctx.Value(borrowedPoolLock{}) == true {
 		return d.lockFile(ctx, v)
 	}
 	poolUnlock, err := d.lockPool(ctx)

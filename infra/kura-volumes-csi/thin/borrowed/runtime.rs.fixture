@@ -18,7 +18,7 @@ fn valid(id: &str) -> bool {
     id == "base"
         || id
             .strip_prefix("pvc-")
-            .is_some_and(|v| Uuid::parse_str(v).is_ok())
+            .is_some_and(|v| v.split_once("-unit-").map_or_else(|| Uuid::parse_str(v).is_ok(), |(parent, child)| Uuid::parse_str(parent).is_ok() && Uuid::parse_str(child).is_ok()))
 }
 fn control() -> Result<Option<Control>, String> {
     let Some(root) = root() else { return Ok(None) };

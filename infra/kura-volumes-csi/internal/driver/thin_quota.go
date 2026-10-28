@@ -111,5 +111,8 @@ func (d *Driver) finishThinStage(ctx context.Context, v volume, r *ThinVolume, p
 	if err := d.applyThinQuota(ctx, r); err != nil {
 		return err
 	}
-	return d.saveThin(v, r)
+	if err := d.saveThin(v, r); err != nil {
+		return err
+	}
+	return d.prepareBorrowedParent(ctx, r)
 }

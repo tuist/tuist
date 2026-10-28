@@ -94,6 +94,9 @@ func (d *Driver) SetThinGrant(ctx context.Context, req ThinRequest) (*ThinVolume
 	}
 	// A retry after a lost response may repair a quota application interrupted
 	// after the durable intent. Reusing the key with another payload is rejected.
+	if r.UnitOperation != nil && !r.UnitOperation.Done {
+		return nil, status.Error(codes.FailedPrecondition, "unit operation pending")
+	}
 	retry := req.OperationID == r.LastOperation && req.Generation+1 == r.Generation && req.FloorBytes == r.FloorBytes && req.GrantBytes == r.GrantBytes
 	if !retry && req.Generation != r.Generation {
 		return nil, status.Error(codes.Aborted, "stale grant generation")
@@ -209,6 +212,19 @@ func (d *Driver) ServeThinAPI(ctx context.Context) error {
 		var err error
 		if r.Method == http.MethodGet && r.URL.Path == "/v1/node" {
 			result, err = d.ThinStatus(ctx)
+		} else if r.Method == http.MethodPost && r.URL.Path == "/v1/units" {
+			var req BorrowedRequest
+			dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192))
+			dec.DisallowUnknownFields()
+			if e := dec.Decode(&req); e != nil {
+				http.Error(w, "invalid request", 400)
+				return
+			}
+			if e := dec.Decode(new(any)); e != io.EOF {
+				http.Error(w, "trailing request data", 400)
+				return
+			}
+			result, err = d.ChangeBorrowedUnit(ctx, req)
 		} else if r.Method == http.MethodPost && (r.URL.Path == "/v1/grant" || r.URL.Path == "/v1/reclaim") {
 			var req ThinRequest
 			dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192))

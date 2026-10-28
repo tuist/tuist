@@ -28,6 +28,12 @@ func (d *Driver) ControllerGetCapabilities(context.Context, *csi.ControllerGetCa
 }
 
 func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+	if childVolumeIDPattern.MatchString(req.GetName()) && ctx.Value(borrowedPoolLock{}) != true {
+		return nil, status.Error(codes.InvalidArgument, "children require the fenced unit API")
+	}
+	if mode := req.GetParameters()["borrowed_units"]; mode != "" && (mode != "v1" || req.GetParameters()["layout"] != ThinLayout) {
+		return nil, status.Error(codes.InvalidArgument, "borrowed units require the explicit thin parent profile")
+	}
 	v, err := d.volume(req.GetName())
 	if err != nil {
 		return nil, err
@@ -233,6 +239,15 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 	}
 	if thin != nil && d.thin.Pool == "" {
 		return nil, status.Error(codes.FailedPrecondition, "thin configuration required")
+	}
+	if thin != nil && thin.BorrowedUnits {
+		children, err := d.borrowedChildren(v.id)
+		if err != nil {
+			return nil, err
+		}
+		if len(children) != 0 {
+			return nil, status.Error(codes.FailedPrecondition, "return child units before deleting parent")
+		}
 	}
 	if thin != nil && len(thin.Targets) > 0 {
 		return nil, status.Error(codes.FailedPrecondition, "thin publication cleanup incomplete")

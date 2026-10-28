@@ -13,7 +13,7 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
   alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistWeb.RateLimit
 
-  @volume_id "pvc-0b1c2d3e"
+  @volume_id "pvc-0b1c2d3e-0000-4000-8000-000000000001"
   @node "kura-node-a"
   @claim_uid "3c0ffee0-0000-4000-8000-000000000001"
   @username "system:serviceaccount:kura-volumes:kura-volumes-csi-node"
@@ -64,6 +64,58 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
 
     assert conn |> recycle() |> request(context, %{"key_version" => "1"}) |> json_response(400) ==
              %{"error" => "invalid_key_version"}
+  end
+
+  describe "borrowed child identity" do
+    @unit_id "00000000-0000-4000-8000-000000000003"
+
+    test "derives distinct child keys under the live opted-in parent", %{conn: conn, account: account} = context do
+      volume = put_in(persistent_volume(), ["spec", "csi", "volumeAttributes"], %{"borrowed_units" => "v1"})
+      expect(Client, :get_persistent_volume, 3, fn @volume_id, _opts -> {:ok, volume} end)
+      child_id = @volume_id <> "-unit-" <> @unit_id
+      response = conn |> request(context, %{"volume_id" => child_id}) |> json_response(200)
+      child_key = open(response, context, child_id)
+      key = Repo.get_by!(TenantKey, account_id: account.id)
+      assert {:ok, ^child_key} = VolumeKeys.volume_passphrase(account, key, child_id)
+      assert :error = open(response, context, @volume_id)
+      parent = conn |> recycle() |> request(context) |> json_response(200) |> open(context)
+      refute child_key == parent
+      other_id = @volume_id <> "-unit-00000000-0000-4000-8000-000000000004"
+      other = conn |> recycle() |> request(context, %{"volume_id" => other_id}) |> json_response(200)
+      refute open(other, context, other_id) == child_key
+    end
+
+    test "requires parent opt-in and revalidates ownership on every reopen", %{conn: conn, server: server} = context do
+      child_id = @volume_id <> "-unit-" <> @unit_id
+      assert conn |> request(context, %{"volume_id" => child_id}) |> json_response(403) == %{"error" => "forbidden"}
+      volume = put_in(persistent_volume(), ["spec", "csi", "volumeAttributes"], %{"borrowed_units" => "v1"})
+      stub(Client, :get_persistent_volume, fn @volume_id, _opts -> {:ok, volume} end)
+      assert conn |> recycle() |> request(context, %{"volume_id" => child_id}) |> json_response(200)
+
+      stub(Client, :get_persistent_volume_claim, fn _, _, _ ->
+        {:ok, put_in(claim(server.provisioner_node_ref), ["metadata", "uid"], "replacement")}
+      end)
+
+      assert conn |> recycle() |> request(context, %{"volume_id" => child_id}) |> json_response(403) == %{
+               "error" => "forbidden"
+             }
+
+      stub(Client, :get_persistent_volume, fn _, _ -> {:error, :not_found} end)
+
+      assert conn |> recycle() |> request(context, %{"volume_id" => child_id}) |> json_response(404) == %{
+               "error" => "volume_not_found"
+             }
+    end
+
+    test "rejects ambiguous or nested unit identities before looking up a PV", %{conn: conn} = context do
+      reject(&Client.get_persistent_volume/2)
+
+      for id <- [@volume_id <> "-unit-not-a-uuid", @volume_id <> "-unit-" <> @unit_id <> "-unit-" <> @unit_id] do
+        assert conn |> recycle() |> request(context, %{"volume_id" => id}) |> json_response(400) == %{
+                 "error" => "invalid_volume_id"
+               }
+      end
+    end
   end
 
   describe "authentication" do
@@ -236,7 +288,7 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
     )
   end
 
-  defp open(response, %{client_public: client_public, client_private: client_private}) do
+  defp open(response, %{client_public: client_public, client_private: client_private}, volume_id \\ @volume_id) do
     server_public = Base.decode64!(response["ephemeral_public_key"])
     nonce = Base.decode64!(response["nonce"])
     sealed = Base.decode64!(response["ciphertext"])
@@ -245,8 +297,8 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
     key = HKDF.derive(shared, server_public <> client_public, "kura-volume-key-transport/v1", 32)
     <<ciphertext::binary-size(32), tag::binary-size(16)>> = sealed
 
-    passphrase = :crypto.crypto_one_time_aead(:aes_256_gcm, key, nonce, ciphertext, @volume_id, tag, false)
-    assert byte_size(passphrase) == 32
+    passphrase = :crypto.crypto_one_time_aead(:aes_256_gcm, key, nonce, ciphertext, volume_id, tag, false)
+    assert passphrase == :error or byte_size(passphrase) == 32
     passphrase
   end
 

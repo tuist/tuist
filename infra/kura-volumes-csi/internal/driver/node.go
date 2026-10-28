@@ -241,6 +241,9 @@ func (d *Driver) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolu
 	if thin != nil && len(thin.Targets) > 0 {
 		return nil, status.Error(codes.FailedPrecondition, "unpublish thin targets before unstaging")
 	}
+	if err = d.unpublishBorrowedChildren(ctx, thin); err != nil {
+		return nil, err
+	}
 	m, err := d.mountAt(staging)
 	if err != nil {
 		return nil, err
@@ -338,6 +341,9 @@ func (d *Driver) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolu
 			thin.Generation++
 			thin.LastOperation = ""
 		}
+		if thin.BorrowedUnits && len(thin.Targets) > 0 && thin.Targets[target] != uid {
+			return nil, status.Error(codes.FailedPrecondition, "borrowed parent permits one publication target")
+		}
 		thin.PodUID = uid
 		thin.Targets[target] = uid
 		if err = d.saveThin(v, thin); err != nil {
@@ -349,19 +355,22 @@ func (d *Driver) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolu
 		return nil, err
 	}
 	if published {
-		return &csi.NodePublishVolumeResponse{}, nil
+		return &csi.NodePublishVolumeResponse{}, d.restoreBorrowedChildren(ctx, thin)
 	}
 	if err := os.MkdirAll(target, 0o750); err != nil {
 		return nil, status.Errorf(codes.Internal, "create target path: %v", err)
 	}
 	options := "bind,nodev,nosuid"
+	if thin != nil && thin.BorrowedUnits {
+		options = "rbind,nodev,nosuid"
+	}
 	if req.GetReadonly() {
 		options += ",ro"
 	}
 	if _, err := d.run(ctx, nil, "mount", "-o", options, staging, target); err != nil {
 		return nil, err
 	}
-	return &csi.NodePublishVolumeResponse{}, nil
+	return &csi.NodePublishVolumeResponse{}, d.restoreBorrowedChildren(ctx, thin)
 }
 
 func (d *Driver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
@@ -379,6 +388,15 @@ func (d *Driver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublish
 	}
 	defer unlock()
 
+	parent, err := d.readThin(v)
+	if err != nil {
+		return nil, err
+	}
+	if parent != nil && parent.BorrowedUnits && parent.Targets[target] != "" {
+		if err = d.unpublishBorrowedChildren(ctx, parent); err != nil {
+			return nil, err
+		}
+	}
 	m, err := d.mountAt(target)
 	if err != nil {
 		return nil, err
