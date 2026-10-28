@@ -26,7 +26,7 @@ defmodule Atlas.Push do
   @stale_after_days 60
   @tombstone_retention_days 180
   @uuid ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/
-  @ios_token ~r/\A(?:[0-9a-fA-F]{2}){16,256}\z/
+  @apns_token ~r/\A(?:[0-9a-fA-F]{2}){16,256}\z/
   @android_token ~r/\A[\x21-\x7E]{16,4096}\z/
   @body_keys ~w(platform token environment)
 
@@ -512,8 +512,8 @@ defmodule Atlas.Push do
     end
   end
 
-  defp validate_token("ios", token) do
-    if Regex.match?(@ios_token, token), do: {:ok, String.downcase(token)}, else: :error
+  defp validate_token(platform, token) when platform in ["ios", "macos"] do
+    if Regex.match?(@apns_token, token), do: {:ok, String.downcase(token)}, else: :error
   end
 
   defp validate_token("android", token) do
@@ -522,7 +522,9 @@ defmodule Atlas.Push do
 
   defp validate_token(_platform, _token), do: :error
 
-  defp valid_environment?("ios", environment), do: environment in ["sandbox", "production"]
+  defp valid_environment?(platform, environment) when platform in ["ios", "macos"],
+    do: environment in ["sandbox", "production"]
+
   defp valid_environment?("android", environment), do: environment == "production"
 
   defp ensure_available(platform, environment) do

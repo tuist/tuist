@@ -19,6 +19,13 @@ struct AtlasBusinessStack: View {
         _path = State(initialValue: recordID.map { [AtlasRecordRoute(id: $0)] } ?? [])
     }
 
+    init(model: AtlasBusiness, recordID: String?, revision: UUID?) {
+        self.recordID = recordID
+        self.revision = revision
+        _model = StateObject(wrappedValue: model)
+        _path = State(initialValue: recordID.map { [AtlasRecordRoute(id: $0)] } ?? [])
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             AtlasBusinessView(model: model, loadList: path.isEmpty)

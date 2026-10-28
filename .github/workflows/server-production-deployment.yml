@@ -276,7 +276,7 @@ jobs:
           # Docs under k8s-monitoring are in paths-ignore and never deploy.
           deployable_paths="$(printf '%s\n' "$changed" \
             | grep -vE '^infra/helm/k8s-monitoring/.*\.md$' \
-            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)' \
+            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/certificate-trust/(policy\.json|pem-store\.sh)$|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)' \
             || true)"
           if [ -n "$deployable_paths" ]; then
             echo "Deployable paths changed since $base:"
@@ -795,11 +795,15 @@ jobs:
           tags: |
             ghcr.io/tuist/tuist-linux-runner:${{ needs.check-releases.outputs.linux-runner-image-next-version-number }}
             ghcr.io/tuist/tuist-linux-runner:latest
+          # Only the serialized main release writes this cache. Keep all builder
+          # stages, especially the Android SDK, across ephemeral runners.
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache,mode=max
 
       # The Linux runner image is pushed with a `:<semver>` tag above.
       # server-deployment.yml resolves that version at deploy time from
       # this run's `linux-runner-image@<semver>` tag and passes
-      # `tuist-linux-runner:<semver>` to the chart via --set.
+      # its resolved manifest digest to the chart via --set.
 
   publish-releases:
     # Publishes the GitHub Releases (which create the component tags via the
@@ -1730,11 +1734,11 @@ jobs:
   # no runner picks up without cancelling this run. Runs on a GitHub-hosted
   # runner so a broken Tuist runner fleet cannot keep the gate from reporting.
   runners-acceptance:
-    name: Runners acceptance
+    name: Runners acceptance (macOS + Linux)
     needs: [check-releases, canary]
     if: ${{ always() && needs.canary.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     permissions:
       actions: write
       contents: read
@@ -1744,12 +1748,13 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
           sparse-checkout: .github/scripts/runners-acceptance
-      - name: Run the runners acceptance probe against canary
+      - name: Require macOS and Linux native/container acceptance on canary
         env:
           GH_TOKEN: ${{ github.token }}
           ENVIRONMENT: canary
           REF: ${{ github.ref_name }}
-          GATE_MINUTES: 35
+          GATE_MINUTES: 55
+          EXPECTED_LINUX_IMAGE: ${{ needs.canary.outputs.linux_runner_image }}
         run: .github/scripts/runners-acceptance/gate.sh
 
   # Production leg - standard path: canary ready + tests green. Promotes the

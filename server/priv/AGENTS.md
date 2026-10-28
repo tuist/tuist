@@ -143,3 +143,5 @@
 - Cache-volume writer policy adds an empty-default exact branch list on volumes and auto-default commit intent and nullable additional-branch grant provenance on uses. Preserve existing volume identity, clear epochs and default-branch permissions; document policy data in the export inventory. `runner_cache_volume_uses.commit_mode` and `runner_cache_volumes.writer_branches` are no longer read.
 
 - SSO compatibility removal materializes existing implicit Okta/custom memberships into roles/users_roles before runtime behavior switches. Preserve explicit roles and Google behavior. The follow-up column removal requires the runtime-removal release on every process first. Rollback recreates the flag as false without restoring legacy trust. Do not backfill domain verification or recheck timestamps as part of this cleanup.
+
+- Saved cache size history has a separate volume-owned table, seeded only at migration time. Retain 90 days plus the last earlier observation as a baseline; never backdate current saved sizes or derive them by summing copies.

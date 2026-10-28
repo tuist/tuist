@@ -21,6 +21,43 @@ type diskTransfer struct {
 	generation       int64
 }
 
+func TestLinuxLocalImagesReclaimsSpaceBeforeEvictingAnotherMaster(t *testing.T) {
+	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
+	if cache == "" {
+		t.Skip("requires an isolated XFS filesystem")
+	}
+	root, err := os.MkdirTemp(cache, "reclaim-e2e-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(root) })
+	b := &LocalImages{Root: root, FreeBytes: FreeBytes}
+	b.ReclaimWait = 100 * time.Millisecond
+	old := installMaster(t, b, first, strings.Repeat("a", 64), 1, time.Now().Add(-2*time.Hour))
+	keep := installMaster(t, b, second, strings.Repeat("b", 64), 1, time.Now().Add(-time.Hour))
+	for _, slot := range []Slot{old, keep} {
+		if out, err := exec.Command("fallocate", "-l", "256M", b.master(slot)).CombinedOutput(); err != nil {
+			t.Fatal(string(out), err)
+		}
+	}
+	if out, err := exec.Command("sync", "-f", root).CombinedOutput(); err != nil {
+		t.Fatal(string(out), err)
+	}
+	before, err := FreeBytes(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	minimum := before + 200<<20
+	if err := b.reserveBytes(context.Background(), minimum); err != nil {
+		t.Fatal("rejected space available after XFS reclamation", err)
+	}
+	after, err := FreeBytes(root)
+	if err != nil || after < minimum || exists(b.master(old)) || !exists(b.master(keep)) {
+		t.Fatal("failed to reclaim just the first master", before, after, err)
+	}
+	t.Logf("free space before=%d after=%d required=%d; second master retained", before, after, minimum)
+}
+
 func (d *diskTransfer) Download(ctx context.Context, slot Slot, path string) error {
 	f, err := os.Open(d.archive)
 	if err != nil {

@@ -161,6 +161,13 @@
         var resultBundlePath: String?
 
         @Option(
+            help: "Directory where each run's code coverage will be saved as LCOV (<result bundle name>.lcov), with repository-relative paths. Requires coverage uploads.",
+            completion: .directory,
+            envKey: .testCoverageOutputPath
+        )
+        var coverageOutputPath: String?
+
+        @Option(
             help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
             completion: .file(),
             envKey: .runReportPath
@@ -413,6 +420,12 @@
                 } else {
                     .test
                 }
+
+            if let coverageOutputPath {
+                await RunMetadataStorage.current.update(
+                    coverageOutputPath: try await Environment.current.pathRelativeToWorkingDirectory(coverageOutputPath)
+                )
+            }
 
             try await TestService(
                 generatorFactory: Extension.generatorFactory,

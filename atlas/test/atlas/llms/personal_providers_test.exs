@@ -14,14 +14,15 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
       assert {"authorization", "Bearer " <> chatgpt_token()} in opts[:headers]
       assert {"chatgpt-account-id", "personal-account"} in opts[:headers]
       assert opts[:retry] == false and opts[:redirect] == false
-      assert opts[:json]["reasoning"] == %{"effort" => "none"}
+      assert opts[:json]["reasoning"] == %{"effort" => "low"}
+      assert opts[:json]["include"] == ["reasoning.encrypted_content"]
       assert opts[:json]["store"] == false
       assert opts[:json]["stream"] == true
       refute Map.has_key?(opts[:json], "max_tokens")
       assert opts[:json]["instructions"] == "Bounded Orbit instructions"
       assert Enum.any?(opts[:json]["input"], &(&1["type"] == "function_call_output"))
       assert Enum.any?(opts[:json]["input"], &(&1["type"] == "function_call" and &1["call_id"] == "call-1"))
-      assert [%{"type" => "function", "name" => "list_accounts"}] = opts[:json]["tools"]
+      assert [%{"type" => "function", "name" => "list_accounts", "strict" => false}] = opts[:json]["tools"]
 
       response = %{
         "status" => "completed",
@@ -132,7 +133,37 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
     assert {:error, 401} = PersonalProviders.complete("chatgpt", "invalid-token", params())
   end
 
-  test "nonempty reasoning is rejected rather than lost before the next tool turn" do
+  test "structured rejection diagnostics use fixed categories without logging provider data" do
+    for {param, category} <- [
+          {"reasoning.effort", "unsupported_reasoning_effort"},
+          {"tools[0].parameters", "invalid_tools"},
+          {"private-field", "http_error"}
+        ] do
+      expect(Req, :post, fn _opts ->
+        {:ok, %{status: 400, body: %{"error" => %{"param" => param, "message" => "private provider message"}}}}
+      end)
+
+      log =
+        capture_log(fn -> assert {:error, 400} = PersonalProviders.complete("chatgpt", chatgpt_token(), params()) end)
+
+      assert log =~ "category=#{category}"
+      refute log =~ "private"
+      refute log =~ chatgpt_token()
+    end
+  end
+
+  test "an explicitly strict tool retains its caller-owned schema and mode" do
+    request = put_in(params(), ["tools", Access.at(0), "function", "strict"], true)
+
+    expect(Req, :post, fn opts ->
+      assert [%{"strict" => true, "parameters" => %{}}] = opts[:json]["tools"]
+      {:ok, %{status: 200, body: sse([%{"type" => "response.completed", "response" => %{"output" => []}}])}}
+    end)
+
+    assert {:ok, _} = PersonalProviders.complete("chatgpt", chatgpt_token(), request)
+  end
+
+  test "nonempty reasoning stays separate from reply text and round-trips without losing provider fields" do
     for state <- [
           %{"encrypted_content" => "opaque-provider-state", "summary" => []},
           %{"summary" => [%{"type" => "summary_text", "text" => "private reasoning"}]},
@@ -140,7 +171,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
         ],
         terminal <- [:full, :metadata_only] do
       expect(Req, :post, fn opts ->
-        assert opts[:json]["reasoning"] == %{"effort" => "none"}
+        assert opts[:json]["reasoning"] == %{"effort" => "low"}
 
         response = %{
           "status" => "completed",
@@ -155,12 +186,20 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
         {:ok, %{status: 200, body: sse(done ++ [%{"type" => "response.completed", "response" => response}])}}
       end)
 
-      log =
-        capture_log(fn -> assert {:error, 502} = PersonalProviders.complete("chatgpt", chatgpt_token(), params()) end)
+      assert {:ok, %{"choices" => [%{"message" => message}]}} =
+               PersonalProviders.complete("chatgpt", chatgpt_token(), params())
 
-      assert log =~ "category=unsupported_reasoning"
-      refute log =~ "opaque-provider-state"
-      refute log =~ "private reasoning"
+      assert message["content"] == ""
+      assert [%{"format" => "atlas-codex-v1", "item" => item}] = message["reasoning_details"]
+      assert item == Map.put(state, "type", "reasoning")
+
+      expect(Req, :post, fn opts ->
+        assert [^item] = Enum.filter(opts[:json]["input"], &(&1["type"] == "reasoning"))
+        {:ok, %{status: 200, body: sse([%{"type" => "response.completed", "response" => %{"output" => []}}])}}
+      end)
+
+      next = update_in(params(), ["messages"], &(&1 ++ [message]))
+      assert {:ok, _} = PersonalProviders.complete("chatgpt", chatgpt_token(), next)
     end
   end
 
@@ -194,6 +233,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
 
         tools = body["tools"]
         assert [%{"name" => "lookup_status"} = tool] = tools
+        if provider == "chatgpt", do: assert(tool["strict"] == false)
         schema = tool[if(provider == "chatgpt", do: "parameters", else: "input_schema")]
         assert schema["properties"]["kind"]["type"] == "string"
 
@@ -379,11 +419,13 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
   end
 
   defp assert_initial_request("chatgpt", body) do
-    assert body["reasoning"] == %{"effort" => "none"}
+    assert body["reasoning"] == %{"effort" => "low"}
     assert body["instructions"] == "Bounded Orbit instructions"
     assert body["store"] == false
     assert body["stream"] == true
-    assert [%{"role" => "user", "content" => "What needs my attention?"}] = body["input"]
+
+    assert [%{"role" => "user", "content" => [%{"type" => "input_text", "text" => "What needs my attention?"}]}] =
+             body["input"]
   end
 
   defp assert_initial_request("claude", body) do
@@ -410,7 +452,17 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
              {"call_invoices", "invoices evidence"}
            ]
 
-    refute Enum.any?(body["input"], &(&1["type"] == "reasoning"))
+    assert [reasoning] = Enum.filter(body["input"], &(&1["type"] == "reasoning"))
+
+    assert reasoning == %{
+             "type" => "reasoning",
+             "id" => "rs_fixture",
+             "encrypted_content" => "opaque-fixture-state",
+             "summary" => []
+           }
+
+    assert Enum.find_index(body["input"], &(&1["type"] == "reasoning")) <
+             Enum.find_index(body["input"], &(&1["type"] == "function_call"))
   end
 
   defp assert_tool_continuation("claude", body) do
@@ -441,7 +493,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
           }
         ]
       else
-        [%{"type" => "reasoning", "id" => "rs_empty", "summary" => []}] ++
+        [%{"type" => "reasoning", "id" => "rs_fixture", "encrypted_content" => "opaque-fixture-state", "summary" => []}] ++
           Enum.map(["tasks", "invoices"], fn kind ->
             %{
               "type" => "function_call",

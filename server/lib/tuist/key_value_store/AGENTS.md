@@ -2,6 +2,7 @@
 
 - The cache is ephemeral; never rely on it for durable state. Redis is explicitly selected with `persist_across_deployments: true`; `cache:` names the Cachex fallback.
 - `get/2` and `put/3` handle raised and returned `Redix.ConnectionError`s, preserving the selected fallback and TTL.
+- Reraise callback exceptions with their original stacktrace for every coalesced caller. Never cache exceptions or rerun callbacks through the cache-unavailable fallback; keep that fallback outside callback reraising.
 - `LoadLimiter` is a storage-independent bounded pool for expensive misses. Coalesce same-key callers, bound pending jobs/waiters and inherit `$callers`. Retain running slots after soft timeouts while remote database work may still run; workers may write through after callers time out. A fill inherits only its first caller's allowlisted observability snapshot, not request metadata, and retains it through `on_error`; the coordinator never adopts tenant context. Isolate tenants in keys; coalesced waiters must not replace the fill's target.
 
 ## Replica safety

@@ -75,11 +75,17 @@ defmodule Atlas.LLMs.PersonalProviders do
            finch: [conn_opts: [transport_opts: [timeout: 5_000]]]
          ) do
       {:ok, %{status: 200, body: body}} -> {:ok, body}
-      {:ok, %{status: status}} -> {:error, status, :http_error}
+      {:ok, %{status: status, body: body}} -> {:error, status, http_error_category(status, body)}
       {:error, %{reason: :timeout}} -> {:error, 504, :timeout}
       {:error, _reason} -> {:error, 502, :request_failed}
     end
   end
+
+  defp http_error_category(400, %{"error" => %{"param" => "reasoning.effort"}}), do: :unsupported_reasoning_effort
+
+  defp http_error_category(400, %{"error" => %{"param" => "tools"}}), do: :invalid_tools
+  defp http_error_category(400, %{"error" => %{"param" => "tools[" <> _}}), do: :invalid_tools
+  defp http_error_category(_status, _body), do: :http_error
 
   # The token is read only from the owner's encrypted connection. This claim
   # selects the upstream account; it never authenticates an Atlas user.
@@ -98,13 +104,17 @@ defmodule Atlas.LLMs.PersonalProviders do
   defp responses_request(params) do
     %{
       "model" => "gpt-5.4",
-      # Condukt's buffered chat protocol cannot round-trip opaque reasoning items.
-      "reasoning" => %{"effort" => "none"},
+      "reasoning" => %{"effort" => "low"},
+      "include" => ["reasoning.encrypted_content"],
       "store" => false,
       "stream" => true,
       "instructions" => system_text(params),
       "input" => Enum.flat_map(conversation(params), &responses_message/1),
-      "tools" => Enum.map(params["tools"] || [], &Map.put(&1["function"], "type", "function")),
+      "tools" =>
+        Enum.map(
+          params["tools"] || [],
+          &(&1["function"] |> Map.put("type", "function") |> Map.put_new("strict", false))
+        ),
       "parallel_tool_calls" => true
     }
   end
@@ -126,10 +136,17 @@ defmodule Atlas.LLMs.PersonalProviders do
         Map.merge(call["function"], %{"type" => "function_call", "call_id" => call["id"]})
       end)
 
-    text ++ calls
+    reasoning =
+      for %{"format" => "atlas-codex-v1", "item" => %{"type" => "reasoning"} = item} <-
+            message["reasoning_details"] || [],
+          message["role"] == "assistant",
+          do: item
+
+    reasoning ++ text ++ calls
   end
 
-  defp responses_content(content, _role) when is_binary(content), do: content
+  defp responses_content(content, role) when is_binary(content),
+    do: responses_content([%{"type" => "text", "text" => content}], role)
 
   defp responses_content(parts, role) do
     Enum.map(parts, fn
@@ -187,20 +204,11 @@ defmodule Atlas.LLMs.PersonalProviders do
   defp completed_response(response, output) do
     cond do
       response["status"] not in [nil, "completed"] -> {:error, 502, :invalid_response}
-      Enum.any?(output, &unsupported_reasoning?/1) -> {:error, 502, :unsupported_reasoning}
       is_list(response["output"]) -> response_items(response, response["output"])
       not Map.has_key?(response, "output") and output != [] -> response_items(response, Enum.reverse(output))
       true -> {:error, 502, :invalid_response}
     end
   end
-
-  # An empty envelope has no state to replay. Opaque or visible reasoning does:
-  # Condukt 1.13's chat translation cannot preserve Responses reasoning items.
-  defp unsupported_reasoning?(%{"type" => "reasoning"} = item) do
-    Enum.any?(["encrypted_content", "summary", "content"], &(item[&1] not in [nil, "", []]))
-  end
-
-  defp unsupported_reasoning?(_item), do: false
 
   # HTTP 200 does not mean an SSE request succeeded. Use only known structured
   # codes, never message text (which can contain prompts or misleading words).
@@ -234,9 +242,10 @@ defmodule Atlas.LLMs.PersonalProviders do
         tool_call(item["call_id"], item["name"], item["arguments"])
       end
 
-    if Enum.any?(output, &unsupported_reasoning?/1),
-      do: {:error, 502, :unsupported_reasoning},
-      else: completion(response["id"], response["model"], text, calls, response["usage"] || %{})
+    reasoning = for %{"type" => "reasoning"} = item <- output, do: %{"format" => "atlas-codex-v1", "item" => item}
+
+    {:ok, completion} = completion(response["id"], response["model"], text, calls, response["usage"] || %{})
+    {:ok, put_in(completion, ["choices", Access.at(0), "message", "reasoning_details"], reasoning)}
   end
 
   defp messages_request(params) do

@@ -2,32 +2,62 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, and Gradle cache."
+  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, Gradle cache, Bazel cache, Elixir dependency cache, and experimental Rust compilation caching."
 }
 ---
-# Cache {#cache}
+# Кэш {#cache}
 
-Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built.
+Артефакты сборки не разделяются между окружениями, из-за чего приходится многократно пересобирать один и тот же код. Функция кэширования Tuist позволяет обмениваться артефактами удалённо, чтобы ваша команда и CI получали более быстрые сборки без повторной сборки уже готового.
 
-Pick the caching solution that matches your build system:
+Изучите рабочий процесс кэширования, который подходит для вашего проекта или модели развёртывания:
 
-<HomeCards>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Module cache"
-        details="Cache individual modules as binaries for projects using Tuist's generated projects. Requires Tuist project generation."
-        linkText="Set up module cache"
-        link="/guides/features/cache/module-cache"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Xcode cache"
-        details="Share Xcode compilation artifacts across environments. Works with any Xcode project, no project generation required."
-        linkText="Set up Xcode cache"
-        link="/guides/features/cache/xcode-cache"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/gradle-icon.svg' alt='Gradle' width='32' height='32' />"
-        title="Gradle cache"
-        details="Share Gradle build cache artifacts remotely. Includes build insights for performance visibility."
-        linkText="Set up Gradle cache"
-        link="/guides/features/cache/gradle-cache"/>
-</HomeCards>
+<.home_cards>
+  <.home_card
+    title="Кэш модулей"
+    details="Кэшируйте отдельные модули в виде бинарных файлов для проектов, использующих генерируемые проекты Tuist. Требуется генерация проектов Tuist."
+    link="/guides/features/cache/module-cache"
+/>
+  <.home_card
+    title="Кэш Xcode"
+    details="Делитесь артефактами компиляции Xcode между окружениями. Работает с любым проектом Xcode, генерация проекта не требуется."
+    link="/guides/features/cache/xcode-cache"
+/>
+  <.home_card
+    title="Кэш Gradle"
+    details="Делитесь артефактами кэша сборки Gradle удалённо. Включает аналитику сборки для оценки производительности."
+    link="/guides/features/cache/gradle-cache"
+/>
+  <.home_card
+    title="Кэш Bazel"
+    details="Направьте Bazel на кэш Remote Execution API от Tuist, чтобы делиться результатами действий между вашей командой и CI."
+    link="/guides/features/cache/bazel-cache"
+/>
+  <.home_card
+    title="Кэш Elixir"
+    details="Включите кэширование для поддерживаемых зависимостей Elixir и продолжайте использовать Mix. Просматривайте попадания в кэш и передачи данных в панели управления."
+    link="/guides/features/cache/elixir"
+/>
+  <.home_card
+    title="Кэш Rust (экспериментальный)"
+    details="Повторно используйте выходные данные поддерживаемых библиотек реестра локально и через Kura. Узнайте, как включить кэширование и отслеживать активность кэша."
+    supported_for="rust"
+    link="/guides/features/cache/rust"
+/>
+  <.home_card
+    title="Самостоятельное размещение"
+    details="Запускайте узлы кэша рядом с CI, офисами или региональными вычислительными ресурсами и подключайте их к размещённому или самостоятельно размещённому Tuist."
+    link="/guides/features/cache/self-hosting"
+/>
+</.home_cards>
+
+> [!TIP]
+> **Самая высокая скорость на Tuist Runners**
+>
+> На <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> кэш расположен в частной сети раннера и используется совместно с тем же кэшем, что и машины разработчиков, поэтому задачи CI сразу получают «тёплые» попадания без необходимости отдельно прогревать кэш CI.
+
+
+## Ограничить загрузку только для CI {#restrict-uploads-to-ci}
+
+Администраторы аккаунта могут предоставить разработчикам доступ только для чтения, разрешив CI загружать артефакты кэша. Откройте настройки **Кэш** аккаунта в Tuist и установите **Доступ к загрузке в кэш** в значение **Только CI и токены аккаунта**. После этого участники, прошедшие аутентификацию через сеансы входа, по-прежнему смогут скачивать данные из кэша, но для загрузки потребуется аутентификация CI через OIDC или токен аккаунта с правами на запись в кэш, например `project:cache:write` или `ci`.
+
+Используйте эту настройку, когда CI является доверенным источником кэша, а локальные машины должны только потреблять кэш. Настройка влияет только на авторизацию загрузки в кэш.
