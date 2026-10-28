@@ -1832,16 +1832,23 @@ public class GraphTraverser: GraphTraversing {
         guard let dependencies = graph.dependencies[rootDependency] else { return .incompatible }
 
         let result: PlatformCondition.CombinationResult
+        let isXCFramework = if case .xcframework = transitiveDependency { true } else { false }
 
-        // We've reached our destination, return a condition for the leaf relationship (`nil` or a `PlatformFilters` set)
-        if dependencies.contains(transitiveDependency) {
+        // Signature normalization can coalesce direct and transitive XCFramework references.
+        // Preserve direct-edge precedence for other dependency kinds.
+        if dependencies.contains(transitiveDependency),
+           !isXCFramework || graph.dependencyConditions[(rootDependency, transitiveDependency)] == nil
+        {
             result = .condition(graph.dependencyConditions[(rootDependency, transitiveDependency)])
         } else {
             // Capture the filters that could be applied to intermediate dependencies
             // A --> (.ios) B --> C : C should have the .ios filter applied due to B
             let filters = dependencies.map { node -> PlatformCondition.CombinationResult in
-                let transitive = combinedCondition(to: transitiveDependency, from: node)
                 let currentCondition = graph.dependencyConditions[(rootDependency, node)]
+                if node == transitiveDependency {
+                    return .condition(currentCondition)
+                }
+                let transitive = combinedCondition(to: transitiveDependency, from: node)
                 switch transitive {
                 case .incompatible:
                     return .incompatible
