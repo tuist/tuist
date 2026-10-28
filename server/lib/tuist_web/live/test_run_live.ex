@@ -35,6 +35,7 @@ defmodule TuistWeb.TestRunLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowsLive
+  alias TuistWeb.TestSelection.RunTab
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -110,6 +111,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign_stress_gate(run)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
       |> assign(:selection_run, selection_run(project, socket.assigns.selected_account, run))
+      |> RunTab.assign_defaults()
       |> assign(:show_test_suites, project.build_system != :bazel)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
@@ -349,6 +351,10 @@ defmodule TuistWeb.TestRunLive do
 
   def handle_event("refresh_test_run", _params, socket) do
     {:noreply, reload_run_state(socket)}
+  end
+
+  def handle_event("search-selection", %{"search" => search}, socket) do
+    {:noreply, push_patch(socket, to: "?" <> RunTab.search_query(socket.assigns.uri, search), replace: true)}
   end
 
   def handle_event("search-selective-testing", %{"search" => search}, socket) do
@@ -594,6 +600,11 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "test-optimizations", params) do
+    socket =
+      if socket.assigns.selection_run,
+        do: RunTab.assign_data(socket, socket.assigns.selection_run, params),
+        else: socket
+
     if socket.assigns.command_event do
       {analytics, meta} = load_selective_testing_data(socket.assigns.command_event, params)
       assign_selective_testing_data(socket, analytics, meta, params)

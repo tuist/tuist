@@ -216,7 +216,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@has_selective_testing_data}
+      :if={@has_selective_testing_data || @selection_run}
       label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
@@ -484,9 +484,7 @@
           label={dgettext("dashboard_tests", "View selection")}
           variant="secondary"
           size="small"
-          navigate={
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection/runs/#{@selection_run.id}"
-          }
+          patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
         />
       </:actions>
       <.card_section data-part="test-details-section">
@@ -1842,8 +1840,30 @@
     </.card>
   </div>
 
-  <div :if={@selected_tab == "test-optimizations" && @has_selective_testing_data}>
+  <div
+    :if={@selected_tab == "test-optimizations" && (@has_selective_testing_data || @selection_run)}
+    data-part="selective-testing"
+  >
+    <RunTab.coverage_selection
+      :if={@selection_run}
+      selection_run={@selection_run}
+      summary={@selection_summary}
+      impact={@selection_impact}
+      baseline_coverage?={@selection_baseline_coverage?}
+      tab={@selection_tab}
+      uri={@uri}
+      project={@selected_project}
+      account={@selected_account}
+      filters={@selection_filters}
+      tests={@selection_tests}
+      tests_meta={@selection_tests_meta}
+      files={@selection_files}
+      files_meta={@selection_files_meta}
+      targets={@selection_targets}
+      shards={@selection_shards}
+    />
     <.selective_testing_tab
+      :if={@has_selective_testing_data}
       project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}

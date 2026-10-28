@@ -11,8 +11,9 @@ defmodule Tuist.Tests.Selections do
   run nothing is skipped, and the tests that would have been skipped but
   failed are the misses.
 
-  The reads here back the Test Selection pages; nothing selects yet, so the
-  rows come from the seeds or a client that writes them.
+  The reads here back the Test Selection page and the selection tabs of a
+  test run and a test case run; nothing selects yet, so the rows come from
+  the seeds or a client that writes them.
   """
   import Ecto.Query
 
@@ -24,7 +25,6 @@ defmodule Tuist.Tests.Selections do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestImpact
   alias Tuist.Tests.TestImpactChangedFile
-  alias Tuist.Tests.TestImpactTest
   alias Tuist.Tests.TestSelectionRun
   alias Tuist.Tests.TestSelectionTest
 
@@ -213,16 +213,6 @@ defmodule Tuist.Tests.Selections do
   defp filter_fallback(query, true), do: where(query, [r], r.fallback_reason != "")
   defp filter_fallback(query, _fallback), do: query
 
-  @doc "The selection runs of a commit, newest first."
-  def runs_for_commit(project_id, sha) do
-    ClickHouseRepo.all(
-      from(r in runs(),
-        where: r.project_id == ^project_id and r.git_commit_sha == ^sha,
-        order_by: [desc: r.inserted_at]
-      )
-    )
-  end
-
   @doc "A selection run of the project, by its id."
   def get_run(project_id, id) do
     with {:ok, id} <- Ecto.UUID.cast(id),
@@ -245,13 +235,15 @@ defmodule Tuist.Tests.Selections do
     )
   end
 
-  @doc "The test impacts of a commit, one per baseline its runs used, newest first."
-  def impacts_for_commit(project_id, sha) do
-    ClickHouseRepo.all(
+  @doc "The test impact a selection run applied, or `nil` when it fell back without a baseline."
+  def get_impact(%TestSelectionRun{baseline_sha: ""}), do: nil
+
+  def get_impact(%TestSelectionRun{project_id: project_id, git_commit_sha: head, baseline_sha: baseline}) do
+    ClickHouseRepo.one(
       from(i in TestImpact,
         hints: ["FINAL"],
-        where: i.project_id == ^project_id and i.head_sha == ^sha,
-        order_by: [desc: i.inserted_at]
+        where: i.project_id == ^project_id and i.head_sha == ^head and i.baseline_sha == ^baseline,
+        limit: 1
       )
     )
   end
@@ -278,27 +270,6 @@ defmodule Tuist.Tests.Selections do
     |> where_impact(impact)
     |> ClickHouseRepo.all()
     |> Map.new(&{&1.path, &1})
-  end
-
-  @doc """
-  A page of the tests an impact reaches. Options: `:search` (part of the
-  module, suite or test name), `:reason`, `:page` and `:page_size`.
-  """
-  def impact_tests(%TestImpact{} = impact, opts \\ []) do
-    from(t in TestImpactTest, hints: ["FINAL"])
-    |> where_impact(impact)
-    |> filter_test_search(Keyword.get(opts, :search))
-    |> filter_field(:reason, Keyword.get(opts, :reason))
-    |> order_by([t], asc: t.reason, asc: t.module_name, asc: t.suite_name, asc: t.name)
-    |> paginate(opts)
-  end
-
-  @doc "How many tests an impact reaches, per reason."
-  def impact_reasons(%TestImpact{} = impact) do
-    from(t in TestImpactTest, hints: ["FINAL"], group_by: t.reason, select: {t.reason, count()})
-    |> where_impact(impact)
-    |> ClickHouseRepo.all()
-    |> Map.new(fn {reason, count} -> {reason, to_integer(count)} end)
   end
 
   defp where_impact(query, %TestImpact{project_id: project_id, head_sha: head, baseline_sha: baseline}) do
