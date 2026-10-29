@@ -77,10 +77,29 @@ struct AtlasThreadMessage: Decodable, Identifiable, Equatable {
     let attachments: [AtlasThreadAttachment]?
     let noticeKind: String?
     let mentionedUserIds: [String]?
+    var suggestions: [String]?
 
     var insertedDate: Date? {
         (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(insertedAt))
             ?? (try? Date.ISO8601FormatStyle().parse(insertedAt))
+    }
+}
+
+struct AtlasThreadSuggestion: Equatable {
+    let text: String
+    let icon: String
+
+    static func prompts(messages: [AtlasThreadMessage], welcome: Bool, agentStatus: String?) -> [Self] {
+        guard !["queued", "running", "compacting"].contains(agentStatus ?? "") else { return [] }
+        if welcome {
+            return [Self(text: "What needs my attention?", icon: "sparkles"),
+                    Self(text: "Summarize my open tasks", icon: "checklist"),
+                    Self(text: "Find an account", icon: "magnifyingglass")]
+        }
+        // A newer human turn invalidates the previous reply's follow-ups, even before a run starts.
+        guard let latest = messages.last(where: { $0.kind == "human" || $0.kind == "agent" }),
+              latest.kind == "agent" else { return [] }
+        return (latest.suggestions ?? []).map { Self(text: $0, icon: "arrow.turn.up.right") }
     }
 }
 

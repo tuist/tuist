@@ -140,6 +140,16 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 "author_id": "preview-self", "author_name": "Taylor", "attachments": draftAttachments
             ]))
             if let handoff { sent.append(handoff) }
+            if ProcessInfo.processInfo.arguments.contains("--orbit-suggestions") {
+                let firstReply = sent.filter { $0["kind"] as? String == "human" }.count == 1
+                sent.append(message(id: UUID().uuidString, kind: "agent", body: firstReply
+                    ? "Two open tasks need your attention: the release checklist and the account review."
+                    : "The release checklist is due first. Start with validation, then prepare the rollback plan.", extra: [
+                        "suggestions": firstReply
+                            ? ["Show the overdue tasks", "Group tasks by account", "What can wait until tomorrow?"]
+                            : ["Summarize the release risks", "Explain the rollback plan", "Which checks are still missing?"]
+                    ]))
+            }
             draft = ""
             draftMentions = []
             draftAttachments = []

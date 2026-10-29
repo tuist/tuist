@@ -14,6 +14,7 @@ defmodule Atlas.Orbit.Message do
   schema "orbit_messages" do
     field :kind, :string
     field :body, :string, default: ""
+    field :suggestions, {:array, :string}, default: []
     field :private_body, Binary, redact: true
     field :author_name, :string, default: ""
     field :client_id, Ecto.UUID
