@@ -43,11 +43,14 @@ permissions:
   contents: write
   packages: write
 
-# A newer release cancels one still in flight. Its plan diffs against the latest
-# `runner-image@` tag, so it rebuilds everything the cancelled run would have.
+# Queue rather than cancel: a run pushes image tags and publishes a GitHub
+# Release, so cancelling one mid-run could leave a release half published.
+# GitHub keeps only the latest pending run, and its plan diffs against the
+# latest `runner-image@` tag, so a burst of merges collapses into one release
+# that covers them all.
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('runner-image-tests-{0}', github.event.pull_request.number) || 'runner-image-release' }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}

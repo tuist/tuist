@@ -457,9 +457,8 @@ CI:
 - **Releases.** `.github/workflows/runner-image-release.yml` runs on
   pushes to `main` under `infra/runner-image/**` and on
   `workflow_dispatch`, in its own concurrency lane, off the server
-  deploy path. A newer release cancels one still in flight; it plans
-  from the same latest tag, so it rebuilds everything the cancelled
-  one would have:
+  deploy path. A release in flight finishes; a newer one waits behind
+  it, and only the latest waiting run is kept:
   1. `plan` (`.github/scripts/runner-image-release-plan.sh`) rebuilds a
      profile's stacked image when the image's sources changed in a
      releasable commit, when the previous release did not carry it, or
