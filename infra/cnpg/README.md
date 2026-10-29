@@ -499,3 +499,10 @@ by provider label (`node.cluster.x-k8s.io/instance-type NotIn [ovh, dedibox,
 scaleway]`) so a new region on an existing provider needs no edit — but the fix
 landed on 2026-07-03, after this volume was bound on 2026-06-16. The stranded
 PVC is residue from the window before it, not a live misconfiguration.
+
+## Durable-write monitoring
+
+The opt-in [durable-write monitor and diagnostic runbook](write-latency.md)
+adds a bounded WAL-generating commit through a dedicated role, existing CNPG
+metrics, and paused Grafana alert artifacts. Its rollout overlay is not consumed
+by deployment workflows; provision grants and validate staging before enabling.

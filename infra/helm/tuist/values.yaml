@@ -3565,6 +3565,14 @@ postgresql:
     # default (local/preview clusters do not preload the library).
     queryStats:
       enabled: false
+    # Opt-in rollout; see infra/cnpg/write-latency.md. Provision the role Secret
+    # and apply write-probe.sql as the database owner before unsuspending.
+    writeProbe:
+      enabled: false
+      suspend: true
+      existingSecret: ""
+    writeDiagnostics:
+      enabled: false
     roles:
       # Least-privilege web runtime role. CNPG creates the role;
       # Tuist.Release.migrate grants DML on application tables and read-only

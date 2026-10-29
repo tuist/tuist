@@ -702,3 +702,16 @@ retention period is imposed here. Customer exports or erasure requests should
 search those backends using selected/auth IDs and legacy handles, distinguish
 caller from target, and include retained matching flag observations. Process-local
 snapshots are ephemeral and disappear with their request, socket, task or job.
+
+## PostgreSQL write-monitor probe
+
+When explicitly enabled, the operational `db_write_monitor.probe` table contains
+exactly one singleton boolean key, a toggled boolean and the latest attempt's
+`timestamptz`. It contains no user, account or project identifiers or content and
+has no tenant relationships, so it is excluded from account exports and account
+deletion. It is overwritten, not appended; vacuum reclaims old tuples, and a
+1 MiB relation-size guard stops further probe writes if reclamation stalls.
+The table participates in existing PostgreSQL backups/WAL retention. The schema
+owner removes it when monitoring is decommissioned. Probe JSON logs contain only
+fixed outcome/reason values and durations and follow existing operational log
+retention. See the [runbook](../infra/cnpg/write-latency.md).

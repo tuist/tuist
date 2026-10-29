@@ -8412,3 +8412,14 @@ notifications by cluster and alert name. Preview each raw metric selector and
 final comparison against the last seven days, report any selector with no
 matching series, and show me the resulting rules before saving.
 ```
+
+## PostgreSQL durable-write latency while pods remain Ready
+
+The [write-latency runbook](../../cnpg/write-latency.md) documents the bounded
+synthetic commit, CNPG storage/replication diagnostics, application pool signals,
+historical baseline and rollout gates. `postgresql-write-alert-rules.json` contains
+paused rules; `postgresql-write-notification-policy.json` contains internal-only
+routes to merge into the existing tree. These do not create public incidents or
+replace the existing HTTP 5xx impact alerts. Run `test-postgresql-write-alerts.sh`
+for PromQL regression cases, including stale/missing exporter data and a storage
+stall while all pods remain Ready.

@@ -130,14 +130,14 @@ spec:
     topologyKey: kubernetes.io/hostname
     podAntiAffinityType: required
 
-  {{- if or .Values.postgresql.cnpg.monitoring .Values.postgresql.cnpg.queryStats.enabled }}
+  {{- if or .Values.postgresql.cnpg.monitoring .Values.postgresql.cnpg.queryStats.enabled .Values.postgresql.cnpg.writeDiagnostics.enabled }}
   monitoring:
     {{- with .Values.postgresql.cnpg.monitoring }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-    {{- if .Values.postgresql.cnpg.queryStats.enabled }}
-    # pg_stat_statements latency metrics (cnpg_tuist_query_stats_*). The
-    # ConfigMap and its prerequisites are described in
+    {{- if or .Values.postgresql.cnpg.queryStats.enabled .Values.postgresql.cnpg.writeDiagnostics.enabled }}
+    # Optional statement latency and write diagnostics. The ConfigMap and
+    # each query family's prerequisites are described in
     # templates/postgresql-cnpg-monitoring-queries.yaml.
     customQueriesConfigMap:
       - name: {{ include "tuist.componentName" (dict "root" . "component" "pg-monitoring-queries") }}
@@ -155,6 +155,16 @@ spec:
   # defense-in-depth.
   managed:
     roles:
+      {{- if .Values.postgresql.cnpg.writeProbe.enabled }}
+      - name: tuist_write_probe
+        ensure: present
+        login: true
+        inherit: false
+        connectionLimit: 1
+        comment: "Bounded durable commit monitor; EXECUTE on one function only"
+        passwordSecret:
+          name: {{ required "writeProbe.existingSecret is required" .Values.postgresql.cnpg.writeProbe.existingSecret | quote }}
+      {{- end }}
       - name: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
         ensure: present
         login: true

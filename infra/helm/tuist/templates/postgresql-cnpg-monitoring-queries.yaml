@@ -1,5 +1,7 @@
-{{- if and (or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg")) .Values.postgresql.cnpg.queryStats.enabled }}
-# Custom CNPG monitoring query: exposes pg_stat_statements as per-query
+{{- if and (or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg")) (or .Values.postgresql.cnpg.queryStats.enabled .Values.postgresql.cnpg.writeDiagnostics.enabled) }}
+# Custom CNPG monitoring queries. writeDiagnostics is independent of the
+# pg_stat_statements extension and reads only system views. queryStats
+# exposes pg_stat_statements as per-query
 # latency metrics (cnpg_tuist_query_stats_*) so the dashboard can chart
 # read/write query latency, the signal that was missing during the
 # oban_jobs bloat incident.
@@ -29,6 +31,7 @@ metadata:
     cnpg.io/reload: "true"
 data:
   queries: |
+    {{- if .Values.postgresql.cnpg.queryStats.enabled }}
     tuist_query_stats:
       query: |
         SELECT
@@ -58,4 +61,69 @@ data:
             description: "Cumulative rows processed by the statements"
       target_databases:
         - postgres
+    {{- end }}
+    {{- if .Values.postgresql.cnpg.writeDiagnostics.enabled }}
+    tuist_write_waits:
+      query: |
+        SELECT kinds.kind,
+          count(a.pid) AS sessions,
+          COALESCE(max(EXTRACT(EPOCH FROM clock_timestamp() - a.query_start)), 0) AS oldest_query_seconds
+        FROM (VALUES ('local_wal'), ('sync_replication'), ('data_io')) AS kinds(kind)
+        LEFT JOIN pg_stat_activity a ON CASE
+          WHEN a.wait_event IN ('WALWrite', 'WALSync', 'WALInitWrite', 'WALInitSync') THEN 'local_wal'
+          WHEN a.wait_event = 'SyncRep' THEN 'sync_replication'
+          WHEN a.wait_event IN ('DataFileWrite', 'DataFileSync', 'DataFileRead') THEN 'data_io'
+        END = kinds.kind
+        GROUP BY kinds.kind
+      metrics:
+        - kind:
+            usage: LABEL
+            description: "Bounded storage or synchronous replication wait class"
+        - sessions:
+            usage: GAUGE
+            description: "Backends currently waiting, including implicit commits and background I/O"
+        - oldest_query_seconds:
+            usage: GAUGE
+            description: "Age of oldest query currently in this wait; NOT time spent in the wait"
+      target_databases: [postgres]
+    tuist_write_monitor:
+      query: |
+        SELECT EXTRACT(EPOCH FROM clock_timestamp()) AS observed_at_seconds,
+          current_setting('track_wal_io_timing')::boolean::integer AS wal_timing_enabled,
+          current_setting('track_io_timing')::boolean::integer AS io_timing_enabled,
+          pg_is_in_recovery()::integer AS in_recovery
+      metrics:
+        - observed_at_seconds:
+            usage: GAUGE
+            description: "Database observation time; detects stale cached exporter responses"
+        - wal_timing_enabled:
+            usage: GAUGE
+            description: "Zero WAL timing counters are not latency evidence when this is zero"
+        - io_timing_enabled:
+            usage: GAUGE
+            description: "Whether data file I/O timing is enabled"
+        - in_recovery:
+            usage: GAUGE
+            description: "Observed role; zero means primary"
+      target_databases: [postgres]
+    tuist_write_replication:
+      primary: true
+      query: |
+        SELECT count(*) FILTER (WHERE sync_state IN ('sync', 'quorum')) AS candidates,
+          count(*) FILTER (WHERE sync_state IN ('sync', 'quorum') AND state = 'streaming') AS streaming_candidates,
+          COALESCE(max(EXTRACT(EPOCH FROM clock_timestamp() - reply_time))
+            FILTER (WHERE sync_state IN ('sync', 'quorum')), 0) AS oldest_reply_seconds
+        FROM pg_stat_replication
+      metrics:
+        - candidates:
+            usage: GAUGE
+            description: "Connected sync/quorum candidates; zero is not healthy in ANY 1"
+        - streaming_candidates:
+            usage: GAUGE
+            description: "Streaming sync/quorum candidates (not proof of durable progress)"
+        - oldest_reply_seconds:
+            usage: GAUGE
+            description: "Oldest connected candidate reply; interpret alongside candidate count"
+      target_databases: [postgres]
+    {{- end }}
 {{- end }}
