@@ -127,6 +127,15 @@ report_heartbeat() {
   printf '%s' "${1}" >"${STATUS_SHARE}/runner-heartbeat" 2>/dev/null || true
 }
 
+# report_boot_stage marks that boot reached stage $1. The host reads the
+# file's mtime, which it stamps on its own clock.
+report_boot_stage() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  : >"${STATUS_SHARE}/boot-${1}" 2>/dev/null || true
+}
+
+report_boot_stage poller
+
 RUNNER_TCC_DB="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
 TCC_LOG=/var/log/tuist-runner/tcc.log
 TCC_LOG_PID=""
@@ -1011,6 +1020,7 @@ while true; do
   # beat needs to expose. One iteration is bounded by that timeout, so
   # a healthy warm runner never goes more than ~12s without a beat.
   report_heartbeat "${HEARTBEAT_POLLING}"
+  [ "${attempt}" = 1 ] && report_boot_stage first-poll
   # `-f` is intentionally omitted: with it, curl exits non-zero on
   # 4xx/5xx, the `|| http="000"` clause fires, and the real status
   # never reaches the case statement. We need 401/403/5xx as
