@@ -17,6 +17,22 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
   end
 
   describe "perform/1" do
+    test "completes a queued comment job when its project has been deleted", %{project: project} do
+      job =
+        %{
+          "git_commit_sha" => "abc123",
+          "git_ref" => "refs/pull/123/head",
+          "git_remote_url_origin" => "https://github.com/tuist/tuist",
+          "project_id" => project.id
+        }
+        |> CommentWorker.new()
+        |> Repo.insert!()
+
+      Repo.delete!(project)
+
+      assert :ok = perform_job(CommentWorker, job.args)
+    end
+
     test "calls VCS.post_vcs_pull_request_comment with correct parameters", %{
       project: project
     } do

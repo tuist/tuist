@@ -56,6 +56,35 @@ fn message() -> Value {
 }
 
 #[test]
+fn optional_followups_are_bounded_without_breaking_legacy_history() {
+    let mut value = message();
+    for invalid in [Value::Null, json!({"action":"send"}), json!(false)] {
+        value["suggestions"] = invalid;
+        let parsed: Message = serde_json::from_value(value.clone()).unwrap();
+        assert!(parsed.suggestions.is_empty());
+        assert_eq!(parsed.body, "Please investigate");
+    }
+    let boundary = "🦀".repeat(120);
+    value["suggestions"] = json!([
+        " ",
+        42,
+        " Show account activity ",
+        "Show account activity",
+        "🦀".repeat(121),
+        boundary,
+        "Compare open tasks",
+        "Dropped fourth option"
+    ]);
+    let parsed: Message = serde_json::from_value(value).unwrap();
+    assert_eq!(
+        parsed.suggestions,
+        vec!["Show account activity", &boundary, "Compare open tasks"]
+    );
+    let legacy: Message = serde_json::from_value(message()).unwrap();
+    assert!(legacy.suggestions.is_empty());
+}
+
+#[test]
 fn fixed_routes_use_selected_instance_and_filter_payloads() {
     let cases = [
         (

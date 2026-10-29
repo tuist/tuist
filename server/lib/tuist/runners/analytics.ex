@@ -328,11 +328,15 @@ defmodule Tuist.Runners.Analytics do
 
   @doc """
   Per-job queue-time aggregates over the window: avg, p50, p90, p99
-  plus a daily series for each percentile. "Queue time" is the wall-
-  clock gap between `enqueued_at` and `claimed_at` — how long a
-  workflow_job waited before any runner picked it up. Jobs still in
-  the queue (`claimed_at IS NULL`) are excluded; they don't have a
-  closed interval to measure yet.
+  plus a daily series for each percentile. "Queue time" is how long a
+  workflow_job waited for the runner that ran it: the gap between
+  `enqueued_at` and that runner's claim (`executor_claimed_at`), or zero
+  when the runner was claimed before the job arrived. GitHub places a
+  job on any idle runner with its labels, so the runner that ran it is
+  often not the one claimed for it, and `claimed_at` follows the job
+  between claims. Rows GitHub has not named a runner for yet fall back
+  to `claimed_at`. Jobs still in the queue (`claimed_at IS NULL`) are
+  excluded; they don't have a closed interval to measure yet.
   """
   def queue_time(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
@@ -370,25 +374,25 @@ defmodule Tuist.Runners.Analytics do
           avg:
             fragment(
               "avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-              j.claimed_at,
+              j.queue_ended_at,
               j.enqueued_at
             ),
           p50:
             fragment(
               "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-              j.claimed_at,
+              j.queue_ended_at,
               j.enqueued_at
             ),
           p90:
             fragment(
               "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-              j.claimed_at,
+              j.queue_ended_at,
               j.enqueued_at
             ),
           p99:
             fragment(
               "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-              j.claimed_at,
+              j.queue_ended_at,
               j.enqueued_at
             )
         }
@@ -408,13 +412,25 @@ defmodule Tuist.Runners.Analytics do
         order_by: fragment("toStartOfHour(?)", j.claimed_at),
         select: %{
           date: fragment("toStartOfHour(?)", j.claimed_at),
-          avg: fragment("avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at),
+          avg: fragment("avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.queue_ended_at, j.enqueued_at),
           p50:
-            fragment("quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at),
+            fragment(
+              "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.queue_ended_at,
+              j.enqueued_at
+            ),
           p90:
-            fragment("quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at),
+            fragment(
+              "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.queue_ended_at,
+              j.enqueued_at
+            ),
           p99:
-            fragment("quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at)
+            fragment(
+              "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.queue_ended_at,
+              j.enqueued_at
+            )
         }
       )
     )
@@ -429,13 +445,25 @@ defmodule Tuist.Runners.Analytics do
         order_by: fragment("toDate(?)", j.claimed_at),
         select: %{
           date: fragment("toDate(?)", j.claimed_at),
-          avg: fragment("avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at),
+          avg: fragment("avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.queue_ended_at, j.enqueued_at),
           p50:
-            fragment("quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at),
+            fragment(
+              "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.queue_ended_at,
+              j.enqueued_at
+            ),
           p90:
-            fragment("quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at),
+            fragment(
+              "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.queue_ended_at,
+              j.enqueued_at
+            ),
           p99:
-            fragment("quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at)
+            fragment(
+              "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.queue_ended_at,
+              j.enqueued_at
+            )
         }
       )
     )
@@ -821,7 +849,8 @@ defmodule Tuist.Runners.Analytics do
 
   @doc """
   Same shape as `job_duration_scatter/2` but for the queue-time
-  chart — x = `claimed_at`, y = `(claimed_at - enqueued_at) / 1000`.
+  chart — x = `claimed_at`, y = the job's queue time as `queue_time/2`
+  measures it, in seconds.
   """
   def queue_time_scatter(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
@@ -837,7 +866,8 @@ defmodule Tuist.Runners.Analytics do
             id: j.workflow_job_id,
             workflow_run_id: j.workflow_run_id,
             x_at: j.claimed_at,
-            duration_ms: fragment("toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)", j.claimed_at, j.enqueued_at),
+            duration_ms:
+              fragment("toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)", j.queue_ended_at, j.enqueued_at),
             job_name: j.job_name,
             workflow_name: j.workflow_name,
             repository: j.repository,
@@ -1000,7 +1030,8 @@ defmodule Tuist.Runners.Analytics do
   # versions (claimed_at IS NULL) and any post-window rows. After
   # the GROUP BY the latest claimed_at is consistent across the
   # surviving rows (claimed_at is set once on transition and then
-  # preserved by `job_to_row`).
+  # preserved by `job_to_row`). `queue_ended_at` is where `queue_time/2`
+  # measures to.
   defp latest_jobs_claimed_between(account_id, start_dt, end_dt, opts) do
     Job
     |> where(
@@ -1018,6 +1049,16 @@ defmodule Tuist.Runners.Analytics do
       conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
       enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
       claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
+      queue_ended_at:
+        fragment(
+          "greatest(coalesce(argMax(?, ?), argMax(?, ?)), argMax(?, ?))",
+          j.executor_claimed_at,
+          j.updated_at,
+          j.claimed_at,
+          j.updated_at,
+          j.enqueued_at,
+          j.updated_at
+        ),
       started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
       completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
       fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),

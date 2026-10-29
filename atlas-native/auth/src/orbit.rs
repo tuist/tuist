@@ -225,6 +225,8 @@ pub(super) struct Thread {
     pub summary: String,
     #[serde(default)]
     pub origin: String,
+    #[serde(default, deserialize_with = "deserialize_priority")]
+    pub priority: Option<Priority>,
     pub owner_id: Option<String>,
     #[serde(default)]
     pub participants: Vec<Person>,
@@ -265,6 +267,21 @@ pub(super) fn validate_model(model: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum Priority {
+    Now,
+    Today,
+    Later,
+}
+
+fn deserialize_priority<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Priority>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).ok())
+}
+
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum AgentStatus {
@@ -298,6 +315,8 @@ pub(super) struct Message {
     pub seq: u64,
     pub kind: String,
     pub body: String,
+    #[serde(default, deserialize_with = "deserialize_suggestions")]
+    pub suggestions: Vec<String>,
     pub author_id: Option<String>,
     pub author_name: String,
     pub inserted_at: String,
@@ -319,13 +338,36 @@ pub(super) struct Message {
     pub mentioned_user_ids: Vec<String>,
 }
 
+fn deserialize_suggestions<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Vec<String>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let mut suggestions = Vec::new();
+    if let Some(values) = value.as_array() {
+        for text in values.iter().filter_map(serde_json::Value::as_str) {
+            let text = text.trim();
+            if !text.is_empty()
+                && text.len() <= 480
+                && text.chars().count() <= 120
+                && !suggestions.iter().any(|known| known == text)
+            {
+                suggestions.push(text.to_owned());
+                if suggestions.len() == 3 {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(suggestions)
+}
+
 fn deserialize_notice<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> std::result::Result<Option<String>, D::Error> {
     let value = serde_json::Value::deserialize(deserializer)?;
     Ok(value
         .as_str()
-        .filter(|kind| *kind == "handoff")
+        .filter(|kind| matches!(*kind, "handoff" | "private_handoff" | "joined"))
         .map(str::to_owned))
 }
 

@@ -201,10 +201,27 @@ source "tart-cli" "runner" {
   ssh_timeout        = "15m"
   headless           = true
   recovery_partition = var.stacked ? "keep" : "delete"
+  # The job VM's disk, grown from the base's 140 GB. A clone stores only
+  # what its job writes, so the size costs host disk only when a job fills
+  # it; the rack's disk plan (`rackFleet.machine` in
+  # values-managed-production.yaml) counts two guests at this size.
+  disk_size_gb = 200
 }
 
 build {
   sources = ["source.tart-cli.runner"]
+
+  # Claim the space `disk_size_gb` added for the APFS container. The
+  # plugin only does this after deleting a recovery partition, and the
+  # base has none left to delete, so it never does here.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "store=$(diskutil info / | awk -F': *' '/APFS Physical Store/ { print $2 }')",
+      "printf 'y\\n' | sudo diskutil repairDisk \"$${store%s*}\"",
+      "sudo diskutil apfs resizeContainer \"$store\" 0"
+    ]
+  }
 
   # Create the `runner` user. macos-tahoe-base (inherited via
   # the macos-tahoe-xcode base) ships with `admin` as its working
@@ -669,6 +686,25 @@ build {
       "set -euo pipefail",
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
+    ]
+  }
+
+  # Disk budget. Every job VM is a fresh clone of this image, so the
+  # space free here is the space a job starts with. Tuist commits to at
+  # least 45 GiB of it, and the build fails below 100 GiB so every job
+  # keeps that much room to write before the disk fills (a single job has
+  # written 66 GiB). Avail, not Size - Used: the System, Preboot, VM and
+  # Recovery volumes share the APFS container with the Data volume the
+  # job writes to. Runs last, after everything above has written to the
+  # disk.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "df -h -t apfs",
+      "avail_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 { print $4 }')",
+      "avail_gib=$((avail_kib / 1048576))",
+      "echo \"disk budget: $${avail_gib} GiB available to a job, floor 100 GiB\"",
+      "[ \"$${avail_gib}\" -ge 100 ] || { echo \"disk budget: only $${avail_gib} GiB available, below the 100 GiB floor; shrink the image or raise disk_size_gb\" >&2; exit 1; }"
     ]
   }
 }

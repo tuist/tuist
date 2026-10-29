@@ -38,7 +38,7 @@ test('capture bounds page waits and uses a temporary profile', async t => {
   const options = await fixture(t);
   await captureOne({ ...options, extra: ['--force-dark-mode'] });
   const args = JSON.parse(await readFile(join(options.output, 'desktop.json'), 'utf8'));
-  for (const flag of ['--timeout=15000', '--virtual-time-budget=5000', '--disable-dev-shm-usage', '--force-dark-mode']) {
+  for (const flag of ['--timeout=15000', '--disable-dev-shm-usage', '--force-dark-mode']) {
     assert.ok(args.includes(flag));
   }
   assert.ok(args.includes(`--user-data-dir=${join(options.temporary, 'profile-desktop')}`));
@@ -83,6 +83,12 @@ test('real Chrome captures a page with a resource that never completes', { skip:
   });
   await new Promise(accept => server.listen(0, '127.0.0.1', accept));
   t.after(() => new Promise(accept => { server.closeAllConnections(); server.close(accept); }));
-  await captureOne({ ...options, chrome, url: `http://127.0.0.1:${server.address().port}/` });
+  t.diagnostic(spawnSync(chrome, ['--version'], { encoding: 'utf8' }).stdout.trim());
+  try {
+    await captureOne({ ...options, chrome, url: `http://127.0.0.1:${server.address().port}/` });
+  } catch (error) {
+    t.diagnostic(await readFile(join(options.output, 'desktop.log'), 'utf8'));
+    throw error;
+  }
   assert.ok((await readFile(join(options.output, 'desktop.png'))).subarray(0, 8).equals(PNG_HEADER));
 });

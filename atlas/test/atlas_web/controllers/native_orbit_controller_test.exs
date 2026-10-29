@@ -72,7 +72,7 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert second["kind"] == "shared" and second["title"] == "Team"
 
     assert Map.keys(first) |> Enum.sort() ==
-             ~w(agent_status environment_id environment_name id kind latest_seq model origin owner_id participants project_id status summary title updated_at)
+             ~w(agent_status environment_id environment_name id kind latest_seq model origin owner_id participants priority project_id status summary title updated_at)
 
     assert is_nil(first["environment_id"]) and is_nil(first["environment_name"]) and is_nil(first["project_id"])
     assert first["participants"] == [%{"id" => user.id, "name" => user.name}]
@@ -117,6 +117,34 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert Repo.reload!(run).model == choice
     assert {:ok, _} = Orbit.set_status(owner, thread, "archived")
     assert api |> patch(path, %{model: choice}) |> json_response(409) == %{"error" => "archived"}
+  end
+
+  test "signal priority is applied before pagination and active filtering" do
+    user = user_fixture()
+
+    for _ <- 1..25 do
+      assert {:ok, _} = Orbit.create_shared(user, %{"title" => "Recent conversation"})
+    end
+
+    {:ok, now} = Orbit.create_shared(user, %{"title" => "Old urgent signal"})
+    {:ok, later} = Orbit.create_shared(user, %{"title" => "Recent later signal"})
+    Repo.update!(Ecto.Changeset.change(now, priority: "now", updated_at: ~U[2020-01-01 00:00:00.000000Z]))
+    Repo.update!(Ecto.Changeset.change(later, priority: "later"))
+    api = bearer(user)
+    first = api |> get("/api/native/orbit/threads") |> json_response(200)
+    assert %{"items" => [urgent, deferred | rest], "total_count" => 27, "total_pages" => 2} = first["threads"]
+    assert urgent["id"] == now.id and urgent["priority"] == "now"
+    assert deferred["id"] == later.id and deferred["priority"] == "later"
+    assert length(rest) == 23
+    second = api |> get("/api/native/orbit/threads?page=2") |> json_response(200)
+    assert length(second["threads"]["items"]) == 2
+    refute Enum.any?(second["threads"]["items"], &(&1["id"] in [now.id, later.id]))
+    assert {:ok, _} = Orbit.set_status(user, now, "archived")
+    active = api |> get("/api/native/orbit/threads") |> json_response(200)
+    assert hd(active["threads"]["items"])["id"] == later.id
+    archived = api |> get("/api/native/orbit/threads?status=archived") |> json_response(200)
+    assert [%{"id" => id}] = archived["threads"]["items"]
+    assert id == now.id
   end
 
   test "creates distinct private conversations, replays creation, and keeps histories owner-only" do
@@ -226,6 +254,37 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
 
     assert %{"error" => "validation_failed"} =
              api |> post("/api/native/orbit/threads", %{title: " "}) |> json_response(422)
+  end
+
+  test "authorized history carries each reply's evolving follow-ups, never client-authored suggestions" do
+    orbit_profile_fixture()
+    user = user_fixture()
+    api = bearer(user)
+    {:ok, thread, _} = Orbit.ensure_private(user)
+    path = "/api/native/orbit/threads/#{thread.id}/messages"
+
+    for {prompt, reply, suggestions} <- [
+          {"What needs attention?", "Two tasks are overdue.", ["Show the overdue tasks", "Compare priorities"]},
+          {"Show the overdue tasks", "The release review is the priority.", ["Summarize the release risks"]}
+        ] do
+      human =
+        api
+        |> post(path, %{body: prompt, client_id: Ecto.UUID.generate(), suggestions: ["Untrusted metadata"]})
+        |> json_response(201)
+
+      assert human["message"]["suggestions"] == []
+      run = Orbit.active_run(thread)
+      Repo.update!(Ecto.Changeset.change(run, status: "running"))
+      response = JSON.encode!(%{reply: reply, suggestions: suggestions})
+      assert :ok = Orbit.Runs.complete(run.id, run.resume_count, {:ok, response})
+
+      history = api |> get(path) |> json_response(200)
+      latest = List.last(history["messages"]["items"])
+      assert latest["kind"] == "agent" and latest["body"] == reply
+      assert latest["suggestions"] == suggestions
+    end
+
+    assert bearer(user_fixture()) |> get(path) |> json_response(404) == %{"error" => "not_found"}
   end
 
   test "posts idempotently and returns history newest page first in chronological order" do
@@ -384,9 +443,9 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert created["message"]["attachments"] == [attachment]
     assert member |> bearer() |> post("#{path}/messages", send_params) |> json_response(200) == created
 
-    assert owner |> bearer() |> get("#{path}/messages") |> json_response(200) |> get_in(["messages", "items"]) == [
-             created["message"]
-           ]
+    history = owner |> bearer() |> get("#{path}/messages") |> json_response(200) |> get_in(["messages", "items"])
+    assert Enum.filter(history, &(&1["kind"] == "human")) == [created["message"]]
+    refute Enum.any?(history, &(&1["notice_kind"] == "private_handoff"))
 
     download = owner |> bearer() |> get(attachment_path)
     assert get_resp_header(download, "cache-control") == ["no-store"]
@@ -499,14 +558,21 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert message["notice_kind"] == nil
     assert owner |> bearer() |> post(path <> "/messages", params) |> json_response(200) == %{"message" => message}
 
-    assert %{"thread" => shared, "messages" => %{"items" => [_, notice]}} =
+    assert %{"thread" => shared, "messages" => %{"items" => [_, joined, notice]}} =
              newcomer |> bearer() |> get(path <> "/messages") |> json_response(200)
 
     assert shared["kind"] == "shared"
     assert shared["title"] == params.body
-    assert notice["kind"] == "system" and notice["notice_kind"] == "handoff"
+    assert joined["notice_kind"] == "joined"
+    assert joined["body"] =~ "joins the conversation"
+    assert notice["kind"] == "system" and notice["notice_kind"] == "private_handoff"
     assert notice["mentioned_user_ids"] == []
     assert notice["body"] =~ "Initial request (excerpt)"
+
+    assert %{"messages" => %{"items" => owner_items, "total_count" => 2}} =
+             owner |> bearer() |> get(path <> "/messages") |> json_response(200)
+
+    refute Enum.any?(owner_items, &(&1["notice_kind"] == "private_handoff"))
     assert stranger |> bearer() |> get(path <> "/messages") |> json_response(404)
 
     assert %{"people" => [%{"id" => owner_id}]} = newcomer |> bearer() |> get(path <> "/people") |> json_response(200)

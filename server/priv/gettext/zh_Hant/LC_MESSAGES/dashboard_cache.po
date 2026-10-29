@@ -49,12 +49,12 @@ msgstr "%{run_duration} 秒"
 #: lib/tuist_web/live/bundle_live.html.heex:384
 #, elixir-autogen, elixir-format
 msgid "%{savings} %"
-msgstr "節省 %{savings} %"
+msgstr "%{savings} %"
 
 #: lib/tuist_web/live/bundle_live.ex:905
 #, elixir-autogen, elixir-format
 msgid "%{space_usage} %"
-msgstr "空間使用率 %{space_usage} %"
+msgstr "%{space_usage} %"
 
 #: lib/tuist_web/live/bundles_live.html.heex:177
 #, elixir-autogen, elixir-format
@@ -138,7 +138,7 @@ msgstr "平均命中率"
 #: lib/tuist_web/live/bundle_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Binaries"
-msgstr "二進位檔案"
+msgstr "二進位檔"
 
 #: lib/tuist_web/live/bundle_live.ex:1043
 #: lib/tuist_web/live/bundle_live.html.heex:569
@@ -166,7 +166,7 @@ msgstr "分支："
 #: lib/tuist_web/live/bundle_live.ex:63
 #, elixir-autogen, elixir-format
 msgid "Bundle"
-msgstr "Bundle"
+msgstr "套件"
 
 #: lib/tuist_web/live/bundle_live.html.heex:70
 #, elixir-autogen, elixir-format
@@ -176,7 +176,7 @@ msgstr "Bundle ID"
 #: lib/tuist_web/live/bundles_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Bundle Size"
-msgstr "Bundle 大小"
+msgstr "套件大小"
 
 #: lib/tuist_web/live/bundle_live.html.heex:195
 #, elixir-autogen, elixir-format
@@ -470,7 +470,7 @@ msgstr "本地化"
 #: lib/tuist_web/live/bundle_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Localizations"
-msgstr "本地化項目"
+msgstr "本地化"
 
 #: lib/tuist_web/components/module_invalidations_table.ex:33
 #: lib/tuist_web/live/module_cache_live.html.heex:253
@@ -479,7 +479,7 @@ msgstr "本地化項目"
 #: lib/tuist_web/live/modules_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Misses"
-msgstr "未命中次數"
+msgstr "未命中"
 
 #: lib/tuist_web/live/bundle_live.html.heex:185
 #: lib/tuist_web/live/bundle_live.html.heex:627
@@ -529,7 +529,7 @@ msgstr "找不到檔案"
 #: lib/tuist_web/live/bundle_live.html.heex:345
 #, elixir-autogen, elixir-format
 msgid "No insights yet"
-msgstr "尚無分析資料"
+msgstr "尚無深入分析"
 
 #: lib/tuist_web/live/bundle_live.html.heex:701
 #, elixir-autogen, elixir-format
@@ -577,7 +577,7 @@ msgstr "平台"
 #: lib/tuist_web/live/bundle_live.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Potential savings"
-msgstr "潛在節省"
+msgstr "潛在節省量"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:11
 #: lib/tuist_web/live/cache_runs_live.html.heex:34
@@ -623,12 +623,12 @@ msgstr "代表使用者透過網路下載的壓縮應用程式套件大小。"
 #: lib/tuist_web/live/bundle_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
-msgstr "代表使用者安裝的未壓縮 App 套件大小。此數字會顯示在 App Store 中。"
+msgstr "代表使用者安裝的未壓縮應用程式套件大小。這是 App Store 中顯示的數值。"
 
 #: lib/tuist_web/live/bundles_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to analyze a bundle."
-msgstr "執行以下指令以分析套件。"
+msgstr "執行以下指令來分析套件。"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:519
 #: lib/tuist_web/live/xcode_cache_live.ex:424
@@ -678,18 +678,18 @@ msgstr "狀態"
 #: lib/tuist_web/live/bundles_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
-msgstr "套件下載大小。這是使用者從 App Store 下載的壓縮後應用程式大小。"
+msgstr "Bundle 下載大小。這是使用者從 App Store 下載的壓縮後應用程式大小。"
 
 #: lib/tuist_web/live/bundles_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
-msgstr "套件安裝大小。這是未壓縮的應用程式大小，代表應用程式在裝置上佔用的空間。"
+msgstr "Bundle 安裝大小。這是解壓縮後的應用程式大小，代表應用程式在裝置上佔用的空間。"
 
 #: lib/tuist_web/live/bundle_live.html.heex:609
 #: lib/tuist_web/live/bundle_live.html.heex:702
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "請嘗試變更搜尋字詞"
+msgstr "請嘗試變更您的搜尋字詞"
 
 #: lib/tuist_web/live/bundle_live.ex:1039
 #: lib/tuist_web/live/bundle_live.html.heex:53
@@ -748,7 +748,7 @@ msgstr "Xcode 快取"
 #: lib/tuist_web/live/bundle_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "compared to last bundle"
-msgstr "與上一個 bundle 相比"
+msgstr "與上一個套件相比"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:496
 #: lib/tuist_web/live/xcode_cache_live.html.heex:633
@@ -892,14 +892,14 @@ msgstr "過去 7 天"
 #: lib/tuist_web/live/xcode_cache_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "自上一週期以來"
+msgstr "自上一週期起"
 
 #: lib/tuist_web/live/module_cache_live.ex:415
 #: lib/tuist_web/live/toolchain_cache_live.ex:233
 #: lib/tuist_web/live/xcode_cache_live.ex:336
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "自昨天以來"
+msgstr "自昨天起"
 
 #: lib/tuist_web/live/cache_runs_live.ex:81
 #, elixir-autogen, elixir-format
@@ -963,17 +963,17 @@ msgstr "環境"
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "已達到 10,000 筆條目上限，僅包含截至 %{date} 的資料。請嘗試篩選以縮小資料集範圍。"
+msgstr "已達到 10,000 筆資料的限制，僅包含截至 %{date} 的資料。請嘗試篩選以縮小資料集範圍。"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data."
-msgstr "已達到 10,000 筆條目上限，僅包含截至 %{date} 的資料。請嘗試縮短日期範圍以查看更近期的資料。"
+msgstr "已達到 10,000 筆資料的限制，僅包含截至 %{date} 的資料。請嘗試縮短日期範圍以查看更近期的資料。"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Average latency of read (download) and write (upload) operations against remote cache storage during the given period."
-msgstr "給定期間內對遠端快取儲存進行讀取（下載）和寫入（上傳）操作的平均延遲。"
+msgstr "指定期間內對遠端快取儲存空間進行讀取（下載）和寫入（上傳）操作的平均延遲。"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:261
 #: lib/tuist_web/live/xcode_cache_live.ex:261
@@ -1007,7 +1007,7 @@ msgstr "快取傳輸代表在指定期間內，從遠端儲存空間下載及上
 #: lib/tuist_web/live/xcode_cache_live.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Combined download and upload throughput against remote cache storage during the given period, derived from bytes transferred over time."
-msgstr "在指定期間內，針對遠端快取儲存空間的合併下載與上傳吞吐量，根據隨時間推移傳輸的位元組數計算得出。"
+msgstr "在指定期間內，針對遠端快取儲存空間的合併下載與上傳吞吐量，根據隨時間傳輸的位元組數計算得出。"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:265
 #: lib/tuist_web/live/xcode_cache_live.ex:290
@@ -1093,7 +1093,7 @@ msgstr "冷啟動"
 #: lib/tuist_web/live/modules_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "Cold misses"
-msgstr "冷啟動未命中"
+msgstr "冷快取未命中"
 
 #: lib/tuist_web/components/module_invalidations_table.ex:49
 #: lib/tuist_web/live/module_cache_module_live.html.heex:151
@@ -1101,12 +1101,12 @@ msgstr "冷啟動未命中"
 #: lib/tuist_web/live/modules_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "Dependents"
-msgstr "依賴模組"
+msgstr "依賴項"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "How many modules this one invalidates downstream when it changes."
-msgstr "當此模組變更時，會影響下游多少個模組。"
+msgstr "當此模組變更時，會使下游多少個模組失效。"
 
 #: lib/tuist_web/components/module_invalidations_table.ex:28
 #, elixir-autogen, elixir-format
@@ -1128,12 +1128,12 @@ msgstr "模組"
 #: lib/tuist_web/live/module_cache_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Most dependents"
-msgstr "最多依賴者"
+msgstr "最多依賴項"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:582
 #, elixir-autogen, elixir-format
 msgid "Most missed"
-msgstr "最常遺漏"
+msgstr "最多遺漏"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:201
 #, elixir-autogen, elixir-format
@@ -1143,7 +1143,7 @@ msgstr "不適用"
 #: lib/tuist_web/live/module_cache_live.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "Needs CLI graph edges"
-msgstr "需要 CLI 圖形邊"
+msgstr "需要 CLI 圖表邊"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:649
 #: lib/tuist_web/live/modules_live.html.heex:393
@@ -1169,12 +1169,12 @@ msgstr "搜尋模組"
 #: lib/tuist_web/live/module_cache_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Share of invalidations caused only by an upstream dependency changing rather than the module's own code (upstream ÷ changed + upstream). This is the fraction better module boundaries can remove."
-msgstr "僅因上游相依性變更（而非模組自身程式碼）所導致的失效比例（上游 ÷ 變更 + 上游）。這代表更清晰的模組邊界所能消除的比例。"
+msgstr "僅因上游依賴變更而非模組自身程式碼導致的失效比例（上游 ÷ 已變更 + 上游）。這代表更清晰的模組邊界所能消除的比例。"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Share of this module's builds that were served from cache instead of rebuilt."
-msgstr "此模組從快取提供而非重新建構的建置比例。"
+msgstr "此模組從快取提供而非重新建構的建構比例。"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:585
 #, elixir-autogen, elixir-format
@@ -1210,12 +1210,12 @@ msgstr "查看所有模組"
 #: lib/tuist_web/live/module_cache_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "The module that invalidates the most other modules when it changes. It is the highest-impact target for better boundaries."
-msgstr "變更時會使最多其他模組失效的模組。它是優化邊界時影響最大的目標。"
+msgstr "變更時會使最多其他模組失效的模組。這是對建立更好邊界影響最大的目標。"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr "建構"
+msgstr "建置"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:521
 #: lib/tuist_web/live/module_cache_module_live.html.heex:566
@@ -1232,12 +1232,12 @@ msgstr "已快取"
 #: lib/tuist_web/live/module_cache_module_live.html.heex:501
 #, elixir-autogen, elixir-format
 msgid "No builds match these filters"
-msgstr "沒有符合這些篩選條件的建構"
+msgstr "沒有符合這些篩選條件的建置"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:441
 #, elixir-autogen, elixir-format
 msgid "Search commit sha"
-msgstr "搜尋提交雜湊值"
+msgstr "搜尋提交 SHA"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:524
 #, elixir-autogen, elixir-format
@@ -1279,37 +1279,37 @@ msgstr "全部"
 #: lib/tuist_web/live/modules_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Changed misses"
-msgstr "未命中次數變更"
+msgstr "快取未命中變更"
 
 #: lib/tuist_web/live/modules_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Module builds served from cache instead of being rebuilt."
-msgstr "模組建構從快取提供，而非重新建構。"
+msgstr "模組建置從快取提供，而非重新建置。"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Builds where this module was served from the cache."
-msgstr "此模組從快取提供的建構。"
+msgstr "此模組從快取提供的建置。"
 
 #: lib/tuist_web/live/bundle_live.html.heex:471
 #, elixir-autogen, elixir-format
 msgid "and %{count} more"
-msgstr "以及其他 %{count} 項"
+msgstr "以及另外 %{count} 項"
 
 #: lib/tuist_web/helpers/module_cache.ex:59
 #, elixir-autogen, elixir-format
 msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
-msgstr "此金鑰先前在同一快取端點有遠端命中記錄，但現在未命中。快取的構件很可能已被淘汰。"
+msgstr "此金鑰先前在同一個快取端點有遠端命中記錄，但現在未命中。快取的構件很可能已被淘汰。"
 
 #: lib/tuist_web/helpers/module_cache.ex:38
 #, elixir-autogen, elixir-format
 msgid "The module's reported inputs changed, such as its files, build settings, configuration, or compiler version."
-msgstr "模組回報的輸入內容已變更，例如其檔案、建構設定、組態或編譯器版本。"
+msgstr "模組回報的輸入內容已變更，例如其檔案、建置設定、組態或編譯器版本。"
 
 #: lib/tuist_web/helpers/module_cache.ex:52
 #, elixir-autogen, elixir-format
 msgid "No earlier comparison is available, or the reported inputs and remote-hit history do not explain this miss."
-msgstr "沒有可用的早期比較資料，或者回報的輸入內容與遠端命中歷史無法解釋此次未命中。"
+msgstr "沒有可用的早期比較資料，或者回報的輸入內容與遠端命中記錄無法解釋此次未命中。"
 
 #: lib/tuist_web/helpers/module_cache.ex:66
 #, elixir-autogen, elixir-format
@@ -1324,7 +1324,7 @@ msgstr "模組自身回報的輸入保持不變，但相依性或外部套件雜
 #: lib/tuist_web/helpers/module_cache.ex:70
 #, elixir-autogen, elixir-format
 msgid "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Evicted: a previously served key now misses."
-msgstr "Changed：模組輸入已變更。Upstream：相依性已變更。Cold：證據不足。Evicted：先前提供的金鑰現在未命中。"
+msgstr "已變更：模組輸入已變更。上游：相依性已變更。冷啟動：證據不足。已驅逐：先前提供過的鍵現在未命中。"
 
 #: lib/tuist_web/live/module_cache_module_live.ex:327
 #: lib/tuist_web/live/module_cache_module_live.ex:351
@@ -1334,18 +1334,18 @@ msgstr "Changed：模組輸入已變更。Upstream：相依性已變更。Cold�
 #: lib/tuist_web/live/modules_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Evicted"
-msgstr "已逐出"
+msgstr "已驅逐"
 
 #: lib/tuist_web/live/module_cache_module_live.ex:339
 #: lib/tuist_web/live/modules_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "Evicted misses"
-msgstr "已逐出未命中"
+msgstr "已驅逐未命中"
 
 #: lib/tuist_web/live/modules_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
-msgstr "無法使用"
+msgstr "不可用"
 
 #: lib/tuist_web/live/mix_build_live.ex:340
 #, elixir-autogen, elixir-format
@@ -1366,14 +1366,14 @@ msgstr "遠端命中"
 #, elixir-autogen, elixir-format
 msgid "Cache results recorded for %{measured} of %{total} recent build. Builds without recorded cache results are excluded from the hit rate."
 msgid_plural "Cache results recorded for %{measured} of %{total} recent builds. Builds without recorded cache results are excluded from the hit rate."
-msgstr[0] "已記錄 %{measured} 個（共 %{total} 個）近期建置的快取結果。未記錄快取結果的建置不包含在命中率計算中。"
+msgstr[0] "已記錄 %{measured} 個（共 %{total} 個）近期建置的快取結果。未記錄快取結果的建置不會納入命中率計算。"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Average and percentiles of individual build cache hit rates. Hits reuse cached outputs; misses include lookup misses, cold compilations, and verification rebuilds. Prefetches are excluded."
-msgstr "個別建置快取命中率的平均值與百分位數。命中代表重複使用已快取的輸出；未命中包含查找失敗、冷編譯以及驗證重建。預取操作不包含在內。"
+msgstr "個別建置快取命中率的平均值與百分位數。命中表示重複使用已快取的輸出；未命中包括查找失敗、冷編譯以及驗證重建。預取操作不包含在內。"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:182
 #, elixir-autogen, elixir-format
 msgid "Experimental Cargo cache measurements. Transfer totals use build-wide byte counters. Latency measures recorded per-key index operations, not compilation or artifact transfer time. Throughput uses successful measured CAS transfers only; failed and already-present operations are excluded. Inspection records may be partial."
-msgstr "實驗性的 Cargo 快取測量數據。傳輸總量使用建置層級的位元組計數器。延遲測量的是每個索引鍵的操作時間，而非編譯或構件傳輸時間。吞吐量僅計算成功的 CAS 傳輸；失敗及已存在的操作則排除在外。檢查記錄可能不完整。"
+msgstr "實驗性的 Cargo 快取測量數據。傳輸總量使用建置層級的位元組計數器。延遲測量的是每個索引鍵的操作，而非編譯或構件傳輸時間。吞吐量僅包含成功的 CAS 傳輸測量；失敗和已存在的操作則排除在外。檢查記錄可能不完整。"

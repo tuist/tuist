@@ -109,7 +109,7 @@ defmodule AtlasWeb.NativeOrbitController do
   def messages(conn, %{"id" => id} = params) do
     with {:ok, page} <- page(params),
          {:ok, thread} <- Orbit.fetch(conn.assigns.current_user, id) do
-      {items, meta} = Orbit.list_messages(thread, page)
+      {items, meta} = Orbit.list_messages(thread, page, conn.assigns.current_user)
 
       json(conn, %{
         thread: thread(thread),
@@ -225,6 +225,7 @@ defmodule AtlasWeb.NativeOrbitController do
       status: thread.status,
       summary: thread.summary || "",
       origin: thread.origin,
+      priority: thread.priority,
       owner_id: thread.owner_id,
       model: thread.model,
       environment_id: thread.environment_id,
@@ -250,6 +251,7 @@ defmodule AtlasWeb.NativeOrbitController do
       id: message.id,
       kind: message.kind,
       body: message.body,
+      suggestions: message.suggestions,
       notice_kind: message.notice_kind,
       mentioned_user_ids: message.mentioned_user_ids,
       author_id: if(message.kind == "human", do: message.author_id),

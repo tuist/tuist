@@ -30,7 +30,8 @@ export async function captureOne({ output, chrome, temporary, name, size, extra 
       '--disable-dev-shm-usage', '--disable-background-networking',
       '--ignore-certificate-errors', '--hide-scrollbars',
       '--no-first-run', '--no-default-browser-check',
-      '--timeout=15000', '--virtual-time-budget=5000',
+      // Virtual time pauses on pending fetches; use the wall-clock page timeout.
+      '--timeout=15000',
       `--user-data-dir=${join(temporary, `profile-${name}`)}`,
       `--window-size=${size}`, `--screenshot=${screenshot}`, ...extra, url,
     ], { stdio: ['ignore', diagnostics, diagnostics], detached: true });

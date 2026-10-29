@@ -12,6 +12,7 @@ defmodule Atlas.Orbit.RunsTest do
   alias Atlas.Agents.Sessions.Session
   alias Atlas.Audit.Activity
   alias Atlas.Authorization.Roles
+  alias Atlas.Automations.Executor
   alias Atlas.Documents.TextExtractor
   alias Atlas.Inference.ModelBinding
   alias Atlas.LLMs.Connections
@@ -209,6 +210,75 @@ defmodule Atlas.Orbit.RunsTest do
     refute_received :unexpected_provider_network_request
   end
 
+  test "a signal policy starts an investigation through the real model loop without private profile context" do
+    actor = user_fixture(["automation:write"])
+    {:ok, _} = Users.update_my_profile(actor, "Private routing marker")
+
+    {_, revision} =
+      Atlas.AutomationsFixtures.workflow_fixture(actor, [
+        %{
+          "id" => "triage",
+          "behavior" => "signals.decide@1",
+          "inputs" => %{
+            "signal_id" => %{"$ref" => "input.signal_id"},
+            "action" => "opened",
+            "priority" => "now",
+            "reason" => "Investigate lead"
+          }
+        }
+      ])
+
+    {:ok, source} =
+      Atlas.Signals.create_source(actor, %{
+        "name" => "Leads",
+        "revision_id" => revision.id,
+        "reader_ids" => [],
+        "required_scopes" => []
+      })
+
+    {:ok, _} = Atlas.Signals.set_enabled(actor, source.id, true)
+
+    {:ok, signal} =
+      Atlas.Signals.ingest(actor, source.id, %{
+        "external_id" => "lead",
+        "correlation_key" => "prospect",
+        "type" => "lead.new",
+        "schema_version" => 1,
+        "occurred_at" => "2026-10-28T12:00:00Z",
+        "title" => "New lead",
+        "summary" => "Prospect needs setup documentation"
+      })
+
+    assert {:ok, _} = Executor.advance(signal.execution_id)
+    assert {:ok, _} = Executor.advance(signal.execution_id)
+    {:ok, signal} = Atlas.Signals.get(actor, signal.id)
+    {:ok, thread} = Orbit.fetch(actor, signal.thread_id)
+    run = Orbit.active_run(thread)
+    test_pid = self()
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      send(test_pid, {:investigation, body})
+
+      Req.Test.json(
+        conn,
+        completion(%{
+          "role" => "assistant",
+          "content" =>
+            "Initial finding: the prospect needs setup documentation. Suggested next action: confirm their platform."
+        })
+      )
+    end
+
+    assert :ok = Runs.execute(run.id, client_opts: client_opts(plug))
+    assert_receive {:investigation, body}
+    assert body =~ "Investigate the monitored signal"
+    assert body =~ "Prospect needs setup documentation"
+    refute body =~ "Private routing marker"
+    assert Repo.get!(Run, run.id).status == "succeeded"
+    assert Repo.get_by!(Message, run_id: run.id, kind: "agent").body =~ "Suggested next action"
+  end
+
   test "runs a read-only tool, ratchets its scopes, and posts the reply" do
     owner = user_fixture(["accounts:read"])
     member = user_fixture(["accounts:read"])
@@ -223,7 +293,13 @@ defmodule Atlas.Orbit.RunsTest do
       send(test_pid, {:tools, Enum.map(request["tools"] || [], &get_in(&1, ["function", "name"]))})
 
       if Enum.any?(request["messages"], &(&1["role"] == "tool")) do
-        Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "There is one account."}))
+        reply =
+          JSON.encode!(%{
+            reply: "There is one account.",
+            suggestions: ["Show its open tasks", "Summarize its recent activity"]
+          })
+
+        Req.Test.json(conn, completion(%{"role" => "assistant", "content" => reply}))
       else
         Req.Test.json(conn, tool_call("list_accounts", %{"query" => "Example"}))
       end
@@ -243,7 +319,12 @@ defmodule Atlas.Orbit.RunsTest do
     assert tool.tool_name == "list_accounts" and tool.tool_status == "succeeded"
     assert tool.tool_input =~ "Example"
     assert tool.tool_output =~ "Example Org"
-    assert %Message{body: "There is one account."} = Enum.find(messages, &(&1.kind == "agent"))
+
+    assert %Message{
+             body: "There is one account.",
+             suggestions: ["Show its open tasks", "Summarize its recent activity"]
+           } =
+             Enum.find(messages, &(&1.kind == "agent"))
 
     # Audit and session telemetry never carry thread content.
     activity = Repo.one!(from a in Activity, where: a.action == "mcp.tool_called" and a.target_id == "list_accounts")

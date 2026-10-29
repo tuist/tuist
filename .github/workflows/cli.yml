@@ -238,6 +238,8 @@ jobs:
           key: linux-cli-swift-6.4.1-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-swift-6.4.1-${{ hashFiles('Package.swift') }}-
+      - name: Install loopback TLS test dependency
+        run: apt-get update -qq && apt-get install -y --no-install-recommends openssl
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests
