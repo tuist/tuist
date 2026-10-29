@@ -11,6 +11,8 @@ struct AtlasAutomationView: View {
     @State private var loading = false
     @State private var pending: [String: Any]?
     @State private var resumed: String?
+    @State private var loadedScope: String?
+    @State private var loadRevision = UUID()
 
     var body: some View {
         List {
@@ -26,7 +28,6 @@ struct AtlasAutomationView: View {
                 }
             }
             if let error { Text(error).foregroundStyle(.red) }
-            if loading { ProgressView() }
             if items.isEmpty && !loading {
                 ContentUnavailableView("Nothing here yet", systemImage: "bolt.horizontal.circle",
                                        description: Text("Pull to refresh or choose another section."))
@@ -53,6 +54,7 @@ struct AtlasAutomationView: View {
                 }
             }
         }
+        .overlay { if loading && items.isEmpty { ProgressView("Loading Automation") } }
         .navigationTitle("Automation")
         .refreshable { await load() }
         .task(id: "\(destination):\(page):\(phase)") {
@@ -78,16 +80,36 @@ struct AtlasAutomationView: View {
 
     private func load() async {
         let scope = "\(destination):\(page)"
+        let revision = UUID()
+        loadRevision = revision
         loading = true
-        defer { loading = false }
+        defer { if loadRevision == revision { loading = false } }
+        let action: [String: Any] = ["operation": "native", "action": destination, "page": page]
+        if loadedScope != scope {
+            items = []
+            loadedScope = scope
+            if let data = await authentication.cachedRead(action),
+               let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               loadRevision == revision, scope == "\(destination):\(page)", !Task.isCancelled {
+                accept(saved)
+            }
+        }
         do {
             let response = try await authentication.native(["action": destination, "page": page])
-            guard scope == "\(destination):\(page)" else { return }
-            items = (response["items"] as? [[String: Any]] ?? []).map { AtlasNativeItem(value: $0) }
-            pages = (response["page"] as? [String: Any])?["total"] as? Int ?? 1
+            guard loadRevision == revision, scope == "\(destination):\(page)", !Task.isCancelled else { return }
+            accept(response)
             pending = try authentication.pendingLaunch()
             error = nil
-        } catch is CancellationError { } catch { self.error = error.localizedDescription }
+        } catch is CancellationError { } catch {
+            guard loadRevision == revision, scope == "\(destination):\(page)", !Task.isCancelled else { return }
+            if AtlasReadCache.accessDenied(error) { items = [] }
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func accept(_ response: [String: Any]) {
+        items = (response["items"] as? [[String: Any]] ?? []).map { AtlasNativeItem(value: $0) }
+        pages = (response["page"] as? [String: Any])?["total"] as? Int ?? 1
     }
 
     private func resume() async {

@@ -15,6 +15,7 @@ struct AtlasNativeProfile: Decodable {
     let user: User
     let serverVersion: String
     let pushNotifications: PushNotifications?
+    var cached: Bool?
 }
 
 extension AtlasNativeProfile.PushNotifications {

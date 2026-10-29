@@ -666,6 +666,46 @@ final class AtlasOrbitUITests: XCTestCase {
         }
     }
 
+    @MainActor func testEmptyConversationMentionsAndKeyboardDismissalPreserveDraft() throws {
+        for arguments in [[], ["--dark", "--large-text"]] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace"] + arguments
+            app.launch()
+            defer { app.terminate() }
+            XCUIDevice.shared.orientation = .portrait
+            XCTAssertTrue(app.buttons["orbit-create"].waitForExistence(timeout: 10))
+            app.buttons["orbit-create"].tap()
+            let composer = app.textFields["thread-composer"]
+            XCTAssertTrue(composer.waitForExistence(timeout: 5))
+            composer.tap()
+            composer.typeText("@")
+            let pip = app.buttons["thread-mention-pip"]
+            XCTAssertTrue(pip.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(pip.frame.height, 44)
+            XCTAssertLessThanOrEqual(pip.frame.maxY, composer.frame.minY)
+            capture(app, "ios-orbit-grouped-mentions-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            pip.tap()
+            XCTAssertTrue((composer.value as? String)?.contains("@Pip ") == true)
+            XCTAssertFalse(pip.exists)
+            composer.typeText("@Al")
+            let person = app.buttons["thread-mention-01922cc0-0000-7000-8000-000000000099"]
+            XCTAssertTrue(person.waitForExistence(timeout: 5))
+            person.tap()
+            let disclosure = app.staticTexts["thread-mention-disclosure"]
+            XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
+            XCTAssertLessThanOrEqual(disclosure.frame.maxY, composer.frame.minY)
+            XCTAssertLessThanOrEqual(composer.frame.maxY, app.keyboards.firstMatch.frame.minY)
+            let draft = composer.value as? String
+            capture(app, "ios-orbit-empty-share-disclosure-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            let hide = app.buttons["thread-hide-keyboard"]
+            XCTAssertTrue(hide.waitForExistence(timeout: 5))
+            hide.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+            XCTAssertEqual(composer.value as? String, draft)
+            XCTAssertTrue(app.buttons["thread-send"].isHittable)
+        }
+    }
+
     @MainActor func testMentionSharesOnlyAfterConfirmationAndShowsJoinWithoutPrivateRecap() throws {
         for arguments in [[], ["--dark", "--large-text"]] {
             let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")

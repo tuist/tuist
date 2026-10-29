@@ -65,7 +65,7 @@ private struct AtlasConnectionDetailView: View {
                         Button(connection.connected ? "Reconnect \(connection.name)" : "Connect \(connection.name)") {
                             Task { await model.connect(provider) }
                         }
-                        .disabled(model.busy)
+                        .disabled(model.busy || model.cached)
                     } else {
                         Text("\(connection.name) connections aren’t available on this Atlas server.")
                     }
@@ -79,7 +79,7 @@ private struct AtlasConnectionDetailView: View {
                 if connection.connected {
                     Section {
                         Button("Disconnect \(connection.name)", role: .destructive) { confirmingDisconnect = true }
-                            .disabled(model.busy)
+                            .disabled(model.busy || model.cached)
                     }
                 }
             }
@@ -94,6 +94,7 @@ private struct AtlasConnectionDetailView: View {
         #endif
         .toolbar { if model.busy { ProgressView().accessibilityLabel("Updating connection") } }
         .modifier(AtlasThemedContent())
+        .refreshable { await model.load() }
         .protectsAtlasNavigation(model.busy)
         .confirmationDialog("Disconnect \(connection?.name ?? "account")?", isPresented: $confirmingDisconnect,
                             titleVisibility: .visible) {

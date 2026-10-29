@@ -59,28 +59,38 @@ without contacting providers or changing accounts.
 
 ## Durable read cache
 
-Orbit's first inbox page uses stale-while-revalidate: Rust reads a bounded SQLite
-projection before OAuth renewal or HTTP, then replaces it after a protected read.
-Returning to the tab retains the in-memory model. Startup and background refresh
-show no cache banner. A failed refresh keeps the saved rows and shows a compact
-“Couldn’t refresh” with Retry, cleared on recovery. Thread history, attachments,
-drafts and live activity are not persisted; opening a saved row still requires a
-protected server read.
-Other feature lists are not yet backed by this cache.
+On iOS and macOS, Orbit, business lists/details, Profile, Time off, AI-account and
+connection metadata, and Automation lists/details use stale-while-revalidate:
+Rust reads a bounded SQLite projection before OAuth renewal or HTTP, then replaces
+it after a protected read. Returning retains the in-memory model; background refresh
+does not blank loaded content. Transient failures retain saved data with Retry.
+Orbit also saves up to 25 non-tool messages from the newest history page, excluding
+tool evidence/components. Saved history is read-only until protected revalidation.
+Automation saves only names, descriptions, versions, status, timing and step metadata,
+never schemas, reviewed revisions, approval payloads/digests, inputs or results.
+Credentials, pending grants, drafts, attachment bytes and live presence/activity are
+never cached. Android currently hydrates only its inbox; these additional adapters
+are shared by the Apple apps, not yet wired into Android's feature models.
 
 `auth/src/cache.rs` uses bundled SQLite through `rusqlite` on every platform. The
 adapters supply only a private, backup-excluded directory: Application Support's
 `Atlas/ReadCache` on iOS (device file protection), or Android's `noBackupFilesDir/reads`.
 The database is `reads.sqlite3`. Credentials remain in the existing secure stores,
 never SQLite. This is sandbox/file-protected storage, not application-level encrypted
-SQLite. Snapshots retain titles, summaries and display metadata, but strip participant
-identities, ownership, mutation capabilities and live agent status. Cached rows
-cannot authorize mutations.
+SQLite. Inbox/history snapshots strip participants, ownership and live agent status;
+business snapshots strip mutation permissions and editor options. Other typed feature
+projections retain their authorized display fields, including Profile identity and
+description, personal holiday dates, business records/related details and finance
+aggregates, provider account names and connection scopes. Cached data cannot authorize
+mutations; metadata-dependent actions require fresh revalidation.
 
 Keys bind the canonical server origin, a random credential-lifetime namespace,
-projection version and kind/status filters. Token rotation retains the namespace;
+projection version, resource/record, pagination and search/filter criteria. Token rotation retains the namespace;
 a new login replaces it. Logout retires it and deletes its rows; generation checks
-reject late writes after mutations, revocation or logout. Reads expire after seven
+reject late writes after mutations, revocation or logout. Apple mutations invalidate
+before and after the request, including uncertain outcomes. Authoritative access denial
+clears saved projections; current-session authentication rejection returns to sign-in.
+Reads expire after seven
 days, with pruning on open, at most 32 snapshots and 1 MiB per snapshot. The default
 4 KiB SQLite pages are capped at 4096 pages. Storage failures disable caching without
 blocking online use. Remote revocation cannot erase an offline device's already
