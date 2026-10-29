@@ -21,7 +21,9 @@ class LatencyProbe
     'thin_noquota' => [true, true, false, true, true],
     'thin_quota' => [true, true, true, true, true],
     'thin_legacy_crypto' => [true, true, true, false, true],
-    'thin_legacy_format' => [true, true, true, true, false]
+    'thin_legacy_format' => [true, true, true, true, false],
+    'thin_log4k' => [true, true, true, true, true],
+    'thin_flat_geometry' => [true, true, true, true, true]
   }.freeze
 
   def initialize
@@ -70,7 +72,7 @@ class LatencyProbe
     save
   end
 
-  def prepare(config)
+  def prepare(config, name:)
     thin, encrypted, quota, submit, format = config
     @lv = "#{@vg}/sample"
     if thin
@@ -86,7 +88,11 @@ class LatencyProbe
       run('cryptsetup', 'open', '--allow-discards', *(submit ? ['--perf-submit_from_crypt_cpus'] : []), '--key-file=-', device, @mapper, input: @key)
       device = "/dev/mapper/#{@mapper}"
     end
-    run('mkfs.xfs', '-q', '-K', '-f', *(format ? ['-m', 'reflink=0', '-l', 'size=64m'] : []), device)
+    # Matching command arguments does not match effective geometry: mkfs also
+    # reads the block device's alignment hints. Keep that as an explicit factor.
+    format_args = format ? ['-m', 'reflink=0', '-l', name == 'thin_log4k' ? 'size=64m,su=4k' : 'size=64m'] : []
+    format_args += ['-d', 'noalign,agcount=4'] if name == 'thin_flat_geometry'
+    run('mkfs.xfs', '-q', '-K', '-f', *format_args, device)
     run('mount', '-t', 'xfs', '-o', "nodev,nosuid,noatime#{quota ? ',prjquota' : ''}", device, @mount); @mounted = true
     if quota
       run('xfs_quota', '-x', '-c', "project -s -p #{@mount} 1", @mount)
@@ -157,7 +163,7 @@ class LatencyProbe
     setup
     (CASES.keys + CASES.keys.reverse).each_with_index do |name, index|
       warn "LATENCY #{index + 1}/#{CASES.size * 2} #{name}"
-      prepare(CASES.fetch(name)); start
+      prepare(CASES.fetch(name), name: name); start
       entry = {name: name, round: index, factors: CASES.fetch(name), xfs: run('xfs_info', @mount), before: counters}
       # Reproduce the original short cold phase, then extend on the same runtime.
       entry[:cold] = http(warmup: 0, count: 400)

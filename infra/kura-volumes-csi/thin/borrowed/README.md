@@ -107,12 +107,15 @@ worst-case metadata mapping qualification.
 
 `latency_stack.rb` is a disposable-Linux-VM diagnostic, not a hosted-node setup
 script. Dispatch `kura-volumes-csi-image.yml` with only `latency_only=true` to
-compare the same pinned experimental runtime on eight configurations in forward
+compare the same pinned experimental runtime on ten configurations in forward
 and reverse order. It creates its own loop-backed VG, holds virtual size and
 runtime limits constant, and varies thin mapping, project quotas, dm-crypt write
 submission, and XFS format settings. The format factor groups `reflink=0` and a
 64 MiB log; a result for that factor requires further isolation before choosing
-either setting. It does not publish images or change any cluster.
+either setting. Identical mkfs arguments can still infer different allocation
+group counts and log stripes from device hints; separate controls override the
+log stripe alone and the full data geometry, recording actual `xfs_info` output.
+It does not publish images or change any cluster.
 
 Each configuration records the original 400-request cold PUT/GET phase, then a
 separate 400-write warmup and 4,000-request PUT/GET phase, with cgroup counters
