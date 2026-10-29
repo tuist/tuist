@@ -77,6 +77,7 @@ var tuistCargoCommandDependencies: [Target.Dependency] = [
     "TuistCAS",
     tuistCargoCacheDependency,
     "TuistREAPI",
+    "TuistHTTP",
     .product(name: "Crypto", package: "apple.swift-crypto"),
     processDependency,
     pathDependency,
@@ -166,6 +167,7 @@ var tuistServerDependencies: [Target.Dependency] = [
     .product(name: "Crypto", package: "apple.swift-crypto"),
 ]
 var tuistHTTPDependencies: [Target.Dependency] = [
+    .product(name: "Crypto", package: "apple.swift-crypto"),
     "TuistConstants",
     "TuistEnvironment",
     "TuistLogging",
@@ -882,6 +884,7 @@ var targets: [Target] = [
     .target(
         name: "TuistOIDC",
         dependencies: [
+            "TuistHTTP",
             "TuistConstants",
             "TuistEnvironment",
             "TuistLogging",
@@ -1135,6 +1138,16 @@ var targets: [Target] = [
         name: "TuistREAPITests",
         dependencies: [
             "TuistREAPI",
+            "TuistHTTP",
+            "TuistEnvironment",
+            "TuistTestSupport",
+            fileSystemDependency,
+            pathDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            .product(name: "NIOSSL", package: "apple.swift-nio-ssl"),
+            .product(name: "NIOCore", package: "apple.swift-nio"),
+            .product(name: "NIOPosix", package: "apple.swift-nio"),
+            .product(name: "NIOTLS", package: "apple.swift-nio"),
             "TuistEnvironmentTesting",
             .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
@@ -1145,6 +1158,11 @@ var targets: [Target] = [
         name: "TuistHTTPTests",
         dependencies: [
             "TuistHTTP",
+            "TuistTestSupport",
+            .product(name: "NIOCore", package: "apple.swift-nio"),
+            .product(name: "NIOPosix", package: "apple.swift-nio"),
+            .product(name: "NIOSSL", package: "apple.swift-nio-ssl"),
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             "TuistEnvironment",
             "TuistEnvironmentTesting",
             fileSystemDependency,
@@ -1552,6 +1570,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistExtension",
         dependencies: [
+            argumentParserDependency,
             "TuistCache",
             "TuistCore",
             "TuistGenerator",
@@ -2077,7 +2096,7 @@ let package = Package(
         .package(id: "apple.swift-nio-ssl", from: "2.37.4"),
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
-        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.49")),
+        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.50")),
         .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),

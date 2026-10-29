@@ -110,7 +110,7 @@ defmodule TuistWeb.RunnersController do
 
       GET /api/internal/runners/desired_replicas?fleet=<name>
       → 200 { fleet, claimed, occupied, queued, withheld,
-              p95_concurrent_last_hour }
+              p95_concurrent_last_hour, learned_warm_floor }
 
   Authentication: same SA-token + TokenReview path as the dispatch
   endpoint. Anyone with a valid in-cluster SA token can read —

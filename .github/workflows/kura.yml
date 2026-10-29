@@ -411,7 +411,7 @@ jobs:
           - shard_name: discovery-faults-handoff
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
           - shard_name: authorization-mtls
-            specs: "spec/e2e/authorization_spec.sh spec/e2e/mtls_spec.sh"
+            specs: "spec/e2e/authorization_spec.sh spec/e2e/mtls_spec.sh spec/e2e/network_cache_spec.sh"
           - shard_name: large-artifact
             specs: "spec/e2e/large_artifact_spec.sh"
           - shard_name: gateway-throughput
@@ -448,7 +448,7 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          install: "rust shellspec bazel aqua:facebook/buck2"
+          install: "rust shellspec bazel aqua:facebook/buck2 node"
           working-directory: kura
 
       - name: Install Java for the Bazel upload recovery fixture
@@ -468,6 +468,14 @@ jobs:
 
       - name: Load the prebuilt Docker image
         run: zstd -dc prebuilt-images/kura-e2e-images.tar.zst | docker load
+
+      - name: Extract Kura for the network-trusted cache tests
+        if: matrix.shard_name == 'authorization-mtls'
+        run: |
+          binary="$RUNNER_TEMP/kura-network-cache"
+          docker run --rm --entrypoint cat "$KURA_IMAGE" /usr/local/bin/kura > "$binary"
+          chmod +x "$binary"
+          echo "KURA_NETWORK_CACHE_TEST_BIN=$binary" >> "$GITHUB_ENV"
 
       - name: Run end-to-end suite
         run: shellspec ${{ matrix.specs }}

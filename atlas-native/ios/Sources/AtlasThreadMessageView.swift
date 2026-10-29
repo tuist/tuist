@@ -15,16 +15,24 @@ struct AtlasThreadMessageView: View {
     private var palette: AtlasTheme.Palette? { contrast == .increased ? nil : theme?.palette(scheme) }
     private var fill: Color {
         if outgoing { return palette.map { Color(atlasHex: $0.accent) } ?? AtlasSettingsStyle.tint }
+        #if os(macOS)
+        return palette.map { Color(atlasHex: $0.surface) } ?? Color(nsColor: .controlBackgroundColor)
+        #else
         return palette.map { Color(atlasHex: $0.surface) } ?? Color(uiColor: .secondarySystemGroupedBackground)
+        #endif
     }
 
     var body: some View {
         Group {
             if message.kind == "system" {
-                if message.noticeKind == "handoff" {
+                if message.noticeKind == "handoff" || message.noticeKind == "private_handoff" {
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("Conversation recap", systemImage: "person.badge.plus").font(.headline)
+                        Label(message.noticeKind == "private_handoff" ? "Your catch-up" : "Conversation recap",
+                              systemImage: message.noticeKind == "private_handoff" ? "lock" : "person.badge.plus").font(.headline)
                             .accessibilityAddTraits(.isHeader)
+                        if message.noticeKind == "private_handoff" {
+                            Text("Only visible to you").font(.caption).foregroundStyle(.secondary)
+                        }
                         AtlasMarkdown(source: message.body).equatable()
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

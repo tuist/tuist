@@ -58,6 +58,7 @@ jobs:
           persist-credentials: false
       - run: bash infra/runner-image/tcc-report_test.sh
       - run: bash infra/runner-image/runner-caches_test.sh
+      - run: bash infra/runner-image/clock_test.sh
 
   test-staging-gate:
     name: Test the runner image staging gate

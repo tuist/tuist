@@ -1,0 +1,202 @@
+name: Linux Runner Image Release
+
+# Releases the Linux runner image (`ghcr.io/tuist/tuist-linux-runner:<semver>`)
+# off the server deploy path, like runner-image-release.yml does for macOS:
+# builds and pushes the image, tags `linux-runner-image@<semver>`, stages it
+# on each cluster's Linux hosts, and dispatches Server Production Deployment
+# so the fleet rolls onto it through the canary cascade.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/linux-runner-image/**
+      - .github/workflows/linux-runner-image-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  # Serializes version computation and the registry build cache writer.
+  group: linux-runner-image-release
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+
+jobs:
+  plan:
+    name: Plan Linux runner image release
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    env:
+      MISE_TASK_RUN_AUTO_INSTALL: "0"
+    outputs:
+      release: ${{ steps.check.outputs.linux-runner-image-should-release }}
+      version: ${{ steps.check.outputs.linux-runner-image-next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run --skip-tools release:check linux-runner-image
+
+  release:
+    name: Release Linux runner image
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "true"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/linux-runner-image
+          file: infra/linux-runner-image/Dockerfile
+          # Linux runners run on x86 hosts; arm64 can land as an additive
+          # `platforms:` entry.
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-linux-runner:${{ needs.plan.outputs.version }}
+            ghcr.io/tuist/tuist-linux-runner:latest
+          # Only this serialized release writes this cache. Keep all builder
+          # stages, especially the Android SDK, across ephemeral runners.
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache,mode=max
+
+      # The chart pulls anonymously from GHCR, so only tag what it can read.
+      - name: Verify the image is published
+        run: .github/scripts/ghcr-image-published.sh tuist/tuist-linux-runner "${{ needs.plan.outputs.version }}"
+
+      - name: Prepare release
+        id: notes
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          LATEST_VERSION=$(git tag -l | grep -E "^linux-runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1 || true)
+          range=()
+          [ -z "$LATEST_VERSION" ] || range=(-- "${LATEST_VERSION}..HEAD")
+          {
+            echo "body<<EOF"
+            echo "Docker image: \`ghcr.io/tuist/tuist-linux-runner:${VERSION}\`"
+            echo
+            git cliff --include-path "infra/linux-runner-image/**/*" --config infra/linux-runner-image/cliff.toml --repository "." 2>/dev/null "${range[@]}" \
+              | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create linux-runner-image GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Linux Runner Image ${{ needs.plan.outputs.version }}
+          tag_name: linux-runner-image@${{ needs.plan.outputs.version }}
+          body: ${{ steps.notes.outputs.body }}
+          # The workflow token cannot tag a commit whose workflow files differ
+          # from main's, which a release that outlasts later merges hits.
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+
+  # Stages this release's image on each cluster's Linux hosts and waits until
+  # they hold it before the deploy below is dispatched, like the macOS
+  # announce job. Deploys hold each pool on its current image until then
+  # (.github/scripts/linux-runner-image-prepare.sh). Both give up an hour
+  # after staging starts; a failure here still dispatches the deploy.
+  announce:
+    name: Stage Linux runner image (${{ matrix.environment }})
+    needs: [plan, release]
+    if: always() && needs.release.result == 'success'
+    runs-on: tuist-linux
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - environment: canary
+            namespace: tuist-canary
+          - environment: production
+            namespace: tuist
+    environment:
+      name: server-k8s-${{ matrix.environment }}
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked kubectl jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ matrix.environment }}" \
+            --vault "tuist-k8s-${{ matrix.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Wait for the hosts to stage the image
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          NAMESPACE: ${{ matrix.namespace }}
+        # Uses the deploy's Helm release and namespace, so the deploy adopts
+        # these helpers. Never fails: the deploy's own check still decides.
+        run: |
+          set -uo pipefail
+          exec 2> >(sed 's/^::error::/::warning::/' >&2)
+          digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "$VERSION")" || exit 0
+          image="ghcr.io/tuist/tuist-linux-runner@${digest}"
+          if bash .github/scripts/linux-runner-image-stage.sh "$image" tuist "$NAMESPACE"; then
+            echo "Linux hosts in ${{ matrix.environment }} hold $image."
+          else
+            echo "::warning::Linux hosts in ${{ matrix.environment }} have not staged $image; deploying."
+          fi
+
+  deploy:
+    name: Deploy Linux runner image
+    needs: [release, announce]
+    # Runs even if staging failed: the deploy then holds or moves the pools.
+    if: always() && needs.release.result == 'success'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch Server Production Deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run server-production-deployment.yml --repo "${{ github.repository }}" --ref main

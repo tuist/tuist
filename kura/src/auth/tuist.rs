@@ -3,6 +3,8 @@
 
 use std::time::{Duration, Instant};
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use reqwest::{Client, Method, header::HeaderMap};
 use serde_json::{Value, json};
@@ -187,6 +189,7 @@ impl TuistBackend {
         let client = crate::certificate_trust::client_builder()?
             .connect_timeout(connect_timeout)
             .timeout(request_timeout)
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|error| format!("failed to build the Tuist HTTP client: {error}"))?;
 
@@ -263,6 +266,49 @@ impl TuistBackend {
             None,
         )
         .await
+    }
+
+    pub async fn network_cache_access(&self, tenant: &str) -> Result<bool, String> {
+        let mut url = reqwest::Url::parse(&self.base_url).map_err(|error| error.to_string())?;
+        let host = url
+            .host_str()
+            .unwrap_or_default()
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        if matches!(host.as_str(), "tuist.dev" | "tuist.io")
+            || host.ends_with(".tuist.dev")
+            || host.ends_with(".tuist.io")
+        {
+            return Ok(false);
+        }
+        let credentials = self
+            .introspection
+            .as_ref()
+            .ok_or("control-plane credentials are not configured")?;
+        let authorization = format!(
+            "Basic {}",
+            STANDARD.encode(format!(
+                "{}:{}",
+                credentials.client_id, credentials.client_secret
+            ))
+        );
+        url.set_query(None);
+        url.query_pairs_mut().append_pair("tenant_id", tenant);
+        let response = self
+            .request(
+                Method::GET,
+                &format!(
+                    "/_internal/kura/cache-policy?{}",
+                    url.query().unwrap_or_default()
+                ),
+                "cache_policy",
+                &[("authorization", &authorization)],
+                None,
+            )
+            .await?;
+        Ok(response.status == 200
+            && response.body["tenant_id"].as_str() == Some(tenant)
+            && response.body["network_trusted_cache_access"] == true)
     }
 
     pub async fn network_build_event_access(

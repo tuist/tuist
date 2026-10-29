@@ -11,6 +11,11 @@ pub(super) const ATTACHMENT_ENVELOPE_BYTES: usize = 7 * 1024 * 1024 + 64 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Action {
+    Models,
+    SetModel {
+        id: String,
+        model: Option<String>,
+    },
     List {
         page: u32,
         #[serde(default)]
@@ -220,12 +225,61 @@ pub(super) struct Thread {
     pub summary: String,
     #[serde(default)]
     pub origin: String,
+    #[serde(default, deserialize_with = "deserialize_priority")]
+    pub priority: Option<Priority>,
     pub owner_id: Option<String>,
     #[serde(default)]
     pub participants: Vec<Person>,
     pub updated_at: String,
     #[serde(default)]
     pub agent_status: Option<AgentStatus>,
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub(super) struct ModelChoice {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+}
+
+#[derive(Deserialize)]
+pub(super) struct Models {
+    pub models: Vec<ModelChoice>,
+    pub error: Option<String>,
+}
+
+pub(super) fn validate_model(model: Option<&str>) -> Result<()> {
+    if let Some(model) = model
+        && model != "workspace"
+        && !model.strip_prefix("chatgpt:").is_some_and(|id| {
+            !id.is_empty()
+                && id.len() <= 100
+                && id.as_bytes()[0].is_ascii_alphanumeric()
+                && id
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c))
+        })
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum Priority {
+    Now,
+    Today,
+    Later,
+}
+
+fn deserialize_priority<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Priority>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).ok())
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -288,7 +342,7 @@ fn deserialize_notice<'de, D: serde::Deserializer<'de>>(
     let value = serde_json::Value::deserialize(deserializer)?;
     Ok(value
         .as_str()
-        .filter(|kind| *kind == "handoff")
+        .filter(|kind| matches!(*kind, "handoff" | "private_handoff" | "joined"))
         .map(str::to_owned))
 }
 
@@ -353,6 +407,18 @@ pub(super) fn request_using<T: DeserializeOwned>(
         .join("api/native/orbit/threads")
         .map_err(|_| invalid())?;
     let (method, payload) = match &action {
+        Action::Models => {
+            url.set_path("/api/native/orbit/models");
+            (Method::GET, None)
+        }
+        Action::SetModel { id, model } => {
+            crate::time_off::validate_id(id)?;
+            validate_model(model.as_deref())?;
+            url.path_segments_mut()
+                .map_err(|_| invalid())?
+                .extend([id.as_str(), "model"]);
+            (Method::PATCH, Some(json!({"model":model})))
+        }
         Action::List { page, kind, status } => {
             validate_page(*page)?;
             url.query_pairs_mut().append_pair("page", &page.to_string());
@@ -497,11 +563,27 @@ pub(super) fn request_using<T: DeserializeOwned>(
         payload,
         failure: if matches!(action, Action::People { .. }) {
             people_failure
+        } else if matches!(action, Action::Models | Action::SetModel { .. }) {
+            model_failure
         } else {
             response_failure
         },
     };
     network.request(&url, body)
+}
+
+fn model_failure(status: u16, bytes: &[u8]) -> crate::AuthError {
+    match status {
+        403 | 404 | 501 => error(
+            "unsupported",
+            "Model selection is unavailable. Refresh the conversation or update Atlas, then try again.",
+        ),
+        409 => error(
+            "conflict",
+            "Wait for the current reply to finish, then choose a model again.",
+        ),
+        _ => response_failure(status, bytes),
+    }
 }
 
 fn people_failure(status: u16, bytes: &[u8]) -> crate::AuthError {

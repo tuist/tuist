@@ -414,8 +414,8 @@ pdcAgent:
 
 capi:
   ovhRunnerEgress:
-    enabled: false
-    vrackID: pn-2025483
+    enabled: true
+    vrackID: pn-2024093
     cidr: "5.135.7.160/27"
   vultrPrivateNetwork:
     enabled: true
@@ -1501,8 +1501,8 @@ rackFleet:
     maxPods: 5
     # Shared built-in/custom cache budget on the 1858 GiB disk, enforced by
     # tart-kubelet (`--runner-cache-budget-gib`). Planning allowance: 512 GiB
-    # cache + up to 540 GiB goldens (every catalog image; hosts usually hold
-    # 1 to 3) + 280 GiB guest disks + 100 GiB host data, which stays above the
+    # cache + up to 540 GiB goldens (`goldenBudget` below) + 280 GiB guest
+    # disks + 100 GiB host data, which stays above the
     # 15% (279 GiB) free floor cache admission and the golden GC keep.
     #
     # The volume's APFS quota is half the disk (929 GiB), fixed when the
@@ -1531,58 +1531,51 @@ rackFleet:
   # profile's guest takes a whole host, so that shape's ceiling is the host
   # count.
   #
-  # Warm floors follow demand. Only a warm runner claims a job in under 10 s:
-  # a cold one is the scale-up and the boot, 10 to 75 s even with the image on
-  # the host. A floor on an image without jobs holds a slot a burst for
-  # another image then waits for (warm runners give theirs up after 30 s,
-  # infra/runners-controller/AGENTS.md), so the rack's 28 production slots
-  # keep floors only for the images that had a job in most working hours of
-  # the week to 2026-10-22 (07:00 to 18:00 UTC, weekdays): 27.0 in 60 of 60
-  # hours, 26.6 in 50, 26.3 in 36, 26.0.1 in 29. 27.0 keeps two, since its
-  # jobs arrive in fan-outs. The other images had a job in at most 7 of those
-  # hours (26.1.1) or none (27.1, 27.2-beta, 26.4.1), and start cold. The
-  # 12 vCPU shape stays cold: an idle one would hold a whole host.
+  # Warm floors are learned from each pool's own jobs. Only a warm runner
+  # claims a job in under 10 s: a cold one is the scale-up and the boot, a
+  # median 20 to 26 s on the rack. The server sizes each pool's floor to the
+  # burst its jobs arrive in and keeps it while the pool has had a job in the
+  # last day (`Tuist.Runners.LearnedWarmFloors`). What is set here is only
+  # the cap on that floor, which is what it costs: up to three idle guests
+  # per image, one host for the 12 vCPU shape. The floor yields to every
+  # pool's queued jobs (infra/runners-controller/AGENTS.md), so the cap is
+  # the most a pool keeps idle while the rack has room.
   #
-  # Every image's golden fits beside the cache: about 60 GiB each, 9 images
-  # in the 540 GiB allowance above, and a release pulls only the overlay on
-  # hosts that held the previous image (infra/tart-kubelet/AGENTS.md).
+  # 26.6 also keeps one runner whatever its history, since a new account's
+  # first job lands there and `tuist-macos` resolves there.
+  #
   runners:
     enabled: true
     # Every BER1 host runs macOS 27 and Tart 2.41.1.
     stackedImages: true
+    # The 540 GiB of goldens in the disk plan above. Each Xcode's image has its
+    # own base, about 73 GB on a host (measured 2026-10-28 across b03 to b15:
+    # disk outside the cache = 78 GB + 73 GB per golden), and a release of the
+    # same Xcode adds only its overlay, about 2 GB. Seven images fit; the
+    # images beyond them are the ones with the least recent demand, and their
+    # first Pod on a host pulls.
+    goldenBudget: 7
     guestShapes:
       6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
       12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
     autoscaling:
       enabled: true
       minWarmPoolFloor: 0
+      maxLearnedWarmPoolFloor: 3
       maxReplicas: 32
     xcodeOverrides:
-      "27.0":
-        autoscaling:
-          enabled: true
-          minWarmPoolFloor: 2
-          maxReplicas: 32
       "26.6":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
-          maxReplicas: 32
-      "26.3":
-        autoscaling:
-          enabled: true
-          minWarmPoolFloor: 1
-          maxReplicas: 32
-      "26.0.1":
-        autoscaling:
-          enabled: true
-          minWarmPoolFloor: 1
+          maxLearnedWarmPoolFloor: 3
           maxReplicas: 32
     shapes:
       12vcpu-28gb:
         autoscaling:
           enabled: true
           minWarmPoolFloor: 0
+          maxLearnedWarmPoolFloor: 1
           maxReplicas: 16
   # The fleet's sites other than ber1 (`site`). While a site's runners are off,
   # its minis register with their own fleet, tuist-tuist-rack-fleet-<site>, and
@@ -2180,6 +2173,10 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
+        # The hourly runners acceptance probe keeps it busy, so it learns a
+        # floor; one runner covers the probe, and a BER1 Smoke load run
+        # still scales to the whole rack.
+        maxLearnedWarmPoolFloor: 1
         maxReplicas: 32
         # Smoke runs are dispatched by hand, so the last hour's peak does not
         # predict the next one.
@@ -2223,6 +2220,29 @@ buildersFleet:
     os: "Golden Gates"
   externalSecrets:
     enabled: true
+
+# Firecracker sandboxes for coding-agent sessions, on the OVH RISE-L boxes that
+# also host the Linux runner pool. No memory is set aside for sandboxes: each
+# box's daemon starts at the chart's 1 GiB floor, which holds no sandbox, and
+# grows up to 32 GiB as sandboxes need memory no running job holds. 100 GiB of disk holds four default sessions with a 10 GB workspace,
+# running or paused. The kata runner pools keep the rest. Accounts reach
+# sandboxes only through the `sandboxes` feature flag.
+sandboxes:
+  # Deploy the daemon; account access is controlled by the `sandboxes` flag.
+  enabled: true
+  image:
+    tag: "sha-3b10e1eddbaf"
+  templateImage:
+    tag: "sha-56965cb61732"
+  nodePools:
+    - runners-linux
+  tolerations:
+    - key: tuist.dev/runner-tier
+      operator: Equal
+      value: bare-metal
+      effect: NoSchedule
+  maxMemoryGiB: 32
+  diskGiB: 100
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
@@ -2281,6 +2301,11 @@ runnersFleetLinux:
   shapeAutoscaling:
     enabled: true
     minWarmPoolFloor: 0
+    # Cap on the floor each shape learns from its jobs (`maxLearnedWarmPoolFloor`,
+    # `Tuist.Runners.LearnedWarmFloors`): at most four idle runners above
+    # load. Larger shapes cap lower below, since each idle one reserves its
+    # whole memory.
+    maxLearnedWarmPoolFloor: 4
     # A per-pool safety ceiling, not a capacity bound. What the fleet can
     # actually seat for each shape is derived per reconcile by the
     # autoscaler's `shapePlacementCaps` from live node allocatable, so a
@@ -2321,17 +2346,16 @@ runnersFleetLinux:
         minWarmPoolFloor: 4
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
-    # 8vcpu-16gb and 16vcpu-32gb have jobs in most weekday working hours,
-    # arriving in fan-outs that take two and one runners respectively.
+    - { vcpus: 8, memoryGb: 16 }
+    # Each idle 32 GiB runner reserves 34.5 GiB with the kata overhead.
     - vcpus: 8
-      memoryGb: 16
+      memoryGb: 32
       autoscaling:
-        minWarmPoolFloor: 2
-    - { vcpus: 8, memoryGb: 32 }
+        maxLearnedWarmPoolFloor: 2
     - vcpus: 16
       memoryGb: 32
       autoscaling:
-        minWarmPoolFloor: 1
+        maxLearnedWarmPoolFloor: 2
     # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
     # 2.5 GiB podFixed overhead is 66.5 GiB per Pod. That seats 3 to an
     # AX162-R and exactly 1 to the OVH RISE-L this fleet is moving to
@@ -2373,9 +2397,14 @@ runnersFleetLinux:
       memoryGb: 64
       autoscaling:
         minWarmPoolFloor: 1
+        maxLearnedWarmPoolFloor: 1
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
 # rate limiter falls back to the per-pod InMemory bucket.
 redis:
   enabled: true
+
+ampOrbProvider:
+  enabled: true
+  url: https://tuist.dev

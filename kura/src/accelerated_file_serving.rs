@@ -811,16 +811,27 @@ fn parse_request(bytes: &[u8]) -> Result<Option<ParsedRequest>, httparse::Error>
     let Some(version) = request.version else {
         return Ok(None);
     };
-    let headers = request
+    let mut headers = BTreeMap::new();
+    for header in request
         .headers
         .iter()
         .filter(|header| !header.name.is_empty())
-        .filter_map(|header| {
-            std::str::from_utf8(header.value)
-                .ok()
-                .map(|value| (header.name.to_ascii_lowercase(), value.trim().to_string()))
-        })
-        .collect();
+    {
+        let name = header.name.to_ascii_lowercase();
+        if name == "authorization" {
+            let value = if headers.contains_key(&name) {
+                String::new()
+            } else {
+                std::str::from_utf8(header.value)
+                    .unwrap_or_default()
+                    .trim()
+                    .to_owned()
+            };
+            headers.insert(name, value);
+        } else if let Ok(value) = std::str::from_utf8(header.value) {
+            headers.insert(name, value.trim().to_owned());
+        }
+    }
     Ok(Some(ParsedRequest {
         method: method.to_owned(),
         target: target.to_owned(),

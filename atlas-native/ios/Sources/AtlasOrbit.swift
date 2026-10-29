@@ -6,8 +6,6 @@ import SwiftUI
 /// reconciliation, drafts, idempotency keys and live thread lifecycle.
 @MainActor
 final class AtlasOrbit: ObservableObject {
-    private struct Opened: Decodable { let connection: String }
-
     @Published private var state: Snapshot?
     @Published private var adapterError: String?
     @Published private var submitting = false
@@ -25,9 +23,13 @@ final class AtlasOrbit: ObservableObject {
     var draftMentions: [AtlasThreadPerson] { state?.draftMentions ?? [] }
     var mentionCandidates: [AtlasThreadPerson] { state?.mentionCandidates ?? [] }
     var mentionError: String? { state?.mentionError }
+    var models: [AtlasModelChoice] { state?.models ?? [] }
+    var modelsLoading: Bool { state?.modelsLoading == true }
+    var modelError: String? { adapterError ?? state?.modelError }
     var attachmentBusy: Bool { attaching || state?.attachmentBusy == true }
     var pendingUploadName: String? { state?.uploadPending == true ? state?.uploadFilename : nil }
     var loading: Bool { state?.loading ?? false }
+    var cached: Bool { state?.cached == true }
     var loadingHistory: Bool { state?.historyLoading ?? false }
     var saving: Bool { submitting || (state?.saving ?? false) }
     var creating: Bool { loading }
@@ -141,14 +143,14 @@ final class AtlasOrbit: ObservableObject {
         }
     }
 
-    func send(addressAgent: Bool) async {
+    func send() async {
         guard !saving, !attachmentBusy, let id = selected?.id else { return }
         submitting = true
         defer { submitting = false }
         let body = draft
         let mentions = draftMentions.map(\.id)
         await draftTask?.value
-        await perform(["action": "send", "id": id, "body": body, "address_agent": addressAgent, "mention_ids": mentions])
+        await perform(["action": "send", "id": id, "body": body, "address_agent": true, "mention_ids": mentions])
     }
 
     func upload(filename: String, contentType: String, data: Data) async {
@@ -199,6 +201,7 @@ final class AtlasOrbit: ObservableObject {
         if let opening { return try await opening.value }
         let task = Task {
             let opened: Opened = try decode(await request(["action": "open"]))
+            if let snapshot = opened.snapshot { apply(snapshot) }
             return opened.connection
         }
         opening = task
@@ -217,7 +220,7 @@ final class AtlasOrbit: ObservableObject {
             let handle = try await ensureConnection()
             let snapshot: Snapshot = try decode(await request(["action": "request", "connection": handle, "command": command]))
             apply(snapshot)
-            adapterError = nil
+            if adapterError != nil { adapterError = nil }
             return snapshot.error == nil
         } catch is CancellationError { return false } catch {
             adapterError = error.localizedDescription
@@ -280,6 +283,15 @@ final class AtlasOrbit: ObservableObject {
 }
 
 extension AtlasOrbit {
+    func loadModels() async { await perform(["action": "models"]) }
+
+    func setModel(_ choice: String?, threadId: String) async {
+        guard !saving, selected?.id == threadId else { return }
+        submitting = true
+        defer { submitting = false }
+        await perform(["action": "set_model", "id": threadId, "model": choice as Any? ?? NSNull()])
+    }
+
     private func decode<T: Decodable>(_ data: Data) throws -> T {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

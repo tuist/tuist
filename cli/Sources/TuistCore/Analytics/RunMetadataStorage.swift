@@ -99,6 +99,12 @@ public actor RunMetadataStorage {
         self.resultBundlePath = resultBundlePath
     }
 
+    /// The directory `tuist test --coverage-output-path` writes each run's coverage to, as LCOV.
+    public private(set) var coverageOutputPath: AbsolutePath?
+    public func update(coverageOutputPath: AbsolutePath?) {
+        self.coverageOutputPath = coverageOutputPath
+    }
+
     /// The ID of the latest build run.
     public private(set) var buildRunId: String?
     public func update(buildRunId: String?) {

@@ -24,7 +24,8 @@ Helm-installed resource; publishing it is a separate rollout step.
   while the provider withdraws runner policies and host addresses. Reservations
   belong to the controller, never Helm. Staging/canary values enable egress;
   align their public block with the cache vRack before deployment. Production
-  stays disabled until advance allowlisting and qualification are complete. Preserve
+  activation requires advance allowlisting, confirmed block attachment and a
+  drained cutover with per-host egress verification. Preserve
   `node_network_info` for the MAC-based
   bandwidth alerts. See [OVH runner egress](../cluster-api-provider-tuist/docs/ovh-runner-egress.md).
 
@@ -244,3 +245,5 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   Canary and production fleet templates declare vRack enrollment; existing
   OnDelete hosts require a drained backfill and transport validation. Check
   shared capacity and enrollment with `helm/linux-vrack.sh`.
+
+- Managed Linux pools inherit KVM through `runnersFleetLinux.nestedVirtualization.defaultEnabled`; false rolls idle runners back without removing host prerequisites. Device allocations follow each Node’s Pod capacity. Validate defaults, rollback revisions and the preparation gate with `bash infra/mise/tasks/helm/nested-kvm.sh`.

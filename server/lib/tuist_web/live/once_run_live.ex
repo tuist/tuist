@@ -284,7 +284,7 @@ defmodule TuistWeb.OnceRunLive do
         uri={@uri}
         path={@run_path}
       />
-      <div :if={@live_action == :overview}>
+      <div :if={@live_action == :overview} data-part="overview">
         <.card
           title={dgettext("dashboard_builds", "Build Details")}
           icon="chart_arcs"

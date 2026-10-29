@@ -393,6 +393,9 @@
             uses_trend(data.analytics.activity.uses, data.analytics.previous_activity.uses) %>
           <.widget
             id="volume-used"
+            selected={@detail_metric == "used_bytes"}
+            phx_click="select_detail_metric"
+            phx_value_widget="used_bytes"
             legend_color={metric_color("used_bytes")}
             title={dgettext("dashboard_runners", "Used space")}
             value={saved_space(volume, metrics)}

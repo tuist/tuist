@@ -21,19 +21,19 @@ url = "https://github.com/ktlint/ktlint/releases/download/1.7.1/ktlint-1.7.1.zip
 url_api = "https://api.github.com/repos/ktlint/ktlint/releases/assets/274981513"
 
 [[tools."github:tuist/once"]]
-version = "0.68.2"
+version = "0.71.2"
 backend = "github:tuist/once"
-specifiers = ["0.68.2"]
+specifiers = ["0.71.2"]
 
 [tools."github:tuist/once"."platforms.linux-x64"]
-checksum = "sha256:04e4642205953c529c46e427f7dbaa478fc07b66f231dd147dc6c1641cb6a7d3"
-url = "https://github.com/tuist/once/releases/download/0.68.2/once-0.68.2-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/tuist/once/releases/assets/640673595"
+checksum = "sha256:5402b9fe8b795ea1357815eed8886512a371e1a4fae2713406e47169c9c8dd23"
+url = "https://github.com/tuist/once/releases/download/0.71.2/once-0.71.2-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/once/releases/assets/678770775"
 
 [tools."github:tuist/once"."platforms.macos-arm64"]
-checksum = "sha256:75ca4647521adf68c3644ce1d6a820456ae1dd701132df6edff6a494d77dfd14"
-url = "https://github.com/tuist/once/releases/download/0.68.2/once-0.68.2-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/once/releases/assets/640673466"
+checksum = "sha256:d112326b699240268d7d5d08b03371cda5656690ee6cadd9c72e59b1c119979a"
+url = "https://github.com/tuist/once/releases/download/0.71.2/once-0.71.2-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/once/releases/assets/678770647"
 
 [[tools.kotlin]]
 version = "2.4.10"

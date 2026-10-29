@@ -28,7 +28,7 @@ struct AtlasVoiceInputPreview: View {
             .navigationTitle("Pip").navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 VStack {
-                    AtlasThreadComposer(draft: $draft, placeholder: "Ask Pip", saving: false,
+                    AtlasThreadComposer(draft: $draft, placeholder: "Message", saving: false,
                                         phase: phase, levels: levels,
                                         start: { phase = .recording }, stop: {
                         guard phase == .recording else { return }

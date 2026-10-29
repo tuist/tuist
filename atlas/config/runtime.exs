@@ -10,7 +10,17 @@ alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
 
+# Keep first admission off until all HTTP and background workers support Signals.
+# See deploy/AGENTS.md for the compatibility rollout and rollback floor.
+signals_enabled =
+  case System.get_env("ATLAS_SIGNALS_ENABLED", if(config_env() == :test, do: "true", else: "false")) do
+    "true" -> true
+    "false" -> false
+    _ -> raise ArgumentError, "ATLAS_SIGNALS_ENABLED must be true or false"
+  end
+
 config :atlas, :automation_trace_url_template, System.get_env("ATLAS_AUTOMATION_TRACE_URL_TEMPLATE")
+config :atlas, :signals_enabled, signals_enabled
 
 # dev_instance.exs is only shipped in non-prod (it isn't copied into the
 # release tarball), so guard the require to keep prod boots clean.
@@ -254,6 +264,23 @@ if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do
     client_id: google_client_id,
     client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
 end
+
+# Personal grants have separate callbacks from Google sign-in and the Slack bot
+# install. Register /connections/:provider/callback on each existing OAuth app.
+config :atlas, :account_connections, %{
+  "github" => %{
+    client_id: System.get_env("ATLAS_GITHUB_APP_CLIENT_ID"),
+    client_secret: System.get_env("ATLAS_GITHUB_APP_CLIENT_SECRET")
+  },
+  "slack" => %{
+    client_id: System.get_env("ATLAS_SLACK_CLIENT_ID"),
+    client_secret: System.get_env("ATLAS_SLACK_CLIENT_SECRET")
+  },
+  "google" => %{
+    client_id: System.get_env("GOOGLE_CLIENT_ID"),
+    client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
+  }
+}
 
 # ## Admin Dashboard
 #

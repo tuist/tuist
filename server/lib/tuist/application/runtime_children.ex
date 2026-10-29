@@ -95,6 +95,7 @@ defmodule Tuist.Application.RuntimeChildren do
   """
   def readiness_server(:xcresult_processor) do
     [
+      {Tuist.XcresultDrain, []},
       {Plug.Cowboy, scheme: :http, plug: Tuist.Readiness.Plug, options: [port: Tuist.Readiness.port(), ip: {0, 0, 0, 0}]}
     ]
   end

@@ -259,6 +259,21 @@ struct AtlasThreadPresentationTests {
 }
 
 extension AtlasThreadPresentationTests {
+    @Test func attachmentPreviewsPreserveBytesInPrivateTemporaryFiles() throws {
+        let data = Data([0x31, 0x00, 0xff, 0x72])
+        let file = try AtlasAttachmentFile.preview(data, filename: "report.txt")
+        let directory = file.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        #expect(file.lastPathComponent == "report.txt")
+        #expect(try Data(contentsOf: file) == data)
+        #if os(macOS)
+        let directoryAttributes = try FileManager.default.attributesOfItem(atPath: directory.path)
+        let fileAttributes = try FileManager.default.attributesOfItem(atPath: file.path)
+        #expect((directoryAttributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
+        #expect((fileAttributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+        #endif
+    }
+
     @Test func bottomFollowingSurvivesLayoutCorrectionsButStopsForUserHistoryScrolling() {
         let state = AtlasThreadScrollState()
         let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
@@ -282,6 +297,62 @@ extension AtlasThreadPresentationTests {
         #expect(update(.init(height: 2500, bottom: 50, viewport: 400, inset: 200)))
         #expect(update(.init(height: 2500, bottom: -30, viewport: 400, inset: 200)))
         #expect(!update(.init(height: 2500, bottom: 400, viewport: 400, inset: 200)))
+    }
+
+    @Test func latestRequestsCoalesceAcrossTheClearAndRestoreLayoutPasses() async throws {
+        let state = AtlasThreadScrollState()
+        var events: [String] = []
+        state.schedulePosition(clear: {
+            events.append("clear")
+            state.schedulePosition(clear: { events.append("duplicate clear") }, {
+                events.append("duplicate restore")
+            })
+        }, {
+            events.append("restore")
+        })
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(events == ["clear", "restore"])
+    }
+
+    @Test func historyDragOrResetCancelsAPendingLatestRestore() async throws {
+        let state = AtlasThreadScrollState()
+        var restored = false
+        state.schedulePosition(clear: { state.userScrolling = true }, { restored = true })
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(!restored)
+
+        state.reset()
+        var events: [String] = []
+        state.schedulePosition(clear: {
+            state.reset()
+            state.schedulePosition(clear: {
+                events.append("new clear")
+                state.schedulePosition(clear: { events.append("duplicate clear") }, {
+                    events.append("duplicate restore")
+                })
+            }, { events.append("new restore") })
+        }, { restored = true })
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!restored)
+        #expect(events == ["new clear", "new restore"])
+    }
+
+    @Test func promptSettlementSupersedesBottomCorrectionButNotANewDrag() async throws {
+        let state = AtlasThreadScrollState()
+        var events: [String] = []
+        state.schedulePosition(clear: { events.append("bottom clear") }, { events.append("bottom restore") })
+        state.following = false
+        state.schedulePosition(following: false, clear: { events.append("prompt clear") }, {
+            events.append("prompt restore")
+        })
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(events == ["prompt clear", "prompt restore"])
+
+        state.schedulePosition(following: false, clear: { state.userScrolling = true }, {
+            events.append("unexpected prompt restore")
+        })
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(events == ["prompt clear", "prompt restore"])
     }
 
     @Test func fallbackScrollAccumulatesSlowMovementAndRebasesContentGrowth() {

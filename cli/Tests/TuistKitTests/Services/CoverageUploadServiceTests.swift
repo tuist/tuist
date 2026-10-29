@@ -1,8 +1,10 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
 import Testing
+import TuistCore
 import TuistServer
 import TuistTesting
 import TuistXCResultService
@@ -89,6 +91,77 @@ struct CoverageUploadServiceTests {
         #expect(prepared.coverage.files?.first?.gitBlobId == "aaa")
         #expect(!FileManager.default.fileExists(atPath: export.pathString))
         verify(xcResultService).parseCoverage(path: .any, manifest: .any, into: .any).called(0)
+    }
+
+    @Test(.withMockedDependencies(), .inTemporaryDirectory) func writesTheTiedCoverageAsLCOVToTheOutputPath() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let bundle = temporaryDirectory.appending(component: "shard-1.xcresult")
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+        try """
+        {"path":"/repo/Sources/A.swift","targets":["A"],"is_test":false,"covered_lines":2,"executable_lines":3,"line_numbers":[1,2,3],"execution_counts":[3,0,2],"functions":[{"name":"A.run()","line_number":1,"execution_count":3,"covered_lines":1,"executable_lines":1},{"name":"A.load(_:)","line_number":2,"execution_count":0,"covered_lines":0,"executable_lines":1},{"name":"A.load(_:)","line_number":3,"execution_count":2,"covered_lines":1,"executable_lines":1}]}
+        {"path":"/repo/Tests/ATests.swift","targets":["ATests"],"is_test":true,"covered_lines":1,"executable_lines":1,"line_numbers":[],"execution_counts":[],"functions":[]}
+
+        """.write(toFile: bundle.appending(component: CoverageExport.fileName).pathString, atomically: true, encoding: .utf8)
+        let outputDirectory = temporaryDirectory.appending(component: "coverage")
+        let storage = RunMetadataStorage()
+        await storage.update(coverageOutputPath: outputDirectory)
+        given(settingsService).inlineThresholdBytes(fullHandle: .any, serverURL: .any).willReturn(5_000_000)
+
+        _ = try await RunMetadataStorage.$current.withValue(storage) {
+            try #require(await subject.prepare(
+                resultBundlePath: bundle,
+                manifest: XcodeCoverageManifest(
+                    rootDirectories: ["/repo"],
+                    partial: false,
+                    files: [
+                        XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa"),
+                        XcodeCoverageSourceFile(path: "Tests/ATests.swift", gitBlobId: "bbb"),
+                    ]
+                ),
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL
+            ))
+        }
+
+        let lcov = try String(contentsOfFile: outputDirectory.appending(component: "shard-1.lcov").pathString, encoding: .utf8)
+        #expect(lcov == """
+        SF:Sources/A.swift
+        FN:1,A.run()
+        FNDA:3,A.run()
+        FN:2,A.load(_:) (line 2)
+        FNDA:0,A.load(_:) (line 2)
+        FN:3,A.load(_:) (line 3)
+        FNDA:2,A.load(_:) (line 3)
+        FNF:3
+        FNH:2
+        DA:1,3
+        DA:2,0
+        DA:3,2
+        LF:3
+        LH:2
+        end_of_record
+
+        """)
+    }
+
+    @Test(.withMockedDependencies(), .inTemporaryDirectory) func sendsTheCoverageWhenItCannotBeWritten() async throws {
+        stubParser(files: 1)
+        let blocked = try #require(FileSystem.temporaryTestDirectory).appending(component: "not-a-directory")
+        try "".write(toFile: blocked.pathString, atomically: true, encoding: .utf8)
+        let storage = RunMetadataStorage()
+        await storage.update(coverageOutputPath: blocked)
+        given(settingsService).inlineThresholdBytes(fullHandle: .any, serverURL: .any).willReturn(5_000_000)
+
+        let prepared = try await RunMetadataStorage.$current.withValue(storage) {
+            try #require(await subject.prepare(
+                resultBundlePath: try AbsolutePath(validating: "/run.xcresult"),
+                manifest: manifest,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL
+            ))
+        }
+
+        #expect(prepared.coverage.files?.count == 1)
     }
 
     @Test(.withMockedDependencies()) func uploadsLargeCoverageUnderTheGivenOrAFreshRunId() async throws {

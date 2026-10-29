@@ -26,11 +26,20 @@ Only three compiled profiles exist:
 | `staging` | `tuist-tuist-server.tuist-staging.svc.cluster.local:80/ready` |
 | `canary` | `tuist-tuist-server.tuist-canary.svc.cluster.local:80/ready` |
 
+Every profile also observes the fixed Alloy OTLP HTTP receiver at
+`k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces`.
+These are unauthenticated GET requests, not span exports. A receiver's expected
+405 response proves only that HTTP headers returned, not that it accepts or
+forwards spans. The worker never reads the configured exporter endpoint or its
+credentials, so an instance overriding that endpoint may export elsewhere.
+
 The server route maps GET `/ready` to `TuistWeb.PageController.ready/2`, which
 returns an empty HTTP 200. Every cycle compares the normal name and the
 trailing-dot absolute name, each with one- and three-second combined DNS/TCP
-budgets. No configurable URL, path, method, header, command, timeout, or frequency
-is accepted. New destinations require a reviewed code change.
+budgets, followed by the normal and absolute Alloy names with three-second
+combined DNS/TCP budgets. No configurable URL, path, method, header, command,
+timeout, or frequency is accepted. New destinations require a reviewed code
+change.
 
 ## Lifecycle and resource bounds
 
@@ -63,15 +72,20 @@ Logs use the existing output pipeline and retention.
 
 Other limits are explicit:
 
-- Four serial samples, followed by a 60-second pause; no concurrent samples or
-  catch-up bursts. Each sample has a five-second overall deadline.
+- Six serial samples, followed by a 60-second pause; no concurrent samples or
+  catch-up bursts. Each sample has a five-second overall deadline. The two added
+  Alloy samples add at most two GET attempts per minute and two five-second
+  async deadline budgets per cycle. They reuse the same worker, DNS permit and
+  response buffer bound; synchronous I/O can still delay the worker.
 - One system-resolver lookup and at most one TCP dial per sample. At most 16
   answers are accepted. Every answer must be an RFC1918 IPv4 or IPv6 unique-local
-  address on port 80; IPv4-mapped addresses are checked as IPv4. Loopback,
+  address on the target's fixed port (80 for the server, 4318 for Alloy);
+  IPv4-mapped addresses are checked as IPv4. Loopback,
   link-local/metadata, public, unspecified, multicast, and scoped IPv6 answers
   fail closed, including mixed safe/unsafe answer sets. The first validated
   address is dialed directly, without another lookup or fallback.
-- Fixed unauthenticated HTTP/1 GET, including the original trailing dot in Host.
+- Fixed unauthenticated HTTP/1 GET, including the original trailing dot in Host
+  and the non-default port for Alloy.
   No proxy handling, redirects, cookies, compression, connection reuse, or auth
   headers. A fixed 8 KiB buffer caps all response bytes read, with at most 64
   parsed headers. The first complete header block ends the sample. Bodies are
@@ -84,6 +98,10 @@ Other limits are explicit:
   storage. Diagnostic CPU is part of the existing Kura container's real resource
   consumption. Autosizing excludes other containers; it cannot separate this
   built-in telemetry from other Kura work.
+
+These application limits do not cap kernel socket buffers, TCP retransmissions,
+or libc/NSS resolver allocations and retries. The answer limit bounds the Rust
+collection, not all work inside the system resolver.
 
 ## Read-only access boundary and tradeoffs
 
@@ -118,8 +136,16 @@ cumulative from sample start. Missing stages did not complete successfully.
 `connect_ms - dns_ms` estimates TCP setup. `total_ms` ends after headers or an
 error/deadline, not after body completion. `outcome: ok` means a final HTTP header
 block was received; 302 or 503 is still a useful observation and does not assert
-readiness. Stage errors are fixed strings. Each sample includes target, start
-time, budget and, when available, HTTP status.
+readiness. Stage errors are fixed strings. Each sample includes target hostname,
+port, path, start time, budget and, when available, HTTP status.
+
+For an approved incident rollout, select one affected instance and a control on
+a different, unaffected node. Record pod/node placement and the runtime image,
+then compare matching Alloy and server stages across the same UTC window.
+An old runtime may emit only the four server samples; require the new port-4318
+records before interpreting absent Alloy observations. Header success does not
+replay POST serialization, pooled connections, body reads or downstream delivery.
+Keep selection empty until the separate rollout is approved.
 
 ## Rollout, acceptance, and rollback
 

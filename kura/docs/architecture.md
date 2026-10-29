@@ -144,6 +144,22 @@ Each node owns one persistent volume, runs one writer process, and exchanges tra
 | Helm chart, rollout scripts, observability config | `ops/` |
 | End-to-end and shell-based tests | `test/e2e/`, `spec/e2e/` |
 
+## Network-trusted cache authorization
+
+The self-hosted Tuist server owns the default-off
+`TUIST_NETWORK_TRUSTED_CACHE_ACCESS` policy. Public discovery informs clients;
+Kura instead authenticates with its control-plane credentials to fetch the
+account-bound internal cache policy. A separate eight-entry cache coalesces
+checks and expires authority within 60 seconds of request start, without the
+credential engine's outage grace. Older/malformed/unreachable control planes
+deny unsigned access after expiry. HTTP and gRPC distinguish absent credentials
+from supplied invalid, blank or duplicate credentials before policy evaluation.
+Only cache read/write/inspect and capabilities operations qualify; purges,
+Remote Asset fetching and BES reporting do not. Tenant routing checks remain
+mandatory. Operators enforce the office/VPN boundary outside Kura. Peer/storage
+formats are unchanged, and mixed-version nodes continue serving authenticated
+clients while old nodes refuse unsigned requests.
+
 ## Storage Planes
 
 Kura splits durable state into two planes so that the hot path is simple and the cold path can compact freely:
@@ -381,6 +397,10 @@ shutdown joins. A single outstanding blocking DNS lookup, serial deadline-bound
 samples, and bounded response/resolver buffers limit work. Results go to ordinary
 JSON logs. This shares the runtime process resource budget; it is not a separate
 security sandbox. See the [runbook](../../infra/kura-controller/connectivity-diagnostics.md).
+The fixed profile compares server `/ready` and Alloy `/v1/traces` header timings,
+including normal and absolute DNS names. Alloy receives unauthenticated GETs on
+port 4318, never spans. Six serial samples precede a 60-second pause; there is no
+additional worker, retry queue or application startup dependency.
 
 Each node exposes:
 

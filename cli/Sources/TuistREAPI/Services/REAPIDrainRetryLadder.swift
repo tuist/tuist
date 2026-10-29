@@ -13,6 +13,13 @@ struct REAPIDrainRetryLadder {
     static let maximumBackoff: Duration = .seconds(1)
     private static let message = "server is draining"
 
+    struct Timing: Sendable {
+        let now: @Sendable () -> ContinuousClock.Instant
+        let sleep: @Sendable (Duration) async throws -> Void
+    }
+
+    @TaskLocal static var timing = Timing(now: { .now }, sleep: { try await Task.sleep(for: $0) })
+
     private var refusals = 0
     private var drainingSince: ContinuousClock.Instant?
 
@@ -24,7 +31,7 @@ struct REAPIDrainRetryLadder {
     }
 
     /// The wait before retrying a drain refusal received at `now`, or `nil` once the window is spent.
-    mutating func nextDelay(now: ContinuousClock.Instant = .now) -> Duration? {
+    mutating func nextDelay(now: ContinuousClock.Instant = REAPIDrainRetryLadder.timing.now()) -> Duration? {
         let drainingSince = drainingSince ?? now
         self.drainingSince = drainingSince
         let remaining = Self.window - (now - drainingSince)

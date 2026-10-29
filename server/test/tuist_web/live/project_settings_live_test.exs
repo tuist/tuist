@@ -21,12 +21,68 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     assert html =~ "Settings"
     assert html =~ "Default branch"
     assert html =~ "Project logo"
+    refute html =~ "Run report comments"
+
+    assert has_element?(
+             lv,
+             "a[href='/#{organization.account.name}/#{project.name}/settings/integrations']",
+             "Integrations"
+           )
+
     refute has_element?(lv, "#oidc-trust-policies")
 
     refute has_element?(
              lv,
              ~s(a[href="/#{organization.account.name}/#{project.name}/settings/authentication"])
            )
+  end
+
+  test "groups project options under GitHub without organization connection management for Xcode and Gradle", %{
+    conn: conn,
+    organization: organization
+  } do
+    for build_system <- [:xcode, :gradle] do
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: organization.account.id,
+          build_system: build_system
+        )
+
+      {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/integrations")
+      assert has_element?(lv, "[data-part='github-card-section']", "Run report comments")
+      assert html =~ "Configure GitHub behavior for this project."
+      refute html =~ "Not connected"
+      refute html =~ "Manage organization integrations"
+
+      assert has_element?(lv, "#vcs-comments-toggle[data-checked]")
+      render_hook(lv, "toggle_vcs_comments", %{"checked" => false})
+      assert Projects.get_project_by_id(project.id).vcs_comments_enabled == false
+    end
+  end
+
+  test "persists each project's comment preference without updating another project", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    account = organization.account
+    other_project = ProjectsFixtures.project_fixture(account_id: account.id)
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/#{project.name}/settings/integrations")
+
+    assert has_element?(lv, "#vcs-comments-toggle[data-checked]")
+
+    for _ <- 1..2 do
+      render_hook(lv, "toggle_vcs_comments", %{"checked" => false, "project_id" => other_project.id})
+      refute Projects.get_project_by_id(project.id).vcs_comments_enabled
+      assert Projects.get_project_by_id(other_project.id).vcs_comments_enabled
+    end
+
+    {:ok, reloaded_lv, _html} = live(conn, ~p"/#{account.name}/#{project.name}/settings/integrations")
+    assert has_element?(reloaded_lv, "#vcs-comments-toggle:not([data-checked])")
+
+    render_hook(reloaded_lv, "toggle_vcs_comments", %{"checked" => true})
+    assert Projects.get_project_by_id(project.id).vcs_comments_enabled
+    assert has_element?(reloaded_lv, "#vcs-comments-toggle[data-checked]")
   end
 
   test "report publishing has no dashboard control even when enabled for the instance", %{
@@ -51,7 +107,7 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
       project = ProjectsFixtures.project_fixture(account: organization.account, build_system: system)
       base = "/#{organization.account.name}/#{project.name}"
 
-      for page <- ["/settings", "/settings/automations"] do
+      for page <- ["/settings", "/settings/integrations", "/settings/automations"] do
         {:ok, lv, _html} = live(conn, base <> page)
 
         assert has_element?(lv, "a[href='#{base}/settings/automations']", "Automations") == shown?,

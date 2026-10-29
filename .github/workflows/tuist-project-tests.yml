@@ -189,7 +189,9 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-cli-unit-tests
+          # SwiftPM 6.4 retains a restored registry version even when the pin changes.
+          # Retire the snapshot containing XCLogParser 0.2.49; keep forced installation.
+          cache-key: cli-macos-workspace-cli-unit-tests-v2
       - name: Install stable Rust for Cargo reporting fixtures
         uses: ./.github/actions/mise
         env:
@@ -203,6 +205,8 @@ jobs:
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
+      - name: Install loopback TLS test dependency
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
       # The scheme leaves its test action's coverage unset, so it follows
       # TUIST_COVERAGE_ENABLED. The CLI makes the coverage counters atomic itself
       # (`AtomicCoverageCounters`): tests run in parallel in one process, and plain
@@ -334,7 +338,8 @@ jobs:
       - name: Install Tuist dependencies
         uses: tuist/install@v1
         with:
-          cache-key: cli-macos-workspace-cli-acceptance-tests
+          # Retire the same stale registry snapshot as the unit-test job.
+          cache-key: cli-macos-workspace-cli-acceptance-tests-v2
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
