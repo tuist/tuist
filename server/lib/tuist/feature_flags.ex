@@ -123,6 +123,33 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether the account gets a node in the runner-cache region of each site it
+  qualifies for (`runner_site_enabled?/2` or `runner_site_cache_enabled?/2`)
+  without the cache traffic from the site `Tuist.Kura.RunnerCache` otherwise
+  requires. Capacity admission still applies.
+  """
+  def runner_site_cache_pinned?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_site_cache_pinned,
+      account,
+      flag_enabled?(:runner_site_cache_pinned, account, flags)
+    )
+  end
+
+  @doc """
+  Whether the account is kept out of every site's runner-cache region, so its
+  node there drains and is torn down. Its jobs still run at the site
+  (`runner_site_enabled?/2`) and use its other regions' caches.
+  """
+  def runner_site_cache_excluded?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_site_cache_excluded,
+      account,
+      flag_enabled?(:runner_site_cache_excluded, account, flags)
+    )
+  end
+
+  @doc """
   Whether the account's macOS profile jobs run at a site: dispatch routes a
   profile to the same Xcode and shape racked at a site
   (`Tuist.Runners.Catalog.site_pool_name/1`) when one is and the site can
