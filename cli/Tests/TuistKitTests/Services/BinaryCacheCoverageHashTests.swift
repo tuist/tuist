@@ -78,7 +78,8 @@ struct BinaryCacheCoverageHashTests {
             defaultConfiguration: nil,
             excludedTargets: [],
             destination: nil,
-            coverage: coverage
+            coverage: coverage,
+            debugSymbols: .on
         )
         return Dictionary(uniqueKeysWithValues: hashes.map { ($0.key.target.name, $0.value.hash) })
     }

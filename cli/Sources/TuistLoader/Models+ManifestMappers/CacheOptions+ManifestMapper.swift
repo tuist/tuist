@@ -61,7 +61,8 @@ extension TuistConfig.CacheOptions {
         return .init(
             keepSourceTargets: manifest.keepSourceTargets,
             profiles: profiles,
-            storages: storages
+            storages: storages,
+            debugSymbols: manifest.debugSymbols
         )
     }
 }

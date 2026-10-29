@@ -55,7 +55,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: [],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
         #expect(result[graphTarget]?.binaryCacheFingerprints.count == (legacy ? 0 : 3))
     }
@@ -110,7 +111,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: [],
             destination: nil,
-            coverage: coverage
+            coverage: coverage,
+            debugSymbols: .on
         )
 
         // Then
@@ -135,6 +137,70 @@ struct CacheGraphContentHasherTests {
                         && localPackageStrings.contains(CacheGraphContentHasher.coverageDimension) == instrumented
                         && !externalStrings.contains(CacheGraphContentHasher.coverageDimension)
                         && localStrings.contains(configuration) && externalStrings.contains(configuration)
+                }
+            )
+            .called(1)
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        arguments: [
+            (BinaryCacheDebugSymbols.on, "Debug"),
+            (.off, "Debug"),
+            (.on, "Release"),
+            (.off, "Release"),
+        ]
+    ) func keysEveryTargetOnMissingDebugSymbols(
+        debugSymbols: BinaryCacheDebugSymbols,
+        configuration: String
+    ) async throws {
+        // Given
+        let settings = Settings(configurations: [.debug("Debug"): nil, .release("Release"): nil])
+        let local = Target.test(name: "Local", product: .framework)
+        let localProject = Project.test(path: "/local", settings: settings, targets: [local])
+        let external = Target.test(name: "External", product: .framework)
+        let externalProject = Project.test(
+            path: "/external", settings: settings, targets: [external], type: .external(hash: "revision")
+        )
+        let graph = Graph.test(projects: [localProject.path: localProject, externalProject.path: externalProject])
+        given(graphContentHasher)
+            .contentHashes(for: .any, include: .any, destination: .any, additionalStrings: .any)
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn(configuration)
+        given(try #require(SwiftVersionProvider.mocked)).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: configuration,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off,
+            debugSymbols: debugSymbols
+        )
+
+        // Then
+        let keyed = debugSymbols == .off
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .matching { additionalStrings in
+                    let localStrings = additionalStrings(
+                        GraphTarget(path: localProject.path, target: local, project: localProject)
+                    )
+                    let externalStrings = additionalStrings(
+                        GraphTarget(path: externalProject.path, target: external, project: externalProject)
+                    )
+                    return localStrings.contains(CacheGraphContentHasher.withoutDebugSymbolsDimension) == keyed
+                        && externalStrings.contains(CacheGraphContentHasher.withoutDebugSymbolsDimension) == keyed
                 }
             )
             .called(1)
@@ -189,7 +255,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: [],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
 
         // Then
@@ -255,7 +322,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: defaultConfigurationName,
             excludedTargets: [],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
 
         // Then
@@ -316,7 +384,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: [],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
 
         // Then
@@ -370,7 +439,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: [],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
 
         // Then
@@ -423,7 +493,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: ["Excluded"],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
 
         // Then
@@ -483,7 +554,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: ["Excluded"],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
 
         // Then
@@ -549,7 +621,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: [],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
 
         // Then
@@ -614,7 +687,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: [],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
 
         // Then
@@ -680,7 +754,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: [],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
 
         // Then
@@ -746,7 +821,8 @@ struct CacheGraphContentHasherTests {
             defaultConfiguration: nil,
             excludedTargets: [],
             destination: nil,
-            coverage: .off
+            coverage: .off,
+            debugSymbols: .on
         )
 
         // Then

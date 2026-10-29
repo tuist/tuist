@@ -135,7 +135,8 @@
                     defaultConfiguration: .any,
                     excludedTargets: .value(["Local"]),
                     destination: .value(nil),
-                    coverage: .value(.off)
+                    coverage: .value(.off),
+                    debugSymbols: .any
                 )
                 .willReturn([externalGraphTarget: .test(hash: "external-hash")])
             given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -497,7 +498,8 @@
             verify(cacheGraphContentHasher)
                 .contentHashes(
                     for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
-                    coverage: .value(.on)
+                    coverage: .value(.on),
+                    debugSymbols: .any
                 )
                 .called(1)
             verify(generatorFactory)
@@ -574,7 +576,8 @@
             verify(cacheGraphContentHasher)
                 .contentHashes(
                     for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
-                    coverage: .value(.on)
+                    coverage: .value(.on),
+                    debugSymbols: .any
                 )
                 .called(1)
             verify(generatorFactory)
@@ -602,7 +605,8 @@
             verify(cacheGraphContentHasher)
                 .contentHashes(
                     for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
-                    coverage: .value(.off)
+                    coverage: .value(.off),
+                    debugSymbols: .any
                 )
                 .called(1)
             verify(generatorFactory)
@@ -689,6 +693,74 @@
                     output: .any
                 )
                 .called(1)
+        }
+
+        @Test(.inTemporaryDirectory) func run_buildsDebugWithoutDSYMs_whenTheCacheOptsOutOfDebugSymbols() async throws {
+            stubFrameworkBuilds()
+            stubXCFrameworkCreation()
+
+            try await run(
+                noUpload: true,
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended),
+                debugSymbols: false
+            )
+
+            verify(cacheGraphContentHasher)
+                .contentHashes(
+                    for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
+                    coverage: .any, debugSymbols: .value(.off)
+                )
+                .called(1)
+            verify(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .matching { $0.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf")) },
+                    passthroughXcodeBuildArguments: .any
+                )
+                .called(2)
+            verify(xcodeBuildController)
+                .createXCFramework(
+                    arguments: .matching { arguments in
+                        let slices = Self.xcframeworkSlices(arguments)
+                        return slices.count == 2 && slices.allSatisfy { $0.debugSymbols == nil }
+                    },
+                    output: .any
+                )
+                .called(1)
+        }
+
+        @Test(.inTemporaryDirectory) func run_keepsReleaseDSYMs_whenTheCacheOptsOutOfDebugSymbols() async throws {
+            stubFrameworkBuilds()
+            stubXCFrameworkCreation()
+
+            try await run(
+                noUpload: true,
+                configuration: "Release",
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended),
+                debugSymbols: false
+            )
+
+            verify(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .matching { $0.contains(.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym")) },
+                    passthroughXcodeBuildArguments: .any
+                )
+                .called(2)
         }
 
         @Test(.inTemporaryDirectory)
@@ -950,12 +1022,17 @@
             cachedTarget: Bool = false,
             republishError: Error? = nil,
             coverageVariable: String? = nil,
-            coverageOption: Bool = false
+            coverageOption: Bool = false,
+            debugSymbols: Bool = true
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-            let config = coverageOption
-                ? Tuist.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: true)))))
-                : config
+            let config = if coverageOption {
+                Tuist.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: true)))))
+            } else if !debugSymbols {
+                Tuist.test(project: .generated(.test(cacheOptions: .test(debugSymbols: false))))
+            } else {
+                config
+            }
             if coverageVariable != nil || coverageOption {
                 Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
                 Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = coverageVariable
@@ -1018,7 +1095,8 @@
                     defaultConfiguration: .value(config.project.generatedProject?.generationOptions.defaultConfiguration),
                     excludedTargets: .value([]),
                     destination: .value(nil),
-                    coverage: .any
+                    coverage: .any,
+                    debugSymbols: .any
                 )
                 .willReturn(hashes)
             given(cacheStorage)

@@ -85,7 +85,17 @@ import XcodeGraph
 
         /// Link debug information while the producer's objects and CAS are still available. XCFramework slices
         /// carry the resulting dSYMs alongside source identities used to relocate breakpoints in the consumer.
-        private static let debugInformationFormat = XcodeBuildArgument.xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym")
+        /// Without debug symbols, Debug builds keep it in their object files; Release builds keep their dSYMs so
+        /// archives can symbolicate the cached modules.
+        private static func debugInformationFormat(
+            isReleaseConfiguration: Bool,
+            debugSymbols: BinaryCacheDebugSymbols
+        ) -> XcodeBuildArgument {
+            .xcarg(
+                "DEBUG_INFORMATION_FORMAT",
+                isReleaseConfiguration || debugSymbols == .on ? "dwarf-with-dsym" : "dwarf"
+            )
+        }
 
         private let configLoader: ConfigLoading
         private let manifestLoader: ManifestLoading
@@ -189,6 +199,7 @@ import XcodeGraph
             let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
             let resolvedCoverage = BinaryCacheCoverage.resolved(config: config)
+            let debugSymbols = BinaryCacheDebugSymbols(config: config)
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
                 targetsToBinaryCache: requestedTargetsToBinaryCache,
@@ -250,6 +261,7 @@ import XcodeGraph
                 cacheProfile: profile,
                 cacheStorage: cacheStorage,
                 coverage: coverage,
+                debugSymbols: debugSymbols,
                 sdkSelection: destination.sdkSelection
             )
             let cacheableTargets = hashedGraph.targetsToBuild
@@ -318,6 +330,7 @@ import XcodeGraph
                     cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
                     noUpload: noUpload,
                     isReleaseConfiguration: isReleaseConfiguration,
+                    debugSymbols: debugSymbols,
                     instrumentationSettings: instrumentationSettings,
                     scratchDirectory: batchScratch,
                     variant: batch.variant
@@ -393,6 +406,7 @@ import XcodeGraph
             cacheStorage: CacheStoring,
             noUpload _: Bool,
             isReleaseConfiguration: Bool,
+            debugSymbols: BinaryCacheDebugSymbols,
             instrumentationSettings: [String],
             scratchDirectory: CacheWarmScratchDirectory,
             variant: BinaryCacheVariant?
@@ -410,6 +424,7 @@ import XcodeGraph
                             fingerprints: fingerprints,
                             cacheStorage: cacheStorage,
                             isReleaseConfiguration: isReleaseConfiguration,
+                            debugSymbols: debugSymbols,
                             instrumentationSettings: instrumentationSettings,
                             in: temporaryDirectory,
                             compilationCacheCASArgument: compilationCacheCASArgument,
@@ -429,6 +444,7 @@ import XcodeGraph
                         fingerprints: fingerprints,
                         cacheStorage: cacheStorage,
                         isReleaseConfiguration: isReleaseConfiguration,
+                        debugSymbols: debugSymbols,
                         instrumentationSettings: instrumentationSettings,
                         in: path,
                         compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path),
@@ -468,6 +484,7 @@ import XcodeGraph
             fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             isReleaseConfiguration: Bool,
+            debugSymbols: BinaryCacheDebugSymbols,
             instrumentationSettings: [String],
             in scratchDirectory: AbsolutePath,
             compilationCacheCASArgument: XcodeBuildArgument,
@@ -515,7 +532,7 @@ import XcodeGraph
 
             var debuggingMetadata: [GraphTarget: CachedModuleDebuggingMetadata] = [:]
             for (target, _) in hashesByTargetToBeCached
-                where target.target.isXCFrameworkCacheableProduct && target.target.foreignBuild == nil
+                where debugSymbols == .on && target.target.isXCFrameworkCacheableProduct && target.target.foreignBuild == nil
             {
                 debuggingMetadata[target] = try await CachedModuleDebuggingMetadata.capture(
                     target: target,
@@ -534,6 +551,7 @@ import XcodeGraph
                     scratchDirectory: scratchDirectory,
                     derivedDataPath: derivedDataPath,
                     isReleaseConfiguration: isReleaseConfiguration,
+                    debugSymbols: debugSymbols,
                     compilationCacheCASArgument: compilationCacheCASArgument,
                     instrumentationSettings: instrumentationSettings,
                     reservedProductsDirectoryNames: reservedProductsDirectoryNames,
@@ -550,6 +568,7 @@ import XcodeGraph
                     scratchDirectory: scratchDirectory,
                     derivedDataPath: derivedDataPath,
                     isReleaseConfiguration: isReleaseConfiguration,
+                    debugSymbols: debugSymbols,
                     compilationCacheCASArgument: compilationCacheCASArgument,
                     instrumentationSettings: instrumentationSettings,
                     reservedProductsDirectoryNames: reservedProductsDirectoryNames
@@ -1055,6 +1074,7 @@ import XcodeGraph
             scratchDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
             isReleaseConfiguration: Bool,
+            debugSymbols: BinaryCacheDebugSymbols,
             compilationCacheCASArgument: XcodeBuildArgument,
             instrumentationSettings: [String],
             reservedProductsDirectoryNames: Set<String>,
@@ -1078,7 +1098,7 @@ import XcodeGraph
                     arguments: [
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
                         .xcarg("SKIP_INSTALL", "NO"),
-                        Self.debugInformationFormat,
+                        Self.debugInformationFormat(isReleaseConfiguration: isReleaseConfiguration, debugSymbols: debugSymbols),
                         .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                         .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                         .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -1132,7 +1152,7 @@ import XcodeGraph
 
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
-                Self.debugInformationFormat,
+                Self.debugInformationFormat(isReleaseConfiguration: isReleaseConfiguration, debugSymbols: debugSymbols),
                 .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                 .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                 .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -1198,6 +1218,7 @@ import XcodeGraph
             scratchDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
             isReleaseConfiguration: Bool,
+            debugSymbols: BinaryCacheDebugSymbols,
             compilationCacheCASArgument: XcodeBuildArgument,
             instrumentationSettings: [String],
             reservedProductsDirectoryNames: Set<String>
@@ -1217,7 +1238,7 @@ import XcodeGraph
                 arguments: [
                     .destination("generic/platform=macOS,variant=Mac Catalyst"),
                     .xcarg("SKIP_INSTALL", "NO"),
-                    Self.debugInformationFormat,
+                    Self.debugInformationFormat(isReleaseConfiguration: isReleaseConfiguration, debugSymbols: debugSymbols),
                     .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                     .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -1371,6 +1392,7 @@ import XcodeGraph
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring,
             coverage: BinaryCacheCoverage,
+            debugSymbols: BinaryCacheDebugSymbols,
             sdkSelection: BinaryCacheSDKSelection
         ) async throws -> CacheableTargets {
             let graphTraverser = GraphTraverser(graph: graph)
@@ -1392,7 +1414,8 @@ import XcodeGraph
                 defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
                 excludedTargets: excludedTargets,
                 destination: nil,
-                coverage: coverage
+                coverage: coverage,
+                debugSymbols: debugSymbols
             )
 
             // Binary replacement in the warm project runs under `.allPossible` whatever profile warms the

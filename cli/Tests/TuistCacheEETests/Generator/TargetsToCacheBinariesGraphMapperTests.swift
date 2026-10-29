@@ -102,7 +102,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 defaultConfiguration: .any,
                 excludedTargets: .any,
                 destination: .any,
-                coverage: .any
+                coverage: .any,
+                debugSymbols: .any
             )
             .willReturn(contentHashes)
 
@@ -214,7 +215,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 defaultConfiguration: .any,
                 excludedTargets: .any,
                 destination: .any,
-                coverage: .any
+                coverage: .any,
+                debugSymbols: .any
             )
             .willReturn(contentHashes)
         let cachePath = try temporaryPath()
@@ -306,7 +308,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 defaultConfiguration: .any,
                 excludedTargets: .any,
                 destination: .any,
-                coverage: .any
+                coverage: .any,
+                debugSymbols: .any
             )
             .willReturn([
                 staticLibraryGraphTarget: .test(hash: staticLibraryHash),
@@ -406,7 +409,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 defaultConfiguration: .any,
                 excludedTargets: .any,
                 destination: .any,
-                coverage: .any
+                coverage: .any,
+                debugSymbols: .any
             )
             .willReturn(contentHashes)
 
@@ -502,7 +506,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 defaultConfiguration: .any,
                 excludedTargets: .any,
                 destination: .any,
-                coverage: .any
+                coverage: .any,
+                debugSymbols: .any
             )
             .willReturn(contentHashes)
         let cachePath = try temporaryPath()
@@ -617,7 +622,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 defaultConfiguration: .any,
                 excludedTargets: .any,
                 destination: .any,
-                coverage: .any
+                coverage: .any,
+                debugSymbols: .any
             )
             .willReturn([:])
         given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -679,7 +685,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 defaultConfiguration: .any,
                 excludedTargets: .value(["App"]),
                 destination: .any,
-                coverage: .any
+                coverage: .any,
+                debugSymbols: .any
             )
             .willReturn([:])
         given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -758,7 +765,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     defaultConfiguration: .any,
                     excludedTargets: .any,
                     destination: .any,
-                    coverage: .any
+                    coverage: .any,
+                    debugSymbols: .any
                 )
                 .willReturn(contentHashes)
             given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -845,7 +853,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         given(cacheGraphContentHasher)
             .contentHashes(
                 for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any, destination: .any,
-                coverage: .any
+                coverage: .any,
+                debugSymbols: .any
             )
             .willReturn([:])
         given(cacheStorage).fetch(.any, cacheCategory: .any).willReturn([:])
@@ -858,7 +867,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         verify(cacheGraphContentHasher)
             .contentHashes(
                 for: .any, configuration: .value("Debug"), defaultConfiguration: .any, excludedTargets: .any, destination: .any,
-                coverage: .value(.on)
+                coverage: .value(.on),
+                debugSymbols: .any
             )
             .called(1)
     }
@@ -903,7 +913,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 defaultConfiguration: .any,
                 excludedTargets: .any,
                 destination: .any,
-                coverage: .any
+                coverage: .any,
+                debugSymbols: .any
             )
             .called(0)
         verify(cacheGraphMutator)

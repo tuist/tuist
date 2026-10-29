@@ -264,6 +264,28 @@ struct TuistGeneratedProjectManifestMapperTests {
         #expect(got.profiles.defaultProfile == "debug")
     }
 
+    @Test func from_mapsDebugSymbols() throws {
+        #expect(try TuistConfig.CacheOptions.from(manifest: .options()).debugSymbols == true)
+        #expect(try TuistConfig.CacheOptions.from(manifest: .options(debugSymbols: false)).debugSymbols == false)
+    }
+
+    /// A manifest encoded before `debugSymbols` existed has no such key; it decodes with debug symbols on.
+    @Test func cacheOptions_decodesAMissingDebugSymbolsKeyAsOn() throws {
+        let options = ProjectDescription.Config.CacheOptions.options(storages: [.local], debugSymbols: false)
+        var json = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(options)) as? [String: Any]
+        )
+        json.removeValue(forKey: "debugSymbols")
+
+        let got = try JSONDecoder().decode(
+            ProjectDescription.Config.CacheOptions.self,
+            from: JSONSerialization.data(withJSONObject: json)
+        )
+
+        #expect(got.debugSymbols == true)
+        #expect(got.storages == [.local])
+    }
+
     @Test func from_mapsStorages_default() throws {
         let manifest = ProjectDescription.Config.CacheOptions.options()
         let got = try TuistConfig.CacheOptions.from(manifest: manifest)
