@@ -26,7 +26,6 @@ defmodule TuistWeb.TestSelectionsLiveTest do
             project_id: project.id,
             git_commit_sha: @sha,
             test_run_id: test_run.id,
-            missed_count: 1,
             tests: [
               %{
                 test_case_id: load,
@@ -52,14 +51,6 @@ defmodule TuistWeb.TestSelectionsLiveTest do
     load_run =
       RunsFixtures.test_case_run_fixture(project_id: project.id, test_run_id: test_run.id, test_case_id: load, status: 0)
 
-    refresh_run =
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_run_id: test_run.id,
-        test_case_id: refresh,
-        status: 1
-      )
-
     TestSelectionFixtures.impact_fixture(
       project_id: project.id,
       head_sha: @sha,
@@ -79,7 +70,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       ]
     )
 
-    %{run: run, test_run: test_run, load_run: load_run, refresh_run: refresh_run}
+    %{run: run, test_run: test_run, load_run: load_run}
   end
 
   describe "the Test Selection page" do
@@ -96,13 +87,11 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#widget-selected", "1")
       assert has_element?(lv, "#widget-skipped", "1")
       assert has_element?(lv, "#widget-skip-rate", "50.0%")
-      assert has_element?(lv, "#widget-missed", "1")
       assert has_element?(lv, "#test-selection-runs-table", "a1b2c3d")
       assert has_element?(lv, "#test-selection-runs-table", "feature/search")
-      assert has_element?(lv, "#test-selection-runs-table", "Dry run")
     end
 
-    test "opens a dry run's test run on its Selective Testing - Dry Run tab", %{
+    test "opens a run's test run on its Selective Testing tab", %{
       conn: conn,
       organization: organization,
       project: project
@@ -113,7 +102,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       assert has_element?(
                lv,
-               "#test-selection-runs-table a[href$='/tests/test-runs/#{test_run.id}?tab=selective-testing-dry-run']"
+               "#test-selection-runs-table a[href$='/tests/test-runs/#{test_run.id}?tab=test-optimizations']"
              )
     end
 
@@ -149,7 +138,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
   end
 
   describe "a test run's selection tabs" do
-    test "shows the dry run's verdict, figures and tests, misses flagged", %{
+    test "shows the selection's figures and tests", %{
       conn: conn,
       organization: organization,
       project: project
@@ -157,11 +146,11 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       %{test_run: test_run, load_run: load_run} = selection(project)
       path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
 
-      {:ok, lv, _html} = live(conn, path <> "?tab=selective-testing-dry-run")
+      {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
 
-      assert has_element?(lv, "#test-selection-dry-run", "Dry run: 1 miss")
       assert has_element?(lv, "#widget-selection-selected", "1 / 2")
-      assert has_element?(lv, "#widget-selection-missed", "1")
+      assert has_element?(lv, "#widget-selection-skipped", "1")
+      assert has_element?(lv, "#widget-selection-not-run", "0")
       assert has_element?(lv, "[data-part='selection-summary-card']", "0f0f0f0")
       assert has_element?(lv, "[data-part='selection-summary-card']", "2 files")
 
@@ -175,27 +164,23 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       assert [first, second] = rows
       assert first =~ "test_load()"
-      assert first =~ "Would run"
+      assert first =~ "Selected"
       assert first =~ "Passed"
       assert second =~ "test_refresh()"
-      assert second =~ "Would skip"
-      assert second =~ "Missed"
+      assert second =~ "Skipped"
+      assert second =~ "Not run"
 
       assert has_element?(
                lv,
                "#selection-tests-table a[href$='/tests/test-cases/runs/#{load_run.id}?tab=selective-testing']"
              )
-
-      {:ok, lv, _html} = live(conn, path <> "?tab=selective-testing-dry-run&selection-flag=missed")
-      refute has_element?(lv, "#selection-tests-table", "test_load()")
-      assert has_element?(lv, "#selection-tests-table", "test_refresh()")
     end
 
     test "shows the modules, changed files and shards", %{conn: conn, organization: organization, project: project} do
       %{test_run: test_run} = selection(project, shard_count: 2)
 
       path =
-        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=selective-testing-dry-run"
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
 
       {:ok, lv, _html} = live(conn, path)
 
@@ -231,7 +216,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       organization: organization,
       project: project
     } do
-      %{test_run: test_run} = selection(project, mode: "enabled", missed_count: 0)
+      %{test_run: test_run} = selection(project)
 
       command_event =
         CommandEventsFixtures.command_event_fixture(project_id: project.id, test_run_id: test_run.id, name: "test")
@@ -272,102 +257,34 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert core =~ "–"
     end
 
-    test "keeps the module-level selection in Selective Testing for a dry run", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      %{test_run: test_run} = selection(project)
-
-      command_event =
-        CommandEventsFixtures.command_event_fixture(project_id: project.id, test_run_id: test_run.id, name: "test")
-
-      graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
-      xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
-
-      XcodeFixtures.xcode_target_fixture(
-        xcode_project_id: xcode_project.id,
-        name: "AuthTests",
-        selective_testing_hash: "AuthTests-hash",
-        selective_testing_hit: :miss
-      )
-
-      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
-
-      {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
-      assert has_element?(lv, "#selective-testing-table", "AuthTests")
-      refute has_element?(lv, "[data-part='coverage-selection']")
-
-      {:ok, lv, _html} = live(conn, path <> "?tab=selective-testing-dry-run&selection-tab=modules")
-      assert has_element?(lv, "[data-part='coverage-selection'] #selective-testing-table", "Would run")
-    end
-
     test "explains a fallback", %{conn: conn, organization: organization, project: project} do
       %{test_run: test_run} = selection(project, fallback_reason: "no_baseline", baseline_sha: "")
 
       {:ok, lv, _html} =
         live(
           conn,
-          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=selective-testing-dry-run"
-        )
-
-      assert has_element?(lv, "#test-selection-fallback", "No baseline")
-      refute has_element?(lv, "#test-selection-dry-run")
-    end
-
-    test "shows an enforced selection in the Selective Testing tab", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      %{test_run: test_run} = selection(project, mode: "enabled", missed_count: 0)
-
-      {:ok, lv, html} =
-        live(
-          conn,
           ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
         )
 
-      refute html =~ "Selective Testing - Dry Run"
-      refute has_element?(lv, "#test-selection-dry-run")
-      assert has_element?(lv, "#widget-selection-skipped", "1")
-      assert has_element?(lv, "#widget-selection-not-run")
-      assert has_element?(lv, "#selection-tests-table", "Skipped")
+      assert has_element?(lv, "#test-selection-fallback", "No baseline")
     end
 
-    test "gives a dry run its own tab, linked from the overview's card", %{
+    test "links the overview's card to the Selective Testing tab", %{
       conn: conn,
       organization: organization,
       project: project
     } do
       %{test_run: test_run} = selection(project)
-      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
 
-      {:ok, lv, _html} = live(conn, path)
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-      assert has_element?(lv, "a[href*='tab=selective-testing-dry-run']", "Selective Testing - Dry Run")
-      refute has_element?(lv, "a[href*='tab=test-optimizations']")
+      assert has_element?(lv, "a[href*='tab=test-optimizations']", "Selective Testing")
       assert has_element?(lv, "[data-part='test-selection-card']", "Selected by coverage")
-      assert has_element?(lv, "[data-part='test-selection-card'] a[href*='tab=selective-testing-dry-run']")
-
-      {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
-      refute has_element?(lv, "[data-part='coverage-selection']")
+      assert has_element?(lv, "[data-part='test-selection-card'] a[href*='tab=test-optimizations']")
     end
   end
 
   describe "a test case run's Selective Testing tab" do
-    test "explains a miss", %{conn: conn, organization: organization, project: project} do
-      %{refresh_run: refresh_run} = selection(project)
-      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-cases/runs/#{refresh_run.id}"
-
-      {:ok, lv, _html} = live(conn, path)
-      assert has_element?(lv, "[data-part='header']", "Selection miss")
-
-      {:ok, lv, _html} = live(conn, path <> "?tab=selective-testing")
-      assert has_element?(lv, "#test-selection-test-reason", "Would skip: No executed file changed")
-      assert has_element?(lv, "#test-selection-test-miss")
-    end
-
     test "explains why a test was kept", %{conn: conn, organization: organization, project: project} do
       %{load_run: load_run} = selection(project)
 
@@ -377,8 +294,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
           ~p"/#{organization.account.name}/#{project.name}/tests/test-cases/runs/#{load_run.id}?tab=selective-testing"
         )
 
-      assert has_element?(lv, "#test-selection-test-reason", "Executes a changed file")
-      refute has_element?(lv, "#test-selection-test-miss")
+      assert has_element?(lv, "#test-selection-test-reason", "Selected: Executes a changed file")
       assert has_element?(lv, "#selection-executed-files-table", "SearchViewModel.swift")
     end
 

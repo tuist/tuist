@@ -88,7 +88,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "Requested tests the period's selection runs skipped, or would have in dry run: they passed in the baseline and none of the files they executed changed since."
+                "Requested tests the period's selection runs skipped: they passed in the baseline and none of the files they executed changed since."
               )
             }
             value={if ready?, do: format_number(@analytics.result.totals.skipped)}
@@ -117,26 +117,6 @@
             phx_click="select_widget"
             phx_value_widget="skip_rate"
             selected={@selected_widget == "skip_rate"}
-            empty={ready? and @analytics.result.totals.runs == 0}
-          />
-          <.widget
-            id="widget-missed"
-            loading={!ready?}
-            title={dgettext("dashboard_tests", "Misses")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Tests a dry run would have skipped that failed when they ran anyway. Enforce selection once these stay at zero."
-              )
-            }
-            value={if ready?, do: format_number(@analytics.result.totals.missed)}
-            legend_color="destructive"
-            trend_value={if ready?, do: @analytics.result.trends.missed}
-            trend_type={:inverse}
-            trend_label={@analytics_trend_label}
-            phx_click="select_widget"
-            phx_value_widget="missed"
-            selected={@selected_widget == "missed"}
             empty={ready? and @analytics.result.totals.runs == 0}
           />
           <.widget
@@ -264,21 +244,6 @@
           />
         </.form>
         <.dropdown
-          id="test-selection-runs-mode-dropdown"
-          label={mode_filter_label(@mode)}
-          secondary_text={dgettext("dashboard_tests", "Mode:")}
-        >
-          <.dropdown_item
-            :for={mode <- ~w(any dry_run enabled)}
-            value={mode}
-            label={mode_filter_label(mode)}
-            patch={"?#{@uri.query |> Query.put("mode", mode) |> Query.drop("page")}"}
-            data-selected={@mode == mode}
-          >
-            <:right_icon :if={@mode == mode}><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-        <.dropdown
           id="test-selection-runs-fallback-dropdown"
           label={
             if @fallback?,
@@ -322,13 +287,6 @@
               description={run.destination}
             />
           </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Mode")}>
-            <.badge_cell
-              label={mode_label(run.mode)}
-              color={mode_color(run.mode)}
-              style="light-fill"
-            />
-          </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Selected")}>
             <.text_cell label={"#{format_number(run.selected_count)} / #{format_number(run.requested_count)}"} />
           </:col>
@@ -344,15 +302,6 @@
               style="light-fill"
               icon="alert_triangle"
             />
-          </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Misses")}>
-            <.status_badge_cell
-              :if={run.mode == "dry_run" and run.missed_count > 0}
-              status="error"
-              label={format_number(run.missed_count)}
-            />
-            <.text_cell :if={run.mode == "dry_run" and run.missed_count == 0} label="0" />
-            <.text_cell :if={run.mode != "dry_run"} label="–" />
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Shards")}>
             <.text_cell label={format_number(run.shard_count)} />

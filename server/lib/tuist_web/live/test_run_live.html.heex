@@ -216,17 +216,10 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@has_selective_testing_data || @selection_page_tab == "test-optimizations"}
+      :if={@has_selective_testing_data || @selection_run}
       label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
-      replace={true}
-    />
-    <.tab_menu_horizontal_item
-      :if={@selection_page_tab == "selective-testing-dry-run"}
-      label={dgettext("dashboard_tests", "Selective Testing - Dry Run")}
-      selected={@selected_tab == "selective-testing-dry-run"}
-      patch={"?#{Query.put(@uri.query, "tab", "selective-testing-dry-run")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
@@ -491,21 +484,12 @@
           label={dgettext("dashboard_tests", "View selection")}
           variant="secondary"
           size="small"
-          patch={"?#{Query.put(@uri.query, "tab", @selection_page_tab)}"}
+          patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
         />
       </:actions>
       <.card_section data-part="test-details-section">
         <div data-part="metadata-grid">
           <div data-part="metadata-row">
-            <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Mode")}</div>
-              <.badge
-                label={TuistWeb.TestSelection.Components.mode_label(@selection_run.mode)}
-                color={TuistWeb.TestSelection.Components.mode_color(@selection_run.mode)}
-                style="light-fill"
-                size="large"
-              />
-            </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Baseline")}</div>
               <span :if={@selection_run.baseline_sha != ""} data-part="value">
@@ -536,16 +520,8 @@
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">
-                {if @selection_run.mode == "dry_run",
-                  do: dgettext("dashboard_tests", "Misses"),
-                  else: dgettext("dashboard_tests", "Skipped")}
-              </div>
-              <span data-part="value">
-                {if @selection_run.mode == "dry_run",
-                  do: @selection_run.missed_count,
-                  else: @selection_run.skipped_count}
-              </span>
+              <div data-part="title">{dgettext("dashboard_tests", "Skipped")}</div>
+              <span data-part="value">{@selection_run.skipped_count}</span>
             </div>
           </div>
         </div>
@@ -1848,11 +1824,11 @@
   </div>
 
   <div
-    :if={@selected_tab in ["test-optimizations", "selective-testing-dry-run"]}
+    :if={@selected_tab == "test-optimizations" && (@has_selective_testing_data || @selection_run)}
     data-part="selective-testing"
   >
     <RunTab.coverage_selection
-      :if={@selected_tab == @selection_page_tab}
+      :if={@selection_run}
       selection_run={@selection_run}
       summary={@selection_summary}
       impact={@selection_impact}
@@ -1876,7 +1852,6 @@
         <.selective_testing_tab
           title={dgettext("dashboard_tests", "Modules")}
           selection_targets={Map.new(@selection_targets, &{&1.module_name, &1})}
-          selection_mode={@selection_run.mode}
           project={@selected_project}
           selective_testing_analytics={@selective_testing_analytics}
           selective_testing_filter={@selective_testing_filter}
@@ -1893,10 +1868,7 @@
       </:modules>
     </RunTab.coverage_selection>
     <.selective_testing_tab
-      :if={
-        @selected_tab == "test-optimizations" && @has_selective_testing_data &&
-          @selection_page_tab != "test-optimizations"
-      }
+      :if={@has_selective_testing_data && !@selection_run}
       project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}

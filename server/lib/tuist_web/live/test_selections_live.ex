@@ -2,13 +2,11 @@ defmodule TuistWeb.TestSelectionsLive do
   @moduledoc """
   The project's Test Selection page. The period's figures
   (`Selections.analytics/2`): how many requested tests the selection runs
-  selected and skipped, the skip rate, the dry-run misses (would-skip tests
-  that failed, the number that decides when to enforce) and the runs. Then
-  two tabs: the selection runs, one per invocation, newest first
-  (`Selections.list_runs/2`), each opening the Selective Testing tab (or,
-  in dry run, the Selective Testing - Dry Run tab) of the test run that
-  reported its results (`TuistWeb.TestSelection.RunTab`);
-  and the baselines, the
+  selected and skipped, the skip rate and the runs. Then two tabs: the
+  selection runs, one per invocation, newest first
+  (`Selections.list_runs/2`), each opening the Selective Testing tab of the
+  test run that reported its results (`TuistWeb.TestSelection.RunTab`); and
+  the baselines, the
   default-branch commits that measured coverage and whether each can serve
   as one (`Selections.baselines/2`).
   """
@@ -28,10 +26,9 @@ defmodule TuistWeb.TestSelectionsLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
-  alias TuistWeb.TestSelection.RunTab
   alias TuistWeb.Utilities.Query
 
-  @widgets ~w(selected skipped skip_rate missed runs)
+  @widgets ~w(selected skipped skip_rate runs)
   @tabs ~w(runs baselines)
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -65,15 +62,13 @@ defmodule TuistWeb.TestSelectionsLive do
 
   defp assign_tab(%{assigns: %{selected_project: project}} = socket, "runs", params) do
     search = params["search"] || ""
-    mode = if params["mode"] in ["dry_run", "enabled"], do: params["mode"], else: "any"
     fallback? = params["fallback"] == "true"
 
     {rows, meta} =
-      Selections.list_runs(project.id, search: search, mode: mode, fallback: fallback?, page: parse_page(params["page"]))
+      Selections.list_runs(project.id, search: search, fallback: fallback?, page: parse_page(params["page"]))
 
     socket
     |> assign(:search, search)
-    |> assign(:mode, mode)
     |> assign(:fallback?, fallback?)
     |> assign(:runs, rows)
     |> assign(:runs_meta, meta)
@@ -134,9 +129,9 @@ defmodule TuistWeb.TestSelectionsLive do
   reported its results; one whose results never arrived has nowhere to go
   and stays on this page.
   """
-  def run_href(%{selected_account: account, selected_project: project}, %{test_run_id: test_run_id} = run)
+  def run_href(%{selected_account: account, selected_project: project}, %{test_run_id: test_run_id})
       when not is_nil(test_run_id),
-      do: "/#{account.name}/#{project.name}/tests/test-runs/#{test_run_id}?tab=#{RunTab.page_tab(run)}"
+      do: "/#{account.name}/#{project.name}/tests/test-runs/#{test_run_id}?tab=test-optimizations"
 
   def run_href(%{uri: uri} = assigns, _run), do: "#{path_from_assigns(assigns)}?#{uri.query}"
 
@@ -159,17 +154,6 @@ defmodule TuistWeb.TestSelectionsLive do
         "var:noora-chart-tertiary",
         analytics.dates,
         analytics.skip_rates
-      )
-    ]
-  end
-
-  def chart_series("missed", analytics) do
-    [
-      line_series(
-        dgettext("dashboard_tests", "Misses"),
-        "var:noora-chart-destructive",
-        analytics.dates,
-        analytics.missed
       )
     ]
   end
@@ -226,10 +210,6 @@ defmodule TuistWeb.TestSelectionsLive do
   defp trend_label("last-12-months"), do: dgettext("dashboard_tests", "since last year")
   defp trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
   defp trend_label(_preset), do: dgettext("dashboard_tests", "since last month")
-
-  @doc false
-  def mode_filter_label("any"), do: dgettext("dashboard_tests", "Any")
-  def mode_filter_label(mode), do: mode_label(mode)
 
   @doc false
   def baseline_status_label("baseline"), do: dgettext("dashboard_tests", "Baseline")

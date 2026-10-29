@@ -1,22 +1,20 @@
 defmodule TuistWeb.TestSelection.Components do
   @moduledoc """
   The cells and words test selection shares across the Test Selection page,
-  a test run's Selective Testing tab and a test case run's Test Selection
-  tab: a decision as a badge,
-  the reasons behind it, a test's outcome, whether a selection run's skips
-  were applied and why it fell back to running everything, and the kinds of
-  changed files.
+  a test run's Selective Testing tab and a test case run's Selective
+  Testing tab: a decision as a badge, the reasons behind it, a test's
+  outcome, why a selection run fell back to running everything, and the
+  kinds of changed files.
   """
   use TuistWeb, :html
   use Noora
 
   attr :decision, :string, required: true
-  attr :mode, :string, default: "enabled"
 
   def decision_cell(assigns) do
     ~H"""
     <.badge_cell
-      label={decision_label(@decision, @mode)}
+      label={decision_label(@decision)}
       color={decision_color(@decision)}
       icon={decision_icon(@decision)}
       style="light-fill"
@@ -25,13 +23,12 @@ defmodule TuistWeb.TestSelection.Components do
   end
 
   attr :decision, :string, required: true
-  attr :mode, :string, default: "enabled"
   attr :size, :string, default: "large"
 
   def decision_badge(assigns) do
     ~H"""
     <.badge
-      label={decision_label(@decision, @mode)}
+      label={decision_label(@decision)}
       color={decision_color(@decision)}
       style="light-fill"
       size={@size}
@@ -41,13 +38,9 @@ defmodule TuistWeb.TestSelection.Components do
     """
   end
 
-  @doc "A decision, worded as a hypothetical in dry run, where every test ran."
-  def decision_label(decision, mode \\ "enabled")
-  def decision_label("selected", "dry_run"), do: dgettext("dashboard_tests", "Would run")
-  def decision_label("skipped", "dry_run"), do: dgettext("dashboard_tests", "Would skip")
-  def decision_label("selected", _mode), do: dgettext("dashboard_tests", "Selected")
-  def decision_label("skipped", _mode), do: dgettext("dashboard_tests", "Skipped")
-  def decision_label(_decision, _mode), do: dgettext("dashboard_tests", "Unknown")
+  def decision_label("selected"), do: dgettext("dashboard_tests", "Selected")
+  def decision_label("skipped"), do: dgettext("dashboard_tests", "Skipped")
+  def decision_label(_decision), do: dgettext("dashboard_tests", "Unknown")
 
   defp decision_color("selected"), do: "primary"
   defp decision_color(_decision), do: "neutral"
@@ -101,13 +94,6 @@ defmodule TuistWeb.TestSelection.Components do
 
   def reason_description(reason, _path), do: reason
 
-  @doc "Whether a selection run's skips were applied."
-  def mode_label("enabled"), do: dgettext("dashboard_tests", "Enforced")
-  def mode_label(_mode), do: dgettext("dashboard_tests", "Dry run")
-
-  def mode_color("enabled"), do: "success"
-  def mode_color(_mode), do: "attention"
-
   @doc "Why a selection run selected every test it requested, when it did."
   def fallback_label("no_baseline"), do: dgettext("dashboard_tests", "No baseline")
   def fallback_label("baseline_too_far"), do: dgettext("dashboard_tests", "Baseline too far back")
@@ -143,19 +129,19 @@ defmodule TuistWeb.TestSelection.Components do
 
   attr :outcome, :string, default: nil
   attr :decision, :string, required: true
-  attr :mode, :string, required: true
   attr :reported, :boolean, default: true
 
-  @doc "What happened to a requested test in the run that reported its results."
+  @doc "What happened to a requested test in the run that reported its results; a skipped test never ran."
+  def outcome_cell(%{decision: "skipped"} = assigns) do
+    ~H"""
+    <.status_badge_cell status="disabled" label={dgettext("dashboard_tests", "Not run")} />
+    """
+  end
+
   def outcome_cell(assigns) do
     ~H"""
     <.status_badge_cell
-      :if={missed?(assigns)}
-      status="error"
-      label={dgettext("dashboard_tests", "Missed")}
-    />
-    <.status_badge_cell
-      :if={!missed?(assigns) and @outcome == "failure"}
+      :if={@outcome == "failure"}
       status="error"
       label={dgettext("dashboard_tests", "Failed")}
     />
@@ -170,24 +156,17 @@ defmodule TuistWeb.TestSelection.Components do
       label={dgettext("dashboard_tests", "Skipped")}
     />
     <.status_badge_cell
-      :if={is_nil(@outcome) and @reported and @decision == "selected"}
+      :if={is_nil(@outcome) and @reported}
       status="warning"
       label={dgettext("dashboard_tests", "Planned, not run")}
     />
     <.status_badge_cell
-      :if={is_nil(@outcome) and (@decision == "skipped" or !@reported)}
+      :if={is_nil(@outcome) and !@reported}
       status="disabled"
       label={dgettext("dashboard_tests", "Not run")}
     />
     """
   end
-
-  defp missed?(%{outcome: "failure", decision: "skipped"}), do: true
-  defp missed?(_assigns), do: false
-
-  @doc "The outcome a run's test shows: a skipped test's outcome only counts in dry run."
-  def visible_outcome(%{decision: "skipped"}, "enabled"), do: nil
-  def visible_outcome(%{outcome: outcome}, _mode), do: outcome
 
   def file_kind_label("source"), do: dgettext("dashboard_tests", "Source")
   def file_kind_label("test"), do: dgettext("dashboard_tests", "Test")

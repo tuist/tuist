@@ -60,13 +60,6 @@
           style="light-fill"
           size="large"
         />
-        <.badge
-          :if={@selection && @selection.missed?}
-          label={dgettext("dashboard_tests", "Selection miss")}
-          color="destructive"
-          style="light-fill"
-          size="large"
-        />
       </div>
       <.link_button
         :if={@test_case}
