@@ -23,6 +23,7 @@ defmodule Atlas.Orbit do
   alias Atlas.LLMs.Runner
   alias Atlas.Orbit.Access
   alias Atlas.Orbit.Attachments
+  alias Atlas.Orbit.Classification
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Participant
   alias Atlas.Orbit.Run
@@ -142,7 +143,7 @@ defmodule Atlas.Orbit do
 
   ## Reads
 
-  def list_for_user(%User{} = user, page \\ 1, kind \\ nil, status \\ nil) do
+  def list_for_user(%User{} = user, page \\ 1, kind \\ nil, status \\ nil, filters \\ %{}) do
     scopes = Atlas.Users.scopes_for(user)
 
     query =
@@ -159,6 +160,7 @@ defmodule Atlas.Orbit do
 
     query = if kind in ["private", "shared"], do: where(query, [thread], thread.kind == ^kind), else: query
     query = if status in ["active", "archived"], do: where(query, [thread], thread.status == ^status), else: query
+    query = filter_inbox(query, filters)
     total_count = Repo.aggregate(query, :count)
     total_pages = max(1, ceil(total_count / @thread_page_size))
     page = page |> max(1) |> min(total_pages)
@@ -186,6 +188,30 @@ defmodule Atlas.Orbit do
       |> Repo.all()
 
     {items, %{page: page, total_pages: total_pages, total_count: total_count}}
+  end
+
+  # Search metadata only: encrypted catch-ups, tool evidence and attachments
+  # never enter this query. strpos treats %, _ and backslashes literally.
+  defp filter_inbox(query, filters) do
+    query =
+      case Map.get(filters, "domain", "") do
+        "" -> query
+        "unclassified" -> where(query, [thread], is_nil(thread.domain))
+        domain -> where(query, [thread], thread.domain == ^domain)
+      end
+
+    case String.trim(Map.get(filters, "query", "")) do
+      "" ->
+        query
+
+      text ->
+        where(
+          query,
+          [thread],
+          fragment("strpos(lower(?), lower(?)) > 0", thread.title, ^text) or
+            fragment("strpos(lower(?), lower(?)) > 0", thread.summary, ^text)
+        )
+    end
   end
 
   @doc """
@@ -654,6 +680,7 @@ defmodule Atlas.Orbit do
       Attachments.claim!(attachment_ids, user, message)
       append_handoffs!(thread, newcomers)
       queue_mentions!(thread, message, user)
+      Classification.enqueue(thread, message, user)
       if address_agent?, do: request_run!(thread, message, user, user)
       {message, :created}
     end
@@ -978,6 +1005,7 @@ defmodule Atlas.Orbit do
         thread = thread |> Ecto.Changeset.change(priority: priority) |> Repo.update!()
         message = append!(thread, %{kind: "system", body: body, address_agent: true})
         append_handoffs!(thread, newcomers)
+        Classification.enqueue(thread, message, owner)
 
         if Access.can_read?(thread, Repo.get(User, thread.owner_id)) do
           request_run!(thread, message, nil, Repo.get(User, thread.owner_id))

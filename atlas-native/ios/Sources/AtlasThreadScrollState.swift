@@ -8,7 +8,7 @@ struct AtlasThreadScrollMetrics: Equatable {
     let viewport: CGFloat
     var inset: CGFloat = 0
     var offset: CGFloat { height - bottom }
-    var atBottom: Bool { abs(bottom - viewport) <= 20 }
+    var atBottom: Bool { abs(bottom - min(height, viewport)) <= 20 }
 }
 
 final class AtlasThreadScrollState: ObservableObject {

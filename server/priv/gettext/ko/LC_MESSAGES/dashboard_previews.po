@@ -145,12 +145,12 @@ msgstr "QR 코드 스캔"
 #: lib/tuist_web/live/preview_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "이 앱 버전을 설치하려면 iOS 기기에서 이 QR 코드를 스캔하세요"
+msgstr "iOS 기기에서 이 QR 코드를 스캔하여 앱의 이 버전을 설치하세요"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "앱 미리보기를 한 번의 클릭으로 공유"
+msgstr "한 번의 클릭으로 앱 미리보기 공유"
 
 #: lib/tuist_web/live/preview_live.html.heex:117
 #, elixir-autogen, elixir-format
@@ -160,12 +160,12 @@ msgstr "지원 플랫폼"
 #: lib/tuist_web/live/preview_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "이 미리보기는 시뮬레이터에서만 지원되며 실제 기기에 설치할 수 없습니다"
+msgstr "이 미리보기는 시뮬레이터에서만 지원되며 실제 기기에는 설치할 수 없습니다"
 
 #: lib/tuist_web/live/preview_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "이 미리보기는 기기 설치를 사용할 수 없습니다"
+msgstr "이 미리보기는 기기에 설치할 수 없습니다"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
@@ -202,7 +202,7 @@ msgstr "패키지 이름"
 #: lib/tuist_web/live/preview_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "Android 기기에서 이 QR 코드를 스캔하여 앱의 이 버전을 다운로드하고 설치하세요"
+msgstr "Android 기기에서 이 QR 코드를 스캔하여 이 버전의 앱을 다운로드하고 설치하세요"
 
 #: lib/tuist_web/live/preview_live.html.heex:233
 #, elixir-autogen, elixir-format

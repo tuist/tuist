@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "f6605e73e7ccfe96cca60eac1ad0edb8eb2c6de3af0acfe637a9e95976939ffe",
+  "hash": "1b6627740f7a6fda9abe17a046f2e92ad7f537a603d68de8849bdcff5be9aa16",
   "hash_tree": {
     "root": {
       "children": [
@@ -38,11 +38,11 @@
           "children": [
             {
               "children": [],
-              "hash": "cc723597b53f016e87decb817beb673d409f5032e7dae14a3006e62faa621131",
+              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2ee7e12ee0fd0b8aa5b100398d3a212b8095222ba456fb45a4b970e59dd5c84e"
+                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
               }
             },
             {
@@ -84,20 +84,20 @@
               }
             }
           ],
-          "hash": "a7bc78529e5ae83c4f936a772ac5d9be1e865b5ad844c483438ae06b8c676667",
+          "hash": "56efe1d4318519ada9c110301979b281f5c3bcd5e74705d50fe91ea81e42ca30",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
-      "hash": "f6605e73e7ccfe96cca60eac1ad0edb8eb2c6de3af0acfe637a9e95976939ffe",
+      "hash": "1b6627740f7a6fda9abe17a046f2e92ad7f537a603d68de8849bdcff5be9aa16",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ef19bd9dbdb746d9b4a182a6477c6ac7b26a2d4c45b64ce7eb60437353f181c1",
+  "output_hash": "65d84d1841b3e0b536b40c6db4d9c4c69cb41765958ee016f515e2da621b0c6c",
   "output_path": "server/priv/docs/ru/guides/features/cache.md",
   "protection_state": "recorded",
   "provider": "",
@@ -115,8 +115,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "f251a0fa7c610dc33c0161256b34dba1b0bbc54c",
+  "source_commit_sha": "a9ebff0c949b89ca00f2081a3ead2cb58e6b62ac",
   "source_path": "server/priv/docs/en/guides/features/cache.md",
-  "translated_at": "2026-10-26T17:05:35.909827Z",
-  "translation_session_id": "01a1792b-2adf-70ed-9044-6da241aba135"
+  "translated_at": "2026-10-27T17:30:25.586764Z",
+  "translation_session_id": "01a17e64-0648-7ee3-8a99-912a58ebaa1d"
 }

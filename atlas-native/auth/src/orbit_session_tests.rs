@@ -532,7 +532,9 @@ fn invalid_drafts_and_cross_instance_session_are_rejected() {
             session,
             command: Command::Load {
                 kind: None,
-                status: None
+                status: None,
+                query: None,
+                domain: None,
             }
         })
         .is_err()
@@ -585,7 +587,7 @@ fn assert_messages_request(url: &url::Url, body: crate::transport::Body<'_>, id:
 fn private_creation_refreshes_capability_then_replays_uuid_and_creates_distinct_histories() {
     use std::cell::{Cell, RefCell};
     let (connection, model) = opened();
-    set_list_filters(&model, Some("private".into()), None).unwrap();
+    set_list_filters(&model, Some("private".into()), None, None, None).unwrap();
     select_using(
         &model,
         Some(UNSEEN.into()),
@@ -786,7 +788,7 @@ fn private_creation_refreshes_capability_then_replays_uuid_and_creates_distinct_
 fn private_list_filter_survives_pagination_refresh_and_shared_direct_selection() {
     use std::cell::Cell;
     let (connection, model) = opened();
-    set_list_filters(&model, Some("private".into()), None).unwrap();
+    set_list_filters(&model, Some("private".into()), None, None, None).unwrap();
     let expected_page = Cell::new(1);
     let network = InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
         assert_eq!(
@@ -825,13 +827,17 @@ fn private_list_filter_survives_pagination_refresh_and_shared_direct_selection()
     )
     .unwrap();
     assert_eq!(snapshot(&model).unwrap()["selected"]["kind"], "shared");
-    assert!(set_list_filters(&model, Some("invalid".into()), None).is_err());
-    let Command::Load { kind, status } =
-        serde_json::from_value::<Command>(json!({"action":"load"})).unwrap()
+    assert!(set_list_filters(&model, Some("invalid".into()), None, None, None).is_err());
+    let Command::Load {
+        kind,
+        status,
+        query,
+        domain,
+    } = serde_json::from_value::<Command>(json!({"action":"load"})).unwrap()
     else {
         panic!("expected legacy load")
     };
-    set_list_filters(&model, kind, status).unwrap();
+    set_list_filters(&model, kind, status, query, domain).unwrap();
     assert_eq!(model.state.lock().unwrap().list_page, 0);
     load_using(&model, false, &InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
         assert_eq!(url.query(), Some("page=1&status=active"));
@@ -1338,7 +1344,7 @@ fn mention_candidates_fence_queries_selection_access_and_local_actions_without_l
                     begin_selection(&mut model.state.lock().unwrap(), Some(SECOND.into()));
                 }
                 "access" => {
-                    set_list_filters(&model, Some("shared".into()), None).unwrap();
+                    set_list_filters(&model, Some("shared".into()), None, None, None).unwrap();
                 }
                 "background" => {
                     set_active(&model, false).unwrap();
@@ -1866,13 +1872,18 @@ fn archive_restore_reconciles_status_without_erasing_history_drafts_or_retry_ide
     assert!(value["sequence"].as_u64().unwrap() > before);
 
     let before = value["sequence"].as_u64().unwrap();
-    set_list_filters(&model, None, Some(StatusFilter::Archived)).unwrap();
+    set_list_filters(&model, None, Some(StatusFilter::Archived), None, None).unwrap();
     assert!(snapshot(&model).unwrap()["sequence"].as_u64().unwrap() > before);
-    let Command::Load { kind, status } = serde_json::from_value(json!({"action":"load"})).unwrap()
+    let Command::Load {
+        kind,
+        status,
+        query,
+        domain,
+    } = serde_json::from_value(json!({"action":"load"})).unwrap()
     else {
         panic!()
     };
-    set_list_filters(&model, kind, status).unwrap();
+    set_list_filters(&model, kind, status, query, domain).unwrap();
     assert_eq!(snapshot(&model).unwrap()["status_filter"], "archived");
     let network = InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
         assert!(url.query().unwrap().ends_with("status=archived"));
@@ -2026,7 +2037,8 @@ fn archive_callbacks_cannot_restore_revoked_closed_or_background_state() {
                         set_active(&model, false).unwrap();
                     }
                     "filter" => {
-                        set_list_filters(&model, None, Some(StatusFilter::Archived)).unwrap();
+                        set_list_filters(&model, None, Some(StatusFilter::Archived), None, None)
+                            .unwrap();
                     }
                     _ => {}
                 }
@@ -2060,7 +2072,7 @@ fn status_filter_fences_old_pages_and_protected_history_keeps_archived_rows_out_
         calls.set(calls.get() + 1);
         if calls.get() == 1 {
             assert!(url.query().unwrap().ends_with("status=active"));
-            set_list_filters(&model, None, Some(StatusFilter::Archived)).unwrap();
+            set_list_filters(&model, None, Some(StatusFilter::Archived), None, None).unwrap();
             load_using(&model, false, &crate::tests::MockTransport::new(vec![])).unwrap();
         } else {
             assert!(url.query().unwrap().ends_with("status=archived"));
@@ -2079,7 +2091,7 @@ fn status_filter_fences_old_pages_and_protected_history_keeps_archived_rows_out_
         snapshot(&model).unwrap()["threads"][0]["status"],
         "archived"
     );
-    set_list_filters(&model, None, Some(StatusFilter::Active)).unwrap();
+    set_list_filters(&model, None, Some(StatusFilter::Active), None, None).unwrap();
     history_using(
         &model,
         false,
@@ -2109,6 +2121,77 @@ fn only_upload_bridge_envelopes_may_exceed_one_mebibyte() {
     let upload = json!({"operation":"orbit_session","action":"request","connection":"not-open","session":saved(),"command":{"action":"upload_attachment","id":FIRST,"filename":"big.txt","content_type":"text/plain","data":large}});
     let result: Value = serde_json::from_str(&crate::bridge::execute(&upload.to_string())).unwrap();
     assert_eq!(result["error"]["kind"], "closed"); // Allowed through the bounded bridge; no handle means no HTTP.
+}
+
+#[test]
+fn search_and_domain_supersede_old_reads_and_survive_pagination_and_history() {
+    let (connection, model) = opened();
+    let calls = std::cell::Cell::new(0);
+    let network = InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
+        let call = calls.get();
+        calls.set(call + 1);
+        if call == 0 {
+            set_list_filters(
+                &model,
+                None,
+                None,
+                Some("50%_".into()),
+                Some("engineering".into()),
+            )
+            .unwrap();
+            load_using(&model, false, &crate::tests::MockTransport::new(vec![])).unwrap();
+            return Ok(
+                json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[thread(SECOND,"shared")],"page":1,"total_pages":1,"total_count":1}}),
+            );
+        }
+        let params: std::collections::HashMap<_, _> = url.query_pairs().collect();
+        assert_eq!(params["query"], "50%_");
+        assert_eq!(params["domain"], "engineering");
+        assert_eq!(params["page"], call.to_string());
+        let mut item = thread(if call == 1 { FIRST } else { SECOND }, "private");
+        item.title = "50%_ release".into();
+        item.domain = Some("engineering".into());
+        Ok(
+            json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[item],"page":call,"total_pages":2,"total_count":26}}),
+        )
+    });
+    load_using(&model, false, &network).unwrap();
+    assert_eq!(snapshot(&model).unwrap()["threads"][0]["id"], FIRST);
+    assert_eq!(
+        snapshot(&model).unwrap()["threads"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    set_list_filters(&model, None, None, None, None).unwrap();
+    load_using(&model, true, &network).unwrap();
+    let state = snapshot(&model).unwrap();
+    assert_eq!(state["query"], "50%_");
+    assert_eq!(state["domain_filter"], "engineering");
+    assert_eq!(state["threads"].as_array().unwrap().len(), 2);
+    set_list_filters(
+        &model,
+        None,
+        None,
+        Some("".into()),
+        Some("unclassified".into()),
+    )
+    .unwrap();
+    select_using(
+        &model,
+        Some(FIRST.into()),
+        None,
+        &crate::tests::MockTransport::new(vec![response(FIRST)]),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["query"], "");
+    assert_eq!(snapshot(&model).unwrap()["domain_filter"], "unclassified");
+    for query in ["bad\nquery".into(), "é".repeat(101)] {
+        assert!(set_list_filters(&model, None, None, Some(query), None).is_err());
+    }
+    assert!(set_list_filters(&model, None, None, None, Some("../invalid".into())).is_err());
+    execute(Action::Close { connection }).unwrap();
 }
 
 #[test]
@@ -2148,6 +2231,24 @@ fn inbox_reopens_locally_with_expired_credentials_then_refreshes_without_blankin
     let model = get(&connection).unwrap();
     set_active(&model, true).unwrap();
     assert!(model.state.lock().unwrap().live.is_none()); // Local bootstrap never connects.
+    model.state.lock().unwrap().session.expires_at = crate::now() + 3600;
+    set_list_filters(
+        &model,
+        None,
+        None,
+        Some("sensitive search".into()),
+        Some("engineering".into()),
+    )
+    .unwrap();
+    load_using(&model, false, &MockTransport::new(vec![overview(SECOND)])).unwrap();
+    let cached = open(session.clone());
+    assert_eq!(cached["snapshot"]["threads"][0]["id"], FIRST); // Search never replaces the durable inbox.
+    execute(Action::Close {
+        connection: cached["connection"].as_str().unwrap().into(),
+    })
+    .unwrap();
+    set_list_filters(&model, None, None, Some("".into()), Some("".into())).unwrap();
+    model.state.lock().unwrap().session.expires_at = 1;
     assert!(
         execute(Action::Request {
             connection: connection.clone(),

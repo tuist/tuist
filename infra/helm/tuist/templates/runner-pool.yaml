@@ -377,12 +377,16 @@ shape larger than the smallest host in the fleet MUST carry an
 host it; that ceiling, not the shared budget, is what keeps the pool from
 targeting slots it can never fill. Omitting the block leaves the pool
 static at replicas 0, which is the safe cold default.
+
+An Xcode's override replaces that block for its own pool of the shape,
+`xcodeOverrides.<xcode>.shapes.<shapeKey>.autoscaling`, so one Xcode's
+shape pool can keep a warm floor while the shape's other pools stay cold.
 */}}
 {{- range $shape := $placement.shapes }}
 {{- $vcpus := required "runnersFleet.shapes[].vcpus required" $shape.vcpus | int }}
 {{- $memoryGb := required "runnersFleet.shapes[].memoryGb required" $shape.memoryGb | int }}
 {{- $shapeKey := printf "%dvcpu-%dgb" $vcpus $memoryGb }}
-{{- $shapeAutoscaling := $shape.autoscaling }}
+{{- $shapeAutoscaling := dig "shapes" $shapeKey "autoscaling" $shape.autoscaling $override }}
 {{- $shapePoolName := printf "%s-%s%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $xcodeTag $shapeKey }}
 {{- $shapeGuestVcpus := $vcpus }}
 {{- $shapeGuestMemoryGb := $memoryGb }}

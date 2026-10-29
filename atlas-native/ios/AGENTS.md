@@ -85,7 +85,12 @@ details preserve readable history and replace the composer with an owner-only Re
 restoring does not ask Pip to resume. Server ownership and status remain authoritative.
 Dates accept server microseconds and legacy whole seconds. Navbar compose opens a distinct
 private conversation with welcome/suggestions, rather than a fixed bottom Ask bar. Suggestions
-append to the existing draft and never send. Notification links select an authorized
+sit in a horizontally scrolling Liquid Glass row above the composer, with blue leading icons,
+full prompt text, 44pt targets and wrapping accessibility text. Respect Reduce Transparency
+and increased contrast with opaque system surfaces. Welcome starters yield to the latest
+agent reply's optional server follow-ups; a newer human turn, active run, draft, file or
+dictation hides them. Never reuse an older reply's suggestions when the latest omits them.
+Selection appends to the editable draft and never sends. Notification links select an authorized
 thread by UUID through Rust before showing its detail; tab returns must not replay them.
 Push settings disclose that completion alerts contain a title and reply preview.
 
