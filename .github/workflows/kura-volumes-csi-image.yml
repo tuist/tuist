@@ -18,6 +18,10 @@ on:
       - .github/workflows/kura-volumes-csi-image.yml
   workflow_dispatch:
     inputs:
+      latency_only:
+        description: Isolate thin small-write latency in a disposable VM; no publication or deployment
+        type: boolean
+        default: false
       metadata_only:
         description: Qualify 128 encrypted XFS devices in a disposable VM; no images or deployment
         type: boolean
@@ -53,7 +57,7 @@ env:
 
 jobs:
   test:
-    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && inputs.fscrypt_only != true && inputs.borrowed_only != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && inputs.fscrypt_only != true && inputs.borrowed_only != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +76,7 @@ jobs:
         run: go vet ./...
 
   thin-stack:
-    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true && inputs.borrowed_only != true
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true && inputs.borrowed_only != true
     # Device-mapper fault tests need their own disposable VM, never a shared
     # staging host or a container with access to a runner host's block devices.
     runs-on: ubuntu-24.04
@@ -113,7 +117,7 @@ jobs:
             /tmp/kura-thin-stack.json
 
   borrowed-build:
-    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -157,7 +161,7 @@ jobs:
 
   borrowed-stack:
     needs: borrowed-build
-    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only == true
     runs-on: ubuntu-24.04
     timeout-minutes: 70
     permissions:
@@ -216,7 +220,7 @@ jobs:
             /tmp/kura-borrowed-driver.log
 
   fscrypt-experiment:
-    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only != true
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only != true
     # Independent storage-primitive experiment; no deployed driver change.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -293,7 +297,7 @@ jobs:
     needs: [test, thin-stack]
     # The VM qualification is dispatch-only; a PR still builds its image.
     # A failed or cancelled qualification must never publish a candidate.
-    if: always() && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && needs.test.result == 'success' && (needs.thin-stack.result == 'success' || needs.thin-stack.result == 'skipped')
+    if: inputs.latency_only != true && always() && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && needs.test.result == 'success' && (needs.thin-stack.result == 'success' || needs.thin-stack.result == 'skipped')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -328,7 +332,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=kura-volumes-csi
 
   borrowed-server-artifact:
-    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
     permissions:
       contents: read
       packages: read
@@ -363,7 +367,7 @@ jobs:
           compression-level: 0
           retention-days: 3
   borrowed-csi-artifact:
-    if: inputs.metadata_only != true && github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
+    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.fixture_images_only == true
     permissions:
       contents: read
       packages: read
@@ -395,7 +399,7 @@ jobs:
           retention-days: 3
 
   metadata-scale:
-    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.metadata_only == true
+    if: inputs.latency_only != true && github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.metadata_only == true
     runs-on: ubuntu-24.04
     timeout-minutes: 65
     permissions:
@@ -427,3 +431,38 @@ jobs:
           path: |
             /tmp/kura-borrowed-results.json
             /tmp/kura-borrowed-driver.log
+
+  latency-isolation:
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch' && inputs.latency_only == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Build bounded latency client
+        working-directory: infra/kura-volumes-csi
+        run: go build -o /tmp/kura-latency-bench ./cmd/cache-bench
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare disposable VM only
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby lvm2 cryptsetup xfsprogs thin-provisioning-tools fio
+          sudo modprobe dm_thin_pool
+          docker pull ghcr.io/tuist/kura@sha256:2c7e3ddc67bd196452663078c9f95bf8dd17a654d8bb0d9c0c388bc8c072ab43
+      - name: Isolate quotas, crypto submission, filesystem format and thin mapping
+        run: sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_LATENCY_BENCH=/tmp/kura-latency-bench ruby infra/kura-volumes-csi/thin/borrowed/latency_stack.rb
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: latency-isolation
+          path: /tmp/kura-latency-results.json

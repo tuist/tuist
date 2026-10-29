@@ -32,3 +32,8 @@ that every read is cold. Keep the same mode and client limits on both layouts.
 With `-working-set -corpus PATH`, persist only hashes and sizes for later
 `-verify-corpus -corpus PATH` checksum reads through a Service or each replica.
 Verification performs no writes and accepts at most the bounded 256-object corpus.
+
+For latency diagnosis, `-small-only -small-count 4000 -warmup 400` separates a
+reported warmup from longer 16 KiB PUT/GET phases. `-concurrency` defaults to eight
+and is bounded to 1–64; counts are bounded to 16,384. Keep defaults for historical
+comparisons. Small-only excludes corpus modes and does not exercise eviction.

@@ -102,3 +102,23 @@ separate gates. Hosted throughput measurements are recorded in validation.md.
 The separate 128-device qualification covers bounded scattered writes and cold
 activation and now meets the five-second observation budget. It is not
 worst-case metadata mapping qualification.
+
+### Isolating small-write latency
+
+`latency_stack.rb` is a disposable-Linux-VM diagnostic, not a hosted-node setup
+script. Dispatch `kura-volumes-csi-image.yml` with only `latency_only=true` to
+compare the same pinned experimental runtime on eight configurations in forward
+and reverse order. It creates its own loop-backed VG, holds virtual size and
+runtime limits constant, and varies thin mapping, project quotas, dm-crypt write
+submission, and XFS format settings. The format factor groups `reflink=0` and a
+64 MiB log; a result for that factor requires further isolation before choosing
+either setting. It does not publish images or change any cluster.
+
+Each configuration records the original 400-request cold PUT/GET phase, then a
+separate 400-write warmup and 4,000-request PUT/GET phase, with cgroup counters
+around both. Serial 16 KiB writes compare fresh allocation, overwrite, and
+buffered writes, recording write and fdatasync latency separately. These probes
+help distinguish allocation/durability costs from request scheduling; their
+absolute latency is not a prediction for hosted hardware. No durability barrier,
+quota, reserve, or production setting is disabled as an optimization by this
+experiment. Cleanup refuses to delete backing if unmount or mapper close fails.

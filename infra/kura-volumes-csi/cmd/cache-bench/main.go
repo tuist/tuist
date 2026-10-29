@@ -44,14 +44,24 @@ func main() {
 	workingSet := flag.Bool("working-set", false, "seed and read a 1 GiB working set without retaining bodies in the client")
 	corpusPath := flag.String("corpus", "", "working-set hash/size manifest to save or verify")
 	verifyCorpus := flag.Bool("verify-corpus", false, "read and checksum an existing working-set manifest without writing")
+	smallOnly := flag.Bool("small-only", false, "run only bounded 16 KiB PUT/GET phases for latency diagnosis")
+	smallCount := flag.Int("small-count", 400, "small objects per phase (1–16384)")
+	warmup := flag.Int("warmup", 0, "separately reported small PUT warmup objects (0–16384; small-only)")
+	concurrency := flag.Int("concurrency", 8, "concurrent requests (1–64)")
 	flag.Parse()
+	if *smallCount < 1 || *smallCount > 16384 || *warmup < 0 || *warmup > 16384 || *concurrency < 1 || *concurrency > 64 {
+		panic("object count or concurrency exceeds bounded fixture limits")
+	}
+	if (*smallOnly && (*workingSet || *verifyCorpus || *corpusPath != "")) || (*warmup != 0 && !*smallOnly) {
+		panic("small-only/warmup cannot be combined with corpus modes")
+	}
 	if *base == "" || *account == "" {
 		panic("fixture required")
 	}
 	raw, e := os.ReadFile(*tok)
 	must(e)
 	token := strings.TrimSpace(string(raw))
-	c := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{MaxIdleConnsPerHost: 8}}
+	c := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{MaxIdleConnsPerHost: *concurrency}}
 	var results []result
 	makeObjects := func(n, size int) []object {
 		o := make([]object, n)
@@ -72,7 +82,7 @@ func main() {
 		jobs := make(chan object)
 		var wg sync.WaitGroup
 		start := time.Now()
-		for w := 0; w < 8; w++ {
+		for w := 0; w < *concurrency; w++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -187,9 +197,15 @@ func main() {
 		run("working_set_get", "GET", corpus)
 		return
 	}
-	small := makeObjects(400, 16<<10)
+	if *warmup > 0 {
+		run("warmup_small_put", "PUT", makeObjects(*warmup, 16<<10))
+	}
+	small := makeObjects(*smallCount, 16<<10)
 	run("small_put", "PUT", small)
 	run("small_get", "GET", small)
+	if *smallOnly {
+		return
+	}
 	small = nil
 	large := makeObjects(64, 4<<20)
 	run("large_put", "PUT", large)
