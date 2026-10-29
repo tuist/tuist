@@ -93,6 +93,13 @@ defmodule TuistWeb.TestSelection.Components do
 
   def reason_description(reason, _path), do: reason
 
+  @doc "How a selection run decided what to skip."
+  def strategy_label("module_hash"), do: dgettext("dashboard_tests", "Module hash")
+  def strategy_label(_strategy), do: dgettext("dashboard_tests", "Coverage")
+
+  def strategy_color("module_hash"), do: "neutral"
+  def strategy_color(_strategy), do: "primary"
+
   @doc "Whether a selection run's skips were applied."
   def mode_label("enabled"), do: dgettext("dashboard_tests", "Enforced")
   def mode_label(_mode), do: dgettext("dashboard_tests", "Dry run")

@@ -90,6 +90,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#widget-missed", "1")
       assert has_element?(lv, "#test-selection-runs-table", "a1b2c3d")
       assert has_element?(lv, "#test-selection-runs-table", "feature/search")
+      assert has_element?(lv, "#test-selection-runs-table", "Coverage")
       assert has_element?(lv, "#test-selection-runs-table", "Dry run")
     end
 

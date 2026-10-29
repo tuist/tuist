@@ -3,7 +3,8 @@ defmodule Tuist.Tests.TestSelectionRun do
   One invocation's test selection: the scope it requested (scheme or test
   plan, destination, targets), the test impact it applied (`baseline_sha`,
   empty when it fell back to running everything, with `fallback_reason`),
-  its `mode` (`dry_run` or `enabled`), how it was sharded, the CI run and
+  its `strategy` (`coverage`, or `module_hash` when it selected whole test
+  targets by their module hashes), its `mode` (`dry_run` or `enabled`), how it was sharded, the CI run and
   job that asked for it (`idempotency_key`), and the counts. `test_run_id`
   is the test run that reported its results; `missed_count` the tests it
   would have skipped that failed, recorded once that run is processed.
@@ -23,6 +24,7 @@ defmodule Tuist.Tests.TestSelectionRun do
     field :test_plan, Ch, type: "String"
     field :destination, Ch, type: "String"
     field :requested_targets, Ch, type: "Array(String)"
+    field :strategy, Ch, type: "LowCardinality(String)"
     field :mode, Ch, type: "LowCardinality(String)"
     field :shard_count, Ch, type: "UInt16"
     field :shard_plan_id, Ch, type: "Nullable(UUID)"

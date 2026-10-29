@@ -55,6 +55,7 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
       test_plan: Keyword.get(attrs, :test_plan, ""),
       destination: Keyword.get(attrs, :destination, "iPhone 17 Pro · iOS 26.1"),
       requested_targets: tests |> Enum.map(& &1.module_name) |> Enum.uniq() |> Enum.sort(),
+      strategy: Keyword.get(attrs, :strategy, "coverage"),
       mode: Keyword.get(attrs, :mode, "dry_run"),
       shard_count: Keyword.get(attrs, :shard_count, 1),
       shard_plan_id: nil,

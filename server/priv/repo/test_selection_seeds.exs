@@ -443,6 +443,7 @@ seeded =
         {selected, skipped} = Enum.split_with(tests, &(&1.decision == "selected"))
         tests = TestSelectionSeed.pack(selected, shard_count) ++ skipped
         mode = if TestSelectionSeed.h({commit.sha, :mode}, 5) == 0, do: "enabled", else: "dry_run"
+        strategy = if TestSelectionSeed.h({commit.sha, :strategy}, 4) == 0, do: "module_hash", else: "coverage"
 
         ci_run_id =
           if test_run.ci_run_id in [nil, ""],
@@ -481,6 +482,7 @@ seeded =
           test_plan: if(TestSelectionSeed.h({test_run.id, :plan}, 4) == 0, do: "#{test_run.scheme}.xctestplan", else: ""),
           destination: Enum.at(destinations, TestSelectionSeed.h({commit.branch, test_run.scheme}, length(destinations))),
           requested_targets: targets,
+          strategy: strategy,
           mode: mode,
           shard_count: shard_count,
           shard_plan_id: UUIDv7.generate(),

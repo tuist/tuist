@@ -15,7 +15,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestSelectionRuns do
   A test selection run is one invocation (a scheme or test plan on a
   destination, sharded or not) applying an impact to the tests it requested:
 
-  - `test_selection_runs`: the invocation, its mode, shard count, CI
+  - `test_selection_runs`: the invocation, its strategy and mode, shard count, CI
     identity, counts and fallback reason. Recording dry-run misses writes the
     run again; merges keep the latest `updated_at`.
   - `test_selection_tests`: one row per requested test, selected (with the
@@ -100,6 +100,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestSelectionRuns do
       `test_plan` String,
       `destination` String,
       `requested_targets` Array(String),
+      `strategy` LowCardinality(String),
       `mode` LowCardinality(String),
       `shard_count` UInt16,
       `shard_plan_id` Nullable(UUID),

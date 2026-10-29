@@ -152,6 +152,13 @@
               icon="alert_triangle"
             />
           </:col>
+          <:col :let={run} label={dgettext("dashboard_tests", "Strategy")}>
+            <.badge_cell
+              label={strategy_label(run.strategy)}
+              color={strategy_color(run.strategy)}
+              style="light-fill"
+            />
+          </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Mode")}>
             <.badge_cell
               label={mode_label(run.mode)}
