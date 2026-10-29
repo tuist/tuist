@@ -96,6 +96,40 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     assert Capacity.ready_nodes("macos") == []
   end
 
+  test "CI revocation after resume admission keeps the checkpoint retryable", %{node: node} do
+    for resident <- [false, true] do
+      paused = sandbox(state: :paused, node_name: node.name, node_uid: node.generation, resident: resident)
+
+      expect(Nodes, :call, fn _name, "resume", _args, _opts ->
+        assert Repo.reload!(paused).state == :resuming
+        {:error, "macOS sandbox capacity unavailable"}
+      end)
+
+      assert {:error, :no_capacity} = Sandboxes.resume(paused)
+      assert %{state: :paused, resident: true, error_message: nil} = Repo.reload!(paused)
+
+      assert :ok =
+               Sandboxes.reconcile_node_report(node.name, %{
+                 "generation" => node.generation,
+                 "sandboxes" => [%{"id" => paused.id, "state" => "paused", "resident" => resident}]
+               })
+
+      assert Repo.reload!(paused).resident == resident
+      expect(Nodes, :call, fn _name, "resume", _args, _opts -> {:ok, %{"restore_ms" => 10}} end)
+      assert {:ok, %{state: :running}} = Sandboxes.resume(paused)
+      paused |> Repo.reload!() |> Ecto.Changeset.change(state: :deleted, resident: false) |> Repo.update!()
+    end
+  end
+
+  test "a capacity denial with uncertain cleanup remains an error", %{node: node} do
+    paused = sandbox(state: :paused, node_name: node.name, node_uid: node.generation)
+    error = "macOS sandbox capacity unavailable\nreservation release failed"
+    expect(Nodes, :call, fn _name, "resume", _args, _opts -> {:error, error} end)
+
+    assert {:error, ^error} = Sandboxes.resume(paused)
+    assert %{state: :error, resident: true, error_message: ^error} = Repo.reload!(paused)
+  end
+
   test "the macOS gate is required even in development and before any create side effect" do
     stub(FeatureFlags, :macos_sandboxes_enabled?, fn _ -> false end)
     reject(&Nodes.call/4)
