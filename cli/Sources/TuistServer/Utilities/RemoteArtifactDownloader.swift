@@ -4,6 +4,7 @@ import Foundation
 #endif
 import Mockable
 import Path
+import TuistHTTP
 
 enum RemoteArtifactDownloaderError: LocalizedError, Equatable {
     case urlSessionError(url: URL, httpMethod: String, description: String)
@@ -32,7 +33,7 @@ public struct RemoteArtifactDownloader: RemoteArtifactDownloading {
     private let urlSession: URLSession
 
     public init() {
-        self.init(urlSession: URLSession.shared)
+        self.init(urlSession: URLSession.tuistDefault)
     }
 
     init(urlSession: URLSession) {

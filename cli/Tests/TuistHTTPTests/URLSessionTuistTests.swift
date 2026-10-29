@@ -9,6 +9,24 @@
     @Suite(.serialized)
     struct URLSessionTuistTests {
         @Test(.withMockedEnvironment())
+        func all_Apple_session_factories_install_the_trust_policy_without_custom_anchors() {
+            let sessions = [URLSession.tuistDefault, .tuistShared, .tuistCAS, .tuistLargeTransfer]
+            #expect(sessions.allSatisfy { $0.delegate is TuistURLSessionDelegate })
+            let configuration = URLSessionConfiguration.default
+            configuration.timeoutIntervalForRequest = 37
+            configuration.timeoutIntervalForResource = 4321
+            let configured = URLSession.tuist(configuration: configuration)
+            defer { configured.invalidateAndCancel() }
+            #expect(configured.delegate is TuistURLSessionDelegate)
+            #expect(configured.configuration.timeoutIntervalForRequest == 37)
+            #expect(configured.configuration.timeoutIntervalForResource == 4321)
+            #expect(URLSession.tuistDefault.configuration.timeoutIntervalForRequest == URLSession.shared.configuration
+                .timeoutIntervalForRequest)
+            #expect(URLSession.tuistDefault.configuration.timeoutIntervalForResource == URLSession.shared.configuration
+                .timeoutIntervalForResource)
+        }
+
+        @Test(.withMockedEnvironment())
         func tuistURLSessionConfiguration_uses_environment_proxy_when_enabled() async throws {
             let environment = try #require(Environment.mocked)
             environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"

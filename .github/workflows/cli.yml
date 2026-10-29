@@ -521,6 +521,8 @@ jobs:
         run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
+      - name: Install loopback TLS test dependency
+        run: apt-get update -qq && apt-get install -y --no-install-recommends openssl
       - name: Run unit tests
         run: swift test --replace-scm-with-registry
       - name: Save cache
