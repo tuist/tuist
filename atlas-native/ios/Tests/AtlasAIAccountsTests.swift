@@ -12,6 +12,21 @@ struct AtlasAIAccountsTests {
     "interval":0,"expires_at":"2026-10-15T16:00:00Z"}
     """.utf8)
 
+    @Test func savedMetadataCannotEnableSetupAndAccessDenialClearsIt() async {
+        var failure = "network"
+        let accounts = AtlasAIAccounts { request in
+            if request["action"] as? String != "list" { return Data("{}".utf8) }
+            throw AtlasAuthenticationError(kind: failure, message: "Unavailable")
+        }
+        accounts.cachedRequest = { _ in metadata }
+        await accounts.load()
+        #expect(accounts.cached && accounts.account("claude")?.credentialConfigured == true)
+        #expect(!(await accounts.saveClaude("example-token")))
+        failure = "sign_in_required"
+        await accounts.load()
+        #expect(accounts.accounts.isEmpty && !accounts.cached && !accounts.busy)
+    }
+
     @Test func loadsMetadataAndSavesClaudeThroughAPI() async {
         var actions: [String] = []
         let accounts = AtlasAIAccounts { request in

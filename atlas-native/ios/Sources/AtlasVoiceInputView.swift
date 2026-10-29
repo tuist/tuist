@@ -77,6 +77,7 @@ struct AtlasThreadComposer: View {
     let saving: Bool
     let phase: AtlasVoiceInput.Phase
     let levels: [CGFloat]
+    @FocusState.Binding var editing: Bool
     var hasAttachments = false
     var addPhotos: (() -> Void)?
     var addFiles: (() -> Void)?
@@ -133,7 +134,8 @@ struct AtlasThreadComposer: View {
                         TextField(placeholder, text: $draft, axis: .vertical)
                             // Keep conversation context above the keyboard at accessibility sizes.
                             // The native editor scrolls through the complete multiline draft.
-                            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 2 : 6))
+                            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 2 : 4))
+                            .focused($editing)
                             .textFieldStyle(.plain).padding(.vertical, 11)
                             .padding(.leading, addPhotos != nil && addFiles != nil ? 0 : 12)
                             .accessibilityIdentifier("thread-composer")

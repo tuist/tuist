@@ -28,6 +28,7 @@ struct AtlasApp: App {
                                  profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications,
                                  signOut: authentication.signOut, workstation: authentication.workstation, updater: updater)
                 .modifier(AtlasThemeScope(appearance: appearance, server: authentication.server))
+                .environment(\.atlasReadCache, authentication.cachedRead)
         }
         #else
         WindowGroup { root }
@@ -84,6 +85,7 @@ struct AtlasApp: App {
             .environment(\.atlasLiveActivity, authentication.liveActivity)
             #endif
             .environment(\.atlasEnvironmentRequest, authentication.environmentRequest)
+            .environment(\.atlasReadCache, authentication.cachedRead)
             .environment(\.atlasNavigation, navigation)
             .task { await authentication.restore(); navigation.resolve(server: authentication.server) }
             .onOpenURL { navigation.receive($0, server: authentication.server) }

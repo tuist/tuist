@@ -17,6 +17,7 @@ struct AtlasThreadDetail: View {
     @State private var showingEnvironment = false
     @State private var showingModels = false
     @State private var confirmingShare = false
+    @FocusState private var editing: Bool
     @StateObject private var voice = AtlasVoiceInput()
     @State private var startingVoice: Task<Void, Never>?
     @State private var photosPresented = false
@@ -39,6 +40,7 @@ struct AtlasThreadDetail: View {
     private var showsWelcome: Bool {
         current.kind == "private" && model.selected?.id == thread.id && model.messages.isEmpty
             && current.status != "archived" && !openingHistory && !model.loadingHistory && model.errorMessage == nil
+            && !editing && model.draft.isEmpty
             && !["queued", "running", "compacting"].contains(current.agentStatus ?? "")
     }
 
@@ -66,7 +68,7 @@ struct AtlasThreadDetail: View {
                         AtlasThreadTimeline(timeline: model.timeline, selfId: selfId, openAttachment: openAttachment) { id, event in
                             await model.componentAction(messageId: id, event: event)
                         }
-                        if current.kind == "private", let environmentRequest {
+                        if current.kind == "private", !model.historyCached, let environmentRequest {
                             AtlasEnvironmentActivityView(threadId: thread.id, enabled: current.status != "archived",
                                                          request: environmentRequest)
                                 .id(thread.id)
@@ -155,6 +157,11 @@ struct AtlasThreadDetail: View {
                     }
                 }
                 .padding(.horizontal).padding(.bottom, 8).background(.bar)
+            } else if model.historyCached {
+                Text("Saved conversation. Connect to refresh before sending.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .padding().frame(maxWidth: .infinity).background(.bar)
+                    .accessibilityIdentifier("thread-saved-history")
             } else {
                 composer
             }
@@ -165,7 +172,7 @@ struct AtlasThreadDetail: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Tool environment", systemImage: "desktopcomputer") { showingEnvironment = true }
-                    .disabled(current.kind != "private" || current.status == "archived" || environmentRequest == nil)
+                    .disabled(model.historyCached || current.kind != "private" || current.status == "archived" || environmentRequest == nil)
                     .accessibilityIdentifier("thread-environment")
             }
             ToolbarItem(placement: .primaryAction) {
@@ -337,11 +344,20 @@ extension AtlasThreadDetail {
                 Text(error).font(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("thread-voice-error")
             }
-            AtlasThreadMentions(model: model, shared: current.kind != "private")
             AtlasDraftAttachments(model: model, open: openAttachment)
             HStack {
-                modelPicker
+                AtlasThreadModelButton(model: model, thread: current,
+                                       enabled: selectionMatches && current.ownerId == selfId && !model.saving && !voice.busy) {
+                    showingModels = true
+                }
                 Spacer(minLength: 8)
+                #if os(iOS)
+                if editing {
+                    Button("Hide keyboard", systemImage: "keyboard.chevron.compact.down") { editing = false }
+                        .labelStyle(.iconOnly).frame(width: 44, height: 44)
+                        .accessibilityIdentifier("thread-hide-keyboard")
+                }
+                #endif
                 threadNavigation
             }
             let suggestions = AtlasThreadSuggestion.prompts(messages: model.messages, welcome: showsWelcome,
@@ -352,10 +368,11 @@ extension AtlasThreadDetail {
                     model.draft = AtlasVoiceInput.appending($0, to: model.draft)
                 }.id(suggestions.map(\.text))
             }
+            AtlasThreadMentions(model: model, shared: current.kind != "private")
             AtlasThreadComposer(draft: Binding(get: { model.draft }, set: { model.draft = $0 }),
-                                placeholder: "Message",
+                                placeholder: current.kind == "private" ? "Message Pip" : "Message · @Pip to ask",
                                 saving: model.saving || model.attachmentBusy || model.pendingUploadName != nil, phase: voice.phase,
-                                levels: voice.levels, hasAttachments: !model.draftAttachments.isEmpty,
+                                levels: voice.levels, editing: $editing, hasAttachments: !model.draftAttachments.isEmpty,
                                 addPhotos: { photosPresented = true }, addFiles: { filesPresented = true },
                                 start: { startingVoice = Task { await voice.start() } }, stop: {
                                     startingVoice?.cancel()
@@ -375,23 +392,6 @@ extension AtlasThreadDetail {
         .frame(maxWidth: 688).padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
         .frame(maxWidth: .infinity)
         .opacity(selectionMatches ? 1 : 0)
-    }
-    private var modelPicker: some View {
-        Button { showingModels = true } label: {
-            HStack(spacing: 6) {
-                Text(model.models.first { $0.id == current.model }?.name
-                    ?? current.model?.replacingOccurrences(of: "chatgpt:", with: "") ?? "Automatic")
-                Image(systemName: "chevron.up.chevron.down").imageScale(.small)
-            }
-            .font(.subheadline).frame(minHeight: 44)
-            .padding(.horizontal, 12)
-            .background(.regularMaterial, in: Capsule())
-        }
-        .buttonStyle(.borderless).foregroundStyle(.secondary)
-        .accessibilityLabel("Model").accessibilityValue(current.model ?? "Automatic")
-        .accessibilityIdentifier("thread-model")
-        .disabled(!selectionMatches || current.ownerId != selfId || model.saving || voice.busy
-            || ["queued", "running", "compacting"].contains(current.agentStatus ?? ""))
     }
     private func send() {
         scrolling.following = true
