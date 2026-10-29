@@ -103,11 +103,10 @@ internal fun checkOrbitModel() {
     take("draft").second(Result.success(snapshot(5, SHARED, "Hello")))
     check(model.draftsInFlight == 0)
 
-    // The adapter forwards the Ask preference only; Rust applies the private-thread rule.
-    check(!shared.first.getJSONObject("command").getBoolean("address_agent"))
+    // Pip participates without a per-message mode in both shared and private conversations.
+    check(shared.first.getJSONObject("command").getBoolean("address_agent"))
     shared.second(Result.success(snapshot(6, SHARED)))
     check(!model.sending)
-    model.setAskAssistant(SHARED, true)
     model.send(SHARED, "Summarize")
     take("request", "send")
         .also {
@@ -116,7 +115,7 @@ internal fun checkOrbitModel() {
     model.send(PRIVATE, "Help")
     take("request", "send")
         .also {
-            check(!it.first.getJSONObject("command").getBoolean("address_agent"))
+            check(it.first.getJSONObject("command").getBoolean("address_agent"))
         }.second(Result.success(snapshot(8, SHARED)))
 
     // Expired credentials trigger exactly one refresh request until a healthy snapshot arrives.

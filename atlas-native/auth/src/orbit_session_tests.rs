@@ -5,6 +5,14 @@ use serde::de::DeserializeOwned;
 const FIRST: &str = "01922cc0-0000-7000-8000-000000000001";
 const SECOND: &str = "01922cc0-0000-7000-8000-000000000002";
 
+// These fixtures share the production registry's eight-handle limit. Hold the
+// test-only gate until the libtest worker exits, including panic unwinding.
+static SESSION_FIXTURES: Mutex<()> = Mutex::new(());
+thread_local! {
+    static SESSION_FIXTURE: std::sync::MutexGuard<'static, ()> =
+        SESSION_FIXTURES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+}
+
 fn saved() -> Session {
     Session {
         registration: registration(),
@@ -20,6 +28,7 @@ fn thread(id: &str, kind: &str) -> Thread {
 }
 
 fn opened() -> (String, Arc<Model>) {
+    SESSION_FIXTURE.with(|_| {});
     let opened = execute(Action::Open {
         session: saved(),
         cache_directory: None,
@@ -379,6 +388,15 @@ fn reconciliation_deduplicates_and_orders_across_kinds_by_updated_at_then_descen
     newer.updated_at = "2027-06-08T10:00:00Z".into();
     merge_list_thread(&mut state, newer);
     assert_eq!(state.snapshot.threads[0].id, FIRST);
+    let mut urgent = thread(SECOND, "shared");
+    urgent.priority = Some(orbit::Priority::Now);
+    urgent.updated_at = "2020-01-01T00:00:00Z".into();
+    merge_list_thread(&mut state, urgent);
+    assert_eq!(state.snapshot.threads[0].id, SECOND);
+    let mut deferred = thread(FIRST, "shared");
+    deferred.priority = Some(orbit::Priority::Later);
+    merge_list_thread(&mut state, deferred);
+    assert_eq!(state.snapshot.threads[0].id, SECOND);
     drop(state);
     execute(Action::Close { connection }).unwrap();
 }

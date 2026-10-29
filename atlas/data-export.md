@@ -58,6 +58,101 @@ For a verified export, select **all** `moodboard_resources` by `created_by_id` a
 
 The saved description remains until cleared or the user is deleted, and belongs in exports of that user's `users` row. Pip reloads it for the acting user's private thread only, as untrusted background, never as permission or system instructions. Shared Orbit threads never load this field. Private inference sends it to the acting person's connected ChatGPT account, then Claude, or the workspace's configured Orbit provider on fallback; encrypted active-run checkpoints can retain a prior version until the run finishes. Native editor drafts remain in memory. Database backups follow the deployment's existing retention.
 
+## Portable signals and business routing profiles
+
+`users.business_profile` is separate, explicitly shared routing metadata: an opt-in
+boolean (default false), business role (100 characters), expertise tags (20 × 100)
+and exact responsibility subject identifiers (20 × 200, such as `account:<UUID>`).
+Only the caller can replace it through `/api/me/business-profile` or the matching
+MCP tools; shared-identity Slack cannot use those tools. Private descriptions are
+never searched for routing. Disabling prevents future automatic matching but does
+not remove existing thread membership or previously recorded routing reasons.
+The profile remains until replaced or user deletion. Include it in user exports.
+
+`signal_sources` stores the owner's user UUID, pinned Automation revision, name,
+disabled-by-default enabled flag, immutable reader UUID ceiling, required scopes,
+fallback business-role tags and timestamps. `signals` stores source, execution and
+optional Orbit thread references, provider external ID, correlation key, event
+type/schema version, occurrence/observation times, status, priority, decision and
+timestamps. The normalized envelope (12,000 JSON bytes maximum) is encrypted with
+the Cloak vault and includes title, summary, subject/topic tags and provider data;
+it must not contain credentials. Decisions retain priority/reason and up to three
+routed user UUIDs with responsibility/expertise/role matches. Sources and signals
+have no automatic expiry or public deletion operation. Owner deletion cascades
+sources and signals; deleting runs/threads clears their signal references, not the
+signal itself. Reader/routing UUID arrays are attribution, not cascading user FKs.
+
+An optional immutable `signal_sources.event_receiver` stores the upstream MCP
+event name, exact scalar data filters, correlation field, fixed title/summary and
+subject/topic routing tags. These can contain organization/project references and
+belong in authorized exports. `signing_secret` stores a generated 32-byte HMAC key
+encrypted by Cloak, redacted from inspection and omitted from later API/MCP reads
+and exports. Creation returns the `whsec_` credential once in a virtual `delivery`
+field; a requesting MCP client may retain that response. The upstream event
+publisher receives the key and Atlas callback URL during separate operator
+enrollment. Atlas stores no upstream subscription ID, credential or renewal state.
+Signed callbacks retain only normalized event data in the existing encrypted
+envelope, not signature headers or the verification challenge. Pausing stops
+admission; recreating a source replaces its immutable receiver/key. The same
+source/owner deletion and backup retention apply; no automatic credential expiry
+or provider enrollment/renewal worker is added.
+
+Optional personal Gmail/Slack monitors store the immutable query, provider and
+connection UUID/external identity/workspace binding in Cloak-encrypted, redacted
+`signal_sources.poll_config`. The encrypted `poll_state` holds a UTC watermark,
+fixed in-progress query window and pagination token/page. Public source metadata
+includes interval seconds, next-poll timestamp and a bounded `poll_error` category;
+API/MCP serializers omit both encrypted polling fields. Monitoring requires an
+explicit source audience and activation. Gmail separately requires read-only email
+consent; ordinary Google connections still request no Gmail scope. Slack uses the
+owner's personal search grant, never the shared operator/bot identity.
+
+The provider receives the query, date window, pagination parameters and personal
+OAuth token. Gmail collection includes message/thread IDs, occurrence time,
+subject/from headers and bounded snippets, not full mail bodies or attachments.
+Slack collects message/channel/timestamp, optional parent timestamp and a bounded
+text excerpt; a content digest distinguishes edits. These become ordinary encrypted
+signal envelopes and may be copied into authorized Orbit history and model context
+under the rules below. Polling is best-effort search, not a lossless event log.
+Disconnect/account switching/current scope loss stops admission; an in-flight
+provider request cannot be recalled. Existing evidence is not erased by disconnect.
+Queries/checkpoints remain with the source until owner/source deletion under its
+existing no-expiry/backup policy. A schema rollback removes polling configuration
+and progress, not already-admitted signals/history.
+
+Authorized operator exports must decrypt the applicable sources' query and binding
+configuration, plus their watermark/window metadata. Exclude opaque upstream page
+tokens and OAuth credentials. Poll jobs contain only source UUIDs; `.polled` audits
+store actor/interface/source and admitted count, never queries or provider bodies.
+
+Automation admissions and results carry opaque signal IDs/status only. Opening
+copies bounded evidence, priority/reason and routed IDs/reason categories into an
+ordinary shared Orbit system message; it also stores the source reader ceiling in
+`orbit_threads.signal_reader_ids`. Those copies follow Orbit's existing history,
+provider-sharing and deletion rules, including retention after owner deletion.
+Pip receives the bounded transcript, not necessarily every byte of provider data.
+No source, personal monitor, telemetry collection or provider grant is enabled
+automatically; source owners explicitly configure and enable ingestion.
+
+`signal_source.created`, `.updated`, `signal.received`, `.decided` and
+`user.business_profile_updated` audits retain actor/interface and resource IDs,
+not evidence/profile text. Corresponding MCP ingest/decision/profile-update
+arguments are omitted from tool audits. Generic one-hour `orbit_signal` push jobs
+contain the exact signal UUID and existing registration/user/thread IDs, never
+evidence, title or routing text. Apple/Google receive only the generic attention
+alert and native destination. Existing seven-day Oban pruning applies.
+
+For verified exports, include the user's business profile and sources owned by or
+whose `reader_ids` contain that user, then all signals by source. Also match users
+inside `signals.decision.routing`; organizational/customer requests must inspect
+the authorized decrypted envelopes for subject IDs or provider-specific references,
+not just source ownership. Decrypt through Atlas's configured Cloak vault in the
+authorized operator export, never a public query or log. Include linked Automation
+revisions/runs/attempts, full Orbit history and `signal_reader_ids`, related jobs
+and audits by actor or `signal_source`/`signal` targets. Apply third-party redaction.
+Bounded API/MCP lists and current access are not complete legal exports. There are
+no new object-storage paths; encrypted backups retain the existing backup policy.
+
 ## Live availability and viewing presence
 
 `presence_connections` stores a user foreign key, random connection ID, current allowlisted resource (and optional record UUID), and database-clock expiry. These are short-lived availability hints, not edit locks or a navigation log. The directory reuses `users` names and emails and exposes online/offline only. A same-page viewer receives only matching users' `here` flags, never another person's location, raw path, record name, draft, or device details. Rust's native connection handles, latest snapshots and reconnect state remain in memory; no mobile presence database is created.
@@ -130,9 +225,13 @@ Owner-only archive/restore changes the existing `orbit_threads.status` (`active`
 
 Native rich result cards are data-only projections of the existing redacted `orbit_messages.tool_output`, with no additional database rows, files, retention period or customer data collection. Their server-provided fallback is the same bounded evidence; export the source messages, not client renderer packages or caches.
 
-Explicit native mentions store selected user UUIDs in `orbit_messages.mentioned_user_ids` (at most ten; empty for old messages). They are persistent attribution, not membership: removed/deleted users' UUIDs remain in the source message, and delivery always rechecks current access. Include these UUIDs in message exports and assess third-party redaction as for the other shared history. An owner mentioning a new eligible person promotes a private conversation to participant-scoped shared history, never public or company-wide visibility. All invitees must hold every ratcheted history scope. Audience expansion appends a system message with `notice_kind = "handoff"`: clearly labeled, bounded conversation-so-far excerpts from the first human request and latest Pip reply, not a generated summary or a new provider call. Excerpts duplicate already-retained source text and follow the same history retention/export controls. Promotion and invitations have `thread.promoted` / `thread.participant_added` audits. Name-only mention search stores no query or new directory records. A promoted thread retains its creation UUID: a private-creation replay conflicts safely rather than creating a second conversation.
+Explicit native mentions store selected user UUIDs in `orbit_messages.mentioned_user_ids` (at most ten; empty for old messages). They are persistent attribution, not membership: removed/deleted users' UUIDs remain in the source message, and delivery always rechecks current access. Include these UUIDs in message exports and assess third-party redaction as for the other shared history. An owner mentioning a new eligible person promotes a private conversation to participant-scoped shared history, never public or company-wide visibility. All invitees must hold every ratcheted history scope. Earlier versions appended shared `notice_kind = "handoff"` excerpts; new invitations use the recipient-specific copies described below. Excerpts duplicate already-retained source text, not a generated summary or a new provider call. Promotion and invitations have `thread.promoted` / `thread.participant_added` audits. Name-only mention search stores no query or new directory records. A promoted thread retains its creation UUID: a private-creation replay conflicts safely rather than creating a second conversation.
 
-For a verified personal-data request, also locate messages with the requester's UUID in `mentioned_user_ids` (`user_id = ANY(mentioned_user_ids)`), including after membership removal. Review third-party content before disclosure; current native read permissions are not a complete operator-level legal export.
+New invitations (manual, explicit mentions, or automatic signal routing) append a shared `notice_kind = "joined"` naming the newcomer and a separate `private_handoff` addressed by `recipient_id`. The recipient's catch-up contains bounded initial-request/latest-Pip-reply excerpts, not generated prose. Its text is Cloak-encrypted in `private_body`; ordinary `body` is empty, including for older servers during rollout or image rollback. Only the recipient, while still authorized to read the thread, receives its decrypted presentation. Other participants, shared model transcripts, channels, audits and notification jobs receive no catch-up content. Historical `handoff` notices remain shared under their original retention policy. Private copies have no automatic expiry; thread deletion or recipient deletion cascades them, and schema rollback discards them rather than publishing their text. Shared join notices remain with history after a person leaves or is deleted.
+
+`orbit_threads.priority` is nullable `now`/`today`/`later` signal queue metadata. Correlated signals can escalate priority, never silently lower it. Native inboxes order priorities before recency and filter active/archived before pagination; archive is recoverable queue resolution, not deletion.
+
+For a verified personal-data request, also locate messages with the requester's UUID in `mentioned_user_ids` (`user_id = ANY(mentioned_user_ids)`) and private catch-ups with `recipient_id = user_id`, including after membership removal. Exclude every other recipient's private copies from an ordinary participant export; decrypt only the requester's private bodies through authorized operator tooling. Review third-party content before disclosure; current native read permissions are not a complete operator-level legal export.
 
 Research helpers use the same run and durable tool-message history in both private and shared threads. Optional `orbit_messages.parent_message_id` links nested lookups to their task card in the same thread/run. There is no separate child conversation store, final reply or notification. Export parent and child messages with the thread; encrypted tool results retain the existing active-run lifetime.
 
@@ -142,7 +241,7 @@ An export must include attachment rows and actual object bytes for exported mess
 
 The terminology migration renames the original draft tables and foreign keys in place, preserving IDs, history, encrypted execution caches and membership. Historical message text and audit events are not rewritten.
 
-There is no automatic expiry for threads or messages. Administrators cannot read private threads through Atlas interfaces, but database operators and backups can. For a verified data request, select all the user's private conversations and every thread where they participate, and export all `orbit_messages` for those threads, including each thread's creation replay UUID where present. Messages authored by others are part of shared history and may require redaction before disclosure. Also include `orbit_runs` where the user is the initiating or acting user (excluding encrypted checkpoints, which are transient caches), any current `orbit_viewers` rows, and related audit events by `actor_id` or thread target. The paginated native API returns only threads the user can currently read and is not a complete legal export; the optional `kind=private` list filter intentionally omits shared threads but does not change direct-read authorization.
+There is no automatic expiry for threads or messages. Administrators cannot read private threads through Atlas interfaces, but database operators and backups can. For a verified data request, select all the user's private conversations and every thread where they participate, and export shared `orbit_messages` plus only that user's recipient-specific copies for those threads, including each thread's creation replay UUID and priority where present. Messages authored by others are part of shared history and may require redaction before disclosure. Also include `orbit_runs` where the user is the initiating or acting user (excluding encrypted checkpoints, which are transient caches), any current `orbit_viewers` rows, and related audit events by `actor_id` or thread target. The paginated native API returns only threads the user can currently read and is not a complete legal export; the optional `kind=private` list filter intentionally omits shared threads but does not change direct-read authorization.
 
 ## Personal execution environments
 

@@ -14,6 +14,7 @@ defmodule Atlas.Orbit.Message do
   schema "orbit_messages" do
     field :kind, :string
     field :body, :string, default: ""
+    field :private_body, Binary, redact: true
     field :author_name, :string, default: ""
     field :client_id, Ecto.UUID
     field :address_agent, :boolean, default: false
@@ -33,6 +34,7 @@ defmodule Atlas.Orbit.Message do
     belongs_to :thread, Thread
     belongs_to :run, Run
     belongs_to :author, User
+    belongs_to :recipient, User
     belongs_to :parent_message, __MODULE__
     has_many :attachments, Attachment, preload_order: [asc: :position]
 

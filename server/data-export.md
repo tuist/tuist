@@ -36,6 +36,44 @@ Authenticated-subject snapshots are also stored in the separate ephemeral node-l
 
 ## Exportable Data
 
+### Atlas signals and business routing profiles
+
+Atlas's separate PostgreSQL database stores opt-in business routing metadata in
+`users.business_profile`, source owner/revision/audience/scope configuration in
+`signal_sources`, and deduplicated provider events, encrypted envelopes, priorities,
+decisions/routing attribution and Automation/Orbit references in `signals`.
+Optional `signal_sources.event_receiver` retains upstream MCP event/filter,
+correlation and routing/title/summary configuration. Include it in authorized
+exports, but exclude the encrypted `signing_secret` credential. Source creation
+returns that key once; upstream enrollment shares it and the callback URL with
+the event publisher. No upstream enrollment/renewal state is stored. Verification
+challenges/signatures are not retained; accepted data uses the existing envelope.
+`orbit_threads.signal_reader_ids` retains the source's reader ceiling. Sources and
+signals have no age-based expiry; deleting their owner cascades sources/signals,
+while evidence already copied to shared Orbit history follows Orbit retention.
+Exports must include profiles, sources by owner or reader UUID, associated signals
+and their authorized decrypted envelopes, linked Automation and Orbit history,
+and matching audits/jobs. Customer references can occur inside envelope data, not
+only foreign keys. No new object-store paths are introduced.
+Optional Gmail/Slack polling adds encrypted query/provider/connection identity
+bindings (`signal_sources.poll_config`) and watermarks/windows/page tokens
+(`poll_state`), interval/next-run metadata and bounded failure categories.
+Explicit Gmail read-only consent and source activation are separate; Slack uses
+the owner's personal search grant. Stored signal evidence includes bounded email
+headers/snippets or Slack text, never full mail bodies/attachments or OAuth tokens.
+Include authorized decrypted query/binding and watermark metadata in Atlas exports,
+excluding opaque pagination tokens and credentials. Disconnect stops future
+admission, not retention of captured signals/Orbit copies. Configuration follows
+source deletion/backup retention; polling schema rollback discards checkpoints,
+not admitted history. Poll jobs hold source UUIDs only; polling audits add counts.
+Orbit stores nullable queue priority on threads, shared join notices and encrypted
+recipient-specific catch-ups (`orbit_messages.recipient_id`, `private_body`, with
+ordinary `body` empty). Participant exports must exclude other recipients' private
+copies. Thread/recipient deletion cascades private copies; schema rollback discards
+them, while shared join notices retain ordinary history retention.
+Full field, provider-sharing, retention and operator-export rules are in
+[`atlas/data-export.md`](../atlas/data-export.md#portable-signals-and-business-routing-profiles).
+
 ### Atlas automation definitions and execution records
 
 Atlas stores organizational process data in its separate PostgreSQL database:
