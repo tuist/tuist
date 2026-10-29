@@ -140,7 +140,7 @@ const LOOKUP_UNAVAILABLE_BACKOFF_MS: u64 = 5_000;
 // it. Each refused probe doubles the window up to the maximum; a new credential
 // or an accepted request ends it.
 const CREDENTIAL_REFUSAL_BACKOFF_MS: u64 = 60_000;
-const MAX_CREDENTIAL_REFUSAL_BACKOFF_MS: u64 = 15 * 60_000;
+const MAX_CREDENTIAL_REFUSAL_BACKOFF_MS: u64 = 5 * 60_000;
 // The background probe's lookup. Nothing publishes it, so a serving node
 // answers NOT_FOUND, which is what closes the breaker.
 const LOOKUP_PROBE_KEY: &[u8] = b"tuist-cas-plugin/lookup-probe";
@@ -3179,7 +3179,7 @@ mod credential_breaker_tests {
     }
 
     #[test]
-    fn the_window_stops_growing_at_its_maximum() {
+    fn the_window_stops_growing_at_five_minutes() {
         let breaker = refused_at(0);
         let mut now = 0;
         for _ in 0..10 {
@@ -3192,7 +3192,9 @@ mod credential_breaker_tests {
                 now,
             );
         }
-        assert!(breaker.admit(REFUSED, WRITE, now + MAX_CREDENTIAL_REFUSAL_BACKOFF_MS));
+        let five_minutes = 5 * 60_000;
+        assert!(!breaker.admit(REFUSED, WRITE, now + five_minutes - 1));
+        assert!(breaker.admit(REFUSED, WRITE, now + five_minutes));
     }
 
     #[test]
