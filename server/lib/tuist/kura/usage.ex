@@ -60,10 +60,13 @@ defmodule Tuist.Kura.Usage do
           settings: [async_insert: 0]
         ]
 
+        evictions = if account, do: [], else: evictions
+        snapshots = if account, do: [], else: snapshots
+
         loader = fn ->
           with {:ok, count} <- create_events(events, account, insert_opts),
-               {:ok, _} <- StorageTelemetry.create_eviction_events(if(account, do: [], else: evictions), insert_opts),
-               {:ok, _} <- StorageTelemetry.create_storage_snapshots(if(account, do: [], else: snapshots), insert_opts) do
+               {:ok, _} <- StorageTelemetry.create_eviction_events(evictions, insert_opts),
+               {:ok, _} <- StorageTelemetry.create_storage_snapshots(snapshots, insert_opts) do
             {:ok, count}
           end
         end
