@@ -39,7 +39,8 @@ concurrency:
 
 jobs:
   test:
-    runs-on: tuist-linux
+    # Cache-volume filesystem regressions need user xattrs, absent on fleet /tmp.
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       GOWORK: 'off'
