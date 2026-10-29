@@ -2,6 +2,33 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Native device-only read projections
+
+iOS/macOS retain bounded, disposable copies of authorized Orbit inbox/history,
+Tasks/Accounts/Finance lists and details, caller Profile, Time off, provider and
+connection metadata, and payload-free Automation metadata. The app-private,
+backup-excluded `Atlas/ReadCache/reads.sqlite3` stores these projections for up to
+seven days (32 entries, 1 MiB per entry), keyed by canonical origin and a random
+credential-lifetime namespace plus resource/query. This is file-protected storage,
+not application-level encrypted SQLite. Android currently retains only its inbox.
+
+The copies include existing record IDs/display fields, personal profile description,
+holiday dates/status, provider account names and scopes, and up to 25 non-tool
+messages from the latest history page with author/mention and attachment metadata.
+Tool evidence/components, file bytes, OAuth/provider credentials, pending grants,
+drafts, Automation schemas/reviewed revisions/approval payloads or digests/inputs/results,
+and live presence are excluded. Saved data cannot authorize writes, invitations,
+attachment downloads, inference or approval decisions. Protected refresh revalidates
+access; transient failures retain display data. Access rejection and logout delete
+projections, and mutation/logout generation fences reject late cache writes. An
+offline device cannot discover remote revocation until reconnect or expiry.
+
+These derivatives are never uploaded and cannot be retrieved through a server export.
+Export their original user, business, booking, connection, Orbit and Automation records
+using the source-table procedures below and in [the shared export inventory](../server/data-export.md#atlas-native-local-read-cache).
+Uninstall/app-data removal deletes the local database; retiring a credential namespace
+prevents its reuse. No new server table, S3 path or independent export collection is added.
+
 ## Personal GitHub, Slack and Google connections
 
 `user_connections` stores one personal OAuth grant per Atlas `user_id` and provider (`github`, `slack`, `google`). It references `users.id` with cascade deletion. Fields include provider user ID, display/account name, optional Slack workspace ID, granted scopes, token expiry, needs-authorization flag, and creation/update timestamps. Access and refresh tokens use Atlas's Cloak encrypted binary type and are redacted from struct inspection. These grants are separate from Google sign-in, workspace integrations and personal AI accounts. No real grants or tokens are seeded.
@@ -191,7 +218,7 @@ For a verified data request, select connection rows by the requesting user's `us
 
 `users.time_off_location_id` references the employee's public-holiday calendar, currently defaulted to Berlin. It is a calendar assignment, not a verified physical address. `time_off_locations` stores shared calendar names, country/subdivision codes, imported years, and timestamps. `time_off_holidays` stores calendar references, holiday names/dates, manual/provider provenance, and timestamps.
 
-`time_off_bookings` belongs to a user and snapshots their calendar. It stores inclusive first/last dates, pending/approved/rejected/cancelled status, cancellation time, reviewer identity/time, and creation/update timestamps. There are no medical reasons, free-text leave reasons, allowances, or external employee identifiers. Native apps use the same authenticated owner-scoped records; there is no additional mobile database or calendar synchronization. Native request drafts and loaded history are held in memory for the signed-in session, not written to device preferences.
+`time_off_bookings` belongs to a user and snapshots their calendar. It stores inclusive first/last dates, pending/approved/rejected/cancelled status, cancellation time, reviewer identity/time, and creation/update timestamps. There are no medical reasons, free-text leave reasons, allowances, or external employee identifiers. Native apps use the same authenticated owner-scoped records without calendar synchronization. Request drafts remain in memory; iOS/macOS additionally retain the read-only projection described above, not write authority.
 
 Requests remain in history after cancellation or rejection and have no automatic expiry. Deleting a user cascades their bookings; shared calendars/public holidays remain. Reviewers deleted later are cleared from the reference. Domain audit events retain actor, interface, dashboard path, target, and relevant transition metadata, including previous dates and reviewer metadata on edits. Audits follow Atlas's existing retention policy and can outlive the booking.
 

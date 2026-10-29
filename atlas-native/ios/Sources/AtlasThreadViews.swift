@@ -157,7 +157,7 @@ struct AtlasOrbitView: View {
             if model.loading, model.assistant == nil { ProgressView("Loading threads") }
         }
         .defaultScrollAnchor(.top)
-        .modifier(AtlasOrbitSearch(text: $search, enabled: model.assistant?.searchable == true && !model.cached))
+        .searchable(text: $search, prompt: "Search titles and summaries")
         .task(id: search) {
             guard model.assistant?.searchable == true, !model.cached, search != model.query else { return }
             do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
