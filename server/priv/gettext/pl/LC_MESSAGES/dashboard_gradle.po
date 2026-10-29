@@ -23,7 +23,7 @@ msgstr "Language: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 msgid "%{duration}s"
 msgstr "%{duration} s"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:875
+#: lib/tuist_web/live/gradle_build_live.html.heex:876
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:161
 #: lib/tuist_web/live/gradle_cache_live.html.heex:164
 #: lib/tuist_web/live/gradle_cache_live.html.heex:181
@@ -83,21 +83,21 @@ msgstr "Zastosuj"
 
 #: lib/tuist_web/live/gradle_build_live.ex:615
 #: lib/tuist_web/live/gradle_build_live.ex:690
-#: lib/tuist_web/live/gradle_build_live.html.heex:715
-#: lib/tuist_web/live/gradle_build_live.html.heex:769
+#: lib/tuist_web/live/gradle_build_live.html.heex:716
+#: lib/tuist_web/live/gradle_build_live.html.heex:770
 #, elixir-autogen, elixir-format
 msgid "Artifact"
 msgstr "Artefakt"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:660
+#: lib/tuist_web/live/gradle_build_live.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "Artifact Transforms"
-msgstr "Transformacje artefaktów"
+msgstr "Przekształcenia artefaktów"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:668
+#: lib/tuist_web/live/gradle_build_live.html.heex:669
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms recorded for this build."
-msgstr "Artefakty przekształceń zarejestrowane dla tego buildu."
+msgstr "Przekształcenia artefaktów zarejestrowane dla tego buildu."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:324
 #: lib/tuist_web/live/gradle_cache_live.html.heex:399
@@ -115,7 +115,7 @@ msgstr "Średnia"
 msgid "Average build time"
 msgstr "Średni czas buildu"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1042
+#: lib/tuist_web/live/gradle_build_live.html.heex:1043
 #, elixir-autogen, elixir-format
 msgid "Average download throughput in megabits per second."
 msgstr "Średnia przepustowość pobierania w megabitach na sekundę."
@@ -135,7 +135,7 @@ msgstr "Średni czas potrzebny na ukończenie buildu Gradle w wybranym okresie."
 msgid "Average time it takes to run tests during the selected period."
 msgstr "Średni czas potrzebny na uruchomienie testów w wybranym okresie."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1060
+#: lib/tuist_web/live/gradle_build_live.html.heex:1061
 #, elixir-autogen, elixir-format
 msgid "Average upload throughput in megabits per second."
 msgstr "Średnia przepustowość wysyłania w megabitach na sekundę."
@@ -144,12 +144,12 @@ msgstr "Średnia przepustowość wysyłania w megabitach na sekundę."
 #: lib/tuist_web/live/mix_builds_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Avg. build duration"
-msgstr "Średni czas trwania kompilacji"
+msgstr "Śr. czas trwania buildu"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Avg. cache hit rate"
-msgstr "Średni wskaźnik trafień w cache"
+msgstr "Śr. wskaźnik trafień w pamięci podręcznej"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:157
 #: lib/tuist_web/live/gradle_build_runs_live.ex:249
@@ -167,23 +167,23 @@ msgstr "Gałąź"
 #: lib/tuist_web/live/mix_builds_live.html.heex:659
 #, elixir-autogen, elixir-format
 msgid "Build"
-msgstr "Kompilacja"
+msgstr "Build"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Build Details"
-msgstr "Szczegóły kompilacji"
+msgstr "Szczegóły buildu"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:3
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "Uruchomienia kompilacji"
+msgstr "Uruchomienia buildu"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Build Setup"
-msgstr "Konfiguracja kompilacji"
+msgstr "Konfiguracja buildu"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:142
 #: lib/tuist_web/live/gradle_builds_live.html.heex:534
@@ -192,13 +192,13 @@ msgstr "Konfiguracja kompilacji"
 #: lib/tuist_web/live/mix_builds_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "Build duration"
-msgstr "Czas trwania kompilacji"
+msgstr "Czas trwania buildu"
 
 #: lib/tuist_web/live/gradle_build_live.ex:33
 #: lib/tuist_web/live/gradle_build_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Build not found."
-msgstr "Kompilacja nie została znaleziona."
+msgstr "Nie znaleziono buildu."
 
 #: lib/tuist_web/live/gradle_builds_live.ex:170
 #: lib/tuist_web/live/gradle_builds_live.html.heex:119
@@ -206,7 +206,7 @@ msgstr "Kompilacja nie została znaleziona."
 #: lib/tuist_web/live/mix_builds_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
-msgstr "Wskaźnik powodzenia kompilacji"
+msgstr "Wskaźnik sukcesu buildów"
 
 #: lib/tuist_web/live/gradle_builds_live.ex:142
 #: lib/tuist_web/live/gradle_builds_live.html.heex:97
@@ -216,12 +216,12 @@ msgstr "Wskaźnik powodzenia kompilacji"
 #: lib/tuist_web/live/mix_overview_live.html.heex:366
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr "Kompilacje"
+msgstr "Buildy"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "Skompilowano o"
+msgstr "Zbudowano o"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:138
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:130
@@ -230,7 +230,7 @@ msgstr "Skompilowano o"
 #: lib/tuist_web/live/mix_builds_live.html.heex:700
 #, elixir-autogen, elixir-format
 msgid "Built by"
-msgstr "Skompilowane przez"
+msgstr "Zbudowane przez"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:31
 #: lib/tuist_web/live/gradle_build_runs_live.ex:269
@@ -255,24 +255,24 @@ msgstr "CI"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:632
 #, elixir-autogen, elixir-format
 msgid "Cache Hit Rate"
-msgstr "Wskaźnik trafień w cache"
+msgstr "Wskaźnik trafień w pamięci podręcznej"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:843
+#: lib/tuist_web/live/gradle_build_live.html.heex:844
 #, elixir-autogen, elixir-format
 msgid "Cache Summary"
-msgstr "Podsumowanie cache"
+msgstr "Podsumowanie pamięci podręcznej"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:880
+#: lib/tuist_web/live/gradle_build_live.html.heex:881
 #: lib/tuist_web/live/gradle_cache_live.ex:201
 #: lib/tuist_web/live/gradle_cache_live.html.heex:231
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
-msgstr "Pobrania z cache"
+msgstr "Pobrania z pamięci podręcznej"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
-msgstr "Pobrania z cache reprezentują całkowity rozmiar artefaktów cache pobranych ze zdalnej pamięci w danym okresie."
+msgstr "Pobrania z pamięci podręcznej oznaczają całkowity rozmiar artefaktów pobranych ze zdalnego magazynu w danym okresie."
 
 #: lib/tuist_web/live/gradle_cache_live.ex:210
 #: lib/tuist_web/live/gradle_cache_live.html.heex:145
@@ -283,56 +283,56 @@ msgstr "Pobrania z cache reprezentują całkowity rozmiar artefaktów cache pobr
 #: lib/tuist_web/live/gradle_tasks_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
-msgstr "Wskaźnik trafień w cache"
+msgstr "Wskaźnik trafień w pamięci podręcznej"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:157
 #: lib/tuist_web/live/gradle_overview_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
-msgstr "Wskaźnik trafień w cache reprezentuje procent zadań możliwych do zapisu w cache, które zostały rozwiązane z cache zamiast być wykonywanymi."
+msgstr "Wskaźnik trafień w pamięci podręcznej oznacza procent zadań możliwych do zapisania w pamięci podręcznej, które zostały rozwiązane z pamięci podręcznej zamiast być wykonywanymi."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1208
+#: lib/tuist_web/live/gradle_build_live.html.heex:1209
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Cache key"
-msgstr "Klucz cache"
+msgstr "Klucz pamięci podręcznej"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:891
+#: lib/tuist_web/live/gradle_build_live.html.heex:892
 #: lib/tuist_web/live/gradle_cache_live.ex:192
 #: lib/tuist_web/live/gradle_cache_live.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
-msgstr "Wysyłania do cache"
+msgstr "Wysyłanie do pamięci podręcznej"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
-msgstr "Wysyłania do cache reprezentują całkowity rozmiar artefaktów cache wysłanych do zdalnej pamięci w danym okresie."
+msgstr "Wysyłanie do pamięci podręcznej oznacza całkowity rozmiar artefaktów wysłanych do zdalnego magazynu w danym okresie."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:904
+#: lib/tuist_web/live/gradle_build_live.html.heex:905
 #, elixir-autogen, elixir-format
 msgid "Cacheable Tasks"
-msgstr "Zadania możliwe do zapisu w cache"
+msgstr "Zadania możliwe do zapisania w pamięci podręcznej"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:963
+#: lib/tuist_web/live/gradle_build_live.html.heex:964
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks"
-msgstr "Zadania możliwe do buforowania"
+msgstr "Zadania możliwe do zapisania w pamięci podręcznej"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:862
+#: lib/tuist_web/live/gradle_build_live.html.heex:863
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
-msgstr "Zadania możliwe do buforowania, których nie znaleziono w pamięci podręcznej."
+msgstr "Zadania możliwe do zapisania w pamięci podręcznej, których nie znaleziono w pamięci podręcznej."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:851
+#: lib/tuist_web/live/gradle_build_live.html.heex:852
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "Zadania możliwe do buforowania pobrane z pamięci podręcznej (lokalnej + zdalnej)."
+msgstr "Zadania możliwe do zapisania w pamięci podręcznej, które zostały pobrane z pamięci podręcznej (lokalnej + zdalnej)."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:915
+#: lib/tuist_web/live/gradle_build_live.html.heex:916
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks:"
-msgstr "Zadania możliwe do buforowania:"
+msgstr "Zadania możliwe do zapisania w pamięci podręcznej:"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:66
 #: lib/tuist_web/live/gradle_cache_live.html.heex:102
@@ -366,7 +366,7 @@ msgstr "Commit"
 msgid "Commit SHA"
 msgstr "SHA commitu"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:374
+#: lib/tuist_web/live/gradle_build_live.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Configuration"
 msgstr "Konfiguracja"
@@ -375,27 +375,27 @@ msgstr "Konfiguracja"
 #: lib/tuist_web/live/mix_builds_live.html.heex:452
 #, elixir-autogen, elixir-format
 msgid "Configuration Insights"
-msgstr "Analiza konfiguracji"
+msgstr "Statystyki konfiguracji"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:390
+#: lib/tuist_web/live/gradle_build_live.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Configuration cache"
 msgstr "Pamięć podręczna konfiguracji"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:403
+#: lib/tuist_web/live/gradle_build_live.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "Configuration cache load"
-msgstr "Odczyt pamięci podręcznej konfiguracji"
+msgstr "Ładowanie pamięci podręcznej konfiguracji"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:380
+#: lib/tuist_web/live/gradle_build_live.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "Configuration time"
 msgstr "Czas konfiguracji"
 
 #: lib/tuist_web/live/gradle_build_live.ex:579
 #: lib/tuist_web/live/gradle_build_live.ex:661
-#: lib/tuist_web/live/gradle_build_live.html.heex:531
-#: lib/tuist_web/live/gradle_build_live.html.heex:578
+#: lib/tuist_web/live/gradle_build_live.html.heex:532
+#: lib/tuist_web/live/gradle_build_live.html.heex:579
 #, elixir-autogen, elixir-format
 msgid "Configured unit"
 msgstr "Skonfigurowana jednostka"
@@ -412,7 +412,7 @@ msgstr "Skonfigurowana jednostka"
 msgid "Custom"
 msgstr "Niestandardowe"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1040
+#: lib/tuist_web/live/gradle_build_live.html.heex:1041
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
 msgstr "Przepustowość pobierania"
@@ -421,16 +421,16 @@ msgstr "Przepustowość pobierania"
 #: lib/tuist_web/live/gradle_build_live.ex:617
 #: lib/tuist_web/live/gradle_build_live.ex:669
 #: lib/tuist_web/live/gradle_build_live.ex:706
-#: lib/tuist_web/live/gradle_build_live.html.heex:242
-#: lib/tuist_web/live/gradle_build_live.html.heex:276
-#: lib/tuist_web/live/gradle_build_live.html.heex:341
-#: lib/tuist_web/live/gradle_build_live.html.heex:515
-#: lib/tuist_web/live/gradle_build_live.html.heex:622
-#: lib/tuist_web/live/gradle_build_live.html.heex:731
-#: lib/tuist_web/live/gradle_build_live.html.heex:803
-#: lib/tuist_web/live/gradle_build_live.html.heex:1098
-#: lib/tuist_web/live/gradle_build_live.html.heex:1105
-#: lib/tuist_web/live/gradle_build_live.html.heex:1194
+#: lib/tuist_web/live/gradle_build_live.html.heex:243
+#: lib/tuist_web/live/gradle_build_live.html.heex:277
+#: lib/tuist_web/live/gradle_build_live.html.heex:342
+#: lib/tuist_web/live/gradle_build_live.html.heex:516
+#: lib/tuist_web/live/gradle_build_live.html.heex:623
+#: lib/tuist_web/live/gradle_build_live.html.heex:732
+#: lib/tuist_web/live/gradle_build_live.html.heex:804
+#: lib/tuist_web/live/gradle_build_live.html.heex:1099
+#: lib/tuist_web/live/gradle_build_live.html.heex:1106
+#: lib/tuist_web/live/gradle_build_live.html.heex:1195
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:30
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:46
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:135
@@ -467,7 +467,7 @@ msgstr "Środowisko:"
 #: lib/tuist_web/live/gradle_build_live.ex:727
 #, elixir-autogen, elixir-format
 msgid "Executed"
-msgstr "Wykonano"
+msgstr "Wykonane"
 
 #: lib/tuist_web/helpers/gradle_task.ex:18
 #: lib/tuist_web/live/gradle_build_live.ex:728
@@ -490,7 +490,7 @@ msgstr "Nieudane"
 #: lib/tuist_web/live/mix_overview_live.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
-msgstr "Nieudane kompilacje"
+msgstr "Nieudane buildy"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:338
 #: lib/tuist_web/live/mix_overview_live.html.heex:288
@@ -498,10 +498,10 @@ msgstr "Nieudane kompilacje"
 msgid "Failed runs"
 msgstr "Nieudane uruchomienia"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:290
-#: lib/tuist_web/live/gradle_build_live.html.heex:540
-#: lib/tuist_web/live/gradle_build_live.html.heex:740
-#: lib/tuist_web/live/gradle_build_live.html.heex:1132
+#: lib/tuist_web/live/gradle_build_live.html.heex:291
+#: lib/tuist_web/live/gradle_build_live.html.heex:541
+#: lib/tuist_web/live/gradle_build_live.html.heex:741
+#: lib/tuist_web/live/gradle_build_live.html.heex:1133
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:63
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:254
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:418
@@ -521,7 +521,7 @@ msgstr "Kompilacja Gradle"
 msgid "Gradle Cache"
 msgstr "Pamięć podręczna Gradle"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:210
+#: lib/tuist_web/live/gradle_build_live.html.heex:211
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Gradle Version"
@@ -539,7 +539,7 @@ msgstr "Wersja Gradle"
 msgid "Hit Rate"
 msgstr "Wskaźnik trafień"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:868
+#: lib/tuist_web/live/gradle_build_live.html.heex:869
 #: lib/tuist_web/live/gradle_tasks_live.ex:516
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:316
 #, elixir-autogen, elixir-format
@@ -551,22 +551,22 @@ msgstr "Wskaźnik trafień"
 msgid "Invalid"
 msgstr "Nieprawidłowe"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:425
+#: lib/tuist_web/live/gradle_build_live.html.heex:426
 #, elixir-autogen, elixir-format
 msgid "Invalidation reasons"
 msgstr "Przyczyny unieważnienia"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:211
+#: lib/tuist_web/live/gradle_build_live.html.heex:212
 #, elixir-autogen, elixir-format
 msgid "Java Version"
-msgstr "Wersja Javy"
+msgstr "Wersja Java"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:286
 #: lib/tuist_web/live/gradle_builds_live.ex:240
 #: lib/tuist_web/live/gradle_builds_live.html.heex:508
 #, elixir-autogen, elixir-format
 msgid "Java version"
-msgstr "Wersja Javy"
+msgstr "Wersja Java"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:54
 #: lib/tuist_web/live/gradle_cache_live.html.heex:90
@@ -629,8 +629,8 @@ msgstr "Ostatnie 7 dni"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:30
 #: lib/tuist_web/live/gradle_build_live.ex:768
-#: lib/tuist_web/live/gradle_build_live.html.heex:978
-#: lib/tuist_web/live/gradle_build_live.html.heex:1158
+#: lib/tuist_web/live/gradle_build_live.html.heex:979
+#: lib/tuist_web/live/gradle_build_live.html.heex:1159
 #: lib/tuist_web/live/gradle_build_runs_live.ex:270
 #: lib/tuist_web/live/gradle_builds_live.ex:176
 #: lib/tuist_web/live/gradle_builds_live.html.heex:18
@@ -647,7 +647,7 @@ msgstr "Ostatnie 7 dni"
 #: lib/tuist_web/live/mix_overview_live.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Local"
-msgstr "Lokalny"
+msgstr "Lokalne"
 
 #: lib/tuist_web/helpers/gradle_task.ex:13
 #: lib/tuist_web/live/gradle_build_live.ex:723
@@ -657,42 +657,42 @@ msgid "Local hit"
 msgstr "Trafienie lokalne"
 
 #: lib/tuist_web/live/gradle_build_live.ex:771
-#: lib/tuist_web/live/gradle_build_live.html.heex:1016
-#: lib/tuist_web/live/gradle_build_live.html.heex:1170
+#: lib/tuist_web/live/gradle_build_live.html.heex:1017
+#: lib/tuist_web/live/gradle_build_live.html.heex:1171
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "Nieudane"
+msgstr "Nietrafienie"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "N/A"
-msgstr "N/D"
+msgstr "Nie dotyczy"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:821
+#: lib/tuist_web/live/gradle_build_live.html.heex:822
 #, elixir-autogen, elixir-format
 msgid "No artifact transforms"
-msgstr "Brak przekształceń artefaktów"
+msgstr "Brak transformacji artefaktów"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:713
 #: lib/tuist_web/live/mix_overview_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "No builds yet"
-msgstr "Brak kompilacji"
+msgstr "Brak buildów"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1214
+#: lib/tuist_web/live/gradle_build_live.html.heex:1215
 #, elixir-autogen, elixir-format
 msgid "No cacheable tasks"
-msgstr "Brak zadań z możliwością buforowania"
+msgstr "Brak zadań możliwych do buforowania"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:641
+#: lib/tuist_web/live/gradle_build_live.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "No configuration operations"
 msgstr "Brak operacji konfiguracji"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:387
-#: lib/tuist_web/live/gradle_build_live.html.heex:417
-#: lib/tuist_web/live/gradle_build_live.html.heex:1055
-#: lib/tuist_web/live/gradle_build_live.html.heex:1073
+#: lib/tuist_web/live/gradle_build_live.html.heex:388
+#: lib/tuist_web/live/gradle_build_live.html.heex:418
+#: lib/tuist_web/live/gradle_build_live.html.heex:1056
+#: lib/tuist_web/live/gradle_build_live.html.heex:1074
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr "Brak danych"
@@ -720,7 +720,7 @@ msgstr "Brak wpisu"
 #: lib/tuist_web/live/mix_overview_live.html.heex:525
 #, elixir-autogen, elixir-format
 msgid "No recent builds yet"
-msgstr "Brak ostatnich kompilacji"
+msgstr "Brak ostatnich buildów"
 
 #: lib/tuist_web/live/gradle_build_live.ex:806
 #, elixir-autogen, elixir-format
@@ -730,7 +730,7 @@ msgstr "Brak zdalnego wpisu"
 #: lib/tuist_web/live/gradle_build_live.ex:802
 #, elixir-autogen, elixir-format
 msgid "No remote entry, then stored"
-msgstr "Brak zdalnego wpisu, następnie zapisane"
+msgstr "Brak zdalnego wpisu, następnie zapisano"
 
 #: lib/tuist_web/helpers/gradle_task.ex:20
 #: lib/tuist_web/live/gradle_build_live.ex:730
@@ -738,23 +738,23 @@ msgstr "Brak zdalnego wpisu, następnie zapisane"
 msgid "No source"
 msgstr "Brak źródła"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:353
+#: lib/tuist_web/live/gradle_build_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "No tasks"
 msgstr "Brak zadań"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:400
+#: lib/tuist_web/live/gradle_build_live.html.heex:401
 #, elixir-autogen, elixir-format
 msgid "Not requested"
-msgstr "Nie zażądano"
+msgstr "Nie żądano"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:473
+#: lib/tuist_web/live/gradle_build_live.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "Operations can overlap. Build timing includes its settings and project configuration."
 msgstr "Operacje mogą się nakładać. Czas budowania obejmuje jego ustawienia i konfigurację projektu."
 
 #: lib/tuist_web/live/gradle_build_live.ex:719
-#: lib/tuist_web/live/gradle_build_live.html.heex:321
+#: lib/tuist_web/live/gradle_build_live.html.heex:322
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:437
 #, elixir-autogen, elixir-format
 msgid "Outcome"
@@ -783,18 +783,18 @@ msgstr "Zaliczone"
 #: lib/tuist_web/live/mix_overview_live.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Passed builds"
-msgstr "Zaliczone budowania"
+msgstr "Udane buildy"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:333
 #: lib/tuist_web/live/mix_overview_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "Passed runs"
-msgstr "Zaliczone uruchomienia"
+msgstr "Udane uruchomienia"
 
 #: lib/tuist_web/live/gradle_build_live.ex:578
 #: lib/tuist_web/live/gradle_build_live.ex:647
-#: lib/tuist_web/live/gradle_build_live.html.heex:523
-#: lib/tuist_web/live/gradle_build_live.html.heex:560
+#: lib/tuist_web/live/gradle_build_live.html.heex:524
+#: lib/tuist_web/live/gradle_build_live.html.heex:561
 #, elixir-autogen, elixir-format
 msgid "Phase"
 msgstr "Faza"
@@ -837,11 +837,11 @@ msgstr "Uruchomiono przez"
 #: lib/tuist_web/live/mix_builds_live.html.heex:593
 #, elixir-autogen, elixir-format
 msgid "Recent Builds"
-msgstr "Ostatnie kompilacje"
+msgstr "Ostatnie buildy"
 
 #: lib/tuist_web/live/gradle_build_live.ex:770
-#: lib/tuist_web/live/gradle_build_live.html.heex:995
-#: lib/tuist_web/live/gradle_build_live.html.heex:1164
+#: lib/tuist_web/live/gradle_build_live.html.heex:996
+#: lib/tuist_web/live/gradle_build_live.html.heex:1165
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr "Zdalne"
@@ -865,7 +865,7 @@ msgid "Reused"
 msgstr "Ponownie użyte"
 
 #: lib/tuist_web/live/gradle_build_live.ex:563
-#: lib/tuist_web/live/gradle_build_live.html.heex:595
+#: lib/tuist_web/live/gradle_build_live.html.heex:596
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Root build"
@@ -882,10 +882,10 @@ msgstr "Uruchomienia: brak danych"
 msgid "Search project..."
 msgstr "Szukaj projektu..."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:231
-#: lib/tuist_web/live/gradle_build_live.html.heex:494
-#: lib/tuist_web/live/gradle_build_live.html.heex:694
-#: lib/tuist_web/live/gradle_build_live.html.heex:1087
+#: lib/tuist_web/live/gradle_build_live.html.heex:232
+#: lib/tuist_web/live/gradle_build_live.html.heex:495
+#: lib/tuist_web/live/gradle_build_live.html.heex:695
+#: lib/tuist_web/live/gradle_build_live.html.heex:1088
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Search..."
@@ -902,9 +902,9 @@ msgstr "Skonfiguruj cache Gradle dla swojego projektu"
 msgid "Settings"
 msgstr "Ustawienia"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1097
-#: lib/tuist_web/live/gradle_build_live.html.heex:1118
-#: lib/tuist_web/live/gradle_build_live.html.heex:1177
+#: lib/tuist_web/live/gradle_build_live.html.heex:1098
+#: lib/tuist_web/live/gradle_build_live.html.heex:1119
+#: lib/tuist_web/live/gradle_build_live.html.heex:1178
 #, elixir-autogen, elixir-format
 msgid "Size"
 msgstr "Rozmiar"
@@ -913,12 +913,12 @@ msgstr "Rozmiar"
 #: lib/tuist_web/live/gradle_build_live.ex:729
 #, elixir-autogen, elixir-format
 msgid "Skipped"
-msgstr "Pominięto"
+msgstr "Pominięte"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:246
-#: lib/tuist_web/live/gradle_build_live.html.heex:503
-#: lib/tuist_web/live/gradle_build_live.html.heex:703
-#: lib/tuist_web/live/gradle_build_live.html.heex:1101
+#: lib/tuist_web/live/gradle_build_live.html.heex:247
+#: lib/tuist_web/live/gradle_build_live.html.heex:504
+#: lib/tuist_web/live/gradle_build_live.html.heex:704
+#: lib/tuist_web/live/gradle_build_live.html.heex:1102
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:34
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:240
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:399
@@ -927,33 +927,33 @@ msgid "Sort by:"
 msgstr "Sortuj według:"
 
 #: lib/tuist_web/live/gradle_build_live.ex:580
-#: lib/tuist_web/live/gradle_build_live.html.heex:243
-#: lib/tuist_web/live/gradle_build_live.html.heex:250
-#: lib/tuist_web/live/gradle_build_live.html.heex:330
-#: lib/tuist_web/live/gradle_build_live.html.heex:507
-#: lib/tuist_web/live/gradle_build_live.html.heex:604
+#: lib/tuist_web/live/gradle_build_live.html.heex:244
+#: lib/tuist_web/live/gradle_build_live.html.heex:251
+#: lib/tuist_web/live/gradle_build_live.html.heex:331
+#: lib/tuist_web/live/gradle_build_live.html.heex:508
+#: lib/tuist_web/live/gradle_build_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "Started after"
 msgstr "Rozpoczęto po"
 
 #: lib/tuist_web/live/gradle_build_live.ex:764
 #: lib/tuist_web/live/gradle_build_live.html.heex:114
-#: lib/tuist_web/live/gradle_build_live.html.heex:1155
+#: lib/tuist_web/live/gradle_build_live.html.heex:1156
 #: lib/tuist_web/live/gradle_build_runs_live.ex:227
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "Status"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:392
+#: lib/tuist_web/live/gradle_build_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Status of Gradle's configuration cache for this build."
-msgstr "Status pamięci podręcznej konfiguracji Gradle dla tego kompilowania."
+msgstr "Status pamięci podręcznej konfiguracji Gradle dla tego buildu."
 
 #: lib/tuist_web/live/gradle_build_live.ex:616
 #: lib/tuist_web/live/gradle_build_live.ex:698
-#: lib/tuist_web/live/gradle_build_live.html.heex:723
-#: lib/tuist_web/live/gradle_build_live.html.heex:786
+#: lib/tuist_web/live/gradle_build_live.html.heex:724
+#: lib/tuist_web/live/gradle_build_live.html.heex:787
 #, elixir-autogen, elixir-format
 msgid "Subject"
 msgstr "Temat"
@@ -962,33 +962,33 @@ msgstr "Temat"
 #: lib/tuist_web/live/mix_builds_live.html.heex:610
 #, elixir-autogen, elixir-format
 msgid "Successful builds"
-msgstr "Udane kompilacje"
+msgstr "Udane buildy"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "Tagi"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:241
-#: lib/tuist_web/live/gradle_build_live.html.heex:263
-#: lib/tuist_web/live/gradle_build_live.html.heex:312
-#: lib/tuist_web/live/gradle_build_live.html.heex:1152
+#: lib/tuist_web/live/gradle_build_live.html.heex:242
+#: lib/tuist_web/live/gradle_build_live.html.heex:264
+#: lib/tuist_web/live/gradle_build_live.html.heex:313
+#: lib/tuist_web/live/gradle_build_live.html.heex:1153
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:290
 #, elixir-autogen, elixir-format
 msgid "Task"
 msgstr "Zadanie"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:849
+#: lib/tuist_web/live/gradle_build_live.html.heex:850
 #, elixir-autogen, elixir-format
 msgid "Task hits"
-msgstr "Trafienia zadań"
+msgstr "Trafienia zadań w pamięci podręcznej"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:860
+#: lib/tuist_web/live/gradle_build_live.html.heex:861
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr "Chybienia zadań"
+msgstr "Nietrafienia zadań w pamięci podręcznej"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:215
+#: lib/tuist_web/live/gradle_build_live.html.heex:216
 #: lib/tuist_web/live/gradle_tasks_live.ex:45
 #: lib/tuist_web/live/gradle_tasks_live.ex:344
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:8
@@ -1011,97 +1011,97 @@ msgstr "Testy"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "Osiągnięto limit 10 000 wpisów, dane są uwzględniane tylko do %{date}. Spróbuj filtrować, aby zawęzić zestaw danych."
+msgstr "Osiągnięto limit 10 000 wpisów, dane są uwzględniane tylko do %{date}. Spróbuj zawęzić zbiór danych, stosując filtrowanie."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:172
 #: lib/tuist_web/live/mix_builds_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "Średni czas trwania kompilacji z poszczególnymi przedziałami percentylowymi."
+msgstr "Średni czas trwania buildu z podziałem na poszczególne percentyle."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:141
 #: lib/tuist_web/live/mix_builds_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "The number of builds that failed."
-msgstr "Liczba nieudanych kompilacji."
+msgstr "Liczba nieudanych buildów."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:121
 #: lib/tuist_web/live/mix_builds_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "The percentage of builds that succeeded."
-msgstr "Procent udanych kompilacji."
+msgstr "Procent udanych buildów."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:870
+#: lib/tuist_web/live/gradle_build_live.html.heex:871
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "Procent zadań możliwych do buforowania, które zakończyły się trafieniem w pamięć podręczną (lokalna + zdalna)."
+msgstr "Procent zadań możliwych do buforowania, które zakończyły się trafieniem w pamięci podręcznej (lokalne + zdalne)."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "The total number of Gradle builds."
-msgstr "Całkowita liczba kompilacji Gradle."
+msgstr "Łączna liczba buildów Gradle."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1215
+#: lib/tuist_web/live/gradle_build_live.html.heex:1216
 #, elixir-autogen, elixir-format
 msgid "This build has no cacheable task data."
-msgstr "Ta kompilacja nie zawiera danych o zadaniach możliwych do buforowania."
+msgstr "Ten build nie zawiera danych o zadaniach możliwych do buforowania."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:354
+#: lib/tuist_web/live/gradle_build_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "This build has no task data."
-msgstr "Ta kompilacja nie zawiera danych o zadaniach."
+msgstr "Ten build nie zawiera danych o zadaniach."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:382
+#: lib/tuist_web/live/gradle_build_live.html.heex:383
 #, elixir-autogen, elixir-format
 msgid "Time Gradle spent configuring this build."
-msgstr "Czas poświęcony przez Gradle na konfigurację tej kompilacji."
+msgstr "Czas poświęcony przez Gradle na konfigurację tego buildu."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:405
+#: lib/tuist_web/live/gradle_build_live.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "Time spent loading a reused configuration cache entry."
-msgstr "Czas poświęcony na wczytanie ponownie używanego wpisu z pamięci podręcznej konfiguracji."
+msgstr "Czas spędzony na ładowaniu ponownie użytego wpisu z cache'u konfiguracji."
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:104
 #: lib/tuist_web/live/mix_builds_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Total builds"
-msgstr "Łączna liczba kompilacji"
+msgstr "Łączna liczba buildów"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:882
+#: lib/tuist_web/live/gradle_build_live.html.heex:883
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded from remote cache."
-msgstr "Całkowity rozmiar artefaktów cache pobranych ze zdalnego cache."
+msgstr "Łączny rozmiar artefaktów pamięci podręcznej pobranych ze zdalnej pamięci podręcznej."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:893
+#: lib/tuist_web/live/gradle_build_live.html.heex:894
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded to remote cache."
-msgstr "Całkowity rozmiar artefaktów cache przesłanych do zdalnego cache."
+msgstr "Łączny rozmiar artefaktów pamięci podręcznej przesłanych do zdalnej pamięci podręcznej."
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:676
+#: lib/tuist_web/live/gradle_build_live.html.heex:677
 #, elixir-autogen, elixir-format
 msgid "Total time spent in recorded artifact transforms."
-msgstr "Całkowity czas spędzony na zarejestrowanych transformacjach artefaktów."
+msgstr "Łączny czas spędzony na zarejestrowanych transformacjach artefaktów."
 
 #: lib/tuist_web/live/gradle_build_live.ex:614
 #: lib/tuist_web/live/gradle_build_live.ex:682
-#: lib/tuist_web/live/gradle_build_live.html.heex:707
-#: lib/tuist_web/live/gradle_build_live.html.heex:751
+#: lib/tuist_web/live/gradle_build_live.html.heex:708
+#: lib/tuist_web/live/gradle_build_live.html.heex:752
 #, elixir-autogen, elixir-format
 msgid "Transform"
 msgstr "Transformacja"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:674
+#: lib/tuist_web/live/gradle_build_live.html.heex:675
 #, elixir-autogen, elixir-format
 msgid "Transform time"
 msgstr "Czas transformacji"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:666
+#: lib/tuist_web/live/gradle_build_live.html.heex:667
 #, elixir-autogen, elixir-format
 msgid "Transforms"
 msgstr "Transformacje"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:642
-#: lib/tuist_web/live/gradle_build_live.html.heex:822
+#: lib/tuist_web/live/gradle_build_live.html.heex:643
+#: lib/tuist_web/live/gradle_build_live.html.heex:823
 #, elixir-autogen, elixir-format
 msgid "Try adjusting your search or filters."
 msgstr "Spróbuj dostosować wyszukiwanie lub filtry."
@@ -1124,15 +1124,15 @@ msgstr "Typ:"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Unknown"
-msgstr "Nieznany"
+msgstr "Nieznane"
 
 #: lib/tuist_web/helpers/gradle_task.ex:16
 #: lib/tuist_web/live/gradle_build_live.ex:726
 #, elixir-autogen, elixir-format
 msgid "Up-to-date"
-msgstr "Aktualny"
+msgstr "Aktualne"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1058
+#: lib/tuist_web/live/gradle_build_live.html.heex:1059
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
 msgstr "Przepustowość przesyłania"
@@ -1140,7 +1140,7 @@ msgstr "Przepustowość przesyłania"
 #: lib/tuist_web/live/gradle_build_live.ex:812
 #, elixir-autogen, elixir-format
 msgid "Valid"
-msgstr "Ważny"
+msgstr "Prawidłowe"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:628
 #: lib/tuist_web/live/gradle_cache_live.html.heex:572
@@ -1153,15 +1153,15 @@ msgstr "Ważny"
 msgid "View more"
 msgstr "Zobacz więcej"
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:1205
+#: lib/tuist_web/live/gradle_build_live.html.heex:1206
 #, elixir-autogen, elixir-format
 msgid "Why it missed"
-msgstr "Powód pominięcia"
+msgstr "Przyczyna nietrafienia"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Gradle cache for your project by running:"
-msgstr "Możesz skonfigurować cache Gradle dla swojego projektu, uruchamiając:"
+msgstr "Możesz skonfigurować pamięć podręczną Gradle dla swojego projektu, uruchamiając:"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:366
 #: lib/tuist_web/live/gradle_cache_live.html.heex:438
@@ -1175,12 +1175,12 @@ msgstr "p50"
 #: lib/tuist_web/live/mix_builds_live.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "p50 build duration"
-msgstr "Czas trwania budowania p50"
+msgstr "Czas trwania buildu p50"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "p50 cache hit rate"
-msgstr "Wskaźnik trafień w cache p50"
+msgstr "Wskaźnik trafień w pamięci podręcznej p50"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:352
 #: lib/tuist_web/live/gradle_cache_live.html.heex:425
@@ -1194,12 +1194,12 @@ msgstr "p90"
 #: lib/tuist_web/live/mix_builds_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "p90 build duration"
-msgstr "Czas trwania budowania p90"
+msgstr "Czas trwania buildu p90"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "p90 cache hit rate"
-msgstr "Wskaźnik trafień w cache p90"
+msgstr "Wskaźnik trafień w pamięci podręcznej p90"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:338
 #: lib/tuist_web/live/gradle_cache_live.html.heex:412
@@ -1213,12 +1213,12 @@ msgstr "p99"
 #: lib/tuist_web/live/mix_builds_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "p99 build duration"
-msgstr "czas budowania p99"
+msgstr "Czas trwania buildu p99"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "p99 cache hit rate"
-msgstr "wskaźnik trafień w cache p99"
+msgstr "Wskaźnik trafień w pamięci podręcznej p99"
 
 #: lib/tuist_web/helpers/mix_analytics.ex:38
 #: lib/tuist_web/live/gradle_builds_live.ex:183
@@ -1267,9 +1267,9 @@ msgstr "od wczoraj"
 
 #: lib/tuist_web/live/gradle_build_live.ex:809
 #: lib/tuist_web/live/gradle_build_live.ex:832
-#: lib/tuist_web/live/gradle_build_live.html.heex:413
-#: lib/tuist_web/live/gradle_build_live.html.heex:1189
-#: lib/tuist_web/live/gradle_build_live.html.heex:1209
+#: lib/tuist_web/live/gradle_build_live.html.heex:414
+#: lib/tuist_web/live/gradle_build_live.html.heex:1190
+#: lib/tuist_web/live/gradle_build_live.html.heex:1210
 #, elixir-autogen, elixir-format
 msgid "—"
 msgstr "-"
@@ -1283,7 +1283,7 @@ msgstr "Nie udało się załadować analityki"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:345
 #, elixir-autogen, elixir-format
 msgid "Cumulative time"
-msgstr "Łączny czas"
+msgstr "Czas łączny"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:355
 #: lib/tuist_web/live/gradle_tasks_live.ex:514
@@ -1295,12 +1295,12 @@ msgstr "Wykonania"
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Incremental"
-msgstr "Inkrementalne"
+msgstr "Przyrostowe"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "No builds in this period"
-msgstr "Brak kompilacji w tym okresie"
+msgstr "Brak buildów w tym okresie"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:275
 #, elixir-autogen, elixir-format
@@ -1315,7 +1315,7 @@ msgstr "Odśwież stronę, aby spróbować ponownie."
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Search by path"
-msgstr "Wyszukaj według ścieżki"
+msgstr "Szukaj po ścieżce"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:265
 #, elixir-autogen, elixir-format
@@ -1335,7 +1335,7 @@ msgstr "Spróbuj innego zakresu dat lub dostosuj filtry."
 #: lib/tuist_web/live/gradle_tasks_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks observed in matching builds. Each chart point counts distinct tasks in that interval."
-msgstr "Unikalne zadania zaobserwowane w pasujących kompilacjach. Każdy punkt na wykresie reprezentuje liczbę unikalnych zadań w danym przedziale czasu."
+msgstr "Unikalne zadania zaobserwowane w pasujących buildach. Każdy punkt na wykresie reprezentuje liczbę unikalnych zadań w danym przedziale czasu."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:198
 #, elixir-autogen, elixir-format
@@ -1357,53 +1357,53 @@ msgstr "Nieznana możliwość buforowania"
 #: lib/tuist_web/live/gradle_tasks_live.ex:517
 #, elixir-autogen, elixir-format
 msgid "p50 duration"
-msgstr "czas trwania p50"
+msgstr "Czas trwania p50"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:518
 #, elixir-autogen, elixir-format
 msgid "p90 duration"
-msgstr "czas trwania p90"
+msgstr "Czas p90"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:519
 #, elixir-autogen, elixir-format
 msgid "p99 duration"
-msgstr "czas trwania p99"
+msgstr "Czas p99"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:515
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:308
 #, elixir-autogen, elixir-format
 msgid "Misses"
-msgstr "Pominięcia"
+msgstr "Nietrafienia"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Task duration percentile across executions in the selected period."
-msgstr "Percentyl czasu trwania zadania we wszystkich wykonaniach w wybranym okresie."
+msgstr "Percentyl czasu trwania zadania dla wszystkich wykonań w wybranym okresie."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "p50 task duration"
-msgstr "czas trwania zadania p50"
+msgstr "Czas zadania p50"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "p90 task duration"
-msgstr "czas trwania zadania p90"
+msgstr "Czas zadania p90"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "p99 task duration"
-msgstr "czas trwania zadania p99"
+msgstr "Czas zadania p99"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Average task duration across executions in the selected period."
-msgstr "Średni czas trwania zadania we wszystkich wykonaniach w wybranym okresie."
+msgstr "Średni czas trwania zadania dla wszystkich wykonań w wybranym okresie."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Avg. task duration"
-msgstr "Śr. czas trwania zadania"
+msgstr "Średni czas trwania zadania"
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:477
 #, elixir-autogen, elixir-format
@@ -1423,7 +1423,7 @@ msgstr "Spróbuj zaktualizować wyszukiwanie"
 #: lib/tuist_web/helpers/gradle_task.ex:17
 #, elixir-autogen, elixir-format
 msgid "Succeeded"
-msgstr "Ukończono pomyślnie"
+msgstr "Zakończono pomyślnie"
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:415
 #, elixir-autogen, elixir-format
@@ -1433,17 +1433,17 @@ msgstr "%{change} pp"
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate does not apply to this task."
-msgstr "Wskaźnik trafień w cache nie ma zastosowania do tego zadania."
+msgstr "Wskaźnik trafień w pamięci podręcznej nie ma zastosowania do tego zadania."
 
 #: lib/tuist_web/live/gradle_tasks_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Remote cache hits divided by hits and confirmed misses. Local cache hits and up-to-date tasks are excluded."
-msgstr "Zdalne trafienia w cache podzielone przez trafienia i potwierdzone braki trafień. Lokalne trafienia w cache oraz aktualne zadania są wykluczone."
+msgstr "Trafienia w zdalnej pamięci podręcznej podzielone przez sumę trafień i potwierdzonych nietrafień. Trafienia w lokalnej pamięci podręcznej oraz aktualne zadania są wykluczone."
 
 #: lib/tuist_web/live/gradle_tasks_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "These builds did not report enough cache information to calculate a hit rate."
-msgstr "Te kompilacje nie zgłosiły wystarczającej ilości informacji o cache, aby obliczyć wskaźnik trafień."
+msgstr "Te buildy nie zgłosiły wystarczającej ilości informacji o pamięci podręcznej, aby obliczyć wskaźnik trafień."
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -1453,18 +1453,18 @@ msgstr "Rozmiar artefaktu"
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Build path"
-msgstr "Ścieżka kompilacji"
+msgstr "Ścieżka buildu"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Cache"
-msgstr "Cache"
+msgstr "Pamięć podręczna"
 
 #: lib/tuist_web/live/gradle_task_execution_live.ex:55
 #: lib/tuist_web/live/gradle_task_execution_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "Cacheable"
-msgstr "Możliwe do zapisania w cache"
+msgstr "Możliwe do buforowania"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:35
 #, elixir-autogen, elixir-format
@@ -1479,7 +1479,7 @@ msgstr "Trafienie"
 #: lib/tuist_web/live/gradle_task_execution_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "Pudło"
+msgstr "Nietrafienie"
 
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:93
 #, elixir-autogen, elixir-format
@@ -1516,12 +1516,12 @@ msgstr "Zadanie: %{name}"
 #: lib/tuist_web/live/gradle_build_live.ex:769
 #, elixir-autogen, elixir-format
 msgid "Cache hit"
-msgstr "Trafienie w cache'u"
+msgstr "Trafienie w pamięci podręcznej"
 
 #: lib/tuist_web/live/mix_builds_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "The total number of mix compile runs."
-msgstr "Łączna liczba uruchomień kompilacji mix."
+msgstr "Łączna liczba uruchomień kompilacji Mix."
 
 #: lib/tuist_web/components/build_health.ex:49
 #: lib/tuist_web/live/gradle_build_live.html.heex:197
@@ -1532,12 +1532,12 @@ msgstr "Nie zgłoszono"
 #: lib/tuist_web/components/build_health.ex:34
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved. Only builds with a reported estimate are included."
-msgstr "Szacowany czas wykonania zadań zaoszczędzony dzięki trafieniom w cache. Zadania równoległe mogą się nakładać, więc nie jest to zaoszczędzony rzeczywisty czas budowy. Uwzględniane są tylko buildy ze zgłoszoną estymacją."
+msgstr "Szacowany czas wykonania zadań zaoszczędzony dzięki trafieniom w pamięci podręcznej. Zadania równoległe mogą się nakładać, więc nie jest to zaoszczędzony rzeczywisty czas kompilacji. Uwzględniono tylko kompilacje ze zgłoszoną estymacją."
 
 #: lib/tuist_web/components/build_health.ex:133
 #, elixir-autogen, elixir-format
 msgid "No task time estimates reported for this period."
-msgstr "Brak zgłoszonych szacunków czasu zadań dla tego okresu."
+msgstr "Brak zgłoszonych estymacji czasu zadań w tym okresie."
 
 #: lib/tuist_web/components/build_health.ex:31
 #: lib/tuist_web/components/build_health.ex:112
@@ -1549,14 +1549,19 @@ msgstr "Łączny zaoszczędzony czas zadań"
 #: lib/tuist_web/live/gradle_build_live.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "Estimated task execution time saved by cache hits. Parallel tasks can overlap, so this is not elapsed build time saved."
-msgstr "Szacowany czas wykonania zadań zaoszczędzony dzięki trafieniom w cache. Zadania równoległe mogą się nakładać, więc nie jest to zaoszczędzony rzeczywisty czas budowy."
+msgstr "Szacowany czas wykonania zadań zaoszczędzony dzięki trafieniom w pamięci podręcznej. Zadania równoległe mogą się nakładać, więc nie jest to zaoszczędzony rzeczywisty czas kompilacji."
 
 #: lib/tuist_web/components/build_health.ex:66
 #, elixir-autogen, elixir-format
 msgid "No comparison available"
-msgstr "Brak dostępnych danych do porównania"
+msgstr "Brak dostępnych danych porównawczych"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:241
 #, elixir-autogen, elixir-format
 msgid "Reported name"
 msgstr "Zgłoszona nazwa"
+
+#: lib/tuist_web/live/gradle_build_live.html.heex:210
+#, elixir-autogen, elixir-format
+msgid "Tuist Gradle plugin version"
+msgstr "Wersja wtyczki Tuist Gradle"

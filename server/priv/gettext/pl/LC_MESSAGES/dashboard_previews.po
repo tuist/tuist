@@ -47,7 +47,7 @@ msgstr "SHA commita"
 #: lib/tuist_web/live/preview_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Created by"
-msgstr "Utworzono przez"
+msgstr "Utworzone przez"
 
 #: lib/tuist_web/live/preview_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -124,7 +124,7 @@ msgstr "Uruchomiono o"
 #: lib/tuist_web/live/previews_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Ran by"
-msgstr "Uruchomione przez"
+msgstr "Uruchomiono przez"
 
 #: lib/tuist_web/live/preview_live.html.heex:100
 #, elixir-autogen, elixir-format
@@ -145,7 +145,7 @@ msgstr "Zeskanuj kod QR"
 #: lib/tuist_web/live/preview_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "Zeskanuj ten kod QR na swoim urządzeniu z iOS, aby zainstalować tę wersję aplikacji"
+msgstr "Zeskanuj ten kod QR na urządzeniu z iOS, aby zainstalować tę wersję aplikacji"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -160,7 +160,7 @@ msgstr "Obsługiwane platformy"
 #: lib/tuist_web/live/preview_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "Ten podgląd jest obsługiwany tylko na symulatorach i nie można go zainstalować na fizycznym urządzeniu"
+msgstr "Ten podgląd jest obsługiwany tylko w symulatorach i nie można go zainstalować na fizycznym urządzeniu"
 
 #: lib/tuist_web/live/preview_live.html.heex:285
 #, elixir-autogen, elixir-format
@@ -175,7 +175,7 @@ msgstr "Aby uruchomić podgląd bezpośrednio z przeglądarki, pobierz i zainsta
 #: lib/tuist_web/live/preview_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "V %{version}"
-msgstr "W %{version}"
+msgstr "V %{version}"
 
 #: lib/tuist_web/live/previews_live.html.heex:52
 #, elixir-autogen, elixir-format
@@ -202,7 +202,7 @@ msgstr "Nazwa pakietu"
 #: lib/tuist_web/live/preview_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "Zeskanuj ten kod QR na swoim urządzeniu z Androidem, aby pobrać i zainstalować tę wersję aplikacji"
+msgstr "Zeskanuj ten kod QR na urządzeniu z Androidem, aby pobrać i zainstalować tę wersję aplikacji"
 
 #: lib/tuist_web/live/preview_live.html.heex:233
 #, elixir-autogen, elixir-format

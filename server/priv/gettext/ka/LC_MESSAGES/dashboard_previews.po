@@ -14,7 +14,7 @@ msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/preview_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "%{app_name} icon"
-msgstr "%{app_name}-ის ხატულა"
+msgstr "%{app_name} ხატულა"
 
 #: lib/tuist_web/live/preview_live.ex:41
 #, elixir-autogen, elixir-format
@@ -47,12 +47,12 @@ msgstr "Commit SHA"
 #: lib/tuist_web/live/preview_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Created by"
-msgstr "შექმნა"
+msgstr "შექმნილია"
 
 #: lib/tuist_web/live/preview_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Delete preview"
-msgstr "წინასწარი ნახვის წაშლა"
+msgstr "პრივიუს წაშლა"
 
 #: lib/tuist_web/live/preview_live.html.heex:111
 #, elixir-autogen, elixir-format
@@ -78,7 +78,7 @@ msgstr "აპლიკაციის ინსტალაცია"
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "უახლესი აპლიკაციის პრივიუები"
+msgstr "უახლესი აპლიკაციის პრევიუები"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -89,12 +89,12 @@ msgstr "სახელი"
 #: lib/tuist_web/live/previews_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "None"
-msgstr "არცერთი"
+msgstr "არ არის"
 
 #: lib/tuist_web/live/preview_live.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Or run using CLI"
-msgstr "ან გაუშვით CLI-ის გამოყენებით"
+msgstr "ან გაუშვით CLI-ს გამოყენებით"
 
 #: lib/tuist_web/live/previews_live.html.heex:78
 #, elixir-autogen, elixir-format
@@ -145,12 +145,12 @@ msgstr "QR კოდის სკანირება"
 #: lib/tuist_web/live/preview_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "სკანირება QR კოდი iOS მოწყობილობაზე ამ ვერსიის დასაყენებლად"
+msgstr "დაასკანერეთ ეს QR კოდი თქვენს iOS მოწყობილობაზე აპლიკაციის ამ ვერსიის დასაყენებლად"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "გაზიარეთ აპლიკაციის წინასწარი ნახვები ერთი დაწკაპუნებით"
+msgstr "გაუზიარეთ აპლიკაციის პრევიუები ერთი დაწკაპუნებით"
 
 #: lib/tuist_web/live/preview_live.html.heex:117
 #, elixir-autogen, elixir-format
@@ -160,17 +160,17 @@ msgstr "მხარდაჭერილი პლატფორმები"
 #: lib/tuist_web/live/preview_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "ეს წინასწარი ნახვა მხოლოდ სიმულატორებზეა მხარდაჭერილი და ფიზიკურ მოწყობილობაზე ვერ დამონტაჟდება"
+msgstr "ეს პრევიუ მხოლოდ სიმულატორებზეა მხარდაჭერილი და ფიზიკურ მოწყობილობაზე ვერ დაინსტალირდება"
 
 #: lib/tuist_web/live/preview_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "ეს წინასწარი ნახვა არ არის ხელმისაწვდომი მოწყობილობაზე დასაყენებლად"
+msgstr "ეს პრევიუ მოწყობილობაზე დასაყენებლად არ არის ხელმისაწვდომი"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "ბრაუზერიდან პირდაპირ წინასწარი ნახვის გასაშვებად, ჩამოტვირთეთ და დააყენეთ Tuist macOS აპლიკაცია"
+msgstr "პრევიუს ბრაუზერიდან პირდაპირ გასაშვებად, ჩამოტვირთეთ და დააინსტალირეთ Tuist-ის macOS აპლიკაცია"
 
 #: lib/tuist_web/live/preview_live.html.heex:83
 #, elixir-autogen, elixir-format
@@ -185,7 +185,7 @@ msgstr "ფილტრი"
 #: lib/tuist_web/live/previews_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "ძებნა..."
+msgstr "ძიება..."
 
 #: lib/tuist_web/live/preview_live.html.heex:169
 #: lib/tuist_web/live/previews_live.ex:168
@@ -202,12 +202,12 @@ msgstr "პაკეტის სახელი"
 #: lib/tuist_web/live/preview_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "დაასკანერეთ ეს QR კოდი თქვენს Android მოწყობილობაზე აპლიკაციის ამ ვერსიის ჩამოსატვირთად და დასაყენებლად"
+msgstr "დაასკანერეთ ეს QR კოდი Android მოწყობილობაზე აპლიკაციის ამ ვერსიის ჩამოსატვირთად და დასაყენებლად"
 
 #: lib/tuist_web/live/preview_live.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "The APK for this preview is no longer available"
-msgstr "ამ პრივიუს APK აღარ არის ხელმისაწვდომი"
+msgstr "ამ პრივიუსთვის APK აღარ არის ხელმისაწვდომი"
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #, elixir-autogen, elixir-format
