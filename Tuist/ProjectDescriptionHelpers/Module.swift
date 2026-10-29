@@ -1690,7 +1690,6 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.testSupport.targetName),
                     .external(name: "FileSystem"),
-                    .external(name: "Path"),
                     .external(name: "FileSystemTesting"),
                     .target(name: Module.http.targetName),
                     .target(name: Module.environment.targetName),
@@ -2387,6 +2386,7 @@ public enum Module: String, CaseIterable {
                 "swifterpm/Tests/swifterpmTests/RestoreTests.swift",
                 "swifterpm/Tests/swifterpmTests/ResolveTests.swift",
                 "swifterpm/Tests/swifterpmTests/FileSystemSupportTests.swift",
+                "swifterpm/Tests/swifterpmTests/CertificateTrustTests.swift",
                 "swifterpm/Tests/swifterpmTests/HTTPClientTests.swift",
                 "swifterpm/Tests/swifterpmTests/GitHubTests.swift",
                 "swifterpm/Tests/swifterpmTests/GitLabTests.swift",
