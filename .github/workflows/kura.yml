@@ -6,11 +6,15 @@ on:
       - main
     paths:
       - kura/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/kura.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - kura/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/kura.yml
   merge_group: {}
 
@@ -326,7 +330,7 @@ jobs:
           chmod +x bin/amd64/kura
 
       - name: Assemble the runtime image
-        run: docker build -f Dockerfile.release --build-arg TARGETARCH=amd64 -t kura:e2e .
+        run: docker build -f Dockerfile.release --build-context certificate-trust=../infra/certificate-trust --build-arg TARGETARCH=amd64 -t kura:e2e .
 
       - name: Archive the Docker image
         run: docker save kura:e2e | zstd -T0 -o kura-e2e-images.tar.zst
@@ -371,7 +375,7 @@ jobs:
           chmod +x bin/amd64/kura
 
       - name: Assemble the runtime image
-        run: docker build -f Dockerfile.release --build-arg TARGETARCH=amd64 -t kura:e2e .
+        run: docker build -f Dockerfile.release --build-context certificate-trust=../infra/certificate-trust --build-arg TARGETARCH=amd64 -t kura:e2e .
 
       - name: Archive the Docker image
         run: docker save kura:e2e | zstd -T0 -o kura-e2e-images.tar.zst
