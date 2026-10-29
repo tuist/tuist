@@ -28,6 +28,12 @@ audio input plus profile-authorized macOS APNs/identity entitlements; there is n
 app sandbox, disable-library-validation entitlement or Live Activity.
 `--deep` is verification only, never a signing shortcut.
 
+`bundle.sh` and `appcast.sh` disable shell tracing before reading credentials.
+Vault, password-bearing keychain and notarization operations, and the Sparkle
+signing pipeline retain raw diagnostics only in their private temporary directory,
+which cleanup removes. Public logs report fixed stage-specific errors instead;
+never print or upload those private diagnostics, even while debugging a failure.
+
 ## Developer ID push provisioning
 
 Desktop release signing now requires a **separate** Apple-issued, Push-enabled
