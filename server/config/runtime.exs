@@ -691,7 +691,6 @@ base_queues = [
   mcp_events: 5,
   storage_retention: 1,
   kura_provisioning: 10,
-  kura_usage: 1,
   coverage_deltas: 2
 ]
 

@@ -1,21 +1,24 @@
 use std::{
     collections::{HashMap, VecDeque},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use axum::http::header::AUTHORIZATION;
 use base64::{Engine, engine::general_purpose::STANDARD};
+use rand::Rng;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::time::{MissedTickBehavior, interval, sleep};
+use tokio::{sync::watch, task::JoinHandle};
 use tracing::warn;
+use uuid::Uuid;
 
 use crate::{
     config::UsageConfig,
     metrics::Metrics,
     state::SharedState,
-    store::{CapacityEviction, StorageSnapshotData},
+    store::{CapacityEviction, StorageSnapshotData, Store},
 };
 
 const USAGE_PATH: &str = "/_internal/kura/usage";
@@ -42,8 +45,27 @@ struct UsageInner {
     region: String,
     metrics: Metrics,
     buckets: Mutex<HashMap<UsageBucketKey, UsageBucket>>,
+    checkpoint: Mutex<()>,
+    incarnation: Uuid,
+    final_window: OnceLock<u64>,
     undelivered_evictions: Mutex<VecDeque<SegmentEvictionEvent>>,
     last_snapshot_at: Mutex<Option<Instant>>,
+}
+
+pub struct UsageTasks {
+    stop: watch::Sender<bool>,
+    flush: JoinHandle<()>,
+    delivery: JoinHandle<()>,
+}
+
+impl UsageTasks {
+    /// Stop delivery without draining the remote backlog. Join checkpoint work
+    /// before the final append, including any local fsync already in progress.
+    pub async fn stop(self) {
+        let _ = self.stop.send(true);
+        let _ = self.flush.await;
+        let _ = self.delivery.await;
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -153,19 +175,32 @@ impl Usage {
                 region: metrics.region().to_owned(),
                 metrics,
                 buckets: Mutex::new(HashMap::new()),
+                checkpoint: Mutex::new(()),
+                incarnation: Uuid::now_v7(),
+                final_window: OnceLock::new(),
                 undelivered_evictions: Mutex::new(VecDeque::new()),
                 last_snapshot_at: Mutex::new(None),
             }),
         }))
     }
 
-    pub fn spawn_tasks(state: SharedState) {
-        if state.usage.is_none() {
-            return;
-        }
+    pub fn spawn_tasks(state: SharedState) -> Option<UsageTasks> {
+        state.usage.as_ref()?;
 
-        tokio::spawn(flush_loop(state.clone()));
-        tokio::spawn(delivery_loop(state));
+        let (stop, flush_stop) = watch::channel(false);
+        let mut delivery_stop = flush_stop.clone();
+        let flush = tokio::spawn(flush_loop(state.clone(), flush_stop));
+        let delivery = tokio::spawn(async move {
+            tokio::select! {
+                _ = delivery_stop.changed() => {}
+                _ = delivery_loop(state) => {}
+            }
+        });
+        Some(UsageTasks {
+            stop,
+            flush,
+            delivery,
+        })
     }
 
     pub fn record_public_download(
@@ -312,6 +347,44 @@ impl Usage {
             .collect()
     }
 
+    /// Call with `final_checkpoint` only after traffic producers have drained.
+    /// Allow one final batch (at most max_buckets) beyond the normal soft outbox
+    /// depth, so a deploy during a control-plane outage does not drop counters.
+    pub fn checkpoint(&self, store: &Store, final_checkpoint: bool) -> Result<(), String> {
+        let _checkpoint = self
+            .inner
+            .checkpoint
+            .lock()
+            .expect("usage checkpoint poisoned");
+        let rollups = if final_checkpoint {
+            self.inner.final_window.get_or_init(|| {
+                let now = unix_seconds();
+                now - now % self.inner.config.window_secs.max(1)
+            });
+            let buckets = self.inner.buckets.lock().expect("usage buckets poisoned");
+            buckets
+                .iter()
+                .map(|(key, bucket)| (key.clone(), self.rollup_for_bucket(key, bucket)))
+                .collect::<Vec<_>>()
+        } else {
+            if store.usage_outbox_message_count()? >= self.inner.config.outbox_max_depth {
+                self.inner.metrics.record_memory_action("usage_outbox_full");
+                return Ok(());
+            }
+            self.closed_rollups()
+        };
+        let keys = rollups
+            .iter()
+            .map(|(key, _)| key.clone())
+            .collect::<Vec<_>>();
+        let rows = rollups.into_iter().map(|(_, row)| row).collect::<Vec<_>>();
+        store.append_usage_rollups(&rows)?;
+        // A failed/ambiguous local append leaves the same counters and IDs for
+        // another attempt. Never remove counters before the synced write.
+        self.remove_buckets(&keys);
+        Ok(())
+    }
+
     fn rollup_for_bucket(&self, key: &UsageBucketKey, bucket: &UsageBucket) -> UsageRollup {
         let mut event_id = format!(
             "{}:{}:{}:{}:{}:{}:{}:{}:{}",
@@ -331,6 +404,18 @@ impl Usage {
         if let Some(origin) = &key.origin {
             event_id.push(':');
             event_id.push_str(origin);
+        }
+
+        // Two processes can shut down in the same window on the same volume.
+        // Their disjoint partial counters must not replace each other. Freeze
+        // the cutoff once so a retry across a window boundary keeps its ID.
+        if self
+            .inner
+            .final_window
+            .get()
+            .is_some_and(|window| key.window_start_unix_seconds >= *window)
+        {
+            event_id.push_str(&format!(":partial:{}", self.inner.incarnation));
         }
 
         UsageRollup {
@@ -458,7 +543,7 @@ impl Usage {
     }
 }
 
-async fn flush_loop(state: SharedState) {
+async fn flush_loop(state: SharedState, mut stop: watch::Receiver<bool>) {
     let mut ticker = interval(Duration::from_millis(
         state
             .config
@@ -470,41 +555,22 @@ async fn flush_loop(state: SharedState) {
     ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
     loop {
-        ticker.tick().await;
-        let Some(usage) = state.usage.as_ref() else {
-            return;
-        };
-
-        match state.store.usage_outbox_message_count() {
-            Ok(depth) if depth >= usage.inner.config.outbox_max_depth => {
-                state.metrics.record_memory_action("usage_outbox_full");
-                continue;
-            }
-            Err(error) => {
-                warn!("failed to inspect usage outbox depth: {error}");
-                continue;
-            }
-            _ => {}
+        tokio::select! {
+            _ = stop.changed() => return,
+            _ = ticker.tick() => {}
         }
-
-        let closed_rollups = usage.closed_rollups();
-        if closed_rollups.is_empty() {
-            continue;
-        }
-
-        let keys = closed_rollups
-            .iter()
-            .map(|(key, _)| key.clone())
-            .collect::<Vec<_>>();
-        let rollups = closed_rollups
-            .into_iter()
-            .map(|(_, rollup)| rollup)
-            .collect::<Vec<_>>();
-
-        if let Err(error) = state.store.append_usage_rollups(&rollups) {
-            warn!("failed to persist usage rollups: {error}");
-        } else {
-            usage.remove_buckets(&keys);
+        let checkpoint_state = state.clone();
+        match tokio::task::spawn_blocking(move || {
+            checkpoint_state
+                .usage
+                .as_ref()
+                .expect("usage should exist")
+                .checkpoint(&checkpoint_state.store, false)
+        })
+        .await
+        {
+            Ok(Ok(())) => {}
+            result => warn!("failed to persist usage rollups: {result:?}"),
         }
     }
 }
@@ -517,44 +583,77 @@ async fn delivery_loop(state: SharedState) {
             return;
         }
     };
+    let base_delay = Duration::from_millis(
+        state
+            .config
+            .usage
+            .as_ref()
+            .expect("usage config should exist")
+            .delivery_interval_ms
+            .max(1),
+    );
+    let mut failures = 0_u32;
 
     loop {
         if state.memory.pause_usage_outbox() {
             state
                 .metrics
                 .update_background_work_paused("usage_outbox", true);
-            sleep(Duration::from_millis(
-                state
-                    .config
-                    .usage
-                    .as_ref()
-                    .expect("usage config should exist")
-                    .delivery_interval_ms,
-            ))
-            .await;
+            sleep(base_delay).await;
             continue;
         }
         state
             .metrics
             .update_background_work_paused("usage_outbox", false);
 
-        if let Err(error) = deliver_once(&state, &client).await {
-            warn!("usage delivery failed: {error}");
-        }
-
-        sleep(Duration::from_millis(
-            state
-                .config
-                .usage
-                .as_ref()
-                .expect("usage config should exist")
-                .delivery_interval_ms,
-        ))
-        .await;
+        let delay = match deliver_once(&state, &client).await {
+            Ok(true) => {
+                failures = 0;
+                base_delay
+            }
+            Ok(false) => base_delay,
+            Err(error) => {
+                failures = failures.saturating_add(1);
+                let delay = retry_delay(failures, base_delay, error.retry_after);
+                warn!(
+                    retry_in_ms = delay.as_millis() as u64,
+                    "usage delivery failed: {}", error.reason
+                );
+                delay
+            }
+        };
+        sleep(delay).await;
     }
 }
 
-async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String> {
+#[derive(Debug)]
+struct DeliveryError {
+    reason: String,
+    retry_after: Duration,
+}
+
+impl From<String> for DeliveryError {
+    fn from(reason: String) -> Self {
+        Self {
+            reason,
+            retry_after: Duration::ZERO,
+        }
+    }
+}
+
+fn retry_delay(failures: u32, base: Duration, retry_after: Duration) -> Duration {
+    let base_ms = base.as_millis().min(u128::from(u64::MAX)) as u64;
+    let cap = base_ms.saturating_mul(2).max(60_000);
+    let ceiling = base_ms.saturating_mul(1_u64 << failures.min(20)).min(cap);
+    // Equal jitter preserves a minimum rest period and spreads even the first
+    // fleet-wide failure. Retry-After is a floor, with jitter above it too.
+    let jitter = Duration::from_millis(rand::rng().random_range(ceiling / 2..=ceiling));
+    let advised =
+        retry_after.saturating_add(Duration::from_millis(rand::rng().random_range(0..=base_ms)));
+    jitter.max(advised)
+}
+
+async fn deliver_once(state: &SharedState, client: &Client) -> Result<bool, DeliveryError> {
     let config = state
         .config
         .usage
@@ -579,7 +678,7 @@ async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String
     };
 
     if rollups.is_empty() && evictions.is_empty() && storage_snapshots.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
 
     let keys = rollups
@@ -615,9 +714,19 @@ async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String
         if delivered_snapshot {
             usage.mark_snapshot_delivered();
         }
-        Ok(())
+        Ok(true)
     } else {
-        Err(format!("server returned {}", response.status()))
+        let retry_after = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            .map(Duration::from_secs)
+            .unwrap_or_default();
+        Err(DeliveryError {
+            reason: format!("server returned {}", response.status()),
+            retry_after,
+        })
     }
 }
 
@@ -699,6 +808,196 @@ mod tests {
             protocol: "http",
             artifact_kind: "xcframework",
             origin: None,
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn shutdown_checkpoints_current_windows_without_overwriting_a_previous_incarnation() {
+        let context = crate::test_support::test_context(|config| {
+            config.usage = Some(test_config(3_600, 100));
+        })
+        .await;
+        let state = &context.state;
+        let usage = state.usage.as_ref().unwrap();
+        usage.record_public_download("acme", "ios", None, "xcframework", 123);
+        usage.checkpoint(&state.store, true).unwrap();
+        let first = state.store.next_usage_rollups(100).unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].1.bytes, 123);
+        assert!(usage.current_rollups_for_tests().is_empty());
+
+        // A repeated shutdown checkpoint must not duplicate the final append.
+        usage.checkpoint(&state.store, true).unwrap();
+        assert_eq!(state.store.next_usage_rollups(100).unwrap(), first);
+
+        let next = Usage::from_config(
+            state.config.usage.as_ref(),
+            &state.config.node_url,
+            state.metrics.clone(),
+        )
+        .unwrap()
+        .unwrap();
+        next.record_public_download("acme", "ios", None, "xcframework", 700);
+        next.checkpoint(&state.store, true).unwrap();
+        let rows = state.store.next_usage_rollups(100).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows.iter().map(|(_, row)| row.bytes).sum::<u64>(), 823);
+        assert_ne!(rows[0].1.event_id, rows[1].1.event_id);
+
+        let config = state.config.clone();
+        let io = state.io.clone();
+        let memory = state.memory.clone();
+        let crate::test_support::TestContext { _temp_dir, state } = context;
+        drop(state);
+        let reopened = Store::open(&config, io, memory).unwrap();
+        assert_eq!(reopened.next_usage_rollups(100).unwrap(), rows);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn failed_shutdown_append_preserves_counters_and_final_ids() {
+        use crate::failpoints::{FailpointAction, FailpointName};
+
+        let context = crate::test_support::test_context(|config| {
+            config.usage = Some(test_config(3_600, 100));
+        })
+        .await;
+        let state = &context.state;
+        let usage = state.usage.as_ref().unwrap();
+        usage.record_public_download("acme", "ios", None, "xcframework", 123);
+        state.store.failpoints().set_once(
+            FailpointName::BeforeUsageOutboxAppend,
+            FailpointAction::Error("disk unavailable".to_owned()),
+        );
+        assert!(usage.checkpoint(&state.store, true).is_err());
+        assert_eq!(state.store.usage_outbox_message_count().unwrap(), 0);
+        let retained = usage.current_rollups_for_tests();
+        assert_eq!(retained.len(), 1);
+        assert_eq!(retained[0].bytes, 123);
+        usage.checkpoint(&state.store, true).unwrap();
+        let persisted = state.store.next_usage_rollups(100).unwrap();
+        assert_eq!(persisted[0].1, retained[0]);
+        assert!(usage.current_rollups_for_tests().is_empty());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn shutdown_persists_a_bounded_final_batch_past_the_soft_outbox_limit() {
+        let context = crate::test_support::test_context(|config| {
+            let mut usage = test_config(3_600, 2);
+            usage.outbox_max_depth = 1;
+            config.usage = Some(usage);
+        })
+        .await;
+        let state = &context.state;
+        let usage = state.usage.as_ref().unwrap();
+        let existing = usage.rollup_for_bucket(
+            &bucket_key("previous", "ios", 0),
+            &UsageBucket {
+                bytes: 10,
+                request_count: 1,
+            },
+        );
+        state
+            .store
+            .append_usage_rollups(&[existing.clone()])
+            .unwrap();
+        usage.inner.buckets.lock().unwrap().insert(
+            bucket_key("closed", "ios", 0),
+            UsageBucket {
+                bytes: 20,
+                request_count: 1,
+            },
+        );
+        usage.record_public_download("current", "ios", None, "xcframework", 30);
+        usage.checkpoint(&state.store, false).unwrap();
+        assert_eq!(state.store.usage_outbox_message_count().unwrap(), 1);
+        usage.checkpoint(&state.store, true).unwrap();
+        let rows = state.store.next_usage_rollups(100).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows.iter().map(|(_, row)| row.bytes).sum::<u64>(), 60);
+        assert!(rows.iter().any(|(_, row)| row == &existing));
+        let closed = rows
+            .iter()
+            .find(|(_, row)| row.tenant_id == "closed")
+            .unwrap();
+        assert!(!closed.1.event_id.contains(":partial:"));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn delivery_replays_identical_usage_after_rejection_and_lost_acknowledgement() {
+        use std::sync::atomic::{AtomicU8, Ordering};
+
+        use axum::{Json, Router, http::StatusCode, routing::post};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let mode = Arc::new(AtomicU8::new(0));
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let router = Router::new().route(
+            USAGE_PATH,
+            post({
+                let mode = mode.clone();
+                let captured = captured.clone();
+                move |Json(batch): Json<serde_json::Value>| {
+                    let mode = mode.clone();
+                    let captured = captured.clone();
+                    async move {
+                        captured.lock().unwrap().push(batch["events"].clone());
+                        match mode.load(Ordering::SeqCst) {
+                            0 => (StatusCode::SERVICE_UNAVAILABLE, [("retry-after", "120")]),
+                            1 => std::future::pending().await,
+                            _ => (StatusCode::ACCEPTED, [("retry-after", "0")]),
+                        }
+                    }
+                }
+            }),
+        );
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        let context = crate::test_support::test_context(|config| {
+            let mut usage = test_config(3_600, 100);
+            usage.control_plane_url = format!("http://{address}");
+            config.usage = Some(usage);
+        })
+        .await;
+        let state = &context.state;
+        let usage = state.usage.as_ref().unwrap();
+        usage.record_public_download("acme", "ios", None, "xcframework", 123);
+        usage.checkpoint(&state.store, true).unwrap();
+        let retained = state.store.next_usage_rollups(100).unwrap();
+        let client = Client::builder()
+            .timeout(Duration::from_millis(100))
+            .build()
+            .unwrap();
+        let error = deliver_once(state, &client).await.unwrap_err();
+        assert_eq!(error.retry_after, Duration::from_secs(120));
+        assert_eq!(state.store.next_usage_rollups(100).unwrap(), retained);
+
+        mode.store(1, Ordering::SeqCst);
+        assert!(deliver_once(state, &client).await.is_err());
+        assert_eq!(state.store.next_usage_rollups(100).unwrap(), retained);
+
+        mode.store(2, Ordering::SeqCst);
+        assert!(deliver_once(state, &client).await.unwrap());
+        assert_eq!(state.store.usage_outbox_message_count().unwrap(), 0);
+        assert!(!deliver_once(state, &client).await.unwrap());
+        let batches = captured.lock().unwrap();
+        assert_eq!(batches.len(), 3);
+        assert_eq!(batches[0], batches[1]);
+        assert_eq!(batches[1], batches[2]);
+        server.abort();
+    }
+
+    #[test]
+    fn retry_backoff_is_bounded_and_honors_retry_after() {
+        let base = Duration::from_secs(5);
+        for _ in 0..100 {
+            for (failures, minimum, maximum) in [(1, 5, 10), (2, 10, 20), (20, 30, 60)] {
+                let delay = retry_delay(failures, base, Duration::ZERO);
+                assert!(delay >= Duration::from_secs(minimum));
+                assert!(delay <= Duration::from_secs(maximum));
+            }
+            let advised = retry_delay(20, base, Duration::from_secs(120));
+            assert!(advised >= Duration::from_secs(120));
+            assert!(advised <= Duration::from_secs(125));
         }
     }
 

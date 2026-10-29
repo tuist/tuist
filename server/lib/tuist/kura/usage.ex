@@ -1,47 +1,108 @@
 defmodule Tuist.Kura.Usage do
   @moduledoc """
-  Durably queues and queries Kura node usage rollups.
+  Persists and queries Kura node usage rollups.
   """
 
   import Ecto.Query
 
   alias Tuist.Accounts.Account
   alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
+  alias Tuist.KeyValueStore.LoadLimiter
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Identity
+  alias Tuist.Kura.StorageTelemetry
   alias Tuist.Kura.UsageEvent
-  alias Tuist.Kura.Workers.IngestUsageWorker
   alias Tuist.Projects
 
   @max_events_per_batch 5_000
+  @batch_timeout 3_000
+  @admission __MODULE__.Admission
+
+  def child_spec(_opts) do
+    LoadLimiter.child_spec(
+      name: @admission,
+      max_concurrency: 1,
+      max_pending_loads: 1,
+      load_timeout: @batch_timeout,
+      on_error: &report_error/1
+    )
+  end
+
+  defp report_error({:exception, exception, stacktrace}), do: Sentry.capture_exception(exception, stacktrace: stacktrace)
+  defp report_error(_reason), do: :ok
 
   @doc """
-  Queues usage rollups from managed nodes. Each is attributed to the account
+  Admits one complete HTTP batch per replica, without queueing or coalescing.
+  Only completed inserts acknowledge the node's durable outbox. A soft timeout
+  retains admission until the worker exits; it does not cancel remote writes.
+  """
+  def ingest_batch(events, evictions, snapshots, account, opts \\ []) do
+    arrays = [events, evictions, snapshots]
+
+    cond do
+      Enum.any?(arrays, &(length(&1) > @max_events_per_batch)) ->
+        {:error, :too_many_events}
+
+      not Enum.all?(arrays, &Enum.all?(&1, fn event -> is_map(event) end)) ->
+        {:error, :invalid_payload}
+
+      true ->
+        deadline = System.monotonic_time(:millisecond) + @batch_timeout
+
+        # Ch can replay disconnected inserts inside DBConnection independently
+        # of our retry helper. Kura owns retries, including ambiguous commits.
+        insert_opts = [
+          retry: false,
+          checkout_retries: 0,
+          queue: false,
+          deadline: deadline,
+          settings: [async_insert: 0]
+        ]
+
+        loader = fn ->
+          with {:ok, count} <- create_events(events, account, insert_opts),
+               {:ok, _} <- StorageTelemetry.create_eviction_events(if(account, do: [], else: evictions), insert_opts),
+               {:ok, _} <- StorageTelemetry.create_storage_snapshots(if(account, do: [], else: snapshots), insert_opts) do
+            {:ok, count}
+          end
+        end
+
+        case LoadLimiter.run(Keyword.get(opts, :limiter, @admission), make_ref(), loader, @batch_timeout) do
+          {:ok, result} -> result
+          {:error, _} = error -> error
+        end
+    end
+  end
+
+  @doc """
+  Persists usage rollups from managed nodes. Each is attributed to the account
   named by `tenant_id` and to that account's project named by `namespace_id`,
   whatever the casing of either handle. Anything that does not resolve lands on 0
   and is treated as unattributable traffic.
   """
-  def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
-    account_ids_by_handle = events |> Enum.map(& &1["tenant_id"]) |> Identity.account_ids()
-
-    with {:ok, count} <- insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0), trust_origin: true) do
-      record_managed_demand(events, account_ids_by_handle)
-      {:ok, count}
-    end
-  end
-
-  def create_events(events) when is_list(events), do: {:error, :too_many_events}
+  def create_events(events), do: create_events(events, nil, [])
 
   @doc """
-  Queues usage rollups from a self-hosted node, attributed to the `account` its
+  Persists usage rollups from a self-hosted node, attributed to the `account` its
   credential authenticated as. Origins are dropped: placement reads them as
   evidence about hosted regions, which a self-hosted node does not speak for.
   """
-  def create_events(events, %Account{id: account_id}) when is_list(events) and length(events) <= @max_events_per_batch do
-    insert_events(events, fn _event -> account_id end, trust_origin: false)
+  def create_events(events, %Account{} = account), do: create_events(events, account, [])
+
+  def create_events(events, nil, opts) when is_list(events) and length(events) <= @max_events_per_batch do
+    account_ids_by_handle = events |> Enum.map(& &1["tenant_id"]) |> Identity.account_ids()
+    result = insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0), true, opts)
+    record_managed_demand(events, account_ids_by_handle)
+    result
   end
 
-  def create_events(events, %Account{}) when is_list(events), do: {:error, :too_many_events}
+  def create_events(events, %Account{id: account_id}, opts)
+      when is_list(events) and length(events) <= @max_events_per_batch do
+    insert_events(events, fn _event -> account_id end, false, opts)
+  end
+
+  def create_events(events, _account, _opts) when is_list(events), do: {:error, :too_many_events}
 
   # Only trusted managed-node traffic refreshes hosted capacity. Replayed old
   # rollups, replication, storage snapshots and self-hosted reports do not.
@@ -63,7 +124,7 @@ defmodule Tuist.Kura.Usage do
     |> Enum.each(&Demand.record(&1, nil, traffic: true))
   end
 
-  defp insert_events(events, account_id_for, trust_origin: trust_origin?) do
+  defp insert_events(events, account_id_for, trust_origin?, opts) do
     attributed = Enum.map(events, &{&1, account_id_for.(&1)})
 
     project_ids =
@@ -85,15 +146,11 @@ defmodule Tuist.Kura.Usage do
         build_row(event, account_id, project_ids, now)
       end)
 
-    if rows == [] do
-      {:ok, 0}
-    else
-      # Kura deletes its outbox after a successful response. Persist the resolved
-      # rows before acknowledging without waiting for ClickHouse's write pool.
-      with {:ok, _job} <- %{rows: rows} |> IngestUsageWorker.new() |> Oban.insert() do
-        {:ok, length(rows)}
-      end
+    if rows != [] do
+      IngestRepo.insert_all(UsageEvent, rows, opts)
     end
+
+    {:ok, length(rows)}
   end
 
   defp build_row(event, account_id, project_ids, now) do

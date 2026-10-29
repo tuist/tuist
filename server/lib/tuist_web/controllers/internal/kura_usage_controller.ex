@@ -7,15 +7,15 @@ defmodule TuistWeb.Internal.KuraUsageController do
   alias Tuist.Environment
   alias Tuist.Kura.Identity
   alias Tuist.Kura.SelfHostedClients
-  alias Tuist.Kura.StorageTelemetry
   alias Tuist.Kura.Usage
 
   def create(conn, %{"schema_version" => 1, "events" => events} = params) when is_list(events) do
-    with {:ok, evictions} <- optional_list(params, "evictions"),
+    with true <- Enum.all?(events, &is_map/1),
+         {:ok, evictions} <- optional_list(params, "evictions"),
          {:ok, storage_snapshots} <- optional_list(params, "storage_snapshots") do
       case authorize(conn) do
         {:ok, :unconstrained} ->
-          ingest(conn, Usage.create_events(events), evictions, storage_snapshots)
+          ingest(conn, events, evictions, storage_snapshots, nil)
 
         {:ok, {:account, account}} ->
           if events_scoped_to_account?(events ++ evictions ++ storage_snapshots, account) do
@@ -26,7 +26,7 @@ defmodule TuistWeb.Internal.KuraUsageController do
             # self-hosted node claiming a governed region resize the account's
             # hosted claim. Usage still ingests, so a node that sends both
             # keeps its metering.
-            ingest(conn, Usage.create_events(events, account), [], [])
+            ingest(conn, events, evictions, storage_snapshots, account)
           else
             conn
             |> put_status(:forbidden)
@@ -39,7 +39,7 @@ defmodule TuistWeb.Internal.KuraUsageController do
           |> json(%{error: "unauthorized"})
       end
     else
-      :error ->
+      invalid when invalid in [:error, false] ->
         conn
         |> put_status(:bad_request)
         |> json(%{error: "invalid_payload"})
@@ -56,19 +56,18 @@ defmodule TuistWeb.Internal.KuraUsageController do
   # absence is an empty list rather than an error.
   defp optional_list(params, key) do
     case Map.get(params, key, []) do
-      list when is_list(list) -> {:ok, list}
+      list when is_list(list) -> if Enum.all?(list, &is_map/1), do: {:ok, list}, else: :error
       _other -> :error
     end
   end
 
-  defp ingest(conn, usage_result, evictions, storage_snapshots) do
-    with {:ok, count} <- usage_result,
-         {:ok, _evictions} <- StorageTelemetry.create_eviction_events(evictions),
-         {:ok, _snapshots} <- StorageTelemetry.create_storage_snapshots(storage_snapshots) do
-      conn
-      |> put_status(:accepted)
-      |> json(%{accepted: count})
-    else
+  defp ingest(conn, events, evictions, storage_snapshots, account) do
+    case Usage.ingest_batch(events, evictions, storage_snapshots, account) do
+      {:ok, count} ->
+        conn
+        |> put_status(:accepted)
+        |> json(%{accepted: count})
+
       {:error, :too_many_events} ->
         conn
         |> put_status(:payload_too_large)
@@ -76,6 +75,7 @@ defmodule TuistWeb.Internal.KuraUsageController do
 
       {:error, _reason} ->
         conn
+        |> put_resp_header("retry-after", "1")
         |> put_status(:service_unavailable)
         |> json(%{error: "ingestion_unavailable"})
     end

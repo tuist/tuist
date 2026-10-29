@@ -17,26 +17,30 @@ defmodule Tuist.Kura.StorageTelemetry do
 
   @max_events_per_batch 5_000
 
-  def create_eviction_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
-    insert_rows(EvictionEvent, events, &eviction_row/3)
+  def create_eviction_events(events, opts \\ [])
+
+  def create_eviction_events(events, opts) when is_list(events) and length(events) <= @max_events_per_batch do
+    insert_rows(EvictionEvent, events, &eviction_row/3, opts)
   end
 
-  def create_eviction_events(events) when is_list(events), do: {:error, :too_many_events}
+  def create_eviction_events(events, _opts) when is_list(events), do: {:error, :too_many_events}
 
-  def create_storage_snapshots(events) when is_list(events) and length(events) <= @max_events_per_batch do
-    insert_rows(StorageSnapshot, events, &snapshot_row/3)
+  def create_storage_snapshots(events, opts \\ [])
+
+  def create_storage_snapshots(events, opts) when is_list(events) and length(events) <= @max_events_per_batch do
+    insert_rows(StorageSnapshot, events, &snapshot_row/3, opts)
   end
 
-  def create_storage_snapshots(events) when is_list(events), do: {:error, :too_many_events}
+  def create_storage_snapshots(events, _opts) when is_list(events), do: {:error, :too_many_events}
 
-  defp insert_rows(schema, events, row_builder) do
+  defp insert_rows(schema, events, row_builder, opts) do
     account_ids_by_handle = lookup_account_ids(events)
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
     rows = Enum.map(events, &row_builder.(&1, account_ids_by_handle, now))
 
     if rows != [] do
-      IngestRepo.insert_all(schema, rows)
+      IngestRepo.insert_all(schema, rows, opts)
     end
 
     {:ok, length(rows)}
