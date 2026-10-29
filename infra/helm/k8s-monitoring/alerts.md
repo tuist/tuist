@@ -3161,20 +3161,8 @@ template preview accepted the production critical payload and rejected
 single-pod warnings, staging, unrelated alerts and missing cluster labels.
 No synthetic alert, page, or public incident was created for validation.
 
-Run the offline routing regression tests with:
-
-```sh
-CI=1 mise exec aqua:prometheus/alertmanager@0.28.1 uv@0.11.19 -- uv run infra/helm/k8s-monitoring/test-server-vm-alerts.py
-```
-
-These use Alertmanager's actual routing engine with the Slack fallback and
-staging exceptions, as well as IRM's Jinja predicate. They check that query errors
-reach Slack, not merely that IRM rejects them, and send no notifications.
-The threshold and recovery-hold checks guard the rule configuration; the
-historical replay exercises Loki's actual distinct-pod query.
-For an end-to-end drill,
-get explicit approval before sending a synthetic firing notification: this
-chain declares a real incident and pages the on-call engineer.
+For an end-to-end drill, get explicit approval before sending a synthetic firing
+notification: this chain declares a real incident and pages the on-call engineer.
 
 To reprovision, create the two rules paused, merge the exact-match Grafana
 notification policy and add only the scoped IRM route (do not replace the

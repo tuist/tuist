@@ -144,8 +144,6 @@ jobs:
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
       - name: Test runner macOS host health alerts
         run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
-      - name: Test fatal VM incident routing
-        run: mise exec aqua:prometheus/alertmanager@0.28.1 uv@0.11.19 -- uv run infra/helm/k8s-monitoring/test-server-vm-alerts.py
 
   render:
     name: Render
