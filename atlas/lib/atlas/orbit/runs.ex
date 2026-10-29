@@ -54,6 +54,7 @@ defmodule Atlas.Orbit.Runs do
   alias Atlas.Orbit.Access
   alias Atlas.Orbit.Agent
   alias Atlas.Orbit.Checkpoints
+  alias Atlas.Orbit.Compactor
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.ModelFence
   alias Atlas.Orbit.Rendering
@@ -396,24 +397,33 @@ defmodule Atlas.Orbit.Runs do
       end)
       |> ModelFence.wrap(run, parent)
 
-    {prompt, images, store_opts} =
+    {prompt, images, store_opts, compaction_opts} =
       case Checkpoints.load(run) do
         {:ok, snapshot} ->
-          {resume_prompt(), [], [session_store: {Checkpoints.Store, snapshot: snapshot}]}
+          # Condukt 1.14 protects only the newly supplied prompt, not the
+          # original request inside a restored snapshot. Keep its images and
+          # request intact until that protected boundary can be restored.
+          {resume_prompt(), [], [session_store: {Checkpoints.Store, snapshot: snapshot}], legacy_compaction()}
 
         :none ->
-          {prompt, images} = Agent.input(transcript_messages(thread, run), run.id, acting_user)
-          {prompt, images, []}
+          {prompt, images, snapshot} = Agent.session_input(transcript_messages(thread, run), run, acting_user)
+
+          # Condukt 1.14 counts base64 image bytes as text tokens. Its blocking
+          # policy would reject ordinary screenshots before vision inference.
+          compaction_opts =
+            if images == [], do: Compactor.session_options(client_opts, run.model), else: legacy_compaction()
+
+          {prompt, images, [session_store: {Checkpoints.Store, snapshot: snapshot}], compaction_opts}
       end
 
     session_opts =
       client_opts ++
         store_opts ++
+        compaction_opts ++
         [
           tools: Tools.build(run) ++ [Subagents.tool(run)],
           system_prompt: Agent.system_prompt(thread, audience, description) <> Reply.instructions(),
           load_project_instructions: false,
-          compactor: {ToolResultPrune, keep_recent: 2, max_size: 4_000},
           max_tokens: @max_tokens
         ]
 
@@ -441,6 +451,8 @@ defmodule Atlas.Orbit.Runs do
 
     Process.get({__MODULE__, :result})
   end
+
+  defp legacy_compaction, do: [compactor: {ToolResultPrune, keep_recent: 2, max_size: 4_000}]
 
   defp resume_prompt do
     "You were interrupted by a server restart while answering. Continue from where you left off and answer the request above."

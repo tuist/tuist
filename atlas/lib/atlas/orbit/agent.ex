@@ -12,6 +12,7 @@ defmodule Atlas.Orbit.Agent do
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Rendering
   alias Atlas.Orbit.Thread
+  alias Condukt.SessionStore.Snapshot
 
   @message_limit 4_000
 
@@ -98,6 +99,21 @@ defmodule Atlas.Orbit.Agent do
   def input(messages, run_id, user) do
     {context, images} = AttachmentContext.build(messages, user)
     {transcript(messages, run_id, context), images}
+  end
+
+  @doc "Separates older history from the protected current request and its follow-ups."
+  def session_input(messages, run, user) do
+    messages = Enum.filter(messages, &is_nil(Map.get(&1, :recipient_id)))
+    {context, images} = AttachmentContext.build(messages, user)
+    {older, current} = Enum.split_while(messages, &(&1.position < run.trigger_seq))
+
+    history =
+      Enum.map(older, fn message ->
+        Condukt.Message.user(Enum.join([line(message, run.id), Map.get(context, message.id, "")], "\n"))
+      end)
+
+    snapshot = Snapshot.new(messages: history)
+    {transcript(current, run.id, context), images, snapshot}
   end
 
   defp line(%{kind: "tool", run_id: run_id, tool_status: "succeeded"} = message, run_id) when is_binary(run_id) do
