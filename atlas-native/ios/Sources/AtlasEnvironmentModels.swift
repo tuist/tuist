@@ -15,11 +15,20 @@ struct AtlasPersonalEnvironment: Decodable, Identifiable {
     let terminal: Bool
     let display: Bool
     let projects: [AtlasEnvironmentProject]
+    let provider: String?
+    let providerState: String?
+
+    var native: Bool { provider == nil || provider == "native" }
 }
 
 struct AtlasEnvironmentOverview: Decodable {
+    struct Provider: Decodable, Identifiable {
+        let id: String
+        let name: String
+    }
     let ownerId: String
     let environments: [AtlasPersonalEnvironment]
+    let providers: [Provider]?
 }
 
 struct AtlasEnvironmentSelection: Decodable {
@@ -50,9 +59,9 @@ struct AtlasEnvironmentJob: Decodable, Identifiable, Equatable {
 
     var active: Bool { ["queued", "claimed"].contains(status) }
     var phase: String {
-        if cancelRequested && active { return "Stopping · waiting for Mac" }
+        if cancelRequested && active { return "Stopping · waiting for \(executionTimeoutSeconds == 1800 ? "Mac" : "environment")" }
         switch status {
-        case "queued": return "Waiting for Mac"
+        case "queued": return executionTimeoutSeconds == 1800 ? "Waiting for Mac" : "Waiting for environment"
         case "claimed": return "Running on \(environmentName)"
         case "settled": return success == true ? "Completed" : "Stopped or failed"
         case "cancelled": return "Cancelled before starting"

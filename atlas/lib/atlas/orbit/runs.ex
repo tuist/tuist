@@ -47,6 +47,7 @@ defmodule Atlas.Orbit.Runs do
   import Ecto.Query
 
   alias Atlas.Agents.Sessions
+  alias Atlas.Environments
   alias Atlas.Environments.Commands
   alias Atlas.Inference
   alias Atlas.LLMs.Runner
@@ -490,6 +491,7 @@ defmodule Atlas.Orbit.Runs do
   # here so a restore before its worker exits cannot restart pre-archive follow-ups.
   def archive!(%Thread{status: "archived"} = thread) do
     Commands.archive!(thread.id)
+    if thread.environment_id, do: Environments.stop_hosted!(thread.environment_id)
 
     from(run in Run,
       where: run.thread_id == ^thread.id and run.status in ^Run.active_statuses(),

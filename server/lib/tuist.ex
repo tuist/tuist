@@ -302,6 +302,8 @@ defmodule Tuist do
       # Firecracker sandboxes for coding-agent sessions (control plane
       # for infra/sandboxd; see lib/tuist/sandboxes/AGENTS.md).
       Sandboxes,
+      Sandboxes.AtlasIdentity,
+      Sandboxes.ProviderEnvironments,
       Sandboxes.AmpIntegrations,
       Sandboxes.AmpIntegration,
       Sandboxes.AmpRuntime,

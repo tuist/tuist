@@ -22,14 +22,20 @@ defmodule AtlasWeb.EnvironmentsControllerTest do
 
     assert get(c.api, "/api/me/environments") |> json_response(200) |> Map.keys() |> Enum.sort() == [
              "environments",
-             "owner_id"
+             "owner_id",
+             "providers"
            ]
   end
 
   test "registration, deletion and result success envelopes are stable", c do
     response = put(c.api, path(c), registration(c.project_id))
     assert %{"environment" => environment} = json_response(response, 200)
-    assert Map.keys(environment) |> Enum.sort() == ~w(display enabled id name online projects terminal)
+
+    assert Map.keys(environment) |> Enum.sort() ==
+             ~w(display enabled id name online projects provider provider_state terminal)
+
+    assert environment["provider"] == "native"
+    assert is_nil(environment["provider_state"])
     assert get_resp_header(response, "cache-control") == ["no-store"]
     command = command_fixture(c)
     claimed = claim_fixture(c, command)
