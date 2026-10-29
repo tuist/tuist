@@ -1,19 +1,19 @@
 ---
 {
-  "title": "Generated Xcode project",
-  "titleTemplate": ":title · Build insights · Features · Guides · Tuist",
-  "description": "Track build analytics for a Tuist-generated Xcode project on the Tuist dashboard."
+  "title": "Сгенерированный проект Xcode",
+  "titleTemplate": ":title · Аналитика сборок · Возможности · Руководства · Tuist",
+  "description": "Отслеживайте аналитику сборок для проекта Xcode, сгенерированного Tuist, в панели управления Tuist."
 }
 ---
 # Сгенерированный проект Xcode {#generated-xcode-project-build-insights}
 
 > [!NOTE]
-> Автосгенерированные схемы автоматически включают пост-действие `tuist inspect build`.
+> Автоматически сгенерированные схемы автоматически включают пост-действие `tuist inspect build`.
 
 >
-> Если вы не хотите отслеживать аналитику сборки в сгенерированных схемах, отключите эту функцию с помощью [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
+> Если вы не хотите отслеживать данные о сборках в сгенерированных схемах, отключите эту функцию с помощью [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
 
-Если вы используете сгенерированные проекты с пользовательскими схемами, вам нужно добавить пост-действие самостоятельно. Для [Mise](https://mise.jdx.dev/):
+Если вы используете сгенерированные проекты с пользовательскими схемами, вам нужно самостоятельно добавить пост-действие. Для [Mise](https://mise.jdx.dev/):
 
 ```swift
 let project = Project(
@@ -44,7 +44,7 @@ let project = Project(
 )
 ```
 
-Если вы не используете Mise, вам нужно убедиться, что `tuist` доступен в окружении схемы, так как пост-действия Xcode не наследуют `PATH` вашей оболочки. Для установок через [Homebrew](https://brew.sh/):
+Если вы не используете Mise, необходимо убедиться, что `tuist` доступен в окружении схемы, так как пост-действия Xcode не наследуют переменную `PATH` вашей оболочки. Для установок через [Homebrew](https://brew.sh/):
 
 ```swift
 buildAction: .buildAction(
@@ -63,25 +63,25 @@ buildAction: .buildAction(
 )
 ```
 
-## Аналитика сборки в CI {#continuous-integration}
+## Данные о сборках в CI {#continuous-integration}
 
-Чтобы отслеживать аналитику сборки в CI, убедитесь, что CI <.localized_link href="/guides/integrations/continuous-integration#authentication">аутентифицирован</.localized_link>.
+Чтобы отслеживать данные о сборках в CI, убедитесь, что CI <.localized_link href="/guides/integrations/continuous-integration#authentication">аутентифицирован</.localized_link>.
 
-Для CI на основе xcodebuild вам необходимо:
-- Использовать <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> при вызове действий `xcodebuild`.
-- Добавить `-resultBundlePath` в вашу команду `xcodebuild`.
+Для CI на основе xcodebuild необходимо:
+- Используйте <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> при вызове действий `xcodebuild`.
+- Добавьте `-resultBundlePath` к вашей команде `xcodebuild`.
 
-Без `-resultBundlePath` необходимые журналы активности и пакеты результатов не генерируются, и `tuist inspect build` не может проанализировать сборку.
+Без `-resultBundlePath` необходимые журналы активности и пакеты результатов не создаются, и `tuist inspect build` не может проанализировать сборку.
 
 ## Метрики машины {#machine-metrics}
 
-Аналитика сборки может включать метрики производительности на уровне машины (ЦП, память, сеть и использование диска), собираемые во время сборки. Чтобы включить это, настройте легкий фоновый демон, который непрерывно собирает системные метрики:
+Данные о сборках могут включать метрики производительности на уровне машины (ЦП, память, сеть и использование диска), собираемые во время сборки. Чтобы включить эту функцию, настройте легкий фоновый демон, который постоянно опрашивает системные метрики:
 
 ```bash
 tuist setup insights
 ```
 
-Это запускает локальный демон, который собирает метрики в фоновом режиме. Данные автоматически подбираются `tuist inspect build` и загружаются вместе с отчетом о сборке.
+Это запускает локальный демон, который опрашивает метрики в фоновом режиме. Данные автоматически собираются `tuist inspect build` и загружаются вместе с отчетом о сборке.
 
 > [!TIP]
 > **Ci**
@@ -94,7 +94,7 @@ tuist setup insights
 tuist teardown insights
 ```
 
-Это выгружает LaunchAgent демона, удаляет его plist и удаляет собранные метрики и логи демона из `~/.local/state`, поэтому ничего не остается работать в фоновом режиме.
+Это выгружает LaunchAgent демона, удаляет его plist и удаляет собранные метрики и логи демона из `~/.local/state`, поэтому в фоне ничего не остается работать.
 
 
 ## Пользовательские метаданные {#custom-metadata}
@@ -110,7 +110,7 @@ tuist teardown insights
 
 ### Примеры
 
-Установите эти значения в CI или вашей оболочке перед запуском сборки:
+Установите эти значения в CI или в вашей оболочке перед запуском сборки:
 
 ```sh
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"
