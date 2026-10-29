@@ -353,6 +353,13 @@ defmodule Tuist.Sandboxes do
           |> update_sandbox(%{state: :running, paused_at: nil, last_active_at: now(), error_message: nil})
           |> schedule_idle_pause()
 
+        {:error, :no_capacity} ->
+          # CI can revoke the grant after server admission. The host refused
+          # the launch, so the checkpoint remains retryable. Keep the residency
+          # charge until an authoritative host report confirms its release.
+          {:ok, _} = update_sandbox(sandbox, %{state: :paused, error_message: nil})
+          {:error, :no_capacity}
+
         # The snapshot is intact on the node's disk; a node that is away or
         # slow is not a reason to give the sandbox up.
         {:error, reason} when reason in @transient_node_errors ->
@@ -910,7 +917,14 @@ defmodule Tuist.Sandboxes do
       {:error, :macos_sandboxes_disabled}
     else
       args = if sandbox.platform == :darwin, do: Map.put(args, :node_uid, sandbox.node_uid), else: args
-      Nodes.call(sandbox.node_name, op, args, opts)
+
+      case Nodes.call(sandbox.node_name, op, args, opts) do
+        # This exact native sentinel means admission refused the operation.
+        # Joined cleanup/fencing errors must remain failures, not retryable
+        # capacity denials. This also works with already-deployed host versions.
+        {:error, "macOS sandbox capacity unavailable"} when sandbox.platform == :darwin -> {:error, :no_capacity}
+        result -> result
+      end
     end
   end
 
