@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Gradle Test Sharding",
-  "titleTemplate": ":title · Test Sharding · Features · Guides · Tuist",
-  "description": "Distribute Gradle tests across multiple CI runners with Tuist Test Sharding."
+  "title": "Gradle 測試分片",
+  "titleTemplate": ":title · 測試分片 · 功能 · 指南 · Tuist",
+  "description": "使用 Tuist 測試分片，將 Gradle 測試分散到多個 CI 執行器上。"
 }
 ---
 # Gradle 測試分片 {#gradle-test-sharding}
 
-Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專案的測試任務於先前 CI 執行中記錄的測試套件來規劃，並使用 Tuist 伺服器依據歷史計時資料建立負載均衡的分片計畫。
+Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專案的測試任務先前 CI 執行中記錄的測試套件來規劃，並使用 Tuist 伺服器依據歷史時間資料建立負載均衡的分片計畫。
 
 > [!IMPORTANT] REQUIREMENTS
 > - 必須設定<.localized_link href="/guides/features/test-insights/gradle">測試洞察</.localized_link>
@@ -16,24 +16,24 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 測試分片採用兩階段工作流程：
 
-1. **建置階段：** Tuist 會根據為你的專案記錄的測試套件，在伺服器上建立**分片計畫**。伺服器會使用過去 30 天的歷史測試計時資料，將測試分配至各個分片，使每個分片的耗時大致相同。建置階段會輸出**分片矩陣**，供你的 CI 系統用來產生平行執行器。
-2. **測試階段：** 每個 CI 執行器會收到一個**分片索引**，並僅執行指派給該分片的測試。最後一個分片也會執行所有未指派給其他分片的測試套件。
+1. **建置階段：** Tuist 會根據為你的專案記錄的測試套件，在伺服器上建立**分片計畫**。伺服器會使用過去 30 天的歷史測試時間資料，將測試分配到各分片，使每個分片的耗時大致相同。建置階段會輸出**分片矩陣**，供你的 CI 系統用來產生平行執行器。
+2. **測試階段：** 每個 CI 執行器會收到一個**分片索引**，並只執行指派給該分片的測試。最後一個分片也會執行所有未指派給其他分片的測試套件。
 
 ## 建置階段 {#build-phase}
 
-使用 `tuistPrepareTestShards` 工作準備測試分片：
+使用 `tuistPrepareTestShards` 任務準備測試分片：
 
 ```sh
 ./gradlew tuistPrepareTestShards \
   -PtuistShardMax=5
 ```
 
-此工作會：
-1. 找出包含待分片測試任務的專案，而不進行編譯
-2. 根據過去 30 天為這些專案記錄的測試套件與計時資料，在 Tuist 伺服器上建立分片計畫
+此任務會：
+1. 找出包含待分片測試任務的專案，但不編譯它們
+2. 根據過去 30 天為這些專案記錄的測試套件與時間資料，在 Tuist 伺服器上建立分片計畫
 3. 為你的 CI 系統輸出分片矩陣
 
-當尚未記錄任何測試套件時（例如首次執行），計畫會包含單一的分片，執行所有測試。
+若尚未記錄任何測試套件（例如首次執行），計畫會包含單一的分片，執行所有測試。
 
 ### 建置選項 {#build-options}
 
@@ -41,12 +41,12 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 | 屬性 | 說明 |
 |----------|-------------|
-| `-PtuistShardMax=<N>` | 最大分片數量（預設值：2） |
+| `-PtuistShardMax=<N>` | 最大分片數量（預設：2） |
 | `-PtuistShardMin=<N>` | 最小分片數量 |
 | `-PtuistShardMaxDuration=<MS>` | 每個分片的目標最長持續時間（毫秒） |
 | `-PtuistShardTestTask=<NAME>` | 要進行分片的測試任務，例如 `testDebugUnitTest`。預設為建置中的所有測試任務 |
 
-具有多個建置變體的 Android 專案，每個變體會有一個單元測試任務。將 `-PtuistShardTestTask` 設定為你的分片所執行的變體，這樣只會規劃包含該變體的專案：
+具有多個建置變體的 Android 專案，每個變體會有一個單元測試任務。將 `-PtuistShardTestTask` 設為你的分片所執行的變體，這樣只會規劃包含該變體的專案：
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -58,19 +58,19 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 ## 測試階段 {#test-phase}
 
-每個分片執行器會使用標準的 `test` 工作執行其指派的測試。當設定 `TUIST_SHARD_INDEX` 時，外掛程式會自動從伺服器取得分片指派，並過濾測試執行範圍，僅包含指派的測試套件。若專案中沒有指派給該分片的套件，則會跳過該專案的測試任務。
+每個分片執行器會使用標準的 `test` 任務執行其指派的測試。當設定 `TUIST_SHARD_INDEX` 時，外掛程式會自動從伺服器取得分片指派，並過濾測試執行，只包含指派的測試套件。沒有測試套件指派給該分片的專案，其測試任務會被略過。
 
-最後一個分片會執行所有測試任務，並排除指派給其他分片的套件，因此尚未有記錄執行的套件（例如新加入的套件）仍會執行。
+最後一個分片會執行所有測試任務，並排除已指派給其他分片的套件，因此尚未有記錄執行的套件（例如新加入的套件）仍會執行。
 
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test
 ```
 
-若你在建置階段設定了 `-PtuistShardTestTask`，請在每個分片中執行相同的任務，例如 `./gradlew testDebugUnitTest`。
+若在建置階段設定了 `-PtuistShardTestTask`，請在每個分片中執行相同的任務，例如 `./gradlew testDebugUnitTest`。
 
 ## 持續整合 {#continuous-integration}
 
-Tuist 會自動偵測下列 CI 供應商：
+Tuist 會自動偵測下列 CI 提供者：
 
 - [GitHub Actions](#github-actions)
 - [GitLab CI](#gitlab-ci)
@@ -79,7 +79,7 @@ Tuist 會自動偵測下列 CI 供應商：
 - [Codemagic](#codemagic)
 - [Bitrise](#bitrise)
 
-對於其他供應商，請參閱 `.tuist-shard-matrix.json` 檔案以設定平行工作。
+對於其他提供者，請參閱 `.tuist-shard-matrix.json` 檔案以設定平行工作。
 
 ### GitHub Actions {#github-actions}
 
@@ -129,7 +129,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist 會產生 `.tuist-shard-child-pipeline.yml`，你可以將其作為 [子管線](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines) 觸發。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作繼承：
+Tuist 會產生 `.tuist-shard-child-pipeline.yml`，你可將其觸發為 [子管線](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines)。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作繼承：
 
 ```yaml
 # .gitlab-ci.yml
@@ -156,7 +156,7 @@ test-shards:
     strategy: depend
 ```
 
-子管線需要一個 `.tuist-shard` 工作範本：
+子管線需要 `.tuist-shard` 工作範本：
 
 ```yaml
 # .gitlab/shard-template.yml
@@ -250,7 +250,7 @@ steps:
       buildkite-agent pipeline upload .tuist-shard-pipeline.yml
 ```
 
-每個產生的步驟都在其環境中設定了 `TUIST_SHARD_INDEX`。使用共用指令碼將測試命令新增至每個分片步驟：
+每個產生的步驟都在其環境中設定了 `TUIST_SHARD_INDEX`。使用共用指令碼將測試命令加入每個分片步驟：
 
 ```bash
 # .buildkite/shard-step.sh
@@ -261,7 +261,7 @@ tuist auth login
 
 ### Codemagic {#codemagic}
 
-Codemagic 不支援動態矩陣工作，因此請為每個分片定義獨立的工作流程。Tuist 會將 `TUIST_SHARD_MATRIX` 和 `TUIST_SHARD_COUNT` 寫入 `CM_ENV` 檔案，以便在各工作流程中使用：
+Codemagic 不支援動態矩陣工作，因此請為每個分片定義獨立的工作流程。Tuist 會將 `TUIST_SHARD_MATRIX` 與 `TUIST_SHARD_COUNT` 寫入 `CM_ENV` 檔案，供各工作流程使用：
 
 ```yaml
 # codemagic.yaml
@@ -325,7 +325,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-在 Bitrise 上，Tuist 會將 `.tuist-shard-matrix.json` 寫入 `BITRISE_DEPLOY_DIR`，使其可作為建置產物供後續管線階段使用。搭配預先定義的平行工作流程使用 Bitrise Pipelines：
+在 Bitrise 上，Tuist 會將 `.tuist-shard-matrix.json` 寫入 `BITRISE_DEPLOY_DIR`，使其作為建置產物供下游管線階段使用。使用 Bitrise Pipelines 搭配預先定義的平行工作流程：
 
 ```yaml
 # bitrise.yml
@@ -386,4 +386,4 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise 不支援在執行期間動態建立平行工作。請在你的管線階段中定義固定數量的分片工作流程 — 同一階段內的工作流程會自動平行執行。
+> Bitrise 不支援在執行階段動態建立平行工作。請在你的管線階段中定義固定數量的分片工作流程——同一階段內的工作流程會自動平行執行。

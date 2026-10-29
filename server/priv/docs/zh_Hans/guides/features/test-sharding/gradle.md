@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Gradle Test Sharding",
-  "titleTemplate": ":title · Test Sharding · Features · Guides · Tuist",
-  "description": "Distribute Gradle tests across multiple CI runners with Tuist Test Sharding."
+  "title": "Gradle 测试分片",
+  "titleTemplate": ":title · 测试分片 · 功能 · 指南 · Tuist",
+  "description": "使用 Tuist 测试分片将 Gradle 测试分发到多个 CI 运行器上。"
 }
 ---
 # Gradle 测试分片 {#gradle-test-sharding}
@@ -14,10 +14,10 @@ Tuist Gradle 插件内置了对测试分片的支持。它会规划 Tuist 在你
 
 ## 工作原理 {#how-it-works}
 
-测试分片遵循一个两阶段的工作流程：
+测试分片遵循两阶段工作流：
 
-1. **构建阶段：** Tuist 在服务器上根据你的项目记录的测试套件创建一个**分片计划**。服务器使用过去 30 天的历史测试耗时数据将测试分配到各个分片，使每个分片花费大致相同的时间。构建阶段会输出一个**分片矩阵**，你的 CI 系统用它来生成并行运行的执行器。
-2. **测试阶段：** 每个 CI 执行器接收一个**分片索引**，并仅执行分配给该分片的测试。最后一个分片还会运行所有未分配给其他分片的测试套件。
+1. **构建阶段：** Tuist 在服务器上根据你的项目记录的测试套件创建**分片计划**。服务器使用过去 30 天的历史测试耗时数据将测试分配到各个分片，使每个分片的耗时大致相同。构建阶段会输出一个**分片矩阵**，你的 CI 系统用它来生成并行运行器。
+2. **测试阶段：** 每个 CI 运行器都会收到一个**分片索引**，并仅执行分配给该分片的测试。最后一个分片还会运行所有未分配给其他分片的测试套件。
 
 ## 构建阶段 {#build-phase}
 
@@ -28,12 +28,12 @@ Tuist Gradle 插件内置了对测试分片的支持。它会规划 Tuist 在你
   -PtuistShardMax=5
 ```
 
-此任务：
-1. 查找具有待分片测试任务的项目，而不编译它们
+该任务会：
+1. 找到包含待分片测试任务的项目，而不编译它们
 2. 根据过去 30 天为这些项目记录的测试套件和耗时，在 Tuist 服务器上创建分片计划
-3. 为你的 CI 系统输出一个分片矩阵
+3. 为你的 CI 系统输出分片矩阵
 
-当尚未记录任何测试套件时（例如首次运行），计划将只有一个分片，该分片会运行所有测试。
+当尚未记录任何测试套件时（例如首次运行），计划将只有一个分片，运行所有测试。
 
 ### 构建选项 {#build-options}
 
@@ -44,9 +44,9 @@ Tuist Gradle 插件内置了对测试分片的支持。它会规划 Tuist 在你
 | `-PtuistShardMax=<N>` | 最大分片数（默认值：2） |
 | `-PtuistShardMin=<N>` | 最小分片数 |
 | `-PtuistShardMaxDuration=<MS>` | 每个分片的目标最大持续时间（毫秒） |
-| `-PtuistShardTestTask=<NAME>` | 要进行分片的测试任务，例如 `testDebugUnitTest`。默认为构建中的每个测试任务 |
+| `-PtuistShardTestTask=<NAME>` | 要分片的测试任务，例如 `testDebugUnitTest`。默认为构建中的每个测试任务 |
 
-具有多个构建变体的 Android 项目每个变体都有一个单元测试任务。将 `-PtuistShardTestTask` 设置为你的分片所运行的变体，以便仅规划具有该变体的项目：
+具有多个构建变体的 Android 项目每个变体都有一个单元测试任务。将 `-PtuistShardTestTask` 设置为你的分片运行的变体，这样只会规划包含该变体的项目：
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -54,11 +54,11 @@ Tuist Gradle 插件内置了对测试分片的支持。它会规划 Tuist 在你
   -PtuistShardTestTask=testDebugUnitTest
 ```
 
-分片引用会自动从 CI 环境变量（`GITHUB_RUN_ID`、`CI_PIPELINE_ID` 等）派生，或者可以通过 `TUIST_SHARD_REFERENCE` 环境变量显式设置。
+分片引用会自动从 CI 环境变量（`GITHUB_RUN_ID`、`CI_PIPELINE_ID` 等）派生，也可以通过 `TUIST_SHARD_REFERENCE` 环境变量显式设置。
 
 ## 测试阶段 {#test-phase}
 
-每个分片执行器使用标准的 `test` 任务执行其分配的测试。当设置了 `TUIST_SHARD_INDEX` 时，插件会自动从服务器获取分片分配，并过滤测试执行以仅包含分配的测试套件。没有套件分配给该分片的项目中的测试任务将被跳过。
+每个分片运行器使用标准 `test` 任务执行其分配的测试。当设置了 `TUIST_SHARD_INDEX` 时，插件会自动从服务器获取分片分配，并过滤测试执行以仅包含分配的测试套件。没有为分片分配任何套件的项目中的测试任务将被跳过。
 
 最后一个分片运行每个测试任务，并排除分配给其他分片的套件，因此尚未有记录运行的套件（例如新添加的套件）仍会运行。
 
@@ -70,7 +70,7 @@ TUIST_SHARD_INDEX=0 ./gradlew test
 
 ## 持续集成 {#continuous-integration}
 
-Tuist 自动检测以下 CI 提供商：
+Tuist 会自动检测以下 CI 提供商：
 
 - [GitHub Actions](#github-actions)
 - [GitLab CI](#gitlab-ci)
@@ -79,7 +79,7 @@ Tuist 自动检测以下 CI 提供商：
 - [Codemagic](#codemagic)
 - [Bitrise](#bitrise)
 
-对于其他提供商，请参阅 `.tuist-shard-matrix.json` 文件以设置并行作业。
+对于其他提供商，请参考 `.tuist-shard-matrix.json` 文件来设置并行作业。
 
 ### GitHub Actions {#github-actions}
 
@@ -238,7 +238,7 @@ workflows:
 
 ### Buildkite {#buildkite}
 
-Tuist 会生成一个 `.tuist-shard-pipeline.yml`，其中每个分片对应一个步骤。使用 `buildkite-agent pipeline upload` 上传它：
+Tuist 会生成一个 `.tuist-shard-pipeline.yml`，每个分片对应一个步骤。使用 `buildkite-agent pipeline upload` 上传该文件：
 
 ```yaml
 # pipeline.yml
@@ -325,7 +325,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-在 Bitrise 上，Tuist 会将 `.tuist-shard-matrix.json` 写入 `BITRISE_DEPLOY_DIR`，使其可作为构建产物供下游流水线阶段使用。使用具有预定义并行工作流的 Bitrise Pipelines：
+在 Bitrise 上，Tuist 会将 `.tuist-shard-matrix.json` 写入 `BITRISE_DEPLOY_DIR`，使其可作为构建产物供下游流水线阶段使用。使用 Bitrise Pipelines 并配合预定义的并行工作流：
 
 ```yaml
 # bitrise.yml
@@ -386,4 +386,4 @@ workflows:
 ```
 
 > [!TIP]
-> Bitrise 不支持在运行时动态创建并行作业。请在你的流水线阶段中定义固定数量的分片工作流——同一阶段内的工作流会自动并行运行。
+> Bitrise 不支持在运行时动态创建并行作业。请在流水线阶段中定义固定数量的分片工作流——同一阶段内的工作流会自动并行运行。
