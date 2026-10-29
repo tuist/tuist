@@ -22,6 +22,7 @@ defmodule Tuist.Accounts.AgentAuth do
   alias Tuist.Accounts.AgentRegistration
   alias Tuist.Accounts.AgentRegistrationEvent
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserToken
   alias Tuist.Accounts.Workers.ExpireAgentRegistrationWorker
@@ -270,6 +271,7 @@ defmodule Tuist.Accounts.AgentAuth do
            :ok <- ensure_claim_token_valid(registration),
            :ok <- ensure_otp_valid(registration),
            :ok <- ensure_claim_user_matches(registration, user),
+           :ok <- ensure_claim_mfa_policy_satisfied(user, Map.get(attrs, :user_session)),
            :ok <- ensure_browser_sso_policy_satisfied(user, Map.get(attrs, :user_session)),
            true <- secure_compare_hash(hash_secret(user_code), registration.otp_hash) do
         now = Time.utc_now()
@@ -771,8 +773,9 @@ defmodule Tuist.Accounts.AgentAuth do
            :ok <- ensure_claim_token_valid(registration),
            :ok <- ensure_otp_valid(registration),
            :ok <- ensure_sso_policy_satisfied(registration.email),
-           true <- secure_compare_hash(hash_secret(otp), registration.otp_hash) do
-        user = get_or_provision_user!(registration.email)
+           true <- secure_compare_hash(hash_secret(otp), registration.otp_hash),
+           user = get_or_provision_user!(registration.email),
+           :ok <- ensure_claim_mfa_policy_satisfied(user) do
         now = Time.utc_now()
         {:ok, credential} = claim_credential(registration, user)
 
@@ -1492,6 +1495,26 @@ defmodule Tuist.Accounts.AgentAuth do
 
   defp ensure_protocol_claim_startable(%AgentRegistration{registration_type: :anonymous}), do: :ok
   defp ensure_protocol_claim_startable(_registration), do: {:error, :claim_not_available}
+
+  defp ensure_claim_mfa_policy_satisfied(user, session \\ nil) do
+    # Serialize both credential issuance and anonymous-key rebinding with MFA
+    # enrollment. A registration created before enrollment is not an exemption.
+    Repo.one!(from user in User, where: user.id == ^user.id, lock: "FOR UPDATE")
+
+    if UserMFA.enabled?(user) do
+      # Reload after the lock: caller-supplied proof and revoked/expired sessions
+      # must not authorize a claim. get_user_session also enforces current MFA.
+      with %UserToken{token: token} <- session,
+           %UserToken{user_id: user_id} <- Accounts.get_user_session(token),
+           true <- user_id == user.id do
+        :ok
+      else
+        _ -> {:error, :mfa_required}
+      end
+    else
+      :ok
+    end
+  end
 
   defp ensure_browser_sso_policy_satisfied(%User{} = user, session) do
     if Accounts.sso_enforced_for_email?(user.email) do

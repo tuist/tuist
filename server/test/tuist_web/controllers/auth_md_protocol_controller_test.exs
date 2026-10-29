@@ -7,9 +7,11 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
   alias Tuist.Accounts.AgentRegistration
   alias Tuist.Accounts.AgentRegistrationEvent
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.Workers.ExpireAgentRegistrationWorker
   alias Tuist.Authentication
   alias Tuist.Repo
+  alias Tuist.Time
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication, as: WebAuthentication
   alias TuistWeb.AuthenticationPlug
@@ -429,6 +431,79 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
              Map.get(jwks, "keys", [])
 
     assert is_binary(kid)
+  end
+
+  @tag :agent_claim_mfa
+  test "browser claims require authoritative MFA proof but accept a verified session" do
+    user = AccountsFixtures.user_fixture()
+    registration = build_conn() |> post("/agent/identity", %{"type" => "anonymous"}) |> json_response(200)
+
+    claim =
+      build_conn()
+      |> post("/agent/identity/claim", %{"claim_token" => registration["claim_token"], "email" => user.email})
+      |> json_response(200)
+
+    params = claim["claim_attempt"]["verification_uri"] |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+    claim_view_token = params["claim_attempt_token"]
+
+    session =
+      user |> Tuist.Accounts.generate_user_session_token(%{auth_method: :password}) |> Tuist.Accounts.get_user_session()
+
+    {:ok, factor} = UserMFA.begin_enrollment(user, session)
+    code = NimbleTOTP.verification_code(factor.secret, time: Time.utc_now())
+    {:ok, %{recovery_codes: [recovery_code | _]}} = UserMFA.confirm_enrollment(user, session, code)
+
+    attrs = %{claim_view_token: claim_view_token, user_code: claim["claim_attempt"]["user_code"], user: user}
+
+    # A stale struct with forged proof must not replace the persisted session.
+    assert {:error, :mfa_required} =
+             Tuist.Accounts.confirm_protocol_agent_claim(
+               Map.put(attrs, :user_session, %{session | mfa_verified_at: Time.utc_now()})
+             )
+
+    other_user = AccountsFixtures.user_fixture()
+    other_token = Tuist.Accounts.generate_user_session_token(other_user, %{auth_method: :password})
+    other_session = Tuist.Accounts.get_user_session(other_token)
+
+    assert {:error, :mfa_required} =
+             Tuist.Accounts.confirm_protocol_agent_claim(Map.put(attrs, :user_session, other_session))
+
+    stored = Repo.get!(AgentRegistration, String.replace_prefix(registration["registration_id"], "reg_", ""))
+    assert stored.status == :pending
+    assert is_nil(stored.claimed_by_user_id)
+
+    pending =
+      post(build_conn(), "/users/log_in", %{
+        "user" => %{"email" => user.email, "password" => AccountsFixtures.valid_user_password()}
+      })
+
+    assert redirected_to(pending) == "/users/mfa"
+    refute get_session(pending, :user_token)
+
+    denied =
+      pending
+      |> recycle()
+      |> post("/agent/identity/claim/complete", %{
+        "claim_attempt_token" => claim_view_token,
+        "user_code" => claim["claim_attempt"]["user_code"]
+      })
+
+    assert redirected_to(denied) == "/users/log_in"
+    assert Repo.get!(AgentRegistration, stored.id).status == :pending
+
+    verified = pending |> recycle() |> post("/users/mfa", %{"mfa_code" => recovery_code})
+    assert get_session(verified, :user_token)
+
+    conn =
+      verified
+      |> recycle()
+      |> post("/agent/identity/claim/complete", %{
+        "claim_attempt_token" => claim_view_token,
+        "user_code" => claim["claim_attempt"]["user_code"]
+      })
+
+    assert html_response(conn, 200) =~ "Agent authorized"
+    assert Repo.get!(AgentRegistration, stored.id).claimed_by_user_id == user.id
   end
 
   @tag :sso_credential_boundary

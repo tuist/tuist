@@ -270,6 +270,7 @@ defmodule TuistWeb.AgentAuthDocument do
     | `slow_down` | `/oauth2/token` | Add at least five seconds to the polling interval. |
     | `expired_token` | `/oauth2/token` | Restart an anonymous claim attempt, or register again for other flows. |
     | `sso_required` | Claim page | Single sign-on is required; the user must authenticate through their organization's provider. |
+    | `mfa_required` | Claim page or legacy claim completion | Sign in in the browser and complete two-factor authentication. For legacy email claims, start a new registration through `/agent/identity` and use its browser claim ceremony. |
     | `rate_limited` | Registration or claim | Back off before retrying. |
 
     Retry server errors with exponential backoff. Do not retry a client error with the same unchanged payload.
@@ -279,6 +280,9 @@ defmodule TuistWeb.AgentAuthDocument do
     Older Tuist clients may continue using `/agent/auth`, `/agent/auth/claim`, and `/agent/auth/revoke`.
     New agents must use the discovered current endpoints above because only those implement assertion exchange,
     browser-entered user codes, standard token revocation, and security-event delivery.
+    Users with two-factor authentication enabled cannot acquire or bind new credentials using legacy
+    mailbox-only claims. They must complete the current browser claim ceremony with a valid MFA-verified
+    session. Existing machine credentials are unchanged by this restriction.
 
     ## Service information
 
