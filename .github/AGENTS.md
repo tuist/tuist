@@ -100,6 +100,8 @@ actionlint on the three workflows. PR image validation has read-only permissions
 release checks. Documentation captures use `atlas/deploy/capture-docs.mjs` with
 bounded Chrome page and process waits, rather than waiting indefinitely for
 external resources. Its regression suite includes a local never-finishing image.
+Run Chrome-bearing steps under `dbus-run-session` so Linux startup has an isolated
+session bus instead of spending the capture budget on desktop-service discovery.
 Retain screenshot PNGs and Chrome diagnostic logs on failures, but keep browser
 profiles in the disposable validation directory, outside uploaded artifacts.
 
