@@ -2,6 +2,7 @@ import Config
 
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
+alias Atlas.Environments.Tuist
 alias Atlas.LLMs.ChatGPT
 alias Atlas.Push.Config
 alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
@@ -21,6 +22,27 @@ signals_enabled =
 
 config :atlas, :automation_trace_url_template, System.get_env("ATLAS_AUTOMATION_TRACE_URL_TEMPLATE")
 config :atlas, :signals_enabled, signals_enabled
+
+# All replicas use the same dedicated signing key. Never reuse OAuth/session keys.
+if key = System.get_env("ATLAS_ENVIRONMENT_OIDC_PRIVATE_KEY") do
+  config :atlas, :environment_identity, private_key: key
+end
+
+if account = System.get_env("ATLAS_TUIST_ENVIRONMENT_ACCOUNT") do
+  url = System.get_env("ATLAS_TUIST_ENVIRONMENT_URL", "https://tuist.dev")
+  uri = URI.parse(url)
+
+  if !(uri.scheme == "https" and is_binary(uri.host) and uri.userinfo == nil and uri.query == nil and
+         uri.fragment == nil and uri.path in [nil, "", "/"]),
+     do: raise("ATLAS_TUIST_ENVIRONMENT_URL must be an HTTPS origin")
+
+  if !Regex.match?(~r/^[a-z0-9][a-z0-9-]{0,99}$/, account),
+    do: raise("ATLAS_TUIST_ENVIRONMENT_ACCOUNT must be an account handle")
+
+  config :atlas, :environment_providers, %{
+    "tuist" => %{module: Tuist, name: "Tuist", url: String.trim_trailing(url, "/"), account_handle: account}
+  }
+end
 
 # dev_instance.exs is only shipped in non-prod (it isn't copied into the
 # release tarball), so guard the require to keep prod boots clean.

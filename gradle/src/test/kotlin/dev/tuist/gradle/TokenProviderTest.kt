@@ -9,6 +9,8 @@ import dev.tuist.gradle.api.model.AuthenticationTokens
 import dev.tuist.gradle.services.RefreshAuthTokenService
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.io.File
 import java.io.InterruptedIOException
 import java.net.ConnectException
@@ -19,7 +21,11 @@ import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.Base64
 import org.junit.jupiter.api.Assumptions.assumeTrue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -391,6 +397,56 @@ class TokenProviderTest {
 
         assertFailsWith<ConnectException> {
             provider.getToken()
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `independent providers sharing credentials refresh without losing the session`(trailingSlash: Boolean) {
+        val url = URI.create("https://${tempDir.name}.example")
+        val store = createCredentialStore()
+        store.write(url, Credentials(expiredJwt(), "old-refresh"))
+        val newToken = validJwt()
+        val refreshing = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val revoked = AtomicBoolean(false)
+        val service = object : RefreshAuthTokenService() {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?): AuthenticationTokens {
+                check(refreshToken == "old-refresh" && !revoked.getAndSet(true)) { "Refresh token revoked" }
+                refreshing.countDown()
+                check(release.await(5, TimeUnit.SECONDS))
+                return AuthenticationTokens(newToken, "new-refresh")
+            }
+        }
+        val first = TokenProvider(url, service, store, envProvider = { null })
+        val second = TokenProvider(
+            URI.create(url.toString() + if (trailingSlash) "/" else ""),
+            service,
+            store,
+            envProvider = { null }
+        )
+        val executor = Executors.newFixedThreadPool(2)
+        val secondResult = FutureTask<String> { second.getToken() }
+        val secondThread = Thread(secondResult)
+        try {
+            val firstResult = executor.submit<String> { first.getToken() }
+            assertTrue(refreshing.await(5, TimeUnit.SECONDS))
+            secondThread.start()
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            // Observe the blocking native lock, Windows overlap retry, or the original implementation's failure.
+            fun contending() = secondThread.stackTrace.any { it.methodName == "flock" } ||
+                secondThread.state == Thread.State.TIMED_WAITING
+            while (!secondResult.isDone && !contending() && System.nanoTime() < deadline) Thread.yield()
+            assertTrue(secondResult.isDone || contending(), "Second provider never reached the refresh lock")
+            release.countDown()
+            assertEquals(newToken, firstResult.get(5, TimeUnit.SECONDS))
+            assertEquals(newToken, secondResult.get(5, TimeUnit.SECONDS))
+            assertEquals(Credentials(newToken, "new-refresh"), store.read(url))
+        } finally {
+            release.countDown()
+            secondThread.interrupt()
+            secondThread.join(5000)
+            executor.shutdownNow()
         }
     }
 

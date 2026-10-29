@@ -286,6 +286,24 @@ Version, current connection UUID and 20-second online expiry fence stale leases;
 there is no navigation/activity history. Disable keeps an offline row, and no
 automatic expiry is currently applied. Include disabled rows in legal exports.
 
+Hosted registrations additionally store `provider` (native by default), observed
+`provider_state`, and `managed_thread_id` linking the private conversation. Their
+OAuth client UUID is an inaccessible synthetic binding, never a native grant.
+Selection opts into terminal access; hosted terminal deadlines are 600 seconds
+instead of the native 1,800. The encrypted ledger/evidence and existing history
+retention apply unchanged. Provider workers store only environment/command UUIDs
+in Oban. Include provider metadata and the managed-thread relationship in the
+owner export. No age-based deletion of registrations is introduced.
+
+The selected Tuist provider receives the owner/environment UUIDs as signed
+five-minute OIDC claims, the Tuist account handle, generation and authorized tool
+arguments (including commands/relative paths). It receives no Atlas/model/repository
+credentials. Its VM disks contain cloned repositories, edits and build outputs;
+these require a separate authorized Tuist export and may expire 14 days after
+pause/error. Atlas retains only the bounded encrypted command results. Signing
+keys and temporary bearer JWTs are authentication material, excluded from exports.
+See `docs/environment-providers.md` for the provider boundary.
+
 `orbit_threads` additionally stores selected `environment_id`, its name snapshot,
 `project_id`, and the permanent `personal_environment_dispatched` privacy marker.
 `orbit_runs.environment_id` / `project_id` freeze selection when a run is created;

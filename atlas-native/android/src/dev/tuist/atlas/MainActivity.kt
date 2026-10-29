@@ -392,7 +392,16 @@ class MainActivity : Activity() {
                             it.open()
                         }
                     val screen =
-                        AtlasOrbitScreen(this, titles.getValue(tab), model, presence, ::updateBack, appearance, ::pickOrbitAttachment)
+                        AtlasOrbitScreen(
+                            this,
+                            titles.getValue(tab),
+                            model,
+                            presence,
+                            ::updateBack,
+                            appearance,
+                            ::pickOrbitAttachment,
+                            authentication::environment,
+                        )
                     threadScreen = screen
                     setActionBar(screen.toolbar)
                     screen.view

@@ -49,6 +49,7 @@ class AtlasOrbitScreen(
     private val navigationChanged: () -> Unit,
     private val appearance: AtlasAppearance? = null,
     private val pickAttachment: (() -> Unit)? = null,
+    private val environmentRequest: ((JSONObject, (Result<JSONObject>) -> Unit) -> Unit)? = null,
 ) {
     val toolbar = Toolbar(activity)
     private val liveStatus =
@@ -216,6 +217,7 @@ class AtlasOrbitScreen(
         closed = true
         searchTask?.let(search::removeCallbacks)
         promptDialog?.dismiss()
+        environmentDialog?.dismiss()
         messageViews.clear()
         AtlasOrbitAttachments.clear()
         hideKeyboard()
@@ -249,6 +251,7 @@ class AtlasOrbitScreen(
     private fun render() {
         if (closed) return
         if (promptThread != protectedThreadId()) promptDialog?.dismiss()
+        if (environmentThread != protectedThreadId()) environmentDialog?.dismiss()
         updatePromptIndex()
         if (model.createDraft != null || model.selecting || model.selectionId != null || !listMenuReady) {
             listMenuReady = false
@@ -462,6 +465,113 @@ class AtlasOrbitScreen(
             .show()
     }
 
+    private var environmentDialog: AlertDialog? = null
+    private var environmentThread: String? = null
+
+    private fun showEnvironments(id: String) {
+        val request = environmentRequest ?: return
+        environmentDialog?.dismiss()
+        environmentThread = id
+        val rows =
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(20), dp(8), dp(20), dp(8))
+            }
+        val dialog =
+            AlertDialog
+                .Builder(activity)
+                .setTitle("Tool environment")
+                .setView(ScrollView(activity).apply { addView(rows) })
+                .setNegativeButton("Close", null)
+                .create()
+        environmentDialog = dialog
+
+        fun current() = !closed && protectedThreadId() == id && environmentDialog === dialog && dialog.isShowing
+
+        fun message(value: String) {
+            rows.addView(
+                TextView(activity).apply {
+                    text = value
+                    textSize = 16f
+                },
+            )
+        }
+
+        fun select(action: JSONObject) {
+            if (!current()) return
+            rows.removeAllViews()
+            message("Updating environment…")
+            request(action.put("thread_id", id)) { result ->
+                if (!current()) return@request
+                rows.removeAllViews()
+                result.fold({
+                    message("Environment updated. Hosted environments may take a moment to start. Reopen to refresh.")
+                }, { message("Couldn’t update the environment. Reopen to refresh before trying again.") })
+            }
+        }
+
+        fun option(
+            label: String,
+            action: JSONObject,
+        ) {
+            rows.addView(
+                Button(activity).apply {
+                    text = label
+                    isAllCaps = false
+                    minHeight = dp(48)
+                    setOnClickListener { select(action) }
+                },
+            )
+        }
+        dialog.show()
+        message("Loading environments…")
+        request(JSONObject().put("action", "list")) { result ->
+            if (!current()) return@request
+            rows.removeAllViews()
+            result.fold({ overview ->
+                message(
+                    "Pip stays on Atlas. File and terminal tools run in the selected environment. Selecting Server only stops its hosted environment.",
+                )
+                option(
+                    "Server only",
+                    JSONObject()
+                        .put("action", "select")
+                        .put("environment_id", JSONObject.NULL)
+                        .put("project_id", JSONObject.NULL),
+                )
+                val providers = overview.optJSONArray("providers")
+                for (index in 0 until (providers?.length() ?: 0)) {
+                    val provider = providers!!.getJSONObject(index)
+                    option(
+                        "Start ${provider.getString("name")}",
+                        JSONObject()
+                            .put("action", "start_provider")
+                            .put("provider", provider.getString("id")),
+                    )
+                }
+                val environments = overview.getJSONArray("environments")
+                for (index in 0 until environments.length()) {
+                    val environment = environments.getJSONObject(index)
+                    if (environment.optString("provider", "native") != "native") {
+                        message("${environment.getString("name")}: ${environment.optString("provider_state", "unavailable")}")
+                    } else if (environment.optBoolean("enabled") && environment.optBoolean("online")) {
+                        val projects = environment.getJSONArray("projects")
+                        for (projectIndex in 0 until projects.length()) {
+                            val project = projects.getJSONObject(projectIndex)
+                            option(
+                                "${environment.getString("name")} · ${project.getString("name")}",
+                                JSONObject()
+                                    .put("action", "select")
+                                    .put("environment_id", environment.getString("id"))
+                                    .put("project_id", project.getString("id")),
+                            )
+                        }
+                    }
+                }
+            }, { message("Couldn’t load environments. Close and reopen to retry.") })
+        }
+    }
+
     private fun renderThread() {
         val snapshot = model.snapshot
         val thread = snapshot.selected ?: return
@@ -471,6 +581,9 @@ class AtlasOrbitScreen(
         toolbar.subtitle =
             if (thread.isPrivate) "Private" else (listOf(assistant?.name ?: "Pip") + thread.participants.map { it.name }).joinToString(", ")
         refreshAction { model.refresh() }
+        if (thread.isPrivate && !thread.archived && environmentRequest != null) {
+            menuAction("Tool environment") { showEnvironments(id) }
+        }
         if (presence?.selfId != null && thread.ownerId == presence.selfId) {
             menuAction(if (thread.archived) "Restore conversation" else "Archive conversation") {
                 if (!thread.isPrivate && !thread.archived) {

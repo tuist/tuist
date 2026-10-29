@@ -1,11 +1,15 @@
 defmodule Atlas.EnvironmentsTest do
   use Atlas.DataCase, async: true
+  use Mimic
 
   import Atlas.EnvironmentFixtures
   import Atlas.OrbitFixtures
 
   alias Atlas.Environments
   alias Atlas.Environments.Environment
+  alias Atlas.Environments.Provider
+  alias Atlas.Environments.ProviderWorker
+  alias Atlas.Environments.Tuist
   alias Atlas.Orbit
   alias Atlas.Orbit.Runs
   alias Atlas.Repo
@@ -16,7 +20,8 @@ defmodule Atlas.EnvironmentsTest do
 
   test "registration and reads are owner-private and client binding is immutable", c do
     other = user_fixture()
-    assert Environments.list(other) == %{owner_id: other.id, environments: []}
+    assert %{owner_id: owner_id, environments: []} = Environments.list(other)
+    assert owner_id == other.id
     assert {:error, :not_found} = Environments.register(other, c.client_id, c.environment.id, registration())
     assert {:error, :not_found} = Environments.register(c.user, Ecto.UUID.generate(), c.environment.id, registration())
     assert {:ok, _} = Environments.disable(other, c.client_id, c.environment.id)
@@ -125,5 +130,47 @@ defmodule Atlas.EnvironmentsTest do
     assert resumed.environment_id == c.environment.id
     assert resumed.project_id == c.project_id
     assert is_nil(Repo.reload!(c.thread).environment_id)
+  end
+
+  test "hosted selection starts privately, stops on deselection, and reuses its identity with a newer generation", c do
+    stub(Provider, :configurations, fn -> %{"tuist" => %{module: Tuist, name: "Tuist"}} end)
+    Repo.delete!(c.run)
+    assert {:ok, thread} = Environments.select(c.user, c.thread.id, %{"provider" => "tuist"})
+    environment = Repo.get!(Environment, thread.environment_id)
+    assert environment.managed_thread_id == thread.id
+    assert environment.enabled && environment.terminal
+    refute Environments.online?(environment)
+    assert Environments.list(user_fixture()).environments == []
+
+    stub(Tuist, :start, fn _config, identity ->
+      assert identity.environment_id == environment.id
+      {:ok, %{state: "ready"}}
+    end)
+
+    assert :ok = ProviderWorker.perform(%Oban.Job{args: %{"environment_id" => environment.id}})
+    assert Environments.online?(Repo.reload!(environment))
+    assert {:error, :not_found} = Environments.register(c.user, c.client_id, environment.id, registration())
+
+    assert {:error, :environment_disabled} =
+             Environments.select(c.user, thread.id, %{
+               "environment_id" => environment.id,
+               "project_id" => thread.project_id
+             })
+
+    assert {:ok, _} = Environments.select(c.user, thread.id, %{"environment_id" => nil, "project_id" => nil})
+    stopped = Repo.reload!(environment)
+    refute stopped.enabled
+    assert stopped.version > environment.version
+
+    stub(Tuist, :stop, fn _config, identity ->
+      assert identity.generation == stopped.version
+      {:ok, %{state: "paused"}}
+    end)
+
+    assert :ok = ProviderWorker.perform(%Oban.Job{args: %{"environment_id" => environment.id}})
+    assert Repo.reload!(environment).provider_state == "paused"
+    assert {:ok, restarted} = Environments.select(c.user, thread.id, %{"provider" => "tuist"})
+    assert restarted.environment_id == environment.id
+    assert Repo.reload!(environment).version > stopped.version
   end
 end

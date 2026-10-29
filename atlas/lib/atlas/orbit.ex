@@ -723,6 +723,8 @@ defmodule Atlas.Orbit do
 
       promoted? = thread.kind == "private"
 
+      if thread.environment_id, do: Atlas.Environments.stop_hosted!(thread.environment_id)
+
       thread =
         thread
         |> Ecto.Changeset.change(

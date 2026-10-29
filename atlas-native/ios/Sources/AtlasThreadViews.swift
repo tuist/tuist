@@ -22,7 +22,6 @@ struct AtlasOrbitView: View {
     @Environment(\.atlasLiveActivity) private var liveActivity
     #elseif os(macOS)
     @Environment(\.atlasEnvironmentRequest) private var environmentRequest
-    @State private var showingEnvironment = false
     #endif
 
     init(recordID: String? = nil, revision: UUID? = nil, request: @escaping ([String: Any]) async throws -> Data,
@@ -111,13 +110,11 @@ struct AtlasOrbitView: View {
             ToolbarItem(id: "orbit-create", placement: .primaryAction) { composeButton }
             ToolbarItem(placement: .primaryAction) { AtlasOrbitDomainFilter(model: model) }
             ToolbarItem(id: "orbit-environment", placement: .primaryAction) {
-                Button("Tool environment", systemImage: "desktopcomputer") { showingEnvironment.toggle() }
-                    .disabled(desktopThread?.kind != "private" || environmentRequest == nil)
-                    .popover(isPresented: $showingEnvironment) {
-                        if let thread = desktopThread, let environmentRequest {
-                            AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
-                        }
-                    }
+                if let thread = desktopThread, thread.kind == "private", thread.status == "active", let environmentRequest {
+                    AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
+                } else {
+                    Button("Tool environment", systemImage: "desktopcomputer") {}.disabled(true)
+                }
             }
             ToolbarItem(id: "thread-info", placement: .primaryAction) {
                 Button("Thread details", systemImage: "info.circle") { showingThreadInfo = true }
