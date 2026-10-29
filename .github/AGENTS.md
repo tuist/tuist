@@ -626,6 +626,12 @@ publishing newer source; never replace an immutable version.
 Kura CSI's rack plugin is deployed by the independent, unwaited rack-nodes
 release with the same pinned CSI image as the main release. Its offline chart
 regression needs Helm; the CSI workflow installs it before running Go tests.
+CSI builds publish only in the manually dispatched image workflow. Ordinary
+server deploys preserve both CSI releases' image; explicit upgrades require a
+verified digest. API-read failures must fail resolution rather than remove the
+driver. Validate selection with `bash .github/scripts/kura-csi-image.test.sh`
+from the repository root. `qualification_only` runs the disposable stack without
+publishing images.
 
 ## Nested KVM runner acceptance
 

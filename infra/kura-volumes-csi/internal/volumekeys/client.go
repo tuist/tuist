@@ -1,7 +1,9 @@
 // Package volumekeys fetches Kura volume passphrases from the Tuist server.
 // Each request carries a fresh X25519 public key; the server seals the
-// passphrase to it, so the key never crosses the wire in a form a TLS
-// terminator or proxy could read.
+// passphrase to it, keeping plaintext out of passive proxy/body logs. The
+// bearer token is not bound to that public key: an active TLS terminator can
+// substitute a key or reuse the token. Every TLS terminator must be trusted;
+// sealing does not replace an authenticated private key-service transport.
 package volumekeys
 
 import (

@@ -4,9 +4,8 @@ name: Kura Volumes CSI Image
 # the kura-volumes.tuist.dev StorageClass that gives every Kura data PVC its
 # own LUKS2 container on the node's /data partition (infra/kura-volumes-csi/).
 #
-# Deployed images are built by server-deployment.yml and
-# server-production-deployment.yml next to the Kura controller, at the same
-# `sha-` tag. This workflow validates PRs; a manual dispatch pushes `:sha-<git-sha>`.
+# A manual dispatch publishes :sha-<git-sha>. Deployment requires its verified
+# digest explicitly; server/controller deployments preserve the installed driver.
 
 on:
   pull_request:
@@ -16,8 +15,13 @@ on:
       - infra/helm/rack-nodes/**
       - infra/helm/tuist/templates/kura-volumes-csi.yaml
       - .github/workflows/kura-volumes-csi-image.yml
+      - .github/scripts/kura-csi-image*.sh
   workflow_dispatch:
     inputs:
+      qualification_only:
+        description: Run unit and disposable Linux stack qualification without publishing an image
+        type: boolean
+        default: false
       latency_only:
         description: Isolate thin small-write latency in a disposable VM; no publication or deployment
         type: boolean
@@ -49,7 +53,7 @@ on:
 
 permissions:
   contents: read
-  packages: write
+  packages: read
 
 env:
   REGISTRY: ghcr.io
@@ -61,6 +65,8 @@ jobs:
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/kura-volumes-csi/go.mod
@@ -74,6 +80,8 @@ jobs:
       - name: Vet
         working-directory: infra/kura-volumes-csi
         run: go vet ./...
+      - name: Test independent CSI deployment selection
+        run: bash .github/scripts/kura-csi-image.test.sh
 
   thin-stack:
     if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.fscrypt_only != true && inputs.borrowed_only != true
@@ -87,6 +95,8 @@ jobs:
         chunk-kib: [64, 512]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/kura-volumes-csi/go.mod
@@ -128,6 +138,8 @@ jobs:
         working-directory: kura
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/mise
         with:
           install_args: "rust bazel tuist"
@@ -168,6 +180,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: borrowed-runtime
@@ -290,18 +304,38 @@ jobs:
           name: fscrypt-experiment
           path: /tmp/kura-fscrypt-stack.json
 
-  # Builds on every run (a Dockerfile broken on a PR must not surface only
-  # after merge on main); pushes to ghcr only outside pull_request events,
-  # which also keeps fork PRs away from the registry.
+  build-pr:
+    needs: test
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/kura-volumes-csi/Dockerfile
+          platforms: linux/amd64
+          push: false
+
+  # Publication is never run in a pull-request job.
   build:
     needs: [test, thin-stack]
     # The VM qualification is dispatch-only; a PR still builds its image.
     # A failed or cancelled qualification must never publish a candidate.
-    if: inputs.latency_only != true && always() && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && needs.test.result == 'success' && (needs.thin-stack.result == 'success' || needs.thin-stack.result == 'skipped')
+    if: github.event_name == 'workflow_dispatch' && inputs.qualification_only != true && inputs.latency_only != true && always() && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && needs.test.result == 'success' && (needs.thin-stack.result == 'success' || needs.thin-stack.result == 'skipped')
+    permissions:
+      contents: read
+      packages: write
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'
@@ -324,7 +358,7 @@ jobs:
         with:
           context: .
           file: infra/kura-volumes-csi/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tags.outputs.tags }}
           build-args: VERSION=${{ steps.tags.outputs.version }}
@@ -340,6 +374,8 @@ jobs:
     timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -375,6 +411,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -406,6 +444,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/kura-volumes-csi/go.mod
@@ -441,6 +481,8 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/kura-volumes-csi/go.mod

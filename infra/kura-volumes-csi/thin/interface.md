@@ -60,7 +60,13 @@ files, failed TRIM or an absent allocator. No new grant transaction is needed
 for ordinary writes within that backed device. Missing/stale observations,
 unknown pool members, identity changes, exceeded reserves, an unhealthy pool,
 or quota/record disagreement refuse new creates and grant increases. Node
-capacity is withdrawn on failed observations. Reductions and cleanup remain
+capacity is removed (JSON merge-patch `null`, not a present zero) on failed
+observations. The scheduler cannot place new resource-requesting pods there;
+Kubernetes 1.34's [kubelet admission](https://github.com/kubernetes/kubernetes/blob/v1.34.1/pkg/kubelet/lifecycle/predicate.go)
+ignores absent extended resources when re-admitting resident pods. CSI still
+refuses new allocation without a healthy observation, including for manually
+bound pods. This behavior needs a live kubelet-restart rehearsal before rollout.
+Reductions and cleanup remain
 available. Pool extension is not required for safety and is not automatic.
 Physical device failures and unauthorized administrative changes remain storage
 failures; quotas do not make such failures harmless.
@@ -68,7 +74,8 @@ failures; quotas do not make such failures harmless.
 ## Node-local API
 
 With thin configuration enabled, the same CSI process serves HTTP over
-`/data/kura-volumes/allocator.sock`, a root-only `0600` Unix socket. Do not mount
+`/data/kura-volumes/allocator.sock`, a `0600` Unix socket that also requires
+Linux `SO_PEERCRED` UID 0 on each connection. Do not mount
 this socket into tenant containers. There is no TCP listener and no separate
 privileged quota agent. The trusted node allocator needs access to this socket,
 not host devices or a shell. CSI and API handlers take the same pool lock, then

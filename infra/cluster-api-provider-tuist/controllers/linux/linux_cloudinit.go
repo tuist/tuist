@@ -56,6 +56,9 @@ type linuxCloudInitOptions struct {
 	// Taints are rendered into kubelet's --register-with-taints.
 	Taints []corev1.Taint
 
+	// KuraLVM is an explicit install-time opt-in, independent of cache taints.
+	KuraLVM bool
+
 	// KataRuntime installs kata-static, registers the kata-qemu handler with
 	// containerd, and labels the node for the kata-qemu RuntimeClass. Off for
 	// cache fleets, which run ordinary runc Pods and should not pay the
@@ -661,7 +664,7 @@ set -euxo pipefail
 		dataProjectQuotaSetup(sudo, writeFile),
 		joinedGuard(sudo, opts.NodeName),
 		joinedMarker(sudo, opts.NodeName),
-		kuraLVMSetup(sudo, hostsKuraLVMVolumes(opts.Taints)),
+		kuraLVMSetup(sudo, opts.KuraLVM && hostsKuraLVMVolumes(opts.Taints)),
 	)
 }
 

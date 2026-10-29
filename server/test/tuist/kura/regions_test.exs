@@ -7,6 +7,18 @@ defmodule Tuist.Kura.RegionsTest do
 
   setup :set_mimic_from_context
 
+  test "every eligible enrolled region has at least two replicas" do
+    stub(Tuist.Environment, :kura_lvm_region_ids, fn -> [] end)
+    ids = for region <- Regions.all(), region.provisioner_config[:storage_class] == "scw-local-nvme", do: region.id
+    refute ids == []
+    stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ids end)
+
+    for id <- ids do
+      replicas = Regions.get(id).provisioner_config.replicas
+      assert is_integer(replicas) and replicas >= 2
+    end
+  end
+
   test "LVM enrollment includes rack storage and leaves other regions unchanged" do
     stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["scw-fr-par-runners", "ber1-runners"] end)
     assert Regions.get("scw-fr-par-runners").provisioner_config.storage_class == "kura-lvm-nvme"

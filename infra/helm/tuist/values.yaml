@@ -386,10 +386,11 @@ kuraVolumesCSI:
   # own: accounts move under :kura_encrypted_volumes, or their entire region
   # moves to LVM through lvmRegions after its nodes are prepared.
   enabled: false
-  # Pinned by the deploy workflows to the Kura controller's `sha-` build.
-  # Empty is a render-time failure, as for egressTreeAgent.image.tag.
+  # Upgrades use an independently qualified immutable digest. The tag fallback
+  # preserves existing installations; ordinary server deploys do not upgrade CSI.
   image:
     repository: ghcr.io/tuist/kura-volumes-csi
+    digest: ""
     tag: ""
     pullPolicy: IfNotPresent
   # Where the node plugin fetches volume keys. Defaults to server.appUrl.

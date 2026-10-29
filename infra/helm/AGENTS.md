@@ -27,8 +27,11 @@ Helm-installed resource; publishing it is a separate rollout step.
   excludes delegated rack pools, whose plugin belongs to the independent
   `rack-nodes` release. The `kura-volumes` namespace and the
   `kura-volumes-csi-node` ServiceAccount are fixed: the server's key endpoint
-  authorizes by that TokenReview username. `kuraVolumesCSI.image.tag` pins a
-  `sha-` build (set by the deploy workflows) and is required. An account's
+  authorizes by that TokenReview username. Explicit driver upgrades require
+  `kuraVolumesCSI.image.digest`; the tag fallback preserves older installations.
+  Server deployments preserve the driver independently of controller tags.
+  Production/canary installation and root sync default off; staging retains
+  its validated installation. An account's
   instances use encryption when their region is LVM-enrolled or its legacy
   policy permits the `:kura_encrypted_volumes` feature flag. Legacy root keys
   are synced by `server.config.kuraVolumeRootKeys.enabled` from the env's

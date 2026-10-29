@@ -380,6 +380,7 @@ func TestVultrConversionRejectsIncompleteLVMResult(t *testing.T) {
 			return result, nil
 		})
 		m := vultrMachine("tuist", "m", "box-1")
+		m.Annotations = map[string]string{"tuist.dev/kura-storage-layout": "lvm-v1"}
 		done, _, err := r.reconcileConversion(context.Background(), m, &vultr.Server{ID: "box-1", MainIP: "1.2.3.4"}, nil)
 		if err != nil || done || m.Status.Converted.ConvertedAt != nil {
 			t.Fatalf("accepted invalid conversion result %q: done=%v err=%v", result, done, err)

@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Runner executes host commands. stdin carries key material for cryptsetup,
@@ -41,7 +42,16 @@ func exitCode(err error) (int, bool) {
 type ExecRunner struct{}
 
 func (ExecRunner) Run(ctx context.Context, stdin []byte, name string, args ...string) ([]byte, error) {
+	// Observation and quota commands must not inherit an unbounded daemon
+	// context. Longer lifecycle commands keep their RPC's caller deadline.
+	switch name {
+	case "lvs", "vgs", "pvs", "dmsetup", "xfs_quota":
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+	}
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = time.Second
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
@@ -49,6 +59,9 @@ func (ExecRunner) Run(ctx context.Context, stdin []byte, name string, args ...st
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("%s: %w", name, ctx.Err())
+	}
 	if err == nil {
 		return stdout.Bytes(), nil
 	}

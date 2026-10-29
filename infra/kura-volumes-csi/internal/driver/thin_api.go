@@ -43,6 +43,10 @@ type ThinReclamation struct {
 }
 
 func (d *Driver) ThinStatus(ctx context.Context) (*ThinSnapshot, error) {
+	// Include lock acquisition in the deadline: a blocked observation must not
+	// park the advertiser forever while the caller still has a live root context.
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	if d.thin.Pool == "" {
 		return nil, status.Error(codes.FailedPrecondition, "thin layout is disabled")
 	}
@@ -206,6 +210,10 @@ func (d *Driver) ServeThinAPI(ctx context.Context) error {
 		return err
 	}
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Context().Value(allocatorPeerKey{}) != true {
+			http.Error(w, "root peer required", http.StatusForbidden)
+			return
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 		defer cancel()
 		var result any
@@ -266,6 +274,9 @@ func (d *Driver) ServeThinAPI(ctx context.Context) error {
 		_ = json.NewEncoder(w).Encode(result)
 	})
 	server := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 50 * time.Second, IdleTimeout: 30 * time.Second}
+	server.ConnContext = func(ctx context.Context, conn net.Conn) context.Context {
+		return context.WithValue(ctx, allocatorPeerKey{}, allocatorRootPeer(conn))
+	}
 	go func() { <-ctx.Done(); _ = server.Close() }()
 	err = server.Serve(listener)
 	if err == http.ErrServerClosed {
@@ -273,3 +284,5 @@ func (d *Driver) ServeThinAPI(ctx context.Context) error {
 	}
 	return err
 }
+
+type allocatorPeerKey struct{}

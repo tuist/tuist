@@ -54,6 +54,10 @@ on:
       staging_platform_revision:
         description: Restore an existing staging platform Helm revision instead of applying this commit's platform chart
         required: false
+      kura_volumes_csi_image_digest:
+        description: Explicit CSI upgrade digest (sha256:...); omit to preserve the installed driver independently of the server
+        required: false
+        type: string
       kura_controller_image_tag:
         description: Pre-built Kura controller image tag; omit to preserve the live controller during a server-only re-promotion
         required: false
@@ -123,6 +127,10 @@ on:
           Pre-built image tag to deploy. When set, the build job is
           skipped and the deploy job uses this tag directly. When unset,
           the workflow builds + pushes an image tagged sha-<commit_sha>.
+        required: false
+        type: string
+      kura_volumes_csi_image_digest:
+        description: Explicit CSI upgrade digest (sha256:...); omit to preserve the installed driver independently of the server
         required: false
         type: string
       kura_controller_image_tag:
@@ -444,11 +452,6 @@ jobs:
             image: tuist/kura-controller
             context: .
             file: ./infra/kura-controller/Dockerfile
-          - name: Kura volumes CSI
-            image: tuist/kura-volumes-csi
-            context: .
-            file: ./infra/kura-volumes-csi/Dockerfile
-            build-args: VERSION=${{ inputs.commit_sha || github.sha }}
           - name: Swift registry
             image: tuist/registry
             context: .
@@ -914,6 +917,7 @@ jobs:
       CODEBASE_SEARCH_IMAGE_TAG: ${{ inputs.codebase_search_image_tag != '' && inputs.codebase_search_image_tag || needs.build.outputs.codebase_search_image_tag }}
       REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
+      KURA_VOLUMES_CSI_IMAGE_DIGEST_INPUT: ${{ inputs.kura_volumes_csi_image_digest }}
       KURA_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.kura_controller_image_tag }}
       LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
       MACOS_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.macos_runner_image_tag }}
@@ -1182,26 +1186,8 @@ jobs:
           echo "KURA_CONTROLLER_IMAGE_TAG=$controller_tag" >> "$GITHUB_ENV"
           echo "Kura controller: ${controller_source} image tag ${controller_tag}"
 
-          # The kura-volumes CSI image is built next to the controller, so an
-          # explicit or freshly built controller tag names it too. A preserved
-          # controller keeps the running DaemonSet's image; with no DaemonSet
-          # yet, nothing stages encrypted volumes and the chart leaves it out.
-          if [ "$controller_source" != "preserved" ]; then
-            csi_tag="$controller_tag"
-          else
-            current_csi_image="$(
-              kubectl -n kura-volumes get daemonsets kura-volumes-csi-node \
-                -o jsonpath='{.spec.template.spec.containers[?(@.name=="driver")].image}' \
-                2>/dev/null || true
-            )"
-            csi_prefix="${REGISTRY}/${KURA_VOLUMES_CSI_IMAGE_NAME}:"
-            csi_tag=""
-            if [[ "$current_csi_image" == "$csi_prefix"* ]]; then
-              csi_tag="${current_csi_image#"$csi_prefix"}"
-            fi
-          fi
-          echo "KURA_VOLUMES_CSI_IMAGE_TAG=$csi_tag" >> "$GITHUB_ENV"
-          echo "kura-volumes CSI: image tag ${csi_tag:-<none, disabled>}"
+      - name: Preserve or explicitly upgrade the Kura CSI image
+        run: bash .github/scripts/kura-csi-image.sh
       - name: Resolve egress-tree-agent image tag
         # The git-tag resolution above returns nothing for a commit that
         # predates the first `egress-tree-agent@` release — a re-promote or
@@ -1558,7 +1544,9 @@ jobs:
             egress_tree_agent_image_tag="${EGRESS_TREE_AGENT_TAG:-}"
           fi
           add_set "egressTreeAgent.image.tag" "$egress_tree_agent_image_tag"
-          if [ -n "${KURA_VOLUMES_CSI_IMAGE_TAG:-}" ]; then
+          if [ -n "${KURA_VOLUMES_CSI_IMAGE_DIGEST:-}" ]; then
+            add_set "kuraVolumesCSI.image.digest" "$KURA_VOLUMES_CSI_IMAGE_DIGEST"
+          elif [ -n "${KURA_VOLUMES_CSI_IMAGE_TAG:-}" ]; then
             add_set "kuraVolumesCSI.image.tag" "$KURA_VOLUMES_CSI_IMAGE_TAG"
           else
             image_sets+=(--set "kuraVolumesCSI.enabled=false")
@@ -1863,7 +1851,9 @@ jobs:
           # nodes that are up, and on the others when they return. After the
           # upgrade above, so they move only with an operator that rolled out.
           rack_node_sets=()
-          if [ -n "${KURA_VOLUMES_CSI_IMAGE_TAG:-}" ]; then
+          if [ -n "${KURA_VOLUMES_CSI_IMAGE_DIGEST:-}" ]; then
+            rack_node_sets+=(--set "kuraVolumesCSI.image.digest=$KURA_VOLUMES_CSI_IMAGE_DIGEST")
+          elif [ -n "${KURA_VOLUMES_CSI_IMAGE_TAG:-}" ]; then
             rack_node_sets+=(--set "kuraVolumesCSI.image.tag=$KURA_VOLUMES_CSI_IMAGE_TAG")
           else
             rack_node_sets+=(--set "kuraVolumesCSI.enabled=false")

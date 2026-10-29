@@ -28,9 +28,15 @@ of the class is left.
 {{- $name := "kura-volumes-csi-node" }}
 {{- $driver := "kura-volumes.tuist.dev" }}
 {{- $imageTag := .Values.kuraVolumesCSI.image.tag }}
-{{- if not $imageTag }}
-{{- fail "kuraVolumesCSI.image.tag is required: a privileged storage DaemonSet on :latest silently drifts and surfaces in production after the next push to ghcr." }}
+{{- $digest := .Values.kuraVolumesCSI.image.digest | default "" }}
+{{- if and $digest (not (regexMatch "^sha256:[a-f0-9]{64}$" $digest)) }}
+{{- fail "kuraVolumesCSI.image.digest must be a sha256 digest" }}
 {{- end }}
+{{- if not (or $digest $imageTag) }}
+{{- fail "kuraVolumesCSI.image.digest or image.tag is required" }}
+{{- end }}
+{{- $image := printf "%s:%s" .Values.kuraVolumesCSI.image.repository $imageTag }}
+{{- if $digest }}{{- $image = printf "%s@%s" .Values.kuraVolumesCSI.image.repository $digest }}{{- end }}
 {{- $pools := include "tuist.kuraCachePools" . | fromJsonArray }}
 {{- $rackPools := .Values.kuraVolumesCSI.rackPools | default list }}
 {{- $pools = without $pools "" }}
@@ -280,7 +286,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: driver
-          image: "{{ .Values.kuraVolumesCSI.image.repository }}:{{ $imageTag }}"
+          image: {{ $image | quote }}
           imagePullPolicy: {{ .Values.kuraVolumesCSI.image.pullPolicy }}
           args:
             - --endpoint=unix:///csi/csi.sock

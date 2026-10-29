@@ -414,6 +414,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 func (r *OVHDedicatedMachineReconciler) hostOptions(machine *infrav1.OVHDedicatedMachine) linuxCloudInitOptions {
 	return linuxCloudInitOptions{
 		NodeName:      machine.Name,
+		KuraLVM:       kuraLVMRequested(machine.Annotations),
 		K8sMinor:      firstNonEmpty(r.KubernetesMinor, "v1.34"),
 		Taints:        machine.Spec.NodeTaints,
 		KataRuntime:   machine.Spec.KataRuntime,

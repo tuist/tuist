@@ -105,7 +105,10 @@ func (d *Driver) finishThinStage(ctx context.Context, v volume, r *ThinVolume, p
 		}
 	}
 	r.StagingPath = path
-	if _, err := d.run(ctx, nil, "xfs_quota", "-x", "-c", "project -s -p "+path+" 1", path); err != nil {
+	// Set the root's ID/inheritance before any workload can publish it. New
+	// children inherit project 1; re-stage must not traverse a populated cache.
+	// These filesystems are created empty by this driver, never imported trees.
+	if _, err := d.run(ctx, nil, "xfs_quota", "-x", "-c", "project -s -d 0 -p "+path+" 1", path); err != nil {
 		return err
 	}
 	if err := d.applyThinQuota(ctx, r); err != nil {

@@ -203,8 +203,8 @@ func TestUserDataGivesAStorageNodeAQuotaedDataFilesystem(t *testing.T) {
 	if size := mounts["/"]["partition"].(map[string]any)["size"]; size != "64G" {
 		t.Errorf("/ is %v, want it capped at 64G", size)
 	}
-	if size := mounts["/data"]["partition"].(map[string]any)["size"]; fmt.Sprint(size) != "128G" {
-		t.Errorf("/data is %v, want the 128G system LV", size)
+	if size := mounts["/data"]["partition"].(map[string]any)["size"]; fmt.Sprint(size) != "-1" {
+		t.Errorf("/data is %v, want the full legacy data partition", size)
 	}
 	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
 	for _, bind := range []string{
@@ -587,7 +587,7 @@ func TestStorageInstallReservesSystemLVAndLeavesKuraExtentsFree(t *testing.T) {
 		var config struct {
 			Storage struct{ Config []map[string]any }
 		}
-		if err := yaml.Unmarshal([]byte(storageLayout("storage", resident)), &config); err != nil {
+		if err := yaml.Unmarshal([]byte(storageLayoutForSeed(Seed{Role: "storage", ResidentInstaller: resident, KuraLVM: true})), &config); err != nil {
 			t.Fatal(err)
 		}
 		byID := map[string]map[string]any{}
@@ -670,5 +670,14 @@ func TestUserDataGivesAnEdgeTheSitesStaticWANWhileNoPodRuns(t *testing.T) {
 	_, seed = renderEdgeNetwork(t, ber1EdgeB())
 	if strings.Contains(strings.Join(seed.Autoinstall.LateCommands, "\n"), EdgeFirstWANPath) {
 		t.Errorf("an edge with no WAN gets the first-boot WAN")
+	}
+}
+
+func TestStorageLayoutDefaultsToFullSharedXFS(t *testing.T) {
+	for _, resident := range []bool{false, true} {
+		got := storageLayoutForSeed(Seed{Role: "storage", ResidentInstaller: resident})
+		if strings.Contains(got, "lvm_") || !strings.Contains(got, "volume: data, fstype: xfs") {
+			t.Fatalf("unenrolled storage host changed layout: %s", got)
+		}
 	}
 }

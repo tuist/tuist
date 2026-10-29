@@ -31,6 +31,9 @@ func (k thinTestKeys) Fetch(context.Context, string, int) ([]byte, int, error) {
 type thinFaultRunner struct{ failTrim, failCreate, failQuota atomic.Bool }
 
 func (r *thinFaultRunner) Run(ctx context.Context, input []byte, name string, args ...string) ([]byte, error) {
+	if name == "xfs_quota" && strings.Contains(strings.Join(args, " "), "project -s") && !strings.Contains(strings.Join(args, " "), "project -s -d 0 ") {
+		return nil, fmt.Errorf("recursive project assignment is forbidden during staging")
+	}
 	if name == "fstrim" && r.failTrim.Load() {
 		return nil, fmt.Errorf("injected discard failure")
 	}

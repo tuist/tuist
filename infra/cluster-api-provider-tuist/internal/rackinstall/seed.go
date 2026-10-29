@@ -15,9 +15,14 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
+// KuraStorageLayoutAnnotation explicitly enrolls a replacement host in LVM.
+const KuraStorageLayoutAnnotation = "tuist.dev/kura-storage-layout"
+
 // Seed is everything one install is rendered from.
 type Seed struct {
-	Host string
+	// KuraLVM requires an explicitly enrolled replacement host; false preserves shared XFS.
+	KuraLVM bool
+	Host    string
 	// Role is the host's role. A storage node gets a quotaed /data for cache
 	// volumes; the others take Ubuntu's direct layout.
 	Role string
@@ -322,7 +327,7 @@ autoinstall:
 %[13]s%[15]s%[17]s%[18]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
-		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayout(s.Role, s.ResidentInstaller), dataMounts(s.Role),
+		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayoutForSeed(s), dataMounts(s.Role),
 		networkConfig(s.Edge), edgeResolvers(s.Edge)+edgeFirstWAN(s.Edge), sshStartLimit()), nil
 }
 
@@ -541,11 +546,8 @@ done
 `
 }
 
-// storageLayout is the autoinstall storage section for role. A storage node
-// serves per-claim CSI LVs from kura-volumes. Its data partition becomes the
-// PV; a 128 GiB XFS data LV holds kubelet, images and local-path auxiliary
-// volumes, with prjquota. The remaining extents belong to Kura claims. The
-// layout only applies during installation, never to an already joined host.
+// storageLayout preserves the full shared-XFS data partition for legacy storage
+// hosts. storageLayoutForSeed applies the explicit install-time LVM opt-in.
 // Every other role takes Ubuntu's direct layout.
 //
 // A box with a resident installer keeps partition 1 of its boot drive, the
@@ -570,9 +572,7 @@ func storageLayout(role string, resident bool) string {
 		if role == "storage" {
 			layout += `      - {type: disk, id: disk1, match: {size: largest}, ptable: gpt, wipe: superblock-recursive, preserve: false}
       - {type: partition, id: data, device: disk1, number: 1, size: -1}
-      - {type: lvm_volgroup, id: kura-vg, name: kura-volumes, devices: [data]}
-      - {type: lvm_partition, id: data-lv, name: data, volgroup: kura-vg, size: 128G}
-      - {type: format, id: data-fs, volume: data-lv, fstype: xfs}
+      - {type: format, id: data-fs, volume: data, fstype: xfs}
       - {type: mount, id: data-mount, device: data-fs, path: /data, options: "defaults,prjquota"}
 `
 		}
@@ -591,14 +591,22 @@ func storageLayout(role string, resident bool) string {
       - {type: partition, id: root, device: disk0, number: 3, size: 64G}
       - {type: format, id: root-fs, volume: root, fstype: ext4}
       - {type: partition, id: data, device: disk0, number: 4, size: -1}
-      - {type: lvm_volgroup, id: kura-vg, name: kura-volumes, devices: [data]}
-      - {type: lvm_partition, id: data-lv, name: data, volgroup: kura-vg, size: 128G}
-      - {type: format, id: data-fs, volume: data-lv, fstype: xfs}
+      - {type: format, id: data-fs, volume: data, fstype: xfs}
       - {type: mount, id: root-mount, device: root-fs, path: /}
       - {type: mount, id: boot-mount, device: boot-fs, path: /boot}
       - {type: mount, id: esp-mount, device: esp-fs, path: /boot/efi}
       - {type: mount, id: data-mount, device: data-fs, path: /data, options: "defaults,prjquota"}
 `
+}
+
+func storageLayoutForSeed(s Seed) string {
+	layout := storageLayout(s.Role, s.ResidentInstaller)
+	if !s.KuraLVM || s.Role != "storage" {
+		return layout
+	}
+	return strings.Replace(layout,
+		"      - {type: format, id: data-fs, volume: data, fstype: xfs}",
+		"      - {type: lvm_volgroup, id: kura-vg, name: kura-volumes, devices: [data]}\n      - {type: lvm_partition, id: data-lv, name: data, volgroup: kura-vg, size: 128G}\n      - {type: format, id: data-fs, volume: data-lv, fstype: xfs}", 1)
 }
 
 // dataMounts puts a storage node's kubelet root, containerd root and the

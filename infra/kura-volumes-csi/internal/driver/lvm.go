@@ -145,10 +145,12 @@ func wipeDeviceHeader(path string, size int64) error {
 func (d *Driver) KuraDiskCapacity(ctx context.Context) (int64, bool, error) {
 	if d.thin.Pool != "" {
 		snapshot, err := d.ThinStatus(ctx)
-		// Withdrawing capacity is safer than retaining an old observation. The
-		// CSI admission lock remains authoritative even before this patch lands.
+		// Remove the resource rather than publishing zero. Kubelet re-admits
+		// resident pods after restart and enforces a present zero resource.
+		// Absence still blocks scheduler placement; CSI's serialized admission
+		// remains authoritative, including for manually bound pods.
 		if err != nil || !snapshot.Healthy {
-			return 0, true, nil
+			return 0, false, nil
 		}
 		return snapshot.UsableBytes, true, nil
 	}

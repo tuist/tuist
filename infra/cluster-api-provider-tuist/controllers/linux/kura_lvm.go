@@ -3,6 +3,7 @@ package linux
 import (
 	_ "embed"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -25,4 +26,8 @@ func hostsKuraLVMVolumes(taints []corev1.Taint) bool {
 		}
 	}
 	return false
+}
+
+func kuraLVMRequested(annotations map[string]string) bool {
+	return annotations[rackinstall.KuraStorageLayoutAnnotation] == "lvm-v1"
 }

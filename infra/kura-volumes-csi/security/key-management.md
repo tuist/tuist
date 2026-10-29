@@ -5,8 +5,10 @@
 The PR adds an OpenBao Transit share provider, a resumable root-rewrap API,
 dedicated Kubernetes workload identity and CSI admission policies. The earlier
 AWS implementation was never activated and has been removed. **Hosted storage
-does not yet use OpenBao.** Managed overlays continue using their existing roots
-until a dedicated OpenBao service and the migration gates below are validated.
+does not yet use OpenBao.** Staging retains its tested legacy root integration.
+Production/canary root sync and CSI installation default off until their
+prerequisites are explicitly qualified. A dedicated OpenBao service and the
+migration gates below remain required before production enrollment.
 
 The October 27, 2026 access review used only metadata. No root key, volume
 passphrase, Secret value or backup object was retrieved. No production mutation
@@ -339,6 +341,19 @@ Already-open mappings can continue through a key-service outage; new/re-staged
 volumes fail closed. Revoking a wrapper does not revoke mounted plaintext.
 
 ## CSI boundary and access review
+
+**Open isolation gap:** these policies do not cross-check PV creation against
+the scheduler's live PVC selection. The CSI identity can also select an unassigned
+claim. A compromised node plugin can therefore attempt to pre-bind a foreign
+pending claim; checking only PV node affinity does not establish cross-node
+isolation. A check inside that same compromised plugin is insufficient. Trusted
+admission/provisioning must validate the claim/node relationship before production.
+
+**Open transport gap:** the default key-service URL still uses the public edge.
+X25519 sealing protects passive response logs, but the bearer token is not bound
+to the request key. An active TLS terminator can reuse it with a different key.
+All terminators remain trusted until a private, authenticated HTTPS path is
+implemented and tested. Changing the URL to plain HTTP is not an acceptable fix.
 
 RBAC still lets the distributed provisioner manage cluster-scoped PVs, which
 cannot be namespace-scoped. Three fail-closed ValidatingAdmissionPolicies add

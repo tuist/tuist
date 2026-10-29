@@ -277,6 +277,21 @@ defmodule TuistWeb.Internal.KuraVolumeKeysControllerTest do
     assert conn |> request(context) |> json_response(429) == %{"error" => "rate_limited"}
   end
 
+  test "forwarded headers cannot create fresh token-review budgets", %{conn: conn} = context do
+    expect(RateLimit, :hit, 2, fn "kura_volume_keys:ip:192.0.2.10", _opts -> {:deny, 1_000} end)
+    reject(&Client.create_bound_token_review/3)
+
+    for spoofed <- ["198.51.100.1", "198.51.100.2"] do
+      request_conn = %{conn | remote_ip: {192, 0, 2, 10}}
+
+      assert request_conn
+             |> put_req_header("x-forwarded-for", spoofed)
+             |> put_req_header("cf-connecting-ip", spoofed)
+             |> request(context)
+             |> json_response(429) == %{"error" => "rate_limited"}
+    end
+  end
+
   defp request(conn, context, extra \\ %{}, token \\ "node-token") do
     conn =
       if token, do: put_req_header(conn, "authorization", "Bearer #{token}"), else: conn

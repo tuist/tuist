@@ -1039,7 +1039,7 @@ defmodule Tuist.Kura.Regions do
               storage_class: "kura-lvm-nvme",
               disk_resource: "tuist.dev/kura-disk",
               encrypted_volumes: true,
-              replicas: max(Map.get(config, :replicas, 2), 2)
+              replicas: max(Map.get(config, :replicas) || 2, 2)
             })
       }
     else

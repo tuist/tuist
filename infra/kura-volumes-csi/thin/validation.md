@@ -1,5 +1,63 @@
 # Thin stack qualification
 
+## Review remediation — 2026-10-29
+
+The review of `31233a1b5a4` correctly identified merge-time infrastructure
+changes despite tenant enrollment being off. The remediation below is not
+production approval; the draft and account-scoped migration gates remain.
+
+| Review finding | Current disposition |
+| --- | --- |
+| 1: replacement-node disk loss | Bootstrap now requires `tuist.dev/kura-storage-layout: lvm-v1` on the infrastructure Machine/rack host. For rented pools CAPI propagates `MachineDeployment.spec.template.metadata.annotations`. Without it, cache taints retain the legacy full shared-XFS layout. `rack-seed --kura-lvm` is explicitly opt-in. Existing joined nodes are still never converted. |
+| 2: controller rollback selects missing CSI image | Removed controller-tag inference. Routine deploys preserve the installed CSI image; explicit upgrades use a manifest-verified digest. API failures abort resolution rather than disable CSI. |
+| 3: new required vault item | Production/canary root sync and CSI installation now default off. Staging retains the previously exercised legacy root dependency. No live secret was read and no new production vault provisioning is claimed. |
+| 4: CSI rolls on every server deploy | Removed CSI from per-server build matrices and image selection. Publish separately and supply a qualified digest explicitly. The plugin still belongs to the waited main release on rented nodes; readiness probing and separating failure domains remain open. |
+| 5: regional hold / dead destination | Open. Unselected-instance reconciliation, single-copy standby and armed-destination recovery/alerts still need implementation and failure qualification. |
+| 6: public key-service transport | Corrected the TLS-terminator claim. Private authenticated HTTPS is still open; sealing does not prevent an active terminator from replaying the bearer token. |
+| 7: foreign pending-PVC prebinding | Open. Trusted cross-object admission/provisioning must bind the claim to the node; checks inside the compromised node plugin are insufficient. |
+| 8: spoofable pre-authentication rate key | Uses the socket peer address, ignoring forwarding headers. Tests prove changing either forwarding header cannot create a fresh budget or trigger TokenReview after denial. |
+| 9: registry permissions / mutable upgrades | PR tests/builds have no package-write permission and checkout credentials are not persisted. Only the manual publishing job can push. Explicit upgrades use digests; existing legacy tag pins are preserved until an intentional upgrade. PR builds target amd64 without QEMU. |
+| 10: allocator peer identity | Added Linux `SO_PEERCRED` UID 0 checks, in addition to mode 0600. Non-Linux serving fails authorization. Linux/root qualification must exercise the actual socket. |
+| 11: recursive quota setup | Stage/restage sets project ID and inheritance only on the filesystem root using `project -s -d 0`. Fresh driver-created filesystems are empty and descendants inherit. Real-stack qualification must still verify inherited enforcement and recovery. |
+| 12: long node-wide lock | Open. Key fetch, formatting and child staging still require a lock-ownership refactor with concurrent lifecycle tests. |
+| 13: failed observation advertises zero | Now returns the removal sentinel, producing a null capacity patch. The scheduler still cannot place new requests; CSI remains the final allocation gate. A live kubelet restart with resident workloads is still required. |
+| 14: unbounded/expensive observation | Thin observations include lock acquisition in a 30-second deadline; advertisement has a 45-second deadline. LVM queries, dmsetup and quota commands have 15-second deadlines. Per-volume command fan-out, LVM device filtering and unchanged-status patch suppression remain open. Deadlines cannot guarantee recovery of a process stuck in uninterruptible kernel I/O. |
+| 15–16: armed-write serialization and cache-size-dependent preparation | Open. Existing throughput/latency measurements and preparation limits remain release blockers; normal-serving benchmarks do not qualify this path. |
+
+The nullable replica default is corrected. The unrelated WebSocket adapter
+upgrade is removed and version 0.6.0 is pinned so dependency resolution does not
+silently restore it. Migration reset/panic recovery, interrupted LUKS-header
+recovery and separation of experimental fixture code remain open. Reserved-disk
+accounting also changes for legacy regions because it includes init containers,
+sidecars and pod overhead; it is not an encrypted-capacity gain.
+
+Local validation: full CAPI `go test ./...` and `go build ./...`; CSI
+`go test ./...` and `go vet ./...`; 85 server endpoint/region tests with the
+restored adapter; `mix deps.get --check-locked`; independent-image resolver
+failure tests and ShellCheck; Helm lint and all three managed renders. Production
+and canary render neither the CSI driver nor the root-key remote reference;
+staging renders both. Actionlint passes the CSI/reusable-deployment workflows
+with the repository's custom runner labels excluded. The production wrapper
+still has pre-existing action-output/ShellCheck diagnostics outside this change.
+No new staging or production deployment is represented by these local checks.
+
+### Infrastructure rollout prerequisites
+
+1. Keep production/canary CSI installation, legacy root sync and tenant/regional
+   enrollment off on merge. Staging's existing support remains enabled.
+2. Qualify key custody/private transport and publish a separately tested CSI
+   image. Enable installation in the selected environment and provide
+   `kura_volumes_csi_image_digest` to the deployment workflow. Missing manifests
+   fail before Helm; normal server/controller rollbacks preserve that image.
+3. Prepare selected replacement hosts with the explicit layout annotation;
+   evacuate existing hosts before reinstalling them. The annotation is not an
+   online conversion command. Prepare thin pools only from unused extents.
+4. Do not enable the current region-wide enrollment as a substitute for the
+   required Tuist-first account/region canary. Implement and rehearse that path,
+   armed-handoff recovery, standby, endpoint continuity and safe deletion first.
+5. Pausing enrollment must retain CSI, its installed image, storage records,
+   mappings, key access and admission safeguards while any encrypted PV exists.
+
 ## Active encryption objective and unqualified thin candidate
 
 Encryption at rest with per-tenant keys and OpenBao remains the objective of

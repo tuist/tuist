@@ -93,7 +93,7 @@ server:
   config:
     # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
     kuraVolumeRootKeys:
-      enabled: true
+      enabled: false # Enable only after this environment's wrapping-key prerequisite is ready.
     originAppKey:
       enabled: true
     atlasEmail:
@@ -497,12 +497,10 @@ egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
 
-# The kura-volumes.tuist.dev CSI driver and kura-encrypted-nvme StorageClass
-# on the Kura cache pools. Inert until the :kura_encrypted_volumes
-# feature flag places an account's instances on the class. The deploy workflows pin kuraVolumesCSI.image.tag to
-# the Kura controller's `sha-` build.
+# CSI installation and upgrades are separate from tenant enrollment. Routine
+# server deployments preserve its installed image; upgrades require an explicit digest.
 kuraVolumesCSI:
-  enabled: true
+  enabled: false # Separate infrastructure opt-in; tenant enrollment stays independent.
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming

@@ -140,7 +140,7 @@ func TestKuraLVMUnmountedInstallerData(t *testing.T) {
 
 func TestKuraLVMBootstrapOrdering(t *testing.T) {
 	for _, key := range []string{kuraCacheTaintKey, "tuist.dev/runner-cache"} {
-		script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "node", Taints: []corev1.Taint{{Key: key, Effect: corev1.TaintEffectNoSchedule}}})
+		script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "node", KuraLVM: true, Taints: []corev1.Taint{{Key: key, Effect: corev1.TaintEffectNoSchedule}}})
 		guard, lvm, quota := strings.Index(script, "already joined as"), strings.Index(script, "kura_lvm_setup()"), strings.Index(script, dataProjectQuotaPath)
 		if guard < 0 || lvm < guard || quota < lvm {
 			t.Fatal("conversion must follow joined guard and precede quotas/binds")
@@ -194,3 +194,24 @@ vgchange() { :; }
 blkid() { case "$*" in *TYPE*) [ -f "$r/formatted" ] && echo xfs;; *UUID*) echo data-lv;; esac; }
 mkfs.xfs() { touch "$r/formatted"; step mkfs.xfs; }
 `
+
+func TestKuraLVMBootstrapRequiresExplicitOptIn(t *testing.T) {
+	for _, key := range []string{kuraCacheTaintKey, "tuist.dev/runner-cache"} {
+		script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "legacy-cache", Taints: []corev1.Taint{{Key: key}}})
+		if strings.Contains(script, "kura_lvm_setup()") {
+			t.Fatal("cache taint alone must retain the full legacy data disk")
+		}
+	}
+	if kuraLVMRequested(nil) || kuraLVMRequested(map[string]string{"tuist.dev/kura-storage-layout": "unknown"}) {
+		t.Fatal("layout must be explicitly opted in")
+	}
+	if !kuraLVMRequested(map[string]string{"tuist.dev/kura-storage-layout": "lvm-v1"}) {
+		t.Fatal("explicit LVM opt-in ignored")
+	}
+	if strings.Contains(renderVultrConversionScript(false), "kura_lvm_setup") {
+		t.Fatal("legacy Vultr conversion must retain its full XFS disk")
+	}
+	if !strings.Contains(renderVultrConversionScript(true), "kura_lvm_setup") {
+		t.Fatal("enrolled Vultr conversion omitted LVM")
+	}
+}

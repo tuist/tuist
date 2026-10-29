@@ -50,7 +50,6 @@ defmodule TuistWeb.Internal.KuraVolumeKeysController do
 
   alias Tuist.Kura.VolumeKeys
   alias TuistWeb.RateLimit
-  alias TuistWeb.RemoteIp
 
   require Logger
 
@@ -102,7 +101,10 @@ defmodule TuistWeb.Internal.KuraVolumeKeysController do
   end
 
   defp rate_limit(conn) do
-    RateLimit.hit("kura_volume_keys:ip:#{RemoteIp.get(conn)}", limit: @rate_limit, window: to_timeout(minute: 1))
+    # This credential endpoint must not let untrusted forwarding headers mint
+    # new pre-authentication budgets against Kubernetes TokenReview.
+    peer = conn.remote_ip |> :inet.ntoa() |> to_string()
+    RateLimit.hit("kura_volume_keys:ip:#{peer}", limit: @rate_limit, window: to_timeout(minute: 1))
   end
 
   defp key_version(%{"key_version" => version}) when is_integer(version) and version > 0, do: {:ok, version}

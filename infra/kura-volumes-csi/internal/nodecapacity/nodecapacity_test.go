@@ -5,7 +5,22 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 )
+
+func TestObservationHasDeadline(t *testing.T) {
+	p := &fakePatcher{}
+	err := advertiser(p, func(ctx context.Context) (int64, bool, error) {
+		deadline, ok := ctx.Deadline()
+		if !ok || time.Until(deadline) > 45*time.Second {
+			t.Fatal("unbounded capacity observation")
+		}
+		return 0, false, nil
+	}).Once(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 type fakePatcher struct {
 	node    string

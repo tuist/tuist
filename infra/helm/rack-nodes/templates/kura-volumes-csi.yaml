@@ -1,7 +1,16 @@
 {{- if and .Values.kuraVolumesCSI.enabled .Values.kuraVolumesCSI.rackPools }}
 {{- $namespace := "kura-volumes" }}
 {{- $driver := "kura-volumes.tuist.dev" }}
-{{- $imageTag := required "kuraVolumesCSI.image.tag is required" .Values.kuraVolumesCSI.image.tag }}
+{{- $imageTag := .Values.kuraVolumesCSI.image.tag }}
+{{- $digest := .Values.kuraVolumesCSI.image.digest | default "" }}
+{{- if and $digest (not (regexMatch "^sha256:[a-f0-9]{64}$" $digest)) }}
+{{- fail "kuraVolumesCSI.image.digest must be a sha256 digest" }}
+{{- end }}
+{{- if not (or $digest $imageTag) }}
+{{- fail "kuraVolumesCSI.image.digest or image.tag is required" }}
+{{- end }}
+{{- $image := printf "%s:%s" .Values.kuraVolumesCSI.image.repository $imageTag }}
+{{- if $digest }}{{- $image = printf "%s@%s" .Values.kuraVolumesCSI.image.repository $digest }}{{- end }}
 {{- $pools := .Values.kuraVolumesCSI.rackPools }}
 {{- $keyServiceUrl := .Values.kuraVolumesCSI.keyServiceUrl | default .Values.server.appUrl }}
 {{- $pluginDir := printf "/var/lib/kubelet/plugins/%s" $driver }}
@@ -58,7 +67,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: driver
-          image: "{{ .Values.kuraVolumesCSI.image.repository }}:{{ $imageTag }}"
+          image: {{ $image | quote }}
           imagePullPolicy: {{ .Values.kuraVolumesCSI.image.pullPolicy }}
           args:
             - --endpoint=unix:///csi/csi.sock

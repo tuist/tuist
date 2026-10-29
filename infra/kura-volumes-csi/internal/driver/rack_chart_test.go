@@ -2,6 +2,7 @@ package driver
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -14,6 +15,49 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 )
+
+func TestManagedStoragePrerequisitesStayOptIn(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	chart := filepath.Clean(filepath.Join(filepath.Dir(file), "../../../helm/tuist"))
+	for _, env := range []string{"production", "canary", "staging"} {
+		t.Run(env, func(t *testing.T) {
+			out, err := exec.Command("helm", "template", "tuist", chart,
+				"-f", filepath.Join(chart, "values-managed-common.yaml"),
+				"-f", filepath.Join(chart, "values-managed-"+env+".yaml"),
+				"-f", filepath.Join(chart, "values-ci.yaml")).CombinedOutput()
+			if err != nil {
+				t.Fatalf("render: %v\n%s", err, out)
+			}
+			dec := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader(out), 4096)
+			drivers, roots := 0, 0
+			for {
+				var obj struct {
+					Kind     string
+					Metadata struct{ Name string }
+					Spec     json.RawMessage
+				}
+				if err := dec.Decode(&obj); err == io.EOF {
+					break
+				} else if err != nil {
+					t.Fatal(err)
+				}
+				if obj.Kind == "CSIDriver" && obj.Metadata.Name == Name {
+					drivers++
+				}
+				if obj.Kind == "ExternalSecret" && bytes.Contains(obj.Spec, []byte(`"KURA_VOLUME_ROOT_KEYS/value"`)) {
+					roots++
+				}
+			}
+			want := 0
+			if env == "staging" {
+				want = 1
+			} // Keep the already-qualified staging dependency.
+			if drivers != want || roots != want {
+				t.Fatalf("drivers=%d roots=%d want=%d", drivers, roots, want)
+			}
+		})
+	}
+}
 
 func TestRackPluginHasIndependentReleaseAndSameHostContract(t *testing.T) {
 	helm, err := exec.LookPath("helm")
@@ -80,6 +124,13 @@ func TestRackPluginHasIndependentReleaseAndSameHostContract(t *testing.T) {
 		t.Fatal("thin configuration missing")
 	}
 	a, b := main[0], rack[0]
+	digest := "sha256:" + strings.Repeat("a", 64)
+	for _, chart := range []string{isolated, filepath.Join(root, "rack-nodes")} {
+		sets := render(chart, "tuist", "--set", "kuraVolumesCSI.image.digest="+digest)
+		if sets[0].Spec.Template.Spec.Containers[0].Image != "ghcr.io/tuist/kura-volumes-csi@"+digest {
+			t.Fatal("digest must take precedence over legacy tag on both releases")
+		}
+	}
 	if a.Name == b.Name || a.Spec.Selector.MatchLabels["app.kubernetes.io/instance"] == b.Spec.Selector.MatchLabels["app.kubernetes.io/instance"] {
 		t.Fatal("releases overlap")
 	}

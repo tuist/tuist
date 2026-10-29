@@ -63,6 +63,8 @@ func (a *Advertiser) Run(ctx context.Context) {
 // Once sets the resource to the measured capacity, or removes it from a node
 // without a volume group so nothing is scheduled there against stale room.
 func (a *Advertiser) Once(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
 	capacity, ok, err := a.Measure(ctx)
 	if err != nil {
 		return err
