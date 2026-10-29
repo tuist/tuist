@@ -372,7 +372,12 @@ added to catch that failed on `admin`'s unwritable cache instead.
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
   (`top`/`vm_stat`/`netstat`/`df`) for the job's duration and POSTs to
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
-  the job ends. Best-effort; never blocks the job.
+  the job ends. Best-effort; never blocks the job. Samples the server
+  answers 202 (no job proven on the Pod until GitHub's `in_progress`
+  webhook, which can lag the job by minutes), 5xx or not at all are
+  resent with the next batch, so a job's first sample is its start.
+  Disk free is the APFS container's Avail. The image build fails below
+  50 GiB of it (the 45 GiB free-disk commitment plus margin).
 - `/opt/tuist/tuist-cas-proxy` — the last-resort compilation-cache (CAS) prune
   client, built from `cas-plugin/` alongside `runner-shell-agent` by
   `.github/actions/build-runner-image-binaries`. Every `provisioner "file"` in

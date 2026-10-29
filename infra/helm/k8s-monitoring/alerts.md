@@ -2740,6 +2740,79 @@ When it fires:
    frees while it has headroom.
 3. If the fleet is genuinely full of customer work, it needs hosts.
 
+### macOS runner VM starting a job with under 50 GiB free
+
+Tuist commits to at least 45 GiB of free VM disk when a macOS job
+starts. A job VM is a fresh clone of its pool's runner image, so the
+free space at start is a property of the image: the runner image build
+fails below 50 GiB available (`infra/runner-image/runner.pkr.hcl`), and
+this rule catches what the build cannot see, such as a clone's boot
+writing more than the 5 GiB margin.
+
+Grafana-managed rule on the `Tuist Production ClickHouse` data source
+(`cg1vnyjs65blsc`), evaluated every 15 minutes over jobs whose steps
+arrived in the last hour:
+
+```sql
+WITH steps AS (
+  SELECT workflow_job_id, min(started_at) AS first_step
+  FROM runner_job_steps
+  WHERE inserted_at >= now() - INTERVAL 1 HOUR AND started_at IS NOT NULL
+  GROUP BY workflow_job_id
+), starts AS (
+  SELECT workflow_job_id, min(timestamp) AS t0,
+    argMin(disk_total_bytes - disk_used_bytes, timestamp) / 1073741824 AS free_gib
+  FROM runner_job_machine_metrics
+  WHERE timestamp >= now() - INTERVAL 1 DAY
+    AND disk_total_bytes BETWEEN 100 * 1073741824 AND 300 * 1073741824
+  GROUP BY workflow_job_id
+), jobs AS (
+  SELECT workflow_job_id, argMax(fleet_name, updated_at) AS fleet
+  FROM runner_jobs
+  WHERE enqueued_at >= now() - INTERVAL 1 DAY AND platform = 'macos'
+  GROUP BY workflow_job_id
+)
+SELECT jobs.fleet AS fleet, min(starts.free_gib) AS min_free_gib
+FROM steps
+INNER JOIN starts USING workflow_job_id
+INNER JOIN jobs USING workflow_job_id
+WHERE toDateTime(starts.t0) <= steps.first_step + INTERVAL 60 SECOND
+GROUP BY fleet
+```
+
+- Condition: `min_free_gib < 50`, no Reduce (one numeric column plus the
+  `fleet` label column)
+- Pending period: none; one job is enough
+- No data: OK (no macOS job reported in the hour)
+- Severity: warning
+- Summary: `macOS runner pool {{ $labels.fleet }} started a job with
+  {{ $values.A.Value }} GiB free (commitment 45 GiB)`
+
+The job's first sample has to be no later than 60 seconds after its first
+step. The server records samples only once GitHub's `in_progress` webhook
+binds the Pod to its job, and that webhook can arrive minutes into the
+job. Runner images before the sampler resent unrecorded samples (see
+`infra/runner-image/metrics-poll.sh`) lost everything before the binding,
+so their first sample could come after checkout and cache restores. On
+2026-10-22, 39 jobs were sampled 99 to 679 seconds late and showed 46.8
+to 74 GiB free while every VM started with about 79. The filter skips
+those jobs. With the current sampler the first sample comes before the
+first step.
+
+Free is the APFS container's available space (`df` Avail), which is
+what a job can write. Runner images before that change reported Size
+minus the Data volume's Used, which overstated it by what the System,
+Preboot, VM and Recovery volumes hold. Backtested on the old figure over
+2026-10-15 to 10-29: no job below 50 GiB; the lowest was 77.5 GiB, on the
+`macos-26-6` pools.
+
+When it fires:
+1. Compare the pool's image with the previous release: the build log's
+   `disk budget:` line gives each image's available space.
+2. Look at the job's machine metrics from its first sample: a VM that
+   starts at the floor and one that only crossed it late in its startup
+   ramp are different problems.
+
 ### Why there is no alert on withheld runner queue depth
 
 `tuist_runners_queue_withheld` is deliberately **not** alerted on, and the

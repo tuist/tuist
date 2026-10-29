@@ -671,4 +671,23 @@ build {
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
     ]
   }
+
+  # Disk budget. Every job VM is a fresh clone of this image, so the
+  # space free here is the space a job starts with, and Tuist commits to
+  # at least 45 GiB of it. Fail the build below 50 GiB so an image that
+  # would break the commitment never ships, with 5 GiB left for what a
+  # clone's boot writes (swap, caches). Avail, not Size - Used: the
+  # System, Preboot, VM and Recovery volumes share the APFS container
+  # with the Data volume the job writes to. Runs last, after everything
+  # above has written to the disk.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "df -h -t apfs",
+      "avail_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 { print $4 }')",
+      "avail_gib=$((avail_kib / 1048576))",
+      "echo \"disk budget: $${avail_gib} GiB available to a job, floor 50 GiB\"",
+      "[ \"$${avail_gib}\" -ge 50 ] || { echo \"disk budget: only $${avail_gib} GiB available, below the 50 GiB floor; shrink the image or grow the base disk\" >&2; exit 1; }"
+    ]
+  }
 }
