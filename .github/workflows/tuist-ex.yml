@@ -51,9 +51,9 @@ jobs:
       - run: mix local.hex --force
       - run: mix deps.get --check-locked
       - run: mix compile --warnings-as-errors
-      - name: Test cache compatibility with the minimum supported Elixir
+      - name: Test cache and TLS compatibility with the minimum supported Elixir
         if: matrix.elixir == '1.18.4-otp-27'
-        run: mix test test/tuist_ex/cache --max-cases 2 --warnings-as-errors
+        run: mix test test/tuist_ex/cache test/tuist_ex/certificate_trust_test.exs test/tuist_ex/certificate_trust_transport_test.exs --max-cases 2 --warnings-as-errors
 
   docs:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
