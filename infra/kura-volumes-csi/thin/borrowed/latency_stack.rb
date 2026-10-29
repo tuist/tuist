@@ -64,6 +64,8 @@ class LatencyProbe
     run('vgcreate', @vg, @loop); @vg_created = true
     run('lvcreate', '-y', '--type', 'thin-pool', '-L', '16G', '--poolmetadatasize', '256M', '--chunksize', '512K', '--zero', 'y', '--discards', 'passdown', '-n', 'pool', @vg)
     run('lvchange', '--errorwhenfull', 'y', "#{@vg}/pool")
+    # Keep pool counters available while the sample is a thick/plain LV.
+    run('lvcreate', '-y', '-V', '64M', '--thinpool', "#{@vg}/pool", '-n', 'sentinel')
     FileUtils.mkdir_p(@mount)
     save
   end
