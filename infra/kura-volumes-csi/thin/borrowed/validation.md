@@ -4,6 +4,136 @@ This record concerns the disposable prototype in this directory. It is not
 approval to enroll hosted nodes, ship the experimental segment layout, remove
 per-device backing, or declare the production sharing backend implemented.
 
+## Corrected encryption versus shared XFS — matched Paris comparison, October 29
+
+This closes the missing direct comparison between the corrected encrypted
+configuration and the current shared-XFS storage approach. It is a **storage-layout
+comparison on staging**, not a measurement of live production traffic or of AES
+alone. Both sides use the same pinned runtime with borrowed-unit mode disabled;
+this section does not qualify the later multi-volume sharing layout.
+
+### Results and interpretation
+
+All **137,280 authenticated requests passed with zero failures and zero runtime
+OOM kills**. These are six samples per layout, with no discarded runs.
+
+| Metric | Shared XFS median (range) | Corrected thin median (range) | Median change |
+|---|---:|---:|---:|
+| Eviction upload MiB/s | 162.74 (161.02–166.35) | 156.27 (154.79–162.31) | -3.98% |
+| Fresh 16KiB PUT p95 ms | 30.80 (29.84–31.87) | 31.34 (30.72–33.68) | +1.73% |
+| Warm 16KiB PUT p95 ms | 28.64 (26.30–29.26) | 30.40 (29.83–31.04) | +6.14% |
+| Warm 16KiB PUT p99 ms | 36.06 (35.46–36.41) | 38.52 (38.05–39.67) | +6.83% |
+| 4MiB PUT p95 ms | 259.06 (230.99–279.77) | 268.17 (225.91–273.16) | +3.51% |
+| Working-set GET MiB/s | 470.33 (453.30–500.22) | 499.09 (481.61–519.11) | +6.12% |
+| Working-set GET p95 ms | 118.46 (108.85–126.51) | 104.44 (101.17–107.30) | -11.83% |
+| Warm 16KiB GET p95 ms | 1.67 (1.42–1.80) | 1.80 (1.53–1.94) | +7.62% |
+| Full workload CPU s | 42.16 (41.67–42.40) | 42.68 (41.65–43.12) | +1.24% |
+| Full workload throttled s | 59.72 (43.03–75.42) | 33.05 (31.57–55.01) | -44.65% |
+
+The useful planning estimate for this tested workload is **about 4% less upload
+throughput during eviction**, **1.76 ms higher warmed small-upload p95**, and
+**about 1.2% more runtime CPU**. It is not a blanket 1% encryption cost.
+The previous 1.3% figure compared two encrypted formats; it was not a comparison
+against the shared-XFS baseline.
+
+The median throughput comparison is a 3.98% loss; the mean of the six adjacent
+pair changes is a 3.65% loss. Five of six pairs were slower on thin encryption,
+with changes from **−5.69% to +0.80%**. Every pair had higher warmed small-upload
+p95 on encryption, by **0.94–4.00 ms**. Fresh-cache small-PUT p95 was closer
+(30.80 versus 31.34 ms); these short fresh-cache and extended post-churn phases
+should not be conflated. Warmed PUT p99 rose by 2.46 ms.
+
+Large-PUT p95 has a 3.51% higher median, but its paired changes range from
+−10.28% to +15.33%, with a mean of +0.99%; that workload is too variable to
+promise a fixed large-upload latency penalty. Working-set GET throughput had a
+6.12% higher median, but one pair was slower; this is not a claim that encryption
+universally speeds up reads. Small warm-GET p95 rose by about **0.13 ms**.
+CPU throttling was recorded and differed between layouts despite identical CPU
+limits; the table reports the measured full-layout behavior, not attribution of
+every difference to cryptography.
+
+These observations close the missing matched **cache-workload comparison**.
+They do not waive the earlier direct-I/O/QD32 regressions, production runtime/base
+layout gates, or rollout safety requirements. No fleet-wide capacity or memory
+gain is inferred. The PR remains draft and production enrollment remains disabled.
+
+### Fixed method
+
+The experiment used the same Paris EPYC 7232P/NVMe RAID1 node and runtime digest
+`2c7e3ddc67bd196452663078c9f95bf8dd17a654d8bb0d9c0c388bc8c072ab43` as the
+preceding investigation. Runtime limits were one CPU/768 MiB with a 4 GiB cache;
+the same-node client had two CPUs/2 GiB and eight concurrent requests. Only one
+runtime was active at a time. Twelve fresh-cache samples ran in the predetermined
+order **AB BA AB BA AB BA**, where A is shared XFS and B corrected thin encryption.
+This produces six adjacent pairs, equally split between each layout running first.
+No setting was tuned between samples.
+
+- **Shared XFS:** a private fresh directory in the existing 128 GiB `data` LV,
+  bind-mounted into the fixture. The filesystem remained unchanged: four allocation
+  groups, reflinks enabled, 64 MiB journal, zero log stripe, `relatime`, and its
+  existing `prjquota` mount option. This was not a fresh standalone plain LV.
+- **Corrected encrypted layout:** a new 13 GiB virtual LV in a private 32 GiB
+  thin pool with 512 KiB chunks and 512 MiB metadata. LUKS2/AES-XTS, discard
+  passthrough, crypto workqueues with submission from crypto CPUs, XFS with
+  reflinks disabled, 64 MiB journal and explicit 4 KiB log stripe; `noatime`,
+  project inheritance and a 10 GiB hard project quota. The same node/NVMe array
+  backs both layouts. The filesystem's virtual size is not the cache grant.
+
+Every sample ran the unchanged full cache benchmark (400 small PUT/GETs,
+64 large 4 MiB PUT/GETs, 6 GiB eviction churn and post-churn GETs), then seeded
+and checksum-read a shuffled 1 GiB working set larger than runtime memory.
+It then ran a separately reported 400-write warmup and 4,000 small PUTs plus
+4,000 checksum GETs. These extended small-request measurements are **after the
+full/churn/working-set sequence**, not a cold-cache test. Churn throughput is
+total uploaded bytes divided by summed upload-phase time, excluding object
+generation and setup. All request failures and checksum mismatches fail the run.
+
+The pre-existing image's client handled the historical full/working-set workloads;
+the diagnostic client handled extended small requests. Client identity and mode
+were held constant between layouts; the transferred diagnostic binary's SHA-256
+was verified as `c5c25a23f0b130ea156858ac7813c5c9a80cb565c77234600a9f30eb48888a41`.
+Runtime CPU/throttling, memory events, attributable I/O, host CPU/disk counters,
+actual XFS geometry and filesystem margins were recorded for each sample.
+There was no global cache drop. Synthetic keys/authentication were generated in
+memory; this run exercises data-path performance, not OpenBao authorization.
+
+The runtime is a single-node fixture with itself as its peer and a same-node
+HTTP client. Internet/TLS/ingress latency, cross-node replication, fleet load,
+and a rollout handoff are outside this benchmark. Absolute request latency and
+throughput should not be presented as production service-level predictions.
+Tables report the median of six per-run measurements and the full observed
+range; latency percentiles are per-run percentiles, not a pooled percentile.
+
+### Adjacent-pair evidence
+
+| Pair / order | Shared churn MiB/s | Encrypted churn MiB/s | Throughput change | Warm PUT p95 change |
+| --- | ---: | ---: | ---: | ---: |
+| 1 / AB | 161.02 | 162.31 | +0.80% | +0.94 ms |
+| 2 / BA | 161.03 | 155.29 | -3.56% | +1.28 ms |
+| 3 / AB | 162.93 | 157.04 | -3.61% | +1.24 ms |
+| 4 / BA | 162.56 | 155.65 | -4.25% | +2.11 ms |
+| 5 / AB | 166.35 | 156.88 | -5.69% | +4.00 ms |
+| 6 / BA | 163.95 | 154.79 | -5.59% | +3.27 ms |
+
+### Cleanup and provenance
+
+The harness deleted each runtime before detaching its storage and used ordinary
+unmounts only. All temporary runtime/client pods, synthetic authentication Secret,
+shared-XFS fixture directories, mappings, LVs, sentinel and private pool were
+removed. VG free capacity returned exactly to **812,541,542,400 bytes**, with only
+the original `data` LV remaining. No node restart, CSI deployment, image
+publication, production mutation or global cache drop was performed. The changed
+format command was exercised directly on the staging volumes; the Go-driver and
+OpenBao lifecycle qualifications described below remain prior evidence, not tests
+rerun by this benchmark.
+
+The source remained `f4c163d8d36`; no runtime or driver code changed for this
+comparison. The local reports contain measurements and no credentials:
+
+- Results: `kura-matched-results.json`, SHA-256 `239a583f1e94835eef701058748a7786266849a07e83d96fbcc345eae1b757df`.
+- Bounded staging harness: `kura-matched.rb`, SHA-256 `93f56306ba987499c6d2d1675c0f72aba6c246f66766a421d9bbf545f9135344`.
+- Diagnostic client: SHA-256 `c5c25a23f0b130ea156858ac7813c5c9a80cb565c77234600a9f30eb48888a41`, verified after transfer.
+
 ## Small-upload latency investigation — October 29
 
 The October 28 result (shared XFS 28.93–32.99 ms versus thin units

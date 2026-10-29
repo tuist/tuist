@@ -257,6 +257,14 @@ measured about 1.3% lower churn throughput with that correction, so it is not a
 blanket no-regression claim. The storage identities, backing rules and sharing
 API are unchanged. See the [investigation and tradeoffs](borrowed/validation.md#small-upload-latency-investigation--october-29).
 
+A subsequent six-pair staging comparison directly measured the corrected
+monolithic encrypted layout against the existing shared-XFS filesystem, with the
+same runtime and limits. Median eviction throughput was 156.27 versus 162.74 MiB/s
+(3.98% lower), warmed small-PUT p95 30.40 versus 28.64 ms, and CPU 1.24% higher.
+All 137,280 requests passed. This establishes a bounded encryption-layout cost;
+it does not qualify the multi-volume sharing mode or imply a universal 1% impact.
+See the [matched comparison, ranges and limitations](borrowed/validation.md#corrected-encryption-versus-shared-xfs--matched-paris-comparison-october-29).
+
 The policy direction is now concrete: reuse target calculation, add a CSI backend
 and asynchronous effective-grant reconciliation, and keep backing attached to
 whole units until verified deletion. The runtime placement/recovery change is
