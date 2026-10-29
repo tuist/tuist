@@ -83,6 +83,12 @@ test('real Chrome captures a page with a resource that never completes', { skip:
   });
   await new Promise(accept => server.listen(0, '127.0.0.1', accept));
   t.after(() => new Promise(accept => { server.closeAllConnections(); server.close(accept); }));
-  await captureOne({ ...options, chrome, url: `http://127.0.0.1:${server.address().port}/` });
+  t.diagnostic(spawnSync(chrome, ['--version'], { encoding: 'utf8' }).stdout.trim());
+  try {
+    await captureOne({ ...options, chrome, url: `http://127.0.0.1:${server.address().port}/` });
+  } catch (error) {
+    t.diagnostic(await readFile(join(options.output, 'desktop.log'), 'utf8'));
+    throw error;
+  }
   assert.ok((await readFile(join(options.output, 'desktop.png'))).subarray(0, 8).equals(PNG_HEADER));
 });
