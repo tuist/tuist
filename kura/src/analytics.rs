@@ -1406,22 +1406,29 @@ mod tests {
 
     #[tokio::test]
     async fn classifies_connect_timeout_separately_from_full_request_timeout() {
-        // 240.0.0.1/4 is IANA-reserved and unroutable, so a TCP connect to
-        // it never completes. A tiny connect_timeout forces the client to
-        // return the connect-timeout branch of `reqwest::Error`, which in
-        // reqwest 0.13.x is `is_connect() == true && is_timeout() == true`.
-        // The classifier's precedence must return `connect` here.
+        struct StalledResolver;
+        impl reqwest::dns::Resolve for StalledResolver {
+            fn resolve(&self, _: reqwest::dns::Name) -> reqwest::dns::Resolving {
+                Box::pin(std::future::pending())
+            }
+        }
+        // DNS is part of the connect budget. Stall it locally rather than
+        // assuming a reserved address cannot connect on the runner's network.
+        // Both is_connect() and is_timeout() must be true; connect wins.
         let client = reqwest::Client::builder()
+            .no_proxy()
+            .dns_resolver(Arc::new(StalledResolver))
             .connect_timeout(Duration::from_millis(20))
             .timeout(Duration::from_secs(30))
             .build()
             .expect("client should build");
         let error = client
-            .post("http://240.0.0.1:9/webhooks/gradle-cache")
+            .post("http://connect-timeout.invalid/webhooks/gradle-cache")
             .body(Vec::<u8>::new())
             .send()
             .await
-            .expect_err("connect to unroutable address should fail");
+            .expect_err("stalled DNS must exhaust the connect budget");
+        assert!(error.is_connect() && error.is_timeout());
         assert_eq!(
             classify_reqwest_error(&error),
             "connect",
