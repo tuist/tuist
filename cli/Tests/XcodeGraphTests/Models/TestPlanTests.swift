@@ -29,4 +29,22 @@ struct TestPlanCompatibilityTests {
         #expect(plan.coverage == nil)
         #expect(plan.codeCoverageTargets.isEmpty)
     }
+
+    @Test func round_trips_locale_and_coverage_settings() throws {
+        let path = try AbsolutePath(validating: "/Project")
+        let plan = TestPlan(
+            path: path.appending(component: "Plan.xctestplan"),
+            testTargets: [.init(target: .init(projectPath: path, name: "Tests"))],
+            isDefault: true,
+            kind: .generated,
+            coverage: true,
+            codeCoverageTargets: [.init(projectPath: path, name: "Framework")],
+            language: "fr",
+            region: "NZ"
+        )
+
+        let decoded = try JSONDecoder().decode(TestPlan.self, from: JSONEncoder().encode(plan))
+
+        #expect(decoded == plan)
+    }
 }

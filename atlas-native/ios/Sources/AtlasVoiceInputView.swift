@@ -116,7 +116,9 @@ struct AtlasThreadComposer: View {
                         .accessibilityIdentifier("thread-voice-recording")
                     } else {
                         TextField(placeholder, text: $draft, axis: .vertical)
-                            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 3 : 6))
+                            // Keep conversation context above the keyboard at accessibility sizes.
+                            // The native editor scrolls through the complete multiline draft.
+                            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 2 : 6))
                             .textFieldStyle(.plain).padding(.vertical, 11)
                             .padding(.leading, addPhotos != nil && addFiles != nil ? 0 : 12)
                             .accessibilityIdentifier("thread-composer")

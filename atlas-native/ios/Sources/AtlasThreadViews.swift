@@ -210,8 +210,10 @@ extension AtlasOrbitView {
             }
         }
         ForEach(conversationSections, id: \.title) { section in
-            Section(section.title) {
+            Section {
                 ForEach(section.threads) { thread in conversationRow(thread) }
+            } header: {
+                if !section.title.isEmpty { Text(section.title) }
             }
             .textCase(nil)
         }
@@ -264,12 +266,21 @@ extension AtlasOrbitView {
 
     private var conversationSections: [(title: String, threads: [AtlasThread])] {
         let calendar = Calendar.current
-        let groups = Dictionary(grouping: model.threads) { thread in
+        #if os(iOS)
+        let signals = model.threads.filter { $0.priorityTitle != nil }
+        let attention: [(title: String, threads: [AtlasThread])] = signals.isEmpty ? [] : [(title: "", threads: signals)]
+        #else
+        let attention = ["Now", "Today", "Later"].compactMap { priority -> (title: String, threads: [AtlasThread])? in
+            let threads = model.threads.filter { $0.priorityTitle == priority }
+            return threads.isEmpty ? nil : (title: "\(priority) · Signals", threads: threads)
+        }
+        #endif
+        let groups = Dictionary(grouping: model.threads.filter { $0.priorityTitle == nil }) { thread in
             guard let date = thread.updatedDate else { return "Earlier" }
             if calendar.isDateInToday(date) { return "Today" }
             return calendar.isDateInYesterday(date) ? "Yesterday" : "Earlier"
         }
-        return ["Today", "Yesterday", "Earlier"].compactMap { title in
+        return attention + ["Today", "Yesterday", "Earlier"].compactMap { title in
             groups[title].map { (title: title, threads: $0) }
         }
     }
@@ -279,8 +290,7 @@ extension AtlasOrbitView {
             #if os(macOS)
             AtlasDesktopConversationRow(thread: thread)
             #else
-            Button { path.append(thread) } label: { AtlasMobileConversationRow(thread: thread) }
-                .buttonStyle(.plain)
+            NavigationLink(value: thread) { AtlasMobileConversationRow(thread: thread) }
             #endif
         }
         #if os(macOS)
@@ -359,36 +369,3 @@ extension AtlasOrbitView {
     }
     #endif
 }
-
-#if os(iOS)
-private struct AtlasMobileConversationRow: View {
-    let thread: AtlasThread
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(thread.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
-            if !thread.summary.isEmpty {
-                Text(thread.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-            }
-            HStack(spacing: 10) {
-                Label(thread.kind == "private" ? "Private" : "Shared", systemImage: thread.kind == "private" ? "lock" : "person.2")
-                if ["queued", "running", "compacting"].contains(thread.agentStatus ?? "") {
-                    Label("Working", systemImage: "sparkles")
-                }
-                Spacer(minLength: 0)
-                if let date = thread.updatedDate {
-                    if Calendar.current.isDateInToday(date) {
-                        Text(date, format: .dateTime.hour().minute())
-                    } else {
-                        Text(date, format: .dateTime.month(.abbreviated).day().year())
-                    }
-                }
-            }
-            .font(.caption).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
-    }
-}
-#endif

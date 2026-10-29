@@ -379,6 +379,15 @@ fn reconciliation_deduplicates_and_orders_across_kinds_by_updated_at_then_descen
     newer.updated_at = "2027-06-08T10:00:00Z".into();
     merge_list_thread(&mut state, newer);
     assert_eq!(state.snapshot.threads[0].id, FIRST);
+    let mut urgent = thread(SECOND, "shared");
+    urgent.priority = Some(orbit::Priority::Now);
+    urgent.updated_at = "2020-01-01T00:00:00Z".into();
+    merge_list_thread(&mut state, urgent);
+    assert_eq!(state.snapshot.threads[0].id, SECOND);
+    let mut deferred = thread(FIRST, "shared");
+    deferred.priority = Some(orbit::Priority::Later);
+    merge_list_thread(&mut state, deferred);
+    assert_eq!(state.snapshot.threads[0].id, SECOND);
     drop(state);
     execute(Action::Close { connection }).unwrap();
 }

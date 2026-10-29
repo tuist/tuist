@@ -25,7 +25,6 @@ defmodule Atlas.Orbit do
   alias Atlas.Orbit.Attachments
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Participant
-  alias Atlas.Orbit.Rendering
   alias Atlas.Orbit.Run
   alias Atlas.Orbit.Runs
   alias Atlas.Orbit.Thread
@@ -150,6 +149,7 @@ defmodule Atlas.Orbit do
       from thread in Thread,
         join: participant in Participant,
         on: participant.thread_id == thread.id and participant.user_id == ^user.id,
+        where: is_nil(thread.signal_reader_ids) or ^user.id in thread.signal_reader_ids,
         where:
           fragment(
             "?::text[] <@ ?::text[]",
@@ -165,7 +165,11 @@ defmodule Atlas.Orbit do
 
     query =
       if status in ["active", "archived"] do
-        order_by(query, [thread], desc: thread.updated_at, desc: thread.id)
+        order_by(query, [thread],
+          asc: fragment("CASE ? WHEN 'now' THEN 0 WHEN 'today' THEN 1 WHEN 'later' THEN 2 ELSE 3 END", thread.priority),
+          desc: thread.updated_at,
+          desc: thread.id
+        )
       else
         order_by(query, [thread],
           asc: fragment("CASE WHEN ? = 'private' THEN 0 ELSE 1 END", thread.kind),
@@ -196,6 +200,7 @@ defmodule Atlas.Orbit do
       join: participant in Participant,
       on: participant.thread_id == thread.id and participant.user_id == ^user.id,
       where: fragment("?::text[] <@ ?::text[]", thread.required_scopes, type(^scopes, {:array, :string})),
+      where: is_nil(thread.signal_reader_ids) or ^user.id in thread.signal_reader_ids,
       order_by: thread.id,
       select: {thread.id, thread.last_seq, thread.status}
     )
@@ -289,6 +294,11 @@ defmodule Atlas.Orbit do
         end
 
       candidates =
+        if is_nil(thread.signal_reader_ids),
+          do: candidates,
+          else: where(candidates, [person], person.id in ^thread.signal_reader_ids)
+
+      candidates =
         Enum.reduce(thread.required_scopes, candidates, fn scope, candidates ->
           grants =
             if String.ends_with?(scope, ":read"),
@@ -313,7 +323,7 @@ defmodule Atlas.Orbit do
         |> limit(20)
         |> select([person], struct(person, [:id, :name]))
         |> Repo.all()
-        |> Enum.filter(&Access.holds_all?(&1, thread.required_scopes))
+        |> Enum.filter(&Access.eligible?(thread, &1))
         |> Enum.map(&%{id: &1.id, name: &1.name})
 
       {:ok, people}
@@ -323,8 +333,23 @@ defmodule Atlas.Orbit do
     end
   end
 
-  def list_messages(%Thread{id: thread_id}, page \\ 1) do
+  def list_messages(%Thread{id: thread_id} = thread, page \\ 1, viewer \\ nil) do
     query = from(message in Message, where: message.thread_id == ^thread_id)
+
+    # Internal/agent callers receive only the shared log. A recap is returned only
+    # to its recipient while they can still read the authoritative thread.
+    query =
+      cond do
+        is_nil(viewer) ->
+          where(query, [message], is_nil(message.recipient_id))
+
+        Access.can_read?(Repo.get(Thread, thread.id), viewer) ->
+          where(query, [message], is_nil(message.recipient_id) or message.recipient_id == ^viewer.id)
+
+        true ->
+          where(query, false)
+      end
+
     total_count = Repo.aggregate(query, :count)
     total_pages = max(1, ceil(total_count / @message_page_size))
     page = page |> max(1) |> min(total_pages)
@@ -337,6 +362,7 @@ defmodule Atlas.Orbit do
       |> preload([:author, :attachments])
       |> Repo.all()
       |> Enum.reverse()
+      |> Enum.map(fn message -> %{message | body: message.private_body || message.body} end)
 
     {items, %{page: page, total_pages: total_pages, total_count: total_count}}
   end
@@ -432,7 +458,8 @@ defmodule Atlas.Orbit do
                |> Repo.insert(),
              {:ok, _owner} <- insert_participant(thread, user.id, "owner"),
              :ok <- insert_members(thread, users) do
-          thread
+          append_handoffs!(thread, users)
+          Repo.get!(Thread, thread.id)
         else
           {:error, reason} -> Repo.rollback(reason)
         end
@@ -499,7 +526,7 @@ defmodule Atlas.Orbit do
           thread.kind != "shared" or thread.owner_id != actor.id ->
             Repo.rollback(:forbidden)
 
-          not Access.holds_all?(user, thread.required_scopes) ->
+          not Access.eligible?(thread, user) ->
             Repo.rollback(:missing_access)
 
           Access.participant?(thread, user) ->
@@ -508,8 +535,7 @@ defmodule Atlas.Orbit do
           true ->
             {:ok, _participant} = insert_participant(thread, user.id, "member")
             cancel_active_runs(thread, "participants_changed")
-            append!(thread, %{kind: "system", body: "#{display_name(actor)} added #{display_name(user)}."})
-            append_handoff!(thread)
+            append_handoffs!(thread, [user])
             :added
         end
       end)
@@ -626,7 +652,7 @@ defmodule Atlas.Orbit do
         })
 
       Attachments.claim!(attachment_ids, user, message)
-      if newcomers != [], do: append_handoff!(thread)
+      append_handoffs!(thread, newcomers)
       queue_mentions!(thread, message, user)
       if address_agent?, do: request_run!(thread, message, user, user)
       {message, :created}
@@ -655,7 +681,7 @@ defmodule Atlas.Orbit do
     ids = mention_ids!(attrs)
     users = Repo.all(from user in User, where: user.id in ^ids)
 
-    if length(users) != length(ids) or not Enum.all?(users, &Access.holds_all?(&1, thread.required_scopes)),
+    if length(users) != length(ids) or not Enum.all?(users, &Access.eligible?(thread, &1)),
       do: Repo.rollback({:invalid_field, :mention_ids})
 
     newcomers = Enum.reject(users, &Access.participant?(thread, &1))
@@ -718,7 +744,9 @@ defmodule Atlas.Orbit do
     )
   end
 
-  defp append_handoff!(thread) do
+  defp append_handoffs!(_thread, []), do: :ok
+
+  defp append_handoffs!(thread, newcomers) do
     reply =
       Repo.one(
         from message in Message,
@@ -730,12 +758,16 @@ defmodule Atlas.Orbit do
       )
 
     body =
-      "Conversation so far — excerpts for new participants (not an AI-generated summary).\n\n" <>
+      "Conversation so far — factual excerpts, not an AI-generated summary.\n\n" <>
         "Initial request (excerpt):\n" <>
-        handoff_excerpt(first_prompt(thread)) <>
+        handoff_excerpt(first_prompt(thread) || thread.summary) <>
         "\n\nLatest Pip reply (excerpt):\n" <> handoff_excerpt(reply)
 
-    append!(thread, %{kind: "system", notice_kind: "handoff", body: body})
+    Enum.each(newcomers, fn person ->
+      append!(thread, %{kind: "system", notice_kind: "joined", body: "#{display_name(person)} joins the conversation."})
+      # Old replicas select only body, so a rolling upgrade/rollback sees no private text.
+      append!(thread, %{kind: "system", notice_kind: "private_handoff", recipient_id: person.id, private_body: body})
+    end)
   end
 
   defp handoff_excerpt(nil), do: "> No text yet."
@@ -907,9 +939,14 @@ defmodule Atlas.Orbit do
          {:ok, participants} <- load_users(participant_ids),
          {:ok, scopes} <- signal_scopes(attrs[:required_scopes] || []),
          :ok <- ensure_holds_all([owner | participants], scopes),
-         {:ok, source_type, source_id, title, summary} <- signal_fields(attrs) do
+         {:ok, source_type, source_id, title, summary, body} <- signal_fields(attrs),
+         {:ok, readers} <- signal_readers(attrs[:signal_reader_ids], [owner | participants]) do
       Repo.transaction(fn ->
-        thread =
+        # Serialize the lookup even before a source has its first thread.
+        key = JSON.encode!([source_type, source_id])
+        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [key])
+
+        {thread, newcomers} =
           case active_signal_thread(source_type, source_id) do
             nil ->
               {:ok, thread} =
@@ -921,20 +958,26 @@ defmodule Atlas.Orbit do
                   source_type: source_type,
                   source_id: source_id,
                   owner_id: owner.id,
-                  required_scopes: scopes
+                  required_scopes: scopes,
+                  signal_reader_ids: readers
                 }
                 |> Thread.create_changeset()
                 |> Repo.insert()
 
               {:ok, _} = insert_participant(thread, owner.id, "owner")
               :ok = insert_members(thread, participants)
-              lock!(thread.id)
+              {lock!(thread.id), participants}
 
             existing ->
-              lock!(existing.id)
+              extend_signal_thread!(existing, owner, participants, scopes, readers)
           end
 
-        message = append!(thread, %{kind: "system", body: summary, address_agent: true})
+        # Correlated evidence can escalate attention but never silently downgrade
+        # an unresolved conversation. Archive is its queue-resolution action.
+        priority = signal_priority(attrs[:priority], thread.priority)
+        thread = thread |> Ecto.Changeset.change(priority: priority) |> Repo.update!()
+        message = append!(thread, %{kind: "system", body: body, address_agent: true})
+        append_handoffs!(thread, newcomers)
 
         if Access.can_read?(thread, Repo.get(User, thread.owner_id)) do
           request_run!(thread, message, nil, Repo.get(User, thread.owner_id))
@@ -962,9 +1005,46 @@ defmodule Atlas.Orbit do
     end
   end
 
+  defp extend_signal_thread!(existing, owner, participants, scopes, readers) do
+    thread = lock!(existing.id)
+
+    if thread.owner_id != owner.id or thread.signal_reader_ids != readers,
+      do: Repo.rollback(:missing_access)
+
+    required = Enum.uniq(thread.required_scopes ++ scopes)
+    audience = Enum.uniq_by(Access.participants(thread) ++ [owner | participants], & &1.id)
+
+    if ensure_holds_all(audience, required) != :ok,
+      do: Repo.rollback(:missing_access)
+
+    newcomers = Enum.reject(participants, &Access.participant?(thread, &1))
+
+    if newcomers != [] or required != thread.required_scopes,
+      do: cancel_active_runs(thread, "participants_changed")
+
+    :ok = insert_members(thread, newcomers)
+    thread = thread |> Ecto.Changeset.change(required_scopes: required) |> Repo.update!()
+    {thread, newcomers}
+  end
+
+  defp signal_priority(priority, current) do
+    Enum.find(~w(now today later), &(&1 in [priority, current]))
+  end
+
   defp ensure_holds_all(users, scopes) do
     if Enum.all?(users, &Access.holds_all?(&1, scopes)), do: :ok, else: {:error, :missing_access}
   end
+
+  defp signal_readers(nil, _users), do: {:ok, nil}
+
+  defp signal_readers(ids, users) when is_list(ids) do
+    if length(ids) <= 31 and Enum.all?(ids, &match?({:ok, _}, Ecto.UUID.cast(&1))) and
+         Enum.all?(users, &(&1.id in ids)),
+       do: {:ok, Enum.sort(Enum.uniq(ids))},
+       else: {:error, :missing_access}
+  end
+
+  defp signal_readers(_, _), do: {:error, :missing_access}
 
   defp signal_scopes(scopes) when is_list(scopes) do
     if Enum.all?(scopes, &(&1 in Authorization.all_scopes())),
@@ -975,16 +1055,24 @@ defmodule Atlas.Orbit do
   defp signal_scopes(_scopes), do: {:error, {:invalid_field, :required_scopes}}
 
   defp signal_fields(attrs) do
-    with source_type when is_binary(source_type) and source_type != "" <- attrs[:source_type],
-         source_id when is_binary(source_id) and source_id != "" <- attrs[:source_id],
-         title when is_binary(title) and title != "" <- attrs[:title],
-         summary when is_binary(summary) and summary != "" <- attrs[:summary] do
-      {:ok, String.slice(source_type, 0, 100), String.slice(source_id, 0, 200),
-       String.slice(String.trim(title), 0, 200), Rendering.truncate(summary, 2_000)}
+    source_type = attrs[:source_type]
+    source_id = attrs[:source_id]
+    title = attrs[:title]
+    summary = attrs[:summary]
+    body = attrs[:body] || summary
+
+    with true <- Enum.all?([source_type, source_id, title, summary, body], &signal_text?/1),
+         true <- byte_size(body) <= 16_000,
+         true <- byte_size(source_type) <= 100 and byte_size(source_id) <= 200,
+         true <- String.trim(title) != "" do
+      {:ok, source_type, source_id, String.slice(String.trim(title), 0, 200), String.slice(summary, 0, 2_000), body}
     else
       _ -> {:error, {:invalid_field, :signal}}
     end
   end
+
+  defp signal_text?(text),
+    do: is_binary(text) and text != "" and String.valid?(text) and not String.contains?(text, <<0>>)
 
   defp active_signal_thread(source_type, source_id) do
     Repo.one(

@@ -915,8 +915,11 @@ fn merge_list_thread(state: &mut State, incoming: Thread) {
     }
     items.push(incoming);
     items.sort_by(|a, b| {
-        b.updated_at
-            .cmp(&a.updated_at)
+        a.priority
+            .is_none()
+            .cmp(&b.priority.is_none())
+            .then_with(|| a.priority.cmp(&b.priority))
+            .then_with(|| b.updated_at.cmp(&a.updated_at))
             .then_with(|| b.id.cmp(&a.id))
     });
 }

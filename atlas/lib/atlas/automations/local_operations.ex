@@ -15,6 +15,7 @@ defmodule Atlas.Automations.LocalOperations do
   alias Atlas.MCP.Serializers.Tasks, as: TaskSerializer
   alias Atlas.Notes
   alias Atlas.Repo
+  alias Atlas.Signals.Interface
   alias Atlas.Tasks
   alias Atlas.Users
   alias Atlas.Users.User
@@ -61,6 +62,15 @@ defmodule Atlas.Automations.LocalOperations do
 
   def contracts do
     [
+      contract(
+        "signals.decide",
+        "automation",
+        ["automation:write"],
+        Interface.decision_schema(),
+        Interface.receipt_schema(),
+        "Apply a source-owner signal policy, recording priority and opening a permission-bound Orbit investigation. Returns opaque IDs only."
+      )
+      |> Map.put("effect", "write"),
       contract("tasks.get", "tasks", [], @id_input, TaskSerializer.response_schema(), "Read a task by id."),
       contract(
         "tasks.delete",
@@ -260,6 +270,12 @@ defmodule Atlas.Automations.LocalOperations do
   end
 
   def execute("tasks.get", %{"id" => id}, _actor), do: fetch(Tasks.get_task(id), &%{task: TaskSerializer.task(&1)})
+
+  def execute("signals.decide", args, actor) do
+    with {:ok, receipt} <- Atlas.Signals.decide(actor, args) do
+      {:ok, Map.update!(receipt, :observed_at, &DateTime.to_iso8601/1)}
+    end
+  end
 
   def execute("tasks.delete", %{"id" => id}, actor),
     do: delete(Tasks.get_task(id), &Tasks.delete_task(&1, actor, interface: "worker"))
