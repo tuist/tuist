@@ -8,9 +8,16 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   fence. Amp owns idle detection and sends pause when a turn finishes.
   """
 
+  alias Tuist.Environment
+  alias Tuist.Guardian
+  alias Tuist.Kura
   alias Tuist.Repo
+  alias Tuist.Runners.Sites
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Sandbox
+
+  @cache_scopes ["account:cache:read", "project:cache:read"]
+  @cache_token_ttl_hours 6
 
   def dispatch(account, orb_id, params) do
     Sandboxes.with_sandbox_lock(
@@ -35,7 +42,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp dispatch_operation(account, orb_id, sandbox, %{operation: "spawn"} = params) do
     with {:ok, sandbox} <- find_or_create(account, orb_id, sandbox, params),
          {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, "amp:" <> orb_id) do
-      bootstrap(sandbox, params)
+      bootstrap(account, sandbox, params)
     end
   end
 
@@ -74,8 +81,12 @@ defmodule Tuist.Sandboxes.AmpOrbs do
 
   defp find_or_create(_account, _orb_id, sandbox, _params), do: {:ok, sandbox}
 
-  defp bootstrap(sandbox, params) do
-    env = %{"ORB_TOKEN" => params.orb_token, "AMP_URL" => Map.get(params, :amp_url, "https://ampcode.com")}
+  defp bootstrap(account, sandbox, params) do
+    env =
+      Map.merge(
+        %{"ORB_TOKEN" => params.orb_token, "AMP_URL" => Map.get(params, :amp_url, "https://ampcode.com")},
+        cache_env(account, sandbox)
+      )
 
     # Credentials travel in the vsock exec environment, never in shell
     # source, the database or returned output. Amp's bootstrap is detached;
@@ -87,6 +98,25 @@ defmodule Tuist.Sandboxes.AmpOrbs do
       _failure ->
         _ = Sandboxes.end_residency(sandbox)
         {:error, :orb_bootstrap_failed}
+    end
+  end
+
+  # Agents run arbitrary code in the guest, so it gets a read-only cache
+  # credential for its own account and nothing else the API would accept.
+  # The token is stateless and expires on its own; each spawn mints a fresh
+  # one. The endpoint is the in-cluster cache a Linux runner on the same Node
+  # would use, absent when the account has none.
+  defp cache_env(account, sandbox) do
+    {:ok, token, _claims} =
+      Guardian.encode_and_sign(account, %{"type" => "account", "scopes" => @cache_scopes, "all_projects" => true},
+        ttl: {@cache_token_ttl_hours, :hour}
+      )
+
+    env = %{"TUIST_TOKEN" => token, "TUIST_URL" => Environment.app_url()}
+
+    case Kura.runner_cache_endpoint_url(account, :linux, Sites.node_site(sandbox.node_name)) do
+      url when is_binary(url) and url != "" -> Map.put(env, "TUIST_CACHE_ENDPOINT", url)
+      _ -> env
     end
   end
 end

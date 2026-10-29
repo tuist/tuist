@@ -39,7 +39,7 @@ TUIST_ORB_MEMORY_MB=4096
 TUIST_ORB_WORKSPACE_GB=10
 ```
 
-Start `amp orb provider /opt/tuist-amp-orbs/dispatch.sh`. An example systemd service is in `provider.service`; keep exactly one provider per Amp token and stop the old process before starting its replacement. The dispatch adapter has no local Orb mapping to back up: `(account_id, amp_orb_id)` lives in PostgreSQL. The provider token stays on the controller; only Amp's short-lived per-Orb token reaches its guest.
+Start `amp orb provider /opt/tuist-amp-orbs/dispatch.sh`. An example systemd service is in `provider.service`; keep exactly one provider per Amp token and stop the old process before starting its replacement. The dispatch adapter has no local Orb mapping to back up: `(account_id, amp_orb_id)` lives in PostgreSQL. The provider token stays on the controller; only Amp's short-lived per-Orb token and a read-only Tuist cache token (see below) reach its guest.
 
 Choose this provider in Amp's new-thread Orb picker, or run `amp -ox 'your prompt' --orb-provider <provider-name>`. Amp clones the repository, applies `.agents/setup` and manages Git credentials. Tuist launches `amp orb bootstrap` as `user` with `/home/user` writable and passwordless sudo. `/home/user/workspace` points to `/workspace/amp` on the VM's separately budgeted workspace disk.
 
@@ -63,6 +63,15 @@ For a server-only rollback or re-promotion (`image_tag` supplied), the workflow 
 The control plane retains the base substrate's clustered-server lifecycle locking requirement. Dispatch for one account/Orb is serialized across the cluster, with a database unique index fencing identity. A concurrent job receives HTTP 409 and can be replayed. On spawn, the adapter retries only explicit admission refusals (fleet capacity, account CPU/RAM quota, or admission-lock contention), using exponential backoff with jitter and a stable Orb ID. It prints “Waiting for sandbox capacity or account CPU/RAM budget” in Amp’s setup log. Waiting happens outside server locks, and each attempt rechecks authorization and admission; managed workload tokens are reread on every attempt. Pause/delete, generic HTTP failures, and ambiguous transport errors are not automatically retried. Response bodies and credentials are never printed.
 
 The admission retry window is 150 seconds from dispatch start, leaving two minutes for startup within a 270-second total HTTP budget and Amp’s five-minute deadline. Each HTTP request is capped at the remaining total budget (at most 240 seconds); an already-started boot may finish after the retry window. `TUIST_ORB_CAPACITY_WAIT_SECONDS` can shorten the retry window to 0–150 seconds (0 disables retries), but cannot extend it. On exhaustion the adapter reports a capacity timeout and asks the user to retry; it does not promise an indefinite queue or automatic replay by Amp. Older servers without the explicit `X-Tuist-Orb-Retry: admission` response header keep failing immediately, so deploy the server and provider changes together.
+
+## Tuist cache access
+
+Every spawn gives Amp's processes `TUIST_TOKEN`, `TUIST_URL` and, when the account has an in-cluster Kura node, `TUIST_CACHE_ENDPOINT`, so Tuist clients (including `tuist_ex` dependency caching) read the account's remote cache over the cluster network instead of compiling from scratch.
+
+- **Credential:** a stateless signed token for the Orb's account with only `account:cache:read` and `project:cache:read`, valid for six hours. It reads the account's cache and discovers its endpoints; the API refuses it for cache writes and every other operation. Nothing about it is stored. Each spawn mints a new one, and a resumed Orb's fresh `ORB_TOKEN` restarts Amp with it. A retried spawn with the same `ORB_TOKEN` keeps the running process and its earlier token. Disconnecting the integration does not revoke issued tokens; they expire on their own.
+- **Endpoint:** the same URL a Linux runner on the sandbox's Node receives (`Tuist.Kura.runner_cache_endpoint_url/3`, site from the Node's `node.cluster.x-k8s.io/rack-site` label). Guests reach it through the sandboxes NetworkPolicy's `kuraEgress` rule. A private runner-cache node is kept only for the account's CI jobs; when it drains, clients fall back to local compilation.
+- **Failure modes:** an expired token, an unreachable endpoint or a refused write falls back to local work; it never fails a build. Processes started before a credential refresh keep their old environment.
+- **Writes:** Orbs never populate the cache. Agents run arbitrary code, and a write credential would let any thread on the provider publish artifacts that the account's CI and developers then execute. Write access requires a separate, explicit per-integration choice.
 
 ## Limits and rollout checks
 

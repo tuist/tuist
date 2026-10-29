@@ -86,7 +86,11 @@ defmodule Tuist.Runners.Sites do
     end
   end
 
-  defp node_site(node_name) when is_binary(node_name) and node_name != "" do
+  @doc """
+  The `node.cluster.x-k8s.io/rack-site` label of the Node named `node_name`, or
+  `nil` when it has none or cannot be read. Cached per Node.
+  """
+  def node_site(node_name) when is_binary(node_name) and node_name != "" do
     [__MODULE__, :node_site, node_name]
     |> KeyValueStore.get_or_update([cache: cache_name(), ttl: @node_site_ttl_ms, cache_errors: false], fn ->
       case Client.get_node(node_name, timeout: @read_timeout) do
@@ -102,7 +106,7 @@ defmodule Tuist.Runners.Sites do
         nil
 
       {:error, reason} ->
-        Logger.warning("runners: could not read the claiming Node's site; using its pool's",
+        Logger.warning("runners: could not read a Node's site",
           node: node_name,
           reason: inspect(reason)
         )
@@ -111,7 +115,7 @@ defmodule Tuist.Runners.Sites do
     end
   end
 
-  defp node_site(_node_name), do: nil
+  def node_site(_node_name), do: nil
 
   @doc """
   Drops from `candidates` the jobs a runner at `site` leaves, for now, to the
