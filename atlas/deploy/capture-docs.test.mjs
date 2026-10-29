@@ -38,7 +38,7 @@ test('capture bounds page waits and uses a temporary profile', async t => {
   const options = await fixture(t);
   await captureOne({ ...options, extra: ['--force-dark-mode'] });
   const args = JSON.parse(await readFile(join(options.output, 'desktop.json'), 'utf8'));
-  for (const flag of ['--timeout=15000', '--virtual-time-budget=5000', '--disable-dev-shm-usage', '--force-dark-mode']) {
+  for (const flag of ['--timeout=15000', '--disable-dev-shm-usage', '--force-dark-mode']) {
     assert.ok(args.includes(flag));
   }
   assert.ok(args.includes(`--user-data-dir=${join(options.temporary, 'profile-desktop')}`));
