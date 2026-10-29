@@ -245,9 +245,30 @@ There is no automatic expiry for threads or messages. Administrators cannot read
 
 ## Personal execution environments
 
+`users.coding_preferences` stores a personal GitHub App installation ID and optional
+lowercase `owner/repo` default. `orbit_threads.repository` stores the private
+conversation's override, initially copied from that default. Changing preferences
+does not rewrite conversations or existing runs; promotion clears this private
+metadata. Preferences remain until cleared or user deletion; conversation metadata
+follows thread retention, including archived threads. Include these fields in
+verified owner exports. Neither is a credential or a grant of execution authority.
+
+Repository discovery uses the existing personal GitHub grant against GitHub's user
+installation/repository APIs. GitHub receives ordinary authenticated API requests;
+only installation IDs/account names and repository names reach Atlas's picker.
+The live catalogue is not persisted. `coding_repositories.listed` and
+`user.coding_preferences_updated` audits retain actor/interface, user target,
+catalogue count and settings path, never repository names, raw responses or tokens.
+Settings tool arguments are omitted from MCP audits. Include these audits by actor
+or user target under existing audit/backup retention.
+
 `personal_environments` stores the owner's UUID (deletion cascades), immutable
 native OAuth client UUID, installation UUID, bounded device name, opt-in enabled /
-terminal / display booleans, and up to 100 project UUID/name pairs. Absolute local
+terminal / display booleans, and up to 100 project UUID/name pairs with an optional
+`coding` boolean advertising Git worktree support and optional canonical GitHub
+`repository` name for matching an explicitly selected checkout. The Mac reads this
+identity from local Git configuration without network access. Raw remote URLs,
+credentials embedded in remotes, and absolute local
 project paths and OS permissions stay on the device and are never registered.
 Version, current connection UUID and 20-second online expiry fence stale leases;
 there is no navigation/activity history. Disable keeps an offline row, and no
@@ -279,6 +300,20 @@ or silently retried. Owner cancellation cannot claim a disconnected process stop
 Terminal dispatch requires the owner's explicit per-Mac terminal opt-in, without
 per-command decisions. OAuth installation binding restricts claim/progress/result
 to the original Mac.
+
+Coding-capable Git projects additionally expose `read`, `bash`, `edit`, and `write`
+under the same explicit terminal opt-in. Encrypted arguments also retain the
+server-frozen thread UUID/title, read offset/limit, replacement text or file
+content, and optional bash timeout. These can contain source code and secrets;
+include them in the same authorized ledger export, never plaintext audits.
+`bash` uses the terminal lifecycle above. The native Mac creates retained Git
+worktrees in its local Application Support directory, scoped to server, owner,
+installation, project and thread. The initial branch name contains a bounded
+title slug and thread UUID. Local paths are not registered with Atlas. Worktrees
+start from local HEAD without copying uncommitted changes and survive archive,
+sign-out and server record deletion. They require a separate owner-authorized
+local filesystem export/deletion; Atlas's database export does not include them.
+No new object-storage category or automatic source-code retention expiry exists.
 
 `orbit_messages.device_input` / `device_output` retain encrypted, redacted bounded
 native tool-card renderings (same 2,000/4,000 character budgets as other cards),

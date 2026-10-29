@@ -428,6 +428,7 @@ defmodule Atlas.Orbit do
     with {:ok, thread} <-
            %{kind: "private", title: @private_title, owner_id: user.id, request_id: request_id}
            |> Thread.create_changeset()
+           |> Ecto.Changeset.put_change(:repository, Atlas.CodingRepositories.settings(user)["default_repository"])
            |> Repo.insert(),
          {:ok, _participant} <- insert_participant(thread, user.id, "owner") do
       thread
@@ -703,7 +704,8 @@ defmodule Atlas.Orbit do
           title: promotion_title(thread, attrs["body"]),
           environment_id: nil,
           environment_name: nil,
-          project_id: nil
+          project_id: nil,
+          repository: nil
         )
         |> Repo.update!()
 

@@ -5,6 +5,8 @@ typealias AtlasEnvironmentRequest = ([String: Any]) async throws -> Data
 struct AtlasEnvironmentProject: Codable, Identifiable, Equatable {
     let id: String
     let name: String
+    var coding: Bool?
+    var repository: String?
 }
 
 struct AtlasPersonalEnvironment: Decodable, Identifiable {

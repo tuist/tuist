@@ -1,12 +1,23 @@
 defmodule Atlas.Environments do
-  @moduledoc "Owner-private opt-in execution devices. No paths, model sessions or credentials are registered."
+  @moduledoc """
+  Owner-private execution environment registrations and project selection.
+
+  The server knows opaque environment/project IDs, permissions and availability,
+  not operating systems, filesystem roots or provider credentials. Executors own
+  discovery, per-thread workspace preparation and tool execution. The desktop Mac
+  is the first executor; another provider can use the same command ledger through
+  its own authenticated enrollment/delivery adapter.
+
+  Model sessions and orchestration stay on Atlas. A run freezes its environment
+  and project; an offline or unknown executor is never replaced automatically.
+  """
   import Ecto.Query
 
   alias Atlas.Audit
+  alias Atlas.CodingRepositories
   alias Atlas.Environments.Environment
   alias Atlas.Orbit
   alias Atlas.Orbit.Access
-  alias Atlas.Orbit.Run
   alias Atlas.Orbit.Thread
   alias Atlas.Repo
   alias Atlas.Users.User
@@ -50,7 +61,7 @@ defmodule Atlas.Environments do
         attrs =
           @keys
           |> Map.new(&{String.to_existing_atom(&1), params[&1]})
-          |> Map.put(:projects, Enum.map(params["projects"], &Map.put(&1, "id", Ecto.UUID.cast!(&1["id"]))))
+          |> Map.put(:projects, Enum.map(params["projects"], &canonical_project/1))
 
         changed? = Enum.any?([:enabled, :terminal, :display, :projects], &(Map.get(environment, &1) != attrs[&1]))
 
@@ -134,23 +145,25 @@ defmodule Atlas.Environments do
 
   def select(user, thread_id, params) do
     with {:ok, thread_id} <- uuid(thread_id),
-         {:ok, environment_id, project_id} <- selection_ids(params) do
+         {:ok, environment_id, project_id} <- selection_ids(params),
+         {:ok, repository} <- selection_repository(user, thread_id, params["repository"]) do
       Repo.transaction(fn ->
         thread = Repo.one(from t in Thread, where: t.id == ^thread_id, lock: "FOR UPDATE") || Repo.rollback(:not_found)
         if not Access.can_read?(thread, user), do: Repo.rollback(:not_found)
-        if {thread.kind, thread.owner_id} != {"private", user.id}, do: Repo.rollback(:private_environment_required)
-        if thread.status != "active", do: Repo.rollback(:archived)
 
-        if Repo.exists?(from r in Run, where: r.thread_id == ^thread.id and r.status in ^Run.active_statuses()),
-          do: Repo.rollback(:environment_run_active)
+        case selection_allowed(thread, user) do
+          :ok -> :ok
+          {:error, reason} -> Repo.rollback(reason)
+        end
 
-        environment = environment_id && owned_enabled!(user.id, environment_id, project_id)
+        environment = selected_environment!(user.id, environment_id, project_id, repository)
 
         thread
         |> Ecto.Changeset.change(
           environment_id: environment_id,
           environment_name: environment && environment.name,
           project_id: project_id,
+          repository: repository,
           last_seq: thread.last_seq + 1
         )
         |> Repo.update!()
@@ -160,7 +173,7 @@ defmodule Atlas.Environments do
         {:ok, thread} ->
           Audit.record("thread.environment_selected", %{
             actor_id: user.id,
-            interface: "api",
+            interface: Audit.current_context()[:interface] || "api",
             target_type: "orbit_thread",
             target_id: thread.id
           })
@@ -172,18 +185,51 @@ defmodule Atlas.Environments do
       end)
     else
       :error -> {:error, :not_found}
-      _ -> {:error, :invalid_params}
+      {:error, _} = error -> error
     end
   end
 
   defp selection_ids(params) do
-    with true <- exact_keys?(params, ~w(environment_id project_id)),
+    with true <-
+           exact_keys?(params, ~w(environment_id project_id)) or
+             exact_keys?(params, ~w(environment_id project_id repository)),
          {:ok, environment_id} <- nullable_uuid(params["environment_id"]),
          {:ok, project_id} <- nullable_uuid(params["project_id"]),
          true <- not is_nil(environment_id) or is_nil(project_id) do
       {:ok, environment_id, project_id}
     else
       _ -> {:error, :invalid_params}
+    end
+  end
+
+  defp selected_environment!(_owner, nil, _project, _repository), do: nil
+
+  defp selected_environment!(owner, id, project, repository) do
+    environment = owned_enabled!(owner, id, project)
+
+    if repository && not Enum.any?(environment.projects, &(&1["id"] == project and &1["repository"] == repository)),
+      do: Repo.rollback(:environment_repository_mismatch)
+
+    environment
+  end
+
+  defp selection_repository(_user, _thread_id, nil), do: {:ok, nil}
+
+  defp selection_repository(user, thread_id, repository) do
+    # Authorize before the remote lookup, then recheck under the thread lock.
+    # Never hold a database transaction open while requesting GitHub metadata.
+    with {:ok, thread} <- Orbit.fetch(user, thread_id),
+         :ok <- selection_allowed(thread, user) do
+      CodingRepositories.authorize_repository(user, repository)
+    end
+  end
+
+  defp selection_allowed(thread, user) do
+    cond do
+      thread.kind != "private" or thread.owner_id != user.id -> {:error, :private_environment_required}
+      thread.status != "active" -> {:error, :archived}
+      Orbit.active_run(thread) -> {:error, :environment_run_active}
+      true -> :ok
     end
   end
 
@@ -211,11 +257,27 @@ defmodule Atlas.Environments do
   end
 
   defp projects?(projects) when is_list(projects) and length(projects) <= 100 do
-    Enum.all?(projects, &(exact_keys?(&1, ~w(id name)) and match?({:ok, _}, uuid(&1["id"])) and name?(&1["name"]))) and
+    Enum.all?(projects, &project?/1) and
       length(Enum.uniq_by(projects, &Ecto.UUID.cast!(&1["id"]))) == length(projects)
   end
 
   defp projects?(_projects), do: false
+
+  defp project?(project) do
+    is_map(project) and Enum.all?(Map.keys(project), &(&1 in ~w(id name coding repository))) and
+      match?({:ok, _}, uuid(project["id"])) and name?(project["name"]) and
+      (not Map.has_key?(project, "coding") or is_boolean(project["coding"])) and
+      (not Map.has_key?(project, "repository") or
+         (project["coding"] == true and CodingRepositories.repository?(project["repository"])))
+  end
+
+  defp canonical_project(project) do
+    project = Map.put(project, "id", Ecto.UUID.cast!(project["id"]))
+
+    if Map.has_key?(project, "repository"),
+      do: Map.update!(project, "repository", &String.downcase/1),
+      else: project
+  end
 
   defp name?(name) when is_binary(name),
     do:

@@ -52,6 +52,79 @@ fn native_bridge_decodes_environment_actions_without_networking_for_expired_sess
 }
 
 #[test]
+fn coding_envelopes_preserve_worktree_identity_and_reject_cross_tool_arguments() {
+    for (tool, args, timeout) in [
+        (
+            "read",
+            json!({"path":"src/main.rs","offset":2,"limit":1}),
+            60,
+        ),
+        ("write", json!({"path":"empty","content":""}), 60),
+        (
+            "edit",
+            json!({"path":"file","edits":[{"oldText":"é","newText":"λ"}]}),
+            60,
+        ),
+        ("bash", json!({"command":"cargo test","timeout":90}), 1800),
+    ] {
+        let mut args = args;
+        args["project_id"] = json!(PROJECT);
+        args["thread_id"] = json!(ID);
+        args["title"] = json!("Fix unicode handling");
+        let command = json!({"id":CALL,"tool":tool,"arguments":args,
+            "execution_timeout_seconds":timeout,"digest":"a".repeat(64)});
+        let accepted = sanitize_commands(json!({"commands":[command.clone()]})).unwrap();
+        assert_eq!(accepted["commands"][0], command);
+        let mut missing = command.clone();
+        missing["arguments"]
+            .as_object_mut()
+            .unwrap()
+            .remove("thread_id");
+        assert!(sanitize_commands(json!({"commands":[missing]})).is_err());
+        let mut injected = command;
+        injected["arguments"]["root"] = json!("/outside");
+        assert!(sanitize_commands(json!({"commands":[injected]})).is_err());
+    }
+    let command = json!({"id":CALL,"tool":"write","arguments":{
+        "project_id":PROJECT,"thread_id":ID,"title":"Fix","path":"file","content":"ok","command":"injected"},
+        "execution_timeout_seconds":60,"digest":"a".repeat(64)});
+    assert!(sanitize_commands(json!({"commands":[command]})).is_err());
+}
+
+#[test]
+fn github_checkout_metadata_round_trips_without_becoming_a_path_or_permission() {
+    let configuration = json!({"name":"Demo Mac","enabled":true,"terminal":false,"display":false,
+        "projects":[{"id":PROJECT,"name":"Code","coding":true,"repository":"acme/code"}]});
+    let mut environment = configuration.clone();
+    environment["id"] = json!(ID);
+    environment["online"] = json!(false);
+    let network = MockTransport::new(vec![
+        json!({"environment":environment}),
+        json!({"owner_id":ID,"environments":[environment]}),
+    ]);
+    let mut register = configuration.clone();
+    register["action"] = json!("register");
+    register["id"] = json!(ID);
+    execute_using(&network, action(register)).unwrap();
+    let list = execute_using(&network, action(json!({"action":"list"}))).unwrap();
+    assert_eq!(
+        list["environments"][0]["projects"][0]["repository"],
+        "acme/code"
+    );
+    assert_eq!(network.requests.borrow()[0].1["payload"], configuration);
+    for project in [
+        json!({"id":PROJECT,"name":"Code","repository":"acme/code"}),
+        json!({"id":PROJECT,"name":"Code","coding":true,"repository":"/Users/me/code"}),
+        json!({"id":PROJECT,"name":"Code","coding":true,"repository":"https://github.com/acme/code"}),
+    ] {
+        let mut invalid = configuration.clone();
+        invalid["projects"] = json!([project]);
+        let config: Configuration = serde_json::from_value(invalid).unwrap();
+        assert!(validate_configuration(&config).is_err());
+    }
+}
+
+#[test]
 fn environment_lifecycle_uses_fixed_routes_and_projects_only_validated_results() {
     let configuration = json!({
         "name":"Demo Mac", "enabled":true, "terminal":true, "display":false,

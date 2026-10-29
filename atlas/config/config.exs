@@ -284,6 +284,7 @@ config :phoenix, :filter_parameters, [
   "verifier",
   "nonce",
   "input",
+  "body",
   "payload",
   "outputs",
   "source",

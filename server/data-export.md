@@ -28,6 +28,16 @@ Data is provided in a single compressed archive containing:
 
 Sensitive authentication data (passwords, tokens) are excluded from exports.
 
+Atlas personal coding data is stored in Atlas's separate database, not Tuist's
+account tables. Its owner-private environment registrations, encrypted command
+arguments/results (including code edits), conversation history, and device-local
+retained Git worktrees are covered by [Atlas's export inventory](../atlas/data-export.md#personal-execution-environments).
+That inventory also covers `users.coding_preferences`, private conversation
+repository overrides and optional repository names on registered checkouts; none
+of these repository choices grants execution permission or copies credentials.
+Export Atlas records by the verified Atlas owner, not a Tuist account ID; local
+worktrees need a separate authorized device export and are not object-storage artifacts.
+
 Successful project/account-token bcrypt verification proofs are held only in each server's ephemeral `token_verification` Cachex cache. Each entry contains a SHA-256 digest of the complete verification input and stored bcrypt hash, mapped to `true`, with a one-minute TTL and scheduled pruning to 10,000 entries. No plaintext token, subject, account/project identifier, permissions or request history is retained. These derived authentication proofs are excluded from exports and are lost on process restart; credential state remains in PostgreSQL.
 
 Authentication cache fills use separate ephemeral ETS claim tables containing only digest keys and process identifiers. They store no additional customer records and are discarded on cache restart; completed claims are removed, and abandoned claims are recovered on subsequent access.

@@ -33,12 +33,12 @@ struct AtlasEnvironmentPicker: View {
                         choice(project.name, environment: environment.id, project: project.id)
                     }
                     if environment.projects.isEmpty {
-                        Text("No projects shared from this Mac.").foregroundStyle(.secondary)
+                        Text("No projects available in this environment.").foregroundStyle(.secondary)
                     }
                 } header: {
                     Text(environment.name + (environment.online ? "" : " · Offline"))
                 } footer: {
-                    Text("Files stay on this Mac. Running commands stay there until stopped.")
+                    Text("Files and commands run in this environment. Atlas keeps the conversation and AI session.")
                 }
             }
             if overview?.environments.contains(where: \.enabled) == false {

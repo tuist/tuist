@@ -72,9 +72,10 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert second["kind"] == "shared" and second["title"] == "Team"
 
     assert Map.keys(first) |> Enum.sort() ==
-             ~w(agent_status environment_id environment_name id kind latest_seq model origin owner_id participants priority project_id status summary title updated_at)
+             ~w(agent_status environment_id environment_name id kind latest_seq model origin owner_id participants priority project_id repository status summary title updated_at)
 
     assert is_nil(first["environment_id"]) and is_nil(first["environment_name"]) and is_nil(first["project_id"])
+    assert is_nil(first["repository"])
     assert first["participants"] == [%{"id" => user.id, "name" => user.name}]
     assert first["status"] == "active" and first["origin"] == "manual" and first["summary"] == ""
 

@@ -92,6 +92,10 @@ pub(crate) struct Configuration {
 struct Project {
     id: String,
     name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    coding: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repository: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -120,7 +124,7 @@ pub(super) struct Command {
     claim_token: Option<String>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, PartialEq, Eq)]
 enum Tool {
     #[serde(rename = "environment_read_file")]
     ReadFile,
@@ -128,6 +132,14 @@ enum Tool {
     ListDirectory,
     #[serde(rename = "environment_terminal")]
     Terminal,
+    #[serde(rename = "read")]
+    Read,
+    #[serde(rename = "bash")]
+    Bash,
+    #[serde(rename = "edit")]
+    Edit,
+    #[serde(rename = "write")]
+    Write,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -138,6 +150,27 @@ struct Arguments {
     path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thread_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    offset: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    limit: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timeout: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    edits: Option<Vec<Edit>>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Edit {
+    old_text: String,
+    new_text: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -498,32 +531,80 @@ fn validate_command(command: &Command) -> Result<()> {
     validate_id(&command.id)?;
     validate_id(&command.arguments.project_id)?;
     validate_digest(&command.digest)?;
+    let args = &command.arguments;
+    let coding = matches!(
+        command.tool,
+        Tool::Read | Tool::Bash | Tool::Edit | Tool::Write
+    );
+    if coding {
+        validate_id(args.thread_id.as_deref().ok_or_else(invalid)?)?;
+        if args
+            .title
+            .as_ref()
+            .is_none_or(|s| !text(s, 1, 800) || s.chars().count() > 200)
+        {
+            return Err(invalid());
+        }
+    }
+    let allowed = match command.tool {
+        Tool::Bash => vec!["command", "timeout"],
+        Tool::Terminal => vec!["command"],
+        Tool::Read => vec!["path", "offset", "limit"],
+        Tool::Edit => vec!["path", "edits"],
+        Tool::Write => vec!["path", "content"],
+        _ => vec!["path"],
+    };
+    let serialized = serde_json::to_value(args).map_err(|_| invalid())?;
+    if serialized
+        .as_object()
+        .ok_or_else(invalid)?
+        .keys()
+        .any(|key| {
+            key != "project_id"
+                && !allowed.contains(&key.as_str())
+                && !(coding && ["thread_id", "title"].contains(&key.as_str()))
+        })
+    {
+        return Err(invalid());
+    }
     match command.tool {
-        Tool::Terminal => {
+        Tool::Terminal | Tool::Bash => {
             if command.execution_timeout_seconds != 1800
-                || command.arguments.path.is_some()
-                || command
-                    .arguments
-                    .command
-                    .as_ref()
-                    .is_none_or(|s| !valid_command_text(s))
+                || args.command.as_ref().is_none_or(|s| !valid_command_text(s))
+                || args.timeout.is_some_and(|v| !(1..=1800).contains(&v))
             {
                 return Err(invalid());
             }
         }
         _ => {
-            if command.arguments.command.is_some()
-                || command
-                    .arguments
-                    .path
-                    .as_ref()
-                    .is_none_or(|s| s.len() > 4096 || s.contains('\0'))
+            if args.path.as_ref().is_none_or(|s| !text(s, 1, 4096))
+                || (coding && command.execution_timeout_seconds != 60)
+                || args.offset.is_some_and(|v| !(1..=1_000_000).contains(&v))
+                || args.limit.is_some_and(|v| !(1..=2000).contains(&v))
             {
                 return Err(invalid());
             }
         }
     }
+    if command.tool == Tool::Write && args.content.as_ref().is_none_or(|s| !text(s, 0, 65536)) {
+        return Err(invalid());
+    }
+    if command.tool == Tool::Edit {
+        let edits = args.edits.as_ref().ok_or_else(invalid)?;
+        if !(1..=16).contains(&edits.len())
+            || serde_json::to_vec(edits).map_err(|_| invalid())?.len() > 131_072
+            || edits
+                .iter()
+                .any(|edit| !text(&edit.old_text, 1, 65536) || !text(&edit.new_text, 0, 65536))
+        {
+            return Err(invalid());
+        }
+    }
     Ok(())
+}
+
+fn text(value: &str, minimum: usize, maximum: usize) -> bool {
+    (minimum..=maximum).contains(&value.len()) && !value.contains('\0')
 }
 
 fn valid_command_text(value: &str) -> bool {
@@ -536,12 +617,32 @@ fn validate_configuration(value: &Configuration) -> Result<()> {
     }
     for (index, project) in value.projects.iter().enumerate() {
         validate_id(&project.id)?;
-        if !valid_name(&project.name) || value.projects[..index].iter().any(|p| p.id == project.id)
+        if !valid_name(&project.name)
+            || value.projects[..index].iter().any(|p| p.id == project.id)
+            || project
+                .repository
+                .as_ref()
+                .is_some_and(|name| project.coding != Some(true) || !valid_repository(name))
         {
             return Err(invalid());
         }
     }
     Ok(())
+}
+
+fn valid_repository(value: &str) -> bool {
+    let Some((owner, repository)) = value.split_once('/') else {
+        return false;
+    };
+    (1..=39).contains(&owner.len())
+        && owner.as_bytes()[0].is_ascii_alphanumeric()
+        && owner
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'-')
+        && (1..=100).contains(&repository.len())
+        && repository
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"_.-".contains(&c))
 }
 
 fn valid_name(value: &str) -> bool {
