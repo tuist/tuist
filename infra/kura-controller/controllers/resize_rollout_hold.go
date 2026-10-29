@@ -2,10 +2,12 @@ package controllers
 
 import (
 	"context"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,7 +36,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSetDuringResize(ctx context.Co
 	if err := r.applyStatefulSet(ctx, instance, true); err != nil {
 		return err
 	}
-	if err := r.replacePodsStrandedOnCPU(ctx, instance); err != nil {
+	if err := r.replacePodsStrandedOnResources(ctx, instance); err != nil {
 		return err
 	}
 	// A waiting resize never reaches the status write at the end of a full
@@ -128,11 +130,11 @@ func (r *KuraInstanceReconciler) releaseResizeRolloutHold(ctx context.Context, i
 	return nil
 }
 
-// replacePodsStrandedOnCPU recreates a replica the scheduler rejected for CPU
+// replacePodsStrandedOnResources recreates a replica rejected for CPU or disk
 // once the held template asks for less. Under OnDelete nothing else replaces
 // it, and a pod created before the schedule cap keeps its old reservation.
 // Only an unscheduled pod is deleted, so nothing that serves is disturbed.
-func (r *KuraInstanceReconciler) replacePodsStrandedOnCPU(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+func (r *KuraInstanceReconciler) replacePodsStrandedOnResources(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	sts := &appsv1.StatefulSet{}
 	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -147,6 +149,10 @@ func (r *KuraInstanceReconciler) replacePodsStrandedOnCPU(ctx context.Context, i
 	if templateMilli <= 0 {
 		return nil
 	}
+	templateDisk, valid := resizeDiskRequest(sts.Spec.Template.Spec)
+	if !valid {
+		return nil
+	}
 
 	pods := &corev1.PodList{}
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
@@ -154,11 +160,14 @@ func (r *KuraInstanceReconciler) replacePodsStrandedOnCPU(ctx context.Context, i
 	}
 	for i := range pods.Items {
 		pod := &pods.Items[i]
-		if pod.DeletionTimestamp != nil || pod.Spec.NodeName != "" || podReady(pod) || !podUnschedulableForCPU(pod) {
+		if pod.DeletionTimestamp != nil || pod.Spec.NodeName != "" || podReady(pod) {
 			continue
 		}
 		requested := podCPURequestMilli(pod)
-		if requested <= templateMilli {
+		cpuReduced := podUnschedulableForCPU(pod) && requested > templateMilli
+		oldDisk, valid := resizeDiskRequest(pod.Spec)
+		diskReduced := valid && !templateDisk.IsZero() && oldDisk.Cmp(templateDisk) > 0 && podUnschedulableForEphemeralStorage(pod)
+		if !cpuReduced && !diskReduced {
 			continue
 		}
 		// Do not delete a pod that the scheduler bound after the observation.
@@ -169,9 +178,34 @@ func (r *KuraInstanceReconciler) replacePodsStrandedOnCPU(ctx context.Context, i
 		if err != nil {
 			return err
 		}
-		log.FromContext(ctx).Info("replacing Kura pod unschedulable for CPU during a data volume resize", "pod", pod.Name, "fromMilli", requested, "toMilli", templateMilli)
+		log.FromContext(ctx).Info("replacing Kura pod unschedulable for resources during a data volume resize", "pod", pod.Name, "fromMilli", requested, "toMilli", templateMilli, "fromDisk", oldDisk.String(), "toDisk", templateDisk.String())
 	}
 	return nil
+}
+
+func resizeDiskRequest(spec corev1.PodSpec) (resource.Quantity, bool) {
+	var request resource.Quantity
+	count := 0
+	for _, container := range spec.Containers {
+		if container.Name == kuraContainerName {
+			request = container.Resources.Requests[corev1.ResourceEphemeralStorage]
+			count++
+		}
+	}
+	return request, count == 1
+}
+
+func podUnschedulableForEphemeralStorage(pod *corev1.Pod) bool {
+	if pod.Status.Phase != corev1.PodPending {
+		return false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodScheduled && condition.Status == corev1.ConditionFalse &&
+			condition.Reason == corev1.PodReasonUnschedulable && strings.Contains(condition.Message, "Insufficient ephemeral-storage") {
+			return true
+		}
+	}
+	return false
 }
 
 func rollingPartitioned(sts *appsv1.StatefulSet) bool {
