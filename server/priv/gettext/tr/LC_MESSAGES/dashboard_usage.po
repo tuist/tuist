@@ -60,27 +60,27 @@ msgstr "Ücretsiz katmandan önce, standart ücret üzerinden"
 #: lib/tuist_web/live/usage_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Billed"
-msgstr "Faturalandırıldı"
+msgstr "Faturalandırılan"
 
 #: lib/tuist_web/live/usage_live.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs."
-msgstr "Faturalandırma dönemi %{from} - %{to}. Dakikalar, macOS 6 vCPU / 14 GB temel alınarak ölçülür; daha büyük bir makine, çalıştığı her dakika için birden fazla dakika kullanır."
+msgstr "Faturalandırma dönemi %{from} - %{to}. Dakikalar, macOS 6 vCPU / 14 GB temel hat üzerinde ölçülür; daha büyük bir makine çalıştığı her dakika için birden fazla dakika kullanır."
 
 #: lib/tuist_web/live/usage_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Runner minutes"
-msgstr "Runner dakikaları"
+msgstr "Çalıştırıcı dakikaları"
 
 #: lib/tuist_web/live/usage_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Runner time and cache traffic billed to this account."
-msgstr "Bu hesaba faturalandırılan Runner süresi ve önbellek trafiği."
+msgstr "Bu hesaba faturalandırılan çalıştırıcı süresi ve önbellek trafiği."
 
 #: lib/tuist_web/live/usage_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Runner usage"
-msgstr "Runner kullanımı"
+msgstr "Çalıştırıcı kullanımı"
 
 #: lib/tuist_web/live/usage_live.html.heex:59
 #, elixir-autogen, elixir-format
@@ -126,7 +126,7 @@ msgstr "Bu dönemi kapsar"
 #: lib/tuist_web/live/usage_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Drawn down when the period is invoiced, so this is what your balance would cover today."
-msgstr "Dönem faturalandırıldığında düşülür, bu nedenle bakiyeniz bugün bunu karşılar."
+msgstr "Dönem faturalandırıldığında düşülür, yani bakiyeniz bugün bunu karşılar."
 
 #: lib/tuist_web/live/usage_live.html.heex:146
 #, elixir-autogen, elixir-format
@@ -136,7 +136,7 @@ msgstr "Ödenecek kalan"
 #: lib/tuist_web/live/usage_live.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Prepaid credit"
-msgstr "Peşin kredi"
+msgstr "Ön ödemeli kredi"
 
 #: lib/tuist_web/live/usage_live.html.heex:16
 #, elixir-autogen, elixir-format
@@ -146,22 +146,22 @@ msgstr "Fatura dönemi:"
 #: lib/tuist_web/live/usage_live.ex:303
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} minutes."
-msgstr "Son dönem %{count} dakika sürdü."
+msgstr "Geçen dönemde toplam %{count} dakika kullanıldı."
 
 #: lib/tuist_web/live/usage_live.ex:323
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
-msgstr "Son dönem %{count} olarak gerçekleşti."
+msgstr "Geçen dönemde toplam %{count}."
 
 #: lib/tuist_web/live/usage_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "Nothing ran last period."
-msgstr "Son dönemde hiçbir şey çalışmadı."
+msgstr "Geçen dönemde hiçbir işlem çalıştırılmadı."
 
 #: lib/tuist_web/live/usage_live.ex:309
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this period."
-msgstr "Bu dönem yaklaşık %{count} dakika sürecek."
+msgstr "Bu dönemde yaklaşık %{count} dakikalık kullanım bekleniyor."
 
 #: lib/tuist_web/live/usage_live.ex:212
 #: lib/tuist_web/live/usage_live.ex:465
@@ -177,7 +177,7 @@ msgstr "Mevcut dönem %{from} – %{to}"
 #: lib/tuist_web/live/usage_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Covered by your trial"
-msgstr "Deneme süreniz kapsamında"
+msgstr "Deneme sürümünüz kapsamında"
 
 #: lib/tuist_web/live/usage_live.ex:538
 #: lib/tuist_web/live/usage_live.html.heex:66
@@ -214,7 +214,7 @@ msgstr "%{count} istek"
 #: lib/tuist_web/live/usage_live.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "%{count} run on Tuist Runners"
-msgstr "Tuist Runners üzerinde %{count} çalıştırıldı"
+msgstr "Tuist Runner'larda %{count} çalıştırma"
 
 #: lib/tuist_web/live/usage_live.html.heex:461
 #, elixir-autogen, elixir-format
@@ -229,7 +229,7 @@ msgstr "%{size} dahil"
 #: lib/tuist_web/live/usage_live.html.heex:370
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Passing test cases are billed. Builds, failed and skipped test cases, and tests run on Tuist Runners are free."
-msgstr "Faturalandırma dönemi %{from} - %{to}. Başarılı test senaryoları faturalandırılır. Derlemeler, başarısız ve atlanan test senaryoları ile Tuist Runners üzerinde çalıştırılan testler ücretsizdir."
+msgstr "Faturalandırma dönemi %{from} - %{to}. Başarılı test senaryoları ücretlendirilir. Derlemeler, başarısız ve atlanan test senaryoları ile Tuist Runners üzerinde çalışan testler ücretsizdir."
 
 #: lib/tuist_web/live/usage_live.html.heex:168
 #, elixir-autogen, elixir-format
@@ -256,17 +256,17 @@ msgstr "Faturalandırılmaz"
 #: lib/tuist_web/live/usage_live.ex:563
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} passing test cases this period."
-msgstr "Bu dönemde yaklaşık %{count} başarılı test senaryosu hedefleniyor."
+msgstr "Bu dönemde yaklaşık %{count} başarılı test senaryosu bekleniyor."
 
 #: lib/tuist_web/live/usage_live.ex:555
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} requests this period."
-msgstr "Bu dönemde yaklaşık %{count} istek hedefleniyor."
+msgstr "Bu dönemde yaklaşık %{count} istek bekleniyor."
 
 #: lib/tuist_web/live/usage_live.ex:549
 #, elixir-autogen, elixir-format
 msgid "On track for about %{size} this period."
-msgstr "Bu dönemde yaklaşık %{size} hedefleniyor."
+msgstr "Bu dönemde yaklaşık %{size} bekleniyor."
 
 #: lib/tuist_web/live/usage_live.html.heex:380
 #: lib/tuist_web/live/usage_live.html.heex:418
@@ -282,7 +282,7 @@ msgstr "Test içgörülerinin kullanımı"
 #: lib/tuist_web/live/usage_live.ex:536
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
-msgstr "Bu dönemin toplam maliyeti. Faturalandırılacak bir abonelik yok."
+msgstr "Bu dönemin toplamı. Faturalandırılacak bir abonelik yok."
 
 #: lib/tuist_web/live/usage_live.ex:528
 #, elixir-autogen, elixir-format
@@ -302,7 +302,7 @@ msgstr "milyon başına"
 #: lib/tuist_web/live/usage_live.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "No runner usage in this period"
-msgstr "Bu dönemde runner kullanımı yok"
+msgstr "Bu dönemde çalışan kullanımı yok"
 
 #: lib/tuist_web/live/usage_live.html.heex:482
 #, elixir-autogen, elixir-format
@@ -312,22 +312,22 @@ msgstr "Bu dönemde test çalıştırması yok"
 #: lib/tuist_web/live/usage_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "%{size} of egress"
-msgstr "%{size} giden trafik"
+msgstr "%{size} dışa aktarım"
 
 #: lib/tuist_web/live/usage_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Egress and requests from every cache share one allowance, and traffic from Tuist Runners counts at half. Uploads and storage are free."
-msgstr "Faturalandırma dönemi %{from} - %{to}. Her önbellekten gelen giden trafik ve istekler tek bir kotayı paylaşır ve Tuist Runners'tan gelen trafik yarı fiyatına sayılır. Yüklemeler ve depolama ücretsizdir."
+msgstr "Faturalandırma dönemi %{from} - %{to}. Her önbellekten gelen dışa aktarım ve istekler tek bir kotayı paylaşır ve Tuist Runners trafiği yarı sayılır. Yüklemeler ve depolama ücretsizdir."
 
 #: lib/tuist_web/live/usage_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Data downloaded from your caches. %{size} free each period."
-msgstr "Önbelleklerinizden indirilen veriler. Her dönemde %{size} ücretsiz."
+msgstr "Önbelleklerinizden indirilen veriler. Dönem başına %{size} ücretsiz."
 
 #: lib/tuist_web/live/usage_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Downloads served from your caches. %{count} free each period."
-msgstr "Önbelleklerinizden sunulan indirmeler. Her dönemde %{count} ücretsiz."
+msgstr "Önbelleklerinizden sunulan indirmeler. Dönem başına %{count} ücretsiz."
 
 #: lib/tuist_web/live/usage_live.html.heex:351
 #, elixir-autogen, elixir-format
