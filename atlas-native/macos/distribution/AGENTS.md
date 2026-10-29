@@ -31,12 +31,11 @@ app sandbox, disable-library-validation entitlement or Live Activity.
 ## Developer ID push provisioning
 
 Desktop release signing now requires a **separate** Apple-issued, Push-enabled
-Developer ID provisioning profile for `dev.tuist.atlas.macos`. An authorized
-operator must enable Push Notifications on that explicit Mac App ID under team
-`U6LC622NKF`, create/regenerate its Developer ID profile authorizing the existing
-Tuist Developer ID Application certificate, and store the downloaded file at
+Developer ID provisioning profile for `dev.tuist.atlas`, the same App ID as iOS.
+An authorized operator must enable Push Notifications on that shared App ID under
+team `U6LC622NKF`, create/regenerate its Developer ID profile authorizing the
+existing Tuist Developer ID Application certificate, and store the downloaded file at
 `op://tuist/Atlas macOS Developer ID/Atlas_macOS_Developer_ID.provisionprofile`.
-This is a newly required, documented reference, not a claim that the item exists.
 Grant the protected release service account read access to it. Never reuse the
 iOS ad-hoc profile or a Mac App Store/development profile. No device registration
 is required for Developer ID distribution.
@@ -63,9 +62,9 @@ profile, APNs entitlement or configured-push plist marker. `prepare-app.sh`
 strips those from its copy even when preparing a previously distributed app;
 it never mutates its source. `validate.sh` defaults to that credential-free
 contract; `--distribution` requires the embedded profile and production marker.
-The backend must separately opt in to the macOS topic `dev.tuist.atlas.macos`
-with authorized production APNs credentials. Packaging alone does not enable
-server delivery or prove notification consent/foreground/background behavior.
+The backend must separately opt in to macOS delivery on the shared topic
+`dev.tuist.atlas` with authorized production APNs credentials. Packaging alone
+does not enable server delivery or prove notification consent/foreground/background behavior.
 
 `fetch-sparkle.sh` downloads the same checksum-pinned official release as
 `modules/sparkle.star` for publishing tools. Keep both pins identical.

@@ -84,10 +84,10 @@ if [[ $1 = --force ]]; then
     done
 elif [[ $1 = --display ]]; then
     case "$2" in
-        --extract-certificates)
+        --extract-certificates=*)
             certificate=good
             if [[ "$FIXTURE_FAIL" = signed-certificate ]]; then certificate=other; fi
-            cp "$FIXTURE_ROOT/profile-fixture/$certificate.der" "${3}0" ;;
+            cp "$FIXTURE_ROOT/profile-fixture/$certificate.der" "${2#*=}0" ;;
         --verbose=4)
             team=U6LC622NKF
             if [[ "$FIXTURE_FAIL" = signed-team ]]; then team=XXXXXXXXXX; fi
@@ -171,6 +171,7 @@ ln -s Versions/Current/Resources "$framework/Resources"
 echo resource > "$flat/asset.txt"
 bash "$scripts/prepare.sh" "$flat" "$tmp/prepared/Atlas.app"
 app="$tmp/prepared/Atlas.app"
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = dev.tuist.atlas ]] || fail 'Production must share the iOS bundle identifier'
 [[ -f "$flat/Atlas" && -f "$flat/Info.plist" && -f "$app/Contents/Resources/asset.txt" ]] || fail 'Preparation mutated Once or lost resources'
 cmp "$flat/Atlas.icns" "$app/Contents/Resources/Atlas.icns" || fail 'Preparation lost the Atlas icon'
 grep -q -- '--sign - --timestamp=none --options 0' "$FIXTURE_LOG" || fail 'Local ad-hoc signing must clear hardened library validation'

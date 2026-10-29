@@ -391,7 +391,7 @@ offline server cleanup on the same origin. Already accepted Apple alerts can
 still arrive after sign-out. Foreground views suppress banners while editing.
 
 Desktop releases additionally require a Push-enabled **Developer ID** profile for
-the explicit Mac App ID `dev.tuist.atlas.macos`, stored at
+the shared iOS/macOS App ID `dev.tuist.atlas`, stored at
 `op://tuist/Atlas macOS Developer ID/Atlas_macOS_Developer_ID.provisionprofile`.
 Create/regenerate it under team `U6LC622NKF` for the existing Tuist Developer ID
 Application certificate and grant the protected release account read access.
@@ -399,7 +399,7 @@ Packaging verifies the profile and derives the macOS APNs entitlement/environmen
 an iOS profile is not interchangeable. Local ad-hoc builds intentionally have no
 push entitlement or environment stamp. The server separately requires
 `ATLAS_APNS_MACOS_ENABLED=true` and APNs credentials authorized for the fixed
-desktop topic `dev.tuist.atlas.macos`. Older servers omit that capability safely.
+shared topic `dev.tuist.atlas`. Older servers omit that capability safely.
 See [desktop distribution](macos/distribution/AGENTS.md) and
 [server push setup](../atlas/deploy/AGENTS.md#push-notifications) for rollout
 and signed-app delivery checks. Builds do not create the profile or configure Apple.

@@ -45,7 +45,10 @@ Secrets for the managed deployment; nothing is provisioned by this code change):
   for both. The stored device environment chooses the host only when the credential
   supports it. The managed `atlas-apns` key is production-only. The topic is fixed to
   `dev.tuist.atlas`, whose App ID needs the Push Notifications capability and a
-  regenerated ad-hoc profile.
+  regenerated iOS ad-hoc profile. macOS shares that App ID/topic but requires a
+  separate Push-enabled Developer ID profile. Leave `ATLAS_APNS_MACOS_ENABLED`
+  unset or `false` until macOS provisioning and production delivery are verified;
+  sharing an App ID does not enable macOS delivery automatically.
 - `ATLAS_FCM_SERVICE_ACCOUNT_JSON`: the full JSON key of a Firebase project service
   account limited to Firebase Cloud Messaging sending (a role granting only
   `cloudmessaging.messages.create`; verify the predefined role name in the Google
