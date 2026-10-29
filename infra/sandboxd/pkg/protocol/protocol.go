@@ -107,7 +107,8 @@ type TemplateInfo struct {
 
 type SandboxInfo struct {
 	// Resident is true while a paused macOS VM still owns a host slot and RAM.
-	Resident       bool   `json:"resident,omitempty"`
+	// False must be sent too: omission leaves the server's old charge intact.
+	Resident       bool   `json:"resident"`
 	ID             string `json:"id"`
 	State          string `json:"state"`
 	Template       string `json:"template"`

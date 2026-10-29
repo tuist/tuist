@@ -77,6 +77,8 @@ It does not interrupt an active managed
 worker or exec command. CI may therefore wait for active native work to finish
 and for the checkpoint to complete. A failed checkpoint or process fence retains
 its reservation. No capacity is released merely because a save was requested.
+Node hello/report frames always include the resident boolean, including false
+after eviction, so the server releases its reservation after the host's fence.
 
 The isolated disk budget counts complete writable root disks and two memory
 images per environment, including evicted environments, against half the host
