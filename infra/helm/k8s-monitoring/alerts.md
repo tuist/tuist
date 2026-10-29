@@ -2740,6 +2740,128 @@ When it fires:
    frees while it has headroom.
 3. If the fleet is genuinely full of customer work, it needs hosts.
 
+### macOS runner VM starting a job with under 100 GiB free
+
+Tuist commits to at least 45 GiB of free VM disk when a macOS job
+starts. A job VM is a fresh clone of its pool's runner image, so the
+free space at start is a property of the image: the runner image build
+fails below 100 GiB available (`infra/runner-image/runner.pkr.hcl`), and
+this rule catches what the build cannot see, such as a clone's boot
+writing more than the image left free. Create it once the first release
+with the 200 GB disk runs on every pool: older images start with an
+estimated 58 GiB available and would fire on every job.
+
+Grafana-managed rule on the `Tuist Production ClickHouse` data source
+(`cg1vnyjs65blsc`), evaluated every 15 minutes over jobs whose steps
+arrived in the last hour:
+
+```sql
+WITH steps AS (
+  SELECT workflow_job_id, min(started_at) AS first_step
+  FROM runner_job_steps
+  WHERE inserted_at >= now() - INTERVAL 1 HOUR AND started_at IS NOT NULL
+  GROUP BY workflow_job_id
+), starts AS (
+  SELECT workflow_job_id, min(timestamp) AS t0,
+    argMin(disk_total_bytes - disk_used_bytes, timestamp) / 1073741824 AS free_gib
+  FROM runner_job_machine_metrics
+  WHERE timestamp >= now() - INTERVAL 1 DAY
+    AND disk_total_bytes BETWEEN 100 * 1073741824 AND 300 * 1073741824
+  GROUP BY workflow_job_id
+), jobs AS (
+  SELECT workflow_job_id, argMax(fleet_name, updated_at) AS fleet
+  FROM runner_jobs
+  WHERE enqueued_at >= now() - INTERVAL 1 DAY AND platform = 'macos'
+  GROUP BY workflow_job_id
+)
+SELECT jobs.fleet AS fleet, min(starts.free_gib) AS min_free_gib
+FROM steps
+INNER JOIN starts USING workflow_job_id
+INNER JOIN jobs USING workflow_job_id
+WHERE toDateTime(starts.t0) <= steps.first_step + INTERVAL 60 SECOND
+GROUP BY fleet
+```
+
+- Condition: `min_free_gib < 100`, no Reduce (one numeric column plus the
+  `fleet` label column)
+- Pending period: none; one job is enough
+- No data: OK (no macOS job reported in the hour)
+- Severity: warning
+- Summary: `macOS runner pool {{ $labels.fleet }} started a job with
+  {{ $values.A.Value }} GiB free (image floor 100 GiB, commitment 45 GiB)`
+
+The job's first sample has to be no later than 60 seconds after its first
+step. The server records samples only once GitHub's `in_progress` webhook
+binds the Pod to its job, and that webhook can arrive minutes into the
+job. Runner images before the sampler resent unrecorded samples (see
+`infra/runner-image/metrics-poll.sh`) lost everything before the binding,
+so their first sample could come after checkout and cache restores. On
+2026-10-22, 39 jobs were sampled 99 to 679 seconds late and showed 46.8
+to 74 GiB free while every VM started with about 79. The filter skips
+those jobs. With the current sampler the first sample comes before the
+first step.
+
+Free is the APFS container's available space (`df` Avail), which is
+what a job can write. Runner images before that change reported Size
+minus the Data volume's Used, which overstated it by what the System,
+Preboot, VM and Recovery volumes hold. On the old figure over 2026-10-15 to
+10-29 the lowest start was 77.5 GiB, on the `macos-26-6` pools, with the
+140 GB disk.
+
+When it fires:
+1. Compare the pool's image with the previous release: the build log's
+   `disk budget:` line gives each image's available space.
+2. Look at the job's machine metrics from its first sample: a VM that
+   starts at the floor and one that only crossed it late in its startup
+   ramp are different problems.
+
+### macOS runner job close to a full disk
+
+The rule above covers the start; this one covers what jobs write. It
+fires when a macOS job's free disk drops under 10 GiB at any point, which
+says the guest disk (`disk_size_gb` in `infra/runner-image/runner.pkr.hcl`)
+is getting too small for some account's jobs before one of them fails on
+it. Same data source, every 15 minutes:
+
+```sql
+WITH low AS (
+  SELECT workflow_job_id,
+    min(disk_total_bytes - disk_used_bytes) / 1073741824 AS free_gib
+  FROM runner_job_machine_metrics
+  WHERE timestamp >= now() - INTERVAL 1 HOUR
+    AND disk_total_bytes BETWEEN 100 * 1073741824 AND 300 * 1073741824
+  GROUP BY workflow_job_id
+), jobs AS (
+  SELECT workflow_job_id, argMax(fleet_name, updated_at) AS fleet,
+    toString(argMax(account_id, updated_at)) AS account_id
+  FROM runner_jobs
+  WHERE enqueued_at >= now() - INTERVAL 1 DAY AND platform = 'macos'
+  GROUP BY workflow_job_id
+)
+SELECT jobs.fleet AS fleet, jobs.account_id AS account_id,
+  min(low.free_gib) AS min_free_gib
+FROM low INNER JOIN jobs USING workflow_job_id
+GROUP BY fleet, account_id
+```
+
+- Condition: `min_free_gib < 10`, no Reduce
+- Pending period: none
+- No data: OK
+- Severity: warning
+- Summary: `A job of account {{ $labels.account_id }} on
+  {{ $labels.fleet }} got down to {{ $values.A.Value }} GiB of free disk`
+
+Create it with the rule above: on images that report Size minus the Data
+volume's Used it reads about 20 GiB high. The closest a job came in the
+30 days to 2026-10-29 was on 2026-10-16: it wrote 66 GiB on the 140 GB
+disk and kept an estimated 5 to 10 GiB.
+
+When it fires, look at the account's jobs on that pool: one job that
+writes far more than its usual runs is a workflow change to raise with
+the customer; a steady climb across its jobs means the guest disk needs
+to grow, which the rack's disk plan (`rackFleet.machine` in
+`values-managed-production.yaml`) has to absorb.
+
 ### Why there is no alert on withheld runner queue depth
 
 `tuist_runners_queue_withheld` is deliberately **not** alerted on, and the

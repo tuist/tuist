@@ -1501,9 +1501,12 @@ rackFleet:
     maxPods: 5
     # Shared built-in/custom cache budget on the 1858 GiB disk, enforced by
     # tart-kubelet (`--runner-cache-budget-gib`). Planning allowance: 512 GiB
-    # cache + up to 540 GiB goldens (`goldenBudget` below) + 280 GiB guest
-    # disks + 100 GiB host data, which stays above the
-    # 15% (279 GiB) free floor cache admission and the golden GC keep.
+    # cache + up to 540 GiB goldens (`goldenBudget` below) + 372 GiB guest
+    # disks (two of the runner image's 200 GB, `disk_size_gb` in
+    # infra/runner-image/runner.pkr.hcl) + 100 GiB host data = 1524 GiB,
+    # which stays above the 15% (279 GiB) free floor cache admission and the
+    # golden GC keep. A bigger guest disk has to come out of the cache or
+    # golden budget.
     #
     # The volume's APFS quota is half the disk (929 GiB), fixed when the
     # volume is created, so a budget up to that applies with the next
