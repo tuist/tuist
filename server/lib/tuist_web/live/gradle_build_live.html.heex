@@ -207,6 +207,7 @@
     <TuistWeb.Components.BuildMetadata.environment_metadata
       values={@build.custom_values || %{}}
       fields={[
+        {dgettext("dashboard_gradle", "Tuist Gradle plugin version"), @build.tuist_version},
         {dgettext("dashboard_gradle", "Gradle Version"), @build.gradle_version},
         {dgettext("dashboard_gradle", "Java Version"), @build.java_version}
       ]}

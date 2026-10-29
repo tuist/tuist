@@ -40,6 +40,8 @@ The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can d
 
 Tools resolve to the projects the authenticated user can already read. Xcode and Gradle build tools accept a build UUID or dashboard URL. The UUID must identify exactly one project; if it appears in multiple projects, the tool returns not found instead of selecting another project's report. Project-scoped dashboard and API reads remain available. Reported actor identifiers are unverified labels, not credentials or additional access rights.
 
+Build list and detail tools expose optional `tuist_version` metadata: the reporting Tuist CLI for Xcode and Cargo, the Tuist Gradle plugin for Gradle, and the `tuist_ex` library for Mix. Xcode also exposes `tuist_generation_version` from its linked project-generation event, which can differ from the uploading CLI. Missing observations are null, not inferred from the server or another report. Bazel uses its existing `bazel_version`; Once run details expose `once_version`. These fields describe reported versions, not verified identity or wire-contract versions. REST build endpoints expose the same metadata. Existing integration and flaky-test skills do not depend on version fields and need no workflow changes.
+
 Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
 <details>
