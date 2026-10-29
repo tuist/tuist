@@ -140,7 +140,7 @@ Once a line is stable, ship patches with the CLI-only **Backport Release** workf
 
 For the server and Kura, use **Server Backport Release** (`server-backport.yml`) or **Kura Backport Release** (`kura-backport.yml`). Promotion publishes an RC's `X.Y.0` only; it cannot patch an already-stable line.
 
-1. Start from the latest published stable component tag and open a surgical fix PR into its existing `releases/server-X.Y.x` or `releases/kura-X.Y.x` branch. Keep unrelated main changes out.
+1. Start from the latest published stable component tag on the selected `X.Y` line and open a surgical fix PR into its existing `releases/server-X.Y.x` or `releases/kura-X.Y.x` branch. A newer minor or major release does not prevent patching a maintained line. Keep unrelated main changes out.
 2. Review and merge the source PR. Fetch the remote release branch and qualify its **final merged tip**, including the component's supported platforms and TLS positive/negative controls. A passing pre-merge head is not qualification of a different squash or merge commit.
 3. With separate publication approval, dispatch the matching backport workflow **from main**, setting `source_sha` to that exact qualified merged tip and `base_tag` to the current stable tag, such as `server@X.Y.Z` or `kura@X.Y.Z`. The workflow derives `X.Y.(Z+1)`; operators do not choose a minor bump or promote canary contents.
 

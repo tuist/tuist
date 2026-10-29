@@ -143,7 +143,37 @@ class ServerPatchTests(unittest.TestCase):
             with self.subTest(environment=environment):
                 self.reject(env=environment)
 
+    def test_allows_maintained_line_after_newer_minor_and_major_releases(self):
+        major, minor, _ = map(int, self.stable.split("."))
+        self.git("switch", "main")
+        self.commit(f"{self.component}/code", "newer line\n")
+        self.git("tag", f"{self.component}@{major}.{minor + 1}.0")
+        self.git("tag", f"{self.component}@{major + 1}.0.0")
+        self.git("push", "origin", "--tags")
+        for environment in (
+            {},
+            {"APPROVED_BASE_SHA": self.base, "EXPECTED_VERSION": self.patch},
+        ):
+            with self.subTest(environment=environment):
+                result = self.invoke(env=environment)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    dict(
+                        line.split("=", 1)
+                        for line in self.output.read_text().splitlines()
+                    ),
+                    {
+                        "version": self.patch,
+                        "sha": self.source,
+                        "base_tag": self.tag,
+                        "base_sha": self.base,
+                        "branch": self.branch,
+                    },
+                )
+
     def test_rejects_newly_published_patch_without_relying_on_local_tags(self):
+        major, minor, _ = map(int, self.stable.split("."))
+        self.git("tag", f"{self.component}@{major}.{minor + 1}.0")
         self.git("tag", f"{self.component}@{self.patch}")
         self.git("push", "origin", "--tags")
         self.assertIn("latest published stable", self.reject())

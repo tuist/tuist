@@ -56,10 +56,11 @@ def main():
         (tuple(map(int, m.groups())), tag)
         for tag in tags
         if (m := re.fullmatch(component + "@" + semver, tag))
+        and tuple(map(int, m.groups()[:2])) == (major, minor)
     ]
     require(
         stable and max(stable)[1] == base,
-        "Base must be the latest published stable tag",
+        "Base must be the latest published stable tag on the selected release line",
     )
     require(
         f"{component}@{version}" not in tags,
