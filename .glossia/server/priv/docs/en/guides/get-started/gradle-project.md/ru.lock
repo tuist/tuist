@@ -1,12 +1,53 @@
 {
   "baseline_schema_version": 1,
-  "hash": "218f61bcfb9345ee2b8205ece6503cfc91845d227f2fdaa508ca962aefec7ab4",
+  "hash": "63def019c083d86dabab8f7fba98e8f1d77ee1a6efd3f68986eab8f563a9b4b9",
   "hash_tree": {
     "root": {
       "children": [
         {
           "children": [],
-          "hash": "15fc4e500ee24782bd5e23858b1736b5b1b5d61cdcab0e514d92d819bf12d039",
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Gradle project {#gradle-project}": {
+                  "content_hash": "a83c2a3d340ccb6f968426a909d699aa49df2ba53b95cc9c2c2e38d043968f20"
+                },
+                "## Bring the team along": {
+                  "content_hash": "0651a020f5aca5ef52069d3d50a2333edf3221e773abe8b994640a96a0d82657"
+                },
+                "## Build insights": {
+                  "content_hash": "1f197dbac69b84593745b17fc32976379ae3bafaf109044e9822ac03dc9e9c0f"
+                },
+                "## Bundle insights": {
+                  "content_hash": "3545986d5f06338f82ffcbcdbdf2819b81bd1a47b90d6b520d9eb4fb8f78e11c"
+                },
+                "## Connect the project": {
+                  "content_hash": "f557a214584c40f72c34d2b30aaa369fc182adcbe95f82fb2d75fdad7454f9cc"
+                },
+                "## Full plugin reference": {
+                  "content_hash": "5b896ee6fe6a0c73ac455544a1390a28b676d26f96be391add6c870ef822f96c"
+                },
+                "## Prerequisites": {
+                  "content_hash": "9d1a4a661bded4216bef465a256696805f00e353a7b71cd3301a8403bbcb206a"
+                },
+                "## Previews": {
+                  "content_hash": "2688ecb551d3c5c1cad70b5759df8b4c0a3f98d2071013ced8596b2192131b2e"
+                },
+                "## Remote build cache": {
+                  "content_hash": "188df66c8df99d52e03db6c31c161e12580ae70ab34b572f906995f69395865e"
+                },
+                "## Test insights": {
+                  "content_hash": "e4c0bcb86cd9b42cc2c2bac274ac2af75108fa1996cf94f1bc15652c9ae74c4a"
+                },
+                "Preamble": {
+                  "content_hash": "40367bb224b3003090a8c430bbce5c70c9eee32a4d6d890d1b2bc8dd2ffd876b"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "9e89d1455cc144cbe5eaf702036e5e5bd954fed052e3469b96a4807a61ed0520",
           "kind": "source",
           "label": "server/priv/docs/en/guides/get-started/gradle-project.md",
           "metadata": {
@@ -15,13 +56,21 @@
         },
         {
           "children": [],
-          "hash": "5d524e34954a0477c4a827107a8ac5566fb20388a62e2aae08f4276e5f23cb87",
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "9786290c0e23635ecda638522b48a87ba4e82b1561fcc08ec81b152f3d7b77de",
           "kind": "translation_config",
           "label": "generation",
           "metadata": {
             "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "format": "markdown",
-            "frontmatter_mode": "preserve",
+            "frontmatter_mode": "translate",
             "language": "Russian",
             "locale": "ru",
             "model": "",
@@ -31,34 +80,130 @@
             "retries": 3,
             "segmentation_version": 1,
             "source_language": "en",
-            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
           }
         },
         {
           "children": [
             {
               "children": [],
-              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
               }
             },
             {
               "children": [],
-              "hash": "c31cdb7b00bba909eafb6e173aedca530fa259befe90e3b61c1a90fdc4416d25",
+              "details": {
+                "content_hash": {
+                  "server/L10N/ru.md": {
+                    "content_hash": "6b95108ccc3f0561fd0baa74b19d36042627768e18d00466b411a26aec631992",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "809f7790b82a210b52aac663416221f899955f61f11ebd1f9f407018d6317413"
+                      },
+                      "## Russian-specific translation rules": {
+                        "content_hash": "1d80989e3db1fe4ea014830312aa518a027ef98b660b47dab0f8186666ebc492"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "03e8f92357bd42c2840b538e8db6643bcc4fe3e1a92d80e84872435f31e05253"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c3a059b5c05b024eeb6e14e43a4f18d82ce4b256e66040b87383147bff80417f",
               "kind": "context",
               "label": "locale",
               "metadata": {
-                "content_hash": "7dae77818c12659f202b5d729dc0917e6e533cfeac8fec4f704c34a97b4ee311"
+                "content_hash": "c14966d4fca075aebc13f54f40846a461c5a2fe8a69c3a7efd0def151ce0a282"
               }
             },
             {
               "children": [
                 {
                   "children": [],
-                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
                   "kind": "context",
                   "label": "voice",
                   "metadata": {
@@ -67,15 +212,32 @@
                 },
                 {
                   "children": [],
-                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "details": {
+                    "content_hash": {
+                      "entry:3a2da093921d236b394ec82ea1bb3d2ac8661d0f1f72a4a43b9294c2b8385a86": {
+                        "case_sensitive": false,
+                        "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
+                        "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
+                        "translation_hash": "0d7c98a54382d786e2570e790e2b74f33490f80e3eee7cf19464c3db7c8e5cd6"
+                      },
+                      "entry:3b51d63ccbd9cb0f30f7122a3b6e4e2de542eb64f8c66c336eeb30a2a5e68ee6": {
+                        "case_sensitive": false,
+                        "definition_hash": "5bfbcbe7115309c7054f4ae731dc8cd026280eceb239c69c75cadc7aa2512479",
+                        "term_hash": "c2af27b2919bbf3d9320486d2b9f21315d59ed40d6666f0eb9efef7db35f8855",
+                        "translation_hash": "fed3110d0058f029d9644577cfc55cea87579b5571689c2b679fee607ff013b4"
+                      }
+                    }
+                  },
+                  "hash": "d277aff24ba1dab7e065adf2845ecfd3afcd9f4da257ea6a8881bf2ebdea22f5",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                    "content_hash": "b6f68db24ae09466614eadd8a76e9f55e93c4cbb67ecbb96d9be154e0b4dd4d9"
                   }
                 }
               ],
-              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "details": {},
+              "hash": "545e691c2ee49e94c3892c5e450a65daaded889b1e907f26cd74df31217d1030",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -84,28 +246,33 @@
               }
             }
           ],
-          "hash": "56efe1d4318519ada9c110301979b281f5c3bcd5e74705d50fe91ea81e42ca30",
+          "details": {},
+          "hash": "c5cbebd548b7fc08ba7eecc8d05da17306f6933d195434e862099d3fe65d25f0",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
-      "hash": "218f61bcfb9345ee2b8205ece6503cfc91845d227f2fdaa508ca962aefec7ab4",
+      "details": {},
+      "hash": "63def019c083d86dabab8f7fba98e8f1d77ee1a6efd3f68986eab8f563a9b4b9",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/get-started/gradle-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "2d8ba52cd44459802a54412088fb9baa3befb77c1d8753bf71b68ddd7cf51108",
+  "output_hash": "4007480b63b77f62c7c8702d977bc77f28d251d09083576f4c6cab6ff3a2759a",
   "output_path": "server/priv/docs/ru/guides/get-started/gradle-project.md",
   "protection_state": "recorded",
   "provider": "",
   "server_context": {
     "compiler_version": 3,
     "glossary": {
-      "applied": [],
-      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "applied": [
+        "repo:flaky-tests",
+        "repo:tests"
+      ],
+      "content_hash": "b6f68db24ae09466614eadd8a76e9f55e93c4cbb67ecbb96d9be154e0b4dd4d9",
       "shadowed": [],
       "version": null
     },
@@ -115,8 +282,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "a341b43cd8ffe0d4f30bc492fbdde41215d99451",
+  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
   "source_path": "server/priv/docs/en/guides/get-started/gradle-project.md",
-  "translated_at": "2026-10-28T11:09:51.451538Z",
-  "translation_session_id": "01a18206-c5b9-7fa7-8475-f16a8b4263cd"
+  "translated_at": "2026-10-29T16:25:24.817634Z",
+  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
 }
