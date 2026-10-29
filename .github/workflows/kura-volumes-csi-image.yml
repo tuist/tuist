@@ -234,7 +234,7 @@ jobs:
             /tmp/kura-borrowed-driver.log
 
   fscrypt-experiment:
-    if: inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only != true
+    if: inputs.qualification_only != true && inputs.latency_only != true && inputs.metadata_only != true && github.repository == 'tuist/tuist' && inputs.fixture_images_only != true && github.event_name == 'workflow_dispatch' && inputs.borrowed_only != true
     # Independent storage-primitive experiment; no deployed driver change.
     runs-on: ubuntu-24.04
     timeout-minutes: 45

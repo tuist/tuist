@@ -41,6 +41,17 @@ with the repository's custom runner labels excluded. The production wrapper
 still has pre-existing action-output/ShellCheck diagnostics outside this change.
 No new staging or production deployment is represented by these local checks.
 
+The first [disposable Linux run](https://github.com/tuist/tuist/actions/runs/40890461619)
+at `9cab9acf1de` passed Linux unit tests and the complete 512 KiB stack. The
+64 KiB driver test stopped at its immediate post-TRIM assertion: actual mapped
+release was 703,201,280 bytes, below its 700 MiB threshold. CSI reported that
+smaller physical release and zero released commitment; it did not credit the
+logical trim size. The follow-up test retains the same threshold and original
+physical baseline while retrying observation/TRIM for at most 15 seconds. Both
+per-volume and pool decreases must satisfy it before B consumes reclaimed space.
+The first run also started an unrelated fscrypt experiment; it was cancelled
+after both thin jobs completed, and `qualification_only` now excludes it.
+
 ### Infrastructure rollout prerequisites
 
 1. Keep production/canary CSI installation, legacy root sync and tenant/regional

@@ -260,7 +260,20 @@ func TestThinRealStack(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if reclaim.ObservedRelease < 700<<20 || reclaim.CommitmentReleased != 0 {
+	// TRIM submission and dm-thin accounting need not settle in the same
+	// instant. Preserve the original physical baseline and wait boundedly for
+	// BOTH counters; neither command success nor reported trim bytes is credit.
+	beforeMapped, beforePool := reclaim.BeforeMapped, reclaim.BeforePoolUsed
+	released := reclaim.ObservedRelease
+	for deadline := time.Now().Add(15 * time.Second); released < 700<<20 && time.Now().Before(deadline); {
+		time.Sleep(200 * time.Millisecond)
+		reclaim, e = d.ReclaimThin(ctx, req(1))
+		if e != nil {
+			t.Fatal(e)
+		}
+		released = max(0, min(beforeMapped-reclaim.AfterMapped, beforePool-reclaim.AfterPoolUsed))
+	}
+	if released < 700<<20 || reclaim.CommitmentReleased != 0 {
 		t.Fatalf("wrong reclaimed accounting: %+v", reclaim)
 	}
 	beforeB := reclaim.AfterPoolUsed
@@ -269,7 +282,7 @@ func TestThinRealStack(t *testing.T) {
 	if reused.DataUsed < beforeB+700<<20 {
 		t.Fatal("B did not allocate reclaimed pool space")
 	}
-	t.Logf("A reclaimed=%d; B pool growth=%d", reclaim.ObservedRelease, reused.DataUsed-beforeB)
+	t.Logf("A cumulative physically verified reclaim=%d; B pool growth=%d", released, reused.DataUsed-beforeB)
 	grant := req(1)
 	grant.FloorBytes = 64 << 20
 	grant.GrantBytes = 64 << 20
