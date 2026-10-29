@@ -4,6 +4,7 @@ import Foundation
 #endif
 import Path
 import TuistCI
+import TuistHTTP
 import TuistProcess
 import TuistServer
 
@@ -170,7 +171,7 @@ struct CargoShardService {
         else {
             throw CargoReportError(message: "The nextest shard archive is not available.")
         }
-        let (file, response) = try await URLSession.shared.download(from: url)
+        let (file, response) = try await URLSession.tuistDefault.download(from: url)
         guard let response = response as? HTTPURLResponse, (200 ..< 300).contains(response.statusCode) else {
             throw CargoReportError(message: "Downloading the nextest shard archive failed.")
         }

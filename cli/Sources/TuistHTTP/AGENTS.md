@@ -17,6 +17,7 @@ This module provides HTTP client helpers used by server and cache integrations.
 ## Invariants
 - File transfers treat non-2xx responses as fatal errors.
 - Default URL session uses explicit request/resource timeouts.
+- Apple session factories always install the twelve-key SPKI deny policy after native trust/hostname evaluation. Filter blocked custom anchors and inspect the entire evaluated chain, preserving unrelated system/private roots. Direct Foundation callers use `tuistDefault` or `tuist(configuration:)`; never fall back to an unprotected session. Linux FoundationNetworking requires separate qualification. Local wire tests use OpenSSL 3 without changing host trust; public controls require `TEST_RUNNER_TUIST_TRUST_LIVE=1`.
 - `TuistURLSessionTransport` materializes the whole response body before returning, so every body a client middleware receives is re-iterable and a failed transfer is replayed from the start rather than resumed.
 - [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) retry behavior uses one shared policy with environment-configurable retry count and base delay, with bounded attempts and per-attempt delay.
 - Default proxy mode comes from runtime HTTP settings, and the shared session is resolved lazily, reused process-wide, and invalidated when those runtime settings change.
