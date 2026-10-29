@@ -9,6 +9,7 @@ defmodule AtlasWeb.NativeOrbitController do
   alias Atlas.Environments
   alias Atlas.Orbit
   alias Atlas.Orbit.Attachments
+  alias Atlas.Orbit.Classification
   alias Atlas.Orbit.Components
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Progress
@@ -26,17 +27,19 @@ defmodule AtlasWeb.NativeOrbitController do
   end
 
   def index(conn, params) do
-    case {page(params), Map.get(params, "kind"), Map.get(params, "status", "active")} do
-      {{:ok, page}, kind, status} when kind in [nil, "private", "shared"] and status in ["active", "archived"] ->
+    case {page(params), Map.get(params, "kind"), Map.get(params, "status", "active"), inbox_filters_valid?(params)} do
+      {{:ok, page}, kind, status, true} when kind in [nil, "private", "shared"] and status in ["active", "archived"] ->
         user = conn.assigns.current_user
-        {items, meta} = Orbit.list_for_user(user, page, kind, status)
+        {items, meta} = Orbit.list_for_user(user, page, kind, status, Map.take(params, ["query", "domain"]))
 
         json(conn, %{
           assistant: %{
             name: Orbit.agent_name(),
             configured: Orbit.agent_configured?(user),
             can_create_private: true,
-            environments: true
+            environments: true,
+            searchable: true,
+            domains: Classification.domains()
           },
           threads: Map.put(meta, :items, Enum.map(items, &thread/1))
         })
@@ -226,6 +229,7 @@ defmodule AtlasWeb.NativeOrbitController do
       summary: thread.summary || "",
       origin: thread.origin,
       priority: thread.priority,
+      domain: thread.domain,
       owner_id: thread.owner_id,
       model: thread.model,
       environment_id: thread.environment_id,
@@ -252,6 +256,7 @@ defmodule AtlasWeb.NativeOrbitController do
       id: message.id,
       kind: message.kind,
       body: message.body,
+      suggestions: message.suggestions,
       notice_kind: message.notice_kind,
       mentioned_user_ids: message.mentioned_user_ids,
       author_id: if(message.kind == "human", do: message.author_id),
@@ -274,6 +279,15 @@ defmodule AtlasWeb.NativeOrbitController do
   defp author_name(%Message{kind: "human"} = message), do: message.author_name
   defp author_name(%Message{kind: kind}) when kind in ["agent", "tool"], do: Orbit.agent_name()
   defp author_name(_message), do: ""
+
+  defp inbox_filters_valid?(params) do
+    query = Map.get(params, "query", "")
+    domain = Map.get(params, "domain", "")
+
+    Enum.all?(Map.keys(params), &(&1 in ~w(page kind status query domain))) and
+      is_binary(query) and byte_size(query) <= 200 and not Regex.match?(~r/[\p{Cc}]/u, query) and
+      (domain in ["", "unclassified"] or Classification.valid_domain?(domain))
+  end
 
   defp page(params) do
     case Map.get(params, "page", "1") do

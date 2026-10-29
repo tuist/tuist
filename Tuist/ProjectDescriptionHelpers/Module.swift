@@ -2097,6 +2097,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.git.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.logging.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.opener.targetName),

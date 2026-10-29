@@ -513,7 +513,11 @@ The agent:
   local clone of the head assigned at allocation), it offers that HEAD's clone as
   `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
   at a time), so the guest merges the job's images with it before publishing;
-  otherwise it answers no merge.
+  otherwise it answers no merge. While another job of the lineage on this host
+  has finished with a changed, clean data root that is not yet published, it
+  first waits up to two minutes for that publication, since HEAD moves only once
+  the upload completes. Jobs on other hosts, or ones still tearing down, can
+  still supersede it.
 
 An older local clone cannot publish without merging its assigned head: comparing
 only the allocation's base would allow a successful CAS to erase content absent

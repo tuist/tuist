@@ -172,7 +172,7 @@ root, or trimming externals from the image, breaks job containers
 From this directory:
 
 ```bash
-docker build --pull -t ghcr.io/tuist/tuist-linux-runner:dev .
+docker build --pull --build-context certificate-trust=../certificate-trust -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```
 
 `RUNNER_VERSION` is a `--build-arg` (default lives in the

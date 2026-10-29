@@ -1,5 +1,29 @@
 import SwiftUI
 
+struct AtlasThreadModelButton: View {
+    @ObservedObject var model: AtlasOrbit
+    let thread: AtlasThread
+    let enabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(model.models.first { $0.id == thread.model }?.name
+                    ?? thread.model?.replacingOccurrences(of: "chatgpt:", with: "") ?? "Automatic")
+                Image(systemName: "chevron.up.chevron.down").imageScale(.small)
+            }
+            .font(.subheadline).frame(minHeight: 44)
+            .padding(.horizontal, 12)
+            .background(.regularMaterial, in: Capsule())
+        }
+        .buttonStyle(.borderless).foregroundStyle(.secondary)
+        .accessibilityLabel("Model").accessibilityValue(thread.model ?? "Automatic")
+        .accessibilityIdentifier("thread-model")
+        .disabled(!enabled || ["queued", "running", "compacting"].contains(thread.agentStatus ?? ""))
+    }
+}
+
 struct AtlasThreadModelPicker: View {
     @ObservedObject var model: AtlasOrbit
     let threadId: String

@@ -126,6 +126,8 @@ defmodule AtlasWeb.Router do
     pipe_through [:api]
 
     get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
+    get "/openid-configuration", EnvironmentIdentityController, :discovery
+    get "/jwks.json", EnvironmentIdentityController, :jwks
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
   end
@@ -202,7 +204,7 @@ defmodule AtlasWeb.Router do
     pipe_through :native
 
     get "/orbit/models", NativeOrbitController, :models
-    get "/orbit/threads", NativeOrbitController, :index
+    get "/orbit/threads", NativeOrbitController, :index, log: false
     post "/orbit/threads", NativeOrbitController, :create
     post "/orbit/threads/private", NativeOrbitController, :private
     get "/orbit/threads/:thread_id/environment-commands", NativeEnvironmentCommandsController, :index

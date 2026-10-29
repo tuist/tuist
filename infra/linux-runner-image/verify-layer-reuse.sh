@@ -20,6 +20,7 @@ printf '\n# Layer-reuse regression probe.\n' >> "$work/context/dispatch-poll.sh"
 docker buildx create --name "$builder" --driver docker-container
 docker buildx build --builder "$builder" --platform linux/amd64 --progress plain \
   "${build_args[@]}" \
+  --build-context "certificate-trust=$source_dir/../certificate-trust" \
   --cache-from "type=local,src=$cache" \
   --output "type=oci,dest=$work/after.tar" "$work/context"
 tar -xf "$baseline" -C "$work/before"

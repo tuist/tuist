@@ -13,6 +13,7 @@ defmodule Atlas.Environments.Commands do
   alias Atlas.Environments
   alias Atlas.Environments.Command
   alias Atlas.Environments.Environment
+  alias Atlas.Environments.ProviderWorker
   alias Atlas.Orbit
   alias Atlas.Orbit.Access
   alias Atlas.Orbit.EnvironmentTools
@@ -65,7 +66,7 @@ defmodule Atlas.Environments.Commands do
 
     id = Ecto.UUID.generate()
     terminal = EnvironmentTools.terminal?(message.tool_name)
-    timeout = if terminal, do: 1_800, else: 60
+    timeout = execution_timeout(message.tool_name, environment)
 
     digest = digest({id, environment.id, environment.version, run.project_id, message.tool_name, arguments, timeout})
 
@@ -89,6 +90,11 @@ defmodule Atlas.Environments.Commands do
       })
 
     thread |> Ecto.Changeset.change(personal_environment_dispatched: true) |> Repo.update!()
+
+    if environment.provider != "native" do
+      %{environment_id: environment.id, command_id: command.id} |> ProviderWorker.new() |> Oban.insert!()
+    end
+
     audit(command, "queued", run.acting_user_id, "worker")
     command
   end
@@ -97,9 +103,13 @@ defmodule Atlas.Environments.Commands do
     if (EnvironmentTools.mutating?(tool) or EnvironmentTools.coding?(tool)) and not environment.terminal,
       do: Repo.rollback(:environment_terminal_disabled)
 
-    if EnvironmentTools.coding?(tool) and project["coding"] != true,
+    if EnvironmentTools.coding?(tool) and (environment.provider != "native" or project["coding"] != true),
       do: Repo.rollback(:environment_project_unavailable)
   end
+
+  defp execution_timeout(tool, %{provider: "native"}) when tool in @terminal, do: 1_800
+  defp execution_timeout(tool, _environment) when tool in @terminal, do: 600
+  defp execution_timeout(_tool, _environment), do: 60
 
   defp mutation_pending?(thread_id) do
     Repo.exists?(
@@ -304,7 +314,7 @@ defmodule Atlas.Environments.Commands do
       success: if(result, do: result["success"]),
       cancel_requested: command.cancel_requested,
       progress_sequence: command.progress_sequence,
-      execution_timeout_seconds: 1_800
+      execution_timeout_seconds: command.execution_timeout_seconds
     }
   end
 

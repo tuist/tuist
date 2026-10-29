@@ -38,17 +38,34 @@ defmodule Atlas.Orbit.EnvironmentToolsTest do
     assert Enum.all?(Tools.build(Repo.reload!(c.run)), &(not String.starts_with?(&1.name, "environment_")))
   end
 
-  test "terminal shares the native 8,000 UTF-8 byte limit without assuming an executor OS or sandbox", c do
+  test "legacy native terminal retains its byte limit and explicit execution authority", c do
     assert EnvironmentTools.valid_args?("environment_terminal", %{"command" => String.duplicate("é", 4_000)})
     refute EnvironmentTools.valid_args?("environment_terminal", %{"command" => String.duplicate("x", 8_001)})
     refute EnvironmentTools.valid_args?("environment_terminal", %{"command" => "pwd", "approved" => true})
     refute EnvironmentTools.valid_args?("environment_terminal", %{"command" => "pwd" <> <<0>>})
 
     terminal = Enum.find(EnvironmentTools.available(c.thread, c.run, nil), &(&1["name"] == "environment_terminal"))
-    assert terminal["description"] =~ "executor's OS and shell"
-    assert terminal["description"] =~ "not a folder sandbox"
+    assert terminal["description"] =~ "macOS user"
+    assert terminal["description"] =~ "without a folder sandbox"
     assert terminal["description"] =~ "no per-command approval"
     assert terminal["description"] =~ "promptly return"
+  end
+
+  test "hosted environments retain legacy tools and their Linux execution contract", c do
+    c.environment
+    |> Ecto.Changeset.change(
+      provider: "tuist",
+      provider_state: "ready",
+      projects: [%{"id" => c.project_id, "name" => "Workspace", "coding" => true}]
+    )
+    |> Repo.update!()
+
+    assert names(c) == ~w(environment_list_directory environment_read_file environment_terminal)
+    terminal = Enum.find(EnvironmentTools.available(c.thread, c.run, nil), &(&1["name"] == "environment_terminal"))
+    assert terminal["description"] =~ "Linux"
+    assert terminal["description"] =~ "/workspace"
+    assert terminal["description"] =~ "600 seconds"
+    refute terminal["description"] =~ "macOS"
   end
 
   test "coding requires an advertised Git project and terminal consent and never reaches children", c do

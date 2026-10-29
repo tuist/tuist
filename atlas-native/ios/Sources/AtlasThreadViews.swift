@@ -14,6 +14,7 @@ struct AtlasOrbitView: View {
     @State private var selfId: String?
     @State private var confirmingArchive: AtlasThread?
     @State private var showingThreadInfo = false
+    @State private var search = ""
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
     @Environment(\.atlasNavigation) private var workspaceNavigation
@@ -21,7 +22,6 @@ struct AtlasOrbitView: View {
     @Environment(\.atlasLiveActivity) private var liveActivity
     #elseif os(macOS)
     @Environment(\.atlasEnvironmentRequest) private var environmentRequest
-    @State private var showingEnvironment = false
     #endif
 
     init(recordID: String? = nil, revision: UUID? = nil, request: @escaping ([String: Any]) async throws -> Data,
@@ -108,14 +108,13 @@ struct AtlasOrbitView: View {
                 statusPicker.labelsHidden().frame(width: 170)
             }
             ToolbarItem(id: "orbit-create", placement: .primaryAction) { composeButton }
+            ToolbarItem(placement: .primaryAction) { AtlasOrbitDomainFilter(model: model) }
             ToolbarItem(id: "orbit-environment", placement: .primaryAction) {
-                Button("Tool environment", systemImage: "desktopcomputer") { showingEnvironment.toggle() }
-                    .disabled(desktopThread?.kind != "private" || environmentRequest == nil)
-                    .popover(isPresented: $showingEnvironment) {
-                        if let thread = desktopThread, let environmentRequest {
-                            AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
-                        }
-                    }
+                if let thread = desktopThread, thread.kind == "private", thread.status == "active", let environmentRequest {
+                    AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
+                } else {
+                    Button("Tool environment", systemImage: "desktopcomputer") {}.disabled(true)
+                }
             }
             ToolbarItem(id: "thread-info", placement: .primaryAction) {
                 Button("Thread details", systemImage: "info.circle") { showingThreadInfo = true }
@@ -145,20 +144,32 @@ struct AtlasOrbitView: View {
             List { inboxRows }.listStyle(.plain)
             #endif
         }
+        #if os(iOS)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            statusPicker.padding(.horizontal, 16).padding(.vertical, 8)
+        }
+        #endif
         .modifier(AtlasThemedContent())
         .overlay {
             if model.loading, model.assistant == nil { ProgressView("Loading threads") }
         }
         .defaultScrollAnchor(.top)
+        .searchable(text: $search, prompt: "Search titles and summaries")
+        .task(id: search) {
+            guard model.assistant?.searchable == true, !model.cached, search != model.query else { return }
+            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+            await model.load(query: search)
+        }
         #if os(iOS)
         .navigationTitle("Orbit")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            ToolbarItem(placement: .primaryAction) { AtlasOrbitDomainFilter(model: model) }
             ToolbarItem(placement: .primaryAction) { composeButton }
         }
         #endif
         .refreshable { await model.load() }
-        .onAppear { presence?.show() }
+        .onAppear { presence?.show(); search = model.query }
     }
 
     private var composeButton: some View {
@@ -175,13 +186,6 @@ struct AtlasOrbitView: View {
 
 extension AtlasOrbitView {
     @ViewBuilder private var inboxRows: some View {
-        #if os(iOS)
-        Section {
-            statusPicker
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-        }
-        #endif
         if model.cached, model.errorMessage != nil, linkedThreadID == nil {
             HStack {
                 Text("Couldn’t refresh").foregroundStyle(.secondary)
@@ -218,9 +222,12 @@ extension AtlasOrbitView {
             .textCase(nil)
         }
         if model.threads.isEmpty, !model.loading, model.assistant != nil {
-            ContentUnavailableView(model.statusFilter == "archived" ? "No archived conversations" : "Your conversations with Pip",
+            ContentUnavailableView(!model.query.isEmpty || !model.domainFilter.isEmpty ? "No matching conversations"
+                                       : model.statusFilter == "archived" ? "No archived conversations" : "Your conversations with Pip",
                                    systemImage: model.statusFilter == "archived" ? "archivebox" : "bubble.left.and.bubble.right",
-                                   description: Text(model.statusFilter == "archived"
+                                   description: Text(!model.query.isEmpty || !model.domainFilter.isEmpty
+                                       ? "Try another search or choose All domains."
+                                       : model.statusFilter == "archived"
                                        ? "Archived conversations stay here until you restore them."
                                        : "Start a conversation using the compose button above."))
                 .listRowBackground(Color.clear)
@@ -290,7 +297,7 @@ extension AtlasOrbitView {
             #if os(macOS)
             AtlasDesktopConversationRow(thread: thread)
             #else
-            NavigationLink(value: thread) { AtlasMobileConversationRow(thread: thread) }
+            NavigationLink(value: thread) { AtlasMobileConversationRow(thread: thread, domainTitle: model.domainTitle(thread.domain)) }
             #endif
         }
         #if os(macOS)
@@ -298,6 +305,7 @@ extension AtlasOrbitView {
         .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
         .listRowSeparator(.hidden)
         #else
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         .listRowBackground(Color.clear)
         #endif
         .accessibilityIdentifier("thread-\(thread.id)")

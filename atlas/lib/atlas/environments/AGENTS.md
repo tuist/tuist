@@ -1,6 +1,10 @@
 # Personal execution environments
 
-`Atlas.Environments` registers opt-in owner-private execution environments. Models,
+`Atlas.Environments` registers opt-in owner-private native installations and
+deployment-configured hosted providers. The hosted contract, Tuist OIDC setup,
+generation fencing and retention are in [environment providers](../../../docs/environment-providers.md).
+Hosted commands use the same ledger and privacy boundaries; terminal execution is
+limited to 600 seconds, with no native credentials installed. Models,
 model-provider credentials, sessions, checkpoints and orchestration remain on the
 server. Executors receive only explicit environment tool calls and own repository
 discovery, per-thread workspace preparation, OS/shell selection and execution.
@@ -19,8 +23,10 @@ and delivery adapter; they must not bypass the current native OAuth gate or reus
 another installation's credentials. HTTP polling, claim, progress and result are
 sufficient for delivery; sockets only reduce latency. Provisioning, credentials,
 filesystem roots and sandbox policy belong to the adapter, not model arguments.
-No remote provider or provisioning service is implemented yet. Selection freezes
-on the run; an offline or unknown executor never fails over to another provider.
+Selection freezes on the run; an offline or unknown executor never fails over to
+another provider. Hosted selection uses exactly `{provider: configured_id}` and
+queues lifecycle work; switching away or archiving queues a pause. Native IDs
+cannot select hosted rows, which use an inaccessible synthetic OAuth binding.
 
 Registration accepts names and opaque project UUIDs, never local absolute paths.
 Git projects may advertise `coding: true` and an optional canonical GitHub
@@ -30,8 +36,8 @@ grant, limited to the intersection of App and user access. Conversation reposito
 overrides clear executor selection; explicit checkout selection must match the
 advertised identity. Defaults copy only to new private threads, not creation
 replays or existing runs. Repository metadata never grants execution consent,
-clones code or picks/fails over to a machine. Older two-field selection requests
-clear repository metadata and retain their original behavior.
+clones code or picks/fails over to a machine. Older two-field native selection
+and provider-only selection clear repository metadata and retain their original behavior.
 With terminal consent these offer
 Pi-style `read`, `bash`, `edit`, and `write`; older projects retain the three legacy
 tools. Coding arguments include server-frozen thread UUID/title, never a root
@@ -51,8 +57,9 @@ a durable queued ticket immediately, without changing Orbit's run/turn
 ceilings. The per-environment terminal opt-in authorizes dispatch;
 claim accepts only the digest. Digest binds the command
 ID, environment ID/version, frozen project, arguments and execution timeout.
-Dispatch expires ten minutes after first reservation. Claim starts a fixed
-1,800-second execution deadline plus a separate five-minute result-delivery grace.
+Terminal dispatch expires ten minutes after first reservation. Claim starts a fixed
+1,800-second native or 600-second hosted execution deadline plus a separate
+five-minute result-delivery grace.
 Progress is encrypted, monotonic and bounded to 48 KiB, never a lease extension.
 Claimed commands never become dispatchable again. One active or unknown terminal
 job per thread is enforced under the thread lock, across runs and selections.

@@ -7,6 +7,8 @@ repo=$(cd "$native/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 export FIXTURE_ROOT="$tmp" FIXTURE_LOG="$tmp/events" FIXTURE_FAIL=''
+export FIXTURE_SECRET
+FIXTURE_SECRET="fixture-private-value-$(uuidgen)"
 mkdir -p "$tmp/bin" "$tmp/sdk/bin"
 export PATH="$tmp/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 bash "$scripts/test-push.sh" --fixture "$tmp/profile-fixture"
@@ -25,6 +27,8 @@ case "$1" in
     --sdk) echo 26.0 ;;
     swift-stdlib-tool) : ;;
     notarytool)
+        echo "$FIXTURE_SECRET" >&2
+        [[ "$FIXTURE_FAIL" != notary-error ]] || exit 1
         if [[ "$FIXTURE_FAIL" = notary ]]; then echo '{"status":"Invalid"}'; else echo '{"status":"Accepted"}'; fi ;;
     stapler)
         [[ "$FIXTURE_FAIL" != staple ]] || exit 1
@@ -41,16 +45,23 @@ cat > "$tmp/bin/op" <<'BASH'
 set -euo pipefail
 [[ $1 = read && $2 = op://tuist/* ]] || exit 90
 echo "op $2" >> "$FIXTURE_LOG"
+echo "$FIXTURE_SECRET" >&2
 [[ "$FIXTURE_FAIL" != vault ]] || exit 1
 if [[ $2 = 'op://tuist/Atlas macOS Developer ID/Atlas_macOS_Developer_ID.provisionprofile' ]]; then
     [[ "$FIXTURE_FAIL" != missing-profile ]] || exit 1
     cp "$FIXTURE_PROFILE" "$4"
-elif [[ $# = 4 && $3 = --out-file ]]; then echo fixture > "$4"; else echo fixture-only-not-a-secret; fi
+elif [[ $# = 4 && $3 = --out-file ]]; then echo fixture > "$4"; fi
+echo "$FIXTURE_SECRET"
 BASH
 cat > "$tmp/bin/security" <<'BASH'
 #!/bin/bash
 set -euo pipefail
 echo "security $*" >> "$FIXTURE_LOG"
+case "$1" in
+    create-keychain|unlock-keychain|import|set-key-partition-list|delete-keychain)
+        echo "$FIXTURE_SECRET"
+        echo "$FIXTURE_SECRET" >&2 ;;
+esac
 case "$1" in
     cms) [[ "$FIXTURE_FAIL" != cms ]] || exit 1; cat "$4" ;;
     list-keychains)
@@ -67,7 +78,9 @@ case "$1" in
         identity=$FIXTURE_IDENTITY
         if [[ "$FIXTURE_FAIL" = mismatched-identity ]]; then identity=0000000000000000000000000000000000000000; fi
         printf '  1) %s "Developer ID Application: Tuist GmbH (U6LC622NKF)"\n' "$identity" ;;
-    set-keychain-settings|unlock-keychain|set-key-partition-list) : ;;
+    unlock-keychain) [[ "$FIXTURE_FAIL" != unlock ]] ;;
+    set-key-partition-list) [[ "$FIXTURE_FAIL" != partition ]] ;;
+    set-keychain-settings) : ;;
     *) echo 'Unexpected security command (including default-keychain mutation)' >&2; exit 90 ;;
 esac
 BASH
@@ -84,10 +97,10 @@ if [[ $1 = --force ]]; then
     done
 elif [[ $1 = --display ]]; then
     case "$2" in
-        --extract-certificates)
+        --extract-certificates=*)
             certificate=good
             if [[ "$FIXTURE_FAIL" = signed-certificate ]]; then certificate=other; fi
-            cp "$FIXTURE_ROOT/profile-fixture/$certificate.der" "${3}0" ;;
+            cp "$FIXTURE_ROOT/profile-fixture/$certificate.der" "${2#*=}0" ;;
         --verbose=4)
             team=U6LC622NKF
             if [[ "$FIXTURE_FAIL" = signed-team ]]; then team=XXXXXXXXXX; fi
@@ -110,7 +123,10 @@ BASH
 cat > "$tmp/sdk/bin/generate_appcast" <<'BASH'
 #!/bin/bash
 set -euo pipefail
-cat >/dev/null
+key=$(cat)
+printf '%s\n' "$key"
+printf '%s\n' "$key" >&2
+[[ "$FIXTURE_FAIL" != generator ]] || exit 1
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --download-url-prefix) prefix=$2; shift 2 ;;
@@ -139,8 +155,19 @@ BASH
 chmod +x "$tmp/bin/"* "$tmp/sdk/bin/generate_appcast"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
+assert_private_output() {
+    ! grep -Fq "$FIXTURE_SECRET" "$1" || fail 'Public output exposed a vault credential'
+    while IFS= read -r password; do
+        ! grep -Fq "$password" "$1" || fail 'Public output exposed the generated keychain password'
+    done < <(sed -n 's/^security create-keychain -p \([^ ]*\) .*/\1/p' "$FIXTURE_LOG")
+}
+run_private() {
+    if ! "$@" > "$tmp/public.log" 2>&1; then fail 'Signing command failed (private output withheld)'; fi
+    assert_private_output "$tmp/public.log"
+}
 reject() {
     if "$@" > "$tmp/rejection.log" 2>&1; then fail "Unexpected acceptance: $*"; fi
+    assert_private_output "$tmp/rejection.log"
 }
 reset_events() {
     : > "$FIXTURE_LOG"
@@ -171,6 +198,7 @@ ln -s Versions/Current/Resources "$framework/Resources"
 echo resource > "$flat/asset.txt"
 bash "$scripts/prepare.sh" "$flat" "$tmp/prepared/Atlas.app"
 app="$tmp/prepared/Atlas.app"
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = dev.tuist.atlas ]] || fail 'Production must share the iOS bundle identifier'
 [[ -f "$flat/Atlas" && -f "$flat/Info.plist" && -f "$app/Contents/Resources/asset.txt" ]] || fail 'Preparation mutated Once or lost resources'
 cmp "$flat/Atlas.icns" "$app/Contents/Resources/Atlas.icns" || fail 'Preparation lost the Atlas icon'
 grep -q -- '--sign - --timestamp=none --options 0' "$FIXTURE_LOG" || fail 'Local ad-hoc signing must clear hardened library validation'
@@ -213,7 +241,7 @@ reject bash "$scripts/validate.sh" "$app"
 mv "$tmp/Autoupdate" "$app/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
 
 reset_events
-bash "$scripts/bundle.sh" "$app" "$tmp/release" 1800000000
+run_private bash -xv "$scripts/bundle.sh" "$app" "$tmp/release" 1800000000
 check_cleanup
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")" = 1 ]] || fail 'Source version was changed'
 ditto -x -k "$tmp/release/Atlas-macos.zip" "$tmp/unzipped"
@@ -237,15 +265,15 @@ bash "$scripts/prepare-app.sh" "$tmp/unzipped/Atlas.app" "$tmp/re-ad-hoc/Atlas.a
 [[ ! -e "$tmp/re-ad-hoc/Atlas.app/Contents/embedded.provisionprofile" ]] || fail 'Ad-hoc preparation retained the distribution profile'
 ! /usr/libexec/PlistBuddy -c 'Print :AtlasPushEnvironment' "$tmp/re-ad-hoc/Atlas.app/Contents/Info.plist" >/dev/null 2>&1 || fail 'Ad-hoc preparation retained push metadata'
 
-for stage in import identity mismatched-identity sign signed-certificate signed-team signed-environment signed-extra notary staple; do
+for stage in unlock import partition identity mismatched-identity sign signed-certificate signed-team signed-environment signed-extra notary notary-error staple; do
     reset_events
-    reject env FIXTURE_FAIL="$stage" bash "$scripts/bundle.sh" "$app" "$tmp/rejected-$stage" 1800000000
+    reject env FIXTURE_FAIL="$stage" bash -xv "$scripts/bundle.sh" "$app" "$tmp/rejected-$stage" 1800000000
     check_cleanup
     [[ ! -e "$tmp/rejected-$stage/Atlas-macos.zip" ]] || fail "Failure $stage produced a release archive"
 done
 for stage in missing-profile cms; do
     reset_events
-    reject env FIXTURE_FAIL="$stage" bash "$scripts/bundle.sh" "$app" "$tmp/rejected-$stage" 1800000000
+    reject env FIXTURE_FAIL="$stage" bash -xv "$scripts/bundle.sh" "$app" "$tmp/rejected-$stage" 1800000000
     ! grep -q 'Developer ID Application Certificate' "$FIXTURE_LOG" || fail 'Bad profile caused a private certificate read'
     ! grep -q 'create-keychain' "$FIXTURE_LOG" || fail 'Bad profile created a keychain'
     cmp "$tmp/search-list" "$tmp/original-search-list" || fail 'Profile failure mutated keychains'
@@ -264,10 +292,10 @@ cp "$FIXTURE_PROFILE" "$tmp/multiple-certificates.plist"
 plutil -insert DeveloperCertificates.0 -data "$(base64 < "$tmp/profile-fixture/other.der")" "$tmp/multiple-certificates.plist"
 plutil -insert DeveloperCertificates.1 -data "$(base64 < "$tmp/profile-fixture/good.der")" "$tmp/multiple-certificates.plist"
 reset_events
-env FIXTURE_PROFILE="$tmp/multiple-certificates.plist" bash "$scripts/bundle.sh" "$app" "$tmp/multiple-certificate-release" 1800000001
+run_private env FIXTURE_PROFILE="$tmp/multiple-certificates.plist" bash -xv "$scripts/bundle.sh" "$app" "$tmp/multiple-certificate-release" 1800000001
 check_cleanup
 reset_events
-bash "$scripts/appcast.sh" "$tmp/sdk" "$tmp/release" 1800000000 "$tmp/feed.xml"
+run_private bash -xv "$scripts/appcast.sh" "$tmp/sdk" "$tmp/release" 1800000000 "$tmp/feed.xml"
 [[ -f "$tmp/release/Atlas-macos.zip" && -f "$tmp/feed.xml" ]] || fail 'Appcast generation moved the release archive'
 (cd "$tmp/release" && shasum -a 256 --check SHASUMS256.txt)
 reset_events
@@ -285,8 +313,8 @@ printf '<invalid' > "$tmp/malformed-feed.xml"
 reject bash "$scripts/appcast.sh" "$tmp/sdk" "$tmp/release" 1800000001 "$tmp/malformed.xml" "$tmp/malformed-feed.xml"
 [[ ! -s "$FIXTURE_LOG" ]] || fail 'Rejected previous feed caused a signing-key read'
 reject bash "$scripts/appcast.sh" "$tmp/sdk" "$tmp/release" 1800000001 "$tmp/feed.xml"
-for invalid in signature malformed-signature length version url duplicate vault; do
-    reject env FIXTURE_FAIL="$invalid" bash "$scripts/appcast.sh" "$tmp/sdk" "$tmp/release" 1800000001 "$tmp/invalid-$invalid.xml"
+for invalid in signature malformed-signature length version url duplicate vault generator; do
+    reject env FIXTURE_FAIL="$invalid" bash -xv "$scripts/appcast.sh" "$tmp/sdk" "$tmp/release" 1800000001 "$tmp/invalid-$invalid.xml"
     [[ ! -f "$tmp/invalid-$invalid.xml" ]] || fail "Invalid $invalid feed was accepted"
 done
 

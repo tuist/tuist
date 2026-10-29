@@ -8,6 +8,9 @@ defmodule AtlasWeb.OrbitLiveTest do
   alias Atlas.Environments
   alias Atlas.Environments.Command
   alias Atlas.Environments.Commands
+  alias Atlas.Environments.Environment
+  alias Atlas.Environments.Provider
+  alias Atlas.Environments.Tuist
   alias Atlas.Integrations.GitHubAPI
   alias Atlas.Orbit
 
@@ -88,6 +91,37 @@ defmodule AtlasWeb.OrbitLiveTest do
     refute has_element?(view, "#orbit-composer")
     refute has_element?(view, "#orbit-jobs")
     refute has_element?(view, "#orbit-project")
+  end
+
+  test "hosted choices start through the provider route, reconcile state, and pause on native selection", %{conn: conn} do
+    c = environment_fixture()
+    Atlas.Repo.delete!(c.run)
+    conn = Plug.Test.init_test_session(conn, %{"user_id" => c.user.id})
+    stub(Provider, :configurations, fn -> %{"tuist" => %{module: Tuist, name: "Tuist"}} end)
+    {:ok, view, _} = live(conn, ~p"/orbit/#{c.thread.id}")
+    view |> form("#orbit-composer", message: %{body: "Keep this hosted draft"}) |> render_change()
+    view |> form("#orbit-project-form", selection: %{project: "_provider:tuist"}) |> render_change()
+    render_async(view)
+    assert {:ok, hosted} = Orbit.fetch(c.user, c.thread.id)
+    environment = Atlas.Repo.get!(Environment, hosted.environment_id)
+    assert environment.provider == "tuist"
+    assert has_element?(view, "#orbit-project option[value='_provider:tuist'][selected]", "starting")
+    refute has_element?(view, "#orbit-project option[value='#{environment.id}:#{hosted.project_id}']")
+
+    environment |> Ecto.Changeset.change(provider_state: "ready") |> Atlas.Repo.update!()
+    send(view.pid, :reconcile)
+    assert has_element?(view, "#orbit-project option[value='_provider:tuist'][selected]", "ready")
+    assert has_element?(view, "#orbit-body", "Keep this hosted draft")
+
+    view
+    |> form("#orbit-project-form", selection: %{project: "#{c.environment.id}:#{c.project_id}"})
+    |> render_change()
+
+    render_async(view)
+    assert {:ok, %{environment_id: id}} = Orbit.fetch(c.user, c.thread.id)
+    assert id == c.environment.id
+    assert Atlas.Repo.reload!(environment).provider_state == "stopping"
+    assert has_element?(view, "#orbit-body", "Keep this hosted draft")
   end
 
   test "creates distinct private threads and preserves per-thread drafts across selection and reconciliation", %{

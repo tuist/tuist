@@ -16,6 +16,8 @@ defmodule Atlas.Environments do
   alias Atlas.Audit
   alias Atlas.CodingRepositories
   alias Atlas.Environments.Environment
+  alias Atlas.Environments.Provider
+  alias Atlas.Environments.ProviderWorker
   alias Atlas.Orbit
   alias Atlas.Orbit.Access
   alias Atlas.Orbit.Thread
@@ -27,13 +29,18 @@ defmodule Atlas.Environments do
   def list(user) do
     %{
       owner_id: user.id,
+      providers: Provider.catalog(),
       environments: Enum.map(Repo.all(from e in Environment, where: e.owner_id == ^user.id), &serialize/1)
     }
   end
 
   def serialize(environment) do
-    Map.take(environment, [:id, :name, :enabled, :terminal, :display, :projects])
+    Map.take(environment, [:id, :name, :enabled, :terminal, :display, :projects, :provider, :provider_state])
     |> Map.put(:online, online?(environment))
+  end
+
+  def online?(%Environment{provider: provider} = environment) when provider != "native" do
+    environment.enabled and environment.provider_state == "ready" and match?({:ok, _}, Provider.fetch(provider))
   end
 
   def online?(environment) do
@@ -50,8 +57,9 @@ defmodule Atlas.Environments do
         Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["personal_environment:" <> id])
         existing = Repo.one(from e in Environment, where: e.id == ^id, lock: "FOR UPDATE")
 
-        if existing && (existing.owner_id != user.id or existing.oauth_client_id != client_id),
-          do: Repo.rollback(:not_found)
+        if existing &&
+             (existing.provider != "native" or existing.owner_id != user.id or existing.oauth_client_id != client_id),
+           do: Repo.rollback(:not_found)
 
         if is_nil(existing) && Repo.aggregate(from(e in Environment, where: e.owner_id == ^user.id), :count) >= 32,
           do: Repo.rollback(:environment_limit)
@@ -145,18 +153,18 @@ defmodule Atlas.Environments do
 
   def select(user, thread_id, params) do
     with {:ok, thread_id} <- uuid(thread_id),
-         {:ok, environment_id, project_id} <- selection_ids(params),
+         {:ok, selection} <- selection_ids(params),
          {:ok, repository} <- selection_repository(user, thread_id, params["repository"]) do
       Repo.transaction(fn ->
         thread = Repo.one(from t in Thread, where: t.id == ^thread_id, lock: "FOR UPDATE") || Repo.rollback(:not_found)
-        if not Access.can_read?(thread, user), do: Repo.rollback(:not_found)
+        authorize_selection!(user, thread)
 
-        case selection_allowed(thread, user) do
-          :ok -> :ok
-          {:error, reason} -> Repo.rollback(reason)
+        {environment, project_id} = select_environment!(user, thread, selection, repository)
+        environment_id = environment && environment.id
+
+        if thread.environment_id && thread.environment_id != environment_id do
+          stop_hosted!(thread.environment_id)
         end
-
-        environment = selected_environment!(user.id, environment_id, project_id, repository)
 
         thread
         |> Ecto.Changeset.change(
@@ -189,6 +197,21 @@ defmodule Atlas.Environments do
     end
   end
 
+  defp authorize_selection!(user, thread) do
+    if not Access.can_read?(thread, user), do: Repo.rollback(:not_found)
+
+    case selection_allowed(thread, user) do
+      :ok -> :ok
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp selection_ids(%{"provider" => provider} = params) do
+    if exact_keys?(params, ["provider"]) and is_binary(provider) and match?({:ok, _}, Provider.fetch(provider)),
+      do: {:ok, {:provider, provider}},
+      else: {:error, :invalid_params}
+  end
+
   defp selection_ids(params) do
     with true <-
            exact_keys?(params, ~w(environment_id project_id)) or
@@ -196,21 +219,10 @@ defmodule Atlas.Environments do
          {:ok, environment_id} <- nullable_uuid(params["environment_id"]),
          {:ok, project_id} <- nullable_uuid(params["project_id"]),
          true <- not is_nil(environment_id) or is_nil(project_id) do
-      {:ok, environment_id, project_id}
+      {:ok, {:native, environment_id, project_id}}
     else
       _ -> {:error, :invalid_params}
     end
-  end
-
-  defp selected_environment!(_owner, nil, _project, _repository), do: nil
-
-  defp selected_environment!(owner, id, project, repository) do
-    environment = owned_enabled!(owner, id, project)
-
-    if repository && not Enum.any?(environment.projects, &(&1["id"] == project and &1["repository"] == repository)),
-      do: Repo.rollback(:environment_repository_mismatch)
-
-    environment
   end
 
   defp selection_repository(_user, _thread_id, nil), do: {:ok, nil}
@@ -231,6 +243,80 @@ defmodule Atlas.Environments do
       Orbit.active_run(thread) -> {:error, :environment_run_active}
       true -> :ok
     end
+  end
+
+  defp select_environment!(user, thread, {:provider, provider}, _repository) do
+    {:ok, config} = Provider.fetch(provider)
+    Repo.one!(from u in User, where: u.id == ^user.id, lock: "FOR NO KEY UPDATE")
+
+    existing =
+      Repo.one(
+        from e in Environment,
+          where: e.owner_id == ^user.id and e.managed_thread_id == ^thread.id and e.provider == ^provider,
+          lock: "FOR UPDATE"
+      )
+
+    if is_nil(existing) and Repo.aggregate(from(e in Environment, where: e.owner_id == ^user.id), :count) >= 32,
+      do: Repo.rollback(:environment_limit)
+
+    environment =
+      existing ||
+        %Environment{
+          id: Ecto.UUID.generate(),
+          owner_id: user.id,
+          oauth_client_id: Ecto.UUID.generate(),
+          provider: provider,
+          managed_thread_id: thread.id,
+          name: config.name,
+          projects: [%{"id" => Ecto.UUID.generate(), "name" => "Workspace"}]
+        }
+
+    environment =
+      environment
+      |> Ecto.Changeset.change(
+        enabled: true,
+        terminal: true,
+        provider_state: "starting",
+        version: environment.version + 1
+      )
+      |> Repo.insert_or_update!()
+      |> tap(&enqueue_lifecycle!/1)
+
+    {environment, hd(environment.projects)["id"]}
+  end
+
+  defp select_environment!(_user, _thread, {:native, nil, nil}, _repository), do: {nil, nil}
+
+  defp select_environment!(user, _thread, {:native, id, project_id}, repository) do
+    environment = owned_enabled!(user.id, id, project_id)
+
+    if environment.provider != "native",
+      do: Repo.rollback(:environment_disabled)
+
+    if repository &&
+         not Enum.any?(environment.projects, &(&1["id"] == project_id and &1["repository"] == repository)),
+       do: Repo.rollback(:environment_repository_mismatch)
+
+    {environment, project_id}
+  end
+
+  def stop_hosted!(id) do
+    case Repo.one(from e in Environment, where: e.id == ^id, lock: "FOR UPDATE") do
+      %Environment{provider: provider, enabled: true} = environment when provider != "native" ->
+        environment
+        |> Ecto.Changeset.change(enabled: false, provider_state: "stopping", version: environment.version + 1)
+        |> Repo.update!()
+        |> tap(&enqueue_lifecycle!/1)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp enqueue_lifecycle!(environment) do
+    %{environment_id: environment.id}
+    |> ProviderWorker.new()
+    |> Oban.insert!()
   end
 
   def owned_enabled!(owner_id, id, project_id) do

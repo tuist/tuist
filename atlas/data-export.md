@@ -2,6 +2,33 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Native device-only read projections
+
+iOS/macOS retain bounded, disposable copies of authorized Orbit inbox/history,
+Tasks/Accounts/Finance lists and details, caller Profile, Time off, provider and
+connection metadata, and payload-free Automation metadata. The app-private,
+backup-excluded `Atlas/ReadCache/reads.sqlite3` stores these projections for up to
+seven days (32 entries, 1 MiB per entry), keyed by canonical origin and a random
+credential-lifetime namespace plus resource/query. This is file-protected storage,
+not application-level encrypted SQLite. Android currently retains only its inbox.
+
+The copies include existing record IDs/display fields, personal profile description,
+holiday dates/status, provider account names and scopes, and up to 25 non-tool
+messages from the latest history page with author/mention and attachment metadata.
+Tool evidence/components, file bytes, OAuth/provider credentials, pending grants,
+drafts, Automation schemas/reviewed revisions/approval payloads or digests/inputs/results,
+and live presence are excluded. Saved data cannot authorize writes, invitations,
+attachment downloads, inference or approval decisions. Protected refresh revalidates
+access; transient failures retain display data. Access rejection and logout delete
+projections, and mutation/logout generation fences reject late cache writes. An
+offline device cannot discover remote revocation until reconnect or expiry.
+
+These derivatives are never uploaded and cannot be retrieved through a server export.
+Export their original user, business, booking, connection, Orbit and Automation records
+using the source-table procedures below and in [the shared export inventory](../server/data-export.md#atlas-native-local-read-cache).
+Uninstall/app-data removal deletes the local database; retiring a credential namespace
+prevents its reuse. No new server table, S3 path or independent export collection is added.
+
 ## Personal GitHub, Slack and Google connections
 
 `user_connections` stores one personal OAuth grant per Atlas `user_id` and provider (`github`, `slack`, `google`). It references `users.id` with cascade deletion. Fields include provider user ID, display/account name, optional Slack workspace ID, granted scopes, token expiry, needs-authorization flag, and creation/update timestamps. Access and refresh tokens use Atlas's Cloak encrypted binary type and are redacted from struct inspection. These grants are separate from Google sign-in, workspace integrations and personal AI accounts. No real grants or tokens are seeded.
@@ -191,7 +218,7 @@ For a verified data request, select connection rows by the requesting user's `us
 
 `users.time_off_location_id` references the employee's public-holiday calendar, currently defaulted to Berlin. It is a calendar assignment, not a verified physical address. `time_off_locations` stores shared calendar names, country/subdivision codes, imported years, and timestamps. `time_off_holidays` stores calendar references, holiday names/dates, manual/provider provenance, and timestamps.
 
-`time_off_bookings` belongs to a user and snapshots their calendar. It stores inclusive first/last dates, pending/approved/rejected/cancelled status, cancellation time, reviewer identity/time, and creation/update timestamps. There are no medical reasons, free-text leave reasons, allowances, or external employee identifiers. Native apps use the same authenticated owner-scoped records; there is no additional mobile database or calendar synchronization. Native request drafts and loaded history are held in memory for the signed-in session, not written to device preferences.
+`time_off_bookings` belongs to a user and snapshots their calendar. It stores inclusive first/last dates, pending/approved/rejected/cancelled status, cancellation time, reviewer identity/time, and creation/update timestamps. There are no medical reasons, free-text leave reasons, allowances, or external employee identifiers. Native apps use the same authenticated owner-scoped records without calendar synchronization. Request drafts remain in memory; iOS/macOS additionally retain the read-only projection described above, not write authority.
 
 Requests remain in history after cancellation or rejection and have no automatic expiry. Deleting a user cascades their bookings; shared calendars/public holidays remain. Reviewers deleted later are cleared from the reference. Domain audit events retain actor, interface, dashboard path, target, and relevant transition metadata, including previous dates and reviewer metadata on edits. Audits follow Atlas's existing retention policy and can outlive the booking.
 
@@ -217,9 +244,11 @@ Orbit threads store people's messages to each other and to Pip, Atlas's fixed-na
 
 Thread run audit rows in `agent_sessions` store only an `orbit_run:<id>` label, a redacted result marker and fixed error categories. `agent_session_events` keep tool names, statuses and timings. Tool calls produce `mcp.tool_called` audit events with the thread and run IDs but without arguments. Membership changes, creation and signals produce `thread.*` audit events. Inference usage rows follow the existing relay retention.
 
+`orbit_messages.suggestions` stores up to three model-authored follow-up prompts (120 Unicode codepoints / 480 UTF-8 bytes each) with the final agent reply. They are generated in the same provider turn from the same authorized conversation context, not a separate inference request. Suggestions inherit their message's thread access, indefinite history retention, deletion and backup policies. Include this string array when exporting applicable thread messages, including archived history and third-party redaction review. Native suggestion selection changes only an in-memory draft; only explicit Send creates a human message. Suggestions are not copied into audit metadata, push payloads or the durable native inbox cache.
+
 `orbit_threads.model` stores the owner's optional model preference: null means Automatic, `workspace` selects the configured Orbit profile, and `chatgpt:<model-id>` selects that exact model using the acting person's account. `orbit_runs.model` freezes that preference at admission, including resumed and child work. Explicit selection never falls back to a different provider. These identifiers contain no credentials; they follow the thread/run retention and deletion rules and belong in their legal exports. Changes record `thread.model_changed` with actor, interface, thread target and the new model identifier. The live account model catalog is fetched on request, projected to identifiers/names/provider, and not stored in the database; upstream instructions, account claims and provider bodies never enter native responses or audits. Native catalog/selection state remains session-local; the durable preference stays on the thread.
 
-Condukt's before/after pruning events no longer write transient `activity` rows or announce compaction without removed content. Actual pruning retains a generic system notice under ordinary message retention; no additional transcript or provider payload is stored.
+Fresh text-only root Orbit runs automatically summarize older model context through the same acting-person/provider and authorization fence. Summarization sends bounded chunks of the already-authorized transcript to that provider without tools. Condukt preserves the active request and its tool results and adopts summaries only between model requests. Image-bearing runs and restored snapshots retain the previous tool-result pruning behavior because Condukt 1.14 cannot safely account for image tokens or restore the original protected request boundary. Adopted summaries may replace older protocol messages in the existing encrypted active-run checkpoint; they are cleared on terminal completion and excluded from legal exports with that transient cache. Fresh runs rebuild context from durable messages, which are never rewritten or removed by compaction. Generic context-ready system notices follow ordinary message retention. Compact start/stop audit events retain no transcript or summary text, including attempts cancelled before a stop event; background work does not set a blocking `activity` phase. No new storage category, access permission or history retention rule is introduced.
 
 Owner-only archive/restore changes the existing `orbit_threads.status` (`active`/`archived`) and records `thread.status_changed` with the new status, not message/file content. Archive is not deletion or a retention cutoff: messages, memberships and attached files remain protected and exportable as before. Active runs are cancelled/finalized, clearing encrypted checkpoints and tool-result caches under their existing terminal-run policy; delayed workers cannot revive them after restore. Restore does not start inference. Native lists default to active and offer an archived filter, but legal exports must include both statuses. No new customer-data columns or storage categories are introduced.
 
@@ -230,6 +259,10 @@ Explicit native mentions store selected user UUIDs in `orbit_messages.mentioned_
 New invitations (manual, explicit mentions, or automatic signal routing) append a shared `notice_kind = "joined"` naming the newcomer and a separate `private_handoff` addressed by `recipient_id`. The recipient's catch-up contains bounded initial-request/latest-Pip-reply excerpts, not generated prose. Its text is Cloak-encrypted in `private_body`; ordinary `body` is empty, including for older servers during rollout or image rollback. Only the recipient, while still authorized to read the thread, receives its decrypted presentation. Other participants, shared model transcripts, channels, audits and notification jobs receive no catch-up content. Historical `handoff` notices remain shared under their original retention policy. Private copies have no automatic expiry; thread deletion or recipient deletion cascades them, and schema rollback discards them rather than publishing their text. Shared join notices remain with history after a person leaves or is deleted.
 
 `orbit_threads.priority` is nullable `now`/`today`/`later` signal queue metadata. Correlated signals can escalate priority, never silently lower it. Native inboxes order priorities before recency and filter active/archived before pagination; archive is recoverable queue resolution, not deletion.
+
+`orbit_threads.domain` stores one optional classifier-derived primary domain (automation, commercial, outbound, engineering, people, operations, library, admin or general). The first nonempty human message or signal queues a tool-free classifier; unclassified existing threads are eligible on their next message. The classifier sends the thread title, signal summary and first 4,000 message characters to that message's acting person's selected Orbit provider under current access checks. It never loads attachments, profile descriptions or recipient-only catch-ups. Missing configuration or failed classification leaves the label unset; messages and replies are unaffected. Labels inherit thread access, retention, deletion and export rules and grant no permissions. Include the domain in exports. `thread.classified` audits retain actor/thread/domain only; classifier session rows retain an `orbit_classification:<thread-id>` label, redacted results and fixed errors, with payload-free telemetry. Oban stores thread/message/user IDs under existing job pruning. Inbox search matches literal title/summary text before authorized pagination; search/filter criteria remain memory-only on native clients, and filtered results are not written to the durable inbox cache.
+
+An explicitly invoked `atlas.orbit.backfill_domains` Mix task queues the same classifier for unlabeled active and archived conversations, using their earliest nonempty human message or signal evidence and their current readable owner's provider. It excludes tool output, private catch-ups, empty histories, missing owners and owners without inference configuration or read access. Existing labels, archive status and recency remain unchanged; no conversation run is resumed. `--dry-run` performs no writes or inference. Applied backfills record `thread.classification_backfill_queued` with system interface and aggregate scanned/eligible/enqueued counts, never source text. Classification jobs, provider disclosures, audits and resulting labels follow the same retention/export boundaries above; no automatic deployment backfill is installed.
 
 For a verified personal-data request, also locate messages with the requester's UUID in `mentioned_user_ids` (`user_id = ANY(mentioned_user_ids)`) and private catch-ups with `recipient_id = user_id`, including after membership removal. Exclude every other recipient's private copies from an ordinary participant export; decrypt only the requester's private bodies through authorized operator tooling. Review third-party content before disclosure; current native read permissions are not a complete operator-level legal export.
 
@@ -273,6 +306,24 @@ project paths and OS permissions stay on the device and are never registered.
 Version, current connection UUID and 20-second online expiry fence stale leases;
 there is no navigation/activity history. Disable keeps an offline row, and no
 automatic expiry is currently applied. Include disabled rows in legal exports.
+
+Hosted registrations additionally store `provider` (native by default), observed
+`provider_state`, and `managed_thread_id` linking the private conversation. Their
+OAuth client UUID is an inaccessible synthetic binding, never a native grant.
+Selection opts into terminal access; hosted terminal deadlines are 600 seconds
+instead of the native 1,800. The encrypted ledger/evidence and existing history
+retention apply unchanged. Provider workers store only environment/command UUIDs
+in Oban. Include provider metadata and the managed-thread relationship in the
+owner export. No age-based deletion of registrations is introduced.
+
+The selected Tuist provider receives the owner/environment UUIDs as signed
+five-minute OIDC claims, the Tuist account handle, generation and authorized tool
+arguments (including commands/relative paths). It receives no Atlas/model/repository
+credentials. Its VM disks contain cloned repositories, edits and build outputs;
+these require a separate authorized Tuist export and may expire 14 days after
+pause/error. Atlas retains only the bounded encrypted command results. Signing
+keys and temporary bearer JWTs are authentication material, excluded from exports.
+See `docs/environment-providers.md` for the provider boundary.
 
 `orbit_threads` additionally stores selected `environment_id`, its name snapshot,
 `project_id`, and the permanent `personal_environment_dispatched` privacy marker.

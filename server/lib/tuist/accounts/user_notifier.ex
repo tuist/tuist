@@ -290,8 +290,8 @@ defmodule Tuist.Accounts.UserNotifier do
   Deliver instructions to reset a user password.
   """
   def deliver_reset_password_instructions(%{user: user, reset_password_url: reset_password_url}) do
-    deliver(
-      user.email,
+    user.email
+    |> build_email(
       dgettext("dashboard_account", "Reset password instructions"),
       %{
         title: dgettext("dashboard_account", "Did you request to reset your password?"),
@@ -310,6 +310,10 @@ defmodule Tuist.Accounts.UserNotifier do
         ]
       }
     )
+    |> Mailer.deliver_now()
+  rescue
+    # Bamboo raises ArgumentError for missing adapter settings, even with deliver_now/1.
+    ArgumentError -> {:error, :invalid_mailer_configuration}
   end
 
   @doc """

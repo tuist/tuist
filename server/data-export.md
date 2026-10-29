@@ -84,6 +84,15 @@ them, while shared join notices retain ordinary history retention.
 Full field, provider-sharing, retention and operator-export rules are in
 [`atlas/data-export.md`](../atlas/data-export.md#portable-signals-and-business-routing-profiles).
 
+Atlas also stores model-authored follow-up prompts in `orbit_messages.suggestions`
+(up to three strings, each at most 120 Unicode codepoints / 480 UTF-8 bytes).
+They are generated alongside the final reply using the existing authorized provider
+context and inherit message access, indefinite history retention, deletion and
+backups. Include them in authorized exports of related Orbit history, with ordinary
+third-party redaction. Tapping a native suggestion changes only a memory-held draft;
+no prompt content is added to audits, push alerts or the native inbox cache. See
+[`atlas/data-export.md`](../atlas/data-export.md#orbit-threads).
+
 ### Atlas automation definitions and execution records
 
 Atlas stores organizational process data in its separate PostgreSQL database:
@@ -102,7 +111,7 @@ These records have creation timestamps; mutable records also have update timesta
 Native clients retain an unconfirmed launch's reviewed revision, request UUID and input in device-only Keychain (iOS) or Android Keystore-backed encrypted preferences, until acknowledged or explicitly cleared by a new sign-in/sign-out. This local retry copy is not a separate server record or server-side export source. Foreground channels carry only execution state/step/timing metadata; approval payloads and results use separate authorized reads. No device tokens, push subscriptions or Live Activity records are collected by this version.
 
 For a request covering Atlas records, select the applicable workflow IDs, export their revisions and referenced behaviors, then join runs by `revision_id` and attempts/approvals/events by `run_id`. Include triggers referencing those revisions and relevant user identities/audit events, excluding credential hashes. References to customer data may occur inside arbitrary configuration, source, inputs, or outputs rather than an account foreign key, so account-specific requests require review of those payloads and the domain records they reference. Do not assume filtering only by workflow creator identifies every customer's data. Task actions create ordinary Atlas task records, which must be included separately where applicable. Stored definitions and run payloads must not contain credentials.
-### Atlas native local inbox cache
+### Atlas native local read cache
 
 Native Atlas clients retain disposable first-page Orbit inbox projections in
 `reads.sqlite3`, under iOS Application Support `Atlas/ReadCache` or Android
@@ -110,22 +119,36 @@ Native Atlas clients retain disposable first-page Orbit inbox projections in
 iOS also applies device file protection. SQLite itself is not application-level
 encrypted. `read_snapshots` stores sanitized assistant display metadata and up to
 25 conversation IDs, titles, summaries, kinds, statuses, origins and update times
-as JSON, with query keys and fetch timestamps. It does not store credentials,
-participant/owner identities, mutation permissions, live agent status, message
-history, drafts or attachments. `cache_namespaces` stores only hashed origin plus
+as JSON, with query keys and fetch timestamps. On iOS/macOS it additionally stores
+up to 25 non-tool messages from a thread's newest page (body, author attribution,
+message/mention IDs, timestamps and attachment metadata, never file bytes or tool
+evidence/components); business list/detail records, related account summaries and
+finance aggregates; caller Profile identity/email/description/version; personal
+Time off requests/dates/status and public holidays; AI provider/account status and
+personal connection account names/scopes/status; and payload-free Automation
+names/descriptions/version/status/timing/step metadata. Automation input schemas,
+reviewed revision IDs, approval payloads/digests, inputs and protected results are
+excluded. The existing fixed-route typed responses define the display fields,
+not arbitrary authenticated response bodies. No credentials, pending grants,
+editor drafts or live presence are stored. Inbox/history strip participant/owner
+authority and live agent status; cached records never grant mutation permissions.
+Android currently hydrates only its inbox. `cache_namespaces` stores only hashed origin plus
 random credential-lifetime identifiers and generation/retirement fences; the
 unhashed random identifier remains with the opaque session in secure storage.
 
 Snapshots expire for reads after seven days and are pruned on database open, with
 32-entry, 1 MiB-per-entry and SQLite page-count limits. Explicit logout and
-authoritative access denial delete affected snapshots; successful mutations
-invalidate the credential lifetime's inbox variants. Retired namespace fences
+authoritative access denial delete affected snapshots; Apple mutations invalidate
+the credential lifetime's projections before and after completion, including uncertain
+outcomes. Current-session authentication rejection clears the session and cache.
+Retired namespace fences
 remain until app data removal to reject late writes. An offline device can display
 previously authorized metadata until it reconnects or rereads after expiry; this
 is not a durable offline authorization grant. Uninstall/app-data removal deletes
 the local database. These device-only derivatives are not uploaded, remotely
-retrievable or a separate server export source. Export original Orbit threads
-from Atlas's PostgreSQL database with the applicable authorization/customer-data
+retrievable or a separate server export source. Export original threads/messages,
+business records, user profiles, time-off bookings, provider/connection metadata
+and Automation records from Atlas's PostgreSQL database with the applicable authorization/customer-data
 review; no server-side table or object-storage path is introduced.
 
 ### Report actor attribution and publishing policy
@@ -185,6 +208,7 @@ operations; retain them until an administrator removes them.
 - Permanent cache identity (`accounts.kura_tenant_id`) and handle history (`account_handle_reservations`: `name`, `account_id`, `inserted_at`, `client_url_expires_at`). These bind current and retired handles to the same account so renames cannot reassign cache namespaces or usage. Export the account field and every reservation selected by `account_id`. Both persist for the account lifetime; reservations cascade on account deletion. Cache keys and peer endpoint/CA names retain the original Kura tenant after a rename. Client endpoint hostnames follow the current account name after the default-off per-account endpoint-migration gate is enabled; historical handles derive regional DNS/TLS/routing aliases for 90 days after renaming away from that name. The nullable `client_url_expires_at` timestamp stores that deadline; the current name has no expiry, and rename-back clears it. URL expiry leaves the reservation and analytics attribution intact. Pausing endpoint migration preserves deployed routing without extending stored deadlines; overdue URL withdrawal applies when migration is re-enabled. Existing historical names receive 90 days from the expiry migration because their original rename dates are unknown. Migration timestamps for preexisting reservations indicate backfill time, not the original rename time.
 - Google One Tap uses the existing Google identity and account records, including the provider subject, email and Google Workspace hosted domain. Up to ten pending challenges are stored in the signed browser session, each valid for one hour. Submitting a credential consumes its matching challenge while preserving the other pending challenges; the identity token is verified in memory and is not persisted. This adds no separate exportable dataset.
 - User profiles (email, active/inactive status, account settings, preferred locale)
+- Password-reset tokens (`users_tokens`, context `reset_password`) store the token hash, recipient email, user reference and creation time. Links are valid for one day; a new request outside the five-minute delivery cooldown replaces previous reset tokens, and a completed reset deletes the user's tokens. A failed mail delivery immediately deletes only the token created for that attempt so it does not suppress a retry. Authentication token values and hashes are excluded from exports; retrieve non-secret metadata by `user_id` when needed.
 - SCIM provenance (`users.provisioned_by_organization_id`): the organization whose SCIM provisioning created the account, if any. It lets that organization's single sign-on provider link the account on first sign-in, is exportable, and is cleared if the organization is deleted.
 - User account lifecycle timestamps (`users` table): `last_sign_in_at`, the moment the user most recently authenticated by any means, recorded on session sign-in, application programming interface token use, and remember-me resumption, and written at most once every twelve hours per user; and `disabled_at`, the moment the account was suspended, which is set only for suspended accounts and is what the inactivity control measures its retirement window from. Both are exportable and are retained for the life of the account.
 - Organization records (account handle/name, creator relationship, and timestamps)
@@ -286,6 +310,20 @@ operations; retain them until an administrator removes them.
 - **JIT runner configs**: the GitHub-issued JIT credential the dispatch endpoint mints for each runner registration is an ephemeral authentication secret and is never persisted server-side. Only the resulting `runner_name` (the GitHub-side runner label) is recorded in `runner_jobs`.
 
 ### Agent Sandboxes
+
+- **Atlas environment mappings** (Postgres `sandbox_provider_environments`): account
+  foreign key (account deletion cascades), UUID primary key, SHA-256 `external_key`
+  of `[configured Atlas issuer, verified user subject, Atlas environment UUID]`,
+  highest lifecycle `generation`, desired `enabled` boolean and timestamps.
+  `sandboxes.provider_environment_id` uniquely links the VM to this mapping.
+  Export mappings by `account_id` and join the VM relationship, including mappings
+  without a VM. Tombstones have no age expiry so delayed requests cannot recreate
+  deleted VMs. At most 4,096 mappings are admitted per account. No signing key,
+  JWT or tool payload is stored in these rows. Atlas VM content follows the
+  non-Amp 14-day paused/error retention and node-local export procedure below.
+  Atlas owner UUIDs appear only in transient verified claims; Tuist retains their
+  hash-bound mapping, not an Atlas user profile or conversation history.
+
 - **Agent environments** (Postgres `sandbox_agent_environments`): one row per Anthropic Managed Agents `self_hosted` environment an account connected. Columns: `id` (PK), `account_id`, `anthropic_environment_id` (Anthropic's `env_...` identifier), `environment_key` (the Anthropic environment key, Vault-encrypted via `Tuist.Vault.Binary`; excluded from exports as authentication material), `anthropic_api_key` (the Anthropic organization API key Tuist uses to start agent sessions on the environment, Vault-encrypted; excluded from exports as authentication material), `anthropic_agent_id` (the Anthropic `agent_...` Tuist created for the environment), `agent_model` and `agent_system_prompt` (the model and system prompt of that agent; the prompt is customer-authored text), `name`, the VM shape every session sandbox inherits (`template`, `vcpus`, `memory_mb`, `workspace_gb`), idle/pause tuning (`max_idle_seconds`, `pause_grace_seconds`), `enabled`, `inserted_at`, and `updated_at`. Rows are deleted with their account.
 - **Agent sessions** (Postgres `sandbox_agent_sessions`): one row per Managed Agents session Tuist started through the account API, keyed by UUID. Columns: `id` (PK), `account_id`, `agent_environment_id` (cascades with the environment), `anthropic_session_id` (Anthropic's `sesn_...` identifier, unique), `anthropic_agent_id`, `sandbox_id` (the sandbox serving the session, nilified when it is deleted), `title`, `prompt` (the customer-authored first message of the session), `repository_url` and `repository_ref` (the repository cloned into the sandbox, if any), `model`, `budget_cents` (the USD list-cost ceiling, if any), `last_status` and `last_stop_reason` (the latest session status and idle stop reason the server saw), `created_by_user_id` (the user who started it, nilified when the user is deleted), `inserted_at`, and `updated_at`. The conversation itself (messages, tool calls and results, usage) is held by Anthropic and is read through on demand; Tuist stores none of it. Rows are deleted with their account.
 - **Sandboxes** (Postgres `sandboxes`): one row per Firecracker sandbox VM, keyed by UUID. Columns: `id` (PK), `account_id`, `agent_environment_id` (nilified when the environment is deleted), `anthropic_session_id` (the Anthropic session the sandbox serves; NULL for validation and Amp sandboxes), `amp_orb_id` (nullable Amp thread Orb identifier, unique within its account), the VM shape (`template`, `template_tag`, `vcpus`, `memory_mb`, `workspace_gb`), lifecycle (`state` in `creating | running | resuming | paused | error | deleted`, `last_active_at`, `paused_at`, `error_message`), placement (`node_name`, the cluster Node hosting the jail directory, and `hostname`, the guest's hostname), and residency bookkeeping (`residency_work_id`, the Anthropic work item or `amp:<orb_id>` active Orb residency; `residency_epoch`, a counter used to make the scheduled pause idempotent). Rows are deleted when the sandbox is deleted, when a non-Amp sandbox has been paused or errored for more than 14 days, and cascade with their account. Amp Orbs have no inactivity expiry and remain until an explicit delete or account deletion; they continue to reserve disk and count against the account limit while paused. Orb bootstrap tokens are passed only through the exec environment, never stored in PostgreSQL, but may be present in guest memory snapshots. Export the Orb mapping with the account's sandbox rows by filtering `sandboxes.account_id`. VM content requires a manual, authorized export from its owning node: pause the VM before copying its rootfs and workspace images; memory snapshots may contain credentials and need separate handling. There is no automated VM-content export endpoint. The VM's disk (`/workspace` and rootfs clone) and memory snapshot live only on the node's local NVMe under `/data/sandboxes/jail/firecracker/<id>/` and are removed with the sandbox; they hold whatever the agent wrote (repository checkouts, build output) and are customer-derived content, but they are not replicated to object storage and cannot be exported once the sandbox is deleted.

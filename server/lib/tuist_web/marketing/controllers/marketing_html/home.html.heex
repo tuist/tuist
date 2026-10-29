@@ -370,9 +370,12 @@
             <% v_logo = 45 %>
             <% v_cell = 40 %>
             <% v_gap = 8 %>
+            <%!-- Three rows rather than the horizontal scene's six: the stacked
+                layout is phone-only, where every row is scroll height. --%>
+            <% v_rows = 3 %>
             <% v_logo_end = v_lead + v_logo %>
             <% v_grid_w = 4 * v_cell + 3 * v_gap %>
-            <% v_grid_h = 6 * v_cell + 5 * v_gap %>
+            <% v_grid_h = v_rows * v_cell + (v_rows - 1) * v_gap %>
             <% v_grid_x = v_cx - v_grid_w / 2 %>
             <% v_col_cx = fn c -> v_grid_x + c * (v_cell + v_gap) + v_cell / 2 end %>
             <%!-- Vertical connector (connector.svg, 160×232): a bottom hub fanning up
@@ -407,7 +410,7 @@
             <% v_mapy_flow = fn sy ->
               v_grid_bottom + (sy - 0.198738) / v_con_h * (v_tasks_top - v_grid_bottom)
             end %>
-            <div data-part="scene">
+            <div data-part="scene" style={"width: #{v_w}px; height: #{v_h}px;"}>
               <svg
                 data-part="wires"
                 viewBox={"0 0 #{v_w} #{v_h}"}
@@ -440,6 +443,10 @@
                 data-grid-top={v_grid_top}
                 data-cell={v_cell}
                 data-gap={v_gap}
+                data-rows={v_rows}
+                data-min="3"
+                data-target="4"
+                data-max="7"
                 aria-hidden="true"
               ></canvas>
               <canvas
@@ -530,6 +537,7 @@
               data-radius="2"
               data-cols="45"
               data-rows="12"
+              data-selective="outline"
             ></canvas>
           </div>
         </div>

@@ -1,5 +1,6 @@
 defmodule Atlas.Environments.CommandsTest do
   use Atlas.DataCase, async: true
+  use Mimic
 
   import Atlas.EnvironmentFixtures
   import Atlas.OrbitFixtures
@@ -7,6 +8,9 @@ defmodule Atlas.Environments.CommandsTest do
   alias Atlas.Environments
   alias Atlas.Environments.Command
   alias Atlas.Environments.Commands
+  alias Atlas.Environments.Provider
+  alias Atlas.Environments.ProviderWorker
+  alias Atlas.Environments.Tuist
   alias Atlas.Orbit
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Tools
@@ -14,6 +18,35 @@ defmodule Atlas.Environments.CommandsTest do
 
   setup do
     environment_fixture()
+  end
+
+  test "hosted terminal results use the durable ledger and ambiguous dispatches are never repeated", c do
+    stub(Provider, :configurations, fn -> %{"tuist" => %{module: Tuist, name: "Tuist"}} end)
+    c.environment |> Ecto.Changeset.change(provider: "tuist", provider_state: "ready") |> Repo.update!()
+    command = command_fixture(c, "environment_terminal", %{"command" => "git clone https://example.org/project.git"})
+    assert command.execution_timeout_seconds == 600
+
+    expect(Tuist, :execute, fn _config, identity, payload ->
+      assert identity.environment_id == c.environment.id
+      refute Map.has_key?(payload, :claim_token)
+      {:ok, %{success: true, output: "Cloned into project"}}
+    end)
+
+    job = %Oban.Job{args: %{"environment_id" => c.environment.id, "command_id" => command.id}}
+    assert :ok = ProviderWorker.perform(job)
+    assert :ok = ProviderWorker.perform(job)
+    assert Repo.reload!(command).status == "settled"
+    assert Message.tool_output(Repo.get!(Message, command.message_id)) =~ "Cloned into project"
+
+    uncertain = command_fixture(c, "environment_terminal", %{"command" => "make test"})
+    expect(Tuist, :execute, fn _config, _identity, _payload -> {:error, :environment_provider_unavailable} end)
+    job = %Oban.Job{args: %{"environment_id" => c.environment.id, "command_id" => uncertain.id}}
+    assert :ok = ProviderWorker.perform(job)
+    assert :ok = ProviderWorker.perform(job)
+    assert Repo.reload!(uncertain).status == "claimed"
+    uncertain |> Ecto.Changeset.change(result_deadline: DateTime.add(DateTime.utc_now(), -1)) |> Repo.update!()
+    Commands.sweep()
+    assert Repo.reload!(uncertain).status == "unknown"
   end
 
   test "only the bound native client and owner see, claim or complete commands", c do

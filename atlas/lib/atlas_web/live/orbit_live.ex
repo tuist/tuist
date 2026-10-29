@@ -28,6 +28,7 @@ defmodule AtlasWeb.OrbitLive do
        jobs_by_message: %{},
        off_page_jobs: [],
        environments: [],
+       providers: [],
        repositories: [],
        repositories_loaded: false,
        repositories_loading: false,
@@ -124,11 +125,17 @@ defmodule AtlasWeb.OrbitLive do
       when not is_nil(thread) do
     params =
       case String.split(value, ":") do
-        [environment, project] -> %{"environment_id" => environment, "project_id" => project}
-        _ -> %{"environment_id" => nil, "project_id" => nil}
+        ["_provider", provider] ->
+          %{"provider" => provider}
+
+        [environment, project] ->
+          %{"environment_id" => environment, "project_id" => project, "repository" => thread.repository}
+
+        _ ->
+          %{"environment_id" => nil, "project_id" => nil, "repository" => thread.repository}
       end
 
-    {:noreply, select_environment(socket, Map.put(params, "repository", thread.repository))}
+    {:noreply, select_environment(socket, params)}
   end
 
   def handle_event("select-repository", %{"repository" => %{"repository" => name}}, socket) do
@@ -288,10 +295,7 @@ defmodule AtlasWeb.OrbitLive do
             _ -> []
           end
 
-        value =
-          if thread.environment_id && thread.project_id,
-            do: "#{thread.environment_id}:#{thread.project_id}",
-            else: "_server"
+        overview = Environments.list(user)
 
         revision = {thread.id, thread.last_seq, meta.page, Enum.map(messages, &{&1.id, &1.updated_at})}
         jobs_by_message = Map.new(jobs, &{&1.message_id, &1})
@@ -316,11 +320,12 @@ defmodule AtlasWeb.OrbitLive do
           jobs: jobs,
           jobs_by_message: jobs_by_message,
           off_page_jobs: off_page_jobs(jobs, message_ids),
-          environments: Environments.list(user).environments,
+          environments: overview.environments,
+          providers: overview.providers,
           history_page: meta.page,
           message_pages: meta.total_pages,
           repository_form: to_form(%{"repository" => thread.repository || "_none"}, as: :repository),
-          selection_form: to_form(%{"project" => value}, as: :selection)
+          selection_form: to_form(%{"project" => selection_value(thread, overview.environments)}, as: :selection)
         )
         |> maybe_load_repositories(thread)
 
@@ -333,6 +338,7 @@ defmodule AtlasWeb.OrbitLive do
           jobs_by_message: %{},
           off_page_jobs: [],
           environments: [],
+          providers: [],
           drafts: Map.delete(socket.assigns.drafts, id),
           form: to_form(%{"body" => ""}, as: :message)
         )
@@ -353,11 +359,21 @@ defmodule AtlasWeb.OrbitLive do
 
   defp maybe_load_repositories(socket, _thread), do: socket
 
+  defp selection_value(thread, environments) do
+    selected = Enum.find(environments, &(&1.id == thread.environment_id))
+
+    cond do
+      selected && selected.provider != "native" -> "_provider:#{selected.provider}"
+      thread.environment_id && thread.project_id -> "#{thread.environment_id}:#{thread.project_id}"
+      true -> "_server"
+    end
+  end
+
   defp project_options(environments, repository) do
     [
       {"Atlas server only", "_server"}
       | for environment <- environments,
-            environment.enabled,
+            environment.enabled and environment.provider == "native",
             project <- environment.projects,
             is_nil(repository) or project["repository"] == repository do
           suffix = if environment.online, do: "", else: " · offline"
@@ -365,6 +381,19 @@ defmodule AtlasWeb.OrbitLive do
           {"#{environment.name} / #{project["name"]}#{mode}#{suffix}", "#{environment.id}:#{project["id"]}"}
         end
     ]
+  end
+
+  defp provider_options(providers, environments, thread) do
+    selected = Enum.find(environments, &(&1.id == thread.environment_id))
+
+    if is_nil(thread.repository) do
+      Enum.map(providers, fn provider ->
+        state = if selected && selected.provider == provider.id, do: " · #{selected.provider_state}", else: ""
+        {"#{provider.name} · hosted#{state}", "_provider:#{provider.id}"}
+      end)
+    else
+      []
+    end
   end
 
   defp repository_options(repositories, selected) do
@@ -600,7 +629,11 @@ defmodule AtlasWeb.OrbitLive do
                         }
                       >
                         <:item
-                          :for={{label, value} <- project_options(@environments, @thread.repository)}
+                          :for={
+                            {label, value} <-
+                              project_options(@environments, @thread.repository) ++
+                                provider_options(@providers, @environments, @thread)
+                          }
                           value={value}
                           label={label}
                         />

@@ -42,6 +42,13 @@ API/MCP inventory under `/api/automation` and add source-specific authorization.
 
 ## Native Orbit
 
+The list also accepts optional `query` (literal, case-insensitive title/summary
+search, at most 200 UTF-8 bytes without controls) and `domain` (a catalogue ID or
+`unclassified`). Apply both before counts/pagination and after authorization;
+unknown parameters return 422. Additive `assistant.searchable: true` and
+`assistant.domains: [{id, name}]` advertise support; older servers omit them.
+Thread projections include nullable `domain`. Search terms are not persisted.
+
 `GET /api/native/orbit/models` returns `{models: [{id, name, provider}], error: null|provider_auth|provider_unavailable}` for the caller's account plus the configured workspace model, without credentials or upstream instructions. `PATCH /api/native/orbit/threads/:id/model` accepts exactly `{model: null|"workspace"|"chatgpt:<validated-model-id>"}` and returns `{thread}` with optional nullable `model`. Only a currently readable active owner may change the preference; members get 403, unreadable/missing IDs 404, active runs 409 `model_run_active`, and invalid selections/extra fields 422. The choice freezes on each run, and explicit selections never change providers on failure. Catalog failure is optional-feature state, not lost access to protected history.
 
 `AtlasWeb.NativeOrbitController` serves fixed routes under `/api/native/orbit/threads`, declared before the dynamic native resource routes and protected by the same bearer-only, `no-store` pipeline. Older servers answer the list route with the dynamic resource's 404, which clients treat as unsupported. Domain rules live in [Orbit](../../atlas/orbit/AGENTS.md). Threads a caller cannot read return `404 {"error":"not_found"}`, indistinguishable from missing ones.
@@ -59,6 +66,7 @@ API/MCP inventory under `/api/automation` and add source-specific authorization.
 - Thread fields: `id`, `title` (stored conversation title; private titles derive from the first nonempty prompt, bounded to 200 codepoints), `kind`, `status` (`active`/`archived`), `summary`, `origin` (`manual`/`signal`), nullable `priority` (`now`/`today`/`later`), `owner_id`, `participants` (`[{id, name}]`), `agent_status` (`idle`, `queued`, `running`, `compacting`, `unconfigured`), `latest_seq`, `updated_at`.
 - Message fields: `id`, `kind` (`human`, `agent`, `tool`, `system`), `body`, `author_id` (humans only), `author_name`, `inserted_at`, `tool_name`, `tool_status` (`running`, `succeeded`, `failed`, `cancelled`), `tool_input`/`tool_output` (redacted bounded strings, `""` when absent), optional `parent_message_id` (research lookup's same-thread/run task card), `attachments` (metadata array), `seq` (stable creation order). Older payloads may omit the additive hierarchy/attachment fields. A tool message keeps its ID and `seq` while its status changes; the change moves the thread revision. Both private and shared threads support bounded read-only research helpers; children never append final replies or completion notifications.
 - Additive message fields `notice_kind: null | "handoff" | "joined" | "private_handoff"` and `mentioned_user_ids: [UUID]` distinguish legacy shared handoffs, public-to-participants join notices, recipient-only catch-up and selected mentions. Older clients ignore them; older payloads default to null/empty. Catch-ups never use kind `agent` or claim generated/model-authored summaries. Recipient IDs and encrypted storage fields are not serialized. POST still returns only its human message; refetch page 1 / the thread list on the normal revision notification for notices and updated metadata.
+- Additive `suggestions: [String]` holds zero to three contextual follow-ups on an agent reply, each at most 120 Unicode codepoints/480 bytes. Non-agent/legacy messages have an empty array; older servers may omit it. Invalid optional metadata must not break protected history. These are server-generated editable draft text, not executable actions; POST never accepts client-authored suggestion metadata. They share their message's access and retention.
 - A succeeded tool message may add `component: {type: "result_table" | "account_card", version: 1, data: {title, columns, rows}, actions: [{id: "show_evidence", label}], fallback}`. The server projects it only from already-redacted durable tool output, under the same thread authorization. Limits are 120-character title, 1–3 columns, 1–5 rows, 160-character labels/cells, 40-character action label and 4,000-character fallback. No code, URLs or arbitrary styles/actions are sent. Absent/unknown components retain the original `tool_output`; they must not break history. Source reveal is local presentation of existing evidence, not a new server operation or authorization grant.
 - Errors use the native envelope: 401 for an invalid token, 403 for a forbidden membership action, 404, 409 for an archived thread, 422 `invalid_params`/`validation_failed`, and 429 `rate_limited` (30 messages per minute per person).
 
@@ -85,10 +93,17 @@ The web picker lives at `/settings/coding` and in private Orbit conversations;
 native clients inherit new-thread defaults but do not yet present this picker.
 
 All endpoints are bearer-only and `no-store`; browser sessions are not accepted.
-`GET /api/me/environments` returns exactly `{owner_id: UUID, environments: [{id,
-name, enabled, online, terminal, display, projects: [{id, name, coding?, repository?}]}]}` for the caller.
+`GET /api/me/environments` returns `{owner_id: UUID, providers: [{id, name}], environments: [{id,
+name, enabled, online, terminal, display, provider, provider_state, projects: [{id, name, coding?, repository?}]}]}` for the caller.
 There is no server environment row: null/absent selection means server execution.
 The Orbit list's additive `assistant.environments: true` advertises support.
+Hosted selection accepts exactly `{provider: configured_id}` at the existing
+private-thread environment PATCH route. It starts/resumes asynchronously;
+deselection/archive queues a pause. Native-ID selection cannot select hosted rows.
+Hosted registration uses an inaccessible synthetic OAuth binding, so native
+claim/poll/result routes cannot impersonate it. The owner catalog/selection and
+terminal activity retain their ordinary authorization. See
+[`docs/environment-providers.md`](../../../docs/environment-providers.md).
 
 All following `/api/me/environments/:id` operations additionally require the
 existing native OAuth callback-shape gate (`native_client_required`, 403).
@@ -143,7 +158,7 @@ weakened native gate. Executors own repository discovery and workspace roots.
 
 Terminal reserves immediately with a queued durable model ticket, without per-command prompts.
 Dispatch expires ten minutes from first reservation. Claim starts a fixed
-1,800-second execution deadline and separate five-minute result-delivery grace;
+1,800-second native or 600-second hosted execution deadline and separate five-minute result-delivery grace;
 it can outlive a succeeded model run but never cancellation/archive/revocation.
 File calls retain synchronous bounded 60-second waits and known-result recovery.
 
@@ -152,7 +167,7 @@ private history and returns `{commands: [...]}`, terminal-only. All active items
 come first, then recent settled items, at most 32 total; no pagination. Entries
 have exactly `id`, `message_id`, `environment_id`, `environment_name`, `project_id`,
 `project_name`, `digest`, `command`, `status`, `output`, `success`, `cancel_requested`,
-`progress_sequence`, `execution_timeout_seconds` (1,800). UUIDs are lowercase;
+`progress_sequence`, `execution_timeout_seconds` (1,800 native, 600 hosted). UUIDs are lowercase;
 name labels are at most 120 characters. No claim tokens or local project roots.
 Statuses are `queued`, `claimed`, `settled`,
 `cancelled`, `expired`, `unknown`. `success` is boolean only for settled, otherwise

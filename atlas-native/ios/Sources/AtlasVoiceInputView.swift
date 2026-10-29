@@ -20,38 +20,53 @@ private enum AtlasComposerColors {
 }
 
 struct AtlasThreadSuggestions: View {
+    let suggestions: [AtlasThreadSuggestion]
     let prompt: (String) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private let suggestions = ["What needs my attention?", "Summarize my open tasks", "Find an account"]
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 6) { buttons }
-            } else {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 8) { buttons }
-                }.scrollIndicators(.hidden)
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(suggestions, id: \.text) { suggestion in
+                    Button { prompt(suggestion.text) } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: suggestion.icon).foregroundStyle(.blue).accessibilityHidden(true)
+                            Text(suggestion.text).foregroundStyle(.primary)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? 240 : nil, alignment: .leading)
+                                .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: true)
+                        }
+                        .font(.subheadline)
+                        .padding(.horizontal, 16).padding(.vertical, 8).frame(minHeight: 44)
+                        .background { surface }
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(suggestion.text)
+                    .accessibilityHint("Adds this suggestion to your draft. Does not send a message.")
+                }
             }
+            .padding(.vertical, 8)
         }
+        .scrollIndicators(.hidden)
+        .contentMargins(.horizontal, 16, for: .scrollContent)
+        .padding(.horizontal, -16)
+        .accessibilityLabel("Suggested prompts")
         .accessibilityIdentifier("thread-suggestions")
     }
 
-    private var buttons: some View {
-        ForEach(suggestions, id: \.self) { suggestion in
-            Button { prompt(suggestion) } label: {
-                Text(suggestion)
-                    .font(.subheadline)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .frame(minHeight: 44)
-                    .background(.regularMaterial, in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Adds this suggestion to your draft. Does not send a message.")
+    @ViewBuilder private var surface: some View {
+        let shape = Capsule()
+        if reduceTransparency || contrast == .increased {
+            shape.fill(AtlasComposerColors.surface)
+                .overlay { shape.strokeBorder(AtlasComposerColors.separator, lineWidth: 1) }
+        } else if #available(iOS 26.0, macOS 26.0, *) {
+            shape.fill(.clear).glassEffect(.regular.interactive(), in: shape)
+        } else {
+            shape.fill(.regularMaterial)
+                .overlay { shape.strokeBorder(AtlasComposerColors.separator.opacity(0.4), lineWidth: 0.5) }
         }
     }
 }
@@ -62,6 +77,7 @@ struct AtlasThreadComposer: View {
     let saving: Bool
     let phase: AtlasVoiceInput.Phase
     let levels: [CGFloat]
+    @FocusState.Binding var editing: Bool
     var hasAttachments = false
     var addPhotos: (() -> Void)?
     var addFiles: (() -> Void)?
@@ -118,7 +134,8 @@ struct AtlasThreadComposer: View {
                         TextField(placeholder, text: $draft, axis: .vertical)
                             // Keep conversation context above the keyboard at accessibility sizes.
                             // The native editor scrolls through the complete multiline draft.
-                            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 2 : 6))
+                            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 2 : 4))
+                            .focused($editing)
                             .textFieldStyle(.plain).padding(.vertical, 11)
                             .padding(.leading, addPhotos != nil && addFiles != nil ? 0 : 12)
                             .accessibilityIdentifier("thread-composer")

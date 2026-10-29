@@ -7,6 +7,9 @@ defmodule Atlas.CodingRepositoriesTest do
   alias Atlas.CodingRepositories
   alias Atlas.Connections
   alias Atlas.Environments
+  alias Atlas.Environments.Environment
+  alias Atlas.Environments.Provider
+  alias Atlas.Environments.Tuist
   alias Atlas.Integrations.GitHubAPI
   alias Atlas.Orbit
   alias Atlas.Orbit.Run
@@ -98,5 +101,40 @@ defmodule Atlas.CodingRepositoriesTest do
     })
 
     assert {:error, :environment_run_active} = Environments.select(c.user, thread.id, selection)
+  end
+
+  test "repository checkout selection preserves hosted lifecycle and rejects mismatches before pausing" do
+    c = Atlas.EnvironmentFixtures.environment_fixture()
+    Repo.delete!(c.run)
+    stub(Provider, :configurations, fn -> %{"tuist" => %{module: Tuist, name: "Tuist"}} end)
+    assert {:ok, _} = CodingRepositories.update(c.user, %{"installation_id" => "42", "default_repository" => nil})
+
+    registration = %{
+      Atlas.EnvironmentFixtures.registration(c.project_id)
+      | "projects" => [%{"id" => c.project_id, "name" => "Code", "coding" => true, "repository" => "acme/monorepo"}]
+    }
+
+    assert {:ok, _} = Environments.register(c.user, c.client_id, c.environment.id, registration)
+    bound = %{"environment_id" => c.environment.id, "project_id" => c.project_id, "repository" => "acme/monorepo"}
+    assert {:ok, _} = Environments.select(c.user, c.thread.id, bound)
+    assert {:ok, hosted} = Environments.select(c.user, c.thread.id, %{"provider" => "tuist"})
+    assert is_nil(hosted.repository)
+    environment = Repo.get!(Environment, hosted.environment_id)
+    assert environment.enabled and environment.provider_state == "starting"
+
+    assert {:error, :invalid_params} =
+             Environments.select(c.user, c.thread.id, %{"provider" => "tuist", "repository" => "acme/monorepo"})
+
+    assert {:error, :environment_repository_mismatch} =
+             Environments.select(c.user, c.thread.id, %{bound | "repository" => "acme/mobile"})
+
+    assert Repo.reload!(environment).enabled
+    assert Repo.reload!(hosted).environment_id == environment.id
+    assert {:ok, native} = Environments.select(c.user, c.thread.id, bound)
+    assert native.environment_id == c.environment.id and native.repository == "acme/monorepo"
+    stopped = Repo.reload!(environment)
+    refute stopped.enabled
+    assert stopped.provider_state == "stopping"
+    assert stopped.version > environment.version
   end
 end

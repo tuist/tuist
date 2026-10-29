@@ -66,6 +66,11 @@ pub(crate) enum Action {
         environment_id: Option<String>,
         project_id: Option<String>,
     },
+    StartProvider {
+        session: Session,
+        thread_id: String,
+        provider: String,
+    },
     Open {
         session: Session,
         id: String,
@@ -104,12 +109,24 @@ struct Environment {
     #[serde(flatten)]
     configuration: Configuration,
     online: bool,
+    #[serde(default)]
+    provider: Option<String>,
+    #[serde(default)]
+    provider_state: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Provider {
+    id: String,
+    name: String,
 }
 
 #[derive(Deserialize, Serialize)]
 struct Overview {
     owner_id: String,
     environments: Vec<Environment>,
+    #[serde(default)]
+    providers: Vec<Provider>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -394,6 +411,21 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
                 "selection",
             )
         }
+        Action::StartProvider {
+            session,
+            thread_id,
+            provider,
+        } => {
+            validate_id(&thread_id)?;
+            validate_provider(&provider)?;
+            (
+                session,
+                Method::PATCH,
+                format!("api/native/orbit/threads/{thread_id}/environment"),
+                Some(json!({"provider":provider})),
+                "selection",
+            )
+        }
         Action::Select {
             session,
             thread_id,
@@ -441,12 +473,26 @@ fn sanitize(value: Value, shape: &str) -> Result<Value> {
         "list" => {
             let result: Overview = serde_json::from_value(value).map_err(|_| invalid())?;
             validate_id(&result.owner_id)?;
-            if result.environments.len() > 32 {
+            if result.environments.len() > 32 || result.providers.len() > 20 {
                 return Err(invalid());
+            }
+            for provider in &result.providers {
+                validate_provider(&provider.id)?;
+                if !valid_name(&provider.name) {
+                    return Err(invalid());
+                }
             }
             for environment in &result.environments {
                 validate_id(&environment.id)?;
                 validate_configuration(&environment.configuration)?;
+                if let Some(provider) = &environment.provider {
+                    validate_provider(provider)?;
+                }
+                if environment.provider_state.as_deref().is_some_and(|state| {
+                    !["starting", "ready", "stopping", "paused", "error"].contains(&state)
+                }) {
+                    return Err(invalid());
+                }
             }
             serde_json::to_value(result).map_err(|_| invalid())
         }
@@ -477,7 +523,7 @@ fn sanitize(value: Value, shape: &str) -> Result<Value> {
                     || !valid_command_text(&job.command)
                     || job.output.len() > 48 * 1024
                     || job.progress_sequence > i64::MAX as u64
-                    || job.execution_timeout_seconds != 1800
+                    || ![600, 1800].contains(&job.execution_timeout_seconds)
                     || matches!(job.status, JobStatus::Settled) != job.success.is_some()
                     || result.commands[..index]
                         .iter()
@@ -609,6 +655,18 @@ fn text(value: &str, minimum: usize, maximum: usize) -> bool {
 
 fn valid_command_text(value: &str) -> bool {
     !value.trim().is_empty() && value.len() <= 8000 && !value.contains('\0')
+}
+
+fn validate_provider(value: &str) -> Result<()> {
+    if value.is_empty()
+        || value.len() > 100
+        || !value
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 fn validate_configuration(value: &Configuration) -> Result<()> {
