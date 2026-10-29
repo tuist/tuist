@@ -93,7 +93,7 @@ fill in on the rule.
 
 Two deliberate exceptions stay on simplified routing:
 
-- The five rules pinned to `Incidents`, which page through IRM.
+- The rules pinned to `Incidents`, which page through IRM.
 - Grafana Cloud's own billing and usage rules (`Global Spend: *`,
   `Anomaly: * Usage`). These are provisioned with provenance `api` and
   reject edits with `409 provenanceMismatch`. They carry no `cluster`
@@ -8371,6 +8371,35 @@ Update the live rule only after workload aggregation removes the known
 during rollout. Changing this expression does not provision Grafana alerts.
 Any other colliding series suggests a relabel rule is removing
 dimensions without actual aggregation.
+
+### High Forbidden (403) Response Ratio - Production
+
+Rule [`bfse8jhbbhvcwe`](https://tuist.grafana.net/alerting/grafana/bfse8jhbbhvcwe/view),
+folder `Alerts`, group `Server`. It fires when more than 3% of production
+Phoenix responses in the last 10 minutes were 403s and there were at least
+1000 of them, for 5 minutes.
+
+```promql
+# A: 403s in the last 10 minutes
+sum_over_time(clamp_min(
+  sum(tuist_prom_ex_phoenix_http_requests_total{namespace="tuist", cluster="tuist-production", status="403", path!~"/_internal/.*"})
+  - sum(tuist_prom_ex_phoenix_http_requests_total{namespace="tuist", cluster="tuist-production", status="403", path!~"/_internal/.*"} offset 1m),
+0)[10m:1m])
+# B: the same without the status matcher
+# C (math): ($A / $B > 0.03) && ($A >= 1000)
+```
+
+- Severity: warning. Policy routing (no `notification_settings`), so it lands
+  in `Slack #notifications 2` and does not page.
+- `/_internal/` routes are excluded. `/_internal/kura/activate` answers every
+  cache request a client sends through the activation gateway, so one client
+  with a refused credential dominates the ratio without any API user being
+  affected.
+- Adaptive Metrics stores this counter aggregated across pods, so `rate()` and
+  `increase()` on it return nothing, and `increase()` over the summed series
+  counts every pod restart as a full counter reset. Summing the per-minute
+  increases clamped at zero drops those resets.
+- No Data: OK. Error: Error.
 
 ## Useful investigation queries
 
