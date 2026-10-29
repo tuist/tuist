@@ -1,9 +1,10 @@
-# Install as a NEW release/target. Does not enable enrollment or deploy itself.
-# Supply the environment's externalSecrets.item separately.
+# NEW store on the dedicated OVH Gravelines ADVANCE-4 host (RAID10, ~3.4 TiB
+# XFS /data); supply its secret item. Does not enable enrollment.
 replicas: 1
+region: ""
+nodeSelector:
+  node.cluster.x-k8s.io/pool: shard-storage
 storage:
-  # One storage host with enough allocatable disk, e.g. mirrored 3.84 TB NVMe.
-  # Do not place this on the existing space-constrained shared cache hosts.
   size: 3Ti
 lifecycle:
   expirationDays: 3

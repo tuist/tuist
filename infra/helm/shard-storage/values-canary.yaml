@@ -1,5 +1,6 @@
 # NEW store on the dedicated OVH Gravelines host; supply its secret item.
 replicas: 1
+region: ""
 serverNamespace: tuist-canary
 nodeSelector:
   node.cluster.x-k8s.io/pool: shard-storage

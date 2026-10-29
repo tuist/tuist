@@ -11,12 +11,13 @@ not store the authoritative shard plan or change Xcode artifact routing.
 
 The `scw-local-nvme` provisioner enforces the configured PVC with an XFS project
 quota (200 GiB by default, 3 TiB in the production overlay). The pod requests
-the same amount of `ephemeral-storage` for scheduler
-accounting and carries `tuist.dev/region` for Kura capacity admission. Install
-in `kura`, where that admission reads region reservations. Admission uses the
-current pressure threshold; installing Garage consumes existing capacity.
-Check existing region and node headroom before installation. Do not
-reduce the PVC or change its storage class to work around a full node.
+the same amount of `ephemeral-storage` for scheduler accounting. Install in
+`kura`. When the store shares a Kura region's hosts, set `region` so the pod
+carries `tuist.dev/region` and Kura capacity admission counts its reservation;
+installing Garage there consumes existing capacity, so check region and node
+headroom first. Canary and production run on dedicated `shard-storage` hosts
+outside every Kura region and leave `region` empty. Do not reduce the PVC or
+change its storage class to work around a full node.
 
 Garage uses path-style S3 on a ClusterIP at port 3900. Singleton RPC binds to
 loopback. Replicated stores allow RPC on 3901 only between their own pods and
@@ -93,21 +94,23 @@ those operations to Tigris.
 Use `values-staging.yaml`, `values-canary.yaml`, or `values-production.yaml` on a
 fresh store. All select one replica and three-day archive expiration. Staging
 and canary default to 200 GiB for functional validation; production reserves
-3 TiB on one suitably sized OVH host. A mirrored pair of 3.84 TB NVMe disks is
-one candidate, subject to actual allocatable disk after OS/reserves. Keep usage
-below about 3 TB decimal to leave room within the quota. There is no three-way
-replication multiplier: the usable dataset is stored once. This is a starting
-capacity, not a measured demand estimate; compare retained bytes and daily
-upload volume with the window before widening enrollment.
+3 TiB. Keep usage below about 3 TB decimal to leave room within the quota. There
+is no replication multiplier: the usable dataset is stored once. On 2026-10-28,
+retained Linux shard archives totalled 215.6 GiB and the largest rolling 72-hour
+window was 55.7 GiB. Compare retained bytes and daily upload volume with the
+window before widening enrollment.
 
-Do not place the production store on `cwmt8` or infer capacity from a host count.
-Its previously measured 341 GiB unreserved cannot satisfy 3 TiB. Provision and
-verify one appropriate host, then set its exact pool/placement and vRack before
-installation. The default legacy `kura-dedibox` selector is an OVH cache-pool
-label, not evidence of available storage. Canary also needs a Gravelines host;
-its Canadian OVH cache node is not a local substitute. Staging's existing
-singleton can continue under its current policy without buying another host.
-A fresh parallel staging store needs its own capacity while old artifacts drain.
+Staging's existing singleton runs on a shared Kura host in the
+`kura-ovh-gra-runners` pool and continues under its current policy. A fresh
+parallel staging store needs its own capacity while old artifacts drain.
+
+Production uses the dedicated ADVANCE-4 `ns3027117.ip-91-134-8.eu` in
+Gravelines, through `ovhFleets.shard-storage` and the `shard-storage` node pool.
+Its four 1.92 TB NVMe disks are RAID10: 64 GiB root and approximately 3.4 TiB
+XFS `/data`, with a 3 TiB Garage allocation. The adoption marker is
+`tuist-shards-ovh-production`; the controller owns joining and vRack
+`pn-2024093` configuration. Apply the marker only as the fleet deploys: an
+unmarked box leaves the MachineDeployment at 0/1 and wedges `helm --wait`.
 
 Canary uses the dedicated RISE-1 `ns3234030.ip-188-165-77.eu` in Gravelines,
 through `ovhFleets.shard-storage` and the `shard-storage` node pool. Its two
@@ -279,13 +282,11 @@ storage node must not block server deployments.
 2. Check Kura headroom, provision secrets, and install this chart separately as
    a new production release in namespace `kura`, with `enabled=true` and
    the environment overlay. Use singleton initialization for the initial rollout;
-   use the manual bootstrap only for the optional three-node topology. The default
-   placement selects `kura-dedibox`, the historical pool label now used by the
-   OVH EU-West fleet in Gravelines. The former Dedibox hosts have been retired;
-   the label remains because existing KuraInstances, local PVs and gateways
-   depend on it. Verify the selected host's OVH provider identity, Gravelines
-   location, allocatable disk and private route before enrollment. Staging and
-   canary require deliberate placement overrides. Preserve staging fixture archives.
+   use the manual bootstrap only for the optional three-node topology. Canary
+   and production select the dedicated `shard-storage` pool through their
+   overlays. Verify the selected host's OVH provider identity, Gravelines
+   location, allocatable disk, active XFS project quota and private route before
+   enrollment. Preserve staging fixture archives.
 3. Confirm full cluster health and the lifecycle policy, then perform a multipart
    upload/download/delete smoke test with disposable bytes from a server pod
    and an enrolled runner. Test each replica's restart against the same PVC and

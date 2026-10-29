@@ -1,5 +1,6 @@
 # NEW short-lived store only; retain the old store/policy until its plans drain.
 replicas: 1
+region: ovh-gra-runners
 lifecycle:
   expirationDays: 3
 nodeSelector:

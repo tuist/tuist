@@ -35,8 +35,16 @@ for environment in staging canary production; do
     yq -o json -I0 'select(.kind != null)' | jq -s . > "$WORK/$environment.json"
   size=200Gi
   if [[ "$environment" == production ]]; then size=3Ti; fi
-  jq -e --arg size "$size" '
+  pool=shard-storage
+  region=null
+  if [[ "$environment" == staging ]]; then
+    pool=kura-ovh-gra-runners
+    region='"ovh-gra-runners"'
+  fi
+  jq -e --arg size "$size" --arg pool "$pool" --argjson region "$region" '
     any(.[]; .kind == "StatefulSet" and .spec.replicas == 1 and
+      .spec.template.metadata.labels["tuist.dev/region"] == $region and
+      .spec.template.spec.nodeSelector["node.cluster.x-k8s.io/pool"] == $pool and
       .spec.updateStrategy.type == "OnDelete" and
       (.spec.template.spec.containers[0].args | index("--single-node")) != null and
       .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == $size and
@@ -48,7 +56,31 @@ for environment in staging canary production; do
         .Rules[0].AbortIncompleteMultipartUpload.DaysAfterInitiation == 1))
   ' "$WORK/$environment.json" >/dev/null
 done
-echo 'All environments: singleton, controlled restart, matching disk reservation and three-day archives verified'
+echo 'All environments: singleton, placement, region accounting, controlled restart, matching disk reservation and three-day archives verified'
+MAIN_CHART="$ROOT/infra/helm/tuist"
+for environment in canary production; do
+  helm template tuist "$MAIN_CHART" --namespace tuist \
+    -f "$MAIN_CHART/values-managed-common.yaml" \
+    -f "$MAIN_CHART/values-managed-$environment.yaml" \
+    -f "$MAIN_CHART/values-ci.yaml" |
+    yq -o json -I0 'select(.kind != null)' | jq -s . > "$WORK/fleet-$environment.json"
+  case "$environment" in
+    canary) vrack=pn-2024092 ;;
+    production) vrack=pn-2024093 ;;
+  esac
+  jq -e --arg environment "$environment" --arg vrack "$vrack" '
+    [.[] | select(.kind == "OVHDedicatedMachineTemplate" and
+      .spec.template.spec.adoptDisplayNamePrefix == ("tuist-shards-ovh-" + $environment))] as $templates |
+    ($templates | length) == 1 and
+    ($templates[0].spec.template.spec |
+      .datacenter == "gra" and .vRackID == $vrack and .kataRuntime == null and
+      .nodeTaints == [{"key": "tuist.dev/kura-cache", "value": "true", "effect": "NoSchedule"}]) and
+    any(.[]; .kind == "MachineDeployment" and .metadata.name == $templates[0].metadata.name and
+      .spec.replicas == 1 and .spec.strategy.type == "OnDelete" and
+      .spec.template.metadata.labels["node.cluster.x-k8s.io/pool"] == "shard-storage")
+  ' "$WORK/fleet-$environment.json" >/dev/null
+done
+echo 'Canary and production: one dedicated Gravelines storage host on the runner vRack, outside the runner pool'
 helm lint "$CHART" --namespace kura -f "$CHART/values-production.yaml" -f "$CHART/values-replicated.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE
 helm template shard-storage "$CHART" --namespace kura -f "$CHART/values-production.yaml" -f "$CHART/values-replicated.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE |
   yq -o json -I0 'select(.kind != null)' | jq -s . > "$WORK/replicated.json"

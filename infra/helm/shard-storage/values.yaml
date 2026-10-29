@@ -1,5 +1,8 @@
 enabled: false
 image: dxflrs/garage:v2.5.0
+# Kura region whose capacity admission counts this store's reservation. Set it
+# only when the store shares that region's hosts; leave it empty on a dedicated
+# storage host, whose disk is not part of any region's allocatable.
 region: eu-west
 bucket: shards
 # Start with 1 in every environment; 3 is an optional future topology. Never change

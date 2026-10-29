@@ -1,6 +1,6 @@
 {{- if .Values.enabled }}
 {{- if ne .Release.Namespace "kura" }}
-{{- fail "shard-storage must be installed in kura so capacity admission counts its reservation" }}
+{{- fail "shard-storage must be installed in kura, where runner egress and capacity admission expect it" }}
 {{- end }}
 {{- $replicated := eq (int .Values.replicas) 3 }}
 {{- if not (or (eq (int .Values.replicas) 1) $replicated) }}
@@ -122,7 +122,9 @@ spec:
       labels:
         app.kubernetes.io/name: shard-storage
         app.kubernetes.io/instance: {{ .Release.Name }}
-        tuist.dev/region: {{ .Values.region | quote }}
+        {{- with .Values.region }}
+        tuist.dev/region: {{ . | quote }}
+        {{- end }}
       annotations:
         checksum/config: {{ printf "%s/%s/%v/%s" .Values.region .Values.bucket .Values.replicas (toJson .Values.cluster.bootstrapPeers) | sha256sum }}
     spec:
