@@ -2098,14 +2098,12 @@ jobs:
             echo "Swift registry component disabled; skipping registry smoke test."
           fi
       - name: xcresult processor rollout
-        # Reports the processor release's rollout without gating the deploy:
-        # the server release is out by now and stays out whatever the
-        # processor does. A processor that never turns Ready (a shared
-        # Postgres or ClickHouse outage, or a Mac mini that cannot reach its
-        # Tart guest) fails this step, which annotates the run, and the job
-        # still succeeds. `:process_xcresult` jobs queue until a processor is
-        # Ready. 30m matches the Deployment's progressDeadlineSeconds: one
-        # Tart VM cycle per replica.
+        # Canary must have a Ready processor before acceptance and production
+        # promotion. A failed rollout fails the canary job, but does not roll
+        # back the already-deployed server release. Staging only reports the
+        # failure. `:process_xcresult` jobs queue until a processor is Ready.
+        # 30m matches the Deployment's progressDeadlineSeconds: one Tart VM
+        # cycle per replica.
         #
         # Production does not wait: its replicas cycle one Tart VM at a time
         # and nothing after this step depends on them, so the wait only held
@@ -2114,7 +2112,7 @@ jobs:
         # infra/helm/k8s-monitoring/alerts.md. Canary keeps waiting because
         # its acceptance tests need a Ready processor.
         if: env.XCRESULT_PROCESSOR_DEPLOYMENT != '' && inputs.environment != 'production'
-        continue-on-error: true
+        continue-on-error: ${{ inputs.environment != 'canary' }}
         timeout-minutes: 35
         run: |
           set -uo pipefail
