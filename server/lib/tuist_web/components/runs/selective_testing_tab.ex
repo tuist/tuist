@@ -34,8 +34,6 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     default: nil,
     doc: "The coverage selection's requested tests per module name, which adds their columns."
 
-  attr :selection_mode, :string, default: "enabled"
-
   def selective_testing_tab(assigns) do
     assigns = assign(assigns, :selective_testing_json, selective_testing_targets_json(assigns.run))
 
@@ -182,11 +180,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
             <:col
               :let={test_module}
               :if={@selection_targets}
-              label={
-                if @selection_mode == "dry_run",
-                  do: dgettext("dashboard_tests", "Would run"),
-                  else: dgettext("dashboard_tests", "Selected")
-              }
+              label={dgettext("dashboard_tests", "Selected")}
             >
               <.text_cell label={
                 case @selection_targets[test_module.name] do

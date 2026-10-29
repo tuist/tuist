@@ -41,7 +41,6 @@ defmodule TuistWeb.TestRunLive do
   @table_page_size 20
   @flaky_runs_page_size 20
   @overview_flaky_groups_count 4
-  @selective_testing_tabs ~w(test-optimizations selective-testing-dry-run)
 
   # A run finishing on the isolated, non-clustered xcresult-processor pushes its
   # completion through BroadcastTestCreatedWorker, and web-origin runs broadcast
@@ -111,7 +110,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign_stress_gate(run)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
-      |> assign_selection_run(project, run)
+      |> assign(:selection_run, selection_run(project, socket.assigns.selected_account, run))
       |> RunTab.assign_defaults()
       |> assign(:show_test_suites, project.build_system != :bazel)
       |> assign_initial_analytics_state()
@@ -301,7 +300,7 @@ defmodule TuistWeb.TestRunLive do
         {"module-cache", _} ->
           {socket.assigns.binary_cache_available_filters, socket.assigns.binary_cache_active_filters}
 
-        {tab, _} when tab in @selective_testing_tabs ->
+        {"test-optimizations", _} ->
           {socket.assigns.selective_testing_available_filters, socket.assigns.selective_testing_active_filters}
 
         _ ->
@@ -582,7 +581,7 @@ defmodule TuistWeb.TestRunLive do
       selected_tab == "module-cache" ->
         Map.put(params, "binary-cache-page", "1")
 
-      selected_tab in @selective_testing_tabs ->
+      selected_tab == "test-optimizations" ->
         Map.put(params, "selective-testing-page", "1")
 
       true ->
@@ -600,9 +599,9 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
-  defp assign_tab_data(socket, tab, params) when tab in @selective_testing_tabs do
+  defp assign_tab_data(socket, "test-optimizations", params) do
     socket =
-      if socket.assigns.selection_page_tab == tab,
+      if socket.assigns.selection_run,
         do: RunTab.assign_data(socket, socket.assigns.selection_run, params),
         else: socket
 
@@ -1696,15 +1695,10 @@ defmodule TuistWeb.TestRunLive do
     assign(socket, :text_attachment_urls, urls)
   end
 
-  defp assign_selection_run(socket, project, run) do
-    selection_run =
-      if Project.xcode_project?(project) and FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account) do
-        Selections.run_for_test_run(project.id, run.id)
-      end
-
-    socket
-    |> assign(:selection_run, selection_run)
-    |> assign(:selection_page_tab, selection_run && RunTab.page_tab(selection_run))
+  defp selection_run(project, account, run) do
+    if Project.xcode_project?(project) and FeatureFlags.xcode_coverage_enabled?(account) do
+      Selections.run_for_test_run(project.id, run.id)
+    end
   end
 
   defp assign_shard_rows(socket, run) do

@@ -11,9 +11,8 @@ defmodule Tuist.Tests.SelectionsTest do
     %{project: ProjectsFixtures.project_fixture()}
   end
 
-  # A dry run whose test run ran `test_load()` (passed) and `test_refresh()`
-  # (failed, though the selection would have skipped it) but never reported
-  # `test_gone()`.
+  # A selection run that skipped `test_refresh()` and `test_reset()`, whose
+  # test run ran `test_load()` (passed) but never reported `test_gone()`.
   defp run(project) do
     test_run_id = UUIDv7.generate()
     [load, refresh, reset, gone] = for _ <- 1..4, do: UUIDv7.generate()
@@ -59,8 +58,6 @@ defmodule Tuist.Tests.SelectionsTest do
       )
 
     RunsFixtures.test_case_run_fixture(project_id: project.id, test_run_id: test_run_id, test_case_id: load, status: 0)
-    RunsFixtures.test_case_run_fixture(project_id: project.id, test_run_id: test_run_id, test_case_id: refresh, status: 1)
-    RunsFixtures.test_case_run_fixture(project_id: project.id, test_run_id: test_run_id, test_case_id: reset, status: 0)
 
     run
   end
@@ -75,14 +72,13 @@ defmodule Tuist.Tests.SelectionsTest do
         inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600, :second)
       )
 
-      TestSelectionFixtures.run_fixture(project_id: project.id, git_commit_sha: "newer", mode: "enabled")
+      TestSelectionFixtures.run_fixture(project_id: project.id, git_commit_sha: "newer")
 
       {rows, meta} = Selections.list_runs(project.id)
 
       assert Enum.map(rows, & &1.git_commit_sha) == ["newer", "older"]
       assert meta.total_count == 2
       assert {[%{git_commit_sha: "older"}], _meta} = Selections.list_runs(project.id, search: "core")
-      assert {[%{git_commit_sha: "newer"}], _meta} = Selections.list_runs(project.id, mode: "enabled")
       assert {[%{git_commit_sha: "older"}], _meta} = Selections.list_runs(project.id, fallback: true)
     end
   end
@@ -102,14 +98,13 @@ defmodule Tuist.Tests.SelectionsTest do
   end
 
   describe "run_summary/1" do
-    test "adds up the run's tests, misses and tests that never reported", %{project: project} do
+    test "adds up the run's tests and the selected tests that never reported", %{project: project} do
       summary = project |> run() |> Selections.run_summary()
 
       assert summary.requested == 4
       assert summary.selected == 2
       assert summary.skipped == 2
       assert summary.skip_rate == 50.0
-      assert summary.missed == 1
       assert summary.not_run == 1
       assert summary.reported
 
@@ -124,7 +119,7 @@ defmodule Tuist.Tests.SelectionsTest do
       run =
         TestSelectionFixtures.run_fixture(project_id: project.id, tests: [%{decision: "selected", name: "test_a()"}])
 
-      assert %{reported: false, not_run: 0, missed: 0} = Selections.run_summary(run)
+      assert %{reported: false, not_run: 0} = Selections.run_summary(run)
     end
   end
 
@@ -135,8 +130,8 @@ defmodule Tuist.Tests.SelectionsTest do
       assert Enum.map(rows, &{&1.name, &1.outcome}) == [
                {"test_gone()", nil},
                {"test_load()", "success"},
-               {"test_refresh()", "failure"},
-               {"test_reset()", "success"}
+               {"test_refresh()", nil},
+               {"test_reset()", nil}
              ]
 
       assert meta.total_count == 4
@@ -145,7 +140,6 @@ defmodule Tuist.Tests.SelectionsTest do
     test "filters by decision, flag, shard and search, and sorts by duration", %{project: project} do
       run = run(project)
 
-      assert {[%{name: "test_refresh()"}], _meta} = Selections.run_tests(run, flag: "missed")
       assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, flag: "not_run")
       assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, shard: 1)
       assert {rows, _meta} = Selections.run_tests(run, decision: "skipped")
@@ -168,9 +162,9 @@ defmodule Tuist.Tests.SelectionsTest do
   describe "get_run_test/2" do
     test "returns one of the run's tests with its outcome", %{project: project} do
       run = run(project)
-      {[test | _rest], _meta} = Selections.run_tests(run, search: "refresh")
+      {[test | _rest], _meta} = Selections.run_tests(run, search: "load")
 
-      assert {:ok, %{name: "test_refresh()", outcome: "failure"}} = Selections.get_run_test(run, test.test_case_id)
+      assert {:ok, %{name: "test_load()", outcome: "success"}} = Selections.get_run_test(run, test.test_case_id)
       assert {:error, :not_found} = Selections.get_run_test(run, UUIDv7.generate())
     end
   end
