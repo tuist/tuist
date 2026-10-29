@@ -1,0 +1,263 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "a599e9160dea9975032a59a30f26ae0bb2e09f96ee5b0aaaf00515ec0021c941",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Xcode cache {#xcode-cache}": {
+                  "content_hash": "c64333a3e647e86066125b7cd175649d8efe0faf0ee4b3490afce5965ff37ac3"
+                },
+                "## Setup {#setup}": {
+                  "content_hash": "4ed39d7069b1db8538d2ccf19610d1512ae1d565db0e79c1cdb7786fbfdd1585"
+                },
+                "## Troubleshooting {#troubleshooting}": {
+                  "content_hash": "8aaf5c9abf7b8885bbf50c115f609fb241f85145e2d4cc9ee125b3c522b1c1b5"
+                },
+                "### Builds are extremely slow and emit `CAS error: deadlineExceeded` warnings {#cas-deadline-exceeded}": {
+                  "content_hash": "07984400da01fe3224d028aa8f1b1d538b40c6de24deb3c10ef105da2ee49996"
+                },
+                "### Builds warn that the Xcode cache proxy failed {#cas-proxy-failed}": {
+                  "content_hash": "ecfe23787a29c595c8240da456ae28b547483c6d9f899474672e083405dd96c4"
+                },
+                "### Cache upload policy {#cache-upload-policy}": {
+                  "content_hash": "3009a2ef8c54db478ffed927d0d1f83ac24ac0803a92f76719f3b33673f97ce1"
+                },
+                "### Compilation cache store on CI {#compilation-cache-store-on-ci}": {
+                  "content_hash": "c73cba4b794bf58ce1f5ec537a3582c0373c14d06d4c174ecefc0b58a5a34a9a"
+                },
+                "### Configure Xcode Build Settings {#configure-xcode-build-settings}": {
+                  "content_hash": "1f0a51713a8e4223ce92b0833e7ee8aa8aa74b0c305a2364b58fc3545a1f9e31"
+                },
+                "### Continuous integration {#continuous-integration}": {
+                  "content_hash": "406e327a5494d066cc580e8f0fd683dcf87058d9fc7fd7897a2911710e3c0359"
+                },
+                "### Coverage with prefix mapping {#coverage-with-prefix-mapping}": {
+                  "content_hash": "eb7bc6ed5f13d1d5acb0b2ffe0ec842230f00b1b3eeaa9bce7b1528f18efe9a0"
+                },
+                "### Debugging generated projects {#debugging-generated-projects}": {
+                  "content_hash": "8d1496e12ba51f0a823d04b335c46baade5fdb465cc4819e8ae5fe43f47ced4f"
+                },
+                "### Module cache hashes {#module-cache-hashes}": {
+                  "content_hash": "ec0ba53ab9444d5cf43c3123279d5d56244293ed1cde97a65d7d01b71cc71921"
+                },
+                "### Reusing parts of large outputs {#reusing-parts-of-large-outputs}": {
+                  "content_hash": "2993f8026f03e9101f7de5faf67731d1117e6bfee5ecb341de1c69aa952d5697"
+                },
+                "### Store size limit {#store-size-limit}": {
+                  "content_hash": "6ef3f8aeb863f2cdab351212aa6419d20cf63e4f53b6283907fd394bfb9a2a03"
+                },
+                "### Updating the cache components {#updating-the-cache-components}": {
+                  "content_hash": "87fd9f8f5cff540292ba4b6d86c8a6589144b94d0363d51500cd7d6282e0ff50"
+                },
+                "### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}": {
+                  "content_hash": "fe40442337c4f91709be8040cf901caab9af2065afcb4554a5ee799f88c3a347"
+                },
+                "#### Stateful store {#stateful-store}": {
+                  "content_hash": "b33bb4f403a255f079113580560611d385e5ce78bac15c810678979f52f3f349"
+                },
+                "Preamble": {
+                  "content_hash": "bb613ce91648f3490fb53092d1cea60ac995aff0eb3232be186a8509886ed9ce"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "7228f7e233f2b05d0bb8b9aede4dcdbe95ef84fcbe35f87f373bf0e8e54aa891",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
+          "metadata": {
+            "content_hash": "e9d9116f2a3534359fc530c8f9d37d4625092fb86df6440b0345a4117eee31fe"
+          }
+        },
+        {
+          "children": [],
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "3ecc365b734729a293b8364054b4d10c9f2be5c8b346a5b80193a345bd3f0f18",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "preserve",
+            "language": "Georgian",
+            "locale": "ka",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "9832e08f92731f0ca618b464aba817a81993e7e5e7fc739384aa5b31f27a116c",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "74929240d85a73c25e7b9d4f035982eedafa2cd5e60b7b1e99ed67ac1eaf2de7"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "78082d7c034993870ffb5db29a7d310660843865e47983a85698e63918232183"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "d95ef38819507d199e1d0d3320729d1943e6e5bbf03f875565dba4a5eac01c9c",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "d4df1d45a30759f4bcbded16c9a013d017c514faea481480139e0fd3721818b9",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "b96a5f0e94ea9c882668b0d7bfbb1df3020bf0fd39f67b357660f13578ffab10"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "add8afc52b41a90c0d49a22ac6e819eda3a9f3ce0e7dc40c6e48fea021eed387"
+                      },
+                      "## Validation loop": {
+                        "content_hash": "aa8c56c4534baac974459259071afd947940c9a4d6fcdcac6b6457d6dc1c3dd0"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "7d48054a0597a4430b7ee78f7d0a2af29dcf0aa1c2a46761e70bd2e9c398f3c6",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+              }
+            },
+            {
+              "children": [],
+              "details": {},
+              "hash": "2142b5336a0c93e93d936853018f589a34b88ba325aa002e150a036351292441",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "aaaa323144d0aa263b3c3b320f63fa40d6f277ca8e12bac4001fb8a508c0d17f",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "details": {},
+              "hash": "c18f36f445e3f1b1119032b90a7907097b5bb97f568b020c7a5a8333447a8658",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "details": {},
+          "hash": "a05efcffd535a745f12aa6f7ec5ffd2b96fc3e33aa7bb88d42769955ae4e3dcc",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "details": {},
+      "hash": "a599e9160dea9975032a59a30f26ae0bb2e09f96ee5b0aaaf00515ec0021c941",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "f0704374a1b17613ee168fbd015fa4eabc63fa55b5775197e247edddd5aba768",
+  "output_path": "server/priv/docs/ka/guides/features/cache/xcode-cache.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "33a4ad61974d267d0a4cdbe16ab3df57e32a8c31",
+  "source_path": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
+  "translated_at": "2026-10-29T08:59:43.706929Z",
+  "translation_session_id": "01a186d0-9b58-7626-be39-08ba9de6c8ba"
+}
