@@ -8,11 +8,15 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.IngestRepo
   alias Tuist.Kura.EvictionEvent
   alias Tuist.Kura.SelfHostedClients
   alias Tuist.Kura.StorageSnapshot
+  alias Tuist.Kura.Usage
   alias Tuist.Kura.UsageEvent
+  alias Tuist.Kura.Workers.IngestUsageWorker
   alias Tuist.OAuth.Clients
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -86,6 +90,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
       post_events(conn, [build_event()], authorization: authorization_header(client.id, client.secret))
 
     assert %{"accepted" => 1} = json_response(conn, 202)
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage)
 
     assert [
              %UsageEvent{
@@ -99,6 +104,69 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
     assert account_id == account.id
     assert project_id == project.id
+  end
+
+  test "accepts usage during a ClickHouse outage and delivers it after recovery", %{
+    conn: conn,
+    kura_client: client
+  } do
+    account = AccountsFixtures.organization_fixture(name: "acme").account
+    project = ProjectsFixtures.project_fixture(account: account, name: "ios")
+
+    events = [
+      build_event(%{"window_start_unix_seconds" => System.system_time(:second) - 60}),
+      build_event(%{
+        "event_id" => "event-2",
+        "bytes" => 700,
+        "request_count" => 5,
+        "window_start_unix_seconds" => System.system_time(:second) - 60
+      })
+    ]
+
+    stub(IngestRepo, :insert_all, fn UsageEvent, _rows ->
+      raise DBConnection.ConnectionError, "connection not available"
+    end)
+
+    conn = post_events(conn, events, authorization: authorization_header(client.id, client.secret))
+
+    assert %{"accepted" => 2} = json_response(conn, 202)
+    assert [job] = all_enqueued(worker: IngestUsageWorker)
+    assert [%{"account_id" => account_id, "project_id" => project_id} | _] = job.args["rows"]
+    assert account_id == account.id
+    assert project_id == project.id
+    assert ClickHouseRepo.all(UsageEvent) == []
+
+    assert %{success: 0, failure: 1} = Oban.drain_queue(queue: :kura_usage, with_safety: true)
+    assert Repo.get!(Oban.Job, job.id).state == "retryable"
+
+    stub(IngestRepo, :insert_all, fn schema, rows ->
+      Mimic.call_original(IngestRepo, :insert_all, [schema, rows])
+    end)
+
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage, with_scheduled: true)
+    assert Repo.get!(Oban.Job, job.id).state == "completed"
+
+    # ClickHouse may commit before a connection failure hides its response.
+    # Replaying that same payload must not inflate the metered request count.
+    assert :ok = perform_job(IngestUsageWorker, job.args)
+    assert Usage.recent_request_counts_by_account([account.id]) == %{account.id => 7}
+
+    assert [{123, 2}, {700, 5}] ==
+             UsageEvent
+             |> ClickHouseRepo.all()
+             |> Enum.map(&{&1.bytes, &1.request_count})
+             |> Enum.uniq()
+             |> Enum.sort()
+  end
+
+  test "does not acknowledge usage when the durable handoff fails", %{conn: conn, kura_client: client} do
+    stub(Oban, :insert, fn _changeset -> {:error, :unavailable} end)
+
+    conn =
+      post_events(conn, [build_event()], authorization: authorization_header(client.id, client.secret))
+
+    assert %{"error" => "ingestion_unavailable"} = json_response(conn, 503)
+    refute_enqueued(worker: IngestUsageWorker)
   end
 
   test "rejects missing credentials", %{conn: conn} do
@@ -228,6 +296,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     # their fields are customer-controlled while claim sizing reads the
     # tables as trusted managed-node signal.
     assert %{"accepted" => 1} = json_response(conn, 202)
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage)
 
     assert ClickHouseRepo.one(from(e in EvictionEvent, where: e.event_id == ^eviction["event_id"])) == nil
 
@@ -248,6 +317,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
       )
 
     assert %{"accepted" => 1} = json_response(response, 202)
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage)
     assert ClickHouseRepo.one(from e in UsageEvent, where: e.event_id == ^event_id, select: e.account_id) == account.id
   end
 
@@ -264,6 +334,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
       )
 
     assert %{"accepted" => 1} = json_response(conn, 202)
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage)
 
     assert [%UsageEvent{account_id: account_id}] =
              ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id))

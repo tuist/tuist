@@ -36,6 +36,32 @@ Authenticated-subject snapshots are also stored in the separate ephemeral node-l
 
 ## Exportable Data
 
+### Queued Kura usage delivery
+
+PostgreSQL `oban_jobs` temporarily stores resolved usage rollups in `args.rows`
+for worker `Tuist.Kura.Workers.IngestUsageWorker`, queue `kura_usage`, before
+delivery to ClickHouse `kura_usage_events`. Rows contain account/project IDs,
+event ID, node, region, traffic dimensions, coarse origin, byte/request counts,
+window timestamps and insertion time. No authentication credentials are queued.
+The existing managed/self-hosted origin and attribution rules still apply.
+
+A job can contain several accounts. Export only the requesting account's rows,
+not the entire matching job:
+
+```sql
+SELECT usage_row
+FROM oban_jobs AS job
+CROSS JOIN LATERAL jsonb_array_elements(job.args->'rows') AS usage_row
+WHERE job.worker = 'Tuist.Kura.Workers.IngestUsageWorker'
+  AND usage_row->>'account_id' = '<account_id>';
+```
+
+Pending/retryable jobs follow Oban's retry lifecycle, with at most 20 attempts.
+Completed, discarded and cancelled jobs follow the existing two-hour pruning
+policy. Exhausting retries can therefore remove an undelivered acknowledged
+payload; dead-letter retention is a release blocker for this draft buffering
+implementation. Delivered usage retains the existing ClickHouse export rules.
+
 ### Atlas signals and business routing profiles
 
 Atlas's separate PostgreSQL database stores opt-in business routing metadata in

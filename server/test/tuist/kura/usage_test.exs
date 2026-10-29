@@ -5,7 +5,6 @@ defmodule Tuist.Kura.UsageTest do
   import Mimic
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.IngestRepo
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Usage
   alias Tuist.Kura.UsageEvent
@@ -18,9 +17,9 @@ defmodule Tuist.Kura.UsageTest do
   test "failed ingestion does not refresh managed demand" do
     account = AccountsFixtures.user_fixture().account
     event = wire_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => System.system_time(:second)})
-    expect(IngestRepo, :insert_all, fn UsageEvent, _ -> raise "ingest unavailable" end)
+    stub(Oban, :insert, fn _changeset -> {:error, :unavailable} end)
     reject(Demand, :record, 3)
-    assert_raise RuntimeError, "ingest unavailable", fn -> Usage.create_events([event]) end
+    assert {:error, :unavailable} = Usage.create_events([event])
   end
 
   test "fresh managed traffic refreshes demand and the traffic clock once per account" do
@@ -83,6 +82,8 @@ defmodule Tuist.Kura.UsageTest do
           })
         ])
 
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage)
+
       assert [%UsageEvent{account_id: a_id, project_id: p_id, bytes: 100}] =
                ClickHouseRepo.all(from(e in UsageEvent, where: e.account_id == ^account.id))
 
@@ -104,6 +105,8 @@ defmodule Tuist.Kura.UsageTest do
           })
         ])
 
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage)
+
       assert [%UsageEvent{project_id: project_id}] =
                ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id))
 
@@ -123,6 +126,8 @@ defmodule Tuist.Kura.UsageTest do
           })
         ])
 
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage)
+
       assert [%UsageEvent{account_id: a_id, project_id: 0}] =
                ClickHouseRepo.all(from(e in UsageEvent, where: e.account_id == ^account.id))
 
@@ -139,6 +144,8 @@ defmodule Tuist.Kura.UsageTest do
           wire_event(%{"event_id" => "origin-#{account.id}-3", "tenant_id" => account.name})
         ])
 
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage)
+
       origins =
         from(e in UsageEvent, where: e.account_id == ^account.id, select: {e.event_id, e.origin})
         |> ClickHouseRepo.all()
@@ -149,6 +156,11 @@ defmodule Tuist.Kura.UsageTest do
                "origin-#{account.id}-2" => "",
                "origin-#{account.id}-3" => ""
              }
+    end
+
+    test "does not enqueue empty batches" do
+      assert {:ok, 0} = Usage.create_events([])
+      refute_enqueued(queue: :kura_usage)
     end
 
     test "rejects batches exceeding @max_events_per_batch" do
@@ -170,6 +182,8 @@ defmodule Tuist.Kura.UsageTest do
           account
         )
 
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage)
+
       assert [%UsageEvent{account_id: a_id, project_id: p_id}] =
                ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id))
 
@@ -183,6 +197,8 @@ defmodule Tuist.Kura.UsageTest do
 
       {:ok, 1} =
         Usage.create_events([wire_event(%{"event_id" => event_id, "origin" => "US-IL"})], account)
+
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :kura_usage)
 
       assert [""] = ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id, select: e.origin))
     end

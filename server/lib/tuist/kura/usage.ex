@@ -1,37 +1,39 @@
 defmodule Tuist.Kura.Usage do
   @moduledoc """
-  Persists and queries Kura node usage rollups.
+  Durably queues and queries Kura node usage rollups.
   """
 
   import Ecto.Query
 
   alias Tuist.Accounts.Account
   alias Tuist.ClickHouseRepo
-  alias Tuist.IngestRepo
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Identity
   alias Tuist.Kura.UsageEvent
+  alias Tuist.Kura.Workers.IngestUsageWorker
   alias Tuist.Projects
 
   @max_events_per_batch 5_000
 
   @doc """
-  Persists usage rollups from managed nodes. Each is attributed to the account
+  Queues usage rollups from managed nodes. Each is attributed to the account
   named by `tenant_id` and to that account's project named by `namespace_id`,
   whatever the casing of either handle. Anything that does not resolve lands on 0
   and is treated as unattributable traffic.
   """
   def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
     account_ids_by_handle = events |> Enum.map(& &1["tenant_id"]) |> Identity.account_ids()
-    result = insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0), trust_origin: true)
-    record_managed_demand(events, account_ids_by_handle)
-    result
+
+    with {:ok, count} <- insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0), trust_origin: true) do
+      record_managed_demand(events, account_ids_by_handle)
+      {:ok, count}
+    end
   end
 
   def create_events(events) when is_list(events), do: {:error, :too_many_events}
 
   @doc """
-  Persists usage rollups from a self-hosted node, attributed to the `account` its
+  Queues usage rollups from a self-hosted node, attributed to the `account` its
   credential authenticated as. Origins are dropped: placement reads them as
   evidence about hosted regions, which a self-hosted node does not speak for.
   """
@@ -83,11 +85,15 @@ defmodule Tuist.Kura.Usage do
         build_row(event, account_id, project_ids, now)
       end)
 
-    if rows != [] do
-      IngestRepo.insert_all(UsageEvent, rows)
+    if rows == [] do
+      {:ok, 0}
+    else
+      # Kura deletes its outbox after a successful response. Persist the resolved
+      # rows before acknowledging without waiting for ClickHouse's write pool.
+      with {:ok, _job} <- %{rows: rows} |> IngestUsageWorker.new() |> Oban.insert() do
+        {:ok, length(rows)}
+      end
     end
-
-    {:ok, length(rows)}
   end
 
   defp build_row(event, account_id, project_ids, now) do

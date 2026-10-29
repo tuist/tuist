@@ -73,6 +73,11 @@ defmodule TuistWeb.Internal.KuraUsageController do
         conn
         |> put_status(:payload_too_large)
         |> json(%{error: "too_many_events"})
+
+      {:error, _reason} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> json(%{error: "ingestion_unavailable"})
     end
   end
 
