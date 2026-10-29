@@ -92,6 +92,31 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
     }
 }
 
+private actor CredentialRefreshLock {
+    private var waiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+
+    func withLock<Value>(key: String, action: () async throws -> Value) async throws -> Value {
+        if waiters[key] != nil {
+            await withCheckedContinuation { continuation in
+                waiters[key, default: []].append(continuation)
+                #if canImport(TuistSupport)
+                    Logger.current.debug("Waiting for credential refresh lock \(key)")
+                #endif
+            }
+        } else {
+            waiters[key] = []
+        }
+        defer {
+            if waiters[key]?.isEmpty == false {
+                waiters[key]?.removeFirst().resume()
+            } else {
+                waiters[key] = nil
+            }
+        }
+        return try await action()
+    }
+}
+
 #if canImport(TuistSupport)
     /// Actor responsible for serializing file system lock operations to prevent race conditions
     private actor FileSystemLockActor {
@@ -200,6 +225,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshOAuthTokenService: RefreshOAuthTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
+    private static let credentialRefreshLock = CredentialRefreshLock()
     #if canImport(TuistSupport)
         /// Shared actor instance across all ServerAuthenticationController instances
         private static let fileSystemLockActor: FileSystemLockActor = .init(
@@ -610,6 +636,25 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     }
 
     func executeRefresh(serverURL: URL, forceRefresh: Bool) async throws -> (
+        value: AuthenticationToken, expiresAt: Date?
+    )? {
+        let credentialKey = try (ServerCredentialsStore.current as? ServerCredentialsStore)?
+            .storageKey(serverURL: serverURL) ?? serverURL.absoluteString
+
+        // Background helpers and forced refreshes use different outer locks, but must
+        // serialize rotation and credential cleanup against the same credential store.
+        // Serialize before entering the cache so a forced refresh cannot inherit an
+        // ordinary caller's in-flight result. The cache supplies cross-process locking.
+        let key = "credential-refresh-\(stableHash(credentialKey))"
+        return try await Self.credentialRefreshLock.withLock(key: key) {
+            try await cachedValueStore.getValue(key: key) {
+                let result = try await refreshCredentials(serverURL: serverURL, forceRefresh: forceRefresh)
+                return result.map { (value: $0, expiresAt: Date.distantPast) }
+            }
+        }
+    }
+
+    private func refreshCredentials(serverURL: URL, forceRefresh: Bool) async throws -> (
         value: AuthenticationToken, expiresAt: Date?
     )? {
         return try await preservingCredentialsOnUnauthorizedError(serverURL: serverURL) {

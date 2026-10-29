@@ -341,7 +341,8 @@ config :phoenix, :filter_parameters, [
   "token",
   "credential",
   "mfa_code",
-  "installation_receipt"
+  "installation_receipt",
+  "arguments"
 ]
 
 # Use Jason for JSON parsing in Phoenix

@@ -213,13 +213,15 @@ build {
 
   # Claim the space `disk_size_gb` added for the APFS container. The
   # plugin only does this after deleting a recovery partition, and the
-  # base has none left to delete, so it never does here.
+  # base has none left to delete, so it never does here. The live resize
+  # intermittently fails with -69606 while growing the APFS structures and
+  # undoes its changes, so it is retried.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
       "store=$(diskutil info / | awk -F': *' '/APFS Physical Store/ { print $2 }')",
       "printf 'y\\n' | sudo diskutil repairDisk \"$${store%s*}\"",
-      "sudo diskutil apfs resizeContainer \"$store\" 0"
+      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 && break; [ \"$attempt\" -lt 5 ] || exit 1; echo \"resizeContainer attempt $attempt failed, retrying in 15 s\" >&2; sleep 15; done"
     ]
   }
 
@@ -254,12 +256,10 @@ build {
       "openssl verify -CAfile /tmp/tuist-issuer-roots.pem /tmp/tuist-negative-intermediate.pem",
       "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native negative-chain baseline: trusted before containment'; else echo 'Native negative-chain baseline: already rejected; no differential containment claim'; fi",
       "echo 'admin' | sudo -S true",
-      "right=$(mktemp)",
-      "sudo security authorizationdb read com.apple.trust-settings.admin > \"$right\"",
-      "trap 'sudo security authorizationdb write com.apple.trust-settings.admin < \"$right\" || exit 1; rm -f \"$right\"' EXIT",
-      "sudo security authorizationdb write com.apple.trust-settings.admin allow",
+      # SIP protects this authorization rule on current macOS. Authenticate
+      # the disposable guest's admin instead of rewriting the rule to allow.
+      "echo 'admin' | security authorize -C admin com.apple.trust-settings.admin",
       "for cert in /tmp/tuist-blocked-cas/*.pem; do [ -e \"$cert\" ] || continue; sudo security add-trusted-cert -d -r deny -k /Library/Keychains/System.keychain \"$cert\"; if security verify-cert -c \"$cert\" -p basic >/dev/null 2>&1; then echo 'Native verifier accepted a denied root' >&2; exit 1; fi; done",
-      "sudo security authorizationdb write com.apple.trust-settings.admin < \"$right\"; rm -f \"$right\"; trap - EXIT",
       "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native verifier accepted a compromised intermediate chain' >&2; exit 1; fi",
       "security verify-cert -c /tmp/tuist-positive-root.pem -p basic -R offline",
       "bash /tmp/tuist-pem-store.sh filter /etc/ssl/cert.pem /tmp/tuist-cacerts.pem",

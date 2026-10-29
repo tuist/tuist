@@ -6,6 +6,7 @@ defmodule Atlas.Environments.Commands do
   alias Atlas.Environments
   alias Atlas.Environments.Command
   alias Atlas.Environments.Environment
+  alias Atlas.Environments.ProviderWorker
   alias Atlas.Orbit
   alias Atlas.Orbit.Access
   alias Atlas.Orbit.Message
@@ -49,7 +50,7 @@ defmodule Atlas.Environments.Commands do
     arguments = Map.put(args, "project_id", run.project_id)
     id = Ecto.UUID.generate()
     terminal = message.tool_name == "environment_terminal"
-    timeout = if terminal, do: 1_800, else: 60
+    timeout = execution_timeout(message.tool_name, environment)
 
     digest = digest({id, environment.id, environment.version, run.project_id, message.tool_name, arguments, timeout})
 
@@ -73,9 +74,18 @@ defmodule Atlas.Environments.Commands do
       })
 
     thread |> Ecto.Changeset.change(personal_environment_dispatched: true) |> Repo.update!()
+
+    if environment.provider != "native" do
+      %{environment_id: environment.id, command_id: command.id} |> ProviderWorker.new() |> Oban.insert!()
+    end
+
     audit(command, "queued", run.acting_user_id, "worker")
     command
   end
+
+  defp execution_timeout("environment_terminal", %{provider: "native"}), do: 1_800
+  defp execution_timeout("environment_terminal", _environment), do: 600
+  defp execution_timeout(_tool, _environment), do: 60
 
   defp terminal_pending?(thread_id) do
     Repo.exists?(
@@ -279,7 +289,7 @@ defmodule Atlas.Environments.Commands do
       success: if(result, do: result["success"]),
       cancel_requested: command.cancel_requested,
       progress_sequence: command.progress_sequence,
-      execution_timeout_seconds: 1_800
+      execution_timeout_seconds: command.execution_timeout_seconds
     }
   end
 

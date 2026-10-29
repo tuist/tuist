@@ -22,7 +22,6 @@ struct AtlasOrbitView: View {
     @Environment(\.atlasLiveActivity) private var liveActivity
     #elseif os(macOS)
     @Environment(\.atlasEnvironmentRequest) private var environmentRequest
-    @State private var showingEnvironment = false
     #endif
 
     init(recordID: String? = nil, revision: UUID? = nil, request: @escaping ([String: Any]) async throws -> Data,
@@ -111,13 +110,11 @@ struct AtlasOrbitView: View {
             ToolbarItem(id: "orbit-create", placement: .primaryAction) { composeButton }
             ToolbarItem(placement: .primaryAction) { AtlasOrbitDomainFilter(model: model) }
             ToolbarItem(id: "orbit-environment", placement: .primaryAction) {
-                Button("Tool environment", systemImage: "desktopcomputer") { showingEnvironment.toggle() }
-                    .disabled(desktopThread?.kind != "private" || environmentRequest == nil)
-                    .popover(isPresented: $showingEnvironment) {
-                        if let thread = desktopThread, let environmentRequest {
-                            AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
-                        }
-                    }
+                if let thread = desktopThread, thread.kind == "private", thread.status == "active", let environmentRequest {
+                    AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
+                } else {
+                    Button("Tool environment", systemImage: "desktopcomputer") {}.disabled(true)
+                }
             }
             ToolbarItem(id: "thread-info", placement: .primaryAction) {
                 Button("Thread details", systemImage: "info.circle") { showingThreadInfo = true }
@@ -157,7 +154,7 @@ struct AtlasOrbitView: View {
             if model.loading, model.assistant == nil { ProgressView("Loading threads") }
         }
         .defaultScrollAnchor(.top)
-        .modifier(AtlasOrbitSearch(text: $search, enabled: model.assistant?.searchable == true && !model.cached))
+        .searchable(text: $search, prompt: "Search titles and summaries")
         .task(id: search) {
             guard model.assistant?.searchable == true, !model.cached, search != model.query else { return }
             do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
