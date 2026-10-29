@@ -45,6 +45,10 @@ the minute reconciler as a fallback. A regional URL becoming active alone is
 not completion of cold activation. The gateway never returns those
 URLs to clients and never redirects credentials or proxies back to itself.
 
+The gateway remembers a 401 or 403 from that call for one minute per host and
+credential digest, so a client that keeps sending a refused credential does not
+cost the control plane a token check per request.
+
 Activation waits at most 20 seconds, polling every two seconds. At most 128
 activation waits and, independently, 128 proxy streams per pod can be admitted.
 A stream releases its activation slot before forwarding, so long transfers cannot

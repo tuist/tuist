@@ -436,3 +436,82 @@ func TestMalformedAuthoritiesNeverReachControlPlane(t *testing.T) {
 		}
 	}
 }
+
+func TestRefusedCredentialIsAnsweredWithoutTheControlPlane(t *testing.T) {
+	for _, status := range []int{401, 403} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			g := New(Servers{"production": "https://tuist.dev"}, 1)
+			now := time.Unix(0, 0)
+			g.Refusals.now = func() time.Time { return now }
+			var controls atomic.Int32
+			g.Control.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
+				controls.Add(1)
+				code := status
+				if r.Header.Get("Authorization") != "Bearer test-token" || r.URL.Query().Get("host") != "acme.cache.tuist.dev" {
+					code = 202
+				}
+				return &http.Response{StatusCode: code, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(""))}, nil
+			})
+			serve := func(host, token string) int {
+				r := request(host)
+				r.Header.Set("Authorization", "Bearer "+token)
+				w := httptest.NewRecorder()
+				g.ServeHTTP(w, r)
+				return w.Code
+			}
+			for range 3 {
+				if code := serve("acme.cache.tuist.dev", "test-token"); code != status {
+					t.Fatalf("%d, want %d", code, status)
+				}
+			}
+			if controls.Load() != 1 {
+				t.Fatalf("refusal was not remembered: %d control calls", controls.Load())
+			}
+			g.Wait = time.Millisecond
+			serve("acme.cache.tuist.dev", "rotated-token")
+			serve("other.cache.tuist.dev", "test-token")
+			if controls.Load() < 3 {
+				t.Fatalf("refusal leaked to another credential or host: %d control calls", controls.Load())
+			}
+			before := controls.Load()
+			now = now.Add(time.Minute)
+			if code := serve("acme.cache.tuist.dev", "test-token"); code != status || controls.Load() != before+1 {
+				t.Fatalf("expired refusal was not revalidated: %d, %d control calls", code, controls.Load()-before)
+			}
+		})
+	}
+}
+
+func TestOnlyCredentialRefusalsAreRemembered(t *testing.T) {
+	for _, status := range []int{402, 404, 409, 429, 500} {
+		g := New(Servers{"production": "https://tuist.dev"}, 1)
+		var controls atomic.Int32
+		g.Control.Transport = roundTripper(func(*http.Request) (*http.Response, error) {
+			controls.Add(1)
+			return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(""))}, nil
+		})
+		for range 2 {
+			g.ServeHTTP(httptest.NewRecorder(), request("acme.cache.tuist.dev"))
+		}
+		if controls.Load() != 2 {
+			t.Errorf("%d was remembered", status)
+		}
+	}
+}
+
+func TestRefusalTableIsBounded(t *testing.T) {
+	c := NewRefusals(time.Minute, 2)
+	now := time.Unix(0, 0)
+	c.now = func() time.Time { return now }
+	c.Record("s", "a", "1", 403)
+	c.Record("s", "b", "1", 403)
+	c.Record("s", "c", "1", 403)
+	if _, ok := c.Lookup("s", "c", "1"); ok || len(c.entries) != 2 {
+		t.Fatalf("a full table of live refusals grew: %d", len(c.entries))
+	}
+	now = now.Add(time.Minute)
+	c.Record("s", "c", "1", 401)
+	if status, ok := c.Lookup("s", "c", "1"); !ok || status != 401 || len(c.entries) != 1 {
+		t.Fatalf("expired refusals were not reclaimed: %d %v %d", status, ok, len(c.entries))
+	}
+}
