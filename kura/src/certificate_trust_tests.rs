@@ -466,11 +466,12 @@ fn native_and_explicit_paths_restrict_accepted_leaf_intermediate_and_absent_root
 #[test]
 fn native_evaluated_chain_deny_checks_an_anchor_absent_from_peers() {
     use security_framework::certificate::SecCertificate;
+    // Normal v3 includes BasicConstraints. Apple rejects an extensionless v3
+    // anchor through an intermediate, while accepting legacy v1/v2 anchors.
     for fixture in [
         Fixture::new(),
         Fixture::with_root_version(1),
         Fixture::with_root_version(2),
-        Fixture::with_root_version(3),
     ] {
         let ordinary =
             verifier(fixture.roots(true), Arc::new(Policy::default()), provider()).unwrap();
