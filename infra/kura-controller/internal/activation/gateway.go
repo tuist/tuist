@@ -144,6 +144,7 @@ func (g *Gateway) resolve(ctx context.Context, server, host, authorization strin
 	}
 	req.Header.Set("Authorization", authorization)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Tuist-Cache-Activation-Billing", "1")
 	resp, err := g.Control.Do(req)
 	if err != nil {
 		return nil, http.StatusServiceUnavailable
@@ -216,6 +217,9 @@ func unforwardedFailure(w http.ResponseWriter, r *http.Request, status int) {
 
 func failure(w http.ResponseWriter, r *http.Request, status int) {
 	message := http.StatusText(status)
+	if status == http.StatusPaymentRequired {
+		message = "Cache access is blocked by billing. Check your plan and payment status in Tuist."
+	}
 	if status == http.StatusConflict {
 		message = "This account uses custom cache endpoints; set TUIST_CACHE_ENDPOINT"
 	}
@@ -228,7 +232,12 @@ func failure(w http.ResponseWriter, r *http.Request, status int) {
 		switch status {
 		case http.StatusUnauthorized:
 			code = "16"
-		case http.StatusForbidden, http.StatusPaymentRequired:
+		case http.StatusPaymentRequired:
+			// Keep the regional cache's terminal status: older clients retry
+			// RESOURCE_EXHAUSTED as transient backpressure, including uploads.
+			code = "7"
+			w.Header().Set("Tuist-Refusal-Reason", "payment_required")
+		case http.StatusForbidden:
 			code = "7"
 		case http.StatusConflict:
 			code = "9"
@@ -241,6 +250,13 @@ func failure(w http.ResponseWriter, r *http.Request, status int) {
 		w.Header().Set("Grpc-Status", code)
 		w.Header().Set("Grpc-Message", message)
 		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if status == http.StatusPaymentRequired {
+		// Match the regional HTTP API so existing generated clients can decode it.
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(map[string]string{"message": message})
 		return
 	}
 	http.Error(w, message, status)
