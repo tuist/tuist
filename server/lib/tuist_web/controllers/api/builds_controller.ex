@@ -19,6 +19,7 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
   alias TuistWeb.Plugs.ReportPublishingPlug
 
   plug(ReportPublishingPlug, {:preflight, :xcode} when action == :create)
@@ -175,6 +176,12 @@ defmodule TuistWeb.API.BuildsController do
                    },
                    scheme: %Schema{type: :string, nullable: true, description: "The scheme that was built."},
                    configuration: %Schema{type: :string, nullable: true, description: "The configuration used."},
+                   tuist_version: %Schema{type: :string, nullable: true, description: "The reporting Tuist CLI version."},
+                   tuist_generation_version: %Schema{
+                     type: :string,
+                     nullable: true,
+                     description: "The Tuist CLI version that generated the associated project, when available."
+                   },
                    xcode_version: %Schema{type: :string, nullable: true, description: "Xcode version."},
                    macos_version: %Schema{type: :string, nullable: true, description: "macOS version."},
                    model_identifier: %Schema{type: :string, nullable: true, description: "Machine model identifier."},
@@ -262,12 +269,17 @@ defmodule TuistWeb.API.BuildsController do
 
     {start_cursor, end_cursor} = Flop.Cursor.get_cursors(builds, @cursor_order_fields)
 
+    generation_versions =
+      Tuist.CommandEvents.get_generation_versions(selected_project.id, Enum.map(builds, & &1.generation_id))
+
     json(conn, %{
       builds:
         Enum.map(builds, fn build ->
           %{
             id: build.id,
             actor: Tuist.ReportActor.actor(build),
+            tuist_version: if(build.tuist_version != "", do: build.tuist_version),
+            tuist_generation_version: Map.get(generation_versions, build.generation_id),
             duration: build.duration,
             status: build.status,
             category: if(build.category != "", do: build.category),
@@ -350,6 +362,12 @@ defmodule TuistWeb.API.BuildsController do
              },
              scheme: %Schema{type: :string, nullable: true, description: "The scheme that was built."},
              configuration: %Schema{type: :string, nullable: true, description: "The configuration used."},
+             tuist_version: %Schema{type: :string, nullable: true, description: "The reporting Tuist CLI version."},
+             tuist_generation_version: %Schema{
+               type: :string,
+               nullable: true,
+               description: "The Tuist CLI version that generated the associated project, when available."
+             },
              xcode_version: %Schema{type: :string, nullable: true, description: "Xcode version."},
              macos_version: %Schema{type: :string, nullable: true, description: "macOS version."},
              model_identifier: %Schema{type: :string, nullable: true, description: "Machine model identifier."},
@@ -425,10 +443,13 @@ defmodule TuistWeb.API.BuildsController do
       {:ok, build} ->
         if build.project_id == selected_project.id do
           cas_output_metrics = Builds.cas_output_metrics(build.id)
+          generation_versions = Tuist.CommandEvents.get_generation_versions(selected_project.id, [build.generation_id])
 
           json(conn, %{
             id: build.id,
             actor: Tuist.ReportActor.actor(build),
+            tuist_version: if(build.tuist_version != "", do: build.tuist_version),
+            tuist_generation_version: Map.get(generation_versions, build.generation_id),
             duration: build.duration,
             status: build.status,
             category: if(build.category != "", do: build.category),
@@ -994,6 +1015,7 @@ defmodule TuistWeb.API.BuildsController do
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.put(:tuist_version, Headers.get_build_integration_version(conn, :xcode))
       |> Map.merge(Tuist.ReportActor.attributes(conn))
 
     case get_or_create_build(run_params) do
@@ -1040,6 +1062,7 @@ defmodule TuistWeb.API.BuildsController do
           duration: Map.get(params, :duration, 0),
           macos_version: Map.get(params, :macos_version),
           xcode_version: Map.get(params, :xcode_version),
+          tuist_version: Map.get(params, :tuist_version),
           is_ci: Map.get(params, :is_ci),
           model_identifier: Map.get(params, :model_identifier),
           scheme: Map.get(params, :scheme),
@@ -1091,6 +1114,7 @@ defmodule TuistWeb.API.BuildsController do
                 submission_auth: params.submission_auth,
                 macos_version: Map.get(params, :macos_version),
                 xcode_version: Map.get(params, :xcode_version),
+                tuist_version: Map.get(params, :tuist_version),
                 is_ci: Map.get(params, :is_ci),
                 model_identifier: Map.get(params, :model_identifier),
                 scheme: Map.get(params, :scheme),
