@@ -319,7 +319,6 @@ extension AtlasThreadDetail {
             }
         }
     }
-
     private var composer: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let message = model.liveMessage {
@@ -340,13 +339,18 @@ extension AtlasThreadDetail {
             }
             AtlasThreadMentions(model: model, shared: current.kind != "private")
             AtlasDraftAttachments(model: model, open: openAttachment)
-            if showsWelcome, model.draft.isEmpty, model.draftAttachments.isEmpty, model.pendingUploadName == nil, !voice.busy {
-                AtlasThreadSuggestions { prompt in model.draft = prompt }
-            }
             HStack {
                 modelPicker
                 Spacer(minLength: 8)
                 threadNavigation
+            }
+            let suggestions = AtlasThreadSuggestion.prompts(messages: model.messages, welcome: showsWelcome,
+                                                             agentStatus: current.agentStatus)
+            if !suggestions.isEmpty, model.draft.isEmpty, model.draftAttachments.isEmpty,
+               model.pendingUploadName == nil, !voice.busy, !model.saving {
+                AtlasThreadSuggestions(suggestions: suggestions) {
+                    model.draft = AtlasVoiceInput.appending($0, to: model.draft)
+                }.id(suggestions.map(\.text))
             }
             AtlasThreadComposer(draft: Binding(get: { model.draft }, set: { model.draft = $0 }),
                                 placeholder: "Message",
@@ -372,7 +376,6 @@ extension AtlasThreadDetail {
         .frame(maxWidth: .infinity)
         .opacity(selectionMatches ? 1 : 0)
     }
-
     private var modelPicker: some View {
         Button { showingModels = true } label: {
             HStack(spacing: 6) {
@@ -390,10 +393,8 @@ extension AtlasThreadDetail {
         .disabled(!selectionMatches || current.ownerId != selfId || model.saving || voice.busy
             || ["queued", "running", "compacting"].contains(current.agentStatus ?? ""))
     }
-
     private func send() {
         scrolling.following = true
         Task { await model.send() }
     }
-
 }

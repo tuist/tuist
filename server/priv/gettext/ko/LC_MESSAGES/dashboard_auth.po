@@ -19,7 +19,7 @@ msgstr "계정 확인 완료!"
 #: lib/tuist_web/live/user_registration_live.ex:442
 #, elixir-autogen, elixir-format
 msgid "Account created successfully! Please log in."
-msgstr "계정이 성공적으로 생성되었습니다! 로그인해 주세요."
+msgstr "계정이 성공적으로 생성되었습니다! 로그인하세요."
 
 #: lib/tuist_web/live/user_registration_live.ex:456
 #, elixir-autogen, elixir-format
@@ -34,7 +34,7 @@ msgstr "이미 계정이 있으신가요?"
 #: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
-msgstr "Tuist 프로젝트 설정을 이미 완료하셨나요? 설정을 건너뛰고 대시보드로 이동하세요."
+msgstr "Tuist 프로젝트 설정을 이미 마쳤나요? 설정을 건너뛰고 대시보드로 이동하세요."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:92
 #: lib/tuist_web/live/user_forgot_password_live.ex:71
@@ -56,12 +56,12 @@ msgstr "비밀번호 변경"
 #: lib/tuist_web/live/user_forgot_password_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Check your email"
-msgstr "이메일 확인"
+msgstr "이메일 확인하기"
 
 #: lib/tuist_web/live/user_registration_live.ex:250
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr "확인 메일을 받은 후 링크를 클릭하여 계속하세요."
+msgstr "확인 이메일을 받은 후 링크를 클릭하여 계속하세요."
 
 #: lib/tuist_web/live/choose_username_live.ex:57
 #, elixir-autogen, elixir-format
@@ -105,7 +105,7 @@ msgstr "프로젝트를 대시보드에 연결하세요"
 msgid "Connection successful"
 msgstr "연결 성공"
 
-#: lib/tuist_web/live/sso_login_live.ex:101
+#: lib/tuist_web/live/sso_login_live.ex:112
 #, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr "문의하기"
@@ -125,14 +125,14 @@ msgstr "대시보드"
 #: lib/tuist_web/live/user_registration_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Discover how selective testing is reducing your test time."
-msgstr "선택적 테스트가 테스트 시간을 어떻게 줄여주는지 알아보세요."
+msgstr "선택적 테스트가 테스트 시간을 어떻게 단축하는지 확인하세요."
 
 #: lib/tuist_web/live/user_login_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr "계정이 없으신가요?"
 
-#: lib/tuist_web/live/sso_login_live.ex:84
+#: lib/tuist_web/live/sso_login_live.ex:95
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:72
 #: lib/tuist_web/live/user_forgot_password_live.ex:51
 #: lib/tuist_web/live/user_login_live.ex:144
@@ -149,12 +149,12 @@ msgstr "이미 사용 중인 이메일입니다"
 #: lib/tuist_web/live/connect_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "바이너리 캐싱과 선택적 테스트 같은 Tuist 기능을 탐색하여 개발 속도를 높이세요."
+msgstr "바이너리 캐싱 및 선택적 테스트와 같은 Tuist 기능을 살펴보고 개발 속도를 높이세요."
 
 #: lib/tuist_web/live/user_registration_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Explore how binary caching is enhancing your build times."
-msgstr "바이너리 캐싱이 빌드 시간을 어떻게 단축시키는지 확인하세요."
+msgstr "바이너리 캐싱이 빌드 시간을 어떻게 단축하는지 확인하세요."
 
 #: lib/tuist_web/live/user_login_live.ex:176
 #, elixir-autogen, elixir-format
@@ -182,7 +182,7 @@ msgstr "Tuist CLI 설치"
 msgid "Instantly share your app using a URL."
 msgstr "URL을 사용하여 앱을 즉시 공유하세요."
 
-#: lib/tuist_web/live/sso_login_live.ex:96
+#: lib/tuist_web/live/sso_login_live.ex:107
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr "SSO에 관심이 있으신가요?"
@@ -192,7 +192,7 @@ msgstr "SSO에 관심이 있으신가요?"
 msgid "Keep me logged in"
 msgstr "로그인 상태 유지"
 
-#: lib/tuist_web/live/sso_login_live.ex:92
+#: lib/tuist_web/live/sso_login_live.ex:103
 #: lib/tuist_web/live/user_login_live.ex:20
 #: lib/tuist_web/live/user_login_live.ex:192
 #: lib/tuist_web/live/user_registration_live.ex:226
@@ -200,13 +200,13 @@ msgstr "로그인 상태 유지"
 msgid "Log in"
 msgstr "로그인"
 
-#: lib/tuist_web/live/sso_login_live.ex:67
+#: lib/tuist_web/live/sso_login_live.ex:78
 #: lib/tuist_web/live/user_login_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr "Tuist에 로그인"
 
-#: lib/tuist_web/live/sso_login_live.ex:69
+#: lib/tuist_web/live/sso_login_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via SSO"
 msgstr "SSO를 통해 기업 계정으로 로그인"
@@ -241,12 +241,12 @@ msgstr "비밀번호가 성공적으로 재설정되었습니다."
 #: lib/tuist_web/live/user_registration_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Previews"
-msgstr "Previews"
+msgstr "프리뷰"
 
 #: lib/tuist_web/live/connect_live.ex:70
 #, elixir-autogen, elixir-format
 msgid "Project Ready? Proceed to dashboard"
-msgstr "프로젝트가 준비되었나요? 대시보드로 이동하기"
+msgstr "프로젝트가 준비되었나요? 대시보드로 이동하세요"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:60
 #: lib/tuist_web/live/user_reset_password_live.ex:58
@@ -257,7 +257,7 @@ msgstr "비밀번호 재설정"
 #: lib/tuist_web/live/connect_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "Run the following command to install Tuist CLI."
-msgstr "Tuist CLI를 설치하려면 다음 명령어를 실행하세요."
+msgstr "다음 명령어를 실행하여 Tuist CLI를 설치하세요."
 
 #: lib/tuist_web/live/connect_live.ex:124
 #, elixir-autogen, elixir-format
@@ -284,7 +284,7 @@ msgstr "Tuist에 가입하기"
 #: lib/tuist_web/live/choose_username_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "This username has already been taken"
-msgstr "이미 사용 중인 사용자 이름입니다"
+msgstr "이 사용자 이름은 이미 사용 중입니다"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:37
 #, elixir-autogen, elixir-format
@@ -294,7 +294,7 @@ msgstr "Tuist CLI가 연결되었습니다!"
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
 #: lib/tuist_web/live/device_codes_success_live.ex:26
-#: lib/tuist_web/live/sso_login_live.ex:61
+#: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
 #: lib/tuist_web/live/user_forgot_password_live.ex:22
@@ -425,7 +425,7 @@ msgstr "계속하면 Tuist의"
 #: lib/tuist_web/components/app_auth_components.ex:19
 #, elixir-autogen, elixir-format
 msgid "Privacy Policy"
-msgstr "개인정보 보호정책"
+msgstr "개인정보 처리방침"
 
 #: lib/tuist_web/components/app_auth_components.ex:15
 #, elixir-autogen, elixir-format
@@ -445,22 +445,22 @@ msgstr "테스트 사용자로 로그인"
 #: lib/tuist_web/live/choose_username_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "Choose a username for your account"
-msgstr "계정용 사용자 이름 선택"
+msgstr "계정의 사용자 이름을 선택하세요"
 
 #: lib/tuist_web/live/user_login_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Log in with SSO"
 msgstr "SSO로 로그인"
 
-#: lib/tuist_web/live/sso_login_live.ex:46
+#: lib/tuist_web/live/sso_login_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
-msgstr "이 이메일에 대해 SSO 조직이 구성되지 않았습니다. 주소를 확인하고 조직 관리자에게 SSO 도메인 설정을 검증해 달라고 요청하세요."
+msgstr "이 이메일에 대해 구성된 SSO 조직이 없습니다. 주소를 확인하고 조직 관리자에게 SSO 도메인 설정을 검증해 달라고 요청하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:581
+#: lib/tuist_web/controllers/auth_controller.ex:576
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
-msgstr "이 이메일을 가진 계정이 이미 존재합니다. 대신 로그인해 주세요."
+msgstr "이 이메일을 가진 계정이 이미 존재합니다. 대신 로그인하세요."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:22
 #, elixir-autogen, elixir-format
@@ -475,7 +475,7 @@ msgstr "로그인을 완료하려면 이메일 주소를 확인하세요"
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "If your email is registered and not yet confirmed, you'll receive a confirmation link shortly."
-msgstr "이메일이 등록되어 있지만 아직 확인되지 않은 경우 곧 확인 링크를 받게 됩니다."
+msgstr "이메일이 등록되어 있고 아직 확인되지 않았다면 곧 확인 링크를 받게 됩니다."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:60
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:81
@@ -486,12 +486,12 @@ msgstr "확인 이메일 재전송"
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "We'll send a new confirmation link to %{email}."
-msgstr "%{email}로 새 확인 링크를 보내드리겠습니다."
+msgstr "%{email}로 새로운 확인 링크를 보내드립니다."
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Your email isn't confirmed yet"
-msgstr "이메일 인증이 아직 완료되지 않았습니다."
+msgstr "이메일이 아직 확인되지 않았습니다"
 
 #: lib/tuist_web/controllers/user_session_controller.ex:65
 #: lib/tuist_web/live/choose_username_live.ex:162
@@ -504,7 +504,7 @@ msgstr "보안 검사를 완료하고 다시 시도하세요."
 #: lib/tuist_web/live/user_registration_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
-msgstr "보안 검사를 불러올 수 없습니다. challenges.cloudflare.com에 차단기가 있는지 확인한 후 페이지를 새로고침하세요."
+msgstr "보안 검사를 로드할 수 없습니다. challenges.cloudflare.com의 차단기를 확인하고 페이지를 새로고침하세요."
 
 #: lib/tuist_web/live/choose_username_live.ex:191
 #: lib/tuist_web/live/user_registration_live.ex:402
@@ -516,7 +516,7 @@ msgstr "보안 검사에 실패했습니다. 페이지를 새로고침하고 다
 #: lib/tuist_web/live/user_registration_live.ex:358
 #, elixir-autogen, elixir-format
 msgid "Too many sign-up attempts. Please try again later."
-msgstr "가입 시도가 너무 많습니다. 나중에 다시 시도하세요."
+msgstr "너무 많은 가입 시도가 있었습니다. 나중에 다시 시도하세요."
 
 #: lib/tuist_web/live/choose_username_live.ex:155
 #: lib/tuist_web/live/user_registration_live.ex:366
@@ -540,37 +540,37 @@ msgstr "확인 중입니다. 잠시만 기다려주세요..."
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:87
 #, elixir-autogen, elixir-format
 msgid "Just a quick check"
-msgstr "간단한 확인 절차입니다"
+msgstr "간단한 확인"
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:89
 #, elixir-autogen, elixir-format
 msgid "Public dashboards are protected against automated scraping. Confirm you're human to continue."
-msgstr "공개 대시보드는 자동 스크래핑으로부터 보호됩니다. 계속하려면 사람이신지 확인해 주세요."
+msgstr "공개 대시보드는 자동 스크래핑으로부터 보호됩니다. 계속하려면 귀하가 사람임을 확인하세요."
 
 #: lib/tuist_web/controllers/public_page_challenge_controller.ex:137
 #, elixir-autogen, elixir-format
 msgid "Too many attempts. Please wait a moment and try again."
-msgstr "시도 횟수가 너무 많습니다. 잠시 기다린 후 다시 시도해 주세요."
+msgstr "너무 많은 시도가 있었습니다. 잠시 기다린 후 다시 시도하세요."
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:110
 #, elixir-autogen, elixir-format
 msgid "Turnstile is unavailable. Please try again shortly."
-msgstr "Turnstile을 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."
+msgstr "Turnstile을 사용할 수 없습니다. 잠시 후 다시 시도하세요."
 
 #: lib/tuist_web/controllers/public_page_challenge_controller.ex:152
 #, elixir-autogen, elixir-format
 msgid "Verification failed. Please try again."
-msgstr "인증에 실패했습니다. 다시 시도해 주세요."
+msgstr "인증에 실패했습니다. 다시 시도하세요."
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:26
 #, elixir-autogen, elixir-format
 msgid "Verify you're human"
-msgstr "사람인지 확인해 주세요"
+msgstr "사람임을 인증하세요"
 
 #: lib/tuist_web/controllers/auth_controller.ex:80
 #, elixir-autogen, elixir-format
 msgid "Google sign-in could not be completed. Please try logging in again."
-msgstr "Google 로그인을 완료할 수 없습니다. 다시 로그인해 주세요."
+msgstr "Google 로그인을 완료할 수 없습니다. 다시 로그인해 보세요."
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:57
 #, elixir-autogen, elixir-format
@@ -596,7 +596,7 @@ msgstr "링크 만료됨"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
-msgstr "%{organization}이 여러분의 조직인 경우에만 연결하세요. 이 ID 공급자 계정에 로그인할 수 있는 사람은 누구나 Tuist 계정 전체에 로그인할 수 있습니다."
+msgstr "%{organization}이 여러분의 조직인 경우에만 연결하세요. 이 신원 공급자 계정에 로그인할 수 있는 사람은 누구나 전체 Tuist 계정에 로그인할 수 있습니다."
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:128
 #, elixir-autogen, elixir-format
@@ -608,10 +608,10 @@ msgstr "단일 로그인 연결 · Tuist"
 msgid "Link single sign-on?"
 msgstr "단일 로그인을 연결하시겠습니까?"
 
-#: lib/tuist_web/controllers/auth_controller.ex:440
+#: lib/tuist_web/controllers/auth_controller.ex:435
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
-msgstr "조직의 단일 로그인과 연결하려면 Tuist 계정에 로그인하세요."
+msgstr "조직의 단일 로그인에 연결하려면 Tuist 계정에 로그인하세요."
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:121
 #, elixir-autogen, elixir-format
@@ -621,7 +621,7 @@ msgstr "계정을 연결하려면 단일 로그인으로 다시 로그인하세�
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "Signed in to Tuist as %{email}"
-msgstr "%{email}로 Tuist에 로그인했습니다."
+msgstr "%{email}(으)로 Tuist에 로그인됨"
 
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:23
 #, elixir-autogen, elixir-format
@@ -651,12 +651,12 @@ msgstr "mix.exs의 dependencies에 추가한 후 mix deps.get을 실행하세요
 #: lib/tuist_web/live/connect_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Add the Tuist package"
-msgstr "Tuist 패키지 추가"
+msgstr "Tuist 패키지 추가하기"
 
 #: lib/tuist_web/live/connect_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Add this to the project options in the same file."
-msgstr "같은 파일의 프로젝트 옵션에 이를 추가하세요."
+msgstr "동일한 파일의 프로젝트 옵션에 이를 추가하세요."
 
 #: lib/tuist_web/live/connect_live.ex:182
 #: lib/tuist_web/live/connect_live.ex:230
@@ -673,7 +673,7 @@ msgstr "이 프로젝트를 대상으로 지정하기"
 #: lib/tuist_web/live/connect_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Report your builds, catch flaky tests, and split your tests across machines."
-msgstr "빌드 보고, 불안정한 테스트 감지, 그리고 머신 간 테스트 분할 수행."
+msgstr "빌드 보고, 불안정한 테스트 감지, 머신 간 테스트 분할 수행하기."
 
 #: lib/tuist_web/live/connect_live.ex:232
 #, elixir-autogen, elixir-format
@@ -688,7 +688,7 @@ msgstr "Mix 사용"
 #: lib/tuist_web/live/connect_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Add a tuist.toml file at your repository root."
-msgstr "저장소 루트에 tuist.toml 파일 추가."
+msgstr "저장소 루트에 tuist.toml 파일 추가하기."
 
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format
@@ -698,7 +698,7 @@ msgstr "Cargo 사용"
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Choose an organization"
-msgstr "조직 선택"
+msgstr "조직 선택하기"
 
 #: lib/tuist_web/controllers/integration_installation_controller.ex:53
 #, elixir-autogen, elixir-format
@@ -723,4 +723,9 @@ msgstr "%{provider}에 연결할 Tuist 조직을 선택하세요."
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "You need administrator access to connect an integration."
-msgstr "통합 기능을 연결하려면 관리자 권한이 필요합니다."
+msgstr "통합을 연결하려면 관리자 권한이 필요합니다."
+
+#: lib/tuist_web/live/sso_login_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
+msgstr "여러 조직에서 이 로그인 도메인을 사용합니다. 조직의 SSO 로그인 링크를 사용하거나 관리자에게 DNS로 도메인을 확인해 달라고 요청하세요."
