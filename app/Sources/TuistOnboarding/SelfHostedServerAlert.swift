@@ -28,6 +28,7 @@ enum SelfHostedServerAlert {
             field.autocapitalizationType = .none
             field.autocorrectionType = .no
             field.clearButtonMode = .whileEditing
+            field.accessibilityIdentifier = "self-hosted-server-url"
             field.addAction(UIAction { [weak save, weak field] _ in
                 save?.isEnabled = isValid(field?.text ?? "")
             }, for: .editingChanged)

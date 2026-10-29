@@ -10,15 +10,18 @@ struct SocialButton: View {
     private let title: String
     private let style: Style
     private let icon: String?
+    private let accessibilityIdentifier: String?
     private let action: () -> Void
 
     init(
         title: String,
+        accessibilityIdentifier: String? = nil,
         style: Style = .primary,
         icon: String? = nil,
         action: @escaping () -> Void
     ) {
         self.title = title
+        self.accessibilityIdentifier = accessibilityIdentifier
         self.style = style
         self.icon = icon
         self.action = action
@@ -47,6 +50,7 @@ struct SocialButton: View {
                     .stroke(borderColor, lineWidth: 1)
             )
         }
+        .accessibilityIdentifier(accessibilityIdentifier ?? "")
     }
 
     @ViewBuilder
