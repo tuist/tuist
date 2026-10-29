@@ -18,14 +18,20 @@ public struct SelectiveTestingGraph: Codable {
     /// so a later `test-without-building` has no other way to know what the build was asked for.
     public let requestedTestIdentifiers: [String]
 
+    /// Test target name → metadata tags, for resolving tag queries without regenerating the project.
+    /// Nil for bundles produced before target tags were persisted.
+    public let testTargetTags: [String: Set<String>]?
+
     public init(
         testTargetHashes: [String: String],
         attemptedTestPlans: [String] = [],
-        requestedTestIdentifiers: [String] = []
+        requestedTestIdentifiers: [String] = [],
+        testTargetTags: [String: Set<String>]? = nil
     ) {
         self.testTargetHashes = testTargetHashes
         self.attemptedTestPlans = attemptedTestPlans
         self.requestedTestIdentifiers = requestedTestIdentifiers
+        self.testTargetTags = testTargetTags
     }
 
     public static let fileName = "selective-testing-graph.json"
@@ -37,5 +43,6 @@ public struct SelectiveTestingGraph: Codable {
             try container.decodeIfPresent([String].self, forKey: .attemptedTestPlans) ?? []
         requestedTestIdentifiers =
             try container.decodeIfPresent([String].self, forKey: .requestedTestIdentifiers) ?? []
+        testTargetTags = try container.decodeIfPresent([String: Set<String>].self, forKey: .testTargetTags)
     }
 }

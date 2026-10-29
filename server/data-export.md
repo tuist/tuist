@@ -596,6 +596,7 @@ All uploaded files associated with the account are included:
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
 - **Run artifacts**: uploaded result bundles, invocation records, result-bundle objects, and session archives stored under `{account}/{project}/runs/{run_id}/`
 - **Shard bundles**: Shared `.xctestproducts` bundles and portable Once test-plan artifacts stored at `{account_id}/{project_id}/shards/{shard_plan_id}/`. Once artifacts wrap the original plan bytes with the hosted plan UUID; they include native plan/batch identities, target names, selected test IDs, and the discovery/input bindings needed for fresh-worker validation, not compiled binaries. Export retained objects alongside the project's shard plans. They use the same shard-bundle retention and cleanup below.
+- **Test target tags in shard bundles**: `selective-testing-graph.json` inside the shared test products includes `testTargetTags`, mapping test target names to their manifest metadata tags so runners can resolve `tag:` filters without regenerating projects. These customer-defined tags belong to the same account, project, and shard plan as the bundle, follow the shard-bundle retention window below, and are exported by collecting the shared artifact and retaining its JSON metadata; no separate database export is needed.
 - **Runner job log archives**: gzipped runner logs stored at `runners/{account_id}/{workflow_job_id}/runner.log.gz`
 
 ## Data Retention
