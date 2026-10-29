@@ -42,15 +42,20 @@ test('ordinary push retains all three platform gates', () => {
   }
 });
 
-test('build and publisher use the same planned immutable source, not workflow SHA', () => {
+test('build and publisher pin source with explicit release-token fallback', () => {
   for (const job of ['release-app', 'publish-app']) {
     const checkout = workflow.jobs[job].steps.find(step => step.uses === 'actions/checkout@v4');
     assert.equal(checkout.with.ref, '${{ needs.check-releases.outputs.source-sha }}');
   }
   const publish = workflow.jobs['publish-app'].steps.find(step => step.name === 'Create App GitHub Release');
   assert.equal(publish.with.target_commitish, '${{ needs.check-releases.outputs.source-sha }}');
-  assert.equal(workflow.concurrency.group, 'app-release');
+  assert.equal(publish.with.token, '${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}');
   assert.match(workflow.jobs['check-releases'].if, /github.ref == 'refs\/heads\/main'/);
+});
+
+test('all app releases retain the legacy main concurrency lock without cancellation', () => {
+  assert.equal(workflow.concurrency.group, 'app-release-refs/heads/main');
+  assert.equal(workflow.concurrency['cancel-in-progress'], false);
 });
 
 test('actual pre-publication guard refetches the merged tip and rejects unmerged or replaced source', () => {

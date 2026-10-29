@@ -42,8 +42,8 @@ permissions:
   packages: write
 
 concurrency:
-  # Main and stable hotfixes write the same app tags and Sparkle feed.
-  group: app-release
+  # Share the legacy main lock with older runs/reruns writing the same tags/feed.
+  group: app-release-refs/heads/main
   cancel-in-progress: false
 
 env:
@@ -378,6 +378,8 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          # Override the action's github.token default for off-main release tags.
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
           # Pin the tag to the commit this run built (see cli-release.yml).
           target_commitish: ${{ needs.check-releases.outputs.source-sha }}
           name: App ${{ needs.check-releases.outputs.app-next-version-number }}
