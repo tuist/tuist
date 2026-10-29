@@ -153,6 +153,12 @@ func TestThinRealStack(t *testing.T) {
 	}
 	stage(a)
 	stage(b)
+	geometry := run("xfs_info", filepath.Join(root, a.VolumeId))
+	logSection := strings.SplitN(geometry, "log      =", 2)
+	if len(logSection) != 2 || !strings.Contains(logSection[1], "sunit=1 blks") {
+		t.Fatalf("thin device hints changed the required 4 KiB XFS log stripe: %s", geometry)
+	}
+	t.Log("fresh thin filesystem has a 4 KiB log stripe")
 	pod := "11111111-1111-1111-1111-111111111111"
 	publish := func(v *csi.Volume, uid string) error {
 		_, e := d.NodePublishVolume(ctx, &csi.NodePublishVolumeRequest{VolumeId: v.VolumeId, StagingTargetPath: filepath.Join(root, v.VolumeId), TargetPath: filepath.Join(root, "target-"+v.VolumeId), VolumeCapability: capability, VolumeContext: map[string]string{"csi.storage.k8s.io/pod.uid": uid}})

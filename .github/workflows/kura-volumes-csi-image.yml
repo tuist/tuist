@@ -461,8 +461,19 @@ jobs:
           docker pull ghcr.io/tuist/kura@sha256:2c7e3ddc67bd196452663078c9f95bf8dd17a654d8bb0d9c0c388bc8c072ab43
       - name: Isolate quotas, crypto submission, filesystem format and thin mapping
         run: sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_LATENCY_BENCH=/tmp/kura-latency-bench ruby infra/kura-volumes-csi/thin/borrowed/latency_stack.rb
+      - name: Qualify CSI formatting and lifecycle on both pool geometries
+        working-directory: infra/kura-volumes-csi
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -c -o /tmp/kura-latency-driver.test ./internal/driver
+          for chunk in 64 512; do
+            sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_THIN_CHUNK_KIB="$chunk" /tmp/kura-latency-driver.test -test.run '^TestThinRealStack$' -test.v -test.timeout 15m | tee "/tmp/kura-latency-driver-$chunk.log"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: latency-isolation
-          path: /tmp/kura-latency-results.json
+          path: |
+            /tmp/kura-latency-results.json
+            /tmp/kura-latency-driver-*.log

@@ -123,7 +123,10 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 		// same volume and forcing over it loses nothing.
 		args := []string{"-q", "-K", "-f"}
 		if thin != nil {
-			args = append(args, "-m", "reflink=0", "-l", "size=64m")
+			// Thin-device alignment hints can make mkfs pad every journal
+			// write to 128 KiB. Keep data alignment, but use a filesystem-block
+			// log stripe so small durable writes do not pay that amplification.
+			args = append(args, "-m", "reflink=0", "-l", "size=64m,su=4k")
 		}
 		args = append(args, v.mapperPath())
 		if _, err := d.run(ctx, nil, "mkfs.xfs", args...); err != nil {

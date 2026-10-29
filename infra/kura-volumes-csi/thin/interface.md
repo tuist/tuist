@@ -26,6 +26,13 @@ profile must still be measured against final Kura object distributions; it is
 not a claim that arbitrary small-file workloads can use every useful cache byte.
 Unknown profiles, invalid sizes and unaligned grant changes are rejected.
 
+Fresh thin filesystems explicitly use a 4 KiB XFS log stripe while retaining
+device-derived data alignment. This prevents large thin-device alignment hints
+from padding small journal writes. Log size remains 64 MiB; encryption, quotas,
+reserves and durability barriers are unchanged. Existing formatted volumes keep
+their geometry on restage: adopting this format on one requires the normal
+staged replacement, never an in-place reformat of populated storage.
+
 `floor_cache_bytes`, `grant_cache_bytes` and `ceiling_cache_bytes` are separate
 record fields. Initial floor and grant equal the ceiling. The trusted allocator
 may change floor and grant within `1 MiB <= floor <= grant <= ceiling`. The
