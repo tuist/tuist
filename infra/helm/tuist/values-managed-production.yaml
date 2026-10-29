@@ -2208,29 +2208,20 @@ runnersFleet:
 # macosFleet and runnersFleet hosts run. Production is the only env
 # that runs a builder (staging/canary disable theirs to avoid the
 # shared `vm-image-builder` org label routing release jobs cross-env).
-# Sized at 2 so the release's two parallel image bakes (runner image +
-# xcresult processor image) run concurrently instead of serializing on
-# one host. Each builder needs the one-time Local Network access grant
-# (see vm-image-builder.md) before it can reach its Tart guests over
-# SSH. Retire the hand-bootstrapped `vm-image-builder-01` host per the
-# "Migrating from hand-bootstrapped hosts" section of
-# vm-image-builder.md once these cluster-managed builders are
-# comfortably taking jobs.
 #
-# Shares the `tuist-pool-` host pool with macosFleet (2) and
-# runnersFleet (10), so this fleet adds 2 to the pool-demand
-# total. The operator's pre-order job for production already
-# tracks the macos + runners side; bump it by 2 ahead of the
-# `helm upgrade` that applies this replica count.
+# Shares the `tuist-pool-` host pool with macosFleet and runnersFleet.
 #
 # The fleet is moving to macOS 27 (Golden Gates), see "Moving the fleet
 # to a new macOS release" in vm-image-builder.md. The two Tahoe builders
-# keep their own os pin and runner labels. Machines created from here on
-# adopt a Golden Gates host and register without `vm-image-builder`, so
-# they take no image jobs until that label is added to their runner.
+# keep their own os pin and the `vm-image-builder` label, and run the
+# Layer 1, xcresult processor and opt-in standalone builds. Machines
+# created from here on adopt a Golden Gates host and register with
+# `macos-27`, so they take a release's stacked builds, one at a time
+# each. Three macOS 27 builders run a release's nine stacked builds in
+# three rounds.
 buildersFleet:
   enabled: true
-  replicas: 3
+  replicas: 5
   adoptPoolPrefix: "tuist-pool-"
   ghRunnerLabels: "self-hosted,macos,bare-metal,macos-27"
   machine:
