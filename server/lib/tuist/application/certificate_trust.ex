@@ -19,53 +19,32 @@ defmodule Tuist.Application.CertificateTrust do
   ))
 
   def configure!(:xcresult_processor, {:unix, :darwin}) do
-    :ok = :public_key.cacerts_load(Application.fetch_env!(:public_key, :cacerts_path))
+    # OTP exports keychain certificates without consulting Apple's deny settings.
+    :ok = :public_key.cacerts_load(~c"/etc/ssl/cert.pem")
     assert_clean!(:public_key.cacerts_get())
   end
 
   def configure!(_, _), do: :ok
 
-  def filtered_bundle!(source) do
-    certificates =
-      for {:Certificate, der, :not_encrypted} <- source |> File.read!() |> :public_key.pem_decode(),
-          not blocked?(der) do
-        {:Certificate, der, :not_encrypted}
-      end
-
-    if certificates == [], do: raise("Refusing to start with an empty CA store")
-
-    # Build a process-owned bundle before dependencies start. Older Tart images
-    # need not have a filtered system bundle, and host trust is never modified.
-    name = "tuist-cacerts-#{Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)}.pem"
-    path = Path.join(System.tmp_dir!(), name)
-
-    File.open!(path, [:write, :binary, :exclusive], fn file ->
-      File.chmod!(path, 0o600)
-      :ok = IO.binwrite(file, :public_key.pem_encode(certificates))
-    end)
-
-    path
-  end
-
   def assert_clean!([]), do: raise("Refusing to start with an empty CA store")
 
   def assert_clean!(certificates) do
     Enum.each(certificates, fn certificate ->
-      if blocked?(certificate) do
-        raise "Refusing to start with distrusted CA SPKI #{spki_hash(certificate)}"
+      der =
+        case certificate do
+          {:cert, der, _decoded} -> der
+          der when is_binary(der) -> der
+        end
+
+      {:Certificate, tbs, _algorithm, _signature} = :public_key.pkix_decode_cert(der, :plain)
+      spki = :public_key.der_encode(:SubjectPublicKeyInfo, elem(tbs, 7))
+      hash = :sha256 |> :crypto.hash(spki) |> Base.encode16(case: :lower)
+
+      if MapSet.member?(@blocked, hash) do
+        raise "Refusing to start with distrusted CA SPKI #{hash}"
       end
     end)
 
     :ok
-  end
-
-  defp blocked?(certificate), do: MapSet.member?(@blocked, spki_hash(certificate))
-
-  defp spki_hash({:cert, der, _decoded}), do: spki_hash(der)
-
-  defp spki_hash(der) when is_binary(der) do
-    {:Certificate, tbs, _algorithm, _signature} = :public_key.pkix_decode_cert(der, :plain)
-    spki = :public_key.der_encode(:SubjectPublicKeyInfo, elem(tbs, 7))
-    :sha256 |> :crypto.hash(spki) |> Base.encode16(case: :lower)
   end
 end

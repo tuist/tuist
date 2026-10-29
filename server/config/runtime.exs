@@ -59,10 +59,10 @@ end
 # that actually exist — reintroducing the drift this injection removes.
 # A boot failure here is caught in the canary stage before production.
 # Configure OTP before dependencies can create clients. Its macOS keychain
-# exporter ignores Apple trust-settings deny records. Filter the PEM at runtime
-# so the release also boots on older images, retaining every unrelated anchor.
+# exporter ignores Apple trust-settings deny records; use the image's filtered
+# PEM, which must also retain the operator's enterprise/private trust anchors.
 if System.get_env("TUIST_MODE") == "xcresult_processor" and :os.type() == {:unix, :darwin} do
-  config :public_key, cacerts_path: Tuist.Application.CertificateTrust.filtered_bundle!("/etc/ssl/cert.pem")
+  config :public_key, cacerts_path: "/etc/ssl/cert.pem"
 end
 
 if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
