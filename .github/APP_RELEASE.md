@@ -24,18 +24,23 @@ authorization; ask the owner for the mapping/export instead.
 
 ## Qualify and release the macOS slice independently
 
-1. Complete native dependency installation, generation, implicit dependency
-   inspection, focused shared HTTP/TLS tests, unsigned app build and app tests on
-   the final immutable hotfix head. Run local-wire tests with Homebrew OpenSSL 3;
-   public TLS controls are a separate opt-in qualification. Retain exact commands,
-   outputs and source SHA. Confirm the lockfile was regenerated, not guessed.
-2. Merge the source PR into its exact-tag release branch and the release-support
-   PR into main only after review/authorization. Workflow-only support changes do
-   not trigger the ordinary app release's push path filters.
+1. Review the candidate's complete diff against the exact stable tag. Merge the
+   source PR into `releases/app-X.Y.Z` and the release-support PR into main only
+   after separate review/authorization. Workflow-only support changes do not
+   trigger the ordinary app release's push path filters.
+2. Fetch the stable release branch from origin and select its **final merged
+   tip**, not an unmerged PR head or arbitrary descendant such as main. Complete
+   native dependency installation, generation, implicit dependency inspection,
+   focused shared HTTP/TLS tests, unsigned app build and app tests on that exact
+   tip. Run local-wire tests with Homebrew OpenSSL 3; public TLS controls are a
+   separate opt-in qualification. Retain exact commands, outputs and source SHA.
+   Confirm the lockfile was regenerated, not guessed.
 3. After explicit release authorization, select **App Release** on **main** and
-   dispatch with `source_sha` equal to the qualified full source SHA and
-   `stable_tag` equal to the current live macOS tag. Review that source's complete
-   diff: ancestry validation cannot tell whether unrelated features were added.
+   dispatch with `source_sha` equal to that qualified merged tip's full SHA and
+   `stable_tag` equal to the current live macOS tag. The planner derives and fetches
+   `releases/app-X.Y.Z` from that tag and requires its current tip to match; the
+   publisher refetches and repeats the check immediately before publication. If
+   the branch moves, stop and qualify its new final tip before replanning.
 4. Manual dispatch is **macOS only**. It derives the next patch from the live
    stable tag, pins build/tag/notes to the supplied source, and skips both stores.
    It never infers mobile production versions or promotes a mobile draft. The

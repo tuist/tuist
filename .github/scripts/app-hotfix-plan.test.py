@@ -24,6 +24,11 @@ class HotfixPlanTests(unittest.TestCase):
         self.git("tag", "app@0.27.1")
         self.git("commit", "--quiet", "--allow-empty", "-m", "TLS backport")
         self.source = self.git("rev-parse", "HEAD")
+        self.release_branch = "releases/app-0.27.1"
+        self.remote = self.root / "remote.git"
+        self.git("init", "--quiet", "--bare", str(self.remote))
+        self.git("remote", "add", "origin", str(self.remote))
+        self.git("push", "origin", f"{self.source}:refs/heads/{self.release_branch}")
         self.feed = self.root / "appcast.xml"
         self.write_feed()
 
@@ -55,6 +60,7 @@ class HotfixPlanTests(unittest.TestCase):
         self.assertEqual(outputs["app-next-version"], "app@0.27.2")
         self.assertEqual(outputs["app-next-version-number"], "0.27.2")
         self.assertEqual(outputs["source-sha"], self.source)
+        self.assertEqual(outputs["release-branch"], "releases/app-0.27.1")
         self.assertEqual(outputs["app-should-release"], "true")
         self.assertGreater(int(outputs["build-number"]), 1791997442)
 
@@ -67,10 +73,28 @@ class HotfixPlanTests(unittest.TestCase):
                 self.assert_rejected(self.run_plan(tag=tag))
 
     def test_rejects_unchanged_and_unrelated_sources(self):
+        self.git("push", "--force", "origin", f"{self.base}:refs/heads/{self.release_branch}")
         self.assert_rejected(self.run_plan(source=self.base))
         self.git("switch", "--orphan", "unrelated")
         self.git("commit", "--quiet", "--allow-empty", "-m", "Other product")
+        unrelated = self.git("rev-parse", "HEAD")
+        self.git("push", "--force", "origin", f"{unrelated}:refs/heads/{self.release_branch}")
+        self.assert_rejected(self.run_plan(source=unrelated))
+
+    def test_rejects_unmerged_hotfix_and_main_descendants(self):
+        self.git("push", "--force", "origin", f"{self.base}:refs/heads/{self.release_branch}")
+        self.assert_rejected(self.run_plan())
+        self.git("push", "origin", f"{self.source}:refs/heads/{self.release_branch}")
+        self.assertEqual(self.run_plan().returncode, 0)
+        self.git("commit", "--quiet", "--allow-empty", "-m", "Unrelated main features")
         self.assert_rejected(self.run_plan(source=self.git("rev-parse", "HEAD")))
+
+    def test_refetches_replaced_or_deleted_remote_tip(self):
+        self.assertEqual(self.run_plan().returncode, 0)
+        self.git("push", "--force", "origin", f"{self.base}:refs/heads/{self.release_branch}")
+        self.assert_rejected(self.run_plan())
+        self.git("push", "origin", "--delete", self.release_branch)
+        self.assert_rejected(self.run_plan())
 
     def test_rejects_existing_patch_tag_instead_of_replacing_contents(self):
         self.git("tag", "app@0.27.2", self.source)

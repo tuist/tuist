@@ -17,6 +17,10 @@ def plan(stable_tag, source_sha, appcast, build_number):
     if not match or not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ValueError("Use an exact app@X.Y.Z stable tag and a full lowercase source SHA")
     base = git("rev-parse", "--verify", f"refs/tags/{stable_tag}^{{commit}}")
+    release_branch = f"releases/app-{stable_tag.removeprefix('app@')}"
+    git("fetch", "--no-tags", "origin", f"+refs/heads/{release_branch}:refs/remotes/origin/{release_branch}")
+    if git("rev-parse", "--verify", f"refs/remotes/origin/{release_branch}") != source_sha:
+        raise ValueError("Source must be the current merged stable release branch tip")
     if git("rev-parse", "--verify", f"{source_sha}^{{commit}}") != source_sha:
         raise ValueError("Source must identify a commit")
     subprocess.run(["git", "merge-base", "--is-ancestor", base, source_sha], check=True)
@@ -50,6 +54,7 @@ def plan(stable_tag, source_sha, appcast, build_number):
         "app-next-version": f"app@{next_version}",
         "app-next-version-number": next_version,
         "source-sha": source_sha,
+        "release-branch": release_branch,
         "build-number": str(build_number),
     }
 

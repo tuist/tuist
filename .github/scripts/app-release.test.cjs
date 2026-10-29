@@ -53,6 +53,45 @@ test('build and publisher use the same planned immutable source, not workflow SH
   assert.match(workflow.jobs['check-releases'].if, /github.ref == 'refs\/heads\/main'/);
 });
 
+test('actual pre-publication guard refetches the merged tip and rejects unmerged or replaced source', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'app-source-guard-'));
+  try {
+    const git = (...args) => {
+      const result = spawnSync('git', args, { cwd: directory, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    git('init', '--quiet');
+    git('config', 'user.name', 'Fixture');
+    git('config', 'user.email', 'fixture@example.invalid');
+    git('commit', '--quiet', '--allow-empty', '-m', 'Stable');
+    const base = git('rev-parse', 'HEAD');
+    git('commit', '--quiet', '--allow-empty', '-m', 'TLS backport');
+    const source = git('rev-parse', 'HEAD');
+    git('init', '--quiet', '--bare', join(directory, 'remote.git'));
+    git('remote', 'add', 'origin', join(directory, 'remote.git'));
+    const branch = 'releases/app-0.27.1';
+    git('push', 'origin', `${base}:refs/heads/${branch}`);
+    const steps = workflow.jobs['publish-app'].steps;
+    const index = steps.findIndex(step => step.name === 'Revalidate merged hotfix source and tag');
+    assert.equal(steps[index + 1].name, 'Create App GitHub Release');
+    const run = () => spawnSync('bash', ['-e', '-c', steps[index].run], {
+      cwd: directory, encoding: 'utf8',
+      env: { ...process.env, SOURCE_SHA: source, RELEASE_BRANCH: branch, RELEASE_TAG: 'app@0.27.2', RUNNER_TEMP: directory },
+    });
+    assert.notEqual(run().status, 0, 'Unmerged hotfix must not publish');
+    git('push', 'origin', `${source}:refs/heads/${branch}`);
+    const merged = run();
+    assert.equal(merged.status, 0, merged.stderr);
+    git('push', '--force', 'origin', `${base}:refs/heads/${branch}`);
+    assert.notEqual(run().status, 0, 'Replaced remote tip must not use a stale fetched tip');
+    git('push', 'origin', '--delete', branch);
+    assert.notEqual(run().status, 0, 'Deleted remote branch must fail closed');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('actual appcast gate rejects stale, mismatched, unsigned or missing payload metadata', () => {
   const directory = mkdtempSync(join(tmpdir(), 'appcast-gate-'));
   try {

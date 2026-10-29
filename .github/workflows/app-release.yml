@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       source_sha:
-        description: "macOS-only hotfix: reviewed full source SHA descended from the stable tag"
+        description: "macOS-only hotfix: qualified full SHA of the merged stable release branch tip"
         required: true
         type: string
       stable_tag:
@@ -63,6 +63,7 @@ jobs:
       app-next-version: ${{ steps.hotfix.outputs.app-next-version || steps.check.outputs.app-next-version }}
       app-next-version-number: ${{ steps.hotfix.outputs.app-next-version-number || steps.check.outputs.app-next-version-number }}
       source-sha: ${{ steps.hotfix.outputs.source-sha || github.sha }}
+      release-branch: ${{ steps.hotfix.outputs.release-branch }}
       build-number: ${{ steps.hotfix.outputs.build-number }}
     steps:
       - uses: actions/checkout@v4
@@ -355,11 +356,18 @@ jobs:
         run: |
           sha256sum --check SHASUMS256.txt
           sha512sum --check SHASUMS512.txt
-      - name: Refuse to overwrite an existing hotfix tag
+      - name: Revalidate merged hotfix source and tag
         if: github.event_name == 'workflow_dispatch'
         env:
+          SOURCE_SHA: ${{ needs.check-releases.outputs.source-sha }}
+          RELEASE_BRANCH: ${{ needs.check-releases.outputs.release-branch }}
           RELEASE_TAG: ${{ needs.check-releases.outputs.app-next-version }}
         run: |
+          git fetch --no-tags origin "+refs/heads/$RELEASE_BRANCH:refs/remotes/origin/$RELEASE_BRANCH"
+          if [ "$(git rev-parse --verify "refs/remotes/origin/$RELEASE_BRANCH")" != "$SOURCE_SHA" ]; then
+            echo "Stable release branch tip changed; qualify and plan its current merged tip."
+            exit 1
+          fi
           git ls-remote --tags origin "refs/tags/$RELEASE_TAG" > "$RUNNER_TEMP/existing-app-tag"
           if [ -s "$RUNNER_TEMP/existing-app-tag" ]; then
             echo "Tag already exists; recover its original artifacts instead of replacing them."
