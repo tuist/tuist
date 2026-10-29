@@ -9,6 +9,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   use Oban.Worker, queue: :swift_registry_release
 
+  alias Tuist.GitHub.Retry
   alias Tuist.Registry
   alias Tuist.Registry.S3
   alias Tuist.Registry.Swift.Lock
@@ -18,8 +19,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   alias TuistCommon.Registry.Swift.KeyNormalizer
 
   require Logger
-
-  @github_opts [finch: Tuist.Finch, retry: false]
 
   @lock_ttl_seconds 1_800
   @metadata_lock_ttl_seconds 300
@@ -254,7 +253,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
              token,
              tag,
              archive_path,
-             @github_opts
+             github_opts()
            ) do
       normalize_archive(tmp_dir, archive_path)
     end
@@ -277,7 +276,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp fetch_submodule_paths(full_handle, tag, token) do
-    case TuistCommon.GitHub.get_file_content(full_handle, token, ".gitmodules", tag, @github_opts) do
+    case TuistCommon.GitHub.get_file_content(full_handle, token, ".gitmodules", tag, github_opts()) do
       {:ok, content} -> {:ok, parse_gitmodules_paths(content)}
       {:error, :not_found} -> {:ok, []}
       {:error, reason} -> {:error, {:gitmodules_fetch_failed, reason}}
@@ -966,9 +965,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     )
   end
 
+  defp github_opts do
+    # Retry transient connection failures in Req, but leave HTTP rate limits and
+    # upstream statuses to the worker's Oban snooze policy.
+    [finch: Tuist.Finch, retry: fn request, result -> is_exception(result) and Retry.should_retry?(request, result) end]
+  end
+
   defp fetch_manifests(full_handle, tag, token) do
     with {:ok, contents} <-
-           TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, @github_opts) do
+           TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, github_opts()) do
       {manifest_payloads, failures} =
         contents
         |> Enum.map(&Map.get(&1, "path"))
@@ -976,7 +981,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         |> Enum.reduce({[], []}, fn path, {manifest_payloads, failures} ->
           filename = Path.basename(path)
 
-          case TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, @github_opts) do
+          case TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, github_opts()) do
             {:ok, content} ->
               manifest_payload = %{
                 content: content,
