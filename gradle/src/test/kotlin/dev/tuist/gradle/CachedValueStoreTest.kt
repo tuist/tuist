@@ -4,9 +4,15 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class CachedValueStoreTest {
 
@@ -112,6 +118,40 @@ class CachedValueStoreTest {
 
         val result = store.getValue { Pair("recovered", null) }
         assertEquals("recovered", result)
+    }
+
+    @Test
+    fun `linkage errors release concurrent callers and allow recovery`() {
+        val store = CachedValueStore<String>()
+        val computing = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val executor = Executors.newSingleThreadExecutor()
+        val follower = FutureTask<String> { store.getValue { Pair("unexpected", null) } }
+        val followerThread = Thread(follower)
+        try {
+            val owner = executor.submit<String> {
+                store.getValue {
+                    computing.countDown()
+                    release.await()
+                    throw UnsatisfiedLinkError("Native library unavailable")
+                }
+            }
+            assertTrue(computing.await(5, TimeUnit.SECONDS))
+            followerThread.start()
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (followerThread.state != Thread.State.WAITING && !follower.isDone && System.nanoTime() < deadline) Thread.yield()
+            assertTrue(followerThread.state == Thread.State.WAITING, "Second caller never joined the computation")
+            release.countDown()
+            assertIs<UnsatisfiedLinkError>(assertFailsWith<ExecutionException> { owner.get(5, TimeUnit.SECONDS) }.cause)
+            val failure = assertFailsWith<ExecutionException> { follower.get(1, TimeUnit.SECONDS) }
+            assertIs<UnsatisfiedLinkError>(failure.cause?.cause)
+            assertEquals("recovered", store.getValue { Pair("recovered", null) })
+        } finally {
+            release.countDown()
+            followerThread.interrupt()
+            followerThread.join(5000)
+            executor.shutdownNow()
+        }
     }
 
     @Test

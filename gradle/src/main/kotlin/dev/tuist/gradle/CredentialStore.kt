@@ -5,6 +5,8 @@ import com.google.gson.annotations.SerializedName
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.URI
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 data class Credentials(
     @SerializedName(value = "accessToken", alternate = ["access_token"])
@@ -19,11 +21,10 @@ class CredentialStore(
     private val logger = LoggerFactory.getLogger(CredentialStore::class.java)
 
     fun read(serverURL: URI): Credentials? {
-        val hostname = serverURL.host ?: return null
-        val credFile = File(credentialsDir, "$hostname.json")
+        val credFile = credentialsFile(serverURL) ?: return null
         if (!credFile.exists()) return null
         return try {
-            Gson().fromJson(credFile.readText(), Credentials::class.java)
+            Gson().fromJson(Files.readString(credFile.toPath()), Credentials::class.java)
         } catch (e: Exception) {
             logger.warn("Tuist: Credential file {} is corrupt and will be removed. Re-authenticate with `tuist auth login`. Error: {}", credFile, e.message)
             credFile.delete()
@@ -32,10 +33,30 @@ class CredentialStore(
     }
 
     fun write(serverURL: URI, credentials: Credentials) {
-        val hostname = serverURL.host ?: return
+        val credFile = credentialsFile(serverURL) ?: return
         credentialsDir.mkdirs()
-        File(credentialsDir, "$hostname.json").writeText(Gson().toJson(credentials))
+        val temporaryFile = Files.createTempFile(credentialsDir.toPath(), ".credentials-", ".json")
+        try {
+            Files.writeString(temporaryFile, Gson().toJson(credentials))
+            Files.move(temporaryFile, credFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            Files.deleteIfExists(temporaryFile)
+        }
     }
+
+    internal fun refreshLockFile(serverURL: URI): File {
+        val storageKey = credentialsFile(serverURL)?.toPath()?.toAbsolutePath()?.normalize()?.toString()
+            ?: serverURL.toString()
+        // Match the Swift client's credential-refresh key and flock, including URL aliases sharing the same file.
+        var hash = 14695981039346656037uL
+        for (byte in storageKey.toByteArray(Charsets.UTF_8)) {
+            hash = (hash xor byte.toUByte().toULong()) * 1099511628211uL
+        }
+        return File(XdgPaths.stateHome(), "tuist/cached_value_store/credential-refresh-${hash.toString(16)}.lock")
+    }
+
+    private fun credentialsFile(serverURL: URI): File? =
+        serverURL.host?.let { File(credentialsDir, "$it.json") }
 
     companion object {
         fun defaultCredentialsDir(): File {

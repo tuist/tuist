@@ -1,7 +1,13 @@
 package dev.tuist.gradle
 
+import com.sun.jna.Library
+import com.sun.jna.Native
+import com.sun.jna.Platform
 import java.io.File
+import java.io.IOException
 import java.nio.channels.FileChannel
+import java.nio.channels.FileLock
+import java.nio.channels.OverlappingFileLockException
 import java.nio.file.StandardOpenOption
 import java.util.concurrent.CompletableFuture
 
@@ -63,7 +69,7 @@ class CachedValueStore<T>(
             cached = CacheEntry(value, expiresAtMs)
             future.complete(value)
             return value
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             future.completeExceptionally(e)
             throw e
         } finally {
@@ -75,6 +81,23 @@ class CachedValueStore<T>(
         val lockFile = lockFilePath!!
         lockFile.parentFile.mkdirs()
 
+        if (!Platform.isWindows()) {
+            lockFile.createNewFile()
+            val fd = posix.open(lockFile.absolutePath, 1) // O_WRONLY
+            if (fd < 0) throw IOException("Cannot open refresh lock: ${Native.getLastError()}")
+            try {
+                // Use flock, like the Swift client; FileChannel.lock uses a different POSIX lock mechanism.
+                while (posix.flock(fd, 2) != 0) { // LOCK_EX
+                    val error = Native.getLastError()
+                    if (error != 4) throw IOException("Cannot acquire refresh lock: $error") // EINTR
+                }
+                cached?.let { if (!it.isExpired) return Pair(it.value, it.expiresAtMs) }
+                return action()
+            } finally {
+                posix.close(fd)
+            }
+        }
+
         val channel = FileChannel.open(
             lockFile.toPath(),
             StandardOpenOption.CREATE,
@@ -82,7 +105,14 @@ class CachedValueStore<T>(
         )
 
         try {
-            val fileLock = channel.lock()
+            var fileLock: FileLock? = null
+            while (fileLock == null) {
+                try {
+                    fileLock = channel.lock()
+                } catch (_: OverlappingFileLockException) {
+                    Thread.sleep(10)
+                }
+            }
 
             try {
                 // Double-check in-memory cache after acquiring lock
@@ -95,5 +125,15 @@ class CachedValueStore<T>(
         } finally {
             channel.close()
         }
+    }
+
+    private interface Posix : Library {
+        fun open(path: String, flags: Int): Int
+        fun flock(fd: Int, operation: Int): Int
+        fun close(fd: Int): Int
+    }
+
+    private companion object {
+        val posix: Posix by lazy { Native.load(Platform.C_LIBRARY_NAME, Posix::class.java) }
     }
 }

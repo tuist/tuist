@@ -7,6 +7,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import java.net.URI
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import kotlin.test.assertTrue
 
 class CredentialStoreTest {
 
@@ -76,5 +80,31 @@ class CredentialStoreTest {
         assertNotNull(read)
         assertEquals("mytoken", read.accessToken)
         assertNull(read.refreshToken)
+    }
+
+    @Test
+    fun `concurrent readers see complete credential pairs during replacement`() {
+        val store = CredentialStore(File(tempDir, "concurrent"))
+        val old = Credentials("a".repeat(64 * 1024), "old-refresh")
+        val new = Credentials("b".repeat(96 * 1024), "new-refresh")
+        store.write(serverURL, old)
+        val start = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val writer = executor.submit {
+                start.await()
+                repeat(100) { store.write(serverURL, if (it % 2 == 0) new else old) }
+            }
+            val reader = executor.submit<List<Credentials?>> {
+                start.await()
+                List(100) { store.read(serverURL) }
+            }
+            start.countDown()
+            val snapshots = reader.get(10, TimeUnit.SECONDS)
+            writer.get(10, TimeUnit.SECONDS)
+            assertTrue(snapshots.all { it == old || it == new }, "A reader observed partial or missing credentials")
+        } finally {
+            executor.shutdownNow()
+        }
     }
 }
