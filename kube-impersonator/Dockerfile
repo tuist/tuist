@@ -1,5 +1,4 @@
-FROM golang:1.26.10-alpine AS build
-ENV GOTOOLCHAIN=local
+FROM golang:1.26.10-alpine3.23 AS build
 WORKDIR /src
 COPY go.mod ./
 RUN go mod download

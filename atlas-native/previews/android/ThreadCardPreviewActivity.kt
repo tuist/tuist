@@ -2,16 +2,25 @@ package dev.tuist.atlas.preview
 
 import android.app.Activity
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import dev.tuist.atlas.AtlasOrbitModel
+import dev.tuist.atlas.AtlasOrbitScreen
 import dev.tuist.atlas.AtlasThreadCardView
+import dev.tuist.atlas.AuthFailure
 import org.json.JSONObject
 
 class ThreadCardPreviewActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         checkOrbitModel()
+        if (intent.getBooleanExtra("saved-inbox", false)) {
+            showInbox()
+            return
+        }
         val evidence = TextView(this).apply { textSize = 16f }
         val card =
             JSONObject(
@@ -43,5 +52,34 @@ class ThreadCardPreviewActivity : Activity() {
                 addView(content)
             },
         )
+    }
+
+    private fun showInbox() {
+        val saved =
+            JSONObject(
+                """{"sequence":1,"cached":true,"assistant":{"name":"Pip","configured":true},
+            "threads":[{"id":"01922cc0-0000-7000-8000-000000000001","title":"Release checklist","kind":"shared","status":"active",
+            "summary":"Check the release notes before tomorrow’s rollout.","participants":[],"updated_at":"2026-10-27T10:00:00Z"}],
+            "messages":[],"people":[]}""",
+            )
+        val refreshed = intent.getBooleanExtra("refreshed", false)
+        var failedRefresh = false
+        val model =
+            AtlasOrbitModel { action, done ->
+                if (action.optString("action") == "open") {
+                    done(Result.success(JSONObject().put("connection", "preview-only").put("snapshot", saved)))
+                } else if (refreshed || failedRefresh) {
+                    done(Result.success(JSONObject(saved.toString()).put("sequence", 2).put("cached", false)))
+                } else {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        failedRefresh = true
+                        done(Result.failure(AuthFailure("network", "Could not connect securely to Atlas. Try again.")))
+                    }, 6000)
+                }
+            }
+        val screen = AtlasOrbitScreen(this, "Orbit", model, null, {})
+        screen.view.fitsSystemWindows = true
+        setContentView(screen.view)
+        model.open()
     }
 }

@@ -211,26 +211,28 @@ defmodule Tuist.Processor.XCResultProcessor do
   defp normalize_parse_error({:ok, _} = result, _xcresult_path), do: result
 
   defp normalize_parse_error({:error, reason}, xcresult_path) do
-    message = parse_error_message(reason)
+    {code, message} = parse_error(reason)
     Logger.error("xcresult parse failed at #{xcresult_path}: #{message}")
-    {:error, stable_parse_error(message, xcresult_path)}
+    {:error, stable_parse_error(code, message, xcresult_path)}
   end
 
-  defp parse_error_message(reason) when is_binary(reason) do
+  defp parse_error(reason) when is_binary(reason) do
     case JSON.decode(reason) do
-      {:ok, %{"error" => message}} when is_binary(message) -> message
-      _ -> reason
+      {:ok, %{"error" => message} = error} when is_binary(message) -> {Map.get(error, "code"), message}
+      _ -> {nil, reason}
     end
   end
 
-  defp parse_error_message(reason), do: inspect(reason)
+  defp parse_error(reason), do: {nil, inspect(reason)}
 
-  # A dedicated atom rather than a sanitized string: the timeout is the one
-  # failure mode with its own alert, and an atom is what a queue-consumer
-  # rule and a `grep` can both key on unambiguously. The elapsed seconds it
-  # replaces are a compile-time constant in the NIF, not information.
-  defp stable_parse_error(message, xcresult_path) do
-    if String.starts_with?(message, "xcresult parsing timed out") do
+  # Replaying the same archive cannot supply an object missing from the bundle.
+  defp stable_parse_error("missing_object", _message, _xcresult_path), do: :bundle_invalid
+
+  defp stable_parse_error("parse_timeout", _message, _xcresult_path), do: :parse_timeout
+
+  defp stable_parse_error(code, message, xcresult_path) do
+    # Older native libraries report timeouts without a code during rolling upgrades.
+    if is_nil(code) && String.starts_with?(message, "xcresult parsing timed out") do
       :parse_timeout
     else
       {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}

@@ -428,6 +428,51 @@ defmodule Tuist.Automations.BaselineTest do
     assert Repo.reload!(attempt).state == "committed"
   end
 
+  test "restarts an enumeration left with a name-ordered cursor instead of resuming it by id" do
+    project = ProjectsFixtures.project_fixture()
+    alert = AutomationsFixtures.automation_alert_fixture(project: project, baseline_established_at: nil)
+    {:ok, attempt} = Automations.begin_alert_baseline(alert)
+    test_process = self()
+    now = NaiveDateTime.utc_now()
+    id = Ecto.UUID.generate()
+
+    IngestRepo.insert_all(TestCase, [
+      %{
+        id: id,
+        name: "test",
+        module_name: "Tests",
+        suite_name: "Baseline",
+        project_id: project.id,
+        last_status: "success",
+        last_duration: 1,
+        last_ran_at: now,
+        inserted_at: now,
+        recent_durations: [1],
+        avg_duration: 1
+      }
+    ])
+
+    # Read as an id cursor, this one would sit past every test case.
+    attempt
+    |> BaselineAttempt.changeset(%{
+      evaluation_cursor: %{
+        "module_name" => "A",
+        "suite_name" => "A",
+        "name" => "a",
+        "id" => "ffffffff-ffff-ffff-ffff-ffffffffffff"
+      }
+    })
+    |> Repo.update!()
+
+    assert :ok =
+             Automations.establish_alert_baseline(alert, fn batch ->
+               send(test_process, {:evaluated_batch, batch})
+               batch
+             end)
+
+    assert_receive {:evaluated_batch, [^id]}
+  end
+
   test "leaves publication to the next run when a competing worker still owns the enumeration" do
     project = ProjectsFixtures.project_fixture()
     alert = AutomationsFixtures.automation_alert_fixture(project: project, baseline_established_at: nil)
@@ -439,9 +484,7 @@ defmodule Tuist.Automations.BaselineTest do
     # empty. The competing worker has not yet written the results for that page.
     expect(ClickHouseRepo, :all, fn _query, _opts ->
       attempt
-      |> BaselineAttempt.changeset(%{
-        evaluation_cursor: %{"module_name" => "Tests", "suite_name" => "Baseline", "name" => "z", "id" => late_id}
-      })
+      |> BaselineAttempt.changeset(%{evaluation_cursor: %{"id" => late_id}})
       |> Repo.update!()
 
       []

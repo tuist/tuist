@@ -269,6 +269,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     test_case_run = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_run_id: Keyword.get_lazy(attrs, :test_run_id, fn -> UUIDv7.generate() end),
+      test_run_destination_id: Keyword.get(attrs, :test_run_destination_id),
       test_module_run_id: Keyword.get_lazy(attrs, :test_module_run_id, fn -> UUIDv7.generate() end),
       test_case_id: Keyword.get_lazy(attrs, :test_case_id, fn -> UUIDv7.generate() end),
       project_id: project_id,

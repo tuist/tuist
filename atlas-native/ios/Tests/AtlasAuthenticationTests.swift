@@ -72,6 +72,41 @@ struct AtlasAuthenticationTests {
         #expect(failure["kind"] == "invalid_server")
         #expect(response["ok"] == nil)
     }
+
+    #if os(macOS)
+    @MainActor @Test func failedEnvironmentEnrollmentNeverRestoresConsentAndLoadCanRetry() async throws {
+        let keychain = FakeKeychain()
+        let origin = try #require(URL(string: "https://atlas.example.org/"))
+        let owner = UUID().uuidString.lowercased()
+        let request: AtlasWorkstation.Request = { action in
+            guard action["action"] as? String == "list" else { throw CocoaError(.fileReadUnknown) }
+            return Data("{\"owner_id\":\"\(owner)\",\"environments\":[]}".utf8)
+        }
+        let live: AtlasWorkstation.Request = { _ in Issue.record("Disabled consent must not connect"); throw CancellationError() }
+        let model = AtlasWorkstation(origin: origin, request: request, live: live, keychain: keychain)
+        keychain.failure = errSecInteractionNotAllowed
+        await model.load()
+        #expect(!model.available && !model.configuration.enabled)
+        keychain.failure = nil
+        await model.load()
+        #expect(model.available && !model.configuration.enabled)
+        var draft = model.configuration
+        draft.enabled = true
+        draft.folders = [AtlasWorkstationFolder(path: FileManager.default.temporaryDirectory.path)]
+        await model.save(draft)
+        #expect(!model.configuration.enabled && model.message != nil)
+        let restored = AtlasWorkstation(origin: origin, request: request, live: live, keychain: keychain)
+        await restored.load()
+        #expect(restored.available && !restored.configuration.enabled)
+        #expect(restored.configuration.id == draft.id)
+        let otherOwner = UUID().uuidString.lowercased()
+        let other = AtlasWorkstation(origin: origin, request: { _ in
+            Data("{\"owner_id\":\"\(otherOwner)\",\"environments\":[]}".utf8)
+        }, live: live, keychain: keychain)
+        await other.load()
+        #expect(other.configuration.id != draft.id && !other.configuration.enabled && other.configuration.folders.isEmpty)
+    }
+    #endif
 }
 
 private final class FakeKeychain: AtlasKeychainAccess {

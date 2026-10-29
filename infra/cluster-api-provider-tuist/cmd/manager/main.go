@@ -723,6 +723,8 @@ func main() {
 	}
 
 	if err := (&macos.ScalewayAppleSiliconMachineReconciler{
+		APIReader:                     mgr.GetAPIReader(),
+		ProcessorDeploymentName:       fleetSpreadDeployment,
 		Client:                        mgr.GetClient(),
 		Scheme:                        mgr.GetScheme(),
 		ScalewayClient:                scwClient,

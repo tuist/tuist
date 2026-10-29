@@ -27,6 +27,7 @@ class TuistHttpClient(
 
     fun openConnection(url: URI, config: CacheConfiguration): HttpURLConnection {
         val connection = httpClients.openConnection(url, connectTimeoutMs, readTimeoutMs)
+        if (config.token.isEmpty()) connection.instanceFollowRedirects = false
         if (config.token.isNotEmpty()) connection.setRequestProperty("Authorization", "Bearer ${config.token}")
         return connection
     }

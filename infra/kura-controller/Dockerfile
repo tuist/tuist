@@ -1,5 +1,4 @@
 FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS builder
-ENV GOTOOLCHAIN=local
 WORKDIR /src
 COPY infra/kura-controller/go.mod infra/kura-controller/go.sum* ./
 RUN go mod download

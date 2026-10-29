@@ -5,11 +5,7 @@
 # flow doesn't stall on empty rootDeviceHints). Runs on the mgmt
 # cluster as a small Deployment with leader election.
 
-ARG GO_VERSION=1.26.10
-ARG ALPINE_VERSION=3.23
-
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
-ENV GOTOOLCHAIN=local
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 
 WORKDIR /src
 COPY infra/hetzner-robot-controller/go.mod infra/hetzner-robot-controller/go.sum ./

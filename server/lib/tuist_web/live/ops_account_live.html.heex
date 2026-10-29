@@ -465,6 +465,46 @@
     </.card_section>
   </.card>
 
+  <.card title={dgettext("dashboard", "Sandbox concurrency")} icon="server">
+    <.card_section>
+      <p>
+        {dgettext(
+          "dashboard",
+          "Sandbox CPU and memory limits are independent of CI. Creating, resuming and running sandboxes count toward these limits; paused sandboxes do not."
+        )}
+      </p>
+      <.form
+        for={@sandbox_concurrency_form}
+        id="sandbox-concurrency-form"
+        phx-submit="update_sandbox_concurrency_limits"
+      >
+        <.text_input
+          field={@sandbox_concurrency_form[:sandbox_vcpus_limit]}
+          input_type="number"
+          min={1}
+          label={dgettext("dashboard", "vCPU limit")}
+          required
+          show_required
+        />
+        <.text_input
+          field={@sandbox_concurrency_form[:sandbox_memory_gb_limit]}
+          input_type="number"
+          min={1}
+          label={dgettext("dashboard", "Memory limit (GB)")}
+          required
+          show_required
+        />
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Save sandbox limits")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+  </.card>
+
   <.card title={dgettext("dashboard", "Free tier")} icon="reload">
     <.card_section>
       <p data-part="free-tier-description">

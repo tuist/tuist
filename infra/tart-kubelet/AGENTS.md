@@ -106,7 +106,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   the same before it dispatches the release's deploy. Both give up an hour
   after the announcement (`tuist.dev/runner-image-announced-at`), and a
   release dispatched with `skip_staging` moves the pools at once
-  (`tuist.dev/runner-image-staging: skip`). A pool is
+  (`tuist.dev/runner-image-staging: skip`). Canary's deploy instead waits up
+  to 30 minutes for staging, ignoring the hour, and fails closed, so runners
+  acceptance qualifies the images production moves to. A pool is
   matched by its `tuist.dev/xcode-version` and `tuist.dev/runner-image-variant`
   (`standalone` or `stacked`) labels, which the chart renders only on catalog
   pools that follow releases; an entry outside the pool's repository is
@@ -361,3 +363,14 @@ What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
 
 The Node reports the Tart the host runs as its container runtime version
 (`tart://2.41.1`, the CONTAINER-RUNTIME column of `kubectl get nodes -o wide`).
+
+## Processor deletion drain
+
+Pods annotated `tuist.dev/graceful-drain: xcresult-v1` also receive the per-VM
+status share. Before teardown the Pod controller writes the Pod UID to
+`drain-request`, then requeues until a bounded regular `drain-complete` file
+contains that UID. Missing/unsafe files hold the VM and finalizer; an expired
+grace period is not acknowledgement. Explicit zero-grace deletion bypasses this
+gate. Keep the request durable across kubelet recovery, never wait inside the
+single reconcile worker, and never accept another Pod's acknowledgement. See
+[host maintenance](../cluster-api-provider-tuist/scaleway-os-maintenance.md).

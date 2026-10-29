@@ -21,7 +21,8 @@ defmodule Tuist.Ops.FeatureFlags do
   alias Tuist.Repo
 
   @catalog [
-    {:immutable_shard_reports, "account", "Opt-in immutable shard plans; coverage-enabled accounts remain excluded."},
+    {:immutable_shard_reports, "account",
+     "Opt-in immutable shard plans; Mix projects and coverage-enabled accounts remain excluded."},
     {:kura_positive_fence, "account",
      "Opt-in managed positive-fence serving authority. Activation is sticky; disabling cannot restore legacy serving."},
     {:kura_placement_served_signal, "account", "Opt-in placement using served-region signals."},

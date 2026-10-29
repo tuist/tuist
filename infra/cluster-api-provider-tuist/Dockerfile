@@ -18,8 +18,7 @@
 #     /usr/local/lib/tart/<version>.
 # One image, one URL pin in the chart, no separate release artifact.
 
-ARG GO_VERSION=1.26.10
-ARG ALPINE_VERSION=3.23
+ARG ALPINE_VERSION=3.22
 
 # Tart releases the image carries, as <version>:<sha256 of tart.tar.gz>.
 # Every one of them can be installed in place on an existing Mac mini
@@ -54,8 +53,7 @@ ARG TAILSCALE_VERSION=1.96.5
 # Dockerfile.
 ARG NODE_EXPORTER_VERSION=1.8.2
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS manager-builder
-ENV GOTOOLCHAIN=local
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS manager-builder
 
 # The operator's go.mod has `replace ../macos-host-bootstrap`, so both
 # modules land under /src for the build to resolve. We do not COPY
@@ -83,8 +81,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/rack-node-linux-amd64 ./cmd/rack-node
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS kubelet-builder
-ENV GOTOOLCHAIN=local
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS kubelet-builder
 
 WORKDIR /src/tart-kubelet
 COPY infra/runner-cache /src/runner-cache
@@ -103,8 +100,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o /out/tart-kubelet-darwin-arm64 ./cmd/tart-kubelet
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS log-shipper-builder
-ENV GOTOOLCHAIN=local
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS log-shipper-builder
 
 WORKDIR /src
 COPY infra/macos-log-shipper ./
@@ -126,8 +122,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o /out/tuist-log-shipper-darwin-arm64 ./cmd/tuist-log-shipper
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS host-sensors-builder
-ENV GOTOOLCHAIN=local
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS host-sensors-builder
 
 WORKDIR /src
 COPY infra/macos-host-sensors ./
@@ -168,8 +163,7 @@ RUN set -eu; \
     test -s "${TART_DEFAULT_VERSION}/tart.tar.gz"
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS tailscale-builder
-ENV GOTOOLCHAIN=local
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS tailscale-builder
 
 # Tailscale's open-source `tailscaled` variant — what Tailscale's own
 # docs designate as the headless-server path on macOS (see

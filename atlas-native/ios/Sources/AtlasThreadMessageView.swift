@@ -15,7 +15,11 @@ struct AtlasThreadMessageView: View {
     private var palette: AtlasTheme.Palette? { contrast == .increased ? nil : theme?.palette(scheme) }
     private var fill: Color {
         if outgoing { return palette.map { Color(atlasHex: $0.accent) } ?? AtlasSettingsStyle.tint }
+        #if os(macOS)
+        return palette.map { Color(atlasHex: $0.surface) } ?? Color(nsColor: .controlBackgroundColor)
+        #else
         return palette.map { Color(atlasHex: $0.surface) } ?? Color(uiColor: .secondarySystemGroupedBackground)
+        #endif
     }
 
     var body: some View {

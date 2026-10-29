@@ -15,6 +15,10 @@ import TuistSupport
 /// with coverage starts. A process belongs to the test target whose bundle has a function that no
 /// other image of the run has and that ran in it. Each target's profiles are merged and reported
 /// by `llvm-cov` over the images whose functions ran, the way the run's own coverage is reported.
+///
+/// A process no test bundle claims, such as the app a UI test drives, belongs to the scope that
+/// TestCoverageAttribution recorded launching it, by the pid in the profile's name; each scope's
+/// profiles are reported the same way, over the images other than the test bundles.
 struct TestTargetProcessCoverage {
     struct Bundle: Equatable {
         /// The test module, as the result bundle and TestCoverageAttribution name it.
@@ -25,9 +29,13 @@ struct TestTargetProcessCoverage {
     struct Result: Equatable {
         /// Per test module, the files its processes executed and the lines of each that ran.
         var targets: [String: [String: IndexSet]] = [:]
-        /// Processes no test bundle could be told from: the app a UI test drives, a process whose
-        /// test bundle ran nothing of its own.
+        /// Per scope that launched a process, the files those processes executed and their lines.
+        var launched: [CoverageObserverOutput.Launch.Scope: [String: IndexSet]] = [:]
+        /// Processes no test bundle could be told from and no recorded launch claims: the app of a UI
+        /// test target that doesn't link TestCoverageAttribution, a process whose test bundle ran
+        /// nothing of its own.
         var unmatchedProcesses = 0
+        var launchedProcesses = 0
         /// Processes that ran more than one test bundle's own code; left out, since their coverage
         /// can't be split.
         var ambiguousProcesses = 0
@@ -45,13 +53,17 @@ struct TestTargetProcessCoverage {
         createdAfter date: Date,
         bundles: [Bundle],
         images: [String],
+        launches: [CoverageObserverOutput.Launch] = [],
         remap: @escaping @Sendable (_ path: String, _ image: String) -> String
     ) async -> Result {
         var result = Result()
         let profiles = Self.rawProfiles(in: profileDirectory, createdAfter: date)
         result.processes = profiles.count
-        guard !profiles.isEmpty, !bundles.isEmpty else { return result }
+        // A scheme that gathers coverage only for the app leaves its UI test bundles out of the
+        // run's targets, but the app's launches are still there to attribute.
+        guard !profiles.isEmpty, !bundles.isEmpty || !launches.isEmpty else { return result }
         let allImages = Array(Set(images + bundles.map(\.image))).sorted()
+        let architecture = CoverageExportService.architecture(ofImages: allImages)
 
         let references = await concurrentMap(allImages) { image in
             (image, CoverageMapping.functionReferences(imagePath: image) ?? [])
@@ -70,49 +82,83 @@ struct TestTargetProcessCoverage {
         let executedByProfile = await concurrentMap(profiles) { profile in
             (profile, await executedFunctions(profile: profile.pathString))
         }
-        var profilesByModule: [String: [AbsolutePath]] = [:]
-        var executedByModule: [String: Set<UInt64>] = [:]
+        let scopeByProcess = Dictionary(launches.map { ($0.processIdentifier, $0.scope) }, uniquingKeysWith: { $1 })
+        var profilesByOwner: [Owner: [AbsolutePath]] = [:]
+        var executedByOwner: [Owner: Set<UInt64>] = [:]
         for (profile, executed) in executedByProfile {
             let modules = ownFunctions.filter { !$0.1.isDisjoint(with: executed) }.map(\.0)
+            let owner: Owner
             switch modules.count {
-            case 0: result.unmatchedProcesses += 1
-            case 1:
-                profilesByModule[modules[0], default: []].append(profile)
-                executedByModule[modules[0], default: []].formUnion(executed)
-            default: result.ambiguousProcesses += 1
+            case 0:
+                guard let scope = Self.processIdentifier(ofProfile: profile).flatMap({ scopeByProcess[$0] }) else {
+                    result.unmatchedProcesses += 1
+                    continue
+                }
+                result.launchedProcesses += 1
+                owner = .launch(scope)
+            case 1: owner = .target(modules[0])
+            default:
+                result.ambiguousProcesses += 1
+                continue
             }
+            profilesByOwner[owner, default: []].append(profile)
+            executedByOwner[owner, default: []].formUnion(executed)
         }
-        guard !profilesByModule.isEmpty else { return result }
+        guard !profilesByOwner.isEmpty else { return result }
 
         let reports = try? await fileSystem.runInTemporaryDirectory(prefix: "tuist-target-coverage") { directory in
-            let merged = await concurrentMap(profilesByModule.sorted { $0.key < $1.key }) { module, profiles in
-                let output = directory.appending(component: "\(module).profdata")
+            let merged = await concurrentMap(Array(profilesByOwner.enumerated())) { index, entry in
+                let output = directory.appending(component: "\(index).profdata")
                 let merged = await run(["/usr/bin/xcrun", "llvm-profdata", "merge", "-sparse", "-o", output.pathString]
-                    + profiles.map(\.pathString)) != nil
-                return (module, merged ? output : nil)
+                    + entry.value.map(\.pathString)) != nil
+                return (entry.key, merged ? output : nil)
             }
             // A process loads one test bundle, so the other bundles are left out even where they link
             // the same code statically: `llvm-cov` counts a function by its name, so this bundle's
-            // copy already reports it.
+            // copy already reports it. A launched process loads none.
             let bundleImages = Set(bundles.map(\.image))
-            let exports = merged.flatMap { module, profile -> [(module: String, image: String, profile: AbsolutePath)] in
-                guard let profile, let executed = executedByModule[module] else { return [] }
-                let own = bundles.filter { $0.module == module }.map(\.image)
+            let exports = merged.flatMap { owner, profile -> [(owner: Owner, image: String, profile: AbsolutePath)] in
+                guard let profile, let executed = executedByOwner[owner] else { return [] }
+                let own: [String]
+                switch owner {
+                case let .target(module): own = bundles.filter { $0.module == module }.map(\.image)
+                case .launch: own = []
+                }
                 return (own + allImages.filter { !bundleImages.contains($0) })
                     .filter { !(referencesByImage[$0] ?? []).isDisjoint(with: executed) }
-                    .map { (module, $0, profile) }
+                    .map { (owner, $0, profile) }
             }
             return await concurrentMap(exports) { export in
-                (export.module, export.image, await lines(image: export.image, profile: export.profile))
+                (
+                    export.owner,
+                    export.image,
+                    await lines(image: export.image, profile: export.profile, architecture: architecture)
+                )
             }
         }
         result.exports = reports?.count ?? 0
-        for (module, image, files) in reports ?? [] {
+        for (owner, image, files) in reports ?? [] {
             for (file, covered) in files {
-                result.targets[module, default: [:]][remap(file, image), default: IndexSet()].formUnion(covered)
+                switch owner {
+                case let .target(module):
+                    result.targets[module, default: [:]][remap(file, image), default: IndexSet()].formUnion(covered)
+                case let .launch(scope):
+                    result.launched[scope, default: [:]][remap(file, image), default: IndexSet()].formUnion(covered)
+                }
             }
         }
         return result
+    }
+
+    private enum Owner: Hashable {
+        case target(String)
+        case launch(CoverageObserverOutput.Launch.Scope)
+    }
+
+    /// The pid in a raw profile's name, `<uuid>-<pid>.profraw` as Xcode names it (`%p`).
+    static func processIdentifier(ofProfile profile: AbsolutePath) -> Int32? {
+        guard profile.extension == "profraw" else { return nil }
+        return profile.basenameWithoutExt.split(separator: "-").last.flatMap { Int32($0) }
     }
 
     /// This run's raw profiles: Xcode removes the previous run's when the next run with coverage
@@ -147,15 +193,22 @@ struct TestTargetProcessCoverage {
 
     /// The files of an image whose code ran under `profile` and the lines that ran: those with a
     /// function or a line `llvm-cov` counts at least once. Dependency checkouts are left out, as
-    /// the run's coverage leaves them out.
-    private func lines(image: String, profile: AbsolutePath) async -> [String: IndexSet] {
-        let arguments = [
+    /// the run's coverage leaves them out. A universal image, such as a framework from the binary
+    /// cache, is read for the run's `architecture`.
+    private func lines(image: String, profile: AbsolutePath, architecture: String) async -> [String: IndexSet] {
+        guard let report = await run(Self.exportArguments(image: image, profile: profile, architecture: architecture))
+        else { return [:] }
+        return Self.executedLines(lcov: report)
+    }
+
+    /// `llvm-cov` reads a universal image only for a named architecture; `-arch` names the slice a
+    /// thin image already is, so it is passed for every image.
+    static func exportArguments(image: String, profile: AbsolutePath, architecture: String) -> [String] {
+        [
             "/usr/bin/xcrun", "llvm-cov", "export", "-format=lcov", "-skip-branches",
             "-ignore-filename-regex=/(\\.build|DerivedData|SourcePackages|Pods|Carthage)/",
-            "-instr-profile", profile.pathString, image,
+            "-instr-profile", profile.pathString, "-arch", architecture, image,
         ]
-        guard let report = await run(arguments) else { return [:] }
-        return Self.executedLines(lcov: report)
     }
 
     static func executedLines(lcov report: String) -> [String: IndexSet] {

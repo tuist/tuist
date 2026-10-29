@@ -168,6 +168,8 @@ defmodule Tuist.Runners.CacheVolumesDockerTest do
   end
 
   test "the runner profile turns the Docker cache off", %{account: account, job: job, params: params} do
+    # Canary's default-on rollout policy must not override a profile opt-out.
+    stub(Environment, :env, fn -> :can end)
     assert :ok = CacheVolumes.mark_docker_seen(params)
 
     profile =

@@ -279,11 +279,17 @@ public struct SwifterPM: Sendable {
         // A cache only helps when it has every pin for this package. Going
         // straight to the native resolver for any missing pin avoids manifest
         // precomputation and restoration work before SwiftPM fetches it.
-        if try await PackageResolver.shouldUseNativeColdPath(
-            packageDir: package,
-            cacheRoot: cacheRoot,
-            registryConfig: registryConfig
-        ) {
+        // Forced installs must restore the locked versions first, even on a
+        // cache miss: native precomputation can reject a valid lockfile when
+        // the retained workspace still records another registry version.
+        // The restoration path rebuilds that state, then validates with SwiftPM.
+        if !(request.forceResolvedVersions && request.restorePackage),
+           try await PackageResolver.shouldUseNativeColdPath(
+               packageDir: package,
+               cacheRoot: cacheRoot,
+               registryConfig: registryConfig
+           )
+        {
             let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
                 scratchDir: scratch,

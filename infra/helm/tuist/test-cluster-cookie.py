@@ -71,7 +71,10 @@ class ClusterCookieTests(unittest.TestCase):
                 self.assertEqual(output.count("name: tuist-server-cluster-cookie"), 3, "Unexpected cookie Secret consumer")
 
     def test_disabled_cluster_does_not_sync_or_inject_cookie(self):
-        output = self.rendered(["values-managed-common.yaml", "values-managed-staging.yaml"])
+        output = self.rendered(
+            ["values-managed-common.yaml", "values-managed-staging.yaml"],
+            ["server.cluster.enabled=false", "server.replicaCount=1"],
+        )
         self.assertFalse(document(output, "server-cluster-external-secret.yaml"))
         self.assertFalse("- name: RELEASE_COOKIE" in document(output, "server-deployment.yaml"))
 

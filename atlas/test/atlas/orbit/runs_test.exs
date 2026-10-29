@@ -72,13 +72,20 @@ defmodule Atlas.Orbit.RunsTest do
     {:ok, _} = Connections.connect_claude(actor, "sk-ant-oat01-" <> String.duplicate("actor", 12))
 
     for {response, category} <- [
+          {{:ok, %{status: 400, body: "private rejected request"}}, "provider_request"},
+          {{:ok,
+            %{status: 400, body: %{"error" => %{"code" => "model_not_found", "message" => "private provider body"}}}},
+           "model_not_found"},
+          {{:ok, %{status: 400, body: %{"error" => %{"code" => "context_length_exceeded"}}}}, "context_length"},
+          {{:ok, %{status: 401, body: "private provider body"}}, "provider_auth"},
+          {{:ok, %{status: 429, body: "private provider body"}}, "provider_rate_limited"},
           {{:error, %Req.TransportError{reason: :timeout}}, "timeout"},
           {{:ok, %{status: 503, body: "private upstream outage"}}, "provider_unavailable"},
           {{:ok, %{status: 402, body: "private provider body"}}, "provider_billing"}
         ] do
       {:ok, thread, _} = Orbit.ensure_private(actor)
       run = post_and_get_run(actor, thread, "Hello")
-      expect(Req, :post, fn _opts -> response end)
+      stub(Req, :post, fn _opts -> response end)
 
       log =
         ExUnit.CaptureLog.capture_log(fn ->
@@ -94,6 +101,20 @@ defmodule Atlas.Orbit.RunsTest do
       refute notice.body =~ "configure"
       refute notice.body =~ "private upstream outage"
       refute notice.body =~ "private provider body"
+
+      if category == "provider_request" do
+        assert notice.body =~ "Choose another model"
+      end
+
+      if category == "model_not_found" do
+        assert notice.body =~ "not available to your AI account"
+        assert notice.body =~ "Choose another model above the composer"
+      end
+
+      if category == "context_length" do
+        assert notice.body =~ "Start a new conversation"
+      end
+
       refute_received :unexpected_provider_network_request
     end
   end

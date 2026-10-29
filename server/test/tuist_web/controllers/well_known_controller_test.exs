@@ -22,10 +22,16 @@ defmodule TuistWeb.WellKnownControllerTest do
 
   describe "GET /.well-known/tuist.json" do
     test "advertises the current instance policy without authentication or caching", %{conn: conn} do
-      for enabled <- [false, true, false] do
-        stub(Environment, :network_trusted_report_publishing_enabled?, fn -> enabled end)
+      for {reporting, cache} <- [{false, false}, {true, false}, {false, true}, {true, true}] do
+        stub(Environment, :network_trusted_report_publishing_enabled?, fn -> reporting end)
+        stub(Environment, :network_trusted_cache_access_enabled?, fn -> cache end)
         response = get(conn, "/.well-known/tuist.json")
-        assert json_response(response, 200) == %{"network_trusted_report_publishing" => enabled}
+
+        assert json_response(response, 200) == %{
+                 "network_trusted_report_publishing" => reporting,
+                 "network_trusted_cache_access" => cache
+               }
+
         assert get_resp_header(response, "cache-control") == ["no-store"]
         assert get_resp_header(response, "set-cookie") == []
       end
