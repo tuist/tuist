@@ -29,6 +29,7 @@ struct AtlasApp: App {
                                  signOut: authentication.signOut, workstation: authentication.workstation, updater: updater)
                 .modifier(AtlasThemeScope(appearance: appearance, server: authentication.server))
                 .environment(\.atlasReadCache, authentication.cachedRead)
+                .environment(\.atlasEnvironmentRequest, authentication.server == nil ? nil : authentication.environmentRequest)
         }
         #else
         WindowGroup { root }

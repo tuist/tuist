@@ -21,6 +21,118 @@ fn action(mut value: Value) -> Action {
 }
 
 #[test]
+fn repository_settings_use_fixed_owner_routes_and_filter_the_catalogue() {
+    let settings = json!({"installation_id":"42","default_repository":"acme/mobile"});
+    let network = MockTransport::new(vec![
+        json!({"settings":settings,"installations":[{"id":"42","name":"Acme","secret":"omit"}],
+            "repositories":[{"full_name":"acme/mobile","clone_url":"omit"}],"token":"omit"}),
+        json!({"installation_id":"73","default_repository":null,"token":"omit"}),
+    ]);
+    let catalog = execute_using(
+        &network,
+        action(json!({"action":"repositories","installation_id":"73"})),
+    )
+    .unwrap();
+    assert_eq!(
+        catalog,
+        json!({"settings":settings,"installations":[{"id":"42","name":"Acme"}],
+        "repositories":[{"full_name":"acme/mobile"}]})
+    );
+    let saved = execute_using(&network, action(json!({"action":"update_repositories","installation_id":"73","default_repository":null}))).unwrap();
+    assert_eq!(
+        saved,
+        json!({"installation_id":"73","default_repository":null})
+    );
+    let requests = network.requests.borrow();
+    assert_eq!(
+        requests[0].0,
+        "https://atlas.example/api/me/coding-repositories?installation_id=73"
+    );
+    assert_eq!(requests[0].1["method"], "GET");
+    assert_eq!(
+        requests[1].0,
+        "https://atlas.example/api/me/coding-repositories/settings"
+    );
+    assert_eq!(requests[1].1["method"], "PUT");
+    assert_eq!(requests[1].1["payload"], saved);
+}
+
+#[test]
+fn repository_selectors_reject_paths_and_inconsistent_defaults_before_networking() {
+    let network = MockTransport::new(vec![]);
+    for installation in [
+        "",
+        "0",
+        "01",
+        "42&owner=other",
+        "../42",
+        "123456789012345678901",
+    ] {
+        assert!(
+            execute_using(
+                &network,
+                action(json!({"action":"repositories","installation_id":installation}))
+            )
+            .is_err()
+        );
+    }
+    for repository in [
+        "",
+        "acme/mobile/extra",
+        "https://github.com/acme/mobile",
+        "acme/a?b",
+        "acme/white space",
+    ] {
+        assert!(
+            execute_using(
+                &network,
+                action(json!({"action":"select","thread_id":ID,"repository":repository}))
+            )
+            .is_err()
+        );
+    }
+    assert!(
+        execute_using(
+            &network,
+            action(json!({"action":"update_repositories","default_repository":"acme/mobile"}))
+        )
+        .is_err()
+    );
+    assert!(network.requests.borrow().is_empty());
+}
+
+#[test]
+fn checkout_selection_preserves_repository_and_clearing_remains_compatible() {
+    let response = json!({"thread":{"id":ID,"environment_id":CALL,"environment_name":"Mac",
+        "project_id":PROJECT,"repository":"acme/mobile","private":"omit"}});
+    let old_response =
+        json!({"thread":{"id":ID,"environment_id":null,"environment_name":null,"project_id":null}});
+    let network = MockTransport::new(vec![response, old_response]);
+    let selected = execute_using(
+        &network,
+        action(
+            json!({"action":"select","thread_id":ID,"environment_id":CALL,
+        "project_id":PROJECT,"repository":"acme/mobile"}),
+        ),
+    )
+    .unwrap();
+    assert_eq!(selected["thread"]["repository"], "acme/mobile");
+    assert!(selected["thread"].get("private").is_none());
+    let cleared =
+        execute_using(&network, action(json!({"action":"select","thread_id":ID}))).unwrap();
+    assert!(cleared["thread"]["repository"].is_null());
+    let requests = network.requests.borrow();
+    assert_eq!(
+        requests[0].1["payload"],
+        json!({"environment_id":CALL,"project_id":PROJECT,"repository":"acme/mobile"})
+    );
+    assert_eq!(
+        requests[1].1["payload"],
+        json!({"environment_id":null,"project_id":null})
+    );
+}
+
+#[test]
 fn hosted_provider_selection_uses_the_existing_private_selection_route() {
     let network = MockTransport::new(vec![json!({"thread":{
         "id":ID,"environment_id":CALL,"environment_name":"Tuist","project_id":PROJECT

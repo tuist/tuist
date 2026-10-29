@@ -90,7 +90,9 @@ paths, tokens or raw GitHub responses are returned. Clearing both needs no grant
 repository/catalogue. MCP's `list_coding_repositories` and
 `update_coding_repository_settings` share these rules and deny shared Slack identities.
 The web picker lives at `/settings/coding` and in private Orbit conversations;
-native clients inherit new-thread defaults but do not yet present this picker.
+native clients expose personal defaults in Profile → Coding and conversation
+overrides in Tool environment. Repository choices filter matching local checkouts;
+changing a repository clears the selected environment without cloning or enabling one.
 
 All endpoints are bearer-only and `no-store`; browser sessions are not accepted.
 `GET /api/me/environments` returns `{owner_id: UUID, providers: [{id, name}], environments: [{id,

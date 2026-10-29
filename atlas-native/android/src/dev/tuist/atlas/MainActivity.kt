@@ -27,6 +27,7 @@ class MainActivity : Activity() {
     private var settings: AtlasAIAccountsScreen? = null
     private var accounts: AtlasAIAccountsModel? = null
     private var connections: AtlasConnectionsModel? = null
+    private var coding: AtlasCodingRepositories? = null
     private var pendingConnectionCallback: String? = null
     private var profile: AtlasProfileModel? = null
     private var holidays: AtlasTimeOffModel? = null
@@ -68,6 +69,7 @@ class MainActivity : Activity() {
         val notifications: AtlasPushNotifications,
         val connections: AtlasConnectionsModel?,
         val pendingConnectionCallback: String?,
+        val coding: AtlasCodingRepositories?,
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,6 +92,7 @@ class MainActivity : Activity() {
         notifications = retained?.notifications ?: AtlasPushNotifications(applicationContext, authentication)
         accounts = retained?.accounts
         connections = retained?.connections
+        coding = retained?.coding
         pendingConnectionCallback = retained?.pendingConnectionCallback
         profile = retained?.profile
         holidays = retained?.holidays
@@ -128,6 +131,7 @@ class MainActivity : Activity() {
             notifications,
             connections,
             pendingConnectionCallback,
+            coding,
         )
 
     override fun onStart() {
@@ -296,6 +300,7 @@ class MainActivity : Activity() {
             profile?.let { it.draft != null || it.saving } == true ||
             accounts?.let { it.page != "settings" || it.login != null } == true ||
             (!ignoreConnections && connections?.let { it.busy || it.waiting } == true) ||
+            coding?.let { it.busy || it.dirty } == true ||
             orbit?.hasProtectedWork == true
 
     private fun linkMessage(message: String) {
@@ -450,6 +455,7 @@ class MainActivity : Activity() {
                     screen.profile(identity, ::updateBack)
                     screen.appearance(appearance)
                     screen.connections(connectionModel())
+                    screen.coding(coding ?: AtlasCodingRepositories(authentication::environment).also { coding = it })
                     screen.notifications(
                         status = {
                             notifications.message
@@ -577,6 +583,8 @@ class MainActivity : Activity() {
         accounts = null
         connections?.clear()
         connections = null
+        coding?.clear()
+        coding = null
         holidays = null
         recoveredLoginId = null
     }

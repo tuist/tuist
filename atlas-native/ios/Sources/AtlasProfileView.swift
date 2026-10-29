@@ -16,6 +16,7 @@ struct AtlasSettingsView: View {
     @State private var profileGeneration = 0
     @Environment(\.atlasPresence) private var presence
     @Environment(\.atlasReadCache) private var cachedRead
+    @Environment(\.atlasEnvironmentRequest) private var environmentRequest
 
     var body: some View {
         Form {
@@ -101,6 +102,15 @@ struct AtlasSettingsView: View {
                         Label("Connections", systemImage: "link")
                     }
                     .accessibilityIdentifier("profile-connections")
+                }
+            }
+            if let environmentRequest {
+                Section {
+                    NavigationLink {
+                        AtlasCodingSettingsView(request: environmentRequest)
+                    } label: {
+                        Label("Coding", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }.accessibilityIdentifier("profile-coding")
                 }
             }
             Section {

@@ -10,6 +10,15 @@ pub(crate) enum Action {
     List {
         session: Session,
     },
+    Repositories {
+        session: Session,
+        installation_id: Option<String>,
+    },
+    UpdateRepositories {
+        session: Session,
+        installation_id: Option<String>,
+        default_repository: Option<String>,
+    },
     Register {
         session: Session,
         id: String,
@@ -65,6 +74,7 @@ pub(crate) enum Action {
         thread_id: String,
         environment_id: Option<String>,
         project_id: Option<String>,
+        repository: Option<String>,
     },
     StartProvider {
         session: Session,
@@ -245,6 +255,31 @@ struct Selected {
     environment_id: Option<String>,
     environment_name: Option<String>,
     project_id: Option<String>,
+    repository: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct RepositorySettings {
+    installation_id: Option<String>,
+    default_repository: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Installation {
+    id: String,
+    name: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Repository {
+    full_name: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct RepositoryCatalog {
+    settings: RepositorySettings,
+    installations: Vec<Installation>,
+    repositories: Vec<Repository>,
 }
 
 pub(crate) fn execute(action: Action) -> Result<Value> {
@@ -276,6 +311,37 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
             None,
             "list",
         ),
+        Action::Repositories {
+            session,
+            installation_id,
+        } => {
+            let path = match installation_id {
+                Some(id) => {
+                    validate_installation(&id)?;
+                    format!("api/me/coding-repositories?installation_id={id}")
+                }
+                None => "api/me/coding-repositories".into(),
+            };
+            (session, Method::GET, path, None, "repositories")
+        }
+        Action::UpdateRepositories {
+            session,
+            installation_id,
+            default_repository,
+        } => {
+            let settings = RepositorySettings {
+                installation_id,
+                default_repository,
+            };
+            validate_repository_settings(&settings)?;
+            (
+                session,
+                Method::PUT,
+                "api/me/coding-repositories/settings".into(),
+                Some(json!(settings)),
+                "repository_settings",
+            )
+        }
         Action::Register {
             session,
             id,
@@ -431,6 +497,7 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
             thread_id,
             environment_id,
             project_id,
+            repository,
         } => {
             validate_id(&thread_id)?;
             if environment_id.is_some() != project_id.is_some() {
@@ -442,11 +509,21 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
             if let Some(id) = &project_id {
                 validate_id(id)?;
             }
+            if repository
+                .as_deref()
+                .is_some_and(|name| !valid_repository(name))
+            {
+                return Err(invalid());
+            }
+            let mut payload = json!({"environment_id":environment_id,"project_id":project_id});
+            if let Some(repository) = repository {
+                payload["repository"] = json!(repository);
+            }
             (
                 session,
                 Method::PATCH,
                 format!("api/native/orbit/threads/{thread_id}/environment"),
-                Some(json!({"environment_id":environment_id,"project_id":project_id})),
+                Some(payload),
                 "selection",
             )
         }
@@ -462,7 +539,11 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
             method,
             token: &session.access_token,
             payload,
-            failure: response_failure,
+            failure: if matches!(shape, "repositories" | "repository_settings") {
+                repository_failure
+            } else {
+                response_failure
+            },
         },
     )?;
     sanitize(value, shape)
@@ -470,6 +551,33 @@ pub(super) fn execute_using(network: &impl Transport, action: Action) -> Result<
 
 fn sanitize(value: Value, shape: &str) -> Result<Value> {
     match shape {
+        "repositories" => {
+            let result: RepositoryCatalog = serde_json::from_value(value).map_err(|_| invalid())?;
+            validate_repository_settings(&result.settings)?;
+            if result.installations.len() > 5_000 || result.repositories.len() > 5_000 {
+                return Err(invalid());
+            }
+            for installation in &result.installations {
+                validate_installation(&installation.id)?;
+                if !valid_name(&installation.name) {
+                    return Err(invalid());
+                }
+            }
+            if result
+                .repositories
+                .iter()
+                .any(|repo| !valid_repository(&repo.full_name))
+            {
+                return Err(invalid());
+            }
+            serde_json::to_value(result).map_err(|_| invalid())
+        }
+        "repository_settings" => {
+            let result: RepositorySettings =
+                serde_json::from_value(value).map_err(|_| invalid())?;
+            validate_repository_settings(&result)?;
+            serde_json::to_value(result).map_err(|_| invalid())
+        }
         "list" => {
             let result: Overview = serde_json::from_value(value).map_err(|_| invalid())?;
             validate_id(&result.owner_id)?;
@@ -542,6 +650,14 @@ fn sanitize(value: Value, shape: &str) -> Result<Value> {
             }
             if let Some(id) = &result.thread.project_id {
                 validate_id(id)?;
+            }
+            if result
+                .thread
+                .repository
+                .as_deref()
+                .is_some_and(|name| !valid_repository(name))
+            {
+                return Err(invalid());
             }
             serde_json::to_value(result).map_err(|_| invalid())
         }
@@ -703,6 +819,30 @@ fn valid_repository(value: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || b"_.-".contains(&c))
 }
 
+fn validate_installation(value: &str) -> Result<()> {
+    if !(1..=20).contains(&value.len())
+        || value.starts_with('0')
+        || !value.bytes().all(|c| c.is_ascii_digit())
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn validate_repository_settings(value: &RepositorySettings) -> Result<()> {
+    if let Some(id) = &value.installation_id {
+        validate_installation(id)?;
+    }
+    if value
+        .default_repository
+        .as_deref()
+        .is_some_and(|name| value.installation_id.is_none() || !valid_repository(name))
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
 fn valid_name(value: &str) -> bool {
     !value.trim().is_empty() && value.chars().count() <= 120 && !value.chars().any(char::is_control)
 }
@@ -752,6 +892,32 @@ fn response_failure(status: u16, _bytes: &[u8]) -> crate::AuthError {
         ),
     };
     error(kind, message)
+}
+
+fn repository_failure(status: u16, bytes: &[u8]) -> crate::AuthError {
+    let reason = serde_json::from_slice::<Value>(bytes).ok();
+    match (
+        status,
+        reason.as_ref().and_then(|value| value["error"].as_str()),
+    ) {
+        (409, Some("github_connection_required")) => error(
+            "github_connection_required",
+            "Connect GitHub in Profile → Connections, then try again.",
+        ),
+        (409, Some("installation_unavailable" | "repository_unavailable")) => error(
+            "repository_unavailable",
+            "This GitHub selection is no longer available. Refresh and choose again.",
+        ),
+        (404 | 501, _) => error(
+            "unavailable",
+            "Update the Atlas server to use repository settings.",
+        ),
+        (401, _) => error("sign_in_required", "Sign in to Atlas again."),
+        _ => error(
+            "repositories_unavailable",
+            "Could not load or save GitHub repositories. Your selection is kept; try again.",
+        ),
+    }
 }
 
 #[cfg(test)]

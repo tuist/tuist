@@ -69,7 +69,12 @@ struct AtlasSettingsPreview: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if ProcessInfo.processInfo.arguments.contains("--live-activity") {
+                if ProcessInfo.processInfo.arguments.contains("--coding") {
+                    NavigationStack { AtlasCodingSettingsView(request: environments.request) }
+                } else if ProcessInfo.processInfo.arguments.contains("--repository-picker") {
+                    AtlasThreadRepositoryPicker(threadId: "00000000-0000-4000-8000-000000000001", selected: "acme/mobile",
+                                                request: environments.request, changed: {})
+                } else if ProcessInfo.processInfo.arguments.contains("--live-activity") {
                     AtlasLiveActivityPreview()
                 } else if ProcessInfo.processInfo.arguments.contains("--voice-input") {
                     AtlasVoiceInputPreview()
