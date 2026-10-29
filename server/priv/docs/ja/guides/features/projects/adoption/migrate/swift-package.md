@@ -1,40 +1,31 @@
 ---
 {
-  "title": "Migrate a Swift Package",
-  "titleTemplate": ":title · Migrate · Adoption · Projects · Features · Guides · Tuist",
-  "description": "Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects."
+  "title": "Swift Package を移行する",
+  "titleTemplate": ":title · 移行 · 導入 · プロジェクト · 機能 · ガイド · Tuist",
+  "description": "Swift Package Manager によるプロジェクト管理から Tuist へ移行します。"
 }
 ---
-# Swiftパッケージを移行する{#migrate-a-swift-package}
+# Swift Package の移行 {#migrate-a-swift-package}
 
-Swift Package
-Managerは、Swiftコードのための依存関係マネージャとして登場し、意図せずして、プロジェクトを管理し、Objective-Cのような他のプログラミング言語をサポートするという問題を解決することになった。このツールは異なる目的を念頭に置いて設計されたため、Tuistが提供する柔軟性、パフォーマンス、パワーを欠いているため、大規模なプロジェクトを管理するために使用するのは難しいかもしれません。これは[Scaling
-iOS at
-Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2)の記事でよく捉えられており、Swift
-Package ManagerとネイティブのXcodeプロジェクトのパフォーマンスを比較した以下の表が含まれています：
+Swift Package Manager は Swift コードの依存関係マネージャーとして登場しましたが、意図せずプロジェクト管理や Objective-C などの他のプログラミング言語のサポートという課題を解決する役割も担うようになりました。このツールは異なる目的を念頭に設計されているため、Tuist が提供する柔軟性、パフォーマンス、およびパワーに欠けることから、大規模なプロジェクト管理には課題が生じます。この点は [Bumble における iOS のスケーリング](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2) の記事でよく説明されており、Swift Package Manager とネイティブ Xcode プロジェクトのパフォーマンスを比較した以下の表が含まれています。
 
-<img style="max-width: 400px;" alt="A table that compares the regression in performance when using SPM over native Xcode projects" src="/images/guides/start/migrate/performance-table.webp">
+<img style="max-width: 400px;" alt="SPM を使用した場合とネイティブ Xcode プロジェクトの場合のパフォーマンス低下を比較した表" src="/images/guides/start/migrate/performance-table.webp">
 
-Swift Package
-Managerが同じようなプロジェクト管理の役割を果たせることを考えると、Tuistの必要性に異議を唱える開発者や組織にしばしば出くわす。ある者は移行を敢行し、後になって開発者のエクスペリエンスが著しく低下していることに気づく。例えば、ファイル名の変更に再インデックスに最大15秒かかるかもしれない。15秒だ！
+Swift Package Manager が同様のプロジェクト管理の役割を果たせることを理由に Tuist の必要性に疑問を呈する開発者や組織によく出会います。移行に着手した後で、開発者体験が著しく劣化したことに気付くケースもあります。例えば、ファイルの名前変更により再インデックス作成に最大 15 秒かかることがあります。15 秒です！
 
-**AppleがSwift Package Managerをビルドフォースケールのプロジェクトマネージャーにするかどうかは不明だ。**
-しかし、そうなる兆候は見られない。実際、私たちは全く逆のことを見ている。彼らはXcodeに触発された決定をしており、暗黙的なコンフィギュレーションを通して利便性を達成しているようなものです。私たちは、Appleが第一原則に立ち返り、例えばプロジェクトを定義するインターフェイスとしてコンパイル言語を使用するなど、依存関係マネージャーとしては意味があってもプロジェクトマネージャーとしては意味がなかったいくつかの決定を見直す必要があると考えている。
+**Apple が Swift Package Manager を大規模向けに最適化されたプロジェクトマネージャーにするかどうかは不明確です。** しかし、その兆候は見られません。むしろ、逆の傾向が見られます。暗黙的な設定によって利便性を実現するなど、Xcode に影響を受けた判断を下しており、<.localized_link href="/guides/features/projects/cost-of-convenience">ご存知のとおり</.localized_link>、これは大規模化に伴う複雑さの原因となります。私たちは、Apple が基本原理に戻り、依存関係マネージャーとしては理にかなっていたがプロジェクトマネージャーとしては不適切だったいくつかの判断（例えば、プロジェクト定義のインターフェースとしてコンパイル言語を使用することなど）を見直す必要があると考えています。
 
 > [!TIP]
-> **Spm As Just A Dependency Manager**
+> **依存関係マネージャーとしての SPM**
 >
-> TuistはSwift Package
-> Managerを依存性マネージャーとして扱い、それは素晴らしいものだ。私たちは依存関係を解決し、それらをビルドするためにそれを使います。そのために設計されているわけではないので、プロジェクトを定義するために使うことはありません。
+> Tuist は Swift Package Manager を依存関係マネージャーとして扱っており、これは優れたツールです。私たちはこれを使用して依存関係を解決し、ビルドを行います。プロジェクト定義には使用しません。その目的で設計されていないためです。
 
 
-## Swift Package ManagerからTuistへの移行{#migrating-from-swift-package-manager-to-tuist}
+## Swift Package Manager から Tuist への移行 {#migrating-from-swift-package-manager-to-tuist}
 
-Swift Package Manager と Tuist の類似点は移行プロセスを簡単にします。主な違いは、`Package.swift`
-の代わりにTuistのDSLを使ってプロジェクトを定義することです。
+Swift Package Manager と Tuist の類似性により、移行プロセスは簡単です。主な違いは、`Package.swift` の代わりに Tuist の DSL を使用してプロジェクトを定義することです。
 
-まず、`Package.swift` ファイルの隣に、`Project.swift` ファイルを作成します。`Project.swift`
-ファイルには、プロジェクトの定義が含まれます。以下は、`Project.swift` ファイルの例で、1 つのターゲットを持つプロジェクトを定義しています：
+まず、`Package.swift` ファイルの隣に `Project.swift` ファイルを作成します。`Project.swift` ファイルにはプロジェクトの定義が含まれます。単一のターゲットを持つプロジェクトを定義する `Project.swift` ファイルの例を以下に示します。
 
 ```swift
 import ProjectDescription
@@ -53,15 +44,13 @@ let project = Project(
 )
 ```
 
-いくつか注意すべきことがある：
+注意すべき点:
 
-- **ProjectDescription** ：`PackageDescription` を使う代わりに、`ProjectDescription`
-  を使うことになる。
-- **プロジェクト：** `パッケージ` インスタンスをエクスポートする代わりに、`プロジェクト` インスタンスをエクスポートします。
-- **Xcode言語：**
-  プロジェクトを定義するために使用するプリミティブは、Xcodeの言語を模倣しているため、スキーム、ターゲット、ビルドフェーズなどがあります。
+- **ProjectDescription**: `PackageDescription` を使用する代わりに、`ProjectDescription` を使用します。
+- **Project:** `package` インスタンスをエクスポートする代わりに、`project` インスタンスをエクスポートします。
+- **Xcode 言語:** プロジェクト定義に使用するプリミティブは Xcode の言語を模倣しているため、スキーム、ターゲット、ビルドフェーズなどが見つかります。
 
-次に、`Tuist.swift` ファイルを以下の内容で作成する：
+次に、以下の内容で `Tuist.swift` ファイルを作成します。
 
 ```swift
 import ProjectDescription
@@ -69,16 +58,14 @@ import ProjectDescription
 let tuist = Tuist()
 ```
 
-`Tuist.swift`
-にはプロジェクトの設定が含まれており、そのパスはプロジェクトのルートを決定するリファレンスとして機能します。Tuistプロジェクトの構造については<LocalizedLink href="/guides/features/projects/directory-structure">ディレクトリ構造</LocalizedLink>ドキュメントを参照してください。
+`Tuist.swift` にはプロジェクトの設定が含まれており、そのパスはプロジェクトのルートを決定するための参照として機能します。Tuist プロジェクトの構造について詳しくは、<.localized_link href="/guides/features/projects/directory-structure">ディレクトリ構造</.localized_link> ドキュメントをご覧ください。
 
-## プロジェクトの編集{#editing-the-project}
+## プロジェクトの編集 {#editing-the-project}
 
-1}`tuist
-edit`を使って、Xcodeでプロジェクトを編集することができます。コマンドは、開いて作業を開始できるXcodeプロジェクトを生成します。
+<.localized_link href="/guides/features/projects/editing">`tuist edit`</.localized_link> を使用して、Xcode でプロジェクトを編集できます。このコマンドは、開いて作業を開始できる Xcode プロジェクトを生成します。
 
 ```bash
 tuist edit
 ```
 
-プロジェクトの規模にもよりますが、一度に使用するか、段階的に使用するかを検討してください。DSLとワークフローに慣れるために、小さなプロジェクトから始めることをお勧めします。私たちのアドバイスは、常に、最も依存度の高いターゲットから始めて、トップレベルのターゲットまで作業することです。
+プロジェクトの規模に応じて、一括で実行するか、段階的に実行するかを検討してください。DSL とワークフローに慣れるために、小さなプロジェクトから始めることをお勧めします。私たちのアドバイスは、常に最も依存されているターゲットから始め、トップレベルのターゲットまで順に進めていくことです。
