@@ -8,6 +8,7 @@
 ARG ALPINE_VERSION=3.22
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS tor-console
+ENV GOTOOLCHAIN=local
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
@@ -16,5 +17,6 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags=
 
 FROM alpine:${ALPINE_VERSION}
 
-RUN apk add --no-cache bird2 dnsmasq ethtool iproute2 nftables keepalived tailscale
+RUN apk add --no-cache bird2 dnsmasq ethtool iproute2 nftables keepalived tailscale 'ca-certificates>=20261020-r0' \
+    && update-ca-certificates
 COPY --from=tor-console /out/rack-tor-console /usr/local/bin/rack-tor-console
