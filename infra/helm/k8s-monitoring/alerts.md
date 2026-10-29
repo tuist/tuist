@@ -2740,16 +2740,17 @@ When it fires:
    frees while it has headroom.
 3. If the fleet is genuinely full of customer work, it needs hosts.
 
-### macOS runner VM starting a job with under 100 GiB free
+### macOS runner VM starting a job with under 200 GiB free
 
 Tuist commits to at least 45 GiB of free VM disk when a macOS job
 starts. A job VM is a fresh clone of its pool's runner image, so the
 free space at start is a property of the image: the runner image build
-fails below 100 GiB available (`infra/runner-image/runner.pkr.hcl`), and
+fails below 200 GiB available (`infra/runner-image/runner.pkr.hcl`), and
 this rule catches what the build cannot see, such as a clone's boot
 writing more than the image left free. Create it once the first release
-with the 200 GB disk runs on every pool: older images start with an
-estimated 58 GiB available and would fire on every job.
+with the 300 GB disk runs on every pool: older images start with about
+70 (140 GB disk) or 127 GiB (200 GB disk) available and would fire on
+every job.
 
 Grafana-managed rule on the `Tuist Production ClickHouse` data source
 (`cg1vnyjs65blsc`), evaluated every 15 minutes over jobs whose steps
@@ -2782,13 +2783,13 @@ WHERE toDateTime(starts.t0) <= steps.first_step + INTERVAL 60 SECOND
 GROUP BY fleet
 ```
 
-- Condition: `min_free_gib < 100`, no Reduce (one numeric column plus the
+- Condition: `min_free_gib < 200`, no Reduce (one numeric column plus the
   `fleet` label column)
 - Pending period: none; one job is enough
 - No data: OK (no macOS job reported in the hour)
 - Severity: warning
 - Summary: `macOS runner pool {{ $labels.fleet }} started a job with
-  {{ $values.A.Value }} GiB free (image floor 100 GiB, commitment 45 GiB)`
+  {{ $values.A.Value }} GiB free (image floor 200 GiB, commitment 45 GiB)`
 
 The job's first sample has to be no later than 60 seconds after its first
 step. The server records samples only once GitHub's `in_progress` webhook
