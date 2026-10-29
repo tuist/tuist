@@ -7,14 +7,66 @@
 ---
 # macOS sandbox restoration
 
-As of 28 October 2026, resident pause is the demonstrated fast path for macOS
+As of 29 October 2026, resident pause is the demonstrated fast path for macOS
 sandboxes. Retain paused environments only within spare CI capacity, fully charging
 their slots, vCPUs and configured RAM. When CI needs that capacity, save state and
 wait for process exit before releasing the charge. Restoring after eviction remains
-slower; the 1–2-second goal for that path is unresolved. Production admission is
-not enabled by this prototype.
+slower; the 1–2-second goal for that path is unresolved. The integrated account API
+has passed staging acceptance; production admission remains disabled by default.
 
-## Measurements
+## Integrated staging acceptance, 29 October 2026
+
+The authenticated staging account API exercised the real host service and Apple
+VMs on `ber1-runner-b01`, with eight vCPUs per guest. Each environment held a
+random nonce only in a detached Node.js process's heap. Five resident cycles and
+one eviction/restore per shape preserved that nonce, and API deletion succeeded.
+A cold boot cannot satisfy this proof. This workload does not include an Xcode
+build or simulator; those were exercised separately in the prototype below.
+
+| RAM | Resident cycles | Median resume through first command | Range | Evicted restore through first command, one sample | Prior admission retry wait |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 8 GiB | 5 | 534 ms | 484–988 ms | 12.270 s | 95.207 s |
+| 16 GiB | 5 | 788 ms | 689–1,154 ms | 6.907 s | 0 s |
+| 24 GiB | 5 | 520 ms | 465–931 ms | 10.400 s | 0 s |
+
+Timers cover the accepted resume HTTP request through the first successful heap
+proof command, including host reservation, runtime readiness and API overhead.
+Earlier HTTP 503 retries are recorded separately. These are not isolated Apple
+restore timings or a matched snapshot-size comparison; one evicted sample per
+shape cannot establish scaling, p95/p99 or a service SLO.
+
+An abrupt kubelet restart retained the same resident execution Pod UID and heap;
+resume through the first command took 804 ms. A separate checkpoint recovery
+after restart also preserved the heap. During the real CI-priority test, one
+[CI job](https://github.com/tuist/tuist/actions/runs/40881940662) ran while a
+[second job](https://github.com/tuist/tuist/actions/runs/40881945502) queued and
+revoked native admission. A 120-second guest command kept its reservation until
+completion at 13:28:25.178 UTC; it was released by 13:28:27. The queued job started
+at 13:31:05 after warm-runner turnover and boot. Both CI jobs passed. The evicted
+environment subsequently restored its original heap through the updated server
+in 11.467 seconds. All test environments, account flags and synthetic accounts
+were removed, and no native execution reservations remained.
+A [fresh CI smoke](https://github.com/tuist/tuist/actions/runs/40884720819) also
+passed after cleanup and the final server rollout.
+
+Live validation exposed and fixed three additional boundary failures: omitted
+`resident: false` reports left stale server charges; a built-in guest readiness
+command succeeded before the shared bridge was executable; and a host capacity
+refusal after server admission incorrectly marked a saved environment failed.
+Reports now send the boolean explicitly, readiness pings the actual bridge, and
+the explicit capacity refusal returns HTTP 503 with a retryable paused checkpoint.
+Joined cleanup errors still fail closed. The last case was reproduced after the
+fix: admission retries retained the paused checkpoint and eventually restored it.
+
+The final measurement stack used server `sha-86c2f762e331`, provider/kubelet image
+`5656d80d`, controller `sha-af65a38d704c` and guest image
+`macos-26-6-6abd89c8`. Component integration branches preserved other staging
+rehearsals; this was not a deployment of one complete PR-head image set. Latest
+main's account-quota integration was qualified locally. See the
+[operation guide](https://github.com/tuist/tuist/blob/f686a49968d351b8fdafb59cf0ed7f65aa2c16dd/infra/tart-kubelet/macos-sandboxes.md)
+for admission, recovery and rollback boundaries.
+
+## Prototype measurements, 28 October 2026
 
 One Apple Silicon staging Mac (`Mac17,16`, 64 GiB, macOS 27.0 build 26A425) ran
 Tart 2.41.1 with eight guest vCPUs and Xcode 26.6 build 17F113. The fixture builds a
@@ -84,15 +136,14 @@ Apple's framework. No supported demand-paged macOS alternative was verified in
 this investigation. There was no direct Anka/Parallels benchmark; Anka on the Mac
 mini requires an appropriate Build license or trial.
 
-Next, connect the lifecycle to durable ownership, authenticated session routing,
-atomic CI/sandbox reservations, same-host execution and restart reconciliation.
-Serialize wake versus eviction, account for every Mac workload, and preserve
-capacity charges on failed saves. Define snapshot retention, disk budgets and
-host-loss/incompatible-state handling before rollout.
+The integrated implementation now provides durable ownership, authenticated
+session routing, atomic reservations, serialized wake/eviction and restart
+reconciliation. Failed saves retain their charge. Snapshots remain coupled to the
+same host and runtime; host-loss recovery and cross-host migration are not provided.
 
 Start with one concurrent internal sandbox, without a permanently reserved warm
-pool. Test real CI-driven eviction, longer pauses, 24-GiB guests, host pressure and
-representative projects. Collect at least 30 runs per shape and track p50/p95 first
+pool. Extend the passing CI-eviction and 24-GiB acceptance checks to longer pauses,
+host pressure and representative projects. Collect at least 30 runs per shape and track p50/p95 first
 command/useful build, CI queue/build duration and eviction latency.
 
 For future runtime qualification, require Apple Silicon at 8/16/24 GiB, the old

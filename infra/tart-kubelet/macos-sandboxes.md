@@ -185,14 +185,21 @@ metadata needed for cleanup.
 ## Performance and future work
 
 The [research report](../../handbook/handbook/engineering/macos-sandbox-resume.md)
-contains the prototype measurements: resident resume through first command had
+records real staging API acceptance at 8/16/24 GiB: five resident cycles per shape
+had medians of 534/788/520 ms through the first command. Heap preservation passed
+after eviction, kubelet restart and CI-priority eviction, followed by cleanup.
+One evicted restore per shape took 12.270/6.907/10.400 seconds, separately from
+HTTP admission retries. These small samples do not establish tail latency or
+performance under an Xcode/simulator workload.
+
+Earlier prototype measurements of resident resume through first command had
 medians of 449 ms at 8 GiB and 412 ms at 16 GiB; a 30-second retention experiment
 had a 526 ms median. These are not measurements of the integrated production path.
 Evicted restore medians were 3.812/6.658/8.790 seconds at 8/16/24 GiB. The larger
 memory images and Apple's eager restore dominate that path.
 
-The target remains 1–2 seconds for retained environments. Re-measure through the
-account API under concurrent CI demand, including p95/p99 and checkpoint contention.
+The target remains 1–2 seconds for retained environments. Extend the account API
+measurements to sustained CI demand, p95/p99, longer idle periods and checkpoint contention.
 Restoration after eviction still has no demonstrated 1–2 second path. Follow-up
 work includes a supported demand-driven restore runtime, Anka evaluation when a
 Build license is available, snapshot-size reduction, and safer automatic collection
