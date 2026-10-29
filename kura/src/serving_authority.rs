@@ -647,7 +647,6 @@ impl AuthorityConfig {
         authority.attest_incarnation(std::path::Path::new(TERMINATION_LOG));
         let ca = std::fs::read("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
             .map_err(|e| e.to_string())?;
-        reqwest::Certificate::from_pem(&ca).map_err(|e| e.to_string())?;
         let config = self.clone();
         let worker = authority.clone();
         std::thread::Builder::new().name("serving-authority".into()).spawn(move || {

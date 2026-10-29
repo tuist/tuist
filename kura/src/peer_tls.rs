@@ -13,7 +13,7 @@ use axum_server::{
     accept::Accept,
     tls_rustls::{RustlsAcceptor, RustlsConfig},
 };
-use reqwest::{Certificate, Client, Identity};
+use reqwest::{Client, Identity};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::{RootCertStore, ServerConfig};
 use sha2::{Digest, Sha256};
@@ -141,8 +141,6 @@ impl PeerClientFactory {
             // rotation snapshot; no public client ever receives this identity.
             Identity::from_pem(&identity.identity_pem)
                 .map_err(|_| "failed to parse peer identity PEM".to_string())?;
-            Certificate::from_pem(&identity.ca_pem)
-                .map_err(|_| "failed to parse peer CA PEM".to_string())?;
             certificate_trust::config(
                 Roots::Explicit(certificate_trust::certificates(&identity.ca_pem)?),
                 Some(&identity.identity_pem),
@@ -434,7 +432,9 @@ mod tests {
             let identity_pem = format!("{certificate_pem}\n{key_pem}");
             reqwest::Client::builder()
                 .identity(Identity::from_pem(identity_pem.as_bytes()).expect("client identity"))
-                .add_root_certificate(Certificate::from_pem(ca_pem.as_bytes()).expect("trust CA"))
+                .add_root_certificate(
+                    reqwest::Certificate::from_pem(ca_pem.as_bytes()).expect("trust CA"),
+                )
                 .resolve("localhost", addr)
                 .build()
                 .expect("build mTLS client")
