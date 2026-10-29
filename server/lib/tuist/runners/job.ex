@@ -46,6 +46,11 @@ defmodule Tuist.Runners.Job do
     # `ArchiveLogsWorker.archive_key/2` — no column carries it.
     field :log_archived_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
 
+    # When the runner GitHub ran this job on was claimed, which can be a
+    # different claim than `claimed_at` names. `nil` until GitHub names the
+    # runner. Queue time is measured to it.
+    field :executor_claimed_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
+
     # The label the customer wrote in `runs-on:` (e.g.
     # `tuist-default`). Carried from webhook enqueue so JIT-mint
     # can stamp it on the runner — without this, the runner would

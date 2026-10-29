@@ -6,12 +6,16 @@ struct AtlasSettingsView: View {
     var signOut: () -> Void
     var profileRequest: (([String: Any]) async throws -> Data)?
     var notifications: AtlasPushNotifications?
+    #if os(iOS)
     var sharedItems: AtlasSharedItems?
+    #endif
+    var connections: AtlasConnections?
     @State private var profile: AtlasNativeProfile?
     @State private var profileError: String?
     @State private var editor: AtlasProfileEditorModel?
     @State private var profileGeneration = 0
     @Environment(\.atlasPresence) private var presence
+    @Environment(\.atlasReadCache) private var cachedRead
 
     var body: some View {
         Form {
@@ -35,6 +39,7 @@ struct AtlasSettingsView: View {
                                 editor = AtlasProfileEditorModel(description: profile.user.description, request: profileRequest)
                             }
                         }
+                        .disabled(profile.cached == true)
                         .accessibilityIdentifier("profile-edit-description")
                     } header: { Text("About you") } footer: {
                         Text("Share your company role, personality and communication preferences. " +
@@ -76,6 +81,7 @@ struct AtlasSettingsView: View {
                 }
                 .accessibilityIdentifier("profile-appearance")
             }
+            #if os(iOS)
             if let sharedItems {
                 Section {
                     Button { sharedItems.reload(); sharedItems.presented = true } label: {
@@ -83,8 +89,19 @@ struct AtlasSettingsView: View {
                     }.accessibilityIdentifier("profile-shared-items")
                 } footer: { Text("Review items shared from other apps before adding them to Moodboard.") }
             }
-            if let notifications, profile?.pushNotifications?.ios == true {
+            #endif
+            if let notifications, profile?.pushNotifications?.supportsCurrentPlatform == true {
                 AtlasPushSettingsView(notifications: notifications)
+            }
+            if let connections {
+                Section {
+                    NavigationLink {
+                        AtlasConnectionsView(model: connections)
+                    } label: {
+                        Label("Connections", systemImage: "link")
+                    }
+                    .accessibilityIdentifier("profile-connections")
+                }
             }
             Section {
                 accountLink(.claude) { AtlasClaudeAccountView(accounts: accounts) }
@@ -109,15 +126,19 @@ struct AtlasSettingsView: View {
         }
         .defaultScrollAnchor(.top)
         .navigationTitle(profileRequest == nil ? "Settings" : "Profile")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
+        #else
+        .formStyle(.grouped)
+        #endif
         .toolbar {
             AtlasPresenceToolbar()
-            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "profile") }
+            ToolbarItem(placement: .primaryAction) { AtlasBrowserButton(screen: "profile") }
         }
         .modifier(AtlasThemedContent())
         .onAppear { presence?.show(resource: "profile") }
-        .task { await accounts.load(); await loadProfile() }
-        .refreshable { await accounts.load(); await loadProfile() }
+        .task { await load() }
+        .refreshable { await load() }
         .sheet(item: $editor) { editor in
             AtlasProfileEditor(model: editor) { profile = $0 }
         }
@@ -128,20 +149,33 @@ struct AtlasSettingsView: View {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
 
+    private func load() async {
+        async let metadata: Void = accounts.load()
+        await loadProfile()
+        await metadata
+    }
+
     private func loadProfile() async {
         guard let profileRequest, editor == nil else { return }
         profileGeneration += 1
         let generation = profileGeneration
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        if profile == nil, let data = await cachedRead?(["operation": "business", "resource": "profile", "action": "list"]),
+           generation == profileGeneration, editor == nil, !Task.isCancelled {
+            profile = try? decoder.decode(AtlasNativeProfile.self, from: data)
+        }
         do {
             let data = try await profileRequest(["resource": "profile", "action": "list"])
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
             let loaded = try decoder.decode(AtlasNativeProfile.self, from: data)
-            guard generation == profileGeneration, editor == nil else { return }
+            guard generation == profileGeneration, editor == nil, !Task.isCancelled else { return }
             profile = loaded
             profileError = nil
         } catch is CancellationError {} catch {
-            if generation == profileGeneration, editor == nil { profileError = error.localizedDescription }
+            if generation == profileGeneration, editor == nil, !Task.isCancelled {
+                if AtlasReadCache.accessDenied(error) { profile = nil }
+                profileError = error.localizedDescription
+            }
         }
     }
 
@@ -207,7 +241,12 @@ private struct AtlasProfileEditor: View {
             }
             .disabled(model.saving)
             .navigationTitle("Your description")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #else
+            .formStyle(.grouped)
+            .frame(width: 540, height: 420)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { if model.dirty { discarding = true } else { dismiss() } }
@@ -228,5 +267,22 @@ private struct AtlasProfileEditor: View {
             }
         }
         .protectsAtlasNavigation()
+    }
+}
+
+struct AtlasPushSettingsView: View {
+    @ObservedObject var notifications: AtlasPushNotifications
+
+    var body: some View {
+        Section {
+            Toggle("Push notifications", isOn: Binding(
+                get: { notifications.enabled },
+                set: { enabled in Task { if enabled { await notifications.enable() } else { await notifications.disable() } } }
+            )).disabled(notifications.busy)
+            if let message = notifications.message { Text(message).font(.footnote).foregroundStyle(.secondary) }
+        } footer: {
+            Text("Get notified when Pip finishes. Alerts include the thread title and a short reply preview. "
+                 + "Control lock-screen previews in \(AtlasPushSystem.settingsName).")
+        }
     }
 }

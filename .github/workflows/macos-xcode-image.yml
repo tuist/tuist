@@ -282,7 +282,8 @@ jobs:
         run: |
           set -euo pipefail
           if jq -e --arg tag "$TAG" --arg channel "$CHANNEL_TAG" \
-            'map(gsub("\\."; "-")) | any(. == $tag or (. == $channel and $channel != ""))' \
+            --slurpfile bases infra/runner-image/base-xcode-versions.json \
+            'map($bases[0][.] // .) | map(gsub("\\."; "-")) | any(. == $tag or (. == $channel and $channel != ""))' \
             infra/runner-image/profiles.json >/dev/null; then
             gh workflow run runner-image-release.yml --repo "${{ github.repository }}" --ref main
           else

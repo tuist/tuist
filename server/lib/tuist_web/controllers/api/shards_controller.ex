@@ -14,7 +14,7 @@ defmodule TuistWeb.API.ShardsController do
   @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
   @suite_catch_all_minimum_gradle_plugin_version Version.parse!("0.17.0")
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )

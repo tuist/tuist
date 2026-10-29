@@ -4,6 +4,15 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+`actions/setup-docker-builder/` configures a persistent Buildx builder on Linux
+runners; see its `AGENTS.md`. Linux runner CI validates its persistence contract
+against real Docker 28 with isolated ext4 storage and retains timing evidence.
+`docker-build-cache-benchmark.yml` measures separate fleet jobs after deployment.
+Use one experiment key and revision for cold, warm-layer and changed-source phases,
+waiting for saved-cache publication between dispatches. Fail on unavailable cache,
+missing layer hits or missing prior-job cache-mount contents; never present a
+fallback or an unverified run as a warm-cache measurement.
+
 `mgmt-cluster-tests.yml` checks the management health gates, disruption budgets
 and reconciliation shell scripts without credentials on PRs and main.
 `mgmt-cluster-apply.yml` synchronizes Flannel arguments and verifies private
@@ -28,7 +37,10 @@ Helm CI also tests the runner macOS host-health rules with promtool, including
 fixed kernels, uptime thresholds, stale samples and failed collection.
 The Helm render job also runs `infra/helm/tuist/test-cluster-cookie.py` offline:
 check all managed environment cookie references and Secret ownership without
-reading 1Password or logging rendered cookie values.
+reading 1Password or logging rendered cookie values. It also runs
+`infra/helm/tuist/test-sso-domain-verification.py` to check the default-off DNS
+policy and explicit opt-in across managed server runtime modes. The hosted
+Docker smoke test explicitly enables and asserts the same DNS policy.
 
 The existing runner-image release workflow runs the portable TCC report tests
 on PRs with read-only permissions and without persisted checkout credentials
@@ -72,18 +84,30 @@ run of this workflow in HEAD's history with a successful `… / Deploy to tuist`
 job. Do not use the deployments API: other workflows record deployments to the
 same environment. When the base cannot be resolved, the push deploys.
 
+Sandbox guest templates and Amp provider images publish as one immutable version through `sandbox-image.yml`, called by both
+server deployment workflows. Keep template-only changes in the production
+path gate, require publication before every deploy leg, and promote one source
+version through canary and production. Source tags must remain stable across
+unrelated server changes. Pre-built server deploys without a template override
+preserve the live template; never fall back to an old chart pin on rollback.
+Provider source changes also enter that version and deployment gate; the chart uses the selected template tag for both images. Test provider workload identity requirements and graceful shutdown in the unprivileged read-only container before publication.
+Validate with `mise exec -- node --test .github/scripts/sandbox-deployment.test.mjs infra/amp-orbs/provider.test.mjs` and
+actionlint on the three workflows. PR image validation has read-only permissions.
+
 ## Atlas deployment validation
 
 `workflows/atlas-deployment-validation.yml` runs the standalone Compose/Helm
 release checks. Documentation captures use `atlas/deploy/capture-docs.mjs` with
 bounded Chrome page and process waits, rather than waiting indefinitely for
 external resources. Its regression suite includes a local never-finishing image.
+Run Chrome-bearing steps under `dbus-run-session` so Linux startup has an isolated
+session bus instead of spending the capture budget on desktop-service discovery.
 Retain screenshot PNGs and Chrome diagnostic logs on failures, but keep browser
 profiles in the disposable validation directory, outside uploaded artifacts.
 
 ## Atlas native
 
-`workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once
+`workflows/atlas-mobile.yml` builds Android, iOS, macOS and the Rust CLI through Once
 using `actions/atlas-native/` (see its `AGENTS.md`). Fork jobs have no OIDC permission
 and use only the local cache. Trusted builds use the `tuist/atlas-mobile` cache
 when authentication succeeds, except for Android and iOS device builds, which use local caching
@@ -134,6 +158,17 @@ so cached binaries do not collide with existing previews. This overrides upload
 metadata without mutating or re-signing the bundle; device packaging already
 stamps its delivery copy before distribution signing.
 
+`atlas-macos-release.yml` distributes the separate native desktop app through
+Sparkle after trusted main build/test/lint/packaging gates. macOS release builds
+avoid PR-writable shared caches. Only the protected `atlas-macos-releases`
+environment receives distribution credentials. Signing requires a Push-enabled
+Developer ID profile for the desktop App ID, derives its macOS APNs entitlement,
+and notarizes/staples before creating the final signed update. Publish the
+immutable `atlas-macos@<epoch>` payload before replacing the separate
+`atlas-appcast` feed. Credential-free profile/signing/appcast fixtures gate this
+path; they do not establish Apple provisioning, live APNs or update-installation
+acceptance. See `atlas-native/macos/distribution/AGENTS.md` for operator setup.
+
 ## Community notifications
 
 `workflows/community-notifications.yml` sends new community issues and PRs to
@@ -164,8 +199,11 @@ caching for those same paths; keep Go test result reuse disabled with `-count=1`
 `tuist-ex.yml` runs separate compilation, documentation, test, formatting,
 and package jobs. Compilation covers the minimum and current supported Elixir
 versions; the minimum-version job also runs the cache suite, including a real
-cold remote round trip, to catch Mix/OTP artifact-layout differences. The workflow
-is reused by `tuist-ex-release.yml` before publication.
+cold remote round trip, to catch Mix/OTP artifact-layout differences. It also
+runs the package's self-contained certificate-trust suite on minimum OTP; the
+ordinary full-suite job exercises current OTP. Keep native alternate-path
+validation and real-key fixtures covered without a separate shared harness.
+The workflow is reused by `tuist-ex-release.yml` before publication.
 Releases run only from `main`, serialize publishing, and use the shared
 `release:check` registry with the `tuist-ex@` tag prefix. The existing
 `HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
@@ -459,6 +497,8 @@ The macOS CLI unit-test job installs the stable Rust toolchain pinned by `cas-pl
 
 Cargo compilation caching is implemented in Swift inside `tuist`. Do not package a separate Cargo cache executable or import an external cache engine. The existing Xcode CAS plugin and proxy remain separate Rust artifacts.
 
+`cas-plugin.yml` dogfoods `tuist/cas-plugin` through the component's pinned Tuist CLI and mise build/test tasks. Trusted jobs authenticate with GitHub OIDC (`id-token: write`); the hosted project must remain linked to `tuist/tuist`. Fork pull requests use plain Cargo without Tuist credentials or OIDC permission. Check hosted build/test reports and actual cache transfer counters separately from job success; Cargo's experimental cache does not cover the entire build graph.
+
 ## CLI Linux builds
 
 The Linux release ships a static musl binary built with the Swift Static Linux SDK. The PR `Linux Build` job in `cli.yml` compiles against the same SDK, installed through `mise/utilities/install_static_linux_sdk.sh` (shared with `mise/tasks/cli/bundle-linux.sh`), so it catches code that only builds against glibc. Its `.build` cache key uses the `linux-cli-musl-` prefix to stay separate from the glibc cache used by `Linux Unit Tests`, which keeps running on glibc.
@@ -504,7 +544,7 @@ are rejected.
 ## CLI Linux release
 
 `release-cli-linux` in `workflows/cli-build-publish.yml` builds both Linux
-tarballs on `tuist-linux-large` inside `swift:6.2`. The fleet is amd64-only,
+tarballs on `tuist-linux-large` inside `swift:6.4.1-noble`. The fleet is amd64-only,
 so aarch64 is cross-compiled through the static Linux SDK and the bundle
 script checks the architecture and that the binary is static before packaging.
 The job builds `inputs.ref` with the bundler and SDK setup from the
@@ -545,6 +585,23 @@ covered only by the production schedule.
   that wait, so the in-run dispatch watchdog fails and cancels the run past the
   pickup bound. That is why the gate dispatches a separate run instead of
   calling the workflow: cancelling it must not cancel the cascade.
+- Each Linux target runs a native probe (image/toolchains, KVM, Docker, Go,
+  setup-beam, process file limits, and Kura) and a
+  real job-container probe (workspace/actions/externals mounts and environment
+  files). Count both in the dispatch watchdog. The cascade gate rejects missing,
+  skipped, or unsuccessful native/container Linux probes even if the workflow
+  conclusion is successful. Validate this contract with
+  `node --test .github/scripts/runners-acceptance/acceptance.test.cjs` after
+  `npm ci --ignore-scripts` at the repository root.
+- Canary also runs five sequential Docker-cache phases through
+  `runners-docker-cache-probe.yml` after both ordinary Linux probes. Count the
+  five `Linux Docker cache ... / Build` jobs in the watchdog; exclude their
+  GitHub-hosted publication-window jobs. Require every phase in `gate.sh`,
+  including final reuse, and pass the deploy's intended Linux image digest
+  before staging holds. A mounted cache, correct compile output and actual
+  cross-job layer/mutable-cache reuse are mandatory. The 120-second pauses are
+  allowances, not publication proof; slow publication fails rather than retries.
+  Keep production's scheduled probes usable while its Docker cache is disabled.
 - Health checks are not enough: a Kura that cannot reach the server's token
   introspection answers `/up` and degrades every lookup into a slow miss. Keep
   the authenticated blob round trip and the rebuild from an empty local CAS,
@@ -595,6 +652,14 @@ covered only by the production schedule.
   The pattern must match `errExecutionPending` in
   `infra/linux-runner-image/cmd/tuist-cache-volume/main.go`.
   `macos-cache-volumes-smoke.yml` covers the released `tuist/cache-volume`.
+- Canary qualifies runner image releases on both platforms. Its deploy waits for
+  host staging and fails closed (Linux 300 s, macOS 30 minutes, never accepting
+  an announcement's age), and the cascade passes the deployed images to the
+  probes: Linux checks `EXPECTED_LINUX_IMAGE`, the macOS probe requires its
+  `TUIST_RUNNER_IMAGE` to be one of `EXPECTED_MACOS_IMAGES`.
+- Linux runner images release from `linux-runner-image-release.yml`, outside the
+  cascade, like macOS's `runner-image-release.yml`: build, tag, stage on canary
+  and production (up to an hour), then dispatch the deployment.
 - To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
   wrong URL; it skips the expected-host check and overrides what dispatch hands
   each job.
@@ -610,3 +675,21 @@ relevant main changes through the `install-action` release component after tests
 pass. Bootstrap the distribution repository and release credential first.
 Recover an unrecorded distribution from its original SOURCE_COMMIT before
 publishing newer source; never replace an immutable version.
+
+## Nested KVM runner acceptance
+
+`linux-runners-staging-smoke.yml` has a manual `nested_kvm` mode, isolated from
+its ordinary smoke and cache jobs. It targets `tuist-staging-linux-kvm` as a
+native, non-root job and requires working emulator acceleration before running
+an API 34 x86_64 Gradle Managed Device instrumented test and 15 cold-start
+Macrobenchmark iterations. The pinned fixture and its contract live in
+`infra/kata-kvm-kernel/android-smoke/AGENTS.md`. Retain test results and traces
+on failure too; do not accept a successful build that executed no tests.
+
+Managed server deployment prepares KVM before upgrading runner pools, using the same resolved provider/plugin images as Helm. `scripts/runner-kvm-prepare.sh` updates only the existing provider image and the four Helm-owned plugin resources; it waits for current-boot host proof and allocations covering Pod capacity. A failed gate leaves preparation in place and pools untouched. Rollback skips the gate. Validate with `bash scripts/runner-kvm-prepare.test.sh` from `.github`, or the Helm `nested-kvm` task.
+
+## macOS maintenance validation
+
+`macos-maintenance.test.sh` exercises the explicit host-maintenance request task
+with a fake kubectl and no credentials. The provider's macOS Go suite runs it;
+keep planning read-only and refuse a new request over active or failed status.

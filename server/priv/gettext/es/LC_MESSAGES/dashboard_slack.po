@@ -1,10 +1,15 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
 msgid ""
-msgstr ""
-"Language: es\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=n != 1;\n"
+msgstr "Language: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:198
 #, elixir-autogen, elixir-format
@@ -14,12 +19,12 @@ msgstr "Cuenta no encontrada. Por favor, inténtalo de nuevo."
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:47
 #, elixir-autogen, elixir-format
 msgid "Invalid Slack authorization. Please try again."
-msgstr "Autorización de Slack inválida. Por favor, inténtalo de nuevo."
+msgstr "Autorización de Slack no válida. Por favor, inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:81
 #, elixir-autogen, elixir-format
 msgid "Invalid authorization request. Please try again."
-msgstr "Solicitud de autorización inválida. Por favor, inténtalo de nuevo."
+msgstr "Solicitud de autorización no válida. Por favor, inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:128
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:167
@@ -45,7 +50,7 @@ msgstr "Regla de alerta no encontrada. Por favor, inténtalo de nuevo."
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:73
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "La solicitud de autorización expiró. Por favor, inicia nuevamente el proceso de conexión con Slack."
+msgstr "La solicitud de autorización ha expirado. Por favor, inicia el proceso de conexión con Slack nuevamente."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format

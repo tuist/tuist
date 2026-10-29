@@ -188,9 +188,29 @@ defmodule TuistWeb.TestsLiveTest do
     conn: conn,
     organization: organization
   } do
-    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> true end)
-
     for {build_system, visible?} <- [xcode: true, bazel: false, gradle: false, mix: true, once: false] do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
+      coverage_path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests")
+
+      assert has_element?(lv, "a[href='#{coverage_path}']") == visible?,
+             "expected Code Coverage visible?=#{visible?} for #{build_system} projects"
+    end
+  end
+
+  test "lists Code Coverage only for Mix projects while the account doesn't have the coverage flag", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(Tuist.Environment, :env, fn -> :prod end)
+
+    stub(FunWithFlags, :enabled?, fn
+      :xcode_coverage, _opts -> false
+      flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
+    end)
+
+    for {build_system, visible?} <- [xcode: false, mix: true] do
       project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
       coverage_path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
 

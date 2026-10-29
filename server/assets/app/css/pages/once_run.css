@@ -1,4 +1,10 @@
 #once-run {
+  & > [data-part="overview"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
   & [data-part="cache-summary-section"].noora-card__section {
     flex-direction: row;
     gap: var(--noora-spacing-4);

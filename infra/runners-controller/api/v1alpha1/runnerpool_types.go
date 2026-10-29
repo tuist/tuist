@@ -121,6 +121,21 @@ type RunnerPoolSpec struct {
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 
+	// NestedVirtualization gives the runner container a usable /dev/kvm,
+	// so a job can run hardware-accelerated guests of its own, such as
+	// x86_64 Android emulators. Linux `kata-qemu` pools only. The Pod
+	// boots the KVM-enabled guest kernel the CAPI provider installs on
+	// every Kata host, lands only on hosts labelled
+	// `tuist.dev/kata-kvm=true` (the provider's proof that the kernel is
+	// installed and the host runs KVM with nesting on), and requests one
+	// `devices.tuist.dev/kvm` from the kvm-device-plugin DaemonSet, which
+	// is what injects the device node into the unprivileged runner
+	// container. The microVM stays the isolation boundary; what the pool
+	// adds is the host's nested-virtualization code path, reachable from
+	// the guest kernel.
+	// +optional
+	NestedVirtualization bool `json:"nestedVirtualization,omitempty"`
+
 	// Provisioning bounds how many Linux Kata sandboxes may be starting at
 	// once across pools that share this pool's FleetSelector, and how long a
 	// bound Pod may take to start its dispatch poller. The bound is
@@ -223,6 +238,13 @@ type RunnerPoolAutoscaling struct {
 	// via MinWarmPoolFloorOrDefault.
 	// +optional
 	MinWarmPoolFloor *int32 `json:"minWarmPoolFloor,omitempty"`
+
+	// MaxLearnedWarmPoolFloor caps the warm floor the server learns from
+	// the pool's own jobs: the burst its jobs arrive in, kept idle above
+	// the pool's load while the pool has had a job in the last day. 0
+	// turns the learned floor off, leaving only MinWarmPoolFloor.
+	// +optional
+	MaxLearnedWarmPoolFloor int32 `json:"maxLearnedWarmPoolFloor,omitempty"`
 
 	// MaxReplicas is the hard ceiling on the autoscaler-driven
 	// `spec.replicas` value. 0 disables autoscaling-driven scale
@@ -404,6 +426,14 @@ type RunnerPoolStatus struct {
 	// of several starved pools on a fleet goes first.
 	// +optional
 	UnplaceableSince *metav1.Time `json:"unplaceableSince,omitempty"`
+
+	// LastDemandAt is when the autoscaler last saw the pool with real work
+	// (occupied, queued or held at an account's limit), stamped at most
+	// every demandStampInterval. tart-kubelet ranks the images it keeps
+	// within a host's golden budget by it, so the images in use stay on
+	// every host and the idle ones give way.
+	// +optional
+	LastDemandAt *metav1.Time `json:"lastDemandAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

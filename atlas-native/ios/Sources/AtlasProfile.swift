@@ -10,10 +10,31 @@ struct AtlasNativeProfile: Decodable {
     struct PushNotifications: Decodable {
         let ios: Bool
         let android: Bool
+        let macos: Bool
     }
     let user: User
     let serverVersion: String
     let pushNotifications: PushNotifications?
+    var cached: Bool?
+}
+
+extension AtlasNativeProfile.PushNotifications {
+    private enum CodingKeys: String, CodingKey { case ios, android, macos }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        ios = try values.decode(Bool.self, forKey: .ios)
+        android = try values.decode(Bool.self, forKey: .android)
+        macos = try values.decodeIfPresent(Bool.self, forKey: .macos) ?? false
+    }
+
+    var supportsCurrentPlatform: Bool {
+        #if os(iOS)
+        ios
+        #else
+        macos
+        #endif
+    }
 }
 
 extension AtlasNativeProfile.User {

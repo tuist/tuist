@@ -357,6 +357,14 @@ defmodule TuistWeb.DocsLiveTest do
         |> html_response(200)
         |> Floki.parse_document!()
 
+      assert Floki.attribute(document, "html", "lang") == ["en"]
+
+      for picker <- ["docs-language-selector", "docs-mobile-nav-language-selector"] do
+        selector = "##{picker} a[data-value='zh_Hans']"
+        assert Floki.attribute(document, selector, "data-glossia-language") == ["zh-Hans"]
+        assert Floki.attribute(document, selector, "href") == ["/zh_Hans/docs/guides/features/cache/rust"]
+      end
+
       alternates = Floki.find(document, "link[hreflang]")
       assert length(alternates) == 2
 
@@ -400,6 +408,15 @@ defmodule TuistWeb.DocsLiveTest do
 
         assert Floki.attribute(document, "html", "lang") == [language]
         assert length(Floki.find(document, "link[hreflang]")) == 10
+
+        for picker <- ["docs-language-selector", "docs-mobile-nav-language-selector"],
+            {target_locale, target_language} <- [{"en", "en"}, {"zh_Hans", "zh-Hans"}, {"yue_Hant", "yue-Hant"}] do
+          selector = "##{picker} a[data-value='#{target_locale}']"
+          assert Floki.attribute(document, selector, "data-glossia-language") == [target_language]
+          assert Floki.attribute(document, selector, "href") == ["/#{target_locale}/docs"]
+        end
+
+        assert length(Floki.find(document, "a[data-glossia-language]")) == 18
 
         assert Floki.attribute(document, "link[hreflang='zh-Hans']", "href") ==
                  [Tuist.Environment.app_url(path: "/zh_Hans/docs")]

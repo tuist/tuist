@@ -88,6 +88,15 @@ struct CoverageObserverOutputTests {
         ).isEmpty)
     }
 
+    @Test func readsTheLaunchesOfAUITestProcessUpToTheLastWholeLine() {
+        let text = "41\tAppUITests\tSearchUITests\ttestSearch\n42\tAppUITests\tSearchUITests\t\nnot-a-pid\tAppUITests\t\t\n43\tAppUI"
+
+        #expect(CoverageObserverOutput.parseLaunches(text) == [
+            .init(processIdentifier: 41, scope: .init(module: "AppUITests", suite: "SearchUITests", name: "testSearch")),
+            .init(processIdentifier: 42, scope: .init(module: "AppUITests", suite: "SearchUITests", name: "")),
+        ])
+    }
+
     @Test func readsTheNamesOfAnUncompressedSection() {
         let names = Data("$s3App3addyS2i_SitF".utf8) + Data([0x01]) + Data("main.c:helper".utf8)
         let section = Data([UInt8(names.count), 0]) + names

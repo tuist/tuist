@@ -40,10 +40,6 @@ const (
 	dockerLedgerRefresh = 24 * time.Hour
 	// dockerBuildCacheBudget is what the build cache keeps.
 	dockerBuildCacheBudget = "10gb"
-	// dockerBuildCacheChange is how much the build cache must change for a data
-	// root with the same images to be saved again. Every build adds a small
-	// record for its context, which alone must not republish the data root.
-	dockerBuildCacheChange = 1_000_000_000
 	dockerReferenceLimit   = 16
 )
 
@@ -158,11 +154,15 @@ type dockerHTTPClient struct {
 	http               *http.Client
 }
 
-func newDockerHTTPClient(timeout time.Duration) *dockerHTTPClient {
+func newDockerHTTPClient(timeout time.Duration) (*dockerHTTPClient, error) {
+	client, err := newCacheHTTPClient(timeout)
+	if err != nil {
+		return nil, err
+	}
 	return &dockerHTTPClient{
 		endpoint: os.Getenv("TUIST_CACHE_VOLUME_URL"), pod: os.Getenv("TUIST_CACHE_VOLUME_POD"), uid: os.Getenv("TUIST_CACHE_VOLUME_UID"),
-		http: &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
-	}
+		http: client,
+	}, nil
 }
 
 func (c *dockerHTTPClient) newRequest(ctx context.Context, path string) (*http.Request, error) {
@@ -172,7 +172,7 @@ func (c *dockerHTTPClient) newRequest(ctx context.Context, path string) (*http.R
 	body, _ := json.Marshal(map[string]any{"pod_name": c.pod, "pod_uid": c.uid})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint+path, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, cacheRequestError{err}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	return req, nil
@@ -195,7 +195,7 @@ func (c *dockerHTTPClient) seen(ctx context.Context) error {
 	}
 	response, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return cacheRequestError{err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusNoContent {
@@ -278,7 +278,8 @@ func mergeDockerLedgers(into, from dockerLedger, moved []string) dockerLedger {
 	return merged
 }
 
-// dockerImageIDs lists the images of the daemon the job used.
+// dockerImageIDs also recognizes build-only jobs: BuildKit can push/export an
+// image without loading any image into the daemon's image store.
 func dockerImageIDs() ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -286,7 +287,12 @@ func dockerImageIDs() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return strings.Fields(string(out)), nil
+	ids := strings.Fields(string(out))
+	if len(ids) > 0 {
+		return ids, nil
+	}
+	out, err = exec.CommandContext(ctx, "docker", "system", "df", "-v", "--format", "{{range .BuildCache}}{{.ID}} {{end}}").Output()
+	return strings.Fields(string(out)), err
 }
 
 // dockerLedger records when a job last pulled, ran or built each image the data
@@ -412,19 +418,32 @@ type dockerReportedImage struct {
 	LastUsedAt time.Time `json:"last_used_at"`
 }
 
-// dockerSnapshot is what decides whether a data root changed: its images, and
-// its build cache when that changed by dockerBuildCacheChange or more.
+// dockerSnapshot ignores transient build contexts, but keeps small layers and
+// cache-mount writes even when they do not change the aggregate cache size.
 type dockerSnapshot struct {
 	Images          []string
 	BuildCacheBytes int64
+	BuildCache      string
+	BuildVolumes    map[string]string
 }
 
 func (s dockerSnapshot) differs(other dockerSnapshot) bool {
 	a, b := slices.Clone(s.Images), slices.Clone(other.Images)
 	sort.Strings(a)
 	sort.Strings(b)
-	growth := s.BuildCacheBytes - other.BuildCacheBytes
-	return !slices.Equal(a, b) || growth >= dockerBuildCacheChange || -growth >= dockerBuildCacheChange
+	return !slices.Equal(a, b) || s.buildDiffers(other)
+}
+
+func (s dockerSnapshot) buildDiffers(other dockerSnapshot) bool {
+	if s.BuildCache != other.BuildCache || len(s.BuildVolumes) != len(other.BuildVolumes) {
+		return true
+	}
+	for name, state := range s.BuildVolumes {
+		if other.BuildVolumes[name] != state {
+			return true
+		}
+	}
+	return false
 }
 
 func dockerReportImages(images []dockerImage, keep dockerLedger) []dockerReportedImage {
@@ -469,7 +488,11 @@ func dockerSocket() string {
 func dockerLinux() string {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	client := newDockerHTTPClient(20 * time.Second)
+	client, err := newDockerHTTPClient(20 * time.Second)
+	if err != nil {
+		return "unavailable (request)"
+	}
+	defer client.http.CloseIdleConnections()
 	return dockerJob(ctx, linuxCacheRoot, dockerStatePath, client.request, func(message dockerMessage) (string, error) {
 		return sendDocker(dockerSocket(), message)
 	})
@@ -477,14 +500,18 @@ func dockerLinux() string {
 
 // dockerTeardownLinux runs after the runner exits, outside the job's time.
 func dockerTeardownLinux() string {
-	client := newDockerHTTPClient(15 * time.Second)
 	return dockerTeardown(dockerStatePath, func(message dockerMessage) (string, error) {
 		return sendDocker(dockerSocket(), message)
 	}, func() dockerMergeOffer {
 		// The host may download the saved head first; this runs after the job.
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 		defer cancel()
-		offer, err := newDockerHTTPClient(6 * time.Minute).merge(ctx)
+		client, err := newDockerHTTPClient(6 * time.Minute)
+		if err != nil {
+			return dockerMergeOffer{}
+		}
+		defer client.http.CloseIdleConnections()
+		offer, err := client.merge(ctx)
 		if err != nil {
 			return dockerMergeOffer{}
 		}
@@ -492,6 +519,11 @@ func dockerTeardownLinux() string {
 	}, dockerImageIDs, func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
+		client, err := newDockerHTTPClient(15 * time.Second)
+		if err != nil {
+			return err
+		}
+		defer client.http.CloseIdleConnections()
 		return client.seen(ctx)
 	})
 }

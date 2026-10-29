@@ -109,18 +109,97 @@ struct CargoCompilationCacheTests {
         #expect(details["truncated"] as? Bool == false)
     }
 
-    @Test(.inTemporaryDirectory) func rejectsNativeTokensAndUninspectedMacroSources() async throws {
+    @Test(.inTemporaryDirectory) func rejectsAssemblyAndProbesPreviouslyUninspectedSources() async throws {
         let fixture = try await fixture()
         for source in [
-            "#[cfg_attr(unix, link(name = \"native\"))] fn library() {}",
             "fn library() { asm /* comment */ !(\"nop\"); }",
-            "include /* comment */ !(\"generated.txt\");",
-            "macro_rules! generated { () => { ${concat(l, ink)} } }",
+            "core::arch::global_asm!(\"nop\");",
+            "#[unsafe(naked)] pub extern \"C\" fn library() { core::arch::naked_asm!(\"ret\"); }",
+            "#[link(name = \"hidden\")] unsafe extern \"C\" {}",
+            "#![feature(link_args)]",
+            "macro_rules! library { () => { concat_idents!(global_, asm) } }",
+            "macro_rules! library { () => { core::arch::${concat(global_, a, sm)}!(\"nop\"); } }",
+            "macro_rules! library { () => { $\u{2003}{\u{2003}concat(global_, a, sm)} } }",
+            "#![feature(macro_metavar_expr_concat)]\nmacro_rules! library { () => { ${ /* gap */ concat(global_, a, sm)} } }",
         ] {
             try Data(source.utf8).write(to: fixture.source)
             await #expect(throws: CargoCacheInvocation.CacheError.self) {
                 try await fixture.prepare()
             }
+        }
+        for source in [
+            "pub fn library() -> &'static str { concat!(\"tracked\", \" input\") }",
+            "pub use core::concat;",
+            "pub fn library() -> Vec<u8> { [b\"tracked\", b\" input\"].concat() }",
+            "pub fn blink() {} pub use core::concat;",
+            "pub fn éasmé() {} pub use core::concat;",
+        ] {
+            try Data(source.utf8).write(to: fixture.source)
+            #expect(try await fixture.prepare()?.compilerInputs != nil)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func tracksResolvedSourcesAndCertifiedDependenciesWithoutHashingOutputDirectories() async throws {
+        let fixture = try await fixture()
+        let dependency = fixture.output.appendingPathComponent(fixture.invocation.files[0])
+        try fixture.invocation.certifyOutputs()
+        let generated = fixture.root.appendingPathComponent("generated.rs")
+        try Data("pub fn generated() {}".utf8).write(to: generated)
+        let report = "artifact: \(fixture.source.path) \(generated.path)\n"
+        try report.write(to: fixture.root.appendingPathComponent("probe.d"), atomically: true, encoding: .utf8)
+        let arguments = fixture.invocation.arguments + [
+            "--extern", "dependency=\(dependency.path)", "-L", "dependency=\(fixture.output.path)",
+        ]
+        let original = try #require(await fixture.prepare(arguments: arguments))
+        try Data("unrelated".utf8).write(to: dependency.deletingLastPathComponent().appendingPathComponent("unrelated.rlib"))
+        #expect(try await fixture.prepare(arguments: arguments)?.key == original.key)
+        try Data("pub fn changed() {}".utf8).write(to: generated)
+        #expect(try await fixture.prepare(arguments: arguments)?.key != original.key)
+        try Data("pub fn generated() {}".utf8).write(to: generated)
+        try Data("changed dependency".utf8).write(to: dependency)
+        await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare(arguments: arguments) }
+        try fixture.invocation.certifyOutputs()
+        #expect(try await fixture.prepare(arguments: arguments)?.key != original.key)
+    }
+
+    @Test(.inTemporaryDirectory) func inspectsIncludedNonRustFilesBeforeCertifyingRegistryLibraries() async throws {
+        let fixture = try await fixture()
+        let included = fixture.source.deletingLastPathComponent().appendingPathComponent("generated.txt")
+        try Data("include!(\"generated.txt\");".utf8).write(to: fixture.source)
+        try "artifact: \(fixture.source.path) \(included.path)\n".write(
+            to: fixture.root.appendingPathComponent("probe.d"), atomically: true, encoding: .utf8
+        )
+        try Data("pub fn generated() {}".utf8).write(to: included)
+        #expect(try await fixture.prepare()?.compilerInputs != nil)
+        try Data("core::arch::global_asm!(\".include \\\"hidden.s\\\"\");".utf8).write(to: included)
+        await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare() }
+        try Data(repeating: 65, count: 2_000_000).write(to: included)
+        #expect(try await fixture.prepare()?.compilerInputs != nil)
+        try Data(repeating: 65, count: 2_000_001).write(to: included)
+        await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare() }
+    }
+
+    @Test(.inTemporaryDirectory) func rejectsUncertifiedDependenciesAndProceduralMacros() async throws {
+        let fixture = try await fixture()
+        for name in ["libunknown.rlib", "libmacro.dylib"] {
+            let dependency = fixture.output.appendingPathComponent(name)
+            try Data("uninspected dependency".utf8).write(to: dependency)
+            await #expect(throws: CargoCacheInvocation.CacheError.self) {
+                try await fixture.prepare(arguments: fixture.invocation.arguments + ["--extern", "dependency=\(dependency.path)"])
+            }
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func tracksGeneratedInputsAndRejectsDependencySetChangesDuringCompilation() async throws {
+        let fixture = try await fixture()
+        var environment = fixture.invocation.environment
+        environment["OUT_DIR"] = fixture.root.path
+        let original = try #require(await fixture.prepare(environment: environment))
+        try "artifact: \(fixture.source.path) \(fixture.root.path)/new-input.rs\n".write(
+            to: fixture.output.appendingPathComponent(original.files[2]), atomically: true, encoding: .utf8
+        )
+        await #expect(throws: CargoCacheInvocation.CacheError.self) {
+            try await fixture.cache(invocation: original).store(stdout: Data(), stderr: Data())
         }
     }
 
@@ -197,6 +276,7 @@ struct CargoCompilationCacheTests {
         #expect(try await fixture.prepare(environment: environment)?.key == original)
         try Data("changed compiler".utf8).write(to: fixture.invocation.toolchain.appendingPathComponent("lib/compiler"))
         #expect(try fixture.invocation.fingerprint() != original)
+        #expect(try await fixture.prepare()?.key != original)
     }
 
     @Test(.inTemporaryDirectory) func credentialsAndCIRunMetadataDoNotInvalidateTheKey() async throws {
@@ -341,20 +421,22 @@ struct CargoCompilationCacheTests {
     @Test(.inTemporaryDirectory) func bypassesUnsupportedCompilations() async throws {
         let fixture = try await fixture()
         for extra in [
-            ["--extern", "some_macro=/tmp/libmacro.dylib"], ["-C", "incremental=/tmp/incremental"],
+            ["-C", "incremental=/tmp/incremental"],
             ["--sysroot", "/another/toolchain"], ["--target", "custom.json"], ["--test"],
-            ["-L", "native=/tmp/native"], ["@arguments"],
+            ["-L", "framework=/tmp/native"], ["-L", "native=/tmp/native"], ["@arguments"],
+            ["--library-path=native=/tmp/native"], ["--codegen=target-cpu=native"],
+            ["-lstatic=native"], ["-l", "native"], ["-o/tmp/another-output"],
         ] {
             #expect(try await fixture.prepare(arguments: fixture.invocation.arguments + extra) == nil)
         }
-        for variable in ["OUT_DIR", "RUSTC_WORKSPACE_WRAPPER", "TUIST_CARGO_INNER_WRAPPER"] {
+        for variable in ["RUSTC_WORKSPACE_WRAPPER", "TUIST_CARGO_INNER_WRAPPER"] {
             var environment = fixture.invocation.environment
             environment[variable] = "/some/wrapper/or/output"
             #expect(try await fixture.prepare(environment: environment) == nil)
         }
         var environment = fixture.invocation.environment
         environment["CARGO_MANIFEST_DIR"] = fixture.root.path
-        #expect(try await fixture.prepare(environment: environment) == nil)
+        #expect(try await fixture.prepare(environment: environment)?.compilerInputs != nil)
     }
 
     @Test(.inTemporaryDirectory) func rejectsSourceAndOutputSymlinks() async throws {
@@ -381,6 +463,27 @@ struct CargoCompilationCacheTests {
         #expect(try Data(contentsOf: fixture.output.appendingPathComponent(fixture.invocation.files[0])) == Data("library".utf8))
     }
 
+    @Test(.inTemporaryDirectory) func localMaterializationFailureDoesNotMarkTheRemoteUnhealthy() async throws {
+        let fixture = try await fixture()
+        let remote = CargoMemoryCache()
+        try await fixture.cache(remote: remote).store(stdout: Data(), stderr: Data())
+        try fixture.removeOutputs()
+        let consumer = fixture.root.appendingPathComponent("consumer")
+        try FileManager.default.createDirectory(at: consumer, withIntermediateDirectories: true)
+        let obstruction = consumer.appendingPathComponent("staging")
+        try Data("local obstruction".utf8).write(to: obstruction)
+        let measurement = CargoCacheMeasurement(invocation: fixture.invocation)
+        let cache = try CargoCompilationCache(
+            invocation: fixture.invocation, root: consumer, remote: remote, measurement: measurement
+        )
+        #expect(try await !cache.restoreRemotely())
+        #expect(!measurement.hasRemoteFailure)
+        try FileManager.default.removeItem(at: obstruction)
+        #expect(try await cache.restoreRemotely())
+        #expect(!measurement.hasRemoteFailure)
+        #expect(try Data(contentsOf: fixture.output.appendingPathComponent(fixture.invocation.files[0])) == Data("library".utf8))
+    }
+
     @Test(.inTemporaryDirectory) func deniedRemoteWritesPreserveLocalCaching() async throws {
         let fixture = try await fixture()
         let remote = CargoMemoryCache(denyWrites: true)
@@ -404,7 +507,16 @@ struct CargoCompilationCacheTests {
         try await fixture.cache(remote: remote).store(stdout: Data(), stderr: Data())
         try fixture.removeOutputs()
         await remote.corruptDownloads()
-        #expect(try await !fixture.cache(remote: remote, directory: "corrupt-cache").restore())
+        let cache = try fixture.cache(remote: remote, directory: "corrupt-cache")
+        #expect(try await !cache.restore())
+        #expect(!cache.measurement.hasRemoteFailure)
+        await remote.corruptDownloads(false)
+        #expect(try await cache.restore())
+        try fixture.removeOutputs()
+        await remote.failDownloads()
+        let unavailable = try fixture.cache(remote: remote, directory: "unavailable-cache")
+        #expect(try await !unavailable.restore())
+        #expect(unavailable.measurement.hasRemoteFailure)
         await remote.escapeOutputPath()
         #expect(try await !fixture.cache(remote: remote, directory: "unsafe-cache").restore())
         #expect(!FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("escape").path))
@@ -423,6 +535,303 @@ struct CargoCompilationCacheTests {
         } catch let CommandError.terminated(code, _, _) { #expect(code == 31) }
     }
 
+    #if os(macOS) && arch(arm64)
+        @Test(.inTemporaryDirectory) func nativeShimPreservesLateCompilerSelectionsAndCurrentPATH() async throws {
+            let fixture = try await nativeShimFixture()
+            let process = CargoProcess(runner: CommandRunner())
+            let root = URL(fileURLWithPath: fixture.directory.pathString)
+            let bin = root.appendingPathComponent("later bin")
+            let shim = fixture.wrapper.deletingLastPathComponent().path
+            let alias = root.appendingPathComponent("shim alias")
+            try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: fixture.wrapper.deletingLastPathComponent())
+            try FileManager.default.copyItem(at: bin.appendingPathComponent("cc"), to: root.appendingPathComponent("cc"))
+            let relative = root.appendingPathComponent("-tools")
+            try FileManager.default.createDirectory(at: relative, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: bin.appendingPathComponent("cc"), to: relative.appendingPathComponent("cc"))
+            let arguments = ["-c", "input.c", "-o", "object with spaces.o", "", "*.[ch]", "quote'\""]
+            for (path, expectedPATH) in [
+                ("\(shim):\(bin.path):/usr/bin:/bin", "\(bin.path):/usr/bin:/bin"),
+                ("\(bin.path):\(shim):/usr/bin:/bin", "\(bin.path):\(shim):/usr/bin:/bin"),
+                ("\(shim):\(alias.path):\(shim)/:\(bin.path):/usr/bin:/bin", "\(bin.path):/usr/bin:/bin"),
+                ("\(shim):later bin::/usr/bin:/bin:", "later bin::/usr/bin:/bin:"),
+                ("\(shim)::/usr/bin:/bin", ":/usr/bin:/bin"),
+                ("\(shim):-tools:/usr/bin:/bin", "-tools:/usr/bin:/bin"),
+            ] {
+                var environment = fixture.environment
+                environment["PATH"] = path
+                let actual = try await process.captureOutput(
+                    "cc", arguments: arguments, environment: environment, directory: fixture.directory
+                )
+                #expect(actual.stdout == Data((["cc", expectedPATH] + arguments).joined(separator: "\0").utf8) + Data([0]))
+                #expect(actual.stderr.isEmpty)
+            }
+            for (variable, compiler) in [("CC", "cc"), ("HOST_CC", "cc"), ("CARGO_ENCODED_RUSTFLAGS", "clang")] {
+                var environment = fixture.environment
+                environment["PATH"] = "\(shim):\(bin.path):/usr/bin:/bin"
+                environment[variable] = variable == "CARGO_ENCODED_RUSTFLAGS" ? "-Clinker-plugin-lto"
+                    : bin.appendingPathComponent(compiler).path
+                // cc-rs checks target-specific CC before HOST_CC/CC, and otherwise prefers clang for linker-plugin-lto.
+                let actual = try await process.captureOutput(
+                    "/bin/sh", arguments: [
+                        "-c", "exec \"${CC_aarch64_apple_darwin:-${HOST_CC:-${CC:-clang}}}\" \"$@\"", "cc-rs",
+                    ] + arguments, environment: environment, directory: fixture.directory
+                )
+                let expected = [compiler, try #require(environment["PATH"])] + arguments
+                #expect(actual.stdout == Data(expected.joined(separator: "\0").utf8) + Data([0]))
+                #expect(actual.stderr.isEmpty)
+            }
+            let probe = root.appendingPathComponent("compiler-argv.c")
+            try Data("#include <stdio.h>\nint main(int argc, char **argv) { fputs(argv[0], stdout); }\n".utf8).write(to: probe)
+            _ = try await process.captureOutput(
+                "/usr/bin/cc", arguments: [probe.path, "-o", bin.appendingPathComponent("cc").path],
+                environment: fixture.environment, directory: fixture.directory
+            )
+            var environment = fixture.environment
+            environment["PATH"] = "\(bin.path):/usr/bin:/bin"
+            let control = try await process.captureOutput(
+                "cc", arguments: arguments, environment: environment, directory: fixture.directory
+            )
+            #expect(control.stdout == Data("cc".utf8))
+            environment["PATH"] = "\(shim):\(bin.path):/usr/bin:/bin"
+            let actual = try await process.captureOutput(
+                "cc", arguments: arguments, environment: environment, directory: fixture.directory
+            )
+            #expect(actual.stdout == control.stdout)
+            let startup = root.appendingPathComponent("bash startup")
+            try Data("exit 29\n".utf8).write(to: startup)
+            environment["BASH_ENV"] = startup.path
+            try FileManager.default.removeItem(at: relative.appendingPathComponent("cc"))
+            try FileManager.default.copyItem(at: bin.appendingPathComponent("cc"), to: relative.appendingPathComponent("cc"))
+            environment["PATH"] = "\(shim):-tools:/usr/bin:/bin"
+            let relativeActual = try await process.captureOutput(
+                "cc", arguments: arguments, environment: environment, directory: fixture.directory
+            )
+            #expect(relativeActual.stdout == control.stdout)
+            #expect(relativeActual.stderr.isEmpty)
+            let portable = try await process.captureOutput(
+                "/bin/dash", arguments: [fixture.wrapper.path] + arguments,
+                environment: environment, directory: fixture.directory
+            )
+            #expect(portable.stdout == control.stdout)
+            #expect(portable.stderr.isEmpty)
+        }
+
+        @Test(.inTemporaryDirectory, .timeLimit(.minutes(1)))
+        func nativeShimSkipsCompilerFileAliasesWithoutLosingHelpersOrInheritedExports() async throws {
+            let fixture = try await nativeShimFixture()
+            let process = CargoProcess(runner: CommandRunner())
+            let root = URL(fileURLWithPath: fixture.directory.pathString)
+            let bin = root.appendingPathComponent("later bin")
+            let shim = fixture.wrapper.deletingLastPathComponent().path
+            let alias = root.appendingPathComponent("file alias")
+            let chain = root.appendingPathComponent("chained alias")
+            let retained = root.appendingPathComponent("retained hard link")
+            let secondRetained = root.appendingPathComponent("second retained hard link")
+            for folder in [alias, chain, retained, secondRetained] {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            }
+            try FileManager.default.createSymbolicLink(
+                at: alias.appendingPathComponent("cc"),
+                withDestinationURL: fixture.wrapper
+            )
+            try FileManager.default.createSymbolicLink(
+                at: chain.appendingPathComponent("cc"), withDestinationURL: alias.appendingPathComponent("cc")
+            )
+            try FileManager.default.linkItem(at: fixture.wrapper, to: retained.appendingPathComponent("cc"))
+            var setupEnvironment = fixture.environment
+            setupEnvironment["PATH"] = "/usr/bin:/bin"
+            _ = try await CargoClangInvocation.configure(
+                environment: setupEnvironment, directory: fixture.directory, process: process
+            )
+            try FileManager.default.linkItem(at: fixture.wrapper, to: secondRetained.appendingPathComponent("cc"))
+            _ = try await CargoClangInvocation.configure(
+                environment: setupEnvironment, directory: fixture.directory, process: process
+            )
+            let helper = alias.appendingPathComponent("cc-helper")
+            try "#!/bin/sh\nprintf '%s' 'alias helper' > \"$HELPER_LOG\"\n".write(to: helper, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
+            try """
+            #!/bin/sh
+            printf '%s\\0' "$compiler" "$remaining" "$entry" "$compiler_path" "$input" "$size" "$separator" "$more" > "$EXPORTS_LOG"
+            cc-helper
+            exec "$compiler" "$@"
+
+            """.write(to: bin.appendingPathComponent("cc"), atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: bin.appendingPathComponent("cc").path)
+            var environment = fixture.environment
+            let variables = ["compiler", "remaining", "entry", "compiler_path", "input", "size", "separator", "more"]
+            let values = [bin.appendingPathComponent("clang").path] + variables.dropFirst().map { "inherited \($0)" }
+            for (name, value) in zip(variables, values) {
+                environment[name] = value
+            }
+            environment["SHELLOPTS"] = "errexit:noglob:nounset"
+            environment["EXPECT_SHELL_OPTIONS"] = "1"
+            let exports = root.appendingPathComponent("exports")
+            let helperLog = root.appendingPathComponent("helper log")
+            environment["EXPORTS_LOG"] = exports.path
+            environment["HELPER_LOG"] = helperLog.path
+            let arguments = ["argument with spaces", "", "*.[ch]", "quote'\""]
+            for (path, expectedPATH) in [
+                (
+                    "\(shim):\(alias.path):\(chain.path):\(bin.path):/usr/bin:/bin",
+                    "\(alias.path):\(chain.path):\(bin.path):/usr/bin:/bin"
+                ),
+                ("\(alias.path):\(shim):\(bin.path):/usr/bin:/bin", "\(alias.path):\(bin.path):/usr/bin:/bin"),
+                ("\(shim):\(bin.path):\(alias.path):/usr/bin:/bin", "\(bin.path):\(alias.path):/usr/bin:/bin"),
+                (
+                    "\(shim):\(retained.path):\(alias.path):\(bin.path):/usr/bin:/bin",
+                    "\(retained.path):\(alias.path):\(bin.path):/usr/bin:/bin"
+                ),
+                (
+                    "\(shim):\(retained.path):\(secondRetained.path):\(alias.path):\(bin.path):/usr/bin:/bin",
+                    "\(retained.path):\(secondRetained.path):\(alias.path):\(bin.path):/usr/bin:/bin"
+                ),
+                (
+                    "\(secondRetained.path):\(retained.path):\(shim):\(alias.path):\(bin.path):/usr/bin:/bin",
+                    "\(secondRetained.path):\(retained.path):\(alias.path):\(bin.path):/usr/bin:/bin"
+                ),
+            ] {
+                environment["PATH"] = path
+                let actual = try await process.captureOutput(
+                    "cc", arguments: arguments, environment: environment, directory: fixture.directory
+                )
+                #expect(actual.stdout == Data((["clang", expectedPATH] + arguments).joined(separator: "\0").utf8) + Data([0]))
+                #expect(actual.stderr.isEmpty)
+                #expect(try Data(contentsOf: exports) == Data(values.joined(separator: "\0").utf8) + Data([0]))
+                #expect(try String(contentsOf: helperLog, encoding: .utf8) == "alias helper")
+            }
+            environment["PATH"] = "\(alias.path):\(shim):/usr/bin:/bin"
+            _ = try await process.captureOutput(
+                "cc", arguments: ["-c", "input.c", "-o", "alias.o"], environment: environment, directory: fixture.directory
+            )
+            #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("alias.o").path))
+            environment["PATH"] = "\(shim):\(retained.path):\(secondRetained.path):\(alias.path):\(chain.path)"
+            do {
+                _ = try await process.captureOutput(
+                    "cc",
+                    arguments: arguments,
+                    environment: environment,
+                    directory: fixture.directory
+                )
+                Issue.record("Compiler aliases without a real compiler did not fail")
+            } catch let CommandError.terminated(code, _, _) { #expect(code == 127) }
+        }
+
+        @Test(.inTemporaryDirectory) func nativeShimPreservesCompilerFailuresAndInheritedShellOptions() async throws {
+            let fixture = try await nativeShimFixture()
+            let process = CargoProcess(runner: CommandRunner())
+            let root = URL(fileURLWithPath: fixture.directory.pathString)
+            var environment = fixture.environment
+            environment["SHELLOPTS"] = "errexit:noglob:nounset"
+            let arguments = ["-c", "input.c", "-o", "object with spaces.o"]
+            _ = try await process.captureOutput(
+                "cc",
+                arguments: arguments,
+                environment: environment,
+                directory: fixture.directory
+            )
+            #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("object with spaces.o").path))
+            for custom in [false, true] {
+                var failing = environment
+                if custom {
+                    failing["PATH"] = fixture.wrapper.deletingLastPathComponent().path + ":" + root
+                        .appendingPathComponent("later bin").path
+                    failing["COMPILER_EXIT"] = "31"
+                    failing["EXPECT_SHELL_OPTIONS"] = "1"
+                } else {
+                    try Data("#error selected Apple cc\n".utf8).write(to: root.appendingPathComponent("input.c"))
+                }
+                do {
+                    _ = try await process.captureOutput(
+                        "cc",
+                        arguments: arguments,
+                        environment: failing,
+                        directory: fixture.directory
+                    )
+                    Issue.record("The selected compiler's failure was lost")
+                } catch let CommandError.terminated(code, stderr, _) {
+                    #expect(code == (custom ? 31 : 1))
+                    #expect(stderr.contains(custom ? "selected compiler failed" : "selected Apple cc"))
+                }
+            }
+            let denied = root.appendingPathComponent("nonexecutable bin")
+            try FileManager.default.createDirectory(at: denied, withIntermediateDirectories: true)
+            try Data("#!/bin/sh\nexit 0\n".utf8).write(to: denied.appendingPathComponent("cc"))
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: denied.appendingPathComponent("cc").path
+            )
+            for (path, expectedCode) in [
+                (fixture.wrapper.deletingLastPathComponent().path, Int32(127)),
+                (root.appendingPathComponent("missing bin").path, Int32(127)),
+                (fixture.wrapper.deletingLastPathComponent().path + ":" + denied.path, Int32(126)),
+            ] {
+                environment["PATH"] = path
+                do {
+                    _ = try await process.captureOutput(
+                        fixture.wrapper.path, arguments: arguments, environment: environment, directory: fixture.directory
+                    )
+                    Issue.record("An unavailable compiler was replaced with the outer command's compiler")
+                } catch let CommandError.terminated(code, _, _) { #expect(code == expectedCode) }
+            }
+        }
+
+        @Test(.inTemporaryDirectory) func colonContainingCachePathsNeverChangeCompilerLookup() async throws {
+            let fixture = try await nativeShimFixture()
+            let process = CargoProcess(runner: CommandRunner())
+            let root = URL(fileURLWithPath: fixture.directory.pathString)
+            let cache = root.appendingPathComponent("later bin").path + ":" + root.appendingPathComponent("colon cache").path
+            let environment = try await CargoClangInvocation.configure(
+                environment: ["PATH": "/usr/bin:/bin", "TUIST_CARGO_CACHE_DIR": cache],
+                directory: fixture.directory, process: process
+            )
+            let actual = try await process.captureOutput(
+                "cc", arguments: ["-c", "input.c", "-o", "colon.o"], environment: environment, directory: fixture.directory
+            )
+            #expect(actual.stdout.isEmpty)
+            #expect(actual.stderr.isEmpty)
+            #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("colon.o").path))
+            #expect(!FileManager.default
+                .fileExists(atPath: URL(fileURLWithPath: cache).appendingPathComponent("wrappers/cc").path))
+        }
+
+        private func nativeShimFixture() async throws -> (environment: [String: String], directory: AbsolutePath, wrapper: URL) {
+            let directory = try #require(FileSystem.temporaryTestDirectory)
+            let root = URL(fileURLWithPath: directory.pathString)
+            let cache = root.appendingPathComponent("compiler's cache")
+            let bin = root.appendingPathComponent("later bin")
+            try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+            try Data("int value(void) { return 42; }\n".utf8).write(to: root.appendingPathComponent("input.c"))
+            for name in ["cc", "clang"] {
+                let compiler = bin.appendingPathComponent(name)
+                try """
+                #!/bin/sh
+                if [ -n "${EXPECT_SHELL_OPTIONS:-}" ]; then
+                  for flag in e f u; do
+                    case "$-" in *"$flag"*) ;; *) exit 97 ;; esac
+                  done
+                fi
+                printf '%s\\0' "${0##*/}" "$PATH" "$@"
+                if [ "${COMPILER_EXIT:-0}" != 0 ]; then
+                  printf '%s\\n' 'selected compiler failed' >&2
+                  exit "$COMPILER_EXIT"
+                fi
+
+                """.write(to: compiler, atomically: true, encoding: .utf8)
+                try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: compiler.path)
+            }
+            let environment = try await CargoClangInvocation.configure(
+                environment: [
+                    "PATH": "/usr/bin:/bin", "TUIST_CARGO_CACHE_DIR": cache.path,
+                    "TUIST_CARGO_CACHE_REMOTE_URL": "http://unused.invalid",
+                ], directory: directory, process: CargoProcess(runner: CommandRunner())
+            )
+            let wrapper = cache.appendingPathComponent("wrappers/cc")
+            #expect(FileManager.default.isExecutableFile(atPath: wrapper.path))
+            return (environment, directory, wrapper)
+        }
+    #endif
+
     private func fixture() async throws -> Fixture {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let root = URL(fileURLWithPath: directory.appending(component: UUID().uuidString).pathString)
@@ -435,7 +844,21 @@ struct CargoCompilationCacheTests {
         let source = package.appendingPathComponent("lib.rs")
         try Data("pub fn answer() -> u32 { 42 }".utf8).write(to: source)
         let compiler = toolchain.appendingPathComponent("bin/rustc")
-        try "#!/bin/sh\nprintf '%s' '\(toolchain.path)'\n".write(to: compiler, atomically: true, encoding: .utf8)
+        let escaped = source.path.replacingOccurrences(of: " ", with: "\\ ")
+        try "artifact: \(escaped)\n".write(to: root.appendingPathComponent("probe.d"), atomically: true, encoding: .utf8)
+        try """
+        #!/bin/sh
+        if [ "$1" = --print ]; then printf '%s' '\(toolchain.path)'; exit 0; fi
+        for argument in "$@"; do
+          case "$argument" in
+            --emit=dep-info=*)
+              paths=${argument#--emit=dep-info=}
+              cp '\(root.path)/probe.d' "$paths"
+              ;;
+          esac
+        done
+
+        """.write(to: compiler, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: compiler.path)
         try Data("compiler runtime".utf8).write(to: toolchain.appendingPathComponent("lib/compiler"))
         let environment = [
@@ -463,7 +886,6 @@ struct CargoCompilationCacheTests {
         ))
         try Data("library".utf8).write(to: output.appendingPathComponent(invocation.files[0]))
         try Data("metadata".utf8).write(to: output.appendingPathComponent(invocation.files[1]))
-        let escaped = source.path.replacingOccurrences(of: " ", with: "\\ ")
         try "artifact: \(escaped)\n".write(
             to: output.appendingPathComponent(invocation.files[2]),
             atomically: true,
@@ -478,8 +900,11 @@ struct CargoCompilationCacheTests {
         let output: URL
         let invocation: CargoCacheInvocation
 
-        func cache(remote: (any REAPICacheStoring)? = nil, directory: String = "cache") throws -> CargoCompilationCache {
-            try CargoCompilationCache(
+        func cache(
+            invocation: CargoCacheInvocation? = nil, remote: (any REAPICacheStoring)? = nil, directory: String = "cache"
+        ) throws -> CargoCompilationCache {
+            let invocation = invocation ?? self.invocation
+            return try CargoCompilationCache(
                 invocation: invocation, root: root.appendingPathComponent(directory), remote: remote,
                 measurement: CargoCacheMeasurement(invocation: invocation)
             )
@@ -506,6 +931,7 @@ private actor CargoMemoryCache: REAPICacheStoring {
     private let rejectUploads: Bool
     private let denyWrites: Bool
     private var corrupt = false
+    private var unavailable = false
     private(set) var uploadAttempts = 0
     private(set) var publications = 0
     private(set) var reads = 0
@@ -538,6 +964,11 @@ private actor CargoMemoryCache: REAPICacheStoring {
     }
 
     func uploadBlobs(_ files: [REAPI.Digest: URL]) async throws { _ = try await uploadAvailableBlobs(files) }
+    func downloadBlobs(_ files: [REAPI.Digest: URL]) async throws -> REAPIBlobDownload {
+        if unavailable { return REAPIBlobDownload(available: [], remoteFailures: Set(files.keys)) }
+        return try await REAPIBlobDownload(available: downloadAvailableBlobs(files))
+    }
+
     func downloadBlob(_ digest: REAPI.Digest, to path: URL) async throws {
         reads += 1
         let data = try #require(blobs[digest])
@@ -549,6 +980,7 @@ private actor CargoMemoryCache: REAPICacheStoring {
         result?.stderrRaw = stderr
     }
 
-    func corruptDownloads() { corrupt = true }
+    func corruptDownloads(_ enabled: Bool = true) { corrupt = enabled }
+    func failDownloads() { unavailable = true }
     func escapeOutputPath() { result?.outputFiles[0].path = "../escape" }
 }

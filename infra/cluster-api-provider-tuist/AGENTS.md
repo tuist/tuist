@@ -1,8 +1,22 @@
 # Cluster API Provider
 
-- OVH cache vRack reconciliation is additive on the Ready path, scoped by the
-  environment ConfigMap and cache taint, or explicit `spec.vRackID` on Kata runners. Persist address reservations across
-  Machine deletion, preserve main-table unreachable guards for existing Machines,
+- OVH runner public egress is opt-in through `capi.ovhRunnerEgress`. Keep
+  Machine-UID address reservations until policy withdrawal and confirmed host
+  cleanup, before deleting SSH credentials or requesting reinstall. Remove and
+  reload kubelet's egress dependency before stopping the egress service; an
+  explicit stop otherwise propagates through `Requires` and stops kubelet.
+  Never move an existing cache vRack NIC automatically. Managed staging/canary
+  enable activation; production activation requires advance allowlisting,
+  confirmed block attachment and a drained, verified cutover;
+  preserve private-cache enrollment during public-egress cleanup. Block inventory,
+  staging qualification limits and rollout/rollback steps are in
+  [OVH runner egress](docs/ovh-runner-egress.md).
+
+- OVH private vRack reconciliation is additive on the Ready path, scoped by the
+  environment ConfigMap and cache taint or explicit Kata Machine `spec.vRackID`.
+  Public egress enrollment alone does not opt a runner into private peer routes.
+  Persist address reservations across Machine deletion, preserve main-table
+  unreachable guards for existing Machines,
   retire owned guards only after authoritative Machine removal, and advertise
   private topology only after every participant installs the same membership.
   See [managed private networking](../kura-controller/private-network-provisioning.md).
@@ -2354,7 +2368,8 @@ infra/cluster-api-provider-tuist/
 │       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
 │       ├── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
 │       ├── kata_shared_memory.go    # /dev/shm ceiling for Kata guest RAM + the host-config proof
-│       └── kata_virtiofs.go         # virtiofsd file budget (fs.nr_open + Kata config.d drop-in)
+│       ├── kata_virtiofs.go         # virtiofsd file budget (fs.nr_open + Kata config.d drop-in)
+│       └── kata_kvm.go              # install + prove the KVM guest kernel, label tuist.dev/kata-kvm
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
 │   ├── redfish/      # a rack x86 server's BMC over Redfish (AMI MegaRAC on the ASUS RS501A): inventory, BIOS baseline, accounts, virtual CD, boot override, power; redfishtest fakes that BMC
@@ -2532,6 +2547,24 @@ Missing proof sets `KataHostConfigUnverified`; a failed repair sets
 label intact. Non-Kata fleets are unaffected. The Hetzner worker template in
 `infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
 (checked by a test); existing Hetzner workers do not use this OVH repair path.
+
+Nested virtualization (`controllers/linux/kata_kvm.go`) follows the same
+proof shape on every OVH Kata host, after the runtime and host-configuration proofs
+hold. The repair downloads the pinned `kata-kvm-kernel@` release, checks it
+against the `.sha256` beside it, links it at
+`/opt/kata/share/kata-containers/vmlinux-tuist-kvm.container`, and writes the
+`config.d/50-tuist-kvm.toml` drop-in that adds `kernel` to Kata's
+`enable_annotations` (a drop-in array replaces the base one, so it restates
+Kata's defaults). It then checks `kvm_amd`/`kvm_intel` `nested`, and only on
+success labels the node `tuist.dev/kata-kvm=true` and stamps
+`tuist.dev/kata-kvm-config` with the setup hash and boot ID. The host's
+`/dev/kvm` mode is not touched; the runners-controller's device plugin sets the
+container node's mode through CDI. A host whose KVM refuses nesting records
+`<revision>:unavailable` and is not retried until it reboots or the setup
+changes. Any lapse withdraws the label before re-verifying, and a KVM failure
+marks only `KataKVMReady`, never `KataRuntimeReady`. Deliberately not part of
+the first-boot self-join, so a node's join never depends on this download.
+Hetzner workers get no KVM kernel and so never carry the label.
 
 Alerts for this operator are Grafana-managed rules, created in Grafana Cloud
 rather than checked in: managed clusters run no Prometheus Operator, so there is
@@ -3449,3 +3482,13 @@ scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
 
 - macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+### Scaleway processor maintenance
+
+`ScalewayAppleSiliconMachine` accepts explicit `tuist.dev/os-update` requests for
+the xcresult fleet. See [serialized maintenance](scaleway-os-maintenance.md) for
+requirements, the plan-first task, status phases, the persistent fleet lock and
+canary/rollback checks. The controller pauses only its configured Deployment,
+evicts through namespace-scoped RBAC, and waits for the guest drain before an
+install. Failures retain owned holds; never clear a fleet Lease just to advance
+another host. No release-triggered or scheduled OS policy is enabled.

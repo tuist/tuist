@@ -14,6 +14,7 @@ alias Atlas.Automations.Workers.ScheduleRuns
 alias Atlas.Briefs.Workers.ScheduleBriefs
 alias Atlas.Documents.Workers.EnsureDocumentClassifications
 alias Atlas.Documents.Workers.ExpirePendingUploads
+alias Atlas.Engineering.Alerts.Workers.EvaluateSpikes
 alias Atlas.Engineering.Errors.SummaryWorker, as: ErrorsSummaryWorker
 alias Atlas.FeatureUsage.Workers.ScheduleFeatureUsage
 alias Atlas.Finance.Workers.BackfillQontoInvoices
@@ -40,6 +41,7 @@ alias Atlas.Orbit.Workers.CleanupAttachments
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
 alias Atlas.Push.Workers.Prune, as: PrunePushInstallations
+alias Atlas.Signals.Workers.SchedulePolls
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Atlas.TimeOff.SyncPublicHolidays
 alias Atlas.Workers.PruneRateLimits
@@ -93,7 +95,7 @@ config :atlas, Oban,
   repo: Atlas.Repo,
   notifier: Oban.Notifiers.Postgres,
   peer: Oban.Peers.Database,
-  queues: [default: 10, briefs: 2, mailing: 5, orbit: 4, automation: 2, push: 10, moodboard: 2],
+  queues: [default: 10, briefs: 2, mailing: 5, orbit: 4, automation: 2, push: 10, moodboard: 2, environments: 4],
   plugins: [
     {Oban.Plugins.Cron,
      crontab: [
@@ -105,6 +107,7 @@ config :atlas, Oban,
        {"20 4 * * *", EvaluateNudgeSignals},
        {"30 4 * * *", ExpireStaleNudges},
        {"* * * * *", ReconcileNudgeDeliveryOutcomes},
+       {"* * * * *", EvaluateSpikes},
        {"15 3 * * *", ScheduleStripeInvoiceReconciliations},
        {"5 * * * *", SyncNotes, args: %{mode: "incremental"}},
        {"45 3 * * *", SyncNotes, args: %{mode: "backfill"}},
@@ -136,6 +139,7 @@ config :atlas, Oban,
        # schedule in every environment.
        {"* * * * *", ErrorsSummaryWorker},
        {"* * * * *", ScheduleRuns},
+       {"* * * * *", SchedulePolls},
        # Weekly digest of inbound emails the classifier silenced so
        # the team stays aware of what was filtered.
        {"0 9 * * 1", SupportInboxWeeklyDigest}
@@ -269,7 +273,27 @@ config :opentelemetry,
   traces_exporter: :none,
   resource: [service: [name: "atlas", namespace: "tuist"]]
 
-config :phoenix, :filter_parameters, ["password", "token", "secret", "key", "input", "payload", "outputs", "source"]
+config :phoenix, :filter_parameters, [
+  "password",
+  "token",
+  "secret",
+  "key",
+  "native",
+  "code",
+  "state",
+  "verifier",
+  "nonce",
+  "input",
+  "payload",
+  "outputs",
+  "source",
+  "webhook_url",
+  "arguments",
+  "command",
+  "output",
+  "path",
+  "projects"
+]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

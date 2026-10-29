@@ -5,6 +5,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   import Phoenix.Component
 
+  alias Ecto.Changeset
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Environment
@@ -130,7 +131,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     if sso_enforcement_toggle_disabled?(
          socket.assigns.selected_provider,
          socket.assigns.organization,
-         socket.assigns.current_form_params,
+         socket.assigns.login_domain_trust,
          socket.assigns.sso_enforced
        ) do
       {:noreply, socket}
@@ -146,7 +147,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     if automatic_enrollment_toggle_disabled?(
          socket.assigns.selected_provider,
          socket.assigns.organization,
-         socket.assigns.current_form_params,
+         socket.assigns.login_domain_trust,
          socket.assigns.sso_automatic_enrollment
        ) do
       {:noreply, socket}
@@ -173,7 +174,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     form_params = Map.put(socket.assigns.current_form_params, "provider", provider)
 
     verified_domain? =
-      verified_login_domain_selected?(provider, socket.assigns.organization, form_params)
+      form_domain_trust(provider, socket.assigns.organization, form_params) in [:instance, :dns_verified]
 
     existing_enforcement? =
       existing_sso_enforcement?(provider, socket.assigns.organization)
@@ -219,11 +220,10 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   def handle_event("validate_sso", %{"sso" => form_params}, socket) do
     verified_domain? =
-      verified_login_domain_selected?(
-        socket.assigns.selected_provider,
-        socket.assigns.organization,
-        form_params
-      )
+      form_domain_trust(socket.assigns.selected_provider, socket.assigns.organization, form_params) in [
+        :instance,
+        :dns_verified
+      ]
 
     custom_provider_without_verified_domain? =
       socket.assigns.selected_provider in @oauth2_form_providers and not verified_domain?
@@ -303,7 +303,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
             {:noreply,
              socket
              |> assign(:organization, organization)
-             |> assign(:domain_verification_error, nil)}
+             |> assign(:domain_verification_error, nil)
+             |> compute_form_valid()}
 
           {:error, :verification_record_not_found} ->
             {:noreply,
@@ -371,7 +372,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         {:error, changeset} ->
           message =
             changeset
-            |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
+            |> Changeset.traverse_errors(fn {msg, _} -> msg end)
             |> Enum.map_join("; ", fn {field, msgs} -> "#{field}: #{Enum.join(msgs, ", ")}" end)
 
           {:noreply, assign(socket, :flash_message, {"error", message})}
@@ -416,18 +417,21 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       {:noreply, socket}
     else
       {:ok, updated_organization} =
-        Accounts.update_organization(organization, %{
-          sso_provider: nil,
-          sso_organization_id: nil,
-          sso_enforced: false,
-          sso_login_domain: nil,
-          sso_automatic_enrollment: false,
-          oauth2_client_id: nil,
-          oauth2_encrypted_client_secret: nil,
-          oauth2_authorize_url: nil,
-          oauth2_token_url: nil,
-          oauth2_user_info_url: nil
-        })
+        Accounts.update_organization(
+          organization,
+          %{
+            sso_provider: nil,
+            sso_organization_id: nil,
+            sso_enforced: false,
+            sso_login_domain: nil,
+            sso_automatic_enrollment: false,
+            oauth2_client_id: nil,
+            oauth2_encrypted_client_secret: nil,
+            oauth2_authorize_url: nil,
+            oauth2_token_url: nil,
+            oauth2_user_info_url: nil
+          }
+        )
 
       {:noreply,
        socket
@@ -443,23 +447,27 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   defp save_google_sso(%{assigns: %{organization: organization, current_user: current_user}} = socket, params) do
     domain = String.trim(params["sso"]["google_domain"] || "")
 
-    case validate_google_sso(domain, current_user) do
-      :ok ->
-        {:ok, updated_organization} =
-          Accounts.update_organization(organization, %{
-            sso_provider: :google,
-            sso_organization_id: domain,
-            sso_enforced: socket.assigns.sso_enforced,
-            sso_automatic_enrollment: socket.assigns.sso_automatic_enrollment,
-            sso_default_role: socket.assigns.sso_default_role
-          })
-
-        {:noreply,
-         socket
-         |> assign(organization: updated_organization)
-         |> assign_form_from_organization(updated_organization)
-         |> assign_saved_state()
-         |> assign(flash_message: nil, field_errors: %{})}
+    with :ok <- validate_google_sso(domain, current_user),
+         {:ok, updated_organization} <-
+           Accounts.update_organization(
+             organization,
+             %{
+               sso_provider: :google,
+               sso_organization_id: domain,
+               sso_enforced: socket.assigns.sso_enforced,
+               sso_automatic_enrollment: socket.assigns.sso_automatic_enrollment,
+               sso_default_role: socket.assigns.sso_default_role
+             }
+           ) do
+      {:noreply,
+       socket
+       |> assign(organization: updated_organization)
+       |> assign_form_from_organization(updated_organization)
+       |> assign_saved_state()
+       |> assign(flash_message: nil, field_errors: %{})}
+    else
+      {:error, %Changeset{} = changeset} ->
+        {:noreply, assign(socket, flash_message: {"error", changeset_error_message(changeset)})}
 
       {:error, message} ->
         {:noreply, assign(socket, flash_message: {"error", message})}
@@ -517,7 +525,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   defp changeset_to_field_errors(changeset, provider) do
     changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+    |> Changeset.traverse_errors(fn {msg, _opts} -> msg end)
     |> Enum.reduce(%{}, fn {field, msgs}, acc ->
       form_field =
         case Map.get(@changeset_to_form_field, field) do
@@ -666,7 +674,18 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         true
       end
 
-    assign(socket, form_valid: valid)
+    assign(socket,
+      form_valid: valid,
+      login_domain_trust:
+        form_domain_trust(
+          socket.assigns.selected_provider,
+          socket.assigns.organization,
+          socket.assigns.current_form_params
+        ),
+      login_domain_shared:
+        oauth2_form_provider?(socket.assigns.selected_provider) and
+          Accounts.sso_login_domain_shared?(socket.assigns.organization)
+    )
   end
 
   defp form_fields_valid?("google", params, _organization) do
@@ -795,29 +814,39 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   defp changeset_error_message(changeset) do
     changeset
-    |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+    |> Changeset.traverse_errors(fn {message, _opts} -> message end)
     |> Enum.map_join("; ", fn {field, messages} ->
       "#{Phoenix.Naming.humanize(field)} #{Enum.join(messages, ", ")}"
     end)
   end
 
-  defp automatic_enrollment_toggle_disabled?(selected_provider, organization, form_params, automatic_enrollment) do
-    selected_provider in @oauth2_form_providers and
-      not verified_login_domain_selected?(selected_provider, organization, form_params) and
+  defp automatic_enrollment_toggle_disabled?(selected_provider, _organization, trust, automatic_enrollment) do
+    selected_provider in @oauth2_form_providers and trust not in [:instance, :dns_verified] and
       not automatic_enrollment
   end
 
-  defp sso_enforcement_toggle_disabled?(selected_provider, organization, form_params, enforced) do
-    selected_provider in @oauth2_form_providers and
-      not verified_login_domain_selected?(selected_provider, organization, form_params) and
+  defp sso_enforcement_toggle_disabled?(selected_provider, _organization, trust, enforced) do
+    selected_provider in @oauth2_form_providers and trust not in [:instance, :dns_verified] and
       not enforced
   end
 
-  defp verified_login_domain_selected?(selected_provider, organization, form_params) do
-    selected_provider in @oauth2_form_providers and
-      not is_nil(organization.sso_login_domain_verified_at) and
-      normalize_domain(form_params["sso_login_domain"]) == organization.sso_login_domain
+  defp form_domain_trust(provider, organization, form_params) when provider in @oauth2_form_providers do
+    {issuer, _, _, _} = extract_oauth2_urls(provider, form_params)
+    domain = normalize_domain(form_params["sso_login_domain"])
+
+    candidate = %{
+      organization
+      | sso_provider: provider_atom(provider),
+        sso_organization_id: issuer,
+        sso_login_domain: domain,
+        sso_login_domain_verified_at:
+          if(domain == organization.sso_login_domain, do: organization.sso_login_domain_verified_at)
+    }
+
+    Accounts.sso_login_domain_trust(candidate)
   end
+
+  defp form_domain_trust(_provider, _organization, _form_params), do: :untrusted
 
   defp existing_sso_enforcement?(selected_provider, organization) do
     organization.sso_enforced and selected_provider == form_provider(organization)

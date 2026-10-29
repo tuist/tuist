@@ -20,6 +20,17 @@ Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
 
+- `capi.ovhRunnerEgress` keeps its disabled ConfigMap and cleanup RBAC present
+  while the provider withdraws runner policies and host addresses. Reservations
+  belong to the controller, never Helm. Staging/canary values enable egress;
+  align their public block with the cache vRack before deployment. Production
+  activation requires advance allowlisting, confirmed block attachment and a
+  drained cutover with per-host egress verification. Preserve
+  `node_network_info` for the MAC-based
+  bandwidth alerts. See [OVH runner egress](../cluster-api-provider-tuist/docs/ovh-runner-egress.md).
+
+- SSO DNS verification is an explicit deployment policy: `server.ssoRequireLoginDomainVerification` defaults false and is enabled in managed-common, preview, and pentest values. Inject `TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION` into every server runtime, including migrations, registry sync, and the separate xcresult processor. `tuist/test-sso-domain-verification.py` checks rendered wiring; never infer the policy from `server.hosted`.
+
 - Canary keeps one RISE-M in Gravelines on the shared `runners-linux` pool.
   Preserve its Machine identity and OnDelete strategy. Drain before explicitly
   enrolling the existing Machine in vRack; a template update does not backfill
@@ -234,3 +245,5 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   Canary and production fleet templates declare vRack enrollment; existing
   OnDelete hosts require a drained backfill and transport validation. Check
   shared capacity and enrollment with `helm/linux-vrack.sh`.
+
+- Managed Linux pools inherit KVM through `runnersFleetLinux.nestedVirtualization.defaultEnabled`; false rolls idle runners back without removing host prerequisites. Device allocations follow each Node’s Pod capacity. Validate defaults, rollback revisions and the preparation gate with `bash infra/mise/tasks/helm/nested-kvm.sh`.

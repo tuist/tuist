@@ -26,6 +26,8 @@ class MainActivity : Activity() {
     private var themeLayout: ViewTreeObserver.OnGlobalLayoutListener? = null
     private var settings: AtlasAIAccountsScreen? = null
     private var accounts: AtlasAIAccountsModel? = null
+    private var connections: AtlasConnectionsModel? = null
+    private var pendingConnectionCallback: String? = null
     private var profile: AtlasProfileModel? = null
     private var holidays: AtlasTimeOffModel? = null
     private var timeOff: AtlasTimeOffScreen? = null
@@ -64,6 +66,8 @@ class MainActivity : Activity() {
         val orbit: AtlasOrbitModel?,
         val browseTasks: Boolean,
         val notifications: AtlasPushNotifications,
+        val connections: AtlasConnectionsModel?,
+        val pendingConnectionCallback: String?,
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,6 +89,8 @@ class MainActivity : Activity() {
         authentication = retained?.authentication ?: (application as AtlasApplication).authentication
         notifications = retained?.notifications ?: AtlasPushNotifications(applicationContext, authentication)
         accounts = retained?.accounts
+        connections = retained?.connections
+        pendingConnectionCallback = retained?.pendingConnectionCallback
         profile = retained?.profile
         holidays = retained?.holidays
         presence = retained?.presence
@@ -120,6 +126,8 @@ class MainActivity : Activity() {
             orbit,
             browseTasks,
             notifications,
+            connections,
+            pendingConnectionCallback,
         )
 
     override fun onStart() {
@@ -203,6 +211,12 @@ class MainActivity : Activity() {
             authentication.callback(data)
             return
         }
+        val uri = Uri.parse(data)
+        if (uri.scheme == "dev.tuist.atlas" && uri.host == "connections-callback") {
+            pendingConnectionCallback = data
+            if (authentication.server != null) render()
+            return
+        }
         val link = AtlasDestination.parse(data, AtlasCore().destinations())
         if (link == null) {
             linkMessage("This Atlas link is invalid or is not supported by this app.")
@@ -276,11 +290,12 @@ class MainActivity : Activity() {
     }
 
     // Links never discard a draft, an in-flight save, or an AI provider setup (leaving it cancels ChatGPT sign-in).
-    private fun hasUnsavedWork(): Boolean =
+    private fun hasUnsavedWork(ignoreConnections: Boolean = false): Boolean =
         businesses.values.any { it.draft != null || it.saving } ||
             holidays?.let { it.draft != null || it.saving } == true ||
             profile?.let { it.draft != null || it.saving } == true ||
             accounts?.let { it.page != "settings" || it.login != null } == true ||
+            (!ignoreConnections && connections?.let { it.busy || it.waiting } == true) ||
             orbit?.hasProtectedWork == true
 
     private fun linkMessage(message: String) {
@@ -328,6 +343,18 @@ class MainActivity : Activity() {
         if (presence == null) {
             presence = AtlasPresenceModel(authentication::presence).also { it.setActive(true) }
         }
+        pendingConnectionCallback?.let { callback ->
+            pendingConnectionCallback = null
+            connectionModel().callback(callback) { valid ->
+                if (valid && !hasUnsavedWork(ignoreConnections = true)) {
+                    closeScreen()
+                    tab = "profile"
+                    showHome()
+                } else if (!valid) {
+                    linkMessage("This connection return is invalid or expired. Start again from Profile → Connections.")
+                }
+            }
+        }
         if (openPendingLink()) return
         if (home != null || timeOff != null || people != null) return
         if (restorePeople) {
@@ -365,7 +392,16 @@ class MainActivity : Activity() {
                             it.open()
                         }
                     val screen =
-                        AtlasOrbitScreen(this, titles.getValue(tab), model, presence, ::updateBack, appearance, ::pickOrbitAttachment)
+                        AtlasOrbitScreen(
+                            this,
+                            titles.getValue(tab),
+                            model,
+                            presence,
+                            ::updateBack,
+                            appearance,
+                            ::pickOrbitAttachment,
+                            authentication::environment,
+                        )
                     threadScreen = screen
                     setActionBar(screen.toolbar)
                     screen.view
@@ -413,6 +449,7 @@ class MainActivity : Activity() {
                     settings = screen
                     screen.profile(identity, ::updateBack)
                     screen.appearance(appearance)
+                    screen.connections(connectionModel())
                     screen.notifications(
                         status = {
                             notifications.message
@@ -538,9 +575,14 @@ class MainActivity : Activity() {
         profile?.clear()
         profile = null
         accounts = null
+        connections?.clear()
+        connections = null
         holidays = null
         recoveredLoginId = null
     }
+
+    private fun connectionModel(): AtlasConnectionsModel =
+        connections ?: AtlasConnectionsModel(authentication::connections).also { connections = it }
 
     private fun pickOrbitAttachment() {
         val model = orbit ?: return

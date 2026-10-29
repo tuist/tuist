@@ -108,6 +108,8 @@ config :tuist, Tuist.Repo,
   timeout: 60_000
 
 config :tuist, Tuist.Runners, volume_master_readable_interval_ms: 0
+config :tuist, Tuist.Sandboxes.Capacity, grow_wait_ms: 300, admission_grow_wait_ms: 300
+config :tuist, Tuist.Sandboxes.Nodes, presence_wait_ms: 0
 config :tuist, Tuist.Tasks, sync: true
 
 # Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
@@ -124,6 +126,9 @@ config :tuist, TuistWeb.Endpoint,
 # endpoint is owned by a stable account-region binding. Tests enable the
 # transition machinery so its invariants remain covered while that work lands.
 config :tuist, :kura_warm_handoffs_enabled, true
+
+# Exercise the hosted DNS-verification policy unless a test explicitly stubs it.
+config :tuist, :sso_require_login_domain_verification, true
 
 config :tuist,
   api_pipeline_producer_module: Broadway.DummyProducer,

@@ -246,6 +246,44 @@ When peer mTLS is enabled:
 - 🪪 the certificate configured through `KURA_INTERNAL_TLS_CERT_PATH` should be valid for both server and client auth
 - 🏷️ the certificate SANs must cover the hostname used in `KURA_NODE_URL`
 
+### Outbound certificate distrust
+
+Kura embeds the twelve-key eMudhra incident policy independently of the OS PEM
+bundle. Ordinary clients retain native/enterprise trust, including configured
+extra CAs; peer mTLS retains explicit anchors and hot identity reload. Normal
+hostname, certificate, signature and native context checks remain authoritative,
+with an additional key deny over the constructed path and supplied peers.
+Inbound peer client authentication is restrictive too. Sentry's invalid-certificate
+override is not honored. An otherwise valid redundant blocked cross-sign can be
+rejected: repair the served chain rather than disable TLS or fall back insecurely.
+
+Run `bazel test //:certificate_trust_test --define=kura_deny_warnings=true`
+for independent native/explicit-anchor and real TLS controls without RocksDB.
+`node --test test/certificate-trust/wiring.test.mjs` checks policy/fixture
+synchronization and a bounded production-factory inventory, not arbitrary Rust
+data flow. The full Kura suite additionally covers auth, Sentry and peer rotation.
+Public endpoint and OpenSSL-3 identity-format tests are opt-in:
+
+```sh
+bazel test //:certificate_trust_test --define=kura_deny_warnings=true \
+  --nocache_test_results --test_output=all --test_arg=--ignored \
+  --test_arg=public_controls_fail_for_certificates \
+  --test_arg=valid_pkcs1_and_sec1_identities \
+  --test_env=TUIST_TRUST_LIVE=1 --test_env=KURA_TRUST_OPENSSL=/usr/bin/openssl
+```
+
+Linux success does not qualify Apple's complete evaluated SecTrust paths or
+minimum macOS runtime. Before merging behavior changes, compare current main
+on memory/headroom, disk/retention, CPU/work and egress/work, including recovery
+and native-client construction. Historical #14511 resource flags remain open:
+cooldown anonymous/allocator memory, transient headroom, logical disk and RX,
+plus an earlier unexplained peak-anonymous increase. Green tests or a completed
+ABBA run do not clear these budgets. Exact release images/macOS binaries and
+deployed Sentry/OTLP/enrollment/Kubernetes integrations require separate evidence.
+OTLP gRPC TLS is currently unavailable, not protected by the HTTP client and
+never downgraded to plaintext. Source changes do not patch existing processes
+or authorize publication or rollout.
+
 ## ⚙️ Runtime Model And Limits
 
 Kura is designed around explicit resource budgets instead of relying on ambient process limits.
@@ -441,6 +479,9 @@ observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts onl
 controller sets it only for deployment-selected instances. A dedicated thread
 and async runtime keep network waits and diagnostic failures out of startup and
 readiness decisions; this remains telemetry inside Kura's process resource budget.
+Each cycle includes four fixed server `/ready` checks and two Alloy OTLP HTTP
+header checks on port 4318, followed by a 60-second pause. Alloy checks use GET,
+not span submission; a 405 response measures reachability, not telemetry delivery.
 See the [connectivity runbook](../infra/kura-controller/connectivity-diagnostics.md)
 for fixed targets, sample interpretation, access boundaries, and rollout.
 
@@ -815,6 +856,29 @@ Core env vars:
 
 A node given none of these does not authorize at all, so leaving them unset
 serves the cache to anyone who can reach it.
+
+### Network-trusted self-hosted caches
+
+Keep authorization configured and set `TUIST_NETWORK_TRUSTED_CACHE_ACCESS=true`
+on the **Tuist server**, not Kura, to allow clients without credentials to read
+and write caches on a private office/VPN network. The default is off; hosted
+Tuist never enables it. Protect every public HTTP/gRPC listener with the network
+boundary. Anyone inside it can read outputs and poison or exhaust the cache.
+The dashboard, purges, Remote Asset downloads and BES reports remain protected;
+reporting has its own independent server policy.
+
+Kura uses its control-plane client ID/secret to fetch account-bound policy from
+`GET /_internal/kura/cache-policy?tenant_id=...`. Public client discovery is not
+authority. Concurrent checks coalesce in a separate bounded cache, with at most
+60 seconds of authority measured from request start and no stale-on-outage
+grace. An old/unreachable server, malformed response or missing node credentials
+fails closed. Only absent credentials qualify; present invalid, blank or
+duplicate credentials never downgrade. No peer or storage formats change.
+Restart every server replica to enable/disable; block ingress first for immediate
+revocation because in-flight transfers continue. Upgrade all server and Kura
+replicas before credential-free clients; older nodes refuse unsigned traffic.
+
+### Authenticated cache requests
 
 A token the node can verify itself, whose own claims prove the request, is
 answered from those claims and never reaches the server. What follows is about

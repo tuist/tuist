@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import TuistAlert
+import TuistCore
 import TuistLogging
 import TuistServer
 import TuistXCResultService
@@ -28,6 +29,10 @@ public struct PreparedCoverage: Equatable {
 /// in the coverage's size. The coverage is the `llvm-cov` export the run wrote into its bundle
 /// (`CoverageExport`), or, without one, the bundle's `xccov` report read through the streaming
 /// parser. Failures cost the run its coverage, never the run.
+///
+/// With a coverage output path in the run's metadata (`tuist test --coverage-output-path`), the
+/// tied report is also written there as `<result bundle name>.lcov`, for teams that merge a
+/// sharded run's coverage themselves.
 @Mockable
 public protocol CoverageUploadServicing {
     /// `testRunId` is the id the run will be created with, for an upload that must be made under
@@ -92,6 +97,7 @@ public struct CoverageUploadService: CoverageUploadServicing {
                     ) else { return nil }
                     summary = parsed
                 }
+                await keep(ndjson, of: resultBundlePath)
 
                 let deflated = directory.appending(component: "coverage.ndjson.deflate")
                 try Self.deflate(ndjson, to: deflated)
@@ -134,6 +140,59 @@ public struct CoverageUploadService: CoverageUploadServicing {
         }
     }
 
+    private func keep(_ ndjson: AbsolutePath, of resultBundlePath: AbsolutePath) async {
+        guard let directory = await RunMetadataStorage.current.coverageOutputPath else { return }
+        do {
+            if !(try await fileSystem.exists(directory)) { try await fileSystem.makeDirectory(at: directory) }
+            let destination = directory.appending(component: "\(resultBundlePath.basenameWithoutExt).lcov")
+            try Self.writeLCOV(from: ndjson, to: destination)
+            Logger.current.debug("Wrote the code coverage of \(resultBundlePath.pathString) to \(destination.pathString)")
+        } catch {
+            AlertController.current.warning(
+                .alert(
+                    "Failed to write the code coverage of \(resultBundlePath.pathString) to \(directory.pathString): \(error.localizedDescription)"
+                )
+            )
+        }
+    }
+
+    /// The product files of a tied report as LCOV sections, with repository-relative paths. Test
+    /// files carry no lines in the report, so they are left out.
+    static func writeLCOV(from ndjson: AbsolutePath, to destination: AbsolutePath) throws {
+        guard FileManager.default.createFile(atPath: destination.pathString, contents: nil) else {
+            throw CoverageUploadError.cannotWrite(destination)
+        }
+        let output = try FileHandle(forWritingTo: URL(fileURLWithPath: destination.pathString))
+        defer { try? output.close() }
+        let decoder = JSONDecoder()
+        try CoverageExport.forEachLine(of: ndjson) { line in
+            guard !line.isEmpty else { return }
+            try autoreleasepool {
+                let file = try decoder.decode(XcodeCoverageFile.self, from: Data(line.utf8))
+                guard !file.isTest else { return }
+                // LCOV keys a function by name, and overloads demangle to the same one.
+                let overloaded = Set(Dictionary(grouping: file.functions, by: \.name).filter { $0.value.count > 1 }.keys)
+                var section = "SF:\(file.path)\n"
+                for function in file.functions {
+                    let name = overloaded.contains(function.name)
+                        ? "\(function.name) (line \(function.lineNumber))"
+                        : function.name
+                    section += "FN:\(function.lineNumber),\(name)\n"
+                    section += "FNDA:\(function.executionCount),\(name)\n"
+                }
+                section += "FNF:\(file.functions.count)\n"
+                section += "FNH:\(file.functions.filter { $0.executionCount > 0 }.count)\n"
+                for (number, count) in zip(file.lineNumbers, file.executionCounts) {
+                    section += "DA:\(number),\(count)\n"
+                }
+                section += "LF:\(file.lineNumbers.count)\n"
+                section += "LH:\(file.executionCounts.filter { $0 > 0 }.count)\n"
+                section += "end_of_record\n"
+                try output.write(contentsOf: Data(section.utf8))
+            }
+        }
+    }
+
     /// Raw DEFLATE, the encoding the server inflates for inline bodies and uploads alike,
     /// streamed through the Compression framework so the file never sits in memory whole.
     static func deflate(_ source: AbsolutePath, to destination: AbsolutePath) throws {
@@ -162,7 +221,7 @@ enum CoverageUploadError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .cannotWrite(path): "Could not write the compressed coverage to \(path.pathString)"
+        case let .cannotWrite(path): "Could not write the coverage to \(path.pathString)"
         }
     }
 }

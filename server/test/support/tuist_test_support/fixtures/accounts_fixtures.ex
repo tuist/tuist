@@ -101,7 +101,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         sso_login_domain_verified_at: Keyword.get(opts, :sso_login_domain_verified_at),
         sso_automatic_enrollment:
           Keyword.get(opts, :sso_automatic_enrollment, false) and
-            not Keyword.get(opts, :sso_legacy_email_domain_fallback, false),
+            not Keyword.get(opts, :existing_sso_configuration, false),
         sso_default_role: Keyword.get(opts, :sso_default_role, "user"),
         oauth2_client_id: oauth2_client_id,
         oauth2_client_secret: oauth2_client_secret,
@@ -113,14 +113,10 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         setup_billing: setup_billing
       )
 
-    # Seed the retired database flag directly to exercise pre-switch rows. The
-    # runtime schema intentionally cannot read or write compatibility mode.
+    # Existing unverified organizations can retain enabled policies even though
+    # new configurations must verify their domain before enabling them.
     organization =
-      if Keyword.get(opts, :sso_legacy_email_domain_fallback, false) do
-        Tuist.Repo.update_all(from(o in "organizations", where: o.id == ^organization.id),
-          set: [sso_legacy_email_domain_fallback: true]
-        )
-
+      if Keyword.get(opts, :existing_sso_configuration, false) do
         organization
         |> Ecto.Changeset.change(sso_automatic_enrollment: Keyword.get(opts, :sso_automatic_enrollment, false))
         |> Tuist.Repo.update!()

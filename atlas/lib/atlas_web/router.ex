@@ -126,6 +126,8 @@ defmodule AtlasWeb.Router do
     pipe_through [:api]
 
     get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
+    get "/openid-configuration", EnvironmentIdentityController, :discovery
+    get "/jwks.json", EnvironmentIdentityController, :jwks
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
   end
@@ -166,6 +168,7 @@ defmodule AtlasWeb.Router do
     post "/slack/interactions", SlackEventsController, :interactions
     post "/github/events", GitHubEventsController, :handle
     post "/automation/hooks/:id", AutomationWebhookController, :create
+    post "/signals/:id/mcp-events", SignalEventController, :create, log: false
     post "/inbox/emails", InboxEmailsController, :create
     post "/postal/events", PostalEventsController, :handle
     post "/email/subscriptions", GTMSubscriptionController, :create
@@ -200,10 +203,19 @@ defmodule AtlasWeb.Router do
   scope "/api/native", AtlasWeb do
     pipe_through :native
 
-    get "/orbit/threads", NativeOrbitController, :index
+    get "/orbit/models", NativeOrbitController, :models
+    get "/orbit/threads", NativeOrbitController, :index, log: false
     post "/orbit/threads", NativeOrbitController, :create
     post "/orbit/threads/private", NativeOrbitController, :private
+    get "/orbit/threads/:thread_id/environment-commands", NativeEnvironmentCommandsController, :index
+
+    post "/orbit/threads/:thread_id/environment-commands/:command_id/cancel",
+         NativeEnvironmentCommandsController,
+         :cancel
+
     patch "/orbit/threads/:id", NativeOrbitController, :update
+    patch "/orbit/threads/:id/model", NativeOrbitController, :model
+    patch "/orbit/threads/:id/environment", NativeOrbitController, :environment
     get "/orbit/threads/:id/people", NativeOrbitController, :people
     get "/orbit/threads/:id/messages", NativeOrbitController, :messages
     post "/orbit/threads/:id/messages", NativeOrbitController, :post_message
@@ -230,6 +242,20 @@ defmodule AtlasWeb.Router do
   scope "/api/me", AtlasWeb do
     pipe_through :native
 
+    get "/connections", ConnectionController, :index, log: false
+    get "/business-profile", BusinessProfileController, :show, log: false
+    put "/business-profile", BusinessProfileController, :update, log: false
+    delete "/connections/:provider", ConnectionController, :delete, log: false
+    post "/connections/:provider/authorize", ConnectionController, :prepare, log: false
+
+    get "/environments", EnvironmentsController, :index
+    put "/environments/:id", EnvironmentsController, :update
+    delete "/environments/:id", EnvironmentsController, :delete
+    get "/environments/:id/commands", EnvironmentsController, :commands
+    post "/environments/:id/commands/:command_id/claim", EnvironmentsController, :claim
+    post "/environments/:id/commands/:command_id/result", EnvironmentsController, :result
+    post "/environments/:id/commands/:command_id/progress", EnvironmentsController, :progress
+
     get "/orbit-live-activity", OrbitLiveActivityController, :show
     put "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :update
     delete "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :delete
@@ -240,7 +266,8 @@ defmodule AtlasWeb.Router do
 
     for route <- Interfaces.routes() do
       match route.method, route.path, AutomationController, route.operation,
-        private: %{automation_parameters: route.parameters}
+        private: %{automation_parameters: route.parameters},
+        log: false
     end
 
     match :*, "/automation/*path", AutomationController, :unsupported
@@ -350,6 +377,9 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through [:browser, :require_auth]
 
+    get "/connections/:provider/authorize", ConnectionController, :authorize, log: false
+    get "/connections/:provider/callback", ConnectionController, :callback, log: false
+
     post "/settings/llm-providers/claude", LLMConnectionsController, :save_claude_browser
 
     live_session :authenticated_account,
@@ -357,6 +387,7 @@ defmodule AtlasWeb.Router do
       layout: {AtlasWeb.Layouts, :account} do
       live "/settings", AccountSettingsLive, :index
       live "/settings/llm-providers", LLMProviderSettingsLive, :index
+      live "/settings/connections", ConnectionsLive, :index
     end
 
     live_session :authenticated_dashboard,

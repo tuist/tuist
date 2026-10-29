@@ -3,6 +3,7 @@ defmodule Tuist.AccountsTest do
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
@@ -2841,6 +2842,62 @@ defmodule Tuist.AccountsTest do
       %{user: user_fixture()}
     end
 
+    test "a delivery failure does not suppress an immediate retry", %{user: user} do
+      stub(Bamboo.TestAdapter, :deliver, fn _email, _config ->
+        {:error, Bamboo.ApiError.exception("mail provider unavailable")}
+      end)
+
+      log =
+        capture_log(fn ->
+          assert {:error, :delivery_failed} =
+                   Accounts.deliver_user_reset_password_instructions(%{
+                     user: user,
+                     reset_password_url: &"https://example.com/users/reset_password/#{&1}"
+                   })
+        end)
+
+      assert log =~ "Password reset email delivery failed"
+      refute log =~ "mail provider unavailable"
+      refute log =~ user.email
+
+      refute Repo.exists?(from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"))
+
+      stub(Bamboo.TestAdapter, :deliver, fn email, config ->
+        Mimic.call_original(Bamboo.TestAdapter, :deliver, [email, config])
+      end)
+
+      token =
+        extract_user_token(fn reset_password_url ->
+          Accounts.deliver_user_reset_password_instructions(%{
+            user: user,
+            reset_password_url: reset_password_url
+          })
+        end)
+
+      assert Accounts.get_user_by_reset_password_token(token).id == user.id
+      assert_receive {:delivered_email, email}
+      assert email.to == [nil: user.email]
+    end
+
+    test "a delivery failure preserves a replacement token if its own token was already removed", %{user: user} do
+      {replacement_token, replacement_user_token} = UserToken.build_email_token(user, "reset_password")
+
+      stub(Bamboo.TestAdapter, :deliver, fn _email, _config ->
+        # A reset on another replica can remove the in-flight delivery's token.
+        Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
+        Repo.insert!(replacement_user_token)
+        {:error, Bamboo.ApiError.exception("mail provider unavailable")}
+      end)
+
+      assert {:error, :delivery_failed} =
+               Accounts.deliver_user_reset_password_instructions(%{
+                 user: user,
+                 reset_password_url: &"https://example.com/users/reset_password/#{&1}"
+               })
+
+      assert Accounts.get_user_by_reset_password_token(replacement_token).id == user.id
+    end
+
     test "sends token through notification", %{user: user} do
       token =
         extract_user_token(fn reset_password_url ->
@@ -4493,7 +4550,7 @@ defmodule Tuist.AccountsTest do
         AccountsFixtures.organization_fixture(
           sso_provider: :oauth2,
           sso_organization_id: "https://example.com",
-          sso_legacy_email_domain_fallback: true,
+          existing_sso_configuration: true,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret",
           oauth2_authorize_url: "https://example.com/authorize",
@@ -4526,7 +4583,7 @@ defmodule Tuist.AccountsTest do
       AccountsFixtures.organization_fixture(
         sso_provider: :okta,
         sso_organization_id: "example.okta.com",
-        sso_legacy_email_domain_fallback: true,
+        existing_sso_configuration: true,
         oauth2_client_id: "legacy-client-id",
         oauth2_client_secret: "legacy-client-secret"
       )
@@ -4637,7 +4694,7 @@ defmodule Tuist.AccountsTest do
           sso_provider: :oauth2,
           sso_organization_id: "https://login.vendor.example",
           sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true,
+          existing_sso_configuration: true,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret",
           oauth2_authorize_url: "https://login.vendor.example/authorize",
@@ -4656,7 +4713,7 @@ defmodule Tuist.AccountsTest do
           sso_provider: :oauth2,
           sso_organization_id: "https://login.vendor.example",
           sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true,
+          existing_sso_configuration: true,
           sso_login_domain: "example.com",
           sso_login_domain_verification_token: "verification-token",
           oauth2_client_id: "client-id",
@@ -4695,7 +4752,7 @@ defmodule Tuist.AccountsTest do
         AccountsFixtures.organization_fixture(
           sso_login_domain: "example.com",
           sso_login_domain_verification_token: "verification-token",
-          sso_legacy_email_domain_fallback: true
+          existing_sso_configuration: true
         )
 
       expect(SSOLoginDomainVerification, :verified?, fn "example.com", "verification-token" -> true end)
@@ -6433,7 +6490,7 @@ defmodule Tuist.AccountsTest do
         sso_login_domain: Keyword.get(opts, :sso_login_domain),
         sso_login_domain_verification_token: Keyword.get(opts, :sso_login_domain_verification_token),
         sso_login_domain_verified_at: Keyword.get(opts, :sso_login_domain_verified_at),
-        sso_legacy_email_domain_fallback: Keyword.get(opts, :sso_legacy_email_domain_fallback, false),
+        existing_sso_configuration: Keyword.get(opts, :existing_sso_configuration, false),
         oauth2_client_id: "client-id",
         oauth2_client_secret: "client-secret"
       )
@@ -6488,11 +6545,11 @@ defmodule Tuist.AccountsTest do
       refute Accounts.sso_enforced_for_email?("unknown@example-sso.com")
     end
 
-    test "does not enforce SSO for a nonmember through the retired compatibility flag" do
+    test "does not enforce SSO for a nonmember of an existing unverified organization" do
       _org =
         sso_enforced_organization_fixture(
           sso_organization_id: "example.okta.com",
-          sso_legacy_email_domain_fallback: true
+          existing_sso_configuration: true
         )
 
       refute Accounts.sso_enforced_for_email?("unknown@example.com")

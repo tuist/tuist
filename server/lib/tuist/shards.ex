@@ -91,7 +91,7 @@ defmodule Tuist.Shards do
       storage_target:
         ShardStorage.select(project, Repo.preload(project, :account).account, Keyword.get(opts, :runner_grant)),
       reporting_version:
-        if(FeatureFlags.immutable_shard_reports_enabled?(Repo.preload(project, :account).account), do: 1, else: 0)
+        if(FeatureFlags.immutable_shard_reports_enabled?(Repo.preload(project, :account)), do: 1, else: 0)
     }
 
     plan = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> Ecto.Changeset.apply_action!(:insert)
