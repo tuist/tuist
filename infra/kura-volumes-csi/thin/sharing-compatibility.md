@@ -250,6 +250,13 @@ churn was 160.19–161.26 MiB/s against 163.25–163.70 on shared XFS, with abou
 no demonstrated throughput winner between unit backends in this workload;
 the earlier direct-I/O regressions remain separate evidence.
 
+The October 29 investigation traced most of that small-write penalty to XFS
+inferring a 128 KiB log stripe. Fresh thin volumes now pin a 4 KiB log stripe;
+matched warm PUT p95 fell from 34.92–35.72 to 30.58–31.33 ms. A full cache replay
+measured about 1.3% lower churn throughput with that correction, so it is not a
+blanket no-regression claim. The storage identities, backing rules and sharing
+API are unchanged. See the [investigation and tradeoffs](borrowed/validation.md#small-upload-latency-investigation--october-29).
+
 The policy direction is now concrete: reuse target calculation, add a CSI backend
 and asynchronous effective-grant reconciliation, and keep backing attached to
 whole units until verified deletion. The runtime placement/recovery change is

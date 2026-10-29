@@ -117,6 +117,11 @@ group counts and log stripes from device hints; separate controls override the
 log stripe alone and the full data geometry, recording actual `xfs_info` output.
 It does not publish images or change any cluster.
 
+`thin_quota` retains the original inferred log stripe as the regression control;
+`thin_log4k` represents the corrected fresh-volume format. The job also runs the
+real CSI lifecycle qualification on 64 KiB and 512 KiB pools and checks the
+resulting filesystem's log geometry. Existing filesystems are not reformatted.
+
 Each configuration records the original 400-request cold PUT/GET phase, then a
 separate 400-write warmup and 4,000-request PUT/GET phase, with cgroup counters
 around both. Serial 16 KiB writes compare fresh allocation, overwrite, and

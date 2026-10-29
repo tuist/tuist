@@ -4,6 +4,196 @@ This record concerns the disposable prototype in this directory. It is not
 approval to enroll hosted nodes, ship the experimental segment layout, remove
 per-device backing, or declare the production sharing backend implemented.
 
+## Small-upload latency investigation — October 29
+
+The October 28 result (shared XFS 28.93–32.99 ms versus thin units
+35.77–38.37 ms at 16 KiB PUT p95) was a **whole-layout comparison**, not a
+measurement of encryption alone. It sampled 400 small PUTs over roughly one
+second per run. Thick and thin paths also differed in project quotas,
+`submit_from_crypt_cpus`, reflinks, and device-derived XFS geometry.
+
+### Method and initial controls
+
+The investigation used the same Paris EPYC 7232P/NVMe node, kernel
+6.8.0-146-generic, and pinned runtime digest
+`2c7e3ddc67bd196452663078c9f95bf8dd17a654d8bb0d9c0c388bc8c072ab43`.
+The runtime remained at one CPU/768 MiB and a 4 GiB cache; the same-node client
+had two CPUs/2 GiB. Each fresh LV was 13 GiB. Only one runtime was active at a
+time, and layouts ran forward then reverse. Each sample collected a cold
+400-PUT/400-GET phase, a separately reported 400-write warmup, and then
+4,000 PUTs plus 4,000 checksum-verified GETs at concurrency eight. Generation of
+request bodies was outside timed phases. The longer phases measure small
+requests without eviction; they do not replace the earlier churn benchmark.
+
+Volumes came only from free extents in a private 32 GiB staging pool and a
+separate temporary thick LV. A 64 MiB virtual sentinel kept the diagnostic
+pool active during thick controls. No CSI template, tenant PVC, server
+configuration, or enrollment setting changed. Keys and authentication were
+synthetic: this isolates storage I/O and does not repeat OpenBao authorization
+qualification. API TLS timeouts affected setup, not the timed pod-IP HTTP path.
+
+The initial 16 samples passed **147,200 requests with zero failures and no
+runtime OOM kills**. The plain control below is a fresh plain LV with the test
+format, **not the existing shared-XFS production-style baseline**. `Matched`
+means matching explicit mkfs arguments, not identical effective geometry.
+
+| Configuration | Cold PUT p95 ms | Warm PUT p95 ms | Fresh sync p95 ms | Overwrite sync p95 ms | Warm CPU s | Warm throttled periods |
+|---|---:|---:|---:|---:|---:|---:|
+| plain_matched | 24.57–24.63 | 26.17–26.53 | 3.59–3.63 | 2.35–3.93 | 8.78–8.80 | 14–18 |
+| thick_legacy | 32.89–35.37 | 29.30–29.40 | 3.87–5.02 | 1.51–4.01 | 9.15–9.15 | 11–11 |
+| thick_matched | 31.65–31.75 | 28.93–29.92 | 3.76–3.93 | 1.45–4.00 | 9.10–9.14 | 11–11 |
+| thick_quota | 27.05–29.63 | 29.82–30.46 | 3.82–3.98 | 1.43–3.55 | 9.27–9.32 | 10–11 |
+| thin_noquota | 32.23–37.80 | 34.44–35.62 | 7.75–7.81 | 1.47–3.99 | 8.87–8.99 | 6–7 |
+| thin_quota | 32.87–38.32 | 35.64–36.29 | 7.79–7.87 | 1.65–4.04 | 8.95–8.97 | 5–6 |
+| thin_legacy_crypto | 30.64–36.93 | 34.75–35.48 | 7.85–8.04 | 1.53–1.58 | 8.96–8.97 | 6–6 |
+| thin_legacy_format | 35.26–38.51 | 36.00–36.05 | 7.79–7.83 | 1.44–4.07 | 8.95–9.14 | 6–6 |
+
+The matched-argument thick/thin midpoint gap was **5.6 ms without quotas**
+and **5.8 ms with quotas**. Removing quotas, reverting crypto submission, or
+restoring reflinks did not recover most of it. Thin runtime CPU was comparable
+or lower, with fewer throttled periods in the aggregate warm PUT/GET counters;
+those counters do not time CPU throttling per individual request.
+
+### Durability, premapping and inferred filesystem geometry
+
+A separate serial probe wrote 1,024 chunks of 16 KiB, recording write and
+`fdatasync` duration separately, then overwrote the same file and finally tested
+buffered writes with a final sync. Fresh-write mean sync latency was
+3.60–3.67 ms on the matched thick control and 4.94–4.98 ms on thin without
+quotas. Overwrite means overlapped: 1.40–1.48 versus 1.43–1.52 ms. This suggested
+an allocation/durability interaction but did not identify its layer.
+
+A second four-sample run passed **36,800 requests**, with zero failures. It
+compared ordinary thin storage to an otherwise identical thin LV whose entire
+13 GiB was mapped by direct writes before LUKS/XFS formatting. Exact mapped
+sectors were checked before and after formatting; `mkfs -K` preserved the maps.
+Premapping improved warmed PUT p95 from **35.32–35.77 to 34.12–34.82 ms**. It did
+not recover the full gap, so thin allocation alone was an incomplete explanation.
+Premapping was a diagnostic, not an admission or production-layout change.
+
+Inspecting `xfs_info` revealed why matching command arguments was insufficient.
+The thick controls had four allocation groups and no data/log stripe. Thin
+controls inferred sixteen groups, a 128 KiB data stripe unit, a 512 KiB data
+stripe width, and a **128 KiB log stripe** from block-device hints. All had a
+64 MiB log. Restoring the legacy mkfs arguments changed reflinks but left this
+inferred thin geometry in place.
+
+At the underlying RAID device, runtime-cgroup write counters for the same warm
+phase were **88.5–89.3 MiB on matched thick controls versus 456.3–469.3 MiB on
+thin controls**, with similar write counts. These are attributable cgroup bytes,
+not a complete measurement of all host or thin-metadata work. The upstream
+[XFS format documentation](https://kernel.googlesource.com/pub/scm/fs/xfs/xfsprogs-dev/+/refs/heads/master/man/man8/mkfs.xfs.8.in)
+explains that log writes are rounded to the log stripe boundary. This made
+inferred journal padding a testable cause of write amplification.
+
+A third six-sample Paris run changed the log stripe alone (`-l size=64m,su=4k`),
+then tested full flat geometry (`-d noalign,agcount=4`) separately. Both retained
+LUKS, project quotas, the 64 MiB log, and all durability operations. All
+**55,200 requests passed**.
+
+| Thin format | Warm 16 KiB PUT p95 | Warm attributable writes | Fresh sync p95 |
+| --- | ---: | ---: | ---: |
+| Original inferred 128 KiB log stripe | 34.92–35.72 ms | 469.41–474.05 MiB | 7.85–7.86 ms |
+| Explicit 4 KiB log stripe, same data geometry | 30.58–31.33 ms | 93.55–93.75 MiB | 6.51–6.54 ms |
+| Fully flat geometry, four allocation groups | 30.25–30.55 ms | 89.08–89.28 MiB | 6.35–6.59 ms |
+
+The log-only change recovered **4.36 ms at warm p95 sample midpoints** and
+reduced attributable writes by about **80%**. This is causal evidence for the
+inferred log stripe as the dominant avoidable component in this workload.
+It does not prove that encryption or thin mapping has zero residual cost.
+The contemporaneous matched thick/quota control was 29.82–30.46 ms; the corrected
+thin control remains slightly slower. The original shared-XFS 28.93–32.99 ms
+range came from a different short benchmark and is not a statistical-equivalence
+claim for these extended tests.
+
+Commit `cd3ed558fa9` pins only the log stripe for **newly formatted thin
+volumes**, including children through their shared NodeStageVolume path. It
+retains data alignment, allocation-group selection, encryption, quotas, reserve
+accounting, and sync barriers. Restage does not reformat an existing filesystem;
+old volumes need the established staged replacement to adopt the new geometry.
+Staging exercised the exact format command on isolated real LVs with the
+unchanged deployed CSI image; the changed Go driver is separately compiled and
+exercised by the disposable-VM lifecycle test, including an `xfs_info` assertion.
+
+A final fresh-volume ABBA replay used the original full cache client from the
+pinned image: 400 small PUT/GETs, 64 large PUT/GETs, 6 GiB of eviction churn,
+post-churn reads, then a separate 1 GiB corpus with shuffled checksum reads.
+All **12,160 requests passed with zero runtime OOM kills**.
+
+| Layout | Small PUT p95 ms | Large PUT p95 ms | Churn MiB/s | Working-set GET MiB/s | Runtime CPU s |
+|---|---:|---:|---:|---:|---:|
+| thin_quota | 34.15–35.61 | 270.16–270.58 | 156.06–157.19 | 462.34–487.92 | 42.43–42.93 |
+| thin_log4k | 28.42–33.12 | 272.61–283.94 | 154.63–154.68 | 466.14–493.69 | 43.23–43.30 |
+
+The short full-run small-PUT p95 improved, consistently with the longer
+diagnostic. Churn was **about 1.3% lower at sample midpoints**, runtime CPU
+about 1.4% higher, and large-PUT p95 slightly higher with the correction.
+Read-throughput ranges overlapped. This is a measured tradeoff, not a
+no-regression or statistical-equivalence claim. It must remain visible in
+the release decision. Reducing the log stripe also lowers [XFS's default log-buffer size](https://www.man7.org/linux/man-pages/man5/xfs.5.html)
+from 128 to 32 KiB on this stack; that could contribute to the bulk-workload change,
+but this experiment did not independently test buffer sizing. No buffer-size
+tuning is shipped or claimed as a remedy.
+
+Kura's segment and WAL durability waits are on the acknowledgment path. Small
+uploads expose fixed sync costs; larger writes can amortize them. Linux also
+commits changed thin mappings before completing the associated flush/FUA, as
+shown in the [Linux 6.8 thin target](https://github.com/torvalds/linux/blob/v6.8/drivers/md/dm-thin.c#L696).
+The experiment distinguishes these mechanisms; it does not assign every
+millisecond to a particular kernel function or establish fleet-wide equivalence.
+
+### Reproducibility, limits and cleanup
+
+The bounded client now supports `-small-only -small-count 4000 -warmup 400` and
+explicit concurrency. Its CLI test verifies separate warmup counts and rejects
+corrupt checksum responses. `go test ./...` and `go vet ./...` passed. Ruby
+syntax and actionlint passed (the latter excludes the repository's existing
+custom-runner-label warnings).
+
+The reusable disposable-VM `latency_stack.rb` and dispatch-only
+`latency_only=true` job cover the same factors and publish no image. Initial
+run [40854445950](https://github.com/tuist/tuist/actions/runs/40854445950) failed
+before measurement because the pool was inactive during a thick control;
+cleanup passed. An empty sentinel corrected the harness. Run
+[40854959458](https://github.com/tuist/tuist/actions/runs/40854959458) passed
+16 samples/147,200 requests and cleanup. The geometry-expanded run
+[40858913871](https://github.com/tuist/tuist/actions/runs/40858913871) passed
+20 samples/184,000 requests and cleanup. VM HTTP tails were noisy and used a
+loop-backed disk/kernel 7.0.0-1017-azure; they are not substituted for Paris
+measurements. The artifact retains actual geometry and per-phase counters.
+
+The fix qualification run
+[40860709975](https://github.com/tuist/tuist/actions/runs/40860709975), source
+`cd3ed558fa9`, passed another 20-sample/184,000-request VM comparison and
+`TestThinRealStack` on both 64 KiB and 512 KiB pools (21.64 and 22.02 seconds).
+Those tests executed rather than skipped: each logged the actual 4 KiB stripe,
+and passed quota/reclaim, failed-discard and intent recovery, retained backing,
+restart checksums, concurrent admission, reserve refusal and deletion checks.
+
+Across the four Paris experiments, **251,360 requests passed with zero reported
+failures and zero runtime OOM kills**. Each run removed its own runtime/client,
+synthetic authentication Secret, LV, mapper, mount, pool and sentinel. The final
+VG has only its original `data` LV and exactly **812,541,542,400 free bytes**,
+matching the initial inventory. The original CSI Pod UID and deployment were
+retained; production was not mutated. No global cache drop, forced/lazy
+unmount, or uncertain-backing deletion was used. The toolchain was cryptsetup
+2.7.0, XFS tools 6.6.0 and LVM 2.03.16; the RAID1 arrays were healthy, with no
+resynchronization running at the recorded health check.
+
+Raw local reports (no credentials) are retained outside the source tree with
+these SHA-256 hashes:
+
+- `kura-latency-paris-results.json`: `11176657ddfb6904911cc4c934962ac6423e7961bab425c8f4e5b79b28af3412`
+- `kura-latency-premapped-results.json`: `6044f6050dceccb1a5b859668607bad5e8373fe28ef85dc689d8771411997ecb`
+- `kura-latency-geometry-results.json`: `e7763024cd579d8818c47756204b98f2d4de732dd394c88e6a001077c07091ad`
+- `kura-latency-full-results.json`: `f56c0d50f10b9b778a9a39cb80412c0921019f7502d61836e26cc31f4b74bab9`
+
+Earlier direct-I/O/QD32 read regressions remain separate evidence. These
+bounded cache controls do not establish fleet-wide equivalence, node power-loss
+recovery, supported production runtime layout, or regional capacity/memory gains.
+Production-format changes need those applicable gates; this investigation does
+not waive them.
+
 ## Real Kubernetes/OpenBao qualification on Paris staging
 
 The isolated October 28 fixture runs on
@@ -122,7 +312,7 @@ The thin-vs-thick unit difference is under 1%; two samples do not establish a
 throughput winner. The large thin-unit penalty from loop-backed VMs did not
 reproduce in this one-CPU hosted workload. Runtime cgroup CPU stayed similar.
 
-The notable latency cost remains small uploads: thin-unit 16 KiB PUT p95 was
+In the October 28 build, the notable latency cost was small uploads: thin-unit 16 KiB PUT p95 was
 **35.77–38.37 ms**, versus **28.93–32.99 ms** on shared XFS (about **6.1 ms** at
 midpoints). Thick-unit small PUT latency overlapped the shared baseline. Large
 PUT p95 and checksum-read results do not show the same slowdown in these samples.
