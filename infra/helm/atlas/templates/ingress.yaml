@@ -11,6 +11,8 @@ metadata:
     {{- end }}
     # external-dns picks the host out of `spec.tls.hosts` + `rules.host`.
     nginx.ingress.kubernetes.io/proxy-body-size: 25m
+    # Leave headroom above inference's default 300-second upstream receive timeout.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "360"
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
@@ -26,34 +28,6 @@ spec:
       http:
         paths:
           - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "atlas.fullname" . }}
-                port:
-                  name: http
----
-# Allow long non-streaming inference responses, with headroom above Atlas's
-# default 300-second per-attempt receive timeout. Scope this read timeout to the
-# relay; TLS and cert-manager ownership stay on the main Ingress.
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {{ include "atlas.fullname" . }}-inference
-  labels:
-    {{- include "atlas.labels" . | nindent 4 }}
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: 25m
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "360"
-spec:
-  {{- if .Values.ingress.className }}
-  ingressClassName: {{ .Values.ingress.className }}
-  {{- end }}
-  rules:
-    - host: {{ .Values.host }}
-      http:
-        paths:
-          - path: /inference/v1/
             pathType: Prefix
             backend:
               service:

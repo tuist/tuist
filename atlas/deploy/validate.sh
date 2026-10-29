@@ -85,14 +85,6 @@ bash "$chart/test-push-config.sh"
 bash "$root/atlas/deploy/test-sandbox-retention.sh"
 helm template standalone "$chart" > "$work/standalone.yaml"
 helm template atlas "$chart" --values "$chart/values-managed-production.yaml" > "$work/managed.yaml"
-# Keep the extended timeout exclusive to the inference route.
-yq -o=json '.' "$work/managed.yaml" | jq --slurp --exit-status '
-  [.[] | select(.kind == "Ingress") |
-    .metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"] as $timeout |
-    select($timeout != null) |
-    {timeout: $timeout, paths: [.spec.rules[].http.paths[].path]}
-  ] == [{timeout: "360", paths: ["/inference/v1/"]}]
-' > /dev/null
 if grep -Eq 'kind: (ExternalSecret|Cluster)|tuist-server-token|atlas.tuist.dev' "$work/standalone.yaml"; then
   echo 'Standalone chart unexpectedly depends on managed infrastructure' >&2
   exit 1
