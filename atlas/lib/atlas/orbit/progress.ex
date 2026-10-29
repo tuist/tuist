@@ -1,7 +1,7 @@
 defmodule Atlas.Orbit.Progress do
   @moduledoc """
   Payload-free Condukt compaction activity for the authorized Phoenix snapshot.
-  Completion notices explain actual pruning without deleting thread history.
+  Completion notices report compacted context without claiming its adoption.
   """
 
   import Ecto.Query
@@ -25,9 +25,9 @@ defmodule Atlas.Orbit.Progress do
     )
   end
 
-  # ToolResultPrune checks before every turn, even when nothing needs pruning.
-  # It does no model work: publishing each start invents a repeated busy phase
-  # and blocks the model loop on two database writes for every no-op check.
+  # Background work does not block ordinary inference. A callback stop means
+  # its summary is ready, not necessarily adopted: Condukt owns that boundary.
+  # Keep the run running and report only successful, changed callbacks.
   def handle_event(
         [:condukt, :compact, :stop],
         _measurements,
@@ -59,7 +59,7 @@ defmodule Atlas.Orbit.Progress do
             Orbit.append!(thread, %{
               kind: "system",
               run_id: current.id,
-              body: "Context compacted. Older tool results were shortened; thread history is unchanged."
+              body: "A compacted version of older context is ready. Thread history is unchanged."
             })
           end
 
