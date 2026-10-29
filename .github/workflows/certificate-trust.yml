@@ -14,6 +14,13 @@ on:
       - infra/linux-runner-image/cmd/tuist-cache-volume/**
       - .github/workflows/certificate-trust.yml
       - infra/macos-log-shipper/**
+      - server/config/runtime.exs
+      - server/lib/tuist/application.ex
+      - server/lib/tuist/application/certificate_trust.ex
+      - server/test/tuist/application/certificate_trust_test.exs
+      - server/test/tuist/application/fixtures/**
+      - .github/workflows/server-deployment.yml
+      - .github/scripts/xcresult-processor-rollout.test.mjs
   push:
     branches: [main]
     paths:
@@ -28,6 +35,13 @@ on:
       - infra/linux-runner-image/cmd/tuist-cache-volume/**
       - .github/workflows/certificate-trust.yml
       - infra/macos-log-shipper/**
+      - server/config/runtime.exs
+      - server/lib/tuist/application.ex
+      - server/lib/tuist/application/certificate_trust.ex
+      - server/test/tuist/application/certificate_trust_test.exs
+      - server/test/tuist/application/fixtures/**
+      - .github/workflows/server-deployment.yml
+      - .github/scripts/xcresult-processor-rollout.test.mjs
   workflow_dispatch:
 
 permissions:
@@ -38,6 +52,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  xcresult-runtime:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: erlang elixir node
+      - name: Test processor trust without starting the server or modifying host trust
+        working-directory: server
+        run: elixir -r lib/tuist/application/certificate_trust.ex -e 'ExUnit.start(); Code.require_file("test/tuist/application/certificate_trust_test.exs")'
+      - run: npm ci --ignore-scripts
+      - name: Test the canary processor readiness gate without cluster access
+        run: node --test .github/scripts/xcresult-processor-rollout.test.mjs
   test:
     # Cache-volume filesystem regressions need user xattrs, absent on fleet /tmp.
     runs-on: ubuntu-latest
