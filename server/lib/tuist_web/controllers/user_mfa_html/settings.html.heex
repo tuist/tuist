@@ -1,0 +1,90 @@
+<.link_frame
+  title={dgettext("dashboard_auth", "Two-factor authentication")}
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "Protect your account with an authenticator app and recovery codes."
+    )
+  }
+>
+  <.alert :if={@error} type="secondary" status="error" size="small" title={@error} />
+  <%= if @enabled do %>
+    <p>
+      {dgettext(
+        "dashboard_auth",
+        "Two-factor authentication is enabled for all new browser sign-ins, including single sign-on."
+      )}
+    </p>
+    <form id="mfa-disable" method="post" action={~p"/users/settings/mfa/disable"} data-part="form">
+      <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+      <.text_input
+        id="mfa-code"
+        name="mfa_code"
+        value=""
+        label={dgettext("dashboard_auth", "Authentication or recovery code")}
+        show_prefix={false}
+        autocomplete="one-time-code"
+        required
+      />
+      <.button
+        variant="secondary"
+        size="large"
+        type="submit"
+        label={dgettext("dashboard_auth", "Disable two-factor authentication")}
+      />
+    </form>
+  <% else %>
+    <%= if @secret do %>
+      <p>
+        {dgettext(
+          "dashboard_auth",
+          "Add this setup key to your authenticator app, then enter its six-digit code. The key expires in five minutes."
+        )}
+      </p>
+      <code id="mfa-setup-key">{Base.encode32(@secret, padding: false)}</code>
+      <form
+        id="mfa-enrollment"
+        method="post"
+        action={~p"/users/settings/mfa/confirm"}
+        data-part="form"
+      >
+        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+        <.text_input
+          id="mfa-code"
+          name="mfa_code"
+          value=""
+          label={dgettext("dashboard_auth", "Authentication code")}
+          show_prefix={false}
+          autocomplete="one-time-code"
+          required
+        />
+        <.button
+          variant="primary"
+          size="large"
+          type="submit"
+          label={dgettext("dashboard_auth", "Enable two-factor authentication")}
+        />
+      </form>
+    <% else %>
+      <form method="post" action={~p"/users/settings/mfa/enroll"} data-part="form">
+        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+        <.button
+          variant="primary"
+          size="large"
+          type="submit"
+          label={dgettext("dashboard_auth", "Set up authenticator app")}
+        />
+      </form>
+    <% end %>
+  <% end %>
+  <p>
+    {dgettext(
+      "dashboard_auth",
+      "Changing your factor requires signing in within the last five minutes. Password resets do not remove it. Keep recovery codes somewhere safe."
+    )}
+  </p>
+  <a href={TuistWeb.Authentication.signed_in_path(@current_user)}>{dgettext(
+    "dashboard_auth",
+    "Back to dashboard"
+  )}</a>
+</.link_frame>

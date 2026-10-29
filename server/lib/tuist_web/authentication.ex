@@ -13,6 +13,8 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserMFA
+  alias Tuist.Accounts.UserToken
   alias Tuist.Analytics
   alias Tuist.Authorization
   alias Tuist.Projects
@@ -21,12 +23,8 @@ defmodule TuistWeb.Authentication do
 
   @current_user_key :current_user
   @current_project_key :current_project
-  # Make the remember me cookie valid for 60 days.
-  # If you want bump or reduce this value, also change
-  # the token expiry itself in UserToken.
-  @max_age 60 * 60 * 24 * 60
   @remember_me_cookie "_tuist_web_user_remember_me"
-  @remember_me_options [sign: true, max_age: @max_age, same_site: "Lax"]
+  @remember_me_options [sign: true, max_age: UserToken.session_absolute_seconds(), same_site: "Lax"]
 
   def authenticated?(%Plug.Conn{} = conn), do: authenticated?(conn.assigns)
 
@@ -173,7 +171,33 @@ defmodule TuistWeb.Authentication do
   if you are not using LiveView.
   """
   def log_in_user(conn, user, params \\ %{}) do
-    token = Accounts.generate_user_session_token(user)
+    if UserMFA.enabled?(user) and is_nil(Map.get(params, :mfa_verified_at)) do
+      challenge = UserMFA.create_challenge(user, params)
+
+      conn
+      |> configure_session(renew: true)
+      |> delete_session(:user_token)
+      |> delete_session(:live_socket_id)
+      |> delete_session(:auth_method)
+      |> delete_resp_cookie(@remember_me_cookie)
+      |> put_session(:pending_mfa, challenge)
+      |> put_session(:pending_mfa_remember, params["remember_me"] == "true")
+      |> maybe_put_post_invitation_context(params[:post_invitation_return_to], user.id, params[:post_invitation_token])
+      |> redirect(to: ~p"/users/mfa")
+      |> halt()
+    else
+      token = Accounts.generate_user_session_token(user, params)
+      complete_user_login(conn, user, token, params)
+    end
+  end
+
+  # MFA issues the credential atomically with proof consumption. Binding its
+  # existing token to the cookie must not mint a replacement after revocation.
+  def log_in_user_session(conn, %UserToken{context: "session"} = session, params) do
+    complete_user_login(conn, session.user, session.token, params)
+  end
+
+  defp complete_user_login(conn, user, token, params) do
     user_return_to = get_session(conn, :user_return_to)
     auth_method = Map.get(params, :auth_method, :password)
 
@@ -257,6 +281,7 @@ defmodule TuistWeb.Authentication do
   def log_out_user(conn, opts \\ []) do
     user_token = get_session(conn, :user_token)
     user_token && Accounts.delete_user_session_token(user_token)
+    if challenge = get_session(conn, :pending_mfa), do: UserMFA.delete_challenge(challenge)
 
     if live_socket_id = get_session(conn, :live_socket_id) do
       TuistWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
@@ -282,12 +307,24 @@ defmodule TuistWeb.Authentication do
   """
   def fetch_current_user(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
-    user = user_token && Accounts.get_user_by_session_token(user_token, preload: [:account])
+    session = user_token && Accounts.get_user_session(user_token, preload: [:account], touch: true)
     # A session resumed from the remember-me cookie is still the account being
     # used, so it has to count as activity. Otherwise a user who never logs in
     # again because they never log out looks dormant.
-    user = user && Accounts.touch_last_sign_in(user)
-    assign(conn, :current_user, user)
+    user = session && Accounts.touch_last_sign_in(session.user)
+
+    conn =
+      if user_token && is_nil(session) do
+        conn
+        |> delete_session(:user_token)
+        |> delete_session(:live_socket_id)
+        |> delete_session(:auth_method)
+        |> delete_resp_cookie(@remember_me_cookie)
+      else
+        conn
+      end
+
+    conn |> assign(:current_user, user) |> assign(:current_user_session, session)
   end
 
   defp ensure_user_token(conn) do
@@ -369,12 +406,70 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  def on_mount(:require_sso_authentication, params, _session, socket) do
+    socket |> Phoenix.Component.assign(:sso_route_params, params) |> enforce_live_sso()
+  end
+
   def mount_current_user(socket, session) do
-    Phoenix.Component.assign_new(socket, :current_user, fn ->
-      if user_token = session["user_token"] do
-        Accounts.get_user_by_session_token(user_token, preload: [:account])
-      end
-    end)
+    token = session["user_token"]
+    user_session = token && Accounts.get_user_session(token, preload: [:account])
+
+    socket =
+      socket
+      |> Phoenix.Component.assign(:current_user, user_session && user_session.user)
+      |> Phoenix.Component.assign(:current_user_session, user_session)
+
+    if user_session && socket.router && LiveView.connected?(socket) do
+      schedule_session_check(user_session)
+
+      socket
+      |> LiveView.attach_hook(:browser_session, :handle_event, fn _, _, socket ->
+        check_live_session(socket, token, touch: true)
+      end)
+      |> LiveView.attach_hook(:browser_session, :handle_params, fn _, _, socket ->
+        check_live_session(socket, token, touch: true)
+      end)
+      |> LiveView.attach_hook(:browser_session, :handle_info, fn
+        :check_browser_session, socket ->
+          case check_live_session(socket, token, []) do
+            {:cont, socket} ->
+              schedule_session_check(socket.assigns.current_user_session)
+              {:halt, socket}
+
+            halted ->
+              halted
+          end
+
+        _, socket ->
+          {:cont, socket}
+      end)
+    else
+      socket
+    end
+  end
+
+  defp schedule_session_check(session) do
+    remaining = DateTime.diff(UserToken.session_expires_at(session), Tuist.Time.utc_now(), :millisecond)
+    Process.send_after(self(), :check_browser_session, max(1, min(remaining, 60_000)))
+  end
+
+  defp check_live_session(socket, token, opts) do
+    case Accounts.get_user_session(token, opts) do
+      nil ->
+        {:halt, LiveView.redirect(socket, to: ~p"/users/log_in")}
+
+      session ->
+        socket |> Phoenix.Component.assign(:current_user_session, session) |> enforce_live_sso()
+    end
+  end
+
+  defp enforce_live_sso(socket) do
+    account_handle = get_in(socket.assigns, [:sso_route_params, "account_handle"])
+
+    case required_sso_organization(socket, account_handle, socket.assigns[:current_user_session]) do
+      nil -> {:cont, socket}
+      organization -> {:halt, LiveView.redirect(socket, to: sso_provider_path(organization))}
+    end
   end
 
   @doc """
@@ -410,44 +505,55 @@ defmodule TuistWeb.Authentication do
   end
 
   def require_sso_authentication(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
+    case required_sso_organization(conn, account_handle, conn.assigns[:current_user_session]) do
+      nil ->
+        conn
+
+      organization ->
+        conn
+        |> put_session(:oauth_return_to, current_path(conn))
+        |> redirect(to: sso_provider_path(organization))
+        |> halt()
+    end
+  end
+
+  def require_sso_authentication(conn, _opts), do: conn
+
+  defp required_sso_organization(_subject, nil, _session), do: nil
+
+  defp required_sso_organization(subject, account_handle, session) do
     cond do
-      TuistWeb.OperatorGrant.active_grant?(conn, account_handle) ->
+      TuistWeb.OperatorGrant.active_grant?(subject, account_handle) ->
         # An operator holding a valid grant for this account bypasses the
         # customer's SSO enforcement: they authenticated out-of-band at
         # ops.tuist.dev and the access is reason-logged and time-boxed.
         # This is the path that makes SSO-enforced orgs reachable.
-        conn
+        nil
 
-      anonymous_public_account?(conn, account_handle) ->
+      anonymous_public_account?(subject, account_handle) ->
         # A signed-out visitor to a public account is only ever served that
         # account's public data, so there is no identity to enforce a
         # provider on. Without this they would be bounced to the provider
         # and the public dashboards would be unreachable. Signed-in users
         # still fall through: they can see member-level data, so the
         # organization's enforcement still applies to them.
-        conn
+        nil
 
       true ->
         with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
              organization_id when not is_nil(organization_id) <- account.organization_id,
              {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
              true <- organization.sso_enforced and not is_nil(organization.sso_provider),
-             auth_method = get_session(conn, :auth_method),
-             false <- auth_method == organization.sso_provider do
-          conn
-          |> put_session(:oauth_return_to, current_path(conn))
-          |> redirect(to: sso_provider_path(organization))
-          |> halt()
+             false <- UserToken.satisfies_sso?(session, organization) do
+          organization
         else
-          _ -> conn
+          _ -> nil
         end
     end
   end
 
-  def require_sso_authentication(conn, _opts), do: conn
-
-  defp anonymous_public_account?(conn, account_handle) do
-    if authenticated?(conn) do
+  defp anonymous_public_account?(subject, account_handle) do
+    if authenticated?(subject.assigns) do
       false
     else
       case Accounts.get_account_by_handle(account_handle) do

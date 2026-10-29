@@ -40,6 +40,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
+  alias Tuist.RateLimit
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.GitLab.Cache, as: GitLabCache
@@ -1533,6 +1534,7 @@ defmodule Tuist.Accounts do
         organization_id: organization_id,
         role: role
       })
+      |> limit_invitation_email(email, user_id, organization_id)
       |> Repo.insert()
 
     if match?({:ok, _invitation}, invitation) and Environment.mail_configured?() do
@@ -1554,6 +1556,7 @@ defmodule Tuist.Accounts do
     result =
       invitation
       |> Invitation.resend_changeset(%{token: token})
+      |> limit_invitation_email(invitation.invitee_email, invitation.inviter_id, invitation.organization_id)
       |> Repo.update()
 
     if match?({:ok, _invitation}, result) and Environment.mail_configured?() do
@@ -1590,7 +1593,11 @@ defmodule Tuist.Accounts do
             role: role
           })
 
-        Multi.insert(multi_acc, {:invitation, email}, invitation_changeset)
+        Multi.run(multi_acc, {:invitation, email}, fn repo, _changes ->
+          invitation_changeset
+          |> limit_invitation_email(email, user_id, organization_id)
+          |> repo.insert()
+        end)
       end)
 
     case Repo.transaction(multi) do
@@ -1616,6 +1623,41 @@ defmodule Tuist.Accounts do
         url: url_fun.(token)
       })
     end)
+  end
+
+  # Keep quotas independent of invitation rows: cancellation must not restore
+  # the email budget, and every caller (including bulk and resend) shares it.
+  # No-mail self-hosted installations can still create and copy links freely.
+  defp limit_invitation_email(changeset, email, inviter_id, organization_id) do
+    if changeset.valid? and Environment.mail_configured?() do
+      recipient = email |> String.trim() |> String.downcase() |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16()
+
+      Enum.reduce_while(
+        [
+          {"invitation:recipient:#{recipient}", 1, 1 / 300},
+          {"invitation:organization:#{organization_id}", 50, 50 / 3600},
+          {"invitation:inviter:#{inviter_id}", 50, 50 / 3600}
+        ],
+        changeset,
+        fn {key, capacity, refill_rate}, changeset ->
+          case RateLimit.hit(key, algorithm: :token_bucket, capacity: capacity, refill_rate: refill_rate) do
+            {:allow, _} ->
+              {:cont, changeset}
+
+            {:deny, retry_after} ->
+              {:halt,
+               Changeset.add_error(changeset, :invitee_email, "Too many invitations. Please try again later.",
+                 validation: :rate_limit,
+                 # Hammer's token-bucket backend returns a one-second retry
+                 # hint; advertise a full refill interval rather than a loop.
+                 retry_after: max(retry_after, ceil(1000 / refill_rate))
+               )}
+          end
+        end
+      )
+    else
+      changeset
+    end
   end
 
   def accept_invitation(%{
@@ -2067,8 +2109,8 @@ defmodule Tuist.Accounts do
   @doc """
   Generates a session token.
   """
-  def generate_user_session_token(user) do
-    {token, user_token} = UserToken.build_session_token(user)
+  def generate_user_session_token(user, auth \\ %{}) do
+    {token, user_token} = UserToken.build_session_token(user, auth)
     Repo.insert!(user_token)
     token
   end
@@ -2103,12 +2145,49 @@ defmodule Tuist.Accounts do
   Gets the user with the given signed token.
   """
   def get_user_by_session_token(token, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [])
-    {:ok, query} = UserToken.verify_session_token_query(token)
+    case get_user_session(token, opts) do
+      nil -> nil
+      session -> session.user
+    end
+  end
 
-    case query |> Repo.one() |> Repo.preload(preload) do
-      %User{active: false} -> nil
-      user -> user
+  @doc """
+  Loads authoritative browser-session state. Only user-initiated requests
+  and LiveView events touch activity; checks, heartbeats and async work do not.
+  """
+  def get_user_session(token, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    session =
+      Repo.one(
+        from session in UserToken.valid_session_query(token),
+          join: user in assoc(session, :user),
+          left_join: factor in Tuist.Accounts.UserMFA,
+          on: factor.user_id == user.id,
+          where: user.active,
+          where: is_nil(factor.confirmed_at) or session.mfa_verified_at >= factor.confirmed_at,
+          preload: [user: user]
+      )
+
+    case session do
+      nil -> nil
+      session -> session |> Repo.preload(user: preload) |> maybe_touch_user_session(opts)
+    end
+  end
+
+  defp maybe_touch_user_session(session, opts) do
+    now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+    if Keyword.get(opts, :touch, false) and
+         (is_nil(session.last_active_at) or DateTime.diff(now, session.last_active_at) >= 60) do
+      # Recheck both deadlines in the write: a concurrent request must never
+      # resurrect an expired/revoked session. Throttle writes, not validation.
+      case Repo.update_all(UserToken.valid_session_query(session.token), set: [last_active_at: now]) do
+        {1, _} -> %{session | last_active_at: now}
+        {0, _} -> nil
+      end
+    else
+      session
     end
   end
 
@@ -2212,28 +2291,40 @@ defmodule Tuist.Accounts do
   """
   def deliver_user_reset_password_instructions(%{user: %User{} = user, reset_password_url: reset_password_url})
       when is_function(reset_password_url, 1) do
-    if recently_sent_reset_password_instructions?(user) do
-      :ok
-    else
-      Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
+    # Serialize issuance and consumption across replicas. Mail delivery stays
+    # outside the transaction so a slow provider does not hold a database lock.
+    {:ok, issued} =
+      Repo.transaction(fn ->
+        user = Repo.one!(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE"))
 
-      {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
-      user_token = Repo.insert!(user_token)
+        if recently_sent_reset_password_instructions?(user) do
+          :cooldown
+        else
+          Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
+          {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
+          {Repo.preload(user, :account), encoded_token, Repo.insert!(user_token)}
+        end
+      end)
 
-      case UserNotifier.deliver_reset_password_instructions(%{
-             user: user,
-             reset_password_url: reset_password_url.(encoded_token)
-           }) do
-        {:ok, email} ->
-          email
+    case issued do
+      :cooldown ->
+        :ok
 
-        {:error, _reason} ->
-          # Do not let an undelivered token suppress retries during the cooldown.
-          Repo.delete!(user_token, allow_stale: true)
-          # Bamboo API errors may include the recipient and reset URL.
-          Logger.error("Password reset email delivery failed")
-          {:error, :delivery_failed}
-      end
+      {user, encoded_token, user_token} ->
+        case UserNotifier.deliver_reset_password_instructions(%{
+               user: user,
+               reset_password_url: reset_password_url.(encoded_token)
+             }) do
+          {:ok, email} ->
+            email
+
+          {:error, _reason} ->
+            # Do not let an undelivered token suppress retries during the cooldown.
+            Repo.delete!(user_token, allow_stale: true)
+            # Bamboo API errors may include the recipient and reset URL.
+            Logger.error("Password reset email delivery failed")
+            {:error, :delivery_failed}
+        end
     end
   end
 
@@ -2259,34 +2350,39 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Resets the user password.
+  Resets the user password using a currently valid reset token.
 
   ## Examples
 
-      iex> reset_user_password(user, %{password: "new long password", password_confirmation: "new long password"})
+      iex> reset_user_password(token, %{password: "new long password", password_confirmation: "new long password"})
       {:ok, %{user: %User{}, revoked_session_live_socket_ids: []}}
 
-      iex> reset_user_password(user, %{password: "valid", password_confirmation: "not the same"})
+      iex> reset_user_password(token, %{password: "valid", password_confirmation: "not the same"})
       {:error, %Ecto.Changeset{}}
 
   """
-  def reset_user_password(user, attrs) do
-    Multi.new()
-    |> Multi.all(:session_tokens, UserToken.by_user_and_contexts_query(user, ["session"]))
-    |> Multi.update(:user, User.password_changeset(user, attrs))
-    |> Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{user: user, session_tokens: session_tokens}} ->
-        {:ok,
-         %{
-           user: user,
-           revoked_session_live_socket_ids: Enum.map(session_tokens, &UserToken.live_socket_id/1)
-         }}
+  def reset_user_password(token, attrs) when is_binary(token) do
+    Repo.transaction(fn ->
+      user = get_user_by_reset_password_token(token) || Repo.rollback(:invalid_token)
+      Repo.one!(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE"))
+      # Rebuild the expiry query after waiting for the lock. A token may have
+      # expired, been replaced or consumed while this request was waiting.
+      user = get_user_by_reset_password_token(token) || Repo.rollback(:invalid_token)
 
-      {:error, :user, changeset, _} ->
-        {:error, changeset}
-    end
+      user =
+        case Repo.update(User.password_changeset(user, attrs)) do
+          {:ok, user} -> user
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+
+      session_tokens = Repo.all(UserToken.by_user_and_contexts_query(user, ["session"]))
+      Repo.delete_all(UserToken.by_user_and_contexts_query(user, :all))
+
+      %{
+        user: user,
+        revoked_session_live_socket_ids: Enum.map(session_tokens, &UserToken.live_socket_id/1)
+      }
+    end)
   end
 
   defp recently_sent_reset_password_instructions?(%User{id: user_id}) do

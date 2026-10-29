@@ -30,6 +30,37 @@ defmodule TuistWeb.MembersLiveTest do
     %{conn: conn, user: user, organization: organization, account: account}
   end
 
+  test "create, resend, bulk and web invites share a cancellation-proof email budget", %{
+    conn: conn,
+    user: user,
+    organization: organization,
+    account: account
+  } do
+    stub(Environment, :mail_configured?, fn -> true end)
+    stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+    email = "shared-#{user.id}@example.com"
+    opts = %{inviter: user, to: organization, url: &"/auth/invitations/#{&1}"}
+    parent = self()
+
+    stub(Bamboo.TestAdapter, :deliver, fn email, config ->
+      send(parent, {:invitation_email, email})
+      Mimic.call_original(Bamboo.TestAdapter, :deliver, [email, config])
+    end)
+
+    {:ok, invitation} = Accounts.invite_user_to_organization(email, opts)
+    assert_receive {:invitation_email, _}
+    assert {:error, _} = Accounts.resend_invitation(invitation, %{url: opts.url})
+    {:ok, view, _} = live(conn, "/#{account.name}/members")
+    render_hook(view, "resend_invite", %{"id" => invitation.id})
+    assert Accounts.get_invitation_by_id(invitation.id).token == invitation.token
+    Accounts.cancel_invitation(invitation)
+    assert {:error, _, _, _} = Accounts.invite_users_to_organization([String.upcase(email)], opts)
+    html = render_submit(view, "invite-members", %{"invitation" => %{"invitee_email" => email}})
+    assert html =~ "Too many invitations"
+    refute_receive {:invitation_email, _}
+    refute Tuist.Repo.exists?(from(i in Invitation, where: i.organization_id == ^organization.id))
+  end
+
   describe "revoke_invite" do
     test "does not allow revoking an invitation belonging to a different organization", %{
       conn: conn,

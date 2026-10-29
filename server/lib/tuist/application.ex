@@ -382,7 +382,7 @@ defmodule Tuist.Application do
           {Phoenix.PubSub, name: Tuist.PubSub},
           Tuist.Sandboxes.NodePresence,
           Tuist.KeyValueStore.Invalidator,
-          {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+          {Tuist.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
           Tuist.Kura.Demand,
           Tuist.Kura.Origins,
@@ -441,8 +441,8 @@ defmodule Tuist.Application do
     if Environment.redis_url() do
       [
         {Redix, redis_opts()},
-        {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
-        {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
+        {Tuist.RateLimit.PersistentFixedWindow, redis_opts()},
+        {Tuist.RateLimit.PersistentTokenBucket, redis_opts()}
       ]
     else
       []

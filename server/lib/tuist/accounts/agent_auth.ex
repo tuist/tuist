@@ -23,6 +23,7 @@ defmodule Tuist.Accounts.AgentAuth do
   alias Tuist.Accounts.AgentRegistrationEvent
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserNotifier
+  alias Tuist.Accounts.UserToken
   alias Tuist.Accounts.Workers.ExpireAgentRegistrationWorker
   alias Tuist.Environment
   alias Tuist.KeyValueStore
@@ -269,7 +270,7 @@ defmodule Tuist.Accounts.AgentAuth do
            :ok <- ensure_claim_token_valid(registration),
            :ok <- ensure_otp_valid(registration),
            :ok <- ensure_claim_user_matches(registration, user),
-           :ok <- ensure_browser_sso_policy_satisfied(user, Map.get(attrs, :auth_method)),
+           :ok <- ensure_browser_sso_policy_satisfied(user, Map.get(attrs, :user_session)),
            true <- secure_compare_hash(hash_secret(user_code), registration.otp_hash) do
         now = Time.utc_now()
         user = Repo.preload(user, :account)
@@ -1492,10 +1493,10 @@ defmodule Tuist.Accounts.AgentAuth do
   defp ensure_protocol_claim_startable(%AgentRegistration{registration_type: :anonymous}), do: :ok
   defp ensure_protocol_claim_startable(_registration), do: {:error, :claim_not_available}
 
-  defp ensure_browser_sso_policy_satisfied(%User{} = user, auth_method) do
+  defp ensure_browser_sso_policy_satisfied(%User{} = user, session) do
     if Accounts.sso_enforced_for_email?(user.email) do
       with {:ok, organization} <- Accounts.sso_organization_for_user_email(user.email),
-           true <- auth_method == organization.sso_provider,
+           true <- UserToken.satisfies_sso?(session, organization),
            true <- Accounts.belongs_to_sso_organization?(user, organization) do
         :ok
       else

@@ -68,7 +68,7 @@ public struct RetryMiddleware: ClientMiddleware {
                 guard retriesUnforwardedCacheRequests,
                       body == nil || body?.iterationBehavior == .multiple,
                       attempt < retryPolicy.maximumRetryCount,
-                      [429, 503].contains(response.status.code),
+                      Self.isRetryable(response, idempotent: false),
                       response.headerFields[HTTPField.Name("X-Tuist-Cache-Activation")!] == "pending"
                 else {
                     return (response, responseBody)
@@ -125,6 +125,15 @@ public struct RetryMiddleware: ClientMiddleware {
     }
 
     private static func isRetryable(_ response: HTTPResponse, idempotent: Bool) -> Bool {
+        // A long cooldown cannot be honored within the automatic retry window.
+        // Return the response instead of sleeping repeatedly or retrying early.
+        if let value = response.headerFields[.retryAfter],
+           let seconds = UInt64(value.trimmingCharacters(in: .whitespaces)),
+           seconds > HTTPRetryPolicy.maximumDelayMilliseconds / 1000
+        {
+            return false
+        }
+
         let statusCode = response.status.code
         if idempotent {
             return statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)

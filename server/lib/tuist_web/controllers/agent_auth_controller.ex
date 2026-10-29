@@ -275,7 +275,7 @@ defmodule TuistWeb.AgentAuthController do
            claim_view_token: claim_attempt_token,
            user_code: user_code,
            user: conn.assigns.current_user,
-           auth_method: get_session(conn, :auth_method),
+           user_session: conn.assigns.current_user_session,
            claim_completed_ip: RemoteIp.get(conn)
          }) do
       {:ok, _result} ->

@@ -1,0 +1,31 @@
+<.link_frame
+  title={dgettext("dashboard_auth", "Two-factor authentication")}
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "Enter a code from your authenticator app or an unused recovery code."
+    )
+  }
+>
+  <.alert :if={@error} type="secondary" status="error" size="small" title={@error} />
+  <form id="mfa-challenge" method="post" action={~p"/users/mfa"} data-part="form">
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <.text_input
+      id="mfa-code"
+      name="mfa_code"
+      value=""
+      label={dgettext("dashboard_auth", "Authentication or recovery code")}
+      show_prefix={false}
+      autocomplete="one-time-code"
+      required
+      autofocus
+    />
+    <.button
+      variant="primary"
+      size="large"
+      type="submit"
+      label={dgettext("dashboard_auth", "Verify")}
+    />
+  </form>
+  <a href={~p"/users/log_in"}>{dgettext("dashboard_auth", "Back to sign in")}</a>
+</.link_frame>

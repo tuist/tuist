@@ -51,7 +51,7 @@ Tuist supports two enrollment policies:
 
 Google configurations default to automatic enrollment. New Okta and custom-provider configurations default to invitation-only enrollment.
 
-The **Enforce single sign-on** setting is independent of enrollment. Enforcement prevents existing organization members from using email and password; it does not grant organization membership.
+The **Enforce single sign-on** setting is independent of enrollment. Access to the organization's protected browser pages requires a session authenticated through its current provider and issuer (or verified Google Workspace). A historical linked identity or authentication through a different organization's provider is insufficient. Ordinary sign-in to Tuist and access to other accounts remain available; enforcement does not grant organization membership. Anonymous public dashboards and time-limited operator support grants retain their separate access rules.
 
 ### Choose the role enrolled members get {#choose-the-enrollment-role}
 
