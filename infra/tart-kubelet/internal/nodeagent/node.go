@@ -20,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 )
 
 // Maintainer is a controller-runtime Runnable. Owns the Node object's
@@ -66,21 +68,50 @@ type Maintainer struct {
 	// the condition at its False default.
 	DiskPressure DiskPressureProbe
 
-	// DynamicLabels, when non-nil, is evaluated each heartbeat for Node
-	// labels the agent owns that change at runtime (today: the
-	// `tuist.dev/golden-<hash>` advertisements of which golden base VMs
-	// this host holds). They're merged alongside NodeLabels and pruned
-	// the same way — a key that stops being returned (golden GC'd) is
-	// dropped on the next heartbeat. A probe error contributes nothing
-	// this round; the provider is expected to mask transient failures
-	// (e.g. return its last good result) so a momentary `tart list`
-	// hiccup doesn't flap the labels off.
-	DynamicLabels DynamicLabelProvider
+	// DynamicLabels are the agent-owned label sets that change at runtime,
+	// each evaluated every heartbeat: the `tuist.dev/golden-<hash>`
+	// advertisements of which golden base VMs this host holds, and the
+	// `tuist.dev/cache-volume-<scope>` advertisements of which custom cache
+	// masters are resident. They're merged alongside NodeLabels and
+	// pruned the same way — a key that stops being returned (golden GC'd, or
+	// master evicted) is dropped on the next heartbeat.
+	//
+	// Advertisements are independent: one that errors contributes nothing
+	// this round while the others still publish. Each decides for itself
+	// whether a probe failure means "no opinion" (mask it, return the last
+	// good result) or "genuinely nothing here" — the two advertisements
+	// answer that differently, so it belongs with each provider rather than
+	// here.
+	DynamicLabels []LabelAdvertisement
+
+	// PrewarmGate, when non-nil, holds a Node this process creates out of
+	// scheduling until released (see PrewarmGate). nil never taints, and
+	// either way a leftover prewarm taint is removed.
+	PrewarmGate *PrewarmGate
+
+	// RuntimeVersion, when non-nil, reports the Tart version the host runs.
+	// It is published as the Node's container runtime version
+	// (`tart://2.41.1`), which is where an in-place Tart upgrade shows it has
+	// reached a host. Read every heartbeat, since the operator replaces Tart
+	// under a running agent; a failed read keeps the last version read.
+	RuntimeVersion func(ctx context.Context) (string, error)
+
+	runtimeVersion string
+}
+
+// LabelAdvertisement is one named source of dynamic Node labels. The name is
+// only used to attribute a probe failure in the logs, which is the whole
+// reason these are a list rather than one merged provider: a single closure
+// merging every source has to hand-roll which failures are fatal to the whole
+// round, and gets to say so nowhere the reader will look.
+type LabelAdvertisement struct {
+	Name   string
+	Labels DynamicLabelProvider
 }
 
 // DynamicLabelProvider returns the agent-owned labels to publish this
 // heartbeat. A non-nil error means the probe failed; the maintainer then
-// publishes no dynamic labels for the round rather than guessing.
+// publishes no labels for THAT advertisement this round rather than guessing.
 type DynamicLabelProvider func(ctx context.Context) (map[string]string, error)
 
 // DiskPressureProbe reports whether the node is under disk pressure plus
@@ -120,16 +151,19 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	node := &corev1.Node{}
 	err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node)
 	if apierrors.IsNotFound(err) {
+		m.decidePrewarm(ctx, true)
 		node.Name = m.NodeName
 		if m.ProviderID != "" {
 			node.Spec.ProviderID = m.ProviderID
 		}
+		m.readRuntimeVersion(ctx)
 		m.configureNode(node, m.evalDynamicLabels(ctx))
 		return m.Client.Create(ctx, node)
 	}
 	if err != nil {
 		return err
 	}
+	m.decidePrewarm(ctx, false)
 	// Node already exists (kubelet restart). spec.providerID is immutable
 	// once set, so only fill it when empty — this binds nodes that
 	// registered before tart-kubelet learned to set it. refresh() below
@@ -160,6 +194,7 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	// metadata/spec first (merge patch persists label deletions as null),
 	// then update status.
 	base := node.DeepCopy()
+	m.readRuntimeVersion(ctx)
 	m.configureNode(node, m.evalDynamicLabels(ctx))
 
 	// configureNode just set this Node's desired status (Ready=True,
@@ -189,20 +224,31 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	return m.Client.Status().Update(ctx, node)
 }
 
-// evalDynamicLabels runs the DynamicLabels provider for this heartbeat,
-// returning nil (publish no dynamic labels) when unset or on error. The
-// provider is responsible for masking transient failures so a probe error
-// here is genuinely "no opinion this round", not "flap the labels off".
+// evalDynamicLabels merges every advertisement's labels for this heartbeat,
+// returning nil when there are none configured. A failing advertisement is
+// logged and skipped so its labels retire this round while the rest keep
+// publishing — one bad probe must not drop advertisements it has nothing to do
+// with, which is what a single merged provider would have to be careful about
+// by hand.
 func (m *Maintainer) evalDynamicLabels(ctx context.Context) map[string]string {
-	if m.DynamicLabels == nil {
+	if len(m.DynamicLabels) == 0 {
 		return nil
 	}
-	labels, err := m.DynamicLabels(ctx)
-	if err != nil {
-		log.FromContext(ctx).Error(err, "dynamic node labels")
-		return nil
+	merged := map[string]string{}
+	for _, advertisement := range m.DynamicLabels {
+		if advertisement.Labels == nil {
+			continue
+		}
+		labels, err := advertisement.Labels(ctx)
+		if err != nil {
+			log.FromContext(ctx).Error(err, "dynamic node labels", "advertisement", advertisement.Name)
+			continue
+		}
+		for key, value := range labels {
+			merged[key] = value
+		}
 	}
-	return labels
+	return merged
 }
 
 // applyDiskPressure refreshes the DiskPressure condition from the probe.
@@ -268,6 +314,8 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 		}
 	}
 
+	applyPrewarmTaint(node, m.PrewarmGate.Held())
+
 	// Same NoSchedule taint we used for VK so stray Linux Pods don't
 	// land here. Pods that actually want darwin set both the
 	// nodeSelector and a matching toleration.
@@ -289,8 +337,11 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 		mem = 16384
 	}
 	if maxPods == 0 {
-		// Apple's macOS SLA caps virtualized macOS instances at 2 per
-		// bare-metal host; Tart refuses to start a third VM.
+		// The Node's Pod ceiling, not the VM ceiling: one guest slot plus one
+		// terminating predecessor. The scheduler counts terminated Pods against
+		// pods capacity until GC deletes them, so this has to exceed the guest
+		// count. Apple's cap of two simultaneous virtualized macOS instances per
+		// host is enforced by Tart, independently of this number.
 		maxPods = 2
 	}
 	if node.Status.Capacity == nil {
@@ -303,6 +354,22 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 		list[corev1.ResourceCPU] = resource.MustParse(fmt.Sprintf("%d", cpu))
 		list[corev1.ResourceMemory] = resource.MustParse(fmt.Sprintf("%dMi", mem))
 		list[corev1.ResourcePods] = resource.MustParse(fmt.Sprintf("%d", maxPods))
+	}
+
+	// Ephemeral storage = the root APFS container that holds every Tart
+	// golden base + clone. A real kubelet reports this; without it the
+	// host disk is absent from `kubectl describe node` and invisible to
+	// ephemeral-storage-aware tooling, so a fill (which silently breaks
+	// the operator's SSH config updates) can't be seen at the k8s layer.
+	// We report the filesystem size for both capacity and allocatable —
+	// tart-kubelet does no ephemeral-storage request accounting, so the
+	// dynamic fill signal is the DiskPressure condition (applyDiskPressure),
+	// not a shrinking allocatable. A statvfs error just omits the resource
+	// this heartbeat rather than failing the whole status update.
+	if st, err := hostdisk.Root("/"); err == nil && st.TotalBytes > 0 {
+		q := resource.NewQuantity(int64(st.TotalBytes), resource.BinarySI)
+		node.Status.Capacity[corev1.ResourceEphemeralStorage] = *q
+		node.Status.Allocatable[corev1.ResourceEphemeralStorage] = *q
 	}
 
 	now := metav1.Now()
@@ -329,6 +396,9 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 	node.Status.NodeInfo.Architecture = "arm64"
 	node.Status.NodeInfo.KubeletVersion = "tart-kubelet-v0"
 	node.Status.NodeInfo.ContainerRuntimeVersion = "tart"
+	if m.runtimeVersion != "" {
+		node.Status.NodeInfo.ContainerRuntimeVersion = "tart://" + m.runtimeVersion
+	}
 
 	if m.NodeIP != "" {
 		// Replace, not merge: a kubelet restart with a new NodeIP
@@ -383,4 +453,22 @@ func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s c
 		LastHeartbeatTime:  now,
 		LastTransitionTime: now,
 	})
+}
+
+func (m *Maintainer) decidePrewarm(ctx context.Context, created bool) {
+	if m.PrewarmGate != nil {
+		m.PrewarmGate.decide(ctx, created)
+	}
+}
+
+func (m *Maintainer) readRuntimeVersion(ctx context.Context) {
+	if m.RuntimeVersion == nil {
+		return
+	}
+	version, err := m.RuntimeVersion(ctx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "read tart version")
+		return
+	}
+	m.runtimeVersion = version
 }

@@ -20,7 +20,12 @@ defmodule TuistWeb.GenerateRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Generations")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("generate-runs"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_builds", "Generations"),
+          fallback: "generate-runs"
+        )
+      )
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -31,18 +36,11 @@ defmodule TuistWeb.GenerateRunsLive do
   end
 
   def handle_params(_params, uri, %{assigns: %{selected_project: _project}} = socket) do
-    params = Query.query_params(uri)
+    params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
     uri = URI.new!("?" <> URI.encode_query(params))
 
     generate_runs_sort_by = params["generate_runs_sort_by"] || "ran_at"
     generate_runs_sort_order = params["generate_runs_sort_order"] || "desc"
-
-    params =
-      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
-        Query.clear_cursors(params)
-      else
-        params
-      end
 
     {
       :noreply,

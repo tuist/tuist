@@ -20,6 +20,8 @@ services:
     build:
       context: ../../..
       dockerfile: Dockerfile
+      additional_contexts:
+        certificate-trust: ../../../../infra/certificate-trust
     environment:
       # Minimal standalone config: the co-hosted HTTP + h2c gRPC listener on
       # 4000 (every path uploads REAPI through it). No peers, no auth extension.
@@ -32,7 +34,7 @@ services:
       KURA_NODE_URL: "http://kura:7443"
       KURA_OTEL_SERVICE_NAME: "kura-e2e"
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "e2e"
-      KURA_EXTENSION_ENABLED: "false"
+      KURA_AUTH_ENABLED: "false"
       RUST_LOG: "warn"
 
   # Both confs are rendered by the confgen step (the client image's `genconfs`

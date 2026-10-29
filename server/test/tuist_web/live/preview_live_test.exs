@@ -18,6 +18,56 @@ defmodule TuistWeb.PreviewLiveTest do
     %{preview: preview}
   end
 
+  test "renders release notes as escaped plain text", %{conn: conn, organization: organization, project: project} do
+    notes = "Fix sign-in\n<script>alert('test')</script>"
+    preview = AppBuildsFixtures.preview_fixture(project: project, release_notes: notes)
+    app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+    AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    assert has_element?(lv, "[data-part='release-notes-card']", "Fix sign-in")
+    assert html =~ "&lt;script&gt;"
+    refute html =~ "<script>alert"
+  end
+
+  test "omits release notes when none were uploaded", %{
+    conn: conn,
+    organization: organization,
+    project: project,
+    preview: preview
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    refute has_element?(lv, "[data-part='release-notes-card']")
+  end
+
+  test "lets the preview page be embedded in an iframe on another site", %{
+    conn: conn,
+    organization: organization,
+    project: project,
+    preview: preview
+  } do
+    # When
+    conn = get(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    assert [csp] = get_resp_header(conn, "content-security-policy")
+    assert csp =~ "frame-ancestors *;"
+  end
+
+  test "keeps the previews list out of iframes on other sites", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # When
+    conn = get(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
+
+    # Then
+    assert [csp] = get_resp_header(conn, "content-security-policy")
+    assert csp =~ "frame-ancestors 'self';"
+  end
+
   test "renders none as a commit when git_commit_sha",
        %{
          conn: conn,

@@ -14,7 +14,14 @@ defmodule TuistWeb.Storybook.DatePicker do
         attributes: %{
           id: "date-picker-default",
           open: true,
-          selected_preset: "7d"
+          selected_preset: "7d",
+          presets: [
+            %{id: "1h", label: "Last 1 hour", period: {1, :hour}},
+            %{id: "24h", label: "Last 24 hours", period: {24, :hour}},
+            %{id: "7d", label: "Last 7 days", period: {7, :day}},
+            %{id: "30d", label: "Last 30 days", period: {30, :day}},
+            %{id: "custom", label: "Custom"}
+          ]
         },
         slots: [
           """

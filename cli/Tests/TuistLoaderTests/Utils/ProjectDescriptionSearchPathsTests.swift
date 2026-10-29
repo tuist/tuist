@@ -25,7 +25,7 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_paths_includeSearchPath() throws {
+    func test_paths_includeSearchPaths() throws {
         // Given
         let libraryPaths: [AbsolutePath] = [
             "/path/to/tuist/.build/debug/libProjectDescription.dylib",
@@ -37,10 +37,10 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
 
         // Then
-        XCTAssertEqual(searchPaths.map(\.includeSearchPath), [
-            "/path/to/tuist/.build/debug/Modules",
-            "/path/to/DerivedData/Debug",
-            "/path/to/DerivedData/Debug",
+        XCTAssertEqual(searchPaths.map(\.includeSearchPaths), [
+            ["/path/to/tuist/.build/debug/Modules", "/path/to/tuist/.build/debug"],
+            ["/path/to/DerivedData/Debug"],
+            ["/path/to/DerivedData/Debug"],
         ])
     }
 

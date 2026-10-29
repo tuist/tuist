@@ -1,0 +1,319 @@
+[data-part="support-page"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & [data-part="header"],
+  & [data-part="thread-header"] {
+    align-items: flex-start;
+    display: flex;
+    gap: var(--noora-spacing-5);
+    justify-content: space-between;
+  }
+
+  & [data-part="text"],
+  & [data-part="thread-heading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="title"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    margin: 0;
+  }
+
+  & [data-part="description"],
+  & [data-part="meta"],
+  & [data-part="time"],
+  & [data-part="role"],
+  & [data-part="delivery"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="threads-table-section"],
+  & [data-part="messages-section"],
+  & [data-part="composer-section"],
+  & [data-part="details-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="email-verification"] {
+    background: var(--noora-badge-light-fill-attention-background);
+    border-radius: var(--noora-radius-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    padding: var(--noora-spacing-3);
+  }
+
+  & [data-part="email-verification-copy"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+    margin: 0;
+  }
+
+  & [data-part="filters"] {
+    align-items: center;
+    display: flex;
+    gap: var(--noora-spacing-6);
+    justify-content: space-between;
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="search"] {
+    flex-shrink: 0;
+    width: min(100%, 25rem);
+  }
+
+  & [data-part="thread-row"]:hover > td {
+    background-color: var(--noora-surface-background-secondary);
+    cursor: pointer;
+  }
+
+  & [data-part="message-list"] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  & [data-part="thread-heading"],
+  & [data-part="message-header"],
+  & [data-part="detail-row"],
+  & [data-part="composer-actions"] {
+    align-items: center;
+    display: flex;
+    gap: var(--noora-spacing-3);
+    justify-content: space-between;
+  }
+
+  & [data-part="name"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  & [data-part="thread-actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-3);
+    justify-content: flex-end;
+  }
+
+  & [data-part="back-button"] {
+    align-self: flex-start;
+  }
+
+  & [data-part="thread-layout"] {
+    align-items: start;
+    display: grid;
+    gap: var(--noora-spacing-6);
+    grid-template-columns: minmax(0, 1fr) minmax(22.5rem, 25rem);
+  }
+
+  & [data-part="thread-main"],
+  & [data-part="thread-side"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    min-width: 0;
+  }
+
+  & [data-part="composer-form"],
+  & [data-part="owner-field"],
+  & [data-part="composer-type"] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  & [data-part="composer-form"] {
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="owner-field"],
+  & [data-part="composer-type"] {
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="composer-mode"] {
+    align-self: flex-start;
+  }
+
+  & [data-part="message"] {
+    border-bottom: 1px solid var(--noora-surface-border-primary);
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    padding: var(--noora-spacing-6) 0;
+  }
+
+  & [data-part="message"]:first-child {
+    padding-top: 0;
+  }
+
+  & [data-part="message"][data-kind="note"] {
+    background: var(--noora-badge-light-fill-primary-background);
+    border: 1px solid
+      color-mix(in oklch, var(--noora-badge-light-fill-primary-label) 28%, transparent);
+    border-left-width: 3px;
+    border-radius: var(--noora-radius-2);
+    margin: var(--noora-spacing-3) 0;
+    padding: var(--noora-spacing-4);
+  }
+
+  & [data-part="message-author"] {
+    align-items: center;
+    display: flex;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="message-avatar"] {
+    align-self: center;
+    flex: 0 0 auto;
+    justify-content: center;
+  }
+
+  & [data-part="message-avatar"] > [data-part="initials"] {
+    align-items: center;
+    display: flex;
+    height: 100%;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  & [data-part="message-author-details"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+  }
+
+  & [data-part="message-meta"] {
+    align-items: center;
+    display: flex;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="message-body"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  & [data-part="original-email-preview"] {
+    background: var(--noora-surface-background-primary);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-2);
+    display: block;
+    min-height: 9.375rem;
+    width: 100%;
+  }
+
+  & [data-part="attachments"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="inline-attachments"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="inline-attachment"] {
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-2);
+    display: block;
+    max-height: 36rem;
+    max-width: min(100%, 56rem);
+    object-fit: contain;
+  }
+
+  & [data-part="attachment"] {
+    align-items: center;
+    color: var(--noora-surface-label-secondary);
+    display: inline-flex;
+    font: var(--noora-font-body-small);
+    gap: var(--noora-spacing-1);
+    text-decoration: none;
+  }
+
+  & [data-part="attachment"]:hover {
+    color: var(--noora-surface-label-primary);
+    text-decoration: underline;
+  }
+
+  & [data-part="original-email-link"] {
+    align-self: flex-start;
+  }
+
+  & [data-part="composer-attachments"] {
+    align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="upload-status"] {
+    color: var(--noora-surface-label-secondary);
+    display: flex;
+    flex-wrap: wrap;
+    font: var(--noora-font-body-small);
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="upload-entry"] {
+    align-items: center;
+    display: flex;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="upload-error"] {
+    color: var(--noora-badge-light-fill-destructive-label);
+  }
+
+  & [data-part="detail-row"] {
+    align-items: flex-start;
+  }
+
+  & [data-part="detail-label"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="detail-value"],
+  & [data-part="account-link"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-small);
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 900px) {
+    & [data-part="thread-layout"] {
+      grid-template-columns: 1fr;
+    }
+
+    & [data-part="header"],
+    & [data-part="thread-header"],
+    & [data-part="filters"] {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    & [data-part="search"] {
+      width: 100%;
+    }
+  }
+}

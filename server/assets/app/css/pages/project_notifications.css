@@ -89,7 +89,7 @@
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--noora-surface-border-secondary);
+    border-bottom: 1px solid var(--noora-surface-border-primary);
     padding: var(--noora-spacing-4) 0;
 
     & > [data-part="content"] {
@@ -201,12 +201,14 @@
     }
   }
 
-  & .noora-modal {
-    & [data-part="content"] {
-      max-width: 500px;
-    }
+  /* `content` and `body` are generic Noora part names that components rendered
+     inside the modal reuse, so match the modal's own boxes by structure.
+     A loose descendant match also hits dropdown items, whose min-width then
+     overflows the dropdown panel and makes it scroll horizontally. */
+  & .noora-modal > [data-part="positioner"] > [data-part="content"] {
+    max-width: 500px;
 
-    & [data-part="content"] > [data-part="body"] {
+    & > [data-part="body"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-8);
@@ -229,7 +231,7 @@
 
   & [data-part="update-flaky-test-alert-modal"],
   & #create-flaky-test-alert-modal {
-    & [data-part="content"] > [data-part="body"] {
+    & > [data-part="positioner"] > [data-part="content"] > [data-part="body"] {
       width: 430px;
     }
 

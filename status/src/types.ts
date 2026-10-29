@@ -14,6 +14,7 @@ export type OverallStatus = ComponentStatus;
 export interface IncidentUpdate {
   at: string;
   status: IncidentStatus;
+  title?: string;
   body: string;
 }
 

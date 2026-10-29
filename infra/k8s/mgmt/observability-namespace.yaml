@@ -1,0 +1,16 @@
+# The management cluster enforces the baseline Pod Security standard by
+# default. The monitoring collectors need host networking, host ports, and
+# read-only host filesystem mounts to scrape the control plane and node.
+# Keep the exception scoped to this namespace while retaining restricted-mode
+# audit events and warnings.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: v1.36
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: v1.36
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: v1.36

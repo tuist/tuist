@@ -131,7 +131,9 @@ struct SchemeLinter: SchemeLinting {
         var issues: [LintingIssue] = []
 
         for scheme in schemes {
-            for target in scheme.testAction?.codeCoverageTargets ?? []
+            let codeCoverageTargets = (scheme.testAction?.codeCoverageTargets ?? [])
+                + (scheme.testAction?.testPlans?.flatMap(\.codeCoverageTargets) ?? [])
+            for target in codeCoverageTargets
                 where target.projectPath == project.path && !targetNames.contains(target.name)
             {
                 issues.append(missingCodeCoverageTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
@@ -166,7 +168,7 @@ struct SchemeLinter: SchemeLinting {
     private func projectSchemeCantReferenceRemoteTargets(scheme: Scheme, project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        for targetDependency in nonCodeCoverageTargetDependencies(scheme: scheme)
+        for targetDependency in scheme.nonCodeCoverageTargetDependencies()
             where targetDependency.projectPath != project.path
         {
             issues.append(.init(
@@ -176,23 +178,5 @@ struct SchemeLinter: SchemeLinting {
         }
 
         return issues
-    }
-
-    private func nonCodeCoverageTargetDependencies(scheme: Scheme) -> [TargetReference] {
-        let targetSources: [[TargetReference]?] = [
-            scheme.buildAction?.targets,
-            scheme.buildAction?.preActions.compactMap(\.target),
-            scheme.buildAction?.postActions.compactMap(\.target),
-            scheme.testAction?.targets.map(\.target),
-            scheme.testAction?.preActions.compactMap(\.target),
-            scheme.testAction?.postActions.compactMap(\.target),
-            scheme.runAction?.executable.map { [$0] },
-            scheme.archiveAction?.preActions.compactMap(\.target),
-            scheme.archiveAction?.postActions.compactMap(\.target),
-            scheme.profileAction?.executable.map { [$0] },
-        ]
-
-        let targets = targetSources.compactMap { $0 }.flatMap { $0 }.uniqued()
-        return targets.sorted { $0.name < $1.name }
     }
 }

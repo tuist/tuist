@@ -28,6 +28,7 @@ dependencies {
     testImplementation(gradleTestKit())
     testImplementation(kotlin("test"))
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
 }
 
 tasks.shadowJar {
@@ -51,6 +52,14 @@ tasks.jar {
     archiveClassifier.set("thin")
 }
 
+tasks.processResources {
+    val pluginVersion = project.version.toString()
+    inputs.property("version", pluginVersion)
+    filesMatching("dev/tuist/gradle/plugin.properties") {
+        expand("version" to pluginVersion)
+    }
+}
+
 listOf(configurations.apiElements, configurations.runtimeElements).forEach { config ->
     config.configure {
         outgoing.artifacts.clear()
@@ -60,6 +69,7 @@ listOf(configurations.apiElements, configurations.runtimeElements).forEach { con
 
 tasks.test {
     useJUnitPlatform()
+    testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
 }
 

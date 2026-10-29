@@ -43,13 +43,19 @@ public struct WorkspaceMapperFactory: WorkspaceMapperFactorying {
     }
 
     public func `default`(
-        tuist _: Tuist
+        tuist: Tuist
     ) -> [WorkspaceMapping] {
         var mappers: [WorkspaceMapping] = []
 
         mappers.append(
             ProjectWorkspaceMapper(mapper: projectMapper)
         )
+
+        mappers.append(XcodeCachePrefixMappingWorkspaceMapper(tuist: tuist))
+
+        mappers.append(InheritedCoverageSchemesWorkspaceMapper(
+            enabled: tuist.project.generatedProject?.generationOptions.coverage.enabled ?? false
+        ))
 
         mappers.append(
             TuistWorkspaceIdentifierMapper()

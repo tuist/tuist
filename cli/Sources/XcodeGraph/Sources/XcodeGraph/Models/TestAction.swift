@@ -9,7 +9,10 @@ public struct TestAction: Equatable, Codable, Sendable {
     public var arguments: Arguments?
     public var configurationName: String
     public var attachDebugger: Bool
+    public var customLLDBInitFile: AbsolutePath?
     public var coverage: Bool
+    /// Whether the manifest left `coverage` unset, so it follows the project's coverage option.
+    public var inheritsCoverage: Bool
     public var codeCoverageTargets: [TargetReference]
     public var expandVariableFromTarget: TargetReference?
     public var preActions: [ExecutionAction]
@@ -37,14 +40,18 @@ public struct TestAction: Equatable, Codable, Sendable {
         region: String? = nil,
         preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
         testPlans: [TestPlan]? = nil,
-        skippedTests: [String]? = nil
+        skippedTests: [String]? = nil,
+        customLLDBInitFile: AbsolutePath? = nil,
+        inheritsCoverage: Bool = false
     ) {
         self.testPlans = testPlans
         self.targets = targets
         self.arguments = arguments
         self.configurationName = configurationName
         self.attachDebugger = attachDebugger
+        self.customLLDBInitFile = customLLDBInitFile
         self.coverage = coverage
+        self.inheritsCoverage = inheritsCoverage
         self.preActions = preActions
         self.postActions = postActions
         self.codeCoverageTargets = codeCoverageTargets
@@ -76,7 +83,9 @@ public struct TestAction: Equatable, Codable, Sendable {
             region: String? = nil,
             preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
             testPlans: [TestPlan]? = nil,
-            skippedTests: [String]? = nil
+            skippedTests: [String]? = nil,
+            customLLDBInitFile: AbsolutePath? = nil,
+            inheritsCoverage: Bool = false
         ) -> TestAction {
             TestAction(
                 targets: targets,
@@ -93,7 +102,9 @@ public struct TestAction: Equatable, Codable, Sendable {
                 region: region,
                 preferredScreenCaptureFormat: preferredScreenCaptureFormat,
                 testPlans: testPlans,
-                skippedTests: skippedTests
+                skippedTests: skippedTests,
+                customLLDBInitFile: customLLDBInitFile,
+                inheritsCoverage: inheritsCoverage
             )
         }
     #endif

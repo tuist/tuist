@@ -1,0 +1,390 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: rackhostleases.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: RackHostLease
+    listKind: RackHostLeaseList
+    plural: rackhostleases
+    shortNames:
+      - rhl
+    singular: rackhostlease
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.lender
+          name: Lender
+          type: string
+        - jsonPath: .spec.phase
+          name: Phase
+          type: string
+        - jsonPath: .status.state
+          name: State
+          type: string
+        - jsonPath: .status.node
+          name: Node
+          type: string
+        - jsonPath: .status.nodeReady
+          name: Ready
+          type: boolean
+        - jsonPath: .status.phase
+          name: Runtime
+          type: string
+        - jsonPath: .spec.host.address
+          name: Address
+          priority: 1
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            RackHostLease is a rack host another env lends this cluster: the handshake
+            between the operator that owns the host's site, which writes the spec, and
+            this cluster's operator, which runs the host's runner runtime and writes the
+            status.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                RackHostLeaseSpec is written by the operator of the env that owns the
+                host's site. It lives in the borrowing cluster, named after the host.
+              properties:
+                grantedKeyFingerprint:
+                  description: |-
+                    GrantedKeyFingerprint is the SHA-256 fingerprint of the key the lender
+                    authorized on the host for this lease. The borrower dials with its key
+                    only once it matches, so a rotated key waits for its grant.
+                  type: string
+                host:
+                  description: Host is what the borrower needs to reach the host and size its Node.
+                  properties:
+                    address:
+                      description: |-
+                        Address is the host's address on the rack's machines segment, which the
+                        rack's edges route to from the tailnet.
+                      minLength: 1
+                      type: string
+                    hostKeyFingerprint:
+                      description: |-
+                        HostKeyFingerprint is the host key the lender pinned. The borrower
+                        verifies it on every dial instead of trusting the first key it sees.
+                      type: string
+                    machine:
+                      description: |-
+                        Machine is the host's sizing with the lender's defaults applied: what
+                        the hardware is, not how either env runs it.
+                      properties:
+                        guestCapacity:
+                          description: GuestCapacity is how many Tart guests the host is expected to run.
+                          type: integer
+                        hostCPU:
+                          description: HostCPU is the CPU-core count advertised on the Node.
+                          type: integer
+                        hostMemoryMB:
+                          description: |-
+                            HostMemoryMB is the memory advertised on the Node: the box's RAM minus
+                            the ~2 GB Virtualization.framework reserves for the host.
+                          type: integer
+                        maxPods:
+                          description: MaxPods is the Pod ceiling tart-kubelet advertises.
+                          type: integer
+                        runnerCacheVolumeGiB:
+                          description: |-
+                            RunnerCacheVolumeGiB is the quota of the host's runner-cache volume. An
+                            explicit 0 disables cache volumes on the host; unset inherits the
+                            operator's default.
+                          type: integer
+                      type: object
+                    serial:
+                      description: Serial is the Mac's hardware serial.
+                      type: string
+                    site:
+                      description: Site composes the host's providerID.
+                      minLength: 1
+                      type: string
+                    sshIngressAllowCIDRs:
+                      description: |-
+                        SSHIngressAllowCIDRs are the subnet routers a dial to Address arrives
+                        from, which the host's SSH ingress guard admits.
+                      items:
+                        type: string
+                      type: array
+                    sshUser:
+                      description: SSHUser is the account the lease key is authorized for.
+                      type: string
+                  required:
+                    - address
+                    - site
+                  type: object
+                lender:
+                  description: Lender is the env that owns the host's site and lends its runtime.
+                  minLength: 1
+                  type: string
+                phase:
+                  description: 'Phase is what the lender asks for: Offered, Lent or Returning.'
+                  enum:
+                    - Offered
+                    - Lent
+                    - Returning
+                  type: string
+                previousNodeName:
+                  description: |-
+                    PreviousNodeName is a Node the host registered in the borrowing cluster
+                    before this lease, under the lender's name for it: a host lent by hand
+                    with a kubeconfig. The borrower drains it before taking the host over and
+                    deletes it after.
+                  type: string
+                siteRequestResult:
+                  description: |-
+                    SiteRequestResult is the lender's answer to the borrower's
+                    status.siteRequest with the same ID.
+                  properties:
+                    completedAt:
+                      format: date-time
+                      type: string
+                    id:
+                      description: ID is the request's.
+                      type: string
+                    message:
+                      description: Message says what the lender is doing or what it did.
+                      type: string
+                    osUpdateID:
+                      description: OSUpdateID is the lender's update that serves an OSUpdate request.
+                      type: string
+                    phase:
+                      description: Phase is Running, Succeeded or Failed.
+                      type: string
+                    returnToService:
+                      description: |-
+                        ReturnToService is set on an answer after which the borrower may put
+                        its Node back in service: the action succeeded, or failed before it
+                        changed the host.
+                      type: boolean
+                  required:
+                    - id
+                    - phase
+                  type: object
+              required:
+                - host
+                - lender
+                - phase
+              type: object
+            status:
+              description: RackHostLeaseStatus is written by the borrowing operator.
+              properties:
+                bootstrapAttempts:
+                  description: |-
+                    BootstrapAttempts counts consecutive bootstrap failures on the currently
+                    held host. Reset to zero on a successful bootstrap, and whenever the
+                    underlying host changes (a mini swapped out), since the count describes
+                    a host rather than a Machine. It drives each kind's tiered recovery
+                    escalation: at the reboot threshold the controller clears volatile host
+                    state (PAM lockouts, sshd throttling, half-open connections), and at the
+                    give-up threshold it stops retrying the same box: the Scaleway kind by
+                    releasing it so a different mini gets claimed, the static kind by
+                    quarantining it, since releasing hardware we own would hand back the
+                    same broken host.
+                  format: int32
+                  type: integer
+                bootstrapRebootIssued:
+                  description: |-
+                    BootstrapRebootIssued records that a recovery reboot has already been
+                    triggered for the current host, so a long retry tail doesn't re-reboot
+                    it on every attempt past the threshold. Cleared when the host changes or
+                    on a successful bootstrap. What "reboot" means is kind-specific: the
+                    Scaleway kind calls the provider API, the static kind cycles the host's
+                    PDU outlet, which is a reboot because Apple silicon powers on when mains
+                    is applied.
+                  type: boolean
+                conditions:
+                  description: Conditions are CAPI-style condition entries (Bootstrapped).
+                  items:
+                    description: Condition defines an observation of a Cluster API resource operational state.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          Last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed. If that is not known, then using the time when
+                          the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          A human readable message indicating details about the transition.
+                          This field may be empty.
+                        type: string
+                      reason:
+                        description: |-
+                          The reason for the condition's last transition in CamelCase.
+                          The specific API may choose whether or not this field is considered a guaranteed API.
+                          This field may be empty.
+                        type: string
+                      severity:
+                        description: |-
+                          severity provides an explicit classification of Reason code, so the users or machines can immediately
+                          understand the current situation and act accordingly.
+                          The Severity field MUST be set only when Status=False.
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: |-
+                          type of condition in CamelCase or in foo.example.com/CamelCase.
+                          Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                          can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - status
+                      - type
+                    type: object
+                  type: array
+                failedHostConfigHash:
+                  description: |-
+                    FailedHostConfigHash records the desired hash that exhausted its
+                    update-retry budget and drove the CR terminal. A broken config can never
+                    be applied, so HostConfigHash never advances to it and a
+                    desired-vs-last-applied comparison would see drift forever, resetting
+                    the retry cap on every reconcile. Comparing desired-vs-failed keeps the
+                    cap for an unchanged broken config while still retrying a new one.
+                  type: string
+                failureMessage:
+                  type: string
+                failureReason:
+                  description: |-
+                    FailureReason / FailureMessage are set on terminal failures. CAPI core
+                    surfaces them on the Machine object and stops auto-driving it.
+                  type: string
+                hostConfigHash:
+                  description: |-
+                    HostConfigHash is the fleet-wide canonical hash of every host config the
+                    operator pushes: the rendered install scripts plus the embedded
+                    binaries (bootstrap.HostConfigHash). Drift between this and the
+                    operator's own computed hash re-pushes on the next reconcile, so a
+                    change to ANY pushed config (a script tweak, a fleet CIDR, a re-baked
+                    binary) rolls to existing hosts rather than only a binary change.
+                  type: string
+                lastUpdateFailureTime:
+                  description: |-
+                    LastUpdateFailureTime is when the drift loop last recorded a failure for
+                    this host. It exists so the terminal state can expire on a timer:
+                    FailedHostConfigHash alone only lifts it when a NEW config ships, which
+                    is right for a config the host rejected and wrong for the far more
+                    common verdict: the host was simply unreachable (`dial tcp ...:22: i/o
+                    timeout`). Those hosts otherwise stay terminal indefinitely while
+                    remaining Ready, schedulable, and running jobs against a host config
+                    frozen at whatever the operator last managed to push, so a fleet-wide
+                    fix rolls out and silently misses them. Re-arming after a cooldown lets
+                    a host that has since come back take the current config on its own,
+                    while a genuinely broken config still backs off to one attempt budget
+                    per cooldown rather than per reconcile.
+                  format: date-time
+                  type: string
+                node:
+                  description: Node is the Node the host registers in the borrowing cluster.
+                  type: string
+                nodeReady:
+                  description: NodeReady mirrors that Node's Ready condition.
+                  type: boolean
+                phase:
+                  description: |-
+                    Phase tracks lifecycle for operators: Pending | Adopting |
+                    Bootstrapping | Ready | Deleting | Failed. CAPI core drives off Ready +
+                    Conditions instead; this is the human-readable summary and the series
+                    the stuck-Failed alert keys on.
+                  type: string
+                siteRequest:
+                  description: |-
+                    SiteRequest is a site action the borrower asks the lender for, from the
+                    lease's `tuist.dev/power-cycle` or `tuist.dev/os-update` annotation. One
+                    at a time; the borrower pushes nothing to the host while it is open.
+                  properties:
+                    action:
+                      description: Action is PowerCycle or OSUpdate.
+                      enum:
+                        - PowerCycle
+                        - OSUpdate
+                      type: string
+                    drained:
+                      description: |-
+                        Drained is set once the borrower's Node is cordoned and its jobs have
+                        finished. The lender starts an OSUpdate only then.
+                      type: boolean
+                    id:
+                      description: ID tells this request's answer from an earlier one's.
+                      type: string
+                    requestedAt:
+                      format: date-time
+                      type: string
+                    target:
+                      description: Target is the macOS version an OSUpdate asks for, e.g. "26.7".
+                      type: string
+                  required:
+                    - action
+                    - id
+                  type: object
+                sshPublicKey:
+                  description: |-
+                    SSHPublicKey is the key the borrower dials the host with, one
+                    authorized_keys line. The lender authorizes it.
+                  type: string
+                state:
+                  description: State is one of Accepted, Refused, Active, Draining or Released.
+                  type: string
+                tartKubeletBinarySHA:
+                  description: |-
+                    TartKubeletBinarySHA is the SHA-256 of the tart-kubelet binary currently
+                    installed on the host, stamped after each successful push. It is a
+                    record, not the drift trigger: HostConfigHash is, and it covers this
+                    binary among everything else.
+                  type: string
+                tartKubeletUpdateAttempts:
+                  description: |-
+                    TartKubeletUpdateAttempts counts consecutive failures of the drift
+                    loop's host-config push. Reset to zero on success. Once it crosses the
+                    operator's max-attempts threshold the CR transitions to a terminal
+                    Failed state with FailureReason "TartKubeletUpdateExceededRetries";
+                    CAPI core surfaces that on the parent Machine and stops auto-driving
+                    it. Recovery is automatic on a new config or an elapsed cooldown (see
+                    FailedHostConfigHash and LastUpdateFailureTime), and operator-driven
+                    before then: clear failureReason and zero this counter. Without the cap
+                    a persistently-broken host (binary corruption, a full disk, a network
+                    partition) gets SSH-hammered every 60s forever with no terminal signal
+                    for ops to alert on.
+                  format: int32
+                  type: integer
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

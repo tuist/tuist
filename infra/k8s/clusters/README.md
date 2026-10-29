@@ -20,21 +20,68 @@ K8s minor bumps are a `topology.version:` edit on each Cluster CR.
 ```
 clusters/
 ├── README.md                  this file
-├── clusterclass-tuist.yaml    the tuist-hcloud ClusterClass
-├── cluster-staging.yaml       per-env Cluster CRs in topology mode
-├── cluster-canary.yaml
-├── cluster-production.yaml
-└── cluster-preview.yaml
+├── clusterclass-tuist.yaml    the tuist-hcloud ClusterClass  (mgmt-cluster-apply.yml)
+├── bare-metal.yaml            runner substrate: bare-metal-worker class
+│                              (Kata, whole-disk root)        (mgmt-cluster-apply.yml)
+├── bare-metal-stateful.yaml   stateful substrate: stateful-worker class
+│                              (separate /data, no Kata, per-cluster RAID;
+│                              carries ClickHouse)            (mgmt-cluster-apply.yml)
+├── machinedrainrules.yaml     per-workload drain behaviour   (mgmt-cluster-apply.yml)
+├── cluster-preview.yaml       preview Cluster CR             (mgmt-cluster-apply.yml)
+└── workloads/                 Flux-reconciled Cluster CRs (infra/flux/mgmt/)
+    ├── staging/{cluster,kustomization}.yaml
+    ├── canary/{cluster,kustomization}.yaml
+    ├── production/{cluster,kustomization}.yaml
+    ├── hive/{cluster,kustomization}.yaml    tenant (migrated from tuist/hive)
+    ├── once/{cluster,kustomization}.yaml    tenant (migrated from tuist/once)
+    └── atlas/{cluster,kustomization}.yaml   tenant (migrated from tuist/atlas)
 ```
+
+## Reconciliation ownership
+
+Two mechanisms apply these manifests, split deliberately (see
+[hive/specs/72](https://hive.tuist.dev/specs/72) and `infra/flux/mgmt/README.md`):
+
+- **Flux** (`infra/flux/mgmt/`) continuously reconciles the per-cluster
+  `Cluster` CRs under `workloads/`, one Flux `Kustomization` per subdir,
+  scoped never to prune a `Cluster` object. This is the source of truth
+  for the staging / canary / production and hive / once / atlas topologies.
+- **`mgmt-cluster-apply.yml`** keeps everything else at the flat `clusters/`
+  path: the immutable `clusterclass-tuist.yaml` and `bare-metal*.yaml`
+  templates (whose delete-and-apply fallback for `field is immutable` a plain
+  Kustomization can't reproduce — a new `bare-metal*.yaml` is picked up by its
+  glob without touching the workflow), `machinedrainrules.yaml`, and the
+  `cluster-preview.yaml` CR (replicas mutated out-of-band by the preview
+  workflows).
+  Flux never sees these files.
+
+Tenant `Cluster` CRs were migrated in from `tuist/{hive,once,atlas}`
+(`infra/k8s/cluster-production.yaml`). Keep each `workloads/<tenant>/cluster.yaml`
+byte-identical to the live object so the first Flux reconcile is a no-op;
+the tenant-repo copies are then retired to a pointer.
 
 ## Target shape per cluster
 
 | Cluster | CP | Workers |
 |---|---|---|
-| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: bare-metal Robot (`pool=runners-linux`) |
-| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: bare-metal Robot (`pool=runners-linux`) |
-| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 2× AX162-R bare-metal Robot in `fsn1` (`pool=runners-linux`) |
+| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist-canary` | 3× cpx22 | md-0: 3× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
+
+Canary's third general-purpose worker reserves capacity for deployment hooks
+and rolling-update surge pods alongside its two CNPG instances. Two workers
+could run the steady-state workloads, but the 512Mi ClickHouse schema-clone
+hook remained unschedulable until Helm timed out and rolled back. After
+changing this pool, wait for Flux to reconcile and the new worker to become
+Ready before retrying the deployment.
+
+`tuist-pentest`, the fixed-duration security-assessment cluster, is retired.
+Its manifest is removed; the **Pentest Cluster Retirement** workflow deletes
+the Cluster resource, its managed infrastructure and its ingress load balancer.
+Before running it, delete every DNS record pointing at the cluster's load
+balancers: the run frees their IPs, and a reassigned IP would take over the
+hostname (see `../onboarding.md` §9).
 
 The `md-egress` pool is the HA (≥2 node) stable-egress gateway: the
 production Phoenix server's public egress is SNAT'd through the active
@@ -42,6 +89,25 @@ node's Hetzner Floating IP, with the failover controller keeping the IP +
 active label on one Ready candidate. It exists on staging/canary too so
 the failover path is exercised down the deployment cascade before
 production. See the pool comment in `cluster-production.yaml`.
+
+## Worker health checks
+
+Each MachineDeployment class in the ClusterClass defines a
+`MachineHealthCheck`: Ready `Unknown` or `False` for 5 minutes on cloud
+workers, and 10 minutes on bare metal, where remediation stays disabled. A
+pool's `healthCheck` in a Cluster CR replaces the class block entirely, not
+field by field. If an override sets only `remediation`, the pool gets no
+unhealthy node conditions and only the default startup timeout. Overrides
+must restate `checks`.
+
+Cloud workers remediate one unhealthy node at a time (`unhealthyInRange:
+"[0-1]"`). When two nodes in a pool are unhealthy at once, CAPI holds, and the
+"Worker node pool below desired replicas" alert pages after 15 minutes.
+
+`nodeLockupHardening` is an opt-in worker variable that applies the kernel
+lockup panics and systemd watchdog from `cluster-api-provider-tuist` to cloud
+workers. Changing it rolls the pool, so set it as a MachineDeployment override
+one pool at a time.
 
 Variables exposed by the ClusterClass: control plane replicas + machine
 type, per-pool machine type, region (default `fsn1`), SSH key name,
@@ -51,7 +117,7 @@ Managed Kura region mapping is:
 
 | Product region | Cluster ID | CAPI Cluster | Hetzner location |
 |---|---|---|---|
-| `eu-central` | `eu-central-1` | `tuist` node pool `kura` | `fsn1` |
+| `eu-west` | `eu-west-1` | `tuist` node pool `kura-dedibox` | OVHcloud, Gravelines |
 | `us-east` | `us-east-1` | `tuist` node pool `kura-us-east` | `ash` |
 | `us-west` | `us-west-1` | `tuist` node pool `kura-us-west` | `hil` |
 
@@ -62,6 +128,70 @@ Hetzner-published Ubuntu images plus cloud-init that installs containerd
 about; no Packer pipeline. Acceptable for the autoscaler's `md-processor`
 2→6 cadence; if scaling latency becomes painful we can introduce a
 pre-baked image without changing the ClusterClass shape.
+
+## Replacing a production runner node
+
+Production runner-node replacement is not automated. The fleet has
+exactly two pre-ordered physical hosts, so the current MachineDeployment
+cannot create a current-revision replacement before releasing an old
+node. Deleting an individual Machine can also let its outdated
+MachineSet recreate the old revision.
+
+Do not delete a claimed `HetznerBareMetalHost` or remove its finalizers.
+The safe prerequisite is a third pre-ordered production runner host and
+a matching replica increase. That gives the MachineDeployment spare
+capacity to create and verify a current-revision node before an old node
+is drained.
+
+## Resizing the control plane
+
+`hcloudControlPlaneMachineType` is patched into the control-plane
+`HCloudMachineTemplate`, so changing it makes the topology controller
+create a new template and roll the `KubeadmControlPlane`. KCP uses its
+default rolling update (`maxSurge: 1`): it adds a fourth member on the new
+type, which joins etcd as a learner and is promoted to a voter, then removes
+one old member. It repeats that three times. Each step replaces a Hetzner
+server, so the control-plane nodes get new names and public IPs.
+
+Merging a change under `workloads/` is the apply: Flux polls the repository
+every minute, so the roll starts about a minute after merge. Before merging:
+
+- If the CAPI or caph controllers changed since the last control-plane roll,
+  rehearse with a same-type roll on staging (set the staging KCP's
+  `spec.rollout.after` to now) rather than resizing staging. Check the field
+  with `kubectl explain kcp.spec.rollout.after` (older APIs use
+  `spec.rolloutAfter`), and confirm a new control-plane Machine appears;
+  if none does, nothing rolled.
+- Confirm etcd has three healthy voters (`etcdctl endpoint status --cluster`
+  in an etcd pod, which needs `/elevate` for `pods/exec`; without it,
+  `etcd_server_has_leader` is 1 on every member, leader changes are flat, and
+  WAL fsync p99 is normal) and the KCP reports three up-to-date, Ready
+  replicas.
+- Check the fleet for host rules that pin the API endpoint to one member.
+  The roll gives every member a new server, and a member's IP is not always
+  reused, so a node whose host NATs the load balancer address to a single
+  member loses the API when that member is removed. On 2026-10-07 a
+  redirect left over from an incident took the EU East Kura node down this
+  way (see `infra/kura-controller/incidents/2026-09-22-eu-east.md`). On
+  each Linux fleet host, `sudo iptables -t nat -S OUTPUT` must show nothing
+  that matches the load balancer address or a control-plane member's IP.
+  During the roll, a worker that goes NotReady right after a member is
+  deleted points to such a pin.
+- Pick an off-peak window with no server deploy running or queued.
+- Silence `Hetzner control-plane load-balancer target unhealthy` for the
+  window: each new member is a load-balancer target for several minutes
+  before its apiserver answers. The Flux `Kustomization` also times out
+  (15 minutes) before the roll finishes. Neither is a failure signal.
+
+The control-plane `MachineHealthCheck` never remediates a member that fails
+to register a Node (`nodeStartupTimeoutSeconds: 0`), so a stuck join halts
+the roll with the old members still serving. Deleting the stuck Machine also
+deletes its server, and KCP immediately creates a replacement, so pause first:
+annotate the `KubeadmControlPlane` with `cluster.x-k8s.io/paused` and diagnose
+on the stuck host. Pause only the KCP, not the `Cluster`: pausing the Cluster
+also stops every worker pool from scaling or remediating. Then remove the
+annotation and either delete the stuck Machine (KCP retries) or revert.
+Reverting the type is another full roll, not an undo.
 
 ## Adapting from caph upstream
 
@@ -83,4 +213,7 @@ Adaptations to be aware of when porting upstream changes:
 - `KUBERNETES_VERSION` and `CONTAINERD` in `preKubeadmCommands` ported from the flat `cluster-template-hcloud.yaml`. The reference ClusterClass uses an old `cri-containerd-cni-` bundle that's no longer published for containerd 2.x.
 - `containerd.service` systemd unit added to both KCP and worker `files:` blocks. The plain `containerd-` tarball doesn't ship one (only the older `cri-containerd-cni-` bundle did). Without this, `systemctl start containerd` finds no unit and PLEG never goes healthy.
 - `containerRuntimeEndpoint`, `staticPodPath`, `cgroupDriver`, `clusterDNS`, `clusterDomain`, **`authentication.x509.clientCAFile`** added to the kubelet `KubeletConfiguration` shipped via the `files:` block. Critical: kubelet is invoked with two `--config` flags (kubeadm's default + ours via `kubeletExtraArgs`) and the second OVERRIDES the first, so any field omitted here gets cleared. Without `clientCAFile`, kubelet rejects the kube-apiserver's client cert as Unauthorized → `kubectl exec`, `kubectl port-forward`, and KCP's etcd health check all fail; KCP then refuses to scale the control plane to 3 replicas.
-- `resolvConf` deliberately NOT set on the kubelet `KubeletConfiguration`, and the caph reference's `/etc/kubernetes/resolv.conf` (Cloudflare-only) is dropped. Kubelet falls back to the host's `/etc/resolv.conf`, which DHCP populates with Hetzner's resolvers (multi-IP, dual-stack, one network hop away) — avoids tying DNS to a single provider.
+- Control-plane kubelets set `resolvConf` to `/run/systemd/resolve/resolv.conf`. Ubuntu's `/etc/resolv.conf` points at the host-local `127.0.0.53` stub, which is unreachable from pod network namespaces.
+- Control-plane Machine deletion retries Kubernetes Node removal indefinitely. The default ten-second deletion window can expire during a brief control-plane interruption and leave an unreachable Node after its Machine and server are gone. The ClusterClass control-plane deletion policy propagates this in place, so changing the immutable control-plane template is unnecessary.
+- All kubelets use `/run/systemd/resolve/resolv.conf` for resolver configuration. Ubuntu's `/etc/resolv.conf` points at a host-local `127.0.0.53` stub, which is unreachable from pod network namespaces. Cloud-worker MachineDeployments use an explicit rolling strategy that keeps all desired workers available and creates at most one additional worker per pool during this configuration change.
+- CoreDNS remains kubeadm-owned. Do not fork or reconcile its ConfigMap: [kubeadm does not support persisting CoreDNS ConfigMap customizations](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/control-plane-flags/#customizing-coredns).

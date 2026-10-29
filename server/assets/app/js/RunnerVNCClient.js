@@ -43,6 +43,7 @@ function redBlueSwappedBytes(arr, offset, length) {
     const red = swapped[index];
     swapped[index] = swapped[index + 2];
     swapped[index + 2] = red;
+    swapped[index + 3] = 255;
   }
 
   return swapped;
@@ -61,7 +62,8 @@ function installColorChannelFix(rfb) {
 
   // Tart's `run --vnc-experimental` path is backed by Virtualization.framework's
   // VNC server, which currently sends BGRX/BGRA updates even though noVNC
-  // requests RGBA byte order for browser-native ImageData.
+  // requests RGBA byte order for browser-native ImageData. BGRX frames carry
+  // an unused fourth byte, so force the alpha channel opaque while converting.
   display.blitImage = (x, y, width, height, arr, offset = 0, fromQueue = false) => {
     if (fromQueue) return blitImage(x, y, width, height, arr, offset, fromQueue);
 
@@ -81,6 +83,7 @@ export default {
   mounted() {
     this.viewport = this.el.closest('[data-part="interactive-viewport"]');
     this.desktopAspectRatio = defaultAspectRatio;
+    this.intentionalDisconnect = false;
     this.onViewportResize = () => this.syncViewportSize();
     this.onFullscreenChange = () => this.syncViewportSize();
 
@@ -90,6 +93,7 @@ export default {
     document.addEventListener("fullscreenchange", this.onFullscreenChange);
     document.addEventListener("webkitfullscreenchange", this.onFullscreenChange);
 
+    this.installStatus();
     this.connect();
   },
 
@@ -106,7 +110,9 @@ export default {
     const token = this.el.dataset.vncToken;
     if (!path) return;
 
+    this.intentionalDisconnect = false;
     this.el.dataset.connection = "connecting";
+    this.setStatus("Connecting to runner screen...");
     this.rfb = new RFB(this.el, websocketURL(path), { wsProtocols: token ? [token] : [] });
     this.rfb.background = "transparent";
     this.rfb.scaleViewport = true;
@@ -119,14 +125,18 @@ export default {
 
     this.onConnect = () => {
       this.el.dataset.connection = "connected";
+      this.setStatus("");
       this.installCanvasObserver();
       this.syncDesktopSize();
     };
     this.onDisconnect = () => {
       this.el.dataset.connection = "disconnected";
+      this.setStatus("Runner screen disconnected");
+      if (!this.intentionalDisconnect) this.pushEvent("interactive_vnc_disconnected", {});
     };
     this.onSecurityFailure = () => {
       this.el.dataset.connection = "security-failure";
+      this.setStatus("Runner screen authentication failed");
     };
 
     this.rfb.addEventListener("connect", this.onConnect);
@@ -137,6 +147,7 @@ export default {
   },
 
   disconnect() {
+    this.intentionalDisconnect = true;
     if (!this.rfb) return;
 
     this.canvasObserver?.disconnect();
@@ -204,5 +215,20 @@ export default {
     this.viewport.style.setProperty("--runner-vnc-width", `${Math.floor(width)}px`);
     this.viewport.style.setProperty("--runner-vnc-height", `${Math.floor(height)}px`);
     this.rfb?._handleResize?.();
+  },
+
+  installStatus() {
+    this.status = document.createElement("div");
+    this.status.dataset.part = "interactive-client-status";
+    this.status.setAttribute("aria-live", "polite");
+    this.status.hidden = true;
+    this.el.append(this.status);
+  },
+
+  setStatus(message) {
+    if (!this.status) return;
+
+    this.status.textContent = message;
+    this.status.hidden = message === "";
   },
 };

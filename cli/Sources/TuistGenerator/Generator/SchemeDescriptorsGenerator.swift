@@ -169,8 +169,8 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             rootPath: path,
             generatedProjects: generatedProjects
         )
-        let testPlanSideEffects: [SideEffectDescriptor] = scheme.testAction?.testPlans?.compactMap { plan in
-            TestPlanDescriptor.from(
+        let testPlanSideEffects: [SideEffectDescriptor] = try scheme.testAction?.testPlans?.compactMap { plan in
+            try TestPlanDescriptor.from(
                 testPlan: plan,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
@@ -244,10 +244,6 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ) throws -> XCScheme.BuildAction? {
         guard let buildAction = scheme.buildAction else { return nil }
 
-        let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = [
-            .analyzing, .archiving, .profiling, .running, .testing,
-        ]
-
         var entries: [XCScheme.BuildAction.Entry] = []
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
@@ -266,6 +262,15 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             else {
                 continue
             }
+            let buildFor: [XCScheme.BuildAction.Entry.BuildFor]
+            if let selectedBuildForOptions = buildAction.buildFor[buildActionTarget] {
+                buildFor = BuildAction.BuildFor.allCases
+                    .filter(selectedBuildForOptions.contains)
+                    .map(\.xcodeProjBuildFor)
+            } else {
+                buildFor = BuildAction.BuildFor.allCases.map(\.xcodeProjBuildFor)
+            }
+
             entries.append(
                 XCScheme.BuildAction.Entry(
                     buildableReference: buildableReference, buildFor: buildFor
@@ -420,18 +425,27 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             environments = environmentVariables(arguments.environmentVariables)
         }
 
+        let localPackageProducts = graphTraverser.consumedLocalPackageProducts()
         let codeCoverageTargets = try testAction.codeCoverageTargets
             .compactMap { (target: TargetReference) -> XCScheme.BuildableReference? in
-                guard let graphTarget = graphTraverser.target(
+                if let graphTarget = graphTraverser.target(
                     path: target.projectPath, name: target.name
-                )
-                else { return nil }
-                return try testCoverageTargetReferences(
-                    graphTarget: graphTarget,
-                    graphTraverser: graphTraverser,
-                    generatedProjects: generatedProjects,
-                    rootPath: rootPath
-                )
+                ) {
+                    return try testCoverageTargetReferences(
+                        graphTarget: graphTarget,
+                        graphTraverser: graphTraverser,
+                        generatedProjects: generatedProjects,
+                        rootPath: rootPath
+                    )
+                }
+                // Coverage targets can reference products of local Swift packages, which are
+                // not part of the graph. Xcode resolves them through the package directory
+                // used as the referenced container. Only names matching a consumed package
+                // product are emitted; other names would produce an empty coverage report.
+                if localPackageProducts[target.projectPath]?.contains(target.name) == true {
+                    return packageTargetBuildableReference(target: target, rootPath: rootPath)
+                }
+                return nil
             }
 
         var macroExpansion: XCScheme.BuildableReference?
@@ -473,6 +487,18 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                     return .screenRecording
                 }
             }
+        let customLLDBInitFile: String? = if let customLLDBInitFile = testAction.customLLDBInitFile,
+                                             let targetReference = testAction.expandVariableFromTarget
+                                             ?? testAction.targets.first?.target,
+                                             let graphTarget = graphTraverser.target(
+                                                 path: targetReference.projectPath,
+                                                 name: targetReference.name
+                                             )
+        {
+            "$(SRCROOT)/\(customLLDBInitFile.relative(to: graphTarget.project.path).pathString)"
+        } else {
+            testAction.customLLDBInitFile?.pathString
+        }
 
         return XCScheme.TestAction(
             buildConfiguration: testAction.configurationName,
@@ -496,7 +522,8 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             environmentVariables: environments,
             language: language,
             region: region,
-            preferredScreenCaptureFormat: preferredScreenCaptureFormat
+            preferredScreenCaptureFormat: preferredScreenCaptureFormat,
+            customLLDBInitFile: customLLDBInitFile
         )
     } // swiftlint:enable function_body_length
 
@@ -1095,6 +1122,26 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         )
     }
 
+    /// Creates a buildable reference for a product of a local Swift package.
+    /// Package products are not part of the generated projects, so the reference points to
+    /// the package directory the same way Xcode does when the product is selected manually.
+    ///
+    /// - Parameters:
+    ///     - target: The target reference, with the package directory as its project path
+    ///       and a package product as its name.
+    ///     - rootPath: Path to the project or workspace.
+    private func packageTargetBuildableReference(
+        target: TargetReference,
+        rootPath: AbsolutePath
+    ) -> XCScheme.BuildableReference {
+        XCScheme.BuildableReference(
+            referencedContainer: "container:\(target.projectPath.relative(to: rootPath).pathString)",
+            blueprintIdentifier: target.name,
+            buildableName: target.name,
+            blueprintName: target.name
+        )
+    }
+
     /// Returns the scheme archive action
     ///
     /// - Returns: Scheme archive action.
@@ -1135,6 +1182,23 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     }
 }
 
+extension BuildAction.BuildFor {
+    fileprivate var xcodeProjBuildFor: XCScheme.BuildAction.Entry.BuildFor {
+        switch self {
+        case .analyzing:
+            return .analyzing
+        case .archiving:
+            return .archiving
+        case .profiling:
+            return .profiling
+        case .running:
+            return .running
+        case .testing:
+            return .testing
+        }
+    }
+}
+
 extension TestAction {
     fileprivate static func empty(withConfigurationName configurationName: String) -> Self {
         .init(
@@ -1158,6 +1222,7 @@ extension TestAction {
 
 enum SchemeDescriptorsGeneratorError: FatalError, Equatable {
     case duplicateGeneratedTestPlanPath(AbsolutePath)
+    case unresolvedTestPlanCoverageTarget(plan: AbsolutePath, target: TargetReference)
 
     var type: ErrorType { .abort }
 
@@ -1167,6 +1232,12 @@ enum SchemeDescriptorsGeneratorError: FatalError, Equatable {
             """
             Multiple generated test plans resolve to the same path \(path.pathString). \
             Give each plan a distinct name or pin one of them to an explicit path.
+            """
+        case let .unresolvedTestPlanCoverageTarget(plan, target):
+            """
+            Cannot resolve coverage target '\(target.name)' at \(target.projectPath.pathString) \
+            for generated test plan \(plan.pathString). \
+            Use a workspace scheme to collect coverage from targets in other projects.
             """
         }
     }

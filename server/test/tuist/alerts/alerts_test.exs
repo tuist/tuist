@@ -5,6 +5,7 @@ defmodule Tuist.AlertsTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AlertsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
@@ -696,6 +697,43 @@ defmodule Tuist.AlertsTest do
           )
       end
 
+      # Create 5 "current" CI module cache events with 50% hit rate
+      for i <- 1..5 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          is_ci: true,
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+        )
+      end
+
+      # Create 5 "previous" CI module cache events with 60% hit rate
+      for i <- 6..10 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          is_ci: true,
+          cacheable_targets: ["A", "B", "C", "D", "E"],
+          local_cache_target_hits: ["A", "B", "C"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+        )
+      end
+
+      # Local module cache events with 100% hit rate, newer than every CI event
+      # so they would take over both windows if the environment scope leaked
+      for i <- 1..10 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          is_ci: false,
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A", "B"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :second)
+        )
+      end
+
       alert_rule =
         AlertsFixtures.alert_rule_fixture(
           project: project,
@@ -709,10 +747,11 @@ defmodule Tuist.AlertsTest do
       # When
       result = Alerts.evaluate(alert_rule)
 
-      # Then - only CI builds are considered; local builds with 100% hit rate are ignored
+      # Then - only CI runs are considered on both sources; the 100% local runs
+      # are ignored by the Xcode cache and the module cache alike
       assert {:triggered, data} = result
-      assert data.current == 0.7
-      assert data.previous == 0.8
+      assert_in_delta data.current, 0.6, 0.0001
+      assert_in_delta data.previous, 0.7, 0.0001
     end
 
     test "filters to local builds only when environment is local" do
@@ -781,6 +820,268 @@ defmodule Tuist.AlertsTest do
       # Then - only local builds are considered; CI builds with 100% hit rate are ignored
       assert {:triggered, data} = result
       assert data.current == 0.7
+      assert data.previous == 0.8
+    end
+
+    test "filters to builds on the configured branch when git_branch is set" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" main builds with 70% cache hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 50,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" main builds with 80% cache hit rate
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Feature branch builds with 0% cache hit rate (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "feature",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 0,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "current" main module cache events with 50% hit rate
+      for i <- 1..5 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          git_branch: "main",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+        )
+      end
+
+      # Create 5 "previous" main module cache events with 60% hit rate
+      for i <- 6..10 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          git_branch: "main",
+          cacheable_targets: ["A", "B", "C", "D", "E"],
+          local_cache_target_hits: ["A", "B", "C"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+        )
+      end
+
+      # Feature branch module cache events with 0% hit rate, newer than every
+      # main event so they would take over both windows if the scope leaked
+      for i <- 1..10 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          git_branch: "feature",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: [],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :second)
+        )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          git_branch: "main"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - both the Xcode cache and the module cache are scoped to main
+      assert {:triggered, data} = result
+      assert_in_delta data.current, 0.6, 0.0001
+      assert_in_delta data.previous, 0.7, 0.0001
+    end
+
+    test "ignores a source that only has runs in one of the two windows" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Xcode cache: a steady 80% hit rate across both windows
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Module cache: only enough events on main to fill the current window
+      for i <- 1..5 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          git_branch: "main",
+          cacheable_targets: ["A", "B", "C", "D"],
+          local_cache_target_hits: ["A"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+        )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          git_branch: "main"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - the module cache is missing from the previous window, so it is
+      # left out of the current one too instead of comparing 0.525 against 0.8
+      assert result == :ok
+    end
+
+    test "returns :ok when a window did not fill up" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # 5 "current" builds with a 10% hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 10,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Only 2 "previous" builds, so the older window is short of the window size
+      for i <- 6..7 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 90,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          git_branch: "main"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "considers every branch when git_branch is empty" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Recent feature-branch builds with 0% cache hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "feature",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 0,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Older main builds with 80% cache hit rate
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          git_branch: ""
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - the feature-branch drop is included, so the rule triggers
+      assert {:triggered, data} = result
+      assert data.current == 0.0
       assert data.previous == 0.8
     end
   end

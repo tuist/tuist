@@ -37,6 +37,22 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             "xcframework '\(path.basename)'"
         }
 
+        /// `infoPlist`, `swiftModules` and `moduleMaps` are read from the artifact at `path`, so two values that
+        /// agree on the remaining properties necessarily agree on them too. They are skipped here because they are
+        /// by far the largest part of the struct, and xcframework nodes are hashed and compared on every visited-set
+        /// probe and adjacency lookup of every graph traversal.
+        public static func == (lhs: GraphDependency.XCFramework, rhs: GraphDependency.XCFramework) -> Bool {
+            lhs.path == rhs.path &&
+                lhs.linking == rhs.linking &&
+                lhs.mergeable == rhs.mergeable &&
+                lhs.status == rhs.status &&
+                lhs.expectedSignature == rhs.expectedSignature
+        }
+
+        public func hash(into hasher: inout Hasher) {
+            hasher.combine(path)
+        }
+
         public static func < (lhs: GraphDependency.XCFramework, rhs: GraphDependency.XCFramework) -> Bool {
             lhs.description < rhs.description
         }
@@ -49,6 +65,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
         case runtime = "runtime package product"
         case runtimeEmbedded = "runtime embedded package product"
+        case runtimeDynamic = "dynamic runtime package product"
+        case runtimeDynamicEmbedded = "dynamic runtime embedded package product"
         case plugin = "plugin package product"
         case macro = "macro package product"
 
@@ -250,7 +268,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
              let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
             return linking == .dynamic
         case .bundle: return false
-        case .packageProduct(_, _, type: .runtimeEmbedded): return true
+        case .packageProduct(_, _, type: .runtimeEmbedded), .packageProduct(_, _, type: .runtimeDynamicEmbedded): return true
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false

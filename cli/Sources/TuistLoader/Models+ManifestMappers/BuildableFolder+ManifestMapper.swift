@@ -50,7 +50,7 @@ extension XcodeGraph.BuildableFolder {
         let compilerFlagsByPath = Dictionary(uniqueKeysWithValues: exceptions.flatMap(\.compilerFlags))
 
         let allPaths = try await fileSystem
-            .glob(directory: path, include: ["**/*"]).collect()
+            .manifestGlob(directory: path, include: ["**/*"]).collect()
             .filter { !exclusions.contains($0) }
         let resolvedFiles = try await allPaths
             .concurrentCompactMap { filePath -> BuildableFolderFile? in

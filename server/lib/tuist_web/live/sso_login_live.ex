@@ -38,6 +38,17 @@ defmodule TuistWeb.SSOLoginLive do
 
         {:noreply, redirect(socket, to: redirect_url)}
 
+      {:error, :login_domain_ambiguous} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext(
+             "dashboard_auth",
+             "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
+           )
+         )}
+
       {:error, :not_found} ->
         socket =
           put_flash(
@@ -58,12 +69,7 @@ defmodule TuistWeb.SSOLoginLive do
     <div id="sso-login">
       <div data-part="frame">
         <div data-part="content">
-          <img
-            src={~p"/images/tuist_logo_32x32@2x.png"}
-            alt={dgettext("dashboard_auth", "Tuist Logo")}
-            data-part="logo"
-            decoding="async"
-          />
+          <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />

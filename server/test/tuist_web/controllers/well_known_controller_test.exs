@@ -3,7 +3,40 @@ defmodule TuistWeb.WellKnownControllerTest do
   use Mimic
 
   alias Tuist.Environment
+  alias Tuist.MCP.Server
   alias TuistWeb.AgentSkillsDiscovery
+
+  setup do
+    stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+    stub(Environment, :app_url, fn options ->
+      if Keyword.get(options, :route_type) == :app do
+        "http://www.example.com"
+      else
+        "https://tuist.dev#{Keyword.get(options, :path, "")}"
+      end
+    end)
+
+    :ok
+  end
+
+  describe "GET /.well-known/tuist.json" do
+    test "advertises the current instance policy without authentication or caching", %{conn: conn} do
+      for {reporting, cache} <- [{false, false}, {true, false}, {false, true}, {true, true}] do
+        stub(Environment, :network_trusted_report_publishing_enabled?, fn -> reporting end)
+        stub(Environment, :network_trusted_cache_access_enabled?, fn -> cache end)
+        response = get(conn, "/.well-known/tuist.json")
+
+        assert json_response(response, 200) == %{
+                 "network_trusted_report_publishing" => reporting,
+                 "network_trusted_cache_access" => cache
+               }
+
+        assert get_resp_header(response, "cache-control") == ["no-store"]
+        assert get_resp_header(response, "set-cookie") == []
+      end
+    end
+  end
 
   describe "GET /.well-known/api-catalog" do
     test "returns a linkset API catalog", %{conn: conn} do
@@ -145,19 +178,116 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/once" do
+    test "advertises the events.<host> gRPC endpoint by default", %{conn: conn} do
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> nil
+        name -> System.get_env(name)
+      end)
+
+      conn = get(conn, "/.well-known/once")
+
+      response = json_response(conn, 200)
+      assert %{"events" => [url]} = response
+      assert url =~ ~r/^grpcs?:\/\/events[.-]/
+      refute Map.has_key?(response, "live_url_template")
+    end
+
+    test "returns the endpoints named by TUIST_ONCE_EVENTS_ENDPOINTS when configured", %{conn: conn} do
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> "grpcs://ingest-eu.tuist.dev, grpcs://ingest-us.tuist.dev"
+        name -> System.get_env(name)
+      end)
+
+      conn = get(conn, "/.well-known/once")
+
+      assert %{
+               "events" => [
+                 "grpcs://ingest-eu.tuist.dev",
+                 "grpcs://ingest-us.tuist.dev"
+               ]
+             } = json_response(conn, 200)
+    end
+
+    # Managed envs (staging, canary) run on subdomains like
+    # `staging.tuist.dev`, where the string-prefix default would advertise
+    # a hostname that doesn't line up with the real ingress at
+    # `events-staging.tuist.dev` (dash, not dot). Those deployments MUST
+    # set `TUIST_ONCE_EVENTS_ENDPOINTS` explicitly from Helm; this test
+    # pins the contract that the override wins on a sub-prefix origin
+    # without freezing the exact shape of the (apex-only) default, so a
+    # future controller improvement that natively advertises
+    # `events-<env>.<apex>` can land without breaking the test.
+    test "override wins on sub-prefix hosts", %{conn: conn} do
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> nil
+        name -> System.get_env(name)
+      end)
+
+      conn_without_override =
+        conn
+        |> put_req_header("x-forwarded-proto", "https")
+        |> put_req_header("x-forwarded-host", "staging.tuist.dev")
+        |> get("/.well-known/once")
+
+      assert %{"events" => [default_url]} = json_response(conn_without_override, 200)
+      # Default must at least carry the `events` subdomain prefix (dot or
+      # dash); exact shape intentionally unpinned so a future native
+      # sub-prefix fix doesn't need a test rewrite.
+      assert default_url =~ ~r/^grpcs?:\/\/events[.-]/
+
+      stub(System, :get_env, fn
+        "TUIST_ONCE_EVENTS_ENDPOINTS" -> "grpcs://events-staging.tuist.dev"
+        name -> System.get_env(name)
+      end)
+
+      conn_with_override =
+        conn
+        |> put_req_header("x-forwarded-proto", "https")
+        |> put_req_header("x-forwarded-host", "staging.tuist.dev")
+        |> get("/.well-known/once")
+
+      assert %{"events" => ["grpcs://events-staging.tuist.dev"]} =
+               json_response(conn_with_override, 200)
+    end
+  end
+
   describe "GET /.well-known/mcp/server-card.json" do
     test "returns the MCP server card", %{conn: conn} do
       conn = get(conn, "/.well-known/mcp/server-card.json")
 
       response = json_response(conn, 200)
-      server = Tuist.MCP.Server.server()
+      server = Server.server()
 
       assert get_resp_header(conn, "content-type") == ["application/json; charset=utf-8"]
+      assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
+      assert get_resp_header(conn, "cache-control") == ["public, max-age=3600"]
+      refute Map.has_key?(response, "$schema")
+      assert response["version"] == "1.0"
+      assert response["protocolVersion"] == "2026-07-28"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
+      assert response["serverInfo"]["version"] == "1.42.0"
+      assert response["serverInfo"]["title"] == "Tuist"
+      assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"
-      assert "tools" in response["capabilities"]
-      assert "prompts" in response["capabilities"]
+      assert response["capabilities"]["tools"] == %{}
+      assert response["capabilities"]["prompts"] == %{}
+
+      assert response["authentication"] == %{
+               "required" => true,
+               "schemes" => ["bearer", "oauth2"]
+             }
+
+      assert response["instructions"] == server.instructions
+
+      assert response["instructions"] =~
+               "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
+
+      refute response["instructions"] =~ "auth_md"
+      refute response["instructions"] =~ "agent_auth.skill"
+      assert response["tools"] == ["dynamic"]
+      assert response["prompts"] == ["dynamic"]
     end
   end
 
@@ -201,28 +331,30 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["issuer"] == "http://www.example.com"
       assert response["authorization_endpoint"] == "http://www.example.com/oauth2/authorize"
       assert response["token_endpoint"] == "http://www.example.com/oauth2/token"
+      assert response["revocation_endpoint"] == "http://www.example.com/oauth2/revoke"
+      assert response["jwks_uri"] == "http://www.example.com/.well-known/jwks.json"
       assert response["introspection_endpoint"] == "http://www.example.com/oauth2/introspect"
       assert response["registration_endpoint"] == "http://www.example.com/oauth2/register"
       assert response["scopes_supported"] == ["mcp"]
 
       assert response["agent_auth"] == %{
-               "skill" => "https://workos.com/auth.md",
-               "register_uri" => "http://www.example.com/agent/auth",
-               "claim_uri" => "http://www.example.com/agent/auth/claim",
-               "revocation_uri" => "http://www.example.com/agent/auth/revoke",
-               "identity_types_supported" => ["anonymous", "identity_assertion"],
-               "anonymous" => %{
-                 "credential_types_supported" => ["api_key"]
-               },
+               "skill" => "http://www.example.com/auth.md",
+               "identity_endpoint" => "http://www.example.com/agent/identity",
+               "claim_endpoint" => "http://www.example.com/agent/identity/claim",
+               "events_endpoint" => "http://www.example.com/agent/event/notify",
+               "identity_types_supported" => ["anonymous", "identity_assertion", "service_auth"],
                "identity_assertion" => %{
-                 "assertion_types_supported" => ["verified_email", "urn:ietf:params:oauth:token-type:id-jag"],
-                 "credential_types_supported" => ["access_token", "api_key"]
+                 "assertion_types_supported" => ["urn:ietf:params:oauth:token-type:id-jag"]
                },
-               "events_supported" => ["https://schemas.workos.com/events/agent/auth/identity/assertion/revoked"]
+               "events_supported" => ["https://schemas.workos.com/events/agent/auth/identity/assertion/revoked"],
+               "compatibility" => %{
+                 "legacy_registration_endpoint" => "http://www.example.com/agent/auth",
+                 "legacy_claim_endpoint" => "http://www.example.com/agent/auth/claim"
+               }
              }
     end
 
-    test "uses forwarded request origin for OAuth authorization server metadata", %{conn: conn} do
+    test "keeps the configured canonical origin behind a forwarding proxy", %{conn: conn} do
       conn =
         conn
         |> put_req_header("x-forwarded-proto", "https")
@@ -232,14 +364,15 @@ defmodule TuistWeb.WellKnownControllerTest do
 
       response = json_response(conn, 200)
 
-      assert response["issuer"] == "https://self-hosted.example.com"
-      assert response["authorization_endpoint"] == "https://self-hosted.example.com/oauth2/authorize"
-      assert response["token_endpoint"] == "https://self-hosted.example.com/oauth2/token"
-      assert response["introspection_endpoint"] == "https://self-hosted.example.com/oauth2/introspect"
-      assert response["registration_endpoint"] == "https://self-hosted.example.com/oauth2/register"
-      assert response["agent_auth"]["register_uri"] == "https://self-hosted.example.com/agent/auth"
-      assert response["agent_auth"]["claim_uri"] == "https://self-hosted.example.com/agent/auth/claim"
-      assert response["agent_auth"]["revocation_uri"] == "https://self-hosted.example.com/agent/auth/revoke"
+      assert response["issuer"] == "http://www.example.com"
+      assert response["authorization_endpoint"] == "http://www.example.com/oauth2/authorize"
+      assert response["token_endpoint"] == "http://www.example.com/oauth2/token"
+      assert response["introspection_endpoint"] == "http://www.example.com/oauth2/introspect"
+      assert response["registration_endpoint"] == "http://www.example.com/oauth2/register"
+      assert response["agent_auth"]["skill"] == "http://www.example.com/auth.md"
+      assert response["agent_auth"]["identity_endpoint"] == "http://www.example.com/agent/identity"
+      assert response["agent_auth"]["claim_endpoint"] == "http://www.example.com/agent/identity/claim"
+      assert response["agent_auth"]["events_endpoint"] == "http://www.example.com/agent/event/notify"
     end
   end
 
@@ -254,14 +387,15 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["authorization_servers"] == ["http://www.example.com"]
       assert response["bearer_methods_supported"] == ["header"]
       assert response["scopes_supported"] == ["mcp"]
-      assert response["agent_auth"]["register_uri"] == "http://www.example.com/agent/auth"
+      assert response["agent_auth"]["skill"] == "http://www.example.com/auth.md"
+      assert response["agent_auth"]["identity_endpoint"] == "http://www.example.com/agent/identity"
 
       assert response["agent_auth"]["identity_assertion"]["assertion_types_supported"] == [
-               "verified_email",
                "urn:ietf:params:oauth:token-type:id-jag"
              ]
 
-      refute Map.has_key?(response, "resource_documentation")
+      assert response["resource_documentation"] ==
+               "http://www.example.com/en/docs/guides/features/agentic-coding/mcp"
     end
   end
 
@@ -276,11 +410,13 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["authorization_servers"] == ["http://www.example.com"]
       assert response["bearer_methods_supported"] == ["header"]
       assert response["scopes_supported"] == ["mcp"]
-      assert response["agent_auth"]["claim_uri"] == "http://www.example.com/agent/auth/claim"
-      refute Map.has_key?(response, "resource_documentation")
+      assert response["agent_auth"]["claim_endpoint"] == "http://www.example.com/agent/identity/claim"
+
+      assert response["resource_documentation"] ==
+               "http://www.example.com/en/docs/guides/features/agentic-coding/mcp"
     end
 
-    test "uses request origin including non-default port", %{conn: conn} do
+    test "keeps the configured canonical resource when reached through an alias", %{conn: conn} do
       conn =
         conn
         |> Map.put(:host, "custom.tuist.dev")
@@ -289,9 +425,9 @@ defmodule TuistWeb.WellKnownControllerTest do
 
       response = json_response(conn, 200)
 
-      assert response["resource"] == "http://custom.tuist.dev:8443/mcp"
+      assert response["resource"] == "http://www.example.com/mcp"
       assert response["resource_name"] == "Tuist MCP"
-      assert response["authorization_servers"] == ["http://custom.tuist.dev:8443"]
+      assert response["authorization_servers"] == ["http://www.example.com"]
     end
 
     test "returns not found for unsupported protected resources", %{conn: conn} do

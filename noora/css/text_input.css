@@ -97,10 +97,6 @@
       & [data-part="trigger"] {
         cursor: help;
       }
-
-      & [data-part="content"] {
-        position: absolute;
-      }
     }
 
     &:has(> input:disabled) {
@@ -153,11 +149,9 @@
 }
 
 .noora-digit-input {
-  padding: var(--noora-spacing-6);
-
   & [data-part="root"] {
     display: flex;
-    gap: var(--noora-spacing-5);
+    gap: var(--noora-spacing-4);
   }
 
   & input {
@@ -175,10 +169,11 @@
     border-radius: var(--noora-radius-4);
 
     background: var(--noora-surface-background-primary);
-    padding: var(--noora-spacing-5) 0;
-    width: 56px;
+    padding: 0;
+    width: 48px;
+    height: 48px;
     color: var(--noora-surface-label-primary);
-    font: var(--noora-font-heading-large);
+    font: var(--noora-font-heading-small);
     text-align: center;
 
     &:hover {
@@ -209,8 +204,7 @@
       --border:
         0px 1px 1px 0px
           light-dark(oklch(21.7% 0.002 247.941 / 0.05), oklch(16.2% 0 0 / 0.2)),
-        0px 0px 0px 1px
-          light-dark(oklch(58.7% 0.23 30.7), oklch(74% 0.159 30.9)),
+        0px 0px 0px 1px light-dark(var(--noora-red-500), var(--noora-red-300)),
         0px 1px 3px 0px
           light-dark(oklch(32% 0.005 247.968 / 0.1), oklch(0% 0 0 / 0.3));
 
@@ -221,14 +215,13 @@
               oklch(21.7% 0.002 247.941 / 0.05),
               oklch(16.2% 0 0 / 0.2)
             ),
-          0px 0px 0px 1px
-            light-dark(oklch(58.7% 0.23 30.7), oklch(74% 0.159 30.9)),
+          0px 0px 0px 1px light-dark(var(--noora-red-500), var(--noora-red-300)),
           0px 1px 3px 0px
             light-dark(oklch(32% 0.005 247.968 / 0.1), oklch(0% 0 0 / 0.3)),
           0px 0px 0px 3px
             light-dark(
-              oklch(58.7% 0.23 30.7 / 0.2),
-              oklch(74% 0.159 30.9 / 0.25)
+              oklch(from var(--noora-red-500) l c h / 0.2),
+              oklch(from var(--noora-red-300) l c h / 0.25)
             );
       }
     }

@@ -32,6 +32,7 @@ public protocol ShardServicing {
         fullHandle: String,
         serverURL: URL,
         reference: String?,
+        shardPlanId: String?,
         testProductsPath: AbsolutePath?,
         testProductsArchivePath: AbsolutePath?
     ) async throws -> Shard
@@ -81,10 +82,12 @@ public struct ShardService: ShardServicing {
         fullHandle: String,
         serverURL: URL,
         reference: String? = nil,
+        shardPlanId: String? = nil,
         testProductsPath: AbsolutePath? = nil,
         testProductsArchivePath: AbsolutePath? = nil
     ) async throws -> Shard {
-        guard let reference = reference ?? ciController.ciInfo()?.shardReference else {
+        let shardPlanId = shardPlanId.flatMap { $0.isEmpty ? nil : $0 }
+        guard let reference = reference ?? ciController.ciInfo()?.shardReference ?? shardPlanId else {
             throw ShardServiceError.cannotDeriveReference
         }
 
@@ -94,8 +97,14 @@ public struct ShardService: ShardServicing {
             fullHandle: fullHandle,
             serverURL: serverURL,
             reference: reference,
+            shardPlanId: shardPlanId,
             shardIndex: shardIndex
         )
+
+        // A reference identifies the CI run rather than the build job inside it, so a workflow that
+        // builds more than one plan per run can resolve a plan another job created. The suites
+        // printed below are what shows that; the identifier is here for pinning it down after.
+        Logger.current.debug("Resolved shard plan \(shard.shard_plan_id)")
 
         let suites = shard.suites.additionalProperties
         let skipTestIdentifiers = shard.skip ?? []

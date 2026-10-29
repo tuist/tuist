@@ -26,20 +26,17 @@ defmodule Tuist.Marketing.Blog do
   def get_post_author_name(post), do: post |> get_post_author() |> author_name_or_fallback(post.author)
 
   @doc """
-  Returns the image URL for a blog post, using the og_image_path if available,
-  otherwise falling back to the generated OG image.
+  The author's public profile URL, or `nil` when the author has no handle on
+  file. Used both as the `author.url` in structured data and as the Open Graph
+  `article:author`, which is typed as a profile rather than a name.
   """
-  def get_post_image_url(post) do
-    if post.og_image_path do
-      Tuist.Environment.app_url(
-        path: post.og_image_path,
-        marketing: true
-      )
-    else
-      Tuist.Environment.app_url(
-        path: "/marketing/images/og/generated#{post.slug}.jpg",
-        marketing: true
-      )
+  def get_post_author_url(post) do
+    case get_post_author(post) do
+      %{"github_handle" => handle} when is_binary(handle) and handle != "" ->
+        "https://github.com/#{handle}"
+
+      _ ->
+        nil
     end
   end
 

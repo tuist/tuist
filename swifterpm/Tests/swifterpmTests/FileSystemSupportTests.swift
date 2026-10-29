@@ -64,8 +64,12 @@ struct FileSystemSupportTests {
 
             #expect(try await fileSystem.exists(link.absolutePath))
             #expect(!(fileSystem.isDirectoryAndNotSymlink(link)))
+            // A link to a file is not a directory either way, so the two helpers
+            // only disagree when the link resolves to a directory.
+            #expect(!(fileSystem.isDirectoryFollowingSymlinks(link)))
             #expect(try await fileSystem.exists(directoryLink.absolutePath, isDirectory: true))
             #expect(!(fileSystem.isDirectoryAndNotSymlink(directoryLink)))
+            #expect(fileSystem.isDirectoryFollowingSymlinks(directoryLink))
             #expect(!(try await fileSystem.currentWorkingDirectory().pathString.isEmpty))
         }
     }
@@ -85,6 +89,71 @@ struct FileSystemSupportTests {
             try await fileSystem.removePath(link)
 
             #expect(!fileSystem.existsIncludingSymlinks(link))
+        }
+    }
+
+    @Test
+    func flattenSingleDirectoryPreservesTopLevelFiles() async throws {
+        try await withTemporaryDirectory { root in
+            let packageManifest = root.appendingPathComponent("Package.swift")
+            let nestedSource = root.appendingPathComponent("discarded/Sources/Package/Package.swift")
+            try await fileSystem.atomicWrite("// package manifest", to: packageManifest)
+            try await fileSystem.atomicWrite("// package source", to: nestedSource)
+
+            try await fileSystem.flattenSingleDirectory(root)
+
+            #expect(try await fileSystem.exists(packageManifest.absolutePath))
+            #expect(
+                try await fileSystem.exists(
+                    root.appendingPathComponent("Sources/Package/Package.swift").absolutePath
+                )
+            )
+            #expect(
+                !(try await fileSystem.exists(
+                    root.appendingPathComponent("discarded").absolutePath
+                ))
+            )
+        }
+    }
+
+    @Test
+    func flattenSingleDirectoryPreservesRootSymbolicLinks() async throws {
+        try await withTemporaryDirectory { root in
+            let packageRoot = root.appendingPathComponent("package-1.0.0")
+            let agents = packageRoot.appendingPathComponent("AGENTS.md")
+            let claude = packageRoot.appendingPathComponent("CLAUDE.md")
+            try await fileSystem.atomicWrite("instructions", to: agents)
+            try await fileSystem.atomicWrite("// package manifest", to: packageRoot.appendingPathComponent("Package.swift"))
+            try await fileSystem.createSymbolicLink(
+                from: claude.absolutePath,
+                to: try RelativePath(validating: "AGENTS.md")
+            )
+
+            try await fileSystem.flattenSingleDirectory(root)
+
+            let flattenedLink = root.appendingPathComponent("CLAUDE.md")
+            #expect(fileSystem.isSymlink(flattenedLink))
+            #expect(try await fileSystem.exists(flattenedLink.absolutePath))
+        }
+    }
+
+    @Test
+    func flattenSingleDirectoryPreservesPackageSourcesAtRoot() async throws {
+        try await withTemporaryDirectory { root in
+            let packageManifest = root.appendingPathComponent("Package.swift")
+            let packageSource = root.appendingPathComponent("Sources/Package/Package.swift")
+            try await fileSystem.atomicWrite("// package manifest", to: packageManifest)
+            try await fileSystem.atomicWrite("// package source", to: packageSource)
+
+            try await fileSystem.flattenSingleDirectory(root)
+
+            #expect(try await fileSystem.exists(packageManifest.absolutePath))
+            #expect(try await fileSystem.exists(packageSource.absolutePath))
+            #expect(
+                !(try await fileSystem.exists(
+                    root.appendingPathComponent("Package").absolutePath
+                ))
+            )
         }
     }
 }

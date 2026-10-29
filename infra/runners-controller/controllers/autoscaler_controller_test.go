@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,12 +12,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	nodev1 "k8s.io/api/node/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -75,8 +79,14 @@ func newAutoscalerPool(name string, replicas int32, autoscaling *tuistv1.RunnerP
 			Namespace: "tuist-runners",
 		},
 		Spec: tuistv1.RunnerPoolSpec{
-			Replicas:      replicas,
-			Image:         "ghcr.io/tuist/tuist-linux-runner:test",
+			Replicas: replicas,
+			Image:    "ghcr.io/tuist/tuist-linux-runner:test",
+			// The apiserver defaults podMemoryMB (see the CRD marker on
+			// RunnerPoolSpec); the fake client used here does not apply
+			// CRD defaults, so the fixture has to. A pool that genuinely
+			// declares no memory request is refused by perPodCost rather
+			// than allocated at zero cost.
+			PodMemoryMB:   14336,
 			FleetSelector: name + "-fleet",
 			DispatchLabel: name + "-label",
 			Autoscaling:   autoscaling,
@@ -114,9 +124,9 @@ func TestAutoscaler_DisabledPoolIsNoOp(t *testing.T) {
 func TestAutoscaler_ScalesUp(t *testing.T) {
 	pool := newAutoscalerPool("linux", 1, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
-		MinWarmPoolFloor:         1,
+		MinWarmPoolFloor:         ptr.To[int32](1),
 		MaxReplicas:              30,
-		ScaleDownCooldownSeconds: 300,
+		ScaleDownCooldownSeconds: ptr.To[int32](300),
 	})
 	r, server := setupReconciler(t, pool, scaling.Signals{
 		Fleet:                 "linux",
@@ -145,9 +155,9 @@ func TestAutoscaler_ScalesUp(t *testing.T) {
 func TestAutoscaler_ScalesDownAfterCooldown(t *testing.T) {
 	pool := newAutoscalerPool("linux", 10, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
-		MinWarmPoolFloor:         1,
+		MinWarmPoolFloor:         ptr.To[int32](1),
 		MaxReplicas:              30,
-		ScaleDownCooldownSeconds: 60,
+		ScaleDownCooldownSeconds: ptr.To[int32](60),
 	})
 	r, server := setupReconciler(t, pool, scaling.Signals{
 		Fleet:                 "linux",
@@ -175,13 +185,46 @@ func TestAutoscaler_ScalesDownAfterCooldown(t *testing.T) {
 	}
 }
 
+func TestAutoscaler_HoldRecentPeakFalseReleasesABurstPool(t *testing.T) {
+	tests := []struct {
+		name string
+		hold *bool
+		want int32
+	}{
+		{name: "default holds the last hour's peak", hold: nil, want: 11},
+		{name: "false sizes to current load", hold: ptr.To(false), want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := newAutoscalerPool("smoke", 11, &tuistv1.RunnerPoolAutoscaling{
+				Enabled:          true,
+				MinWarmPoolFloor: ptr.To[int32](0),
+				MaxReplicas:      18,
+				HoldRecentPeak:   tt.hold,
+			})
+			r, server := setupReconciler(t, pool, scaling.Signals{Fleet: "smoke", P95ConcurrentLastHour: 11})
+			defer server.Close()
+
+			reconcileOnce(t, r, "smoke")
+
+			got := &tuistv1.RunnerPool{}
+			if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+				t.Fatalf("get pool: %v", err)
+			}
+			if got.Spec.Replicas != tt.want {
+				t.Errorf("Replicas = %d, want %d", got.Spec.Replicas, tt.want)
+			}
+		})
+	}
+}
+
 func TestAutoscaler_DefersScaleDownDuringCooldown(t *testing.T) {
 	tenSecondsAgo := metav1.NewTime(time.Date(2026, 5, 14, 11, 59, 50, 0, time.UTC))
 	pool := newAutoscalerPool("linux", 10, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
-		MinWarmPoolFloor:         1,
+		MinWarmPoolFloor:         ptr.To[int32](1),
 		MaxReplicas:              30,
-		ScaleDownCooldownSeconds: 300,
+		ScaleDownCooldownSeconds: ptr.To[int32](300),
 	})
 	pool.Status.LastScaleDownAt = &tenSecondsAgo
 
@@ -210,9 +253,9 @@ func TestAutoscaler_DefersScaleDownDuringCooldown(t *testing.T) {
 func TestAutoscaler_NoOpAtTarget(t *testing.T) {
 	pool := newAutoscalerPool("linux", 6, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
-		MinWarmPoolFloor:         1,
+		MinWarmPoolFloor:         ptr.To[int32](1),
 		MaxReplicas:              30,
-		ScaleDownCooldownSeconds: 300,
+		ScaleDownCooldownSeconds: ptr.To[int32](300),
 	})
 	r, server := setupReconciler(t, pool, scaling.Signals{
 		Fleet:                 "linux",
@@ -237,9 +280,9 @@ func TestAutoscaler_NoOpAtTarget(t *testing.T) {
 func TestAutoscaler_ServerErrorLeavesReplicasUnchanged(t *testing.T) {
 	pool := newAutoscalerPool("linux", 5, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
-		MinWarmPoolFloor:         1,
+		MinWarmPoolFloor:         ptr.To[int32](1),
 		MaxReplicas:              30,
-		ScaleDownCooldownSeconds: 300,
+		ScaleDownCooldownSeconds: ptr.To[int32](300),
 	})
 
 	scheme := runtime.NewScheme()
@@ -293,9 +336,9 @@ func linuxFleetPool(name string, replicas int32, podMemMB int32, floor, maxRepl 
 			PodMemoryMB:   podMemMB,
 			Autoscaling: &tuistv1.RunnerPoolAutoscaling{
 				Enabled:                  true,
-				MinWarmPoolFloor:         floor,
+				MinWarmPoolFloor:         ptr.To(floor),
 				MaxReplicas:              maxRepl,
-				ScaleDownCooldownSeconds: 0,
+				ScaleDownCooldownSeconds: ptr.To[int32](0),
 			},
 		},
 	}
@@ -308,10 +351,149 @@ func linuxNode(name string, allocatableGiB int64) *corev1.Node {
 			Labels: map[string]string{"node.cluster.x-k8s.io/pool": "runners-linux"},
 		},
 		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{
+				Type:   corev1.NodeReady,
+				Status: corev1.ConditionTrue,
+			}},
 			Allocatable: corev1.ResourceList{
 				corev1.ResourceMemory: *resource.NewQuantity(allocatableGiB*1024*1024*1024, resource.BinarySI),
 			},
 		},
+	}
+}
+
+func TestAutoscaler_PerPodCostIncludesRuntimeClassOverhead(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+	runtimeClass := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("2560Mi"),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(runtimeClass).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient}
+
+	got, err := r.perPodCost(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("perPodCost returned error: %v", err)
+	}
+	want := int64(10752 * 1024 * 1024)
+	if got != want {
+		t.Errorf("perPodCost = %d, want %d", got, want)
+	}
+}
+
+func TestAutoscaler_PerPodCostFailsClosedWhenRuntimeClassIsMissing(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	r := &AutoscalerReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).Build(),
+	}
+
+	if _, err := r.perPodCost(context.Background(), pool); err == nil {
+		t.Fatal("perPodCost returned nil error for a missing RuntimeClass")
+	}
+}
+
+func TestAutoscaler_RuntimeClassCostFailureLeavesReplicasUnchanged(t *testing.T) {
+	pool := linuxFleetPool("linux", 7, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+	r, server := setupReconciler(t, pool, scaling.Signals{
+		Fleet:                 pool.Name,
+		P95ConcurrentLastHour: 1,
+	})
+	defer server.Close()
+	r.MemReserveFraction = 1
+	if err := r.Create(context.Background(), linuxNode("bm-1", 256)); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+
+	reconcileOnce(t, r, pool.Name)
+
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Spec.Replicas != 7 {
+		t.Errorf("Replicas = %d, want 7 when RuntimeClass cost is unavailable", got.Spec.Replicas)
+	}
+	if got.Status.LastScaleDownAt != nil {
+		t.Errorf("LastScaleDownAt = %v, want nil when replicas are unchanged", got.Status.LastScaleDownAt)
+	}
+}
+
+func TestAutoscaler_SiblingSignalsFailureFallsBackToPerPoolTarget(t *testing.T) {
+	pool := linuxFleetPool("linux", 7, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+	sibling := linuxFleetPool("linux-large", 1, 16_384, 1, 30)
+	sibling.Spec.RuntimeClass = "kata-qemu"
+	runtimeClass := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("2560Mi"),
+			},
+		},
+	}
+	node := linuxNode("bm-1", 256)
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, sibling, runtimeClass, node).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("fleet") == sibling.Name {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(scaling.Signals{
+			Fleet:                 pool.Name,
+			P95ConcurrentLastHour: 1,
+		})
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenPath, []byte("test-token"), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+	scalingClient := scaling.NewClient(server.URL)
+	scalingClient.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:             fakeClient,
+		Scheme:             scheme,
+		SignalsClient:      scalingClient,
+		PollInterval:       time.Millisecond,
+		MemReserveFraction: 1,
+	}
+
+	reconcileOnce(t, r, pool.Name)
+
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Spec.Replicas != 2 {
+		t.Errorf("Replicas = %d, want per-pool fallback 2 when sibling signals fail", got.Spec.Replicas)
 	}
 }
 
@@ -368,11 +550,11 @@ func TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad(t *testing.T) {
 	gotIdle := &tuistv1.RunnerPool{}
 	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "idle", Namespace: "tuist-runners"}, gotIdle)
 
-	// busy keeps its real load (6). Its per-pool target would be 7
-	// (load 6 + floor 1) — the +1 speculative slot is squeezed because
-	// the fleet is tight, but real work is intact.
-	if gotBusy.Spec.Replicas != 6 {
-		t.Errorf("busy Replicas = %d, want 6 (real load protected)", gotBusy.Spec.Replicas)
+	// busy keeps its real load (6) and takes the one slot left after
+	// idle's floor: both ask for headroom (busy 1, idle 5), the slot
+	// cannot be split, and busy has the larger target.
+	if gotBusy.Spec.Replicas != 7 {
+		t.Errorf("busy Replicas = %d, want 7 (real load plus the last free slot)", gotBusy.Spec.Replicas)
 	}
 	// idle is held at floor 1. Per-pool it would scale to 6 (p95 5 +
 	// floor 1); the fleet allocator denies the speculative warm buffer.
@@ -380,6 +562,11 @@ func TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad(t *testing.T) {
 		t.Errorf("idle Replicas = %d, want 1 (speculative headroom reclaimed)", gotIdle.Spec.Replicas)
 	}
 }
+
+// macosGuestMemoryMB is the fleet's macOS Pod shape (6 vCPU / 14 GB).
+// A Mac mini host admits allocatable/this many guests, which is what
+// the allocator charges per Pod.
+const macosGuestMemoryMB = 14336
 
 func macosFleetPool(name, fleetSelector string, replicas, floor, maxRepl int32) *tuistv1.RunnerPool {
 	return &tuistv1.RunnerPool{
@@ -390,41 +577,200 @@ func macosFleetPool(name, fleetSelector string, replicas, floor, maxRepl int32) 
 			OS:            "darwin",
 			FleetSelector: fleetSelector,
 			DispatchLabel: name + "-label",
+			PodMemoryMB:   macosGuestMemoryMB,
 			Autoscaling: &tuistv1.RunnerPoolAutoscaling{
 				Enabled:                  true,
-				MinWarmPoolFloor:         floor,
+				MinWarmPoolFloor:         ptr.To(floor),
 				MaxReplicas:              maxRepl,
-				ScaleDownCooldownSeconds: 0,
+				ScaleDownCooldownSeconds: ptr.To[int32](0),
 			},
 		},
 	}
 }
 
+// macosNode is a Mac mini advertising room for exactly one guest — the
+// M2-L shape. macosNodeWithGuests builds the multi-guest SKUs.
 func macosNode(name, fleetSelector string) *corev1.Node {
+	return macosNodeWithGuests(name, fleetSelector, 1)
+}
+
+// macosNodeWithGuests is a Mac mini advertising allocatable memory for
+// `guests` Pods of the fleet's shape: 1 for an M2-L, 2 for an M4-XL.
+func macosNodeWithGuests(name, fleetSelector string, guests int64) *corev1.Node {
 	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				macosFleetLabel:  fleetSelector,
-				macosNodeOSLabel: macosNodeOSDarwin,
+				macosFleetLabel: fleetSelector,
+				nodeOSLabel:     macosNodeOSDarwin,
 			},
 		},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceMemory: *resource.NewQuantity(
+					guests*macosGuestMemoryMB*1024*1024, resource.BinarySI),
+			},
+			Conditions: []corev1.NodeCondition{{
+				Type:   corev1.NodeReady,
+				Status: corev1.ConditionTrue,
+			}},
+		},
+	}
+}
+
+func TestAutoscaler_FleetCapacityExcludesUnhealthyNodes(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 8192, 1, 30)
+	ready := linuxNode("ready", 64)
+	notReady := linuxNode("not-ready", 64)
+	notReady.Status.Conditions[0].Status = corev1.ConditionFalse
+	unschedulable := linuxNode("unschedulable", 64)
+	unschedulable.Spec.Unschedulable = true
+	pressured := linuxNode("pressured", 64)
+	pressured.Status.Conditions = append(pressured.Status.Conditions, corev1.NodeCondition{
+		Type:   corev1.NodeMemoryPressure,
+		Status: corev1.ConditionTrue,
+	})
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, ready, notReady, unschedulable, pressured).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme, MemReserveFraction: 1}
+
+	got, err := r.fleetAllocatableMemory(context.Background(), pool.Spec.FleetSelector)
+	if err != nil {
+		t.Fatalf("fleetAllocatableMemory: %v", err)
+	}
+	want := int64(64 * 1024 * 1024 * 1024)
+	if got != want {
+		t.Fatalf("fleetAllocatableMemory = %d, want only Ready node memory %d", got, want)
+	}
+}
+
+func TestAutoscaler_MacosFleetCapacityExcludesUnhealthyNodes(t *testing.T) {
+	const fleet = "runners-macos"
+	ready := macosNode("ready", fleet)
+	notReady := macosNode("not-ready", fleet)
+	notReady.Status.Conditions[0].Status = corev1.ConditionUnknown
+	pressured := macosNode("pressured", fleet)
+	pressured.Status.Conditions = append(pressured.Status.Conditions, corev1.NodeCondition{
+		Type:   corev1.NodeDiskPressure,
+		Status: corev1.ConditionTrue,
+	})
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ready, notReady, pressured).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	got, err := r.macosFleetAllocatableMemory(context.Background(), fleet)
+	if err != nil {
+		t.Fatalf("macosFleetAllocatableMemory: %v", err)
+	}
+	want := int64(macosGuestMemoryMB) * 1024 * 1024
+	if got != want {
+		t.Fatalf("macosFleetAllocatableMemory = %d, want only the Ready node's memory %d", got, want)
+	}
+}
+
+// A joining host pulling its runner images is tainted against runner Pods, so
+// counting its memory would scale pools into slots the scheduler cannot fill.
+func TestAutoscaler_MacosFleetCapacityExcludesPrewarmingNodes(t *testing.T) {
+	const fleet = "runners-macos"
+	ready := macosNode("mac-ready", fleet)
+	prewarming := macosNode("mac-joining", fleet)
+	prewarming.Spec.Taints = []corev1.Taint{{Key: "tuist.dev/prewarming", Value: "true", Effect: corev1.TaintEffectNoSchedule}}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ready, prewarming).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	got, err := r.macosFleetAllocatableMemory(context.Background(), fleet)
+	if err != nil {
+		t.Fatalf("macosFleetAllocatableMemory: %v", err)
+	}
+	if want := int64(macosGuestMemoryMB) * 1024 * 1024; got != want {
+		t.Fatalf("macosFleetAllocatableMemory = %d, want only the warm node's memory %d", got, want)
+	}
+	if reason := nodeFilterReason(prewarming); reason != nodeFilteredPrewarming {
+		t.Fatalf("nodeFilterReason = %q, want %q", reason, nodeFilteredPrewarming)
+	}
+}
+
+// TestAutoscaler_MacosFleetCapacityCountsGuestsNotHosts is the
+// mixed-SKU case the byte-based budget exists for: one fleet label
+// spanning a single-guest M2-L and a dual-guest M4-XL. Counting hosts
+// would report 2 and leave the M4's second guest slot permanently
+// unreachable to the allocator.
+func TestAutoscaler_MacosFleetCapacityCountsGuestsNotHosts(t *testing.T) {
+	const fleet = "runners-macos"
+	m2 := macosNodeWithGuests("mac-m2", fleet, 1)
+	m4 := macosNodeWithGuests("mac-m4", fleet, 2)
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(m2, m4).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	got, err := r.macosFleetAllocatableMemory(context.Background(), fleet)
+	if err != nil {
+		t.Fatalf("macosFleetAllocatableMemory: %v", err)
+	}
+
+	perGuest := int64(macosGuestMemoryMB) * 1024 * 1024
+	if slots := got / perGuest; slots != 3 {
+		t.Fatalf("guest slots = %d, want 3 (1 from the M2-L + 2 from the M4-XL)", slots)
+	}
+}
+
+func TestAutoscaler_FilteredZeroCapacityFallsBackToPerPoolTarget(t *testing.T) {
+	pool := linuxFleetPool("linux", 5, 8192, 1, 30)
+	node := linuxNode("not-ready", 64)
+	node.Status.Conditions[0].Status = corev1.ConditionFalse
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme, MemReserveFraction: 1}
+	signals := scaling.Signals{Fleet: pool.Name, Claimed: 7}
+	knobs := scaling.PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30}
+
+	got, _ := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
+	if got != 8 {
+		t.Fatalf("allocate with every node filtered = %d, want per-pool fallback 8", got)
 	}
 }
 
 // TestAutoscaler_MacosFleetSqueezesIdleHeadroomAgainstHostBudget is
 // the macOS analog of TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad:
-// two Xcode pools share a Mac mini fleet, each Pod claims one host
-// (PerPodCost = 1). With hostCount = 3 the busy pool's real load is
-// honored in full and the idle pool's speculative p95 warm buffer is
-// reclaimed against the slot budget.
+// two Xcode pools share a Mac mini fleet, each Pod charging one guest
+// slot's worth of memory. With a 3-slot fleet the busy pool's real
+// load is honored in full and the idle pool's speculative p95 warm
+// buffer is reclaimed against the budget.
 func TestAutoscaler_MacosFleetSqueezesIdleHeadroomAgainstHostBudget(t *testing.T) {
 	const fleet = "runners-macos"
 	busy := macosFleetPool("macos-busy", fleet, 1, 1, 5)
 	idle := macosFleetPool("macos-idle", fleet, 1, 1, 5)
-	// 3 Mac minis = 3 slots. Floors sum to 2; busy load = 2 needs 2
-	// more; that leaves 0 slots for speculative headroom — idle's p95
-	// buffer is fully reclaimed.
+	// 3 single-guest Mac minis = 3 slots. Floors sum to 2; busy load =
+	// 2 needs 2 more; that leaves 0 slots for speculative headroom —
+	// idle's p95 buffer is fully reclaimed.
 	host1 := macosNode("mac-1", fleet)
 	host2 := macosNode("mac-2", fleet)
 	host3 := macosNode("mac-3", fleet)
@@ -481,6 +827,70 @@ func TestAutoscaler_MacosFleetSqueezesIdleHeadroomAgainstHostBudget(t *testing.T
 	}
 }
 
+// TestAutoscaler_LearnedSpareOutranksSiblingHeadroom: a pool's learned
+// burst is its floor tier, so on a tight fleet it is funded before a
+// sibling's p95 headroom rather than split with it.
+func TestAutoscaler_LearnedSpareOutranksSiblingHeadroom(t *testing.T) {
+	const fleet = "runners-macos"
+	learned := macosFleetPool("macos-learned", fleet, 0, 0, 9)
+	learned.Spec.Autoscaling.MaxLearnedWarmPoolFloor = 3
+	peak := macosFleetPool("macos-peak", fleet, 0, 0, 9)
+	// 4 single-guest hosts = 4 slots: the learned burst of 3, and 1 slot
+	// of the sibling's p95 headroom of 4.
+	var nodes []client.Object
+	for i := 1; i <= 4; i++ {
+		nodes = append(nodes, macosNode(fmt.Sprintf("mac-%d", i), fleet))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	objs := []client.Object{learned, peak}
+	objs = append(objs, nodes...)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	signalsByFleet := map[string]scaling.Signals{
+		"macos-learned": {Fleet: "macos-learned", LearnedWarmFloor: 3},
+		"macos-peak":    {Fleet: "macos-peak", P95ConcurrentLastHour: 4},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(signalsByFleet[r.URL.Query().Get("fleet")])
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	_ = os.WriteFile(tokenPath, []byte("test-token"), 0o600)
+	sc := scaling.NewClient(server.URL)
+	sc.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:        fakeClient,
+		Scheme:        scheme,
+		SignalsClient: sc,
+		PollInterval:  time.Millisecond,
+	}
+
+	reconcileOnce(t, r, "macos-learned")
+	reconcileOnce(t, r, "macos-peak")
+
+	gotLearned := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "macos-learned", Namespace: "tuist-runners"}, gotLearned)
+	gotPeak := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "macos-peak", Namespace: "tuist-runners"}, gotPeak)
+
+	if gotLearned.Spec.Replicas != 3 {
+		t.Errorf("learned Replicas = %d, want 3 (learned burst funded as floor)", gotLearned.Spec.Replicas)
+	}
+	if gotPeak.Spec.Replicas != 1 {
+		t.Errorf("peak Replicas = %d, want 1 (headroom gets what is left)", gotPeak.Spec.Replicas)
+	}
+}
+
 // TestAutoscaler_MacosFleetGrantsHeadroomWhenSlotsAvailable verifies
 // the uncontended path: with idle siblings and slack hosts, an
 // autoscaling macOS pool gets its full speculative warm buffer.
@@ -488,8 +898,8 @@ func TestAutoscaler_MacosFleetGrantsHeadroomWhenSlotsAvailable(t *testing.T) {
 	const fleet = "runners-macos"
 	a := macosFleetPool("macos-a", fleet, 1, 1, 9)
 	b := macosFleetPool("macos-b", fleet, 1, 0, 9)
-	// 9 hosts, floors sum to 1, no queued load anywhere — plenty of
-	// headroom for `a`'s speculative warm.
+	// 9 single-guest hosts = 9 slots, floors sum to 1, no queued load
+	// anywhere — plenty of headroom for `a`'s speculative warm.
 	var nodes []client.Object
 	for i := 1; i <= 9; i++ {
 		nodes = append(nodes, macosNode(fmt.Sprintf("mac-%d", i), fleet))
@@ -537,5 +947,376 @@ func TestAutoscaler_MacosFleetGrantsHeadroomWhenSlotsAvailable(t *testing.T) {
 	// only its floor (0). Full target granted.
 	if gotA.Spec.Replicas != 5 {
 		t.Errorf("a Replicas = %d, want 5 (full speculative buffer granted)", gotA.Spec.Replicas)
+	}
+}
+
+// A pool with no per-Pod cost must not take its siblings down with it.
+// perPodCost returning an error freezes every pool in the capacity
+// domain at its current replicas — correct for an unreadable
+// RuntimeClass, far too broad for one pool with a bad number in its own
+// spec. The costless pool is dropped from the allocation; its siblings
+// keep allocating normally.
+func TestAutoscaler_CostlessPoolDoesNotFreezeItsSiblings(t *testing.T) {
+	const fleet = "runners-macos"
+	healthy := macosFleetPool("macos-healthy", fleet, 1, 1, 5)
+	broken := macosFleetPool("macos-broken", fleet, 3, 1, 5)
+	broken.Spec.PodMemoryMB = 0
+
+	nodes := []client.Object{
+		macosNodeWithGuests("mac-1", fleet, 1),
+		macosNodeWithGuests("mac-2", fleet, 2),
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	objs := append([]client.Object{healthy, broken}, nodes...)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	signalsByFleet := map[string]scaling.Signals{
+		"macos-healthy": {Fleet: "macos-healthy", Claimed: 0, Queued: 0, P95ConcurrentLastHour: 2},
+		"macos-broken":  {Fleet: "macos-broken", Claimed: 0, Queued: 0, P95ConcurrentLastHour: 0},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(signalsByFleet[r.URL.Query().Get("fleet")])
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	_ = os.WriteFile(tokenPath, []byte("test-token"), 0o600)
+	sc := scaling.NewClient(server.URL)
+	sc.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:        fakeClient,
+		Scheme:        scheme,
+		SignalsClient: sc,
+		PollInterval:  time.Millisecond,
+	}
+
+	reconcileOnce(t, r, "macos-healthy")
+
+	got := &tuistv1.RunnerPool{}
+	if err := fakeClient.Get(context.Background(),
+		client.ObjectKey{Name: "macos-healthy", Namespace: "tuist-runners"}, got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+
+	// 3 slots, sibling excluded, so the healthy pool gets its full
+	// per-pool target (p95 2 + floor 1 = 3). Frozen-at-current would
+	// have left it on the 1 it started with.
+	if got.Spec.Replicas != 3 {
+		t.Fatalf("healthy pool Replicas = %d, want 3; a sibling with no podMemoryMB froze the whole capacity domain",
+			got.Spec.Replicas)
+	}
+}
+
+// Kata's podFixed overhead is a legitimate source of per-Pod cost, so a
+// Linux pool declaring podMemoryMB: 0 alongside a RuntimeClass still has
+// a real cost and must keep allocating. The zero check runs after the
+// overhead is folded in for exactly this reason.
+func TestAutoscaler_PerPodCostCountsRuntimeClassOverheadOnZeroRequest(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 0, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+
+	rc := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Handler:    "kata-qemu",
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceMemory: *resource.NewQuantity(256*1024*1024, resource.BinarySI),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pool, rc).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	cost, err := r.perPodCost(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("perPodCost: %v", err)
+	}
+	if want := int64(256 * 1024 * 1024); cost != want {
+		t.Fatalf("perPodCost = %d, want the RuntimeClass overhead %d", cost, want)
+	}
+}
+
+// macosNodeWithResources is a Mac mini advertising both dimensions, as
+// tart-kubelet does (hostCPU / hostMemoryMB verbatim, no reserve). The
+// memory-only helper above predates the shape cap, which needs CPU too.
+func macosNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int64) *corev1.Node {
+	node := macosNodeWithGuests(name, fleetSelector, 1)
+	node.Status.Allocatable = corev1.ResourceList{
+		corev1.ResourceCPU:    *resource.NewQuantity(cpu, resource.DecimalSI),
+		corev1.ResourceMemory: *resource.NewQuantity(memoryMB*1024*1024, resource.BinarySI),
+	}
+	return node
+}
+
+// The production topology: 10 M2-L (8 CPU / 14336 MB) + 2 M4-XL
+// (12 CPU / 28672 MB). The 6 vCPU shape seats 14, the 12 vCPU shape
+// seats 2 — and the second number is the one no fleet-wide division can
+// produce, since 200704 MB / 28672 reads as 7.
+func TestAutoscaler_ShapePlacementCapsCountSeatsPerNode(t *testing.T) {
+	const fleet = "runners-macos"
+
+	objects := []client.Object{}
+	for i := 0; i < 10; i++ {
+		objects = append(objects, macosNodeWithResources(fmt.Sprintf("m2-%d", i), fleet, 8, 14336))
+	}
+	for i := 0; i < 2; i++ {
+		objects = append(objects, macosNodeWithResources(fmt.Sprintf("m4-%d", i), fleet, 12, 28672))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	small := podShape{cpuMilli: 6000, memoryMB: 14336}
+	large := podShape{cpuMilli: 12000, memoryMB: 28672}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "darwin", FleetSelector: fleet}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
+		small.key(): small,
+		large.key(): large,
+	})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+
+	if got := caps[small.key()]; got != 14 {
+		t.Fatalf("6 vCPU seats = %d, want 14 (10 M2-L at one + 2 M4-XL at two)", got)
+	}
+	if got := caps[large.key()]; got != 2 {
+		t.Fatalf("12 vCPU seats = %d, want 2 (M4-XL only, one guest each)", got)
+	}
+}
+
+// CPU binds a shape whose memory-per-vCPU is richer than its host's.
+// Dividing advertised memory alone would report four seats on a host
+// whose twelve cores can only run two.
+func TestAutoscaler_ShapePlacementCapsBindOnCPUNotOnlyMemory(t *testing.T) {
+	const fleet = "runners-macos"
+	node := macosNodeWithResources("m4", fleet, 12, 57344)
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	shape := podShape{cpuMilli: 6000, memoryMB: 14336}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "darwin", FleetSelector: fleet}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+	if got := caps[shape.key()]; got != 2 {
+		t.Fatalf("seats = %d, want 2 (12 cores / 6), not the 4 that 57344/14336 would suggest", got)
+	}
+}
+
+// Linux is capped too. It used to opt out on the grounds that kata
+// oversubscribes CPU, so a CPU quotient would cap a fleet that is not
+// CPU-bound. That does not hold on this fleet: podtemplate sets the
+// runner container's CPU request equal to its limit equal to the shape,
+// so kube-scheduler bin-packs on the full vCPU and a 16 vCPU Pod costing
+// 16.25 with kata's overhead seats exactly once on a 31-vCPU RISE-L. The
+// min() of the two quotients is what the scheduler does, so taking it
+// here is agreement rather than pessimism.
+//
+// The production topology: 4 RISE-L at 31 vCPU / 117 GiB allocatable.
+func TestAutoscaler_ShapePlacementCapsCountLinuxSeats(t *testing.T) {
+	const fleet = "runners-linux"
+
+	objects := []client.Object{}
+	for i := 0; i < 4; i++ {
+		objects = append(objects, linuxNodeWithResources(fmt.Sprintf("rise-l-%d", i), fleet, 31, 117*1024))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	// Placement shapes: the advertised shape plus kata's 250m / 2560Mi.
+	small := podShape{cpuMilli: 2250, memoryMB: 8*1024 + 2560}
+	big := podShape{cpuMilli: 4250, memoryMB: 16*1024 + 2560}
+	ceiling := podShape{cpuMilli: 16250, memoryMB: 32*1024 + 2560}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: fleet}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{
+		small.key(): small, big.key(): big, ceiling.key(): ceiling,
+	})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+
+	if got := caps[small.key()]; got != 44 {
+		t.Fatalf("2vcpu-8gb seats = %d, want 44 (11 per box, memory-bound)", got)
+	}
+	// The shape that starved the fleet on 2026-09-02: the autoscaler
+	// targeted 67 of these where 24 fit.
+	if got := caps[big.key()]; got != 24 {
+		t.Fatalf("4vcpu-16gb seats = %d, want 24 (6 per box, memory-bound)", got)
+	}
+	// CPU binds this one: 117 GiB would suggest three per box, but two
+	// would need 32.5 of 31 vCPU.
+	if got := caps[ceiling.key()]; got != 4 {
+		t.Fatalf("16vcpu-32gb seats = %d, want 4 (1 per box, CPU-bound)", got)
+	}
+}
+
+// An unrecognised OS is left uncapped rather than capped against the
+// wrong node set: fleetNodeSelector falls through to darwin, which
+// matches no node in a Linux fleet, and a zero cap would freeze the pool
+// at zero replicas.
+func TestAutoscaler_ShapePlacementCapsNoNodesLeavesZero(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	shape := podShape{cpuMilli: 2250, memoryMB: 10752}
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: "runners-linux"}}
+
+	caps, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape})
+	if err != nil {
+		t.Fatalf("shapePlacementCaps: %v", err)
+	}
+	if got := caps[shape.key()]; got != 0 {
+		t.Fatalf("seats with no nodes = %d, want 0", got)
+	}
+}
+
+// The seat cap and the byte budget must charge a Pod the same overhead,
+// or the two halves of the allocator disagree about what fits.
+func TestAutoscaler_PlacementShapeIncludesRuntimeClassOverhead(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 16*1024, 1, 30)
+	pool.Spec.PodCPUMilli = 4000
+	pool.Spec.RuntimeClass = "kata-qemu"
+	runtimeClass := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("250m"),
+				corev1.ResourceMemory: resource.MustParse("2560Mi"),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = nodev1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(runtimeClass).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	shape, err := r.placementShapeOf(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("placementShapeOf: %v", err)
+	}
+	if shape.cpuMilli != 4250 {
+		t.Fatalf("cpuMilli = %d, want 4250 (4000 + kata 250m)", shape.cpuMilli)
+	}
+	if shape.memoryMB != 16*1024+2560 {
+		t.Fatalf("memoryMB = %d, want %d (16 GiB + kata 2560Mi)", shape.memoryMB, 16*1024+2560)
+	}
+}
+
+// A named RuntimeClass that cannot be read freezes the pool rather than
+// silently sizing it as if the sandbox were free.
+func TestAutoscaler_PlacementShapeFailsOnUnreadableRuntimeClass(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = nodev1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	if _, err := r.placementShapeOf(context.Background(), pool); !errors.Is(err, errPodCostUnavailable) {
+		t.Fatalf("err = %v, want errPodCostUnavailable", err)
+	}
+}
+
+func linuxNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int64) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				"node.cluster.x-k8s.io/pool": fleetSelector,
+				"kubernetes.io/os":           "linux",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewQuantity(cpu, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(memoryMB*1024*1024, resource.BinarySI),
+			},
+		},
+	}
+}
+
+// tart-kubelet keeps the images of pools with recent work on every host
+// within its golden budget, so the autoscaler stamps when a pool last had
+// real work, at most every demandStampInterval, and never for an idle pool.
+func TestAutoscaler_StampsLastDemandAt(t *testing.T) {
+	autoscaling := &tuistv1.RunnerPoolAutoscaling{Enabled: true, MaxReplicas: 30}
+	start := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+
+	idle := newAutoscalerPool("idle", 0, autoscaling)
+	r, server := setupReconciler(t, idle, scaling.Signals{Fleet: "idle"})
+	defer server.Close()
+	r.Now = func() time.Time { return start }
+	reconcileOnce(t, r, "idle")
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(idle), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Status.LastDemandAt != nil {
+		t.Fatalf("LastDemandAt = %v, want nil for a pool without work", got.Status.LastDemandAt)
+	}
+
+	busy := newAutoscalerPool("busy", 1, autoscaling)
+	r, server = setupReconciler(t, busy, scaling.Signals{Fleet: "busy", Queued: 1})
+	defer server.Close()
+	now := start
+	r.Now = func() time.Time { return now }
+	read := func() time.Time {
+		t.Helper()
+		got := &tuistv1.RunnerPool{}
+		if err := r.Get(context.Background(), client.ObjectKeyFromObject(busy), got); err != nil {
+			t.Fatalf("get pool: %v", err)
+		}
+		if got.Status.LastDemandAt == nil {
+			t.Fatal("LastDemandAt = nil, want it stamped for a pool with queued work")
+		}
+		return got.Status.LastDemandAt.Time
+	}
+
+	reconcileOnce(t, r, "busy")
+	if got := read(); !got.Equal(start) {
+		t.Fatalf("LastDemandAt = %v, want %v", got, start)
+	}
+	now = start.Add(demandStampInterval - time.Second)
+	reconcileOnce(t, r, "busy")
+	if got := read(); !got.Equal(start) {
+		t.Fatalf("LastDemandAt = %v, want %v until demandStampInterval passes", got, start)
+	}
+	now = start.Add(demandStampInterval)
+	reconcileOnce(t, r, "busy")
+	if got := read(); !got.Equal(now) {
+		t.Fatalf("LastDemandAt = %v, want %v", got, now)
 	}
 }

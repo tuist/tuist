@@ -7,6 +7,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
 import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 import org.gradle.api.tasks.testing.Test
@@ -14,15 +15,18 @@ import org.gradle.api.tasks.testing.TestDescriptor
 import org.gradle.api.tasks.testing.TestListener
 import org.gradle.api.tasks.testing.TestResult
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URI
+import java.util.UUID
 import javax.inject.Inject
 
 // --- Data classes ---
 
 data class TestReport(
+    val id: String,
     val duration: Long,
     val status: String,
     @SerializedName("is_ci") val isCi: Boolean,
@@ -35,6 +39,14 @@ data class TestReport(
     @SerializedName("gradle_build_id") val gradleBuildId: String? = null,
     @SerializedName("shard_plan_id") val shardPlanId: String? = null,
     @SerializedName("shard_index") val shardIndex: Int? = null,
+    @SerializedName("stress_new_tests") val stressNewTests: StressNewTestsReport? = null,
+    @SerializedName("base_branch") val baseBranch: String? = null,
+    @SerializedName("merge_base_sha") val mergeBaseSha: String? = null,
+    @SerializedName("is_pull_request") val isPullRequest: Boolean? = null,
+    @SerializedName("pull_request_number") val pullRequestNumber: Int? = null,
+    @SerializedName("git_object_format") val gitObjectFormat: String? = null,
+    @SerializedName("history_source") val historySource: String? = null,
+    @SerializedName("history_fallback_reason") val historyFallbackReason: String? = null,
     @SerializedName("test_modules") val testModules: List<TestModule>
 )
 
@@ -66,7 +78,8 @@ data class TestCaseRepetition(
     @SerializedName("repetition_number") val repetitionNumber: Int,
     val name: String,
     val status: String,
-    val duration: Long
+    val duration: Long,
+    val source: String = "run"
 )
 
 data class TestFailure(
@@ -118,6 +131,50 @@ internal class TestReportCollector {
         )
     }
 
+    /**
+     * One entry per test case, with the last attempt's result and the summed duration,
+     * which is what the stress gate prices repetitions from.
+     */
+    fun executedTestCases(): List<ExecutedTestCase> {
+        return attemptsByModule.flatMap { (moduleName, attempts) ->
+            attempts
+                .groupBy { Pair(it.testName, it.className) }
+                .map { (key, caseAttempts) ->
+                    val last = caseAttempts.last()
+                    ExecutedTestCase(
+                        moduleName = moduleName,
+                        className = key.second,
+                        testName = key.first,
+                        durationMs = caseAttempts.sumOf { it.endTime - it.startTime },
+                        resultType = last.resultType,
+                        isQuarantined = caseAttempts.any { it.isQuarantined }
+                    )
+                }
+        }
+    }
+
+    fun repetitionResults(): List<StressRepetitionResult> {
+        return attemptsByModule.flatMap { (moduleName, attempts) ->
+            attempts.map {
+                StressRepetitionResult(
+                    moduleName = moduleName,
+                    className = it.className,
+                    testName = it.testName,
+                    // A rerun that aborted through an assumption did not fail: it said nothing.
+                    // Counting it as a failure would let a test block the build without a
+                    // single assertion failing.
+                    status = when (it.resultType) {
+                        TestResult.ResultType.SUCCESS -> "success"
+                        TestResult.ResultType.SKIPPED -> "skipped"
+                        else -> "failure"
+                    },
+                    duration = it.endTime - it.startTime,
+                    failureMessage = it.exception?.message
+                )
+            }
+        }
+    }
+
     fun buildReport(
         totalDurationMs: Long,
         isCi: Boolean,
@@ -128,10 +185,13 @@ internal class TestReportCollector {
         gitRemoteUrlOrigin: String?,
         gradleBuildId: String?,
         shardPlanId: String? = null,
-        shardIndex: Int? = null
+        shardIndex: Int? = null,
+        stressNewTests: StressNewTestsReport? = null,
+        gitHistory: TestRunGitHistory? = null,
+        id: String = UUID.randomUUID().toString()
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
-            val testCases = buildTestCases(attempts)
+            val testCases = buildTestCases(attempts).map { withStressReruns(it, moduleName, stressNewTests) }
             val moduleStatus = if (testCases.any { it.status == "failure" && !it.isQuarantined }) "failure" else "success"
             val moduleDuration = testCases.sumOf { it.duration }
 
@@ -159,6 +219,7 @@ internal class TestReportCollector {
         val overallStatus = if (hasNonQuarantinedFailure) "failure" else "success"
 
         return TestReport(
+            id = id,
             duration = totalDurationMs,
             status = overallStatus,
             isCi = isCi,
@@ -171,8 +232,46 @@ internal class TestReportCollector {
             gradleBuildId = gradleBuildId,
             shardPlanId = shardPlanId,
             shardIndex = shardIndex,
+            stressNewTests = stressNewTests,
+            baseBranch = gitHistory?.baseBranch,
+            mergeBaseSha = gitHistory?.mergeBaseSha,
+            isPullRequest = gitHistory?.isPullRequest,
+            pullRequestNumber = gitHistory?.pullRequestNumber,
+            gitObjectFormat = gitHistory?.objectFormat,
+            historySource = gitHistory?.source,
+            historyFallbackReason = gitHistory?.fallbackReason,
             testModules = testModules
         )
+    }
+
+    // The gate's reruns are executions of the test case like its retries, so they are
+    // reported with it, numbered after its own attempts and tagged so the dashboard can
+    // say which were solicited. A rerun's failure is kept on the test case beside the
+    // others, which is where the run page reads failures from.
+    private fun withStressReruns(testCase: TestCase, moduleName: String, stress: StressNewTestsReport?): TestCase {
+        val candidate = stress?.testCases?.firstOrNull {
+            it.moduleName == moduleName &&
+                it.name == testCase.name &&
+                (it.suiteName?.takeIf { s -> s.isNotBlank() }) == testCase.testSuiteName
+        } ?: return testCase
+        if (candidate.repetitionResults.isEmpty()) return testCase
+
+        val own = testCase.repetitions.orEmpty()
+        val reruns = candidate.repetitionResults.mapIndexed { index, result ->
+            TestCaseRepetition(
+                repetitionNumber = own.size + index + 1,
+                name = "Stress ${index + 1}",
+                status = result.status,
+                duration = result.duration,
+                source = "stress"
+            )
+        }
+        val failures = candidate.repetitionResults
+            .filter { it.status == "failure" }
+            .mapNotNull { it.failure }
+            .map { TestFailure(message = it.message, path = null, lineNumber = 0, issueType = it.issueType) }
+
+        return testCase.copy(repetitions = own + reruns, failures = testCase.failures + failures)
     }
 
     private fun buildTestCases(attempts: List<TestAttempt>): List<TestCase> {
@@ -290,20 +389,36 @@ abstract class TuistTestInsightsService :
         val url: Property<String>
         val project: Property<String>
         val useEnvironmentProxy: Property<Boolean>
+        val actorId: Property<String>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
+        val gitBranch: Property<String>
+        val gitCommitSha: Property<String>
+        val gitRef: Property<String>
+        val gitRemoteUrlOrigin: Property<String>
+        val uploadInBackground: Property<Boolean>
+        val buildInsights: Property<TuistBuildInsightsService>
     }
 
     private val logger = Logging.getLogger(TuistTestInsightsService::class.java)
+    private val jobSummary by lazy { GitHubActionsJobSummary() }
 
-    internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
+    internal var gitInfoProvider: GitInfoProvider? = null
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
-    internal var uploadInBackground: Boolean? = null
-    internal var buildInsightsService: TuistBuildInsightsService? = null
     internal var shardPlanId: String? = null
     internal var shardIndex: Int? = null
+    internal var stressNewTestsReport: StressNewTestsReport? = null
+
+    /**
+     * When set, this build is a stress repetition: the results are written here for the
+     * parent build to read instead of being reported as a test run of their own.
+     */
+    internal var stressRepetitionOutput: java.io.File? = null
+
+    private val testTaskPathsByModule = mutableMapOf<String, MutableSet<String>>()
 
     private val collector = TestReportCollector()
+    private var gradleBuildId: String? = null
     private var earliestStartTime: Long = Long.MAX_VALUE
     private var latestEndTime: Long = Long.MIN_VALUE
     @Volatile private var hasTests = false
@@ -311,13 +426,27 @@ abstract class TuistTestInsightsService :
     @Volatile
     internal var quarantineMap: Map<String, List<TestIdentifier>> = emptyMap()
 
+    @Synchronized
     internal fun hasNonQuarantinedFailures(moduleName: String): Boolean {
         return collector.hasNonQuarantinedFailures(moduleName)
     }
 
+    @Synchronized
     internal fun hasQuarantinedFailures(moduleName: String): Boolean {
         return collector.hasQuarantinedFailures(moduleName)
     }
+
+    @Synchronized
+    internal fun registerTestTask(moduleName: String, taskPath: String) {
+        testTaskPathsByModule.getOrPut(moduleName) { linkedSetOf() }.add(taskPath)
+    }
+
+    @Synchronized
+    internal fun taskPathsByModule(): Map<String, List<String>> =
+        testTaskPathsByModule.mapValues { it.value.toList() }
+
+    @Synchronized
+    internal fun executedTestCases(): List<ExecutedTestCase> = collector.executedTestCases()
 
     @Synchronized
     internal fun onTestFinished(
@@ -326,6 +455,7 @@ abstract class TuistTestInsightsService :
         result: TestResult
     ) {
         hasTests = true
+        if (gradleBuildId == null) gradleBuildId = parameters.buildInsights.orNull?.buildId
         if (result.startTime < earliestStartTime) earliestStartTime = result.startTime
         if (result.endTime > latestEndTime) latestEndTime = result.endTime
         // The test-retry plugin (org.gradle.test-retry) has a known bug where
@@ -345,12 +475,19 @@ abstract class TuistTestInsightsService :
     }
 
     override fun close() {
+        stressRepetitionOutput?.let { output ->
+            output.parentFile?.mkdirs()
+            output.writer().use { Gson().toJson(StressRepetitionResults(collector.repetitionResults()), it) }
+            return
+        }
+
         if (!hasTests) {
             logger.debug("Tuist: No test results collected, skipping test insights upload.")
             return
         }
 
-        val shouldUploadInBackground = uploadInBackground ?: !ciDetector.isCi()
+        // GitHub uploads the summary when the step ends, so it must be written before Gradle returns.
+        val shouldUploadInBackground = (parameters.uploadInBackground.orNull ?: !ciDetector.isCi()) && !jobSummary.isEnabled
 
         if (shouldUploadInBackground) {
             logger.lifecycle("Tuist: Uploading test insights in the background...")
@@ -373,71 +510,122 @@ abstract class TuistTestInsightsService :
         }
     }
 
-    private fun sendReport() {
-        val projectValue = parameters.project.orNull
-        val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
-        val projectDir = parameters.projectDir.asFile.get()
+    private val httpClients: TuistHttpClients by lazy {
+        TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
+    }
 
-        val configProvider = DefaultConfigurationProvider(
-            project = projectValue,
+    private val configurationProvider: ReportConfigurationProvider by lazy {
+        ReportConfigurationProvider(
+            project = parameters.project.orNull,
             serverUrl = parameters.url.get(),
-            projectDir = projectDir,
+            projectDir = parameters.projectDir.asFile.get(),
             httpClients = httpClients
         )
+    }
 
-        val httpClient = TuistHttpClient(
-            configurationProvider = configProvider,
+    private val httpClient: TuistHttpClient by lazy {
+        TuistHttpClient(
+            configurationProvider = configurationProvider,
             httpClients = httpClients,
             connectTimeoutMs = 10_000,
             readTimeoutMs = 10_000
         )
+    }
 
+    // Collected during execution, never configuration, so the history is not a configuration input.
+    private val gitHistoryPublisher: GitHistoryPublisher by lazy {
+        val gitHistoryService = GitHistoryService(httpClient = httpClient, baseUrl = parameters.url.get())
+        GitHistoryPublisher(
+            collect = { gitHistoryService.collect(reportGitInfoProvider(), parameters.projectDir.asFile.get(), ciDetector.isCi()) },
+            upload = gitHistoryService::upload
+        )
+    }
+
+    /**
+     * Collects the build's Git history and uploads its commits and branch heads, once per build:
+     * the stress gate's plan and the run's report read the commit graph, so it goes up before either.
+     */
+    internal fun publishGitHistory(): CollectedGitHistory? =
+        try {
+            if (configurationProvider.getConfiguration().token.isBlank()) null else gitHistoryPublisher.publish()
+        } catch (e: Exception) {
+            logger.info("Tuist: The run's Git history could not be published: ${e.message}")
+            null
+        }
+
+    private fun sendReport() {
         val totalDurationMs = latestEndTime - earliestStartTime
-        val gradleBuildId = buildInsightsService?.buildId
+        val reportGitInfoProvider = reportGitInfoProvider()
+        val isCi = ciDetector.isCi()
+        val gitHistory = publishGitHistory()
 
         val report = collector.buildReport(
             totalDurationMs = totalDurationMs,
-            isCi = ciDetector.isCi(),
+            isCi = isCi,
             scheme = parameters.rootProjectName.orNull,
-            gitBranch = gitInfoProvider.branch(),
-            gitCommitSha = gitInfoProvider.commitSha(),
-            gitRef = gitInfoProvider.ref(),
-            gitRemoteUrlOrigin = gitInfoProvider.remoteUrlOrigin(),
+            gitBranch = reportGitInfoProvider.branch(),
+            gitCommitSha = reportGitInfoProvider.commitSha(),
+            gitRef = reportGitInfoProvider.ref(),
+            gitRemoteUrlOrigin = reportGitInfoProvider.remoteUrlOrigin(),
             gradleBuildId = gradleBuildId,
             shardPlanId = shardPlanId,
-            shardIndex = shardIndex
+            shardIndex = shardIndex,
+            stressNewTests = stressNewTestsReport,
+            gitHistory = gitHistory?.payload
         )
 
         val response = httpClient.execute { config ->
-            val baseUrl = parameters.url.get().trimEnd('/')
+            val baseUrl = ServerUrlResolver.resolve(parameters.url.get(), parameters.projectDir.asFile.get()).trimEnd('/')
             val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests")
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
+            // Every attempt sends the same report id, and the server stores a replayed id only once
+            // (a server that does not deduplicate by id stores the replay as another run).
+            httpClient.retrying("Test insights request", replaySafe = true) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                        connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                    }
 
-                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
-                }
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        val outgoingReport = if (config.token.isBlank()) report.copy(
+                            gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
+                            gitRemoteUrlOrigin = null, baseBranch = null, mergeBaseSha = null,
+                            isPullRequest = null, pullRequestNumber = null, gitObjectFormat = null,
+                            historySource = null, historyFallbackReason = null
+                        ) else report
+                        Gson().toJson(outgoingReport, writer)
+                    }
 
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_OK -> {
-                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, TestResponse::class.java)
+                    when (val status = connection.responseCode) {
+                        HttpURLConnection.HTTP_OK -> {
+                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                                Gson().fromJson(reader, TestResponse::class.java).also { response ->
+                                    val dashboardUrl = URI(baseUrl).resolve(
+                                        "/${config.accountHandle}/${config.projectHandle}/tests/test-runs/${response.id}"
+                                    )
+                                    jobSummary.writeTests(report, dashboardUrl.toString())
+                                }
+                            }
+                        }
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            val message = "Test insights request failed with HTTP $status: ${errorBody ?: "(no response body)"}"
+                            if (status in TuistRetry.RETRYABLE_STATUSES) {
+                                throw TuistRetry.statusFailure(connection, status) { IOException(message) }
+                            }
+                            logger.warn("Tuist: $message")
+                            null
                         }
                     }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        } catch (_: Exception) { null }
-                        logger.warn("Tuist: Test insights request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
-                        null
-                    }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
         }
 
@@ -447,33 +635,66 @@ abstract class TuistTestInsightsService :
             logger.warn("Tuist: Failed to report test insights.")
         }
     }
+
+    private fun reportGitInfoProvider(): GitInfoProvider =
+        gitInfoProvider ?: GitInfo(
+            branch = parameters.gitBranch.orNull,
+            commitSha = parameters.gitCommitSha.orNull,
+            ref = parameters.gitRef.orNull,
+            remoteUrlOrigin = parameters.gitRemoteUrlOrigin.orNull
+        )
 }
 
 // --- Plugin ---
 
 internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<Project> {
 
-    private val logger = Logging.getLogger(TuistTestInsightsPlugin::class.java)
-
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
 
     override fun apply(project: Project) {
-        if (project !== project.rootProject) return
-
         val config = TuistGradleConfig.from(project) ?: return
+        @Suppress("UNCHECKED_CAST")
+        val buildServiceProvider = project.gradle.sharedServices.registrations
+            .findByName("tuistBuildInsights")?.service as? Provider<TuistBuildInsightsService>
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistTestInsights",
             TuistTestInsightsService::class.java
         ) {
+            val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)
-            parameters.rootProjectName.set(project.rootProject.name)
-            parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+            config.actorId?.let { parameters.actorId.set(it) }
+            parameters.rootProjectName.set(config.rootProjectName)
+            parameters.projectDir.set(project.rootDir)
+            parameters.gitBranch.set(gitInfo.branch())
+            parameters.gitCommitSha.set(gitInfo.commitSha())
+            parameters.gitRef.set(gitInfo.ref())
+            parameters.gitRemoteUrlOrigin.set(gitInfo.remoteUrlOrigin())
+            config.uploadInBackground?.let { parameters.uploadInBackground.set(it) }
+            buildServiceProvider?.let { parameters.buildInsights.set(it) }
         }
 
-        val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
+        val repetition = config.stressRepetition
+        val quarantineEnabled = repetition == null && (config.testQuarantineEnabled ?: ciDetector.isCi())
+
+        val stressEnabled = config.stressNewTestsMode != null && repetition == null
+        if (stressEnabled && project.path == ":") {
+            project.tasks.register("tuistStressNewTests", TuistStressNewTestsTask::class.java) {
+                group = "verification"
+                description = "Reruns the test cases this build added and flags any that prove flaky."
+                mode.set(config.stressNewTestsMode)
+                serverUrl.set(config.url)
+                config.project?.let { tuistProject.set(it) }
+                useEnvironmentProxy.set(config.network.proxy)
+                projectDir.set(project.rootDir)
+                gradleUserHomeDir.set(project.gradle.gradleUserHomeDir)
+                project.gradle.gradleHomeDir?.let { gradleHomeDir.set(it) }
+                insightsService.set(serviceProvider)
+                usesService(serviceProvider)
+            }
+        }
         val quarantineServiceProvider = if (quarantineEnabled) {
             project.gradle.sharedServices.registerIfAbsent(
                 "tuistTestQuarantine",
@@ -482,84 +703,78 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                 parameters.serverUrl.set(config.url)
                 config.project?.let { parameters.tuistProject.set(it) }
                 parameters.useEnvironmentProxy.set(config.network.proxy)
-                parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+                parameters.projectDir.set(project.rootDir)
             }
         } else {
             null
         }
 
-        project.allprojects {
-            val subproject = this
-            subproject.tasks.withType(Test::class.java).configureEach {
-                val testTask = this
-                testTask.usesService(serviceProvider)
-                val moduleName = if (subproject.path == ":") subproject.name else subproject.path
-                testTask.addTestListener(object : TestListener {
-                    override fun beforeSuite(suite: TestDescriptor) {}
-                    override fun afterSuite(suite: TestDescriptor, result: TestResult) {}
-                    override fun beforeTest(testDescriptor: TestDescriptor) {}
-                    override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) {
-                        serviceProvider.get().onTestFinished(moduleName, testDescriptor, result)
+        val moduleName = testModuleName(project)
+        project.tasks.withType(Test::class.java).configureEach {
+            usesService(serviceProvider)
+            buildServiceProvider?.let { usesService(it) }
+            addTestListener(TuistTestListener(serviceProvider, moduleName))
+            val taskPath = path
+            doFirst {
+                serviceProvider.get().registerTestTask(moduleName, taskPath)
+            }
+
+            if (repetition != null) {
+                val patterns = repetition.filtersByTaskPath[taskPath].orEmpty()
+                outputs.upToDateWhen { false }
+                ignoreFailures = true
+                filter.isFailOnNoMatchingTests = false
+                patterns.forEach { filter.includeTestsMatching(it) }
+                doFirst {
+                    serviceProvider.get().stressRepetitionOutput = repetition.outputFile
+                }
+            }
+
+            if (stressEnabled) finalizedBy(":tuistStressNewTests")
+
+            if (quarantineServiceProvider != null) {
+                usesService(quarantineServiceProvider)
+                ignoreFailures = true
+
+                doFirst {
+                    val testTask = this as Test
+                    val quarantinedTests = quarantineServiceProvider.get().getQuarantinedTests()
+                    serviceProvider.get().quarantineMap = quarantinedTests.muted
+                    val mutedInModule = quarantinedTests.muted[moduleName].orEmpty()
+                    val skippedInModule = quarantinedTests.skipped[moduleName].orEmpty()
+                    skippedInModule.forEach { id ->
+                        val pattern = if (id.suiteName != null) "${id.suiteName}.${id.testName}" else "*.${id.testName}"
+                        testTask.filter.excludeTestsMatching(pattern)
                     }
-                })
-
-                if (quarantineServiceProvider != null) {
-                    testTask.usesService(quarantineServiceProvider)
-                    testTask.ignoreFailures = true
-
-                    testTask.doFirst {
-                        val quarantinedTests = quarantineServiceProvider.get().getQuarantinedTests()
-                        // The post-run failure mask only needs muted tests:
-                        // skipped ones don't run, so they can't produce
-                        // failures we need to mask.
-                        serviceProvider.get().quarantineMap = quarantinedTests.muted
-
-                        val mutedInModule = quarantinedTests.muted[moduleName] ?: emptyList()
-                        val skippedInModule = quarantinedTests.skipped[moduleName] ?: emptyList()
-
-                        // Exclude skipped tests via Gradle's TestFilter so
-                        // they never run. Patterns use ANT-style globs:
-                        // "ClassName.methodName" or "*.methodName" if we
-                        // don't have a suite.
-                        skippedInModule.forEach { id ->
-                            val pattern = if (id.suiteName != null) {
-                                "${id.suiteName}.${id.testName}"
-                            } else {
-                                "*.${id.testName}"
-                            }
-                            testTask.filter.excludeTestsMatching(pattern)
-                        }
-
-                        if (mutedInModule.isNotEmpty() || skippedInModule.isNotEmpty()) {
-                            logger.lifecycle(
-                                "Tuist: Found ${mutedInModule.size + skippedInModule.size} quarantined test(s) " +
-                                    "in module $moduleName (${mutedInModule.size} muted, ${skippedInModule.size} skipped)"
-                            )
-                        }
+                    if (mutedInModule.isNotEmpty() || skippedInModule.isNotEmpty()) {
+                        testTask.logger.lifecycle(
+                            "Tuist: Found ${mutedInModule.size + skippedInModule.size} quarantined test(s) " +
+                                "in module $moduleName (${mutedInModule.size} muted, ${skippedInModule.size} skipped)"
+                        )
                     }
+                }
 
-                    testTask.doLast {
-                        val service = serviceProvider.get()
-                        if (service.hasNonQuarantinedFailures(moduleName)) {
-                            throw org.gradle.api.GradleException("There were failing tests in module $moduleName")
-                        } else if (service.hasQuarantinedFailures(moduleName)) {
-                            logger.lifecycle("Tuist: All failing tests in module $moduleName are quarantined")
-                        }
+                doLast {
+                    val service = serviceProvider.get()
+                    if (service.hasNonQuarantinedFailures(moduleName)) {
+                        throw org.gradle.api.GradleException("There were failing tests in module $moduleName")
+                    } else if (service.hasQuarantinedFailures(moduleName)) {
+                        logger.lifecycle("Tuist: All failing tests in module $moduleName are quarantined")
                     }
                 }
             }
         }
+    }
+}
 
-        project.gradle.taskGraph.whenReady {
-            val service = serviceProvider.get()
-            service.uploadInBackground = config.uploadInBackground
-
-            val buildService = project.gradle.sharedServices.registrations
-                .findByName("tuistBuildInsights")?.service?.orNull as? TuistBuildInsightsService
-            if (buildService != null) {
-                service.buildInsightsService = buildService
-            }
-        }
-
+private class TuistTestListener(
+    private val service: Provider<TuistTestInsightsService>,
+    private val moduleName: String
+) : TestListener, java.io.Serializable {
+    override fun beforeSuite(suite: TestDescriptor) = Unit
+    override fun afterSuite(suite: TestDescriptor, result: TestResult) = Unit
+    override fun beforeTest(testDescriptor: TestDescriptor) = Unit
+    override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) {
+        service.get().onTestFinished(moduleName, testDescriptor, result)
     }
 }

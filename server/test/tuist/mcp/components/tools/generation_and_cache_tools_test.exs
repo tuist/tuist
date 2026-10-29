@@ -120,6 +120,45 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
 
       assert text =~ "Generation not found"
     end
+
+    test "accepts a dashboard URL in place of the generation ID" do
+      generation_id = "38338b32-3437-42e4-bc01-f048d6d3368f"
+
+      stub(CommandEvents, :get_command_event_by_id, fn ^generation_id ->
+        {:ok,
+         %{
+           id: generation_id,
+           name: "generate",
+           project_id: 1,
+           duration: 5000,
+           status: 0,
+           tuist_version: "4.0.0",
+           swift_version: "5.10",
+           macos_version: "14.0",
+           is_ci: false,
+           git_branch: "main",
+           git_commit_sha: "abc123",
+           git_ref: nil,
+           command_arguments: nil,
+           cacheable_targets: ["App"],
+           local_cache_target_hits: [],
+           remote_cache_target_hits: [],
+           created_at: ~N[2025-01-01 12:00:00]
+         }}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> %{id: 1, account: %{name: "acme"}, name: "app"} end)
+      stub(Tuist.Authorization, :authorize, fn _action, _subject, _project -> :ok end)
+
+      conn = %Plug.Conn{assigns: %{}}
+
+      assert %{"content" => [%{"text" => json}]} =
+               GetGeneration.call(conn, %{
+                 "generation_id" => "https://tuist.dev/acme/app/runs/#{generation_id}"
+               })
+
+      assert JSON.decode!(json)["id"] == generation_id
+    end
   end
 
   describe "list_cache_runs" do
@@ -261,6 +300,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
                project_settings_hash: "",
                target_settings_hash: "",
                buildable_folders_hash: "",
+               additional_hashing_inputs_hash: "additional-inputs-hash",
                destinations: ["iphone"],
                additional_strings: []
              }
@@ -289,6 +329,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
       assert target["cache_hash"] == "hash-abc"
       assert target["subhashes"]["sources"] == "src-hash"
       assert target["subhashes"]["dependencies"] == "dep-hash"
+      assert target["subhashes"]["additional_hashing_inputs"] == "additional-inputs-hash"
       refute Map.has_key?(target["subhashes"], "headers")
     end
   end

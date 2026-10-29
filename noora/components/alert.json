@@ -1,0 +1,145 @@
+{
+  "name": "Alert",
+  "tagName": "noora-alert",
+  "elementClassName": "NooraAlert",
+  "className": "noora-alert",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Communicates contextual information with a semantic status.",
+  "usage": "<noora-alert status=\"success\" title=\"Project created\"></noora-alert>",
+  "attributes": [
+    {
+      "name": "type",
+      "property": "type",
+      "type": "string",
+      "values": ["primary", "secondary"],
+      "default": "primary",
+      "description": "Controls the visual emphasis."
+    },
+    {
+      "name": "status",
+      "property": "status",
+      "type": "string",
+      "values": ["information", "warning", "error", "success"],
+      "default": "information",
+      "description": "Sets the semantic status."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["small", "medium", "large"],
+      "default": "medium",
+      "description": "Controls the alert dimensions and content layout."
+    },
+    {
+      "name": "dismissible",
+      "property": "dismissible",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows a dismiss control."
+    },
+    {
+      "name": "show-icon",
+      "property": "showIcon",
+      "type": "boolean",
+      "default": true,
+      "description": "Shows the semantic status icon."
+    },
+    {
+      "name": "title",
+      "property": "title",
+      "type": "string",
+      "default": "",
+      "description": "Sets the alert title."
+    },
+    {
+      "name": "description",
+      "property": "description",
+      "type": "string",
+      "description": "Sets the description shown by large alerts."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "Rich description content that takes precedence over the description attribute."
+    },
+    {
+      "name": "action",
+      "description": "Actions displayed beside or below the title."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "alert",
+      "description": "The alert container."
+    },
+    {
+      "name": "title",
+      "description": "The title."
+    },
+    {
+      "name": "description",
+      "description": "The description."
+    },
+    {
+      "name": "actions",
+      "description": "The action container."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-dismiss",
+      "type": "CustomEvent<Record<string, never>>",
+      "description": "Emitted after the alert is dismissed."
+    }
+  ],
+  "notes": [
+    "A dismiss action emits a `noora-dismiss` event and hides the element."
+  ],
+  "examples": [
+    {
+      "id": "types",
+      "title": "Types",
+      "description": "Use primary alerts by default and secondary alerts for lower emphasis.",
+      "markup": "<noora-alert type=\"primary\" status=\"error\" title=\"Insert your text here\"></noora-alert>\n<noora-alert type=\"secondary\" status=\"error\" title=\"Insert your text here\"></noora-alert>"
+    },
+    {
+      "id": "sizes",
+      "title": "Sizes",
+      "description": "Choose a compact, standard, or descriptive layout.",
+      "markup": "<noora-alert size=\"small\" status=\"error\" title=\"Insert your text here\"></noora-alert>\n<noora-alert size=\"medium\" status=\"error\" title=\"Insert your text here\"></noora-alert>\n<noora-alert size=\"large\" status=\"error\" title=\"Insert your text here\" description=\"Insert your description here. Description in this case is usually two lines\"></noora-alert>"
+    },
+    {
+      "id": "primary-statuses",
+      "title": "Primary statuses",
+      "description": "Primary alerts support error, information, success, and warning states.",
+      "markup": "<noora-alert status=\"error\" title=\"Insert your text here\"></noora-alert>\n<noora-alert status=\"information\" title=\"Insert your text here\"></noora-alert>\n<noora-alert status=\"success\" title=\"Insert your text here\"></noora-alert>\n<noora-alert status=\"warning\" title=\"Insert your text here\"></noora-alert>"
+    },
+    {
+      "id": "secondary-statuses",
+      "title": "Secondary statuses",
+      "description": "Secondary alerts provide the same semantic states with lower emphasis.",
+      "markup": "<noora-alert type=\"secondary\" status=\"error\" title=\"Insert your text here\"></noora-alert>\n<noora-alert type=\"secondary\" status=\"information\" title=\"Insert your text here\"></noora-alert>\n<noora-alert type=\"secondary\" status=\"success\" title=\"Insert your text here\"></noora-alert>\n<noora-alert type=\"secondary\" status=\"warning\" title=\"Insert your text here\"></noora-alert>"
+    },
+    {
+      "id": "dismissible",
+      "title": "Dismissible",
+      "description": "Dismiss controls are available in every alert size.",
+      "markup": "<noora-alert dismissible size=\"small\" status=\"error\" title=\"Insert your text here\"></noora-alert>\n<noora-alert dismissible size=\"medium\" status=\"error\" title=\"Insert your text here\"></noora-alert>\n<noora-alert dismissible size=\"large\" status=\"error\" title=\"Insert your text here\" description=\"Insert your description here. Description in this case is usually two lines\"></noora-alert>"
+    },
+    {
+      "id": "actions",
+      "title": "Actions",
+      "description": "Place related actions in the action slot for compact or descriptive alerts.",
+      "markup": "<noora-alert size=\"small\" status=\"error\" title=\"Insert your text here\">\n  <noora-link-button slot=\"action\" size=\"medium\" variant=\"secondary\" underline label=\"Action\"></noora-link-button>\n</noora-alert>\n<noora-alert size=\"large\" status=\"error\" title=\"Insert your text here\" description=\"Insert your description here. Description in this case is usually two lines\">\n  <noora-link-button slot=\"action\" size=\"large\" variant=\"secondary\" underline label=\"Action\"></noora-link-button>\n</noora-alert>"
+    },
+    {
+      "id": "edge-cases",
+      "title": "Edge cases",
+      "description": "Long content and combined actions preserve the alert layout.",
+      "markup": "<noora-alert status=\"information\" title=\"This is a very long title that might wrap to multiple lines in smaller containers or on mobile devices to test text wrapping behavior\"></noora-alert>\n<noora-alert size=\"large\" status=\"warning\" title=\"Important Notice\" description=\"This is a very long description that contains multiple sentences and important information. It should properly wrap and maintain readability even when the content extends beyond the typical two-line description. This helps test the layout behavior with extensive content.\"></noora-alert>\n<noora-alert dismissible size=\"medium\" status=\"success\" title=\"Operation completed successfully\">\n  <noora-link-button slot=\"action\" size=\"medium\" variant=\"secondary\" underline label=\"View Details\"></noora-link-button>\n  <noora-link-button slot=\"action\" size=\"medium\" variant=\"secondary\" underline label=\"Dismiss\"></noora-link-button>\n</noora-alert>"
+    }
+  ]
+}

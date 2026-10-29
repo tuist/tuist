@@ -1,0 +1,313 @@
+#postmortems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+
+  & [data-part="header"] {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="header-actions"],
+  & [data-part="form-actions"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="header-actions"] {
+    flex-shrink: 0;
+  }
+
+  & [data-part="share-button"] {
+    & [data-part="share-copied-icon"],
+    & [data-part="share-copied-label"] {
+      display: none;
+    }
+
+    &[data-copied] {
+      color: var(--noora-surface-label-success);
+
+      & [data-part="share-idle-icon"],
+      & [data-part="share-idle-label"] {
+        display: none;
+      }
+
+      & [data-part="share-copied-icon"],
+      & [data-part="share-copied-label"] {
+        display: inline-flex;
+      }
+    }
+  }
+
+  /* Postmortem bodies read like a document; give the markdown a comfortable
+     measure and let the h2 sections breathe so they read as section breaks
+     rather than blending into the paragraphs below. */
+  & .markdown[data-part="body"] {
+    max-width: 72ch;
+
+    & > h2 {
+      margin-top: var(--noora-spacing-9);
+      padding-bottom: var(--noora-spacing-3);
+      border-bottom: 1px solid var(--noora-surface-border-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+
+    & > h2:first-child,
+    & > h3:first-child {
+      margin-top: 0;
+    }
+
+    & > h3 {
+      margin-top: var(--noora-spacing-8);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+    }
+
+    & > p,
+    & > ul,
+    & > ol,
+    & > blockquote {
+      margin-top: var(--noora-spacing-5);
+    }
+  }
+
+  & [data-part="title-group"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    max-width: 780px;
+  }
+
+  & [data-part="title-group"] h1,
+  & [data-part="empty-state"] h2 {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & [data-part="title-group"] p,
+  & [data-part="empty-state"] p {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & [data-part="empty-state"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    padding: var(--noora-spacing-10);
+    text-align: center;
+  }
+
+  & [data-part="table-toolbar"] {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--noora-spacing-4);
+    margin-bottom: var(--noora-spacing-5);
+  }
+
+  & [data-part="search"] {
+    width: min(360px, 100%);
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+    margin-bottom: var(--noora-spacing-5);
+  }
+
+  & #postmortems-table {
+    overflow-x: visible;
+
+    & table {
+      table-layout: fixed;
+      min-width: 0;
+    }
+
+    & th,
+    & td {
+      white-space: normal;
+    }
+
+    & th:nth-child(1),
+    & td:nth-child(1) {
+      width: 58%;
+    }
+
+    & th:nth-child(2),
+    & td:nth-child(2) {
+      width: 22%;
+    }
+
+    & th:nth-child(3),
+    & td:nth-child(3) {
+      width: 20%;
+    }
+  }
+
+  & [data-part="author-cell"] [data-part="icon"] {
+    box-shadow: none;
+  }
+
+  & [data-part="pagination"] {
+    display: flex;
+    justify-content: center;
+    gap: var(--noora-spacing-3);
+    margin-top: var(--noora-spacing-5);
+  }
+
+  & [data-part="domains"] {
+    display: flex;
+    align-items: center;
+  }
+
+  & [data-part="domains"] {
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="summary-grid"] {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="summary-item"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & [data-part="summary-item"] [data-part="label"] {
+    color: var(--noora-surface-label-secondary);
+  }
+
+  & [data-part="action-items"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  & [data-part="empty-action-items"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  /* Noora sizes tables to `max-content`, so one long action-item title
+     stretches the table until Priority, Status, and the row actions sit past
+     the right edge. Let the table share the available width instead. */
+  & #postmortem-action-items-table {
+    & table {
+      min-width: 0;
+    }
+
+    /* The chevron on an expandable row wraps the first cell in another flex
+       container, so the shrink chain has to reach through it too. */
+    & [data-part="expand-cell"] {
+      min-width: 0;
+
+      & > [data-part="cell"] {
+        min-width: 0;
+      }
+    }
+
+    & [data-type="text"] {
+      & [data-part="label"] {
+        overflow-wrap: anywhere;
+        white-space: normal;
+      }
+    }
+
+    & [data-part="action-item-details"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+      min-width: 0;
+      max-width: 920px;
+      padding: var(--noora-spacing-5) var(--noora-spacing-7)
+        var(--noora-spacing-7);
+      overflow-wrap: anywhere;
+
+      & [data-part="detail"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+      }
+
+      & [data-part="label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
+
+      & [data-part="description"] pre {
+        max-width: 100%;
+      }
+    }
+  }
+
+  & [data-part="action-item-toggle"] {
+    margin: 0;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  & [data-part="form-actions"] {
+    justify-content: flex-end;
+    margin-top: var(--noora-spacing-1);
+  }
+
+  & #postmortem-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & #postmortem-form [data-part="select-field"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  @media (max-width: 720px) {
+    & [data-part="header"],
+    & [data-part="table-toolbar"] {
+      flex-direction: column;
+    }
+
+    & [data-part="search"] {
+      width: 100%;
+    }
+
+    & [data-part="summary-grid"] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+  }
+}
+
+.noora-modal[data-width="large"] {
+  & > [data-part="positioner"] > [data-part="content"] {
+    width: min(42rem, calc(100dvw - var(--noora-spacing-9)));
+  }
+
+  & [data-part="action-item-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding: var(--noora-spacing-9) 0;
+  }
+
+  & [data-part="action-item-form"] [data-part="select-field"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+}

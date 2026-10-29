@@ -13,11 +13,20 @@ use sha2::{Digest, Sha256};
 use tokio::{io::AsyncWriteExt, sync::Notify};
 use uuid::Uuid;
 
-use crate::{artifact::producer::ArtifactProducer, bandwidth::BandwidthLimiter, io::IoController};
+use crate::{
+    artifact::producer::ArtifactProducer,
+    bandwidth::BandwidthLimiter,
+    file_cache::{
+        FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, ForegroundFileCacheReservation,
+        reserve_foreground_staging,
+    },
+    io::{IoController, TrackedFile},
+    memory::MemoryController,
+};
 
 /// Byte-accounted reservation over the shared tmp-dir budget.
 ///
-/// Bootstrap stages every non-inline artifact it pulls from a peer into the
+/// Backfill stages every non-inline artifact it pulls from a peer into the
 /// shared tmp dir before appending it to a segment. Multiple peers (and the
 /// sequential artifacts within a single peer) stage concurrently, so without a
 /// shared accounting the combined in-flight bytes scale with the number of
@@ -38,6 +47,29 @@ impl TmpBudget {
             reserved: AtomicU64::new(0),
             available: Notify::new(),
         })
+    }
+
+    /// Reserve `bytes` immediately, rejecting the caller when the shared
+    /// staging budget has no room. Foreground uploads use this instead of
+    /// waiting while they hold a request body and memory admission.
+    pub fn try_reserve(self: &Arc<Self>, bytes: u64) -> Result<TmpReservation, String> {
+        let bytes = bytes.max(1);
+        if bytes > self.capacity {
+            return Err(format!(
+                "tmp dir budget exhausted: {bytes} bytes requested, {} bytes allowed",
+                self.capacity
+            ));
+        }
+        self.try_grow(bytes)?;
+        Ok(TmpReservation {
+            budget: self.clone(),
+            bytes,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn reserved_bytes(&self) -> u64 {
+        self.reserved.load(Ordering::Acquire)
     }
 
     /// Reserve `bytes` against the budget, waiting until the reservation fits.
@@ -78,10 +110,38 @@ impl TmpBudget {
         }
     }
 
+    fn try_grow(&self, additional: u64) -> Result<(), String> {
+        let mut current = self.reserved.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(additional);
+            if requested > self.capacity {
+                return Err(budget_exhausted_message(current, additional, self.capacity));
+            }
+            match self.reserved.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Ok(()),
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
     fn release(&self, bytes: u64) {
         self.reserved.fetch_sub(bytes, Ordering::AcqRel);
         self.available.notify_waiters();
     }
+}
+
+// Reserved bytes are admission accounting, not bytes on disk: a stalled writer
+// holds its reservation while `kura_tmp_dir_bytes` stays near zero, so the
+// message says so rather than reading as a full disk.
+fn budget_exhausted_message(reserved: u64, requested: u64, capacity: u64) -> String {
+    format!(
+        "tmp dir budget exhausted: {reserved} bytes reserved by in-flight writers, {requested} bytes requested, {capacity} bytes allowed"
+    )
 }
 
 /// RAII guard that releases its tmp-budget reservation on drop.
@@ -91,83 +151,411 @@ pub struct TmpReservation {
     bytes: u64,
 }
 
+impl TmpReservation {
+    /// Extend the reservation to `total` bytes, rejecting the growth when the
+    /// budget has no room for the difference. The bytes already held stay
+    /// reserved either way.
+    pub fn grow_to(&mut self, total: u64) -> Result<(), String> {
+        let additional = total.saturating_sub(self.bytes);
+        if additional == 0 {
+            return Ok(());
+        }
+        self.budget.try_grow(additional)?;
+        self.bytes += additional;
+        Ok(())
+    }
+}
+
 impl Drop for TmpReservation {
     fn drop(&mut self) {
         self.budget.release(self.bytes);
     }
 }
 
-#[derive(Debug)]
 pub struct TempBodyFile {
     pub path: PathBuf,
     pub size: u64,
+    pub file_cache_policy: FileCachePolicy,
+    /// Lowercase hex SHA-256 of the staged bytes, computed inline while they
+    /// streamed in. Present only when the caller asked for it via
+    /// `RequestBodyStaging::compute_sha256`.
+    pub sha256_hex: Option<String>,
+    _cleanup: TempFileCleanup,
+    _memory_reservation: ForegroundFileCacheReservation,
+}
+
+impl TempBodyFile {
+    pub async fn remove_and_disarm(&mut self, io: &IoController) {
+        self._cleanup.remove_and_disarm(io).await;
+    }
+}
+
+impl std::fmt::Debug for TempBodyFile {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TempBodyFile")
+            .field("path", &self.path)
+            .field("size", &self.size)
+            .field("file_cache_policy", &self.file_cache_policy)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct TempFileCleanup {
+    path: Option<PathBuf>,
+    reservation: Option<TmpReservation>,
+}
+
+impl TempFileCleanup {
+    pub(crate) fn new(path: PathBuf, reservation: TmpReservation) -> Self {
+        Self {
+            path: Some(path),
+            reservation: Some(reservation),
+        }
+    }
+
+    pub(crate) fn new_unreserved(path: PathBuf) -> Self {
+        Self {
+            path: Some(path),
+            reservation: None,
+        }
+    }
+
+    pub(crate) fn set_reservation(&mut self, reservation: TmpReservation) {
+        debug_assert!(self.reservation.is_none());
+        self.reservation = Some(reservation);
+    }
+
+    pub(crate) fn grow_reservation_to(&mut self, total: u64) -> Result<(), String> {
+        match self.reservation.as_mut() {
+            Some(reservation) => reservation.grow_to(total),
+            None => Ok(()),
+        }
+    }
+
+    pub(crate) fn disarm(&mut self) {
+        self.path.take();
+        self.reservation.take();
+    }
+
+    pub(crate) async fn remove_and_disarm(&mut self, io: &IoController) {
+        let Some(path) = self.path.clone() else {
+            return;
+        };
+        match io.remove_file_if_exists_result(&path).await {
+            Ok(()) => self.disarm(),
+            Err(error) => {
+                tracing::warn!(
+                    path = %path.display(),
+                    "failed to remove temporary file before releasing its disk reservation: {error}"
+                );
+            }
+        }
+    }
+}
+
+impl Drop for TempFileCleanup {
+    fn drop(&mut self) {
+        let Some(path) = self.path.take() else {
+            return;
+        };
+        // Keep the disk reservation alive until the unlink has actually run.
+        // Releasing it when the task is merely queued would let a cancellation
+        // storm admit replacement files before their predecessors leave disk.
+        let reservation = self.reservation.take();
+        let remove = move || {
+            let removed = match std::fs::remove_file(&path) {
+                Ok(()) => true,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+                Err(error) => {
+                    tracing::warn!(
+                        path = %path.display(),
+                        "failed to clean up temporary file on drop; retaining its disk reservation until restart: {error}"
+                    );
+                    false
+                }
+            };
+            if removed {
+                drop(reservation);
+            } else {
+                // Failing closed keeps the configured disk ceiling truthful.
+                // Startup clears the staging directory and rebuilds the
+                // in-memory ledger, so a stuck reservation is recoverable.
+                std::mem::forget(reservation);
+            }
+        };
+        match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => {
+                runtime.spawn_blocking(remove);
+            }
+            Err(_) => {
+                remove();
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum BodyReadError {
     TooLarge,
     TmpDirFull(String),
+    MemoryPressure,
+    Request(RequestBodyError),
     Io(String),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RequestBodyErrorKind {
+    ClientAborted,
+    TimedOut,
+    InvalidBody,
+    Failed,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct RequestBodyError {
+    pub kind: RequestBodyErrorKind,
+    pub message: String,
+}
+
+impl RequestBodyError {
+    pub(crate) fn from_error(error: axum::Error) -> Self {
+        let mut kind = RequestBodyErrorKind::Failed;
+        let mut messages = Vec::new();
+        let mut source: Option<&(dyn std::error::Error + 'static)> = Some(&error);
+        // Inspect typed causes before formatting: Hyper's outer Display often
+        // says only "error reading a body from connection".
+        for _ in 0..16 {
+            let Some(error) = source else { break };
+            let message: String = error.to_string().chars().take(1024).collect();
+            if messages.last() != Some(&message) {
+                messages.push(message);
+            }
+            if let Some(error) = error.downcast_ref::<hyper::Error>() {
+                if error.is_incomplete_message() {
+                    kind = RequestBodyErrorKind::ClientAborted;
+                } else if error.is_timeout() {
+                    kind = RequestBodyErrorKind::TimedOut;
+                } else if error.is_parse() {
+                    kind = RequestBodyErrorKind::InvalidBody;
+                }
+            }
+            if let Some(error) = error.downcast_ref::<std::io::Error>() {
+                kind = match error.kind() {
+                    std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::ConnectionAborted
+                    | std::io::ErrorKind::UnexpectedEof => RequestBodyErrorKind::ClientAborted,
+                    std::io::ErrorKind::TimedOut => RequestBodyErrorKind::TimedOut,
+                    std::io::ErrorKind::InvalidData | std::io::ErrorKind::InvalidInput => {
+                        RequestBodyErrorKind::InvalidBody
+                    }
+                    _ => kind,
+                };
+            }
+            if let Some(error) = error.downcast_ref::<h2::Error>() {
+                // h2 exposes its I/O cause through get_io(), not Error::source().
+                if let Some(cause) = error.get_io() {
+                    source = Some(cause);
+                    continue;
+                }
+                if error.is_remote() && (error.is_reset() || error.is_go_away()) {
+                    kind = RequestBodyErrorKind::ClientAborted;
+                } else if error.is_library() && error.reason() == Some(h2::Reason::PROTOCOL_ERROR) {
+                    kind = RequestBodyErrorKind::InvalidBody;
+                }
+            }
+            source = error.source();
+        }
+        Self {
+            kind,
+            message: messages.join(": ").chars().take(1024).collect(),
+        }
+    }
+}
+
+// Hyper 1.9 turns h2 CANCEL/NO_ERROR body errors into None without receiving
+// END_STREAM. Check the concrete Incoming body before Axum erases its type:
+// generic http_body implementations need not provide an exact end-stream hint.
+pub(crate) fn guard_incoming_request(request: hyper::Request<hyper::body::Incoming>) -> Request {
+    let http2 = request.version() == hyper::Version::HTTP_2;
+    request.map(|body| {
+        if http2 {
+            axum::body::Body::new(Http2IncomingBody { body, done: false })
+        } else {
+            axum::body::Body::new(body)
+        }
+    })
+}
+
+struct Http2IncomingBody {
+    body: hyper::body::Incoming,
+    done: bool,
+}
+
+impl http_body::Body for Http2IncomingBody {
+    type Data = bytes::Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+        use std::task::Poll;
+        if self.done {
+            return Poll::Ready(None);
+        }
+        match std::pin::Pin::new(&mut self.body).poll_frame(cx) {
+            Poll::Ready(None) => {
+                self.done = true;
+                if self.body.is_end_stream() {
+                    Poll::Ready(None)
+                } else {
+                    Poll::Ready(Some(Err(axum::Error::new(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "HTTP/2 request body ended without END_STREAM (remote cancellation)",
+                    )))))
+                }
+            }
+            Poll::Ready(Some(Err(error))) => {
+                self.done = true;
+                Poll::Ready(Some(Err(axum::Error::new(error))))
+            }
+            Poll::Ready(Some(Ok(frame))) => Poll::Ready(Some(Ok(frame))),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.done || self.body.is_end_stream()
+    }
+
+    fn size_hint(&self) -> http_body::SizeHint {
+        self.body.size_hint()
+    }
+}
+
+pub struct RequestBodyStaging<'a> {
+    pub tmp_budget: &'a Arc<TmpBudget>,
+    pub io: &'a IoController,
+    pub memory: &'a MemoryController,
+    pub bandwidth_limiter: Option<&'a BandwidthLimiter>,
+    /// Hash the body into `TempBodyFile::sha256_hex` while it streams in.
+    /// Costs CPU per byte, so it is opt-in: only lanes that go on to verify a
+    /// client-declared digest set it, and only when the request declared one.
+    pub compute_sha256: bool,
 }
 
 pub async fn read_request_to_temp(
     request: Request,
     directory: &Path,
     max_bytes: u64,
-    tmp_dir: &Path,
-    tmp_dir_max_bytes: u64,
-    io: &IoController,
-    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+    staging: RequestBodyStaging<'_>,
 ) -> Result<TempBodyFile, BodyReadError> {
-    ensure_tmp_dir_capacity(tmp_dir, max_bytes, tmp_dir_max_bytes)
-        .await
+    let declared_bytes = request
+        .headers()
+        .get(axum::http::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok());
+    if declared_bytes.is_some_and(|declared_bytes| declared_bytes > max_bytes) {
+        return Err(BodyReadError::TooLarge);
+    }
+    let memory_reservation =
+        reserve_foreground_staging(staging.memory, declared_bytes.unwrap_or(max_bytes))
+            .await
+            .map_err(|_| BodyReadError::MemoryPressure)?;
+    // A body with no Content-Length (a chunked peer upload) is charged as its
+    // bytes land rather than for the route ceiling: reserving `max_bytes` up
+    // front let four kilobyte-sized replication receives hold the whole node
+    // budget. `max_bytes` stays the hard ceiling on the stream below.
+    let disk_reservation = staging
+        .tmp_budget
+        .try_reserve(declared_bytes.unwrap_or(0))
         .map_err(BodyReadError::TmpDirFull)?;
+    let file_cache_policy = memory_reservation.file_cache_policy();
 
     let temp_path = temp_file_path(directory, "upload");
     if let Some(parent) = temp_path.parent() {
-        io.create_dir_all(parent).await.map_err(BodyReadError::Io)?;
+        staging
+            .io
+            .create_dir_all(parent)
+            .await
+            .map_err(BodyReadError::Io)?;
     }
+    let mut cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
 
-    let mut file = io
+    let mut file = staging
+        .io
         .create_file(&temp_path)
         .await
         .map_err(BodyReadError::Io)?;
     let mut stream = request.into_body().into_data_stream();
     let mut size = 0_u64;
+    let mut advised_through = 0_u64;
+    let mut hasher = staging.compute_sha256.then(Sha256::new);
 
     while let Some(item) = stream.next().await {
         let chunk = match item {
             Ok(chunk) => chunk,
             Err(error) => {
                 drop(file);
-                io.remove_file_if_exists(&temp_path).await;
-                return Err(BodyReadError::Io(format!(
-                    "failed to read request body: {error}"
-                )));
+                cleanup.remove_and_disarm(staging.io).await;
+                return Err(BodyReadError::Request(RequestBodyError::from_error(error)));
             }
         };
         size += chunk.len() as u64;
         if size > max_bytes {
             drop(file);
-            io.remove_file_if_exists(&temp_path).await;
+            cleanup.remove_and_disarm(staging.io).await;
             return Err(BodyReadError::TooLarge);
         }
-        if let Some(limiter) = bandwidth_limiter.as_ref() {
+        if let Err(error) = cleanup.grow_reservation_to(size) {
+            drop(file);
+            cleanup.remove_and_disarm(staging.io).await;
+            return Err(BodyReadError::TmpDirFull(error));
+        }
+        if let Some(limiter) = staging.bandwidth_limiter {
             limiter.acquire(chunk.len()).await;
+        }
+        if let Some(hasher) = hasher.as_mut() {
+            hasher.update(&chunk);
         }
 
         if let Err(error) = file.write_all(&chunk).await {
             drop(file);
-            io.remove_file_if_exists(&temp_path).await;
+            cleanup.remove_and_disarm(staging.io).await;
             return Err(BodyReadError::Io(format!(
                 "failed to write temp file: {error}"
             )));
+        }
+        if file_cache_policy.should_drop(
+            staging.memory.should_reclaim_file_cache(),
+            staging.memory.foreground_transient_reserved_bytes(),
+        ) && size.saturating_sub(advised_through) >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+        {
+            file = match drop_staging_cache_range(
+                file,
+                &temp_path,
+                advised_through,
+                size - advised_through,
+                staging.io,
+            )
+            .await
+            {
+                Ok(file) => file,
+                Err(error) => {
+                    cleanup.remove_and_disarm(staging.io).await;
+                    return Err(BodyReadError::Io(error));
+                }
+            };
+            advised_through = size;
         }
     }
 
     if let Err(error) = file.flush().await {
         drop(file);
-        io.remove_file_if_exists(&temp_path).await;
+        cleanup.remove_and_disarm(staging.io).await;
         return Err(BodyReadError::Io(format!(
             "failed to flush temp file: {error}"
         )));
@@ -176,47 +564,97 @@ pub async fn read_request_to_temp(
     Ok(TempBodyFile {
         path: temp_path,
         size,
+        file_cache_policy,
+        sha256_hex: hasher.map(|hasher| hex::encode(hasher.finalize())),
+        _cleanup: cleanup,
+        _memory_reservation: memory_reservation,
     })
 }
 
-pub async fn ensure_tmp_dir_capacity(
-    tmp_dir: &Path,
-    incoming_bytes: u64,
-    max_bytes: u64,
-) -> Result<(), String> {
-    let tmp_dir = tmp_dir.to_path_buf();
-    let current_bytes = tokio::task::spawn_blocking(move || directory_size_bytes(&tmp_dir))
-        .await
-        .unwrap_or(0);
-    let requested_bytes = current_bytes.saturating_add(incoming_bytes);
-    if requested_bytes > max_bytes {
-        return Err(format!(
-            "tmp dir budget exhausted: {current_bytes} bytes staged, {incoming_bytes} bytes requested, {max_bytes} bytes allowed"
-        ));
+/// Reads the rest of an HTTP/1 request body and discards it, so an answer
+/// that does not need the body leaves the connection reusable.
+///
+/// Hyper closes an HTTP/1 connection whose request body was not read to the
+/// end, and closing with bytes still unread makes the kernel send a reset that
+/// can destroy the answer, or the next request a proxy sends over the pooled
+/// connection. HTTP/2 cancels only the stream, so there is nothing to read. A
+/// body larger than `max_bytes`, or one that fails, is abandoned and the
+/// connection closes.
+pub async fn discard_request_body(request: Request, max_bytes: u64) {
+    if !matches!(
+        request.version(),
+        axum::http::Version::HTTP_10 | axum::http::Version::HTTP_11
+    ) {
+        return;
     }
-    Ok(())
+    let declared_bytes = request
+        .headers()
+        .get(axum::http::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok());
+    if declared_bytes.is_some_and(|declared_bytes| declared_bytes > max_bytes) {
+        return;
+    }
+    let mut stream = request.into_body().into_data_stream();
+    let mut size = 0_u64;
+    while let Some(Ok(chunk)) = stream.next().await {
+        size += chunk.len() as u64;
+        if size > max_bytes {
+            return;
+        }
+    }
+}
+
+pub(crate) async fn drop_staging_cache_range(
+    file: TrackedFile,
+    path: &Path,
+    offset: u64,
+    length: u64,
+    io: &IoController,
+) -> Result<TrackedFile, String> {
+    let file = io
+        .sync_drop_cache_and_reopen_append(file, path, offset, length)
+        .await?;
+    io.metrics().record_memory_action("staging_file_cache_drop");
+    Ok(file)
 }
 
 pub fn directory_size_bytes(path: &Path) -> u64 {
+    try_path_size_bytes(path).unwrap_or(0)
+}
+
+pub fn try_path_size_bytes(path: &Path) -> std::io::Result<u64> {
+    let root_metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(error),
+    };
+    if !root_metadata.is_dir() {
+        return Ok(root_metadata.len());
+    }
+
     let mut total = 0_u64;
     let mut stack = vec![path.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            Err(_) => continue,
-        };
-        for entry in entries.flatten() {
-            let Ok(file_type) = entry.file_type() else {
-                continue;
-            };
+        let entries = std::fs::read_dir(&dir)?;
+        for entry in entries {
+            let entry = entry?;
+            let file_type = entry.file_type()?;
             if file_type.is_dir() {
                 stack.push(entry.path());
-            } else if let Ok(metadata) = entry.metadata() {
-                total = total.saturating_add(metadata.len());
+            } else {
+                total = total
+                    .checked_add(std::fs::symlink_metadata(entry.path())?.len())
+                    .ok_or_else(|| {
+                        std::io::Error::other(format!(
+                            "size overflow while accounting {}",
+                            path.display()
+                        ))
+                    })?;
             }
         }
     }
-    total
+    Ok(total)
 }
 
 pub fn temp_file_path(directory: &Path, prefix: &str) -> PathBuf {
@@ -229,6 +667,35 @@ pub fn artifact_storage_id(
     namespace_id: &str,
     key: &str,
 ) -> String {
+    hex::encode(artifact_storage_digest(
+        producer,
+        tenant_id,
+        namespace_id,
+        key,
+    ))
+}
+
+pub fn artifact_storage_id_in<'a>(
+    output: &'a mut [u8; 64],
+    producer: ArtifactProducer,
+    tenant_id: &str,
+    namespace_id: &str,
+    key: &str,
+) -> &'a str {
+    hex::encode_to_slice(
+        artifact_storage_digest(producer, tenant_id, namespace_id, key),
+        output,
+    )
+    .expect("64-byte output holds one encoded SHA-256 digest");
+    std::str::from_utf8(output).expect("hexadecimal digest is valid UTF-8")
+}
+
+fn artifact_storage_digest(
+    producer: ArtifactProducer,
+    tenant_id: &str,
+    namespace_id: &str,
+    key: &str,
+) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(producer.as_str().as_bytes());
     hasher.update([0]);
@@ -237,7 +704,7 @@ pub fn artifact_storage_id(
     hasher.update(namespace_id.as_bytes());
     hasher.update([0]);
     hasher.update(key.as_bytes());
-    hex::encode(hasher.finalize())
+    hasher.finalize().into()
 }
 
 #[cfg(test)]
@@ -265,17 +732,303 @@ pub fn segment_artifact_index_prefix(segment_id: &str) -> String {
     format!("{segment_id}\0")
 }
 
+/// Key prefix for the action-cache blob-refs reverse index. The rows live in
+/// the existing `key_value` column family rather than a dedicated one so that a
+/// rollback to a binary that predates this index can still reopen the database:
+/// `DB::open_cf_descriptors` rejects an on-disk column family it was not asked
+/// to open, so introducing one would crash-loop a rolled-back pod. An older
+/// binary simply never point-reads these prefixed keys. The prefix cannot
+/// collide with an inline artifact row (those are keyed by a 64-char hex
+/// `artifact_id`, which never contains `/`).
+const ACTION_CACHE_BLOB_REF_PREFIX: &str = "blob_ref/";
+
+/// Row key in the action-cache blob-refs reverse index: one `{blob}\0{entry}`
+/// pair per (referenced blob, referencing entry). Individual pair rows (empty
+/// value) rather than a set-valued row so two entries referencing the same blob
+/// write disjoint keys and never lose an update. Mirrors the
+/// `segment_artifact_index_key` shape, prefixed to share the `key_value` CF.
+pub fn action_cache_blob_ref_key(blob_artifact_id: &str, entry_artifact_id: &str) -> String {
+    format!("{ACTION_CACHE_BLOB_REF_PREFIX}{blob_artifact_id}\0{entry_artifact_id}")
+}
+
+/// Prefix scan for every entry that references `blob_artifact_id`, used by the
+/// eviction cascade to find the entries an evicted blob strands.
+pub fn action_cache_blob_ref_prefix(blob_artifact_id: &str) -> String {
+    format!("{ACTION_CACHE_BLOB_REF_PREFIX}{blob_artifact_id}\0")
+}
+
+/// Reverse index from a physical CAS chunk to the chunked-blob recipes that
+/// reference it. It shares the existing key-value column family so a binary
+/// predating chunked blobs can still open the database during rollback.
+const CHUNK_RECIPE_REF_PREFIX: &str = "chunk_ref/";
+
+pub fn chunk_recipe_ref_key(chunk_artifact_id: &str, recipe_artifact_id: &str) -> String {
+    format!("{CHUNK_RECIPE_REF_PREFIX}{chunk_artifact_id}\0{recipe_artifact_id}")
+}
+
+pub fn chunk_recipe_ref_prefix(chunk_artifact_id: &str) -> String {
+    format!("{CHUNK_RECIPE_REF_PREFIX}{chunk_artifact_id}\0")
+}
+
+/// Reserved keyspace for the backfill subsystem, shared with inline-artifact
+/// bytes and `blob_ref/` rows in the `key_value` column family for the same
+/// rollback-safety reason as [`ACTION_CACHE_BLOB_REF_PREFIX`]: a new column
+/// family would crash-loop a rolled-back binary at `DB::open_cf_descriptors`,
+/// while prefixed rows in an existing CF are simply never point-read by it.
+/// The prefix contains `/`, so it cannot collide with an inline artifact row
+/// (64-char hex `artifact_id`), and it is disjoint from `blob_ref/`.
+///
+/// Three sub-keyspaces:
+/// - `backfill/idx/`  — the per-entry version-ordered index (this module's codec)
+/// - `backfill/meta/` — build/maintenance markers
+/// - `backfill/wm/`   — per-peer backfill watermarks
+pub const BACKFILL_IDX_PREFIX: &str = "backfill/idx/";
+pub const BACKFILL_META_PREFIX: &str = "backfill/meta/";
+pub const BACKFILL_WM_PREFIX: &str = "backfill/wm/";
+
+/// The record kind byte in a `backfill/idx/` key. The discriminant values are
+/// part of the cursor contract: the kind byte orders rows within one
+/// `version_ms`, and a peer's resume cursor is a raw key, so renumbering these
+/// requires an index rebuild. Action-cache entries are inline artifacts and
+/// ride as `InlineArtifact`; there is deliberately no fourth kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BackfillRecordKind {
+    SegmentArtifact,
+    InlineArtifact,
+    NamespaceTombstone,
+}
+
+impl BackfillRecordKind {
+    pub fn as_byte(self) -> u8 {
+        match self {
+            Self::SegmentArtifact => 1,
+            Self::InlineArtifact => 2,
+            Self::NamespaceTombstone => 3,
+        }
+    }
+
+    pub fn from_byte(byte: u8) -> Option<Self> {
+        match byte {
+            1 => Some(Self::SegmentArtifact),
+            2 => Some(Self::InlineArtifact),
+            3 => Some(Self::NamespaceTombstone),
+            _ => None,
+        }
+    }
+
+    /// Wire names for the backfill listing endpoint.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::SegmentArtifact => "segment_artifact",
+            Self::InlineArtifact => "inline_artifact",
+            Self::NamespaceTombstone => "namespace_tombstone",
+        }
+    }
+
+    /// Inverse of [`Self::as_str`], for requests that carry wire names.
+    pub fn from_wire_name(name: &str) -> Option<Self> {
+        match name {
+            "segment_artifact" => Some(Self::SegmentArtifact),
+            "inline_artifact" => Some(Self::InlineArtifact),
+            "namespace_tombstone" => Some(Self::NamespaceTombstone),
+            _ => None,
+        }
+    }
+}
+
+/// Row key in the backfill per-entry index:
+/// `backfill/idx/ ++ !version_ms BE ++ kind byte ++ record_id`.
+///
+/// The version is stored bitwise-NOT big-endian so a forward prefix scan
+/// yields rows newest-first (the `action_cache_index_key` trick). `version_ms`
+/// must be the EFFECTIVE version (`manifest_version_ms` fallback for legacy
+/// `version_ms == 0` records), consistent with the apply-time presence check.
+/// The fixed single-byte kind makes the variable-length `record_id`
+/// (artifact id or namespace id) parse unambiguously. Every put AND delete of
+/// an index row derives its key through this one helper so the two can never
+/// disagree on layout.
+pub fn backfill_index_key(version_ms: u64, kind: BackfillRecordKind, record_id: &str) -> Vec<u8> {
+    let mut key = Vec::with_capacity(BACKFILL_IDX_PREFIX.len() + 8 + 1 + record_id.len());
+    key.extend_from_slice(BACKFILL_IDX_PREFIX.as_bytes());
+    key.extend_from_slice(&(!version_ms).to_be_bytes());
+    key.push(kind.as_byte());
+    key.extend_from_slice(record_id.as_bytes());
+    key
+}
+
+/// Row value in the backfill per-entry index: the record's byte size, 8-byte
+/// big-endian, so a requester can compose byte-bounded body batches from the
+/// listing alone. Tombstones have no body and store an empty value.
+pub fn backfill_index_value(size: Option<u64>) -> Vec<u8> {
+    match size {
+        Some(size) => size.to_be_bytes().to_vec(),
+        None => Vec::new(),
+    }
+}
+
+/// Exclusive upper bound for a range scan or range delete over the whole
+/// `backfill/idx/` keyspace (`/` + 1 = `0`).
+pub fn backfill_index_prefix_upper_bound() -> Vec<u8> {
+    let mut bound = BACKFILL_IDX_PREFIX.as_bytes().to_vec();
+    let last = bound.last_mut().expect("prefix is non-empty");
+    *last += 1;
+    bound
+}
+
+/// A decoded `backfill/idx/` row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackfillIndexRow {
+    pub version_ms: u64,
+    pub kind: BackfillRecordKind,
+    pub record_id: String,
+    /// `None` for tombstones (sizeless).
+    pub size: Option<u64>,
+}
+
+pub fn decode_backfill_index_row(key: &[u8], value: &[u8]) -> Result<BackfillIndexRow, String> {
+    let tail = key
+        .strip_prefix(BACKFILL_IDX_PREFIX.as_bytes())
+        .ok_or_else(|| "backfill index key is missing its prefix".to_string())?;
+    let (version_bytes, tail) = tail
+        .split_at_checked(8)
+        .ok_or_else(|| "backfill index key is missing its version".to_string())?;
+    let version_ms = !u64::from_be_bytes(version_bytes.try_into().expect("split at 8"));
+    let (&kind_byte, record_id) = tail
+        .split_first()
+        .ok_or_else(|| "backfill index key is missing its kind byte".to_string())?;
+    let kind = BackfillRecordKind::from_byte(kind_byte)
+        .ok_or_else(|| format!("unknown backfill record kind byte {kind_byte}"))?;
+    let record_id = std::str::from_utf8(record_id)
+        .map_err(|error| format!("invalid backfill record id: {error}"))?
+        .to_owned();
+    let size = match (kind, value.len()) {
+        (BackfillRecordKind::NamespaceTombstone, 0) => None,
+        (BackfillRecordKind::NamespaceTombstone, len) => {
+            return Err(format!("backfill tombstone row carries a {len}-byte value"));
+        }
+        (_, 8) => Some(u64::from_be_bytes(value.try_into().expect("checked len"))),
+        (_, len) => {
+            return Err(format!(
+                "backfill artifact row value should be 8 bytes, got {len}"
+            ));
+        }
+    };
+    Ok(BackfillIndexRow {
+        version_ms,
+        kind,
+        record_id,
+        size,
+    })
+}
+
+/// Key of a `backfill/meta/` marker row (build/maintenance state).
+pub fn backfill_meta_key(name: &str) -> String {
+    format!("{BACKFILL_META_PREFIX}{name}")
+}
+
+/// Key of a per-peer backfill watermark row, keyed by the peer's node URL.
+/// Reserved here with the rest of the `backfill/` keyspace; the watermark
+/// read/write lifecycle lives with the backfill walker.
+pub fn backfill_wm_key(node_url: &str) -> String {
+    format!("{BACKFILL_WM_PREFIX}{node_url}")
+}
+
+/// Row value of a `backfill/wm/` watermark row: the watermark and the
+/// local-clock completion stamp retention GC judges the row by, both 8-byte
+/// big-endian. Every read and write goes through this pair of helpers so the
+/// two sides can never disagree on layout.
+pub fn encode_backfill_watermark_value(watermark_ms: u64, refreshed_at_ms: u64) -> Vec<u8> {
+    let mut value = Vec::with_capacity(16);
+    value.extend_from_slice(&watermark_ms.to_be_bytes());
+    value.extend_from_slice(&refreshed_at_ms.to_be_bytes());
+    value
+}
+
+/// Decodes a `backfill/wm/` row into `(watermark_ms, refreshed_at_ms)`.
+pub fn decode_backfill_watermark_value(value: &[u8]) -> Result<(u64, u64), String> {
+    let (watermark_bytes, refreshed_at_bytes) = value.split_at_checked(8).ok_or_else(|| {
+        format!(
+            "backfill watermark value should be 16 bytes, got {}",
+            value.len()
+        )
+    })?;
+    let refreshed_at_bytes: [u8; 8] = refreshed_at_bytes.try_into().map_err(|_| {
+        format!(
+            "backfill watermark value should be 16 bytes, got {}",
+            value.len()
+        )
+    })?;
+    let watermark_bytes: [u8; 8] = watermark_bytes.try_into().expect("split at 8");
+    Ok((
+        u64::from_be_bytes(watermark_bytes),
+        u64::from_be_bytes(refreshed_at_bytes),
+    ))
+}
+
+/// Exclusive upper bound for a range scan over the whole `backfill/wm/`
+/// keyspace (`/` + 1 = `0`).
+pub fn backfill_wm_prefix_upper_bound() -> Vec<u8> {
+    let mut bound = BACKFILL_WM_PREFIX.as_bytes().to_vec();
+    let last = bound.last_mut().expect("prefix is non-empty");
+    *last += 1;
+    bound
+}
+
 /// Row key in the action-cache index CF. The version is stored bitwise-NOT
 /// big-endian so a forward prefix scan yields entries newest-first and can
 /// stop at the snapshot's entry cap without sorting. The action hash keeps
 /// same-millisecond rows distinct; the row value is the artifact id.
-pub fn action_cache_index_key(namespace_id: &str, version_ms: u64, action_hash: &str) -> Vec<u8> {
-    let mut key = Vec::with_capacity(namespace_id.len() + 1 + 8 + action_hash.len());
+pub fn action_cache_index_key(
+    namespace_id: &str,
+    version_ms: u64,
+    action_hash: &str,
+    branch: Option<&str>,
+) -> Vec<u8> {
+    let branch = branch.unwrap_or_default();
+    let mut key =
+        Vec::with_capacity(namespace_id.len() + 1 + 8 + action_hash.len() + 1 + branch.len());
     key.extend_from_slice(namespace_id.as_bytes());
     key.push(0);
     key.extend_from_slice(&(!version_ms).to_be_bytes());
     key.extend_from_slice(action_hash.as_bytes());
+    // Always written, so an untagged row is distinguishable from one written
+    // before the branch was recorded at all.
+    key.push(0);
+    key.extend_from_slice(branch.as_bytes());
     key
+}
+
+/// What an index row knows about its entry's branch, so a trunk-scoped scan can
+/// answer the filter from the row itself.
+pub enum IndexRowBranch<'a> {
+    /// Written before the branch was recorded in the key. Only the manifest
+    /// knows, and reading it is the cost the tag exists to avoid.
+    Unknown,
+    /// The entry's tag, `None` for an untagged entry.
+    Known(Option<&'a str>),
+}
+
+/// The branch a row carries, read out of its key.
+///
+/// It rides in the KEY rather than the value, which is what makes it invisible to
+/// a node that predates it: that reader takes only `[prefix .. prefix + 8]` (the
+/// version) out of the key and never parses the rest, and reads the artifact id
+/// from the value, which is unchanged. So an older binary reading these rows finds
+/// them intact. Putting it in the value instead would make every row look like a
+/// dangling artifact id to that binary, which retires unreadable rows as stale, so
+/// a rollback would delete the index it was meant to keep working against.
+pub fn action_cache_index_key_branch(index_key: &[u8], prefix_len: usize) -> IndexRowBranch<'_> {
+    let Some(tail) = index_key.get(prefix_len + 8..) else {
+        return IndexRowBranch::Unknown;
+    };
+    // The action hash is hex, so the first NUL after it opens the branch.
+    let Some(split) = tail.iter().position(|byte| *byte == 0) else {
+        return IndexRowBranch::Unknown;
+    };
+    match std::str::from_utf8(&tail[split + 1..]) {
+        Ok(branch) => IndexRowBranch::Known((!branch.is_empty()).then_some(branch)),
+        Err(_) => IndexRowBranch::Unknown,
+    }
 }
 
 pub fn action_cache_index_prefix(namespace_id: &str) -> Vec<u8> {
@@ -339,13 +1092,141 @@ mod tests {
     use axum::body::Body;
     use tempfile::tempdir;
 
+    #[tokio::test]
+    async fn upload_body_errors_release_staging_and_keep_typed_causes() {
+        use std::io::ErrorKind;
+
+        for (cause, expected) in [
+            (
+                ErrorKind::ConnectionReset,
+                RequestBodyErrorKind::ClientAborted,
+            ),
+            (
+                ErrorKind::ConnectionAborted,
+                RequestBodyErrorKind::ClientAborted,
+            ),
+            (ErrorKind::BrokenPipe, RequestBodyErrorKind::ClientAborted),
+            (
+                ErrorKind::UnexpectedEof,
+                RequestBodyErrorKind::ClientAborted,
+            ),
+            (ErrorKind::InvalidData, RequestBodyErrorKind::InvalidBody),
+            (ErrorKind::InvalidInput, RequestBodyErrorKind::InvalidBody),
+            (ErrorKind::TimedOut, RequestBodyErrorKind::TimedOut),
+            (ErrorKind::Other, RequestBodyErrorKind::Failed),
+        ] {
+            let directory = tempdir().unwrap();
+            let metrics = Metrics::new("local".into(), "test".into());
+            let io = IoController::new(
+                metrics.clone(),
+                8,
+                Duration::from_secs(1),
+                vec![directory.path().into()],
+            )
+            .unwrap();
+            let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+            let tmp_budget = TmpBudget::new(32);
+            let body = Body::from_stream(futures_util::stream::iter([
+                Ok(bytes::Bytes::from_static(b"partial")),
+                Err(axum::Error::new(std::io::Error::new(
+                    cause,
+                    "upload test cause",
+                ))),
+            ]));
+            let result = read_request_to_temp(
+                Request::builder()
+                    .header("content-length", "32")
+                    .body(body)
+                    .unwrap(),
+                directory.path(),
+                32,
+                RequestBodyStaging {
+                    tmp_budget: &tmp_budget,
+                    io: &io,
+                    memory: &memory,
+                    bandwidth_limiter: None,
+                    compute_sha256: false,
+                },
+            )
+            .await;
+            let Err(BodyReadError::Request(error)) = result else {
+                panic!("expected request-body error: {result:?}")
+            };
+            assert_eq!(error.kind, expected, "{cause:?}");
+            assert!(error.message.contains("upload test cause"));
+            assert_eq!(tmp_budget.reserved_bytes(), 0);
+            assert_eq!(memory.transient_reserved_bytes(), 0);
+            assert!(
+                std::fs::read_dir(directory.path())
+                    .unwrap()
+                    .next()
+                    .is_none()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn upload_body_http2_remote_cancellation_is_typed() {
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let (accepted, ready) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let mut connection = h2::server::handshake(server_io).await.unwrap();
+            let (request, _respond) = connection.accept().await.unwrap().unwrap();
+            let mut body = request.into_body();
+            accepted.send(()).unwrap();
+            let driver = tokio::spawn(async move { while connection.accept().await.is_some() {} });
+            let error = body.data().await.unwrap().unwrap_err();
+            assert!(error.is_remote());
+            let classified = RequestBodyError::from_error(axum::Error::new(error));
+            driver.abort();
+            classified
+        });
+        let (mut client, connection) = h2::client::handshake(client_io).await.unwrap();
+        let driver = tokio::spawn(connection);
+        let (_, mut stream) = client
+            .send_request(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("https://localhost/upload")
+                    .body(())
+                    .unwrap(),
+                false,
+            )
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(5), ready)
+            .await
+            .unwrap()
+            .unwrap();
+        stream.send_reset(h2::Reason::CANCEL);
+        let error = tokio::time::timeout(Duration::from_secs(5), server)
+            .await
+            .unwrap()
+            .unwrap();
+        driver.abort();
+        assert_eq!(error.kind, RequestBodyErrorKind::ClientAborted);
+        assert!(!error.message.is_empty());
+        // A locally synthesized cancellation is not evidence of a remote abort.
+        let local =
+            RequestBodyError::from_error(axum::Error::new(h2::Error::from(h2::Reason::CANCEL)));
+        assert_eq!(local.kind, RequestBodyErrorKind::Failed);
+    }
+
     #[test]
     fn artifact_ids_are_stable() {
         let a = artifact_storage_id(ArtifactProducer::Xcode, "tenant", "ios", "abc");
         let b = artifact_storage_id(ArtifactProducer::Xcode, "tenant", "ios", "abc");
         let c = artifact_storage_id(ArtifactProducer::Gradle, "tenant", "ios", "abc");
+        let mut in_place = [0_u8; 64];
+        let in_place = artifact_storage_id_in(
+            &mut in_place,
+            ArtifactProducer::Xcode,
+            "tenant",
+            "ios",
+            "abc",
+        );
 
         assert_eq!(a, b);
+        assert_eq!(a, in_place);
         assert_ne!(a, c);
     }
 
@@ -367,10 +1248,85 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "performance benchmark run manually during optimization"]
+    fn in_place_artifact_id_benchmark() {
+        const ITERATIONS: usize = 1_000_000;
+        const SAMPLES: usize = 8;
+        let measure = |in_place: bool| {
+            let started_at = std::time::Instant::now();
+            let mut output = [0_u8; 64];
+            for _ in 0..ITERATIONS {
+                if in_place {
+                    std::hint::black_box(artifact_storage_id_in(
+                        &mut output,
+                        ArtifactProducer::Reapi,
+                        "e2e",
+                        "default",
+                        "blob/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/262144",
+                    ));
+                } else {
+                    std::hint::black_box(artifact_storage_id(
+                        ArtifactProducer::Reapi,
+                        "e2e",
+                        "default",
+                        "blob/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/262144",
+                    ));
+                }
+            }
+            ITERATIONS as f64 / started_at.elapsed().as_secs_f64()
+        };
+
+        let mut speedups = Vec::with_capacity(SAMPLES - 1);
+        let mut baseline_rates = Vec::with_capacity(SAMPLES - 1);
+        let mut candidate_rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let (baseline, candidate) = if sample % 2 == 0 {
+                (measure(false), measure(true))
+            } else {
+                let candidate = measure(true);
+                (measure(false), candidate)
+            };
+            if sample > 0 {
+                speedups.push(candidate / baseline);
+                baseline_rates.push(baseline);
+                candidate_rates.push(candidate);
+            }
+        }
+        speedups.sort_by(f64::total_cmp);
+        baseline_rates.sort_by(f64::total_cmp);
+        candidate_rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC in_place_artifact_id_speedup_ratio={:.6}\nMETRIC allocated_ids_per_second={:.3}\nMETRIC in_place_ids_per_second={:.3}",
+            speedups[speedups.len() / 2],
+            baseline_rates[baseline_rates.len() / 2],
+            candidate_rates[candidate_rates.len() / 2]
+        );
+    }
+
+    #[test]
     fn module_keys_include_category_hash_and_name() {
         assert_eq!(
             module_key("builds", "hash-1", "Module.framework"),
             "builds/hash-1/Module.framework"
+        );
+    }
+
+    #[test]
+    fn fallible_path_accounting_sums_nested_files_and_accepts_a_missing_root() {
+        let directory = tempdir().expect("failed to create temp dir");
+        let nested = directory.path().join("nested");
+        std::fs::create_dir(&nested).expect("failed to create nested dir");
+        std::fs::write(directory.path().join("first"), b"1234").expect("failed to write file");
+        std::fs::write(nested.join("second"), b"123456").expect("failed to write nested file");
+
+        assert_eq!(
+            try_path_size_bytes(directory.path()).expect("accounting should succeed"),
+            10
+        );
+        assert_eq!(
+            try_path_size_bytes(&directory.path().join("missing"))
+                .expect("a missing root has no retained bytes"),
+            0
         );
     }
 
@@ -414,6 +1370,102 @@ mod tests {
     }
 
     #[test]
+    fn backfill_index_keys_round_trip_and_scan_newest_first() {
+        let newer = backfill_index_key(2_000, BackfillRecordKind::SegmentArtifact, "artifact-a");
+        let older = backfill_index_key(1_000, BackfillRecordKind::InlineArtifact, "artifact-b");
+        let tombstone = backfill_index_key(1_000, BackfillRecordKind::NamespaceTombstone, "ios");
+
+        // The inverted version makes newer rows sort first; within one version
+        // the kind byte orders segment < inline < tombstone.
+        assert!(newer < older);
+        assert!(older < tombstone);
+        assert!(newer.starts_with(BACKFILL_IDX_PREFIX.as_bytes()));
+        assert!(newer < backfill_index_prefix_upper_bound());
+        assert!(tombstone < backfill_index_prefix_upper_bound());
+
+        let row = decode_backfill_index_row(&newer, &backfill_index_value(Some(42)))
+            .expect("artifact row should decode");
+        assert_eq!(
+            row,
+            BackfillIndexRow {
+                version_ms: 2_000,
+                kind: BackfillRecordKind::SegmentArtifact,
+                record_id: "artifact-a".into(),
+                size: Some(42),
+            }
+        );
+        let row = decode_backfill_index_row(&tombstone, &backfill_index_value(None))
+            .expect("tombstone row should decode");
+        assert_eq!(
+            row,
+            BackfillIndexRow {
+                version_ms: 1_000,
+                kind: BackfillRecordKind::NamespaceTombstone,
+                record_id: "ios".into(),
+                size: None,
+            }
+        );
+    }
+
+    #[test]
+    fn backfill_kind_bytes_are_pinned() {
+        // Part of the cursor contract: raw keys are peer-held cursors, so these
+        // values cannot be renumbered without an index rebuild.
+        assert_eq!(BackfillRecordKind::SegmentArtifact.as_byte(), 1);
+        assert_eq!(BackfillRecordKind::InlineArtifact.as_byte(), 2);
+        assert_eq!(BackfillRecordKind::NamespaceTombstone.as_byte(), 3);
+        for kind in [
+            BackfillRecordKind::SegmentArtifact,
+            BackfillRecordKind::InlineArtifact,
+            BackfillRecordKind::NamespaceTombstone,
+        ] {
+            assert_eq!(BackfillRecordKind::from_byte(kind.as_byte()), Some(kind));
+        }
+        assert_eq!(BackfillRecordKind::from_byte(0), None);
+        assert_eq!(BackfillRecordKind::from_byte(4), None);
+    }
+
+    #[test]
+    fn backfill_index_row_decoding_rejects_malformed_rows() {
+        assert!(decode_backfill_index_row(b"blob_ref/abc\0def", &[]).is_err());
+        assert!(decode_backfill_index_row(BACKFILL_IDX_PREFIX.as_bytes(), &[]).is_err());
+        let key = backfill_index_key(1, BackfillRecordKind::InlineArtifact, "artifact");
+        assert!(decode_backfill_index_row(&key, &[1, 2, 3]).is_err());
+        let tombstone = backfill_index_key(1, BackfillRecordKind::NamespaceTombstone, "ios");
+        assert!(decode_backfill_index_row(&tombstone, &backfill_index_value(Some(1))).is_err());
+    }
+
+    #[test]
+    fn backfill_keyspaces_are_disjoint_from_sibling_key_value_rows() {
+        // All three backfill keyspaces share the `key_value` CF with inline
+        // artifact bytes (64-char hex ids, never containing `/`) and the
+        // `blob_ref/` reverse index; the prefixes must stay disjoint.
+        let hex_id = "ab".repeat(32);
+        for prefix in [
+            BACKFILL_IDX_PREFIX,
+            BACKFILL_META_PREFIX,
+            BACKFILL_WM_PREFIX,
+        ] {
+            assert!(!hex_id.starts_with(prefix));
+            assert!(!prefix.starts_with(ACTION_CACHE_BLOB_REF_PREFIX));
+            assert!(!ACTION_CACHE_BLOB_REF_PREFIX.starts_with(prefix));
+        }
+        assert_eq!(
+            backfill_meta_key("build_complete"),
+            "backfill/meta/build_complete"
+        );
+        assert_eq!(
+            backfill_wm_key("https://peer.example.com"),
+            "backfill/wm/https://peer.example.com"
+        );
+        // The idx upper bound stays inside `backfill/` and below the sibling
+        // keyspaces, so a range delete over the index cannot touch them.
+        let upper = backfill_index_prefix_upper_bound();
+        assert!(upper.as_slice() < BACKFILL_META_PREFIX.as_bytes());
+        assert!(upper.as_slice() < BACKFILL_WM_PREFIX.as_bytes());
+    }
+
+    #[test]
     fn segment_artifact_index_keys_include_segment_and_artifact() {
         assert_eq!(
             segment_artifact_index_key("segment-1", "artifact-1"),
@@ -425,46 +1477,212 @@ mod tests {
     #[tokio::test]
     async fn read_request_to_temp_persists_request_body() {
         let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
         let io = IoController::new(
-            Metrics::new("eu-west".into(), "acme".into()),
+            metrics.clone(),
             8,
             Duration::from_secs(1),
             vec![directory.path().to_path_buf()],
         )
         .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(10);
         let request = Request::builder()
             .body(Body::from("hello"))
             .expect("failed to build request");
 
-        let temp = read_request_to_temp(
+        let mut temp = read_request_to_temp(
             request,
             directory.path(),
             10,
-            directory.path(),
-            10,
-            &io,
-            None,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+                compute_sha256: false,
+            },
         )
         .await
         .expect("failed to read request to temp");
 
         assert_eq!(temp.size, 5);
         assert_eq!(
-            std::fs::read_to_string(temp.path).expect("failed to read temp file"),
+            std::fs::read_to_string(&temp.path).expect("failed to read temp file"),
             "hello"
+        );
+        assert_eq!(
+            tmp_budget.reserved_bytes(),
+            5,
+            "an undeclared body is charged for the bytes it staged, not the route ceiling"
+        );
+        temp.remove_and_disarm(&io).await;
+        assert!(!temp.path.exists());
+        assert_eq!(tmp_budget.reserved_bytes(), 0);
+    }
+
+    // Regression test: a body with no Content-Length reserved the route's
+    // ceiling, so with the default budget (four replication ceilings) four
+    // in-flight chunked peer uploads of a few bytes each held the whole node
+    // budget and every other write — peer or client — was shed.
+    #[tokio::test]
+    async fn stalled_undeclared_bodies_do_not_exhaust_the_budget_for_declared_writes() {
+        let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let io = Arc::new(
+            IoController::new(
+                metrics.clone(),
+                8,
+                Duration::from_secs(1),
+                vec![directory.path().to_path_buf()],
+            )
+            .expect("failed to create io controller"),
+        );
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let max_bytes = 1024_u64;
+        let tmp_budget = TmpBudget::new(4 * max_bytes);
+
+        let holders: Vec<_> = (0..4)
+            .map(|_| {
+                let body = futures_util::stream::once(async {
+                    Ok::<_, std::convert::Infallible>(bytes::Bytes::from_static(b"hello"))
+                })
+                .chain(futures_util::stream::pending());
+                let request = Request::builder()
+                    .body(Body::from_stream(body))
+                    .expect("failed to build request");
+                let directory = directory.path().to_path_buf();
+                let io = io.clone();
+                let memory = memory.clone();
+                let tmp_budget = tmp_budget.clone();
+                tokio::spawn(async move {
+                    read_request_to_temp(
+                        request,
+                        &directory,
+                        max_bytes,
+                        RequestBodyStaging {
+                            tmp_budget: &tmp_budget,
+                            io: &io,
+                            memory: &memory,
+                            bandwidth_limiter: None,
+                            compute_sha256: false,
+                        },
+                    )
+                    .await
+                })
+            })
+            .collect();
+        for _ in 0..1000 {
+            if tmp_budget.reserved_bytes() >= 4 * 5 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        assert_eq!(
+            tmp_budget.reserved_bytes(),
+            4 * 5,
+            "four stalled chunked bodies must hold only the bytes they staged"
+        );
+
+        let request = Request::builder()
+            .header(axum::http::header::CONTENT_LENGTH, "3")
+            .body(Body::from("abc"))
+            .expect("failed to build request");
+        let temp = read_request_to_temp(
+            request,
+            directory.path(),
+            max_bytes,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+                compute_sha256: false,
+            },
+        )
+        .await
+        .expect("a declared 3-byte body must be admitted next to stalled chunked uploads");
+        assert_eq!(temp.size, 3);
+        assert_eq!(tmp_budget.reserved_bytes(), 4 * 5 + 3);
+
+        for holder in holders {
+            holder.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn undeclared_body_is_rejected_when_its_bytes_outgrow_the_budget() {
+        let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let io = IoController::new(
+            metrics.clone(),
+            8,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(8);
+        let _held = tmp_budget
+            .try_reserve(4)
+            .expect("failed to seed tmp reservation");
+        let body = futures_util::stream::iter([
+            Ok::<_, std::convert::Infallible>(bytes::Bytes::from_static(b"abc")),
+            Ok(bytes::Bytes::from_static(b"def")),
+        ]);
+        let request = Request::builder()
+            .body(Body::from_stream(body))
+            .expect("failed to build request");
+
+        let error = read_request_to_temp(
+            request,
+            directory.path(),
+            1024,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+                compute_sha256: false,
+            },
+        )
+        .await
+        .expect_err("growing past the budget must be rejected mid-stream");
+
+        assert!(matches!(error, BodyReadError::TmpDirFull(_)));
+        for _ in 0..1000 {
+            if tmp_budget.reserved_bytes() == 4 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        assert_eq!(
+            tmp_budget.reserved_bytes(),
+            4,
+            "the rejected body must release everything it had grown into"
+        );
+        assert!(
+            std::fs::read_dir(directory.path())
+                .expect("failed to list temp dir")
+                .next()
+                .is_none(),
+            "the partial staging file must be removed"
         );
     }
 
     #[tokio::test]
     async fn read_request_to_temp_rejects_large_payloads() {
         let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
         let io = IoController::new(
-            Metrics::new("eu-west".into(), "acme".into()),
+            metrics.clone(),
             8,
             Duration::from_secs(1),
             vec![directory.path().to_path_buf()],
         )
         .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(10);
         let request = Request::builder()
             .body(Body::from("hello"))
             .expect("failed to build request");
@@ -473,10 +1691,13 @@ mod tests {
             request,
             directory.path(),
             4,
-            directory.path(),
-            10,
-            &io,
-            None,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+                compute_sha256: false,
+            },
         )
         .await
         .expect_err("expected body reader to reject oversized request");
@@ -491,31 +1712,127 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn read_request_to_temp_rejects_when_tmp_budget_is_exhausted() {
+    async fn read_request_to_temp_cleans_up_when_cancelled() {
         let directory = tempdir().expect("failed to create temp dir");
-        std::fs::write(directory.path().join("staged"), b"hello").expect("failed to seed tmp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
         let io = IoController::new(
-            Metrics::new("eu-west".into(), "acme".into()),
+            metrics.clone(),
             8,
             Duration::from_secs(1),
             vec![directory.path().to_path_buf()],
         )
         .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(10);
+        let body = futures_util::stream::once(async {
+            Ok::<_, std::convert::Infallible>(bytes::Bytes::from_static(b"hello"))
+        })
+        .chain(futures_util::stream::pending());
         let request = Request::builder()
+            .body(Body::from_stream(body))
+            .expect("failed to build request");
+
+        let result = tokio::time::timeout(
+            Duration::from_millis(50),
+            read_request_to_temp(
+                request,
+                directory.path(),
+                10,
+                RequestBodyStaging {
+                    tmp_budget: &tmp_budget,
+                    io: &io,
+                    memory: &memory,
+                    bandwidth_limiter: None,
+                    compute_sha256: false,
+                },
+            ),
+        )
+        .await;
+
+        assert!(result.is_err(), "the pending body should be cancelled");
+        for _ in 0..100 {
+            if std::fs::read_dir(directory.path())
+                .expect("failed to list temp dir")
+                .next()
+                .is_none()
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        assert!(
+            std::fs::read_dir(directory.path())
+                .expect("failed to list temp dir")
+                .next()
+                .is_none(),
+            "cancellation must not leave a staged file"
+        );
+        assert_eq!(
+            tmp_budget.reserved_bytes(),
+            0,
+            "disk admission must release after cancellation cleanup"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_request_to_temp_rejects_when_tmp_budget_is_exhausted() {
+        let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let io = IoController::new(
+            metrics.clone(),
+            8,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(9);
+        let _held = tmp_budget
+            .try_reserve(5)
+            .expect("failed to seed tmp reservation");
+        let request = Request::builder()
+            .header(axum::http::header::CONTENT_LENGTH, "5")
             .body(Body::from("world"))
             .expect("failed to build request");
 
-        let error =
-            read_request_to_temp(request, directory.path(), 5, directory.path(), 9, &io, None)
-                .await
-                .expect_err("expected body reader to reject exhausted tmp budget");
+        let error = read_request_to_temp(
+            request,
+            directory.path(),
+            5,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+                compute_sha256: false,
+            },
+        )
+        .await
+        .expect_err("expected body reader to reject exhausted tmp budget");
 
         assert!(matches!(error, BodyReadError::TmpDirFull(_)));
-        assert_eq!(
-            std::fs::read_to_string(directory.path().join("staged"))
-                .expect("failed to read seeded file"),
-            "hello"
+        assert_eq!(tmp_budget.reserved_bytes(), 5);
+        assert!(
+            std::fs::read_dir(directory.path())
+                .expect("failed to list temp dir")
+                .next()
+                .is_none(),
+            "a declared body over budget is rejected before anything is staged"
         );
+    }
+
+    #[test]
+    fn tmp_budget_rejects_concurrent_reservations_over_capacity() {
+        let budget = TmpBudget::new(100);
+        let first = budget.try_reserve(60).expect("first reservation");
+
+        assert!(budget.try_reserve(41).is_err());
+        let second = budget.try_reserve(40).expect("remaining capacity");
+        assert_eq!(budget.reserved_bytes(), 100);
+
+        drop(first);
+        drop(second);
+        assert_eq!(budget.reserved_bytes(), 0);
     }
 
     #[tokio::test]
@@ -545,7 +1862,7 @@ mod tests {
     async fn tmp_budget_serializes_total_far_exceeding_capacity() {
         // Stage a total volume far larger than the budget through a tiny budget;
         // every reservation must eventually succeed (peak never exceeds budget),
-        // proving bootstrap convergence is independent of total account size.
+        // proving backfill convergence is independent of total account size.
         let budget = TmpBudget::new(100);
         let mut total = 0_u64;
         for _ in 0..50 {
@@ -565,5 +1882,43 @@ mod tests {
         assert_eq!(budget.reserved.load(Ordering::Acquire), 100);
         drop(reservation);
         assert_eq!(budget.reserved.load(Ordering::Acquire), 0);
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn sha256_streaming_throughput_benchmark() {
+        const UPDATE_BYTES: usize = 256 * 1024;
+        const UPDATES: usize = 4 * 1024;
+        const SAMPLES: usize = 6;
+
+        let chunk: Vec<u8> = (0..UPDATE_BYTES)
+            .map(|index| (index as u32).wrapping_mul(2_654_435_761).to_le_bytes()[3])
+            .collect();
+        let hashed_bytes = (UPDATE_BYTES * UPDATES) as f64;
+
+        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        let mut digest = String::new();
+        for sample in 0..SAMPLES {
+            let started_at = std::time::Instant::now();
+            let mut hasher = Sha256::new();
+            for _ in 0..UPDATES {
+                hasher.update(std::hint::black_box(&chunk));
+            }
+            let finalized = std::hint::black_box(hasher.finalize());
+            let elapsed = started_at.elapsed().as_secs_f64();
+            digest = hex::encode(finalized);
+            if sample > 0 {
+                rates.push(hashed_bytes / elapsed);
+            }
+        }
+        rates.sort_by(f64::total_cmp);
+        let median = rates[rates.len() / 2];
+        println!(
+            "METRIC sha256_mib_per_second={:.1}\nMETRIC sha256_seconds_per_gib={:.3}\nMETRIC sha256_min_mib_per_second={:.1}\nMETRIC sha256_max_mib_per_second={:.1}\nsha256_digest={digest}",
+            median / (1024.0 * 1024.0),
+            (1024.0 * 1024.0 * 1024.0) / median,
+            rates[0] / (1024.0 * 1024.0),
+            rates[rates.len() - 1] / (1024.0 * 1024.0)
+        );
     }
 }

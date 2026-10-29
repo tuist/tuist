@@ -1,6 +1,6 @@
 # Workload Cluster Onboarding — Tuist Server on Kubernetes
 
-Stand up a new Tuist workload cluster (staging / canary / production / preview) on Hetzner via our self-hosted CAPI management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
+Stand up a new Tuist workload cluster (staging / canary / production / preview / pentest) on Hetzner via our self-hosted Cluster API management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
 
 We run a **management cluster** (a single-node Talos VM in Hetzner project `tuist-mgmt`) that hosts CAPI v1.13 + caph v1.1. You apply [Cluster API](https://cluster-api.sigs.k8s.io/) CRs against it; caph spins up workload nodes in the workload Hetzner project. The mgmt cluster's manifests live in [`infra/k8s/mgmt/`](mgmt/); workload Cluster CRs (and the shared `tuist-hcloud` ClusterClass) live in [`infra/k8s/clusters/`](clusters/) and are auto-applied to the mgmt cluster on push to `main` by [`mgmt-cluster-apply.yml`](../../.github/workflows/mgmt-cluster-apply.yml).
 
@@ -12,37 +12,33 @@ If you just want to **read** an existing cluster (the day-to-day case — `kubec
 
 ## Engineer read access (Pomerium kubeconfig)
 
-Every engineer's Google Workspace identity already carries `view`-tier read access to all three workload clusters through the Pomerium gateway — no grant, no per-person provisioning. There's nothing secret to download: you assemble a small kubeconfig locally that registers `pomerium-cli` as an [exec credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). On the first call the plugin opens a browser for Google OIDC and caches the session for ~24h. The full identity flow is documented in [`infra/helm/pomerium/NOTES.md`](../helm/pomerium/NOTES.md); the agent-facing rules (read is always allowed, writes go through the JIT Slack flow) are in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents).
+Every engineer's Google Workspace identity already carries `view`-tier read access to the three production-like workload clusters through the Pomerium gateway — no grant, no per-person provisioning. There's nothing secret to download: you assemble a small kubeconfig locally that registers `pomerium-cli` as an [exec credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). On the first call the plugin opens a browser for Google OIDC and caches the session for ~24h. The full identity flow is documented in [`infra/helm/pomerium/NOTES.md`](../helm/pomerium/NOTES.md); the agent-facing rules (read is always allowed, staging is writable, canary/production writes go through the JIT Slack flow) are in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents).
 
-`view` deliberately excludes `Secret`s, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of reach on this path. Mutating operations (`apply`, `delete`, `scale`, `patch`, `create`) return `403` until you elevate via `/elevate <env>` in Slack.
+`view` deliberately excludes `Secret`s, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of reach on this path. On **canary and production**, mutating operations (`apply`, `delete`, `scale`, `patch`, `create`) return `403` until you elevate via `/elevate <env>` in Slack. **Staging carries the `edit` tier for everyone all the time** — it needs no elevation, and `/elevate staging` is rejected as a no-op.
 
 ### Setup
 
-1. `pomerium-cli` is pinned in the root [`mise.toml`](../../mise.toml) — `mise install` from the repo root puts it on your `PATH`.
-2. Merge the three contexts below into your `~/.kube/config`. They contain no secrets — the hostnames are public and all auth happens at call time. Each env needs its own gateway host in the exec `args`, so there's one user per env. Production's host is `kube-prod`, not `kube-production`.
+**Staging goes over the tailnet; canary and production go through Pomerium.** Staging's write tier is standing access rather than a per-request elevation, so there is no per-request decision left for a browser gateway to make there — being on the tailnet is the whole authentication, and the impersonated tier comes from the `tailscale.com/cap/kubernetes` grants in [`infra/tailscale/acls.json`](../tailscale/acls.json). Canary and production still need the gateway, because their tier depends on a live JIT elevation row that a static tailnet ACL cannot express.
+
+1. `pomerium-cli` is pinned in the root [`mise.toml`](../../mise.toml) — `mise install` from the repo root puts it on your `PATH`. It is only needed for canary and production.
+2. Merge the three contexts below into your `~/.kube/config`. They contain no secrets — the hostnames are public and all auth happens at call time. Staging has no `user` entry at all: the tailnet connection is the credential. Canary and production each need their own gateway host in the exec `args`, so there is one user per env. Production's host is `kube-prod`, not `kube-production`.
 
    ```yaml
    clusters:
      - name: tuist-k8s-staging
-       cluster: { server: https://kube-staging.tuist.dev }
+       cluster: { server: https://tuist-k8s-staging.taild6d7bb.ts.net }
      - name: tuist-k8s-canary
        cluster: { server: https://kube-canary.tuist.dev }
      - name: tuist-k8s-production
        cluster: { server: https://kube-prod.tuist.dev }
    contexts:
      - name: tuist-k8s-staging
-       context: { cluster: tuist-k8s-staging, user: pomerium-staging }
+       context: { cluster: tuist-k8s-staging }
      - name: tuist-k8s-canary
        context: { cluster: tuist-k8s-canary, user: pomerium-canary }
      - name: tuist-k8s-production
        context: { cluster: tuist-k8s-production, user: pomerium-production }
    users:
-     - name: pomerium-staging
-       user:
-         exec:
-           apiVersion: client.authentication.k8s.io/v1beta1
-           command: pomerium-cli
-           args: ["k8s", "exec-credential", "https://kube-staging.tuist.dev"]
      - name: pomerium-canary
        user:
          exec:
@@ -57,24 +53,116 @@ Every engineer's Google Workspace identity already carries `view`-tier read acce
            args: ["k8s", "exec-credential", "https://kube-prod.tuist.dev"]
    ```
 
-3. Verify (a browser opens once per env for the Google login):
+   `tailscale configure kubeconfig tuist-k8s-staging` writes the staging entry for you if you would rather not paste it. The host is the staging operator's own MagicDNS name (`operatorConfig.hostname` in [`values-staging.yaml`](../helm/tailscale-operator/values-staging.yaml)), and its certificate is a normal publicly-trusted MagicDNS cert, so no CA data is needed.
+
+3. Verify. Staging answers immediately as long as you are on the tailnet; canary and production each open a browser once for the Google login.
 
    ```bash
    kubectl --context tuist-k8s-staging get pods -A
    ```
 
+   Getting `dial tcp: no such host` on staging means you are off the tailnet — `tailscale status` first. There is no browser fallback on this path; `https://kube-staging.tuist.dev` still works through Pomerium if you need one.
+
 > **This is not the admin kubeconfig.** The cluster-admin kubeconfigs in the `tuist-k8s-<env>` 1Password vaults bypass Pomerium and impersonation entirely; they're break-glass only and gated behind 1Password biometric on purpose. Don't reach for them for routine reads, and never have an agent fetch one. See [Workload-cluster incident recovery](#workload-cluster-incident-recovery).
 
 ---
+
+## Controlled CNPG switchover
+
+Use this path when incident recovery calls for moving the primary to a healthy
+replica. It requests a CNPG-managed switchover; it does not force a promotion or
+repair stalled storage. During the October 27, 2026 incident, promotion failed
+because the elevated role could patch `clusters` but not `clusters/status`.
+No switchover occurred, and service recovered without intervention.
+
+`tuist-edit-cnpg-write` now grants only `patch` on `clusters/status` in
+`postgresql.cnpg.io`, in addition to its existing parent-resource and backup
+permissions. It aggregates into `edit`, bound to `tuist-<env>-write`. Ordinary
+`tuist-admins` and `tuist-eng` remain bound to `view`; canary and production
+receive their write group only during a human-driven JIT elevation. Staging
+keeps standing write membership through either access door. RBAC cannot limit
+this permission to particular status fields or to the promote command.
+
+The locally verified plugin was **1.29.1**, commit
+`a4060c152630c9e8958e17d3d23f26b4eb30b69f`. Its
+[promotion implementation](https://github.com/cloudnative-pg/cloudnative-pg/blob/a4060c152630c9e8958e17d3d23f26b4eb30b69f/internal/cmd/plugin/promote/promote.go)
+gets the Cluster and target Pod, then
+[patches status with optimistic locking](https://github.com/cloudnative-pg/cloudnative-pg/blob/a4060c152630c9e8958e17d3d23f26b4eb30b69f/pkg/resources/status/patch.go).
+It sets the target primary, timestamp, switchover phase/reason and readiness
+condition. It needs no status `update`, Pod write or additional Secret access.
+Existing read permissions cover its GETs. Check `kubectl cnpg version` when
+diagnosing a different plugin version.
+
+1. Confirm the context, namespace, Cluster and candidate with the incident
+   lead. Read the current primary and phase, instance health, replication lag,
+   storage/node health and recent backup state. A Pod existing or being Ready
+   alone does not establish that its WAL replay is caught up. Stop if the
+   candidate is unhealthy, lag is unexplained, or a switchover is already in
+   progress. Review the Cluster through normal read access; detailed SQL/exec
+   diagnostics require the write tier.
+
+   ```bash
+   kubectl --context tuist-k8s-production -n tuist get clusters.postgresql.cnpg.io tuist-tuist-pg -o yaml
+   kubectl --context tuist-k8s-production -n tuist get pods -l cnpg.io/cluster=tuist-tuist-pg -o wide
+   ```
+
+2. On canary/production, have a human request and approve `/elevate <env>`
+   with intent naming the Cluster and controlled switchover. Agents must not
+   invoke `/elevate`, click Approve or retrieve an admin kubeconfig. Proceed
+   only within the authorized window and scope. Staging needs no elevation.
+
+3. Check the **explicit subresource** using the normal identity, without
+   impersonation:
+
+   ```bash
+   kubectl --context tuist-k8s-production -n tuist auth can-i patch clusters.postgresql.cnpg.io --subresource=status
+   ```
+
+   Expected: `no` outside elevation on canary/production, `yes` during that
+   environment's elevation, and `yes` on staging. Do not use
+   `clusters.postgresql.cnpg.io/status`: the slash form can be interpreted as
+   a resource name, checking the parent resource instead. It misleadingly
+   returned `yes` during the incident. If the explicit check says `no`, stop
+   and check deployment/aggregation and the elevation; do not bypass the gateway.
+
+4. After confirming the candidate and replication state, request promotion
+   once. This example selects `tuist-tuist-pg-2`; choose the actual healthy
+   candidate rather than assuming instance 2 is suitable:
+
+   ```bash
+   kubectl cnpg promote --context tuist-k8s-production tuist-tuist-pg 2 -n tuist
+   kubectl --context tuist-k8s-production -n tuist get clusters.postgresql.cnpg.io tuist-tuist-pg -w
+   ```
+
+   Command success means the request was accepted, not that the switchover
+   completed. Confirm `status.currentPrimary` and `status.targetPrimary` both
+   name the selected instance, the Cluster becomes healthy, replication
+   resumes, and application writes/latency recover. If it stalls, inspect
+   operator and instance logs and reassess storage health before another action.
+   Record the candidate, timestamps and outcome in the incident/elevation trail.
+
+5. After the human ends the elevation or its TTL expires, repeat the explicit
+   check: it must return `no` on canary/production. Staging remains `yes`.
+
+The Pomerium deployment workflow applies the chart to all three environments
+on merge. After rollout, verify the explicit check before, during and after an
+authorized window; a permission check does not require performing a switchover.
+Local `bash infra/helm/pomerium/test-access-tiers.sh` checks rendered grants and
+bindings, not live aggregation or policy membership. Reverting the new status
+rule through the same deployment removes this capability without changing
+existing CNPG parent writes; it does not undo a switchover already requested.
 
 ## Prerequisites
 
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).
 - Mgmt cluster kubeconfig in 1Password as `kubeconfig: tuist-mgmt` in the `tuist-k8s-mgmt` vault.
+- Grafana Cloud `PROMETHEUS_TOKEN` password item in the `tuist-k8s-mgmt`
+  vault. `mgmt-cluster-apply.yml` uses it to install the metrics-only
+  management monitoring overlay.
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
 - A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
-- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview, Grafana Cloud tokens) and a Service Account token scoped to the vault.
+- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview` / `tuist-k8s-pentest`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview and pentest, `TUIST_LICENSE_CERTIFICATE_BASE64` for production, Grafana Cloud tokens) and a Service Account token scoped to the vault.
 - CLI tools installed via mise:
   ```bash
   mise use -g kubectl helm clusterctl talosctl
@@ -94,30 +182,46 @@ kubectl get clusters -n org-tuist
 
 The `org-tuist` namespace is where every Cluster CR + the `hetzner` Secret live.
 
+> **The mgmt kubeconfig is emergency-only** (spec/72 Decision 6). The workload
+> `Cluster` CRs reconcile from git via **Flux** (`infra/flux/mgmt/`), so
+> routine changes are a reviewed PR — no `kubectl apply`. Use this kubeconfig
+> directly only for: the one-time Flux/ESO bootstrap, recovering a wedged Flux,
+> and the manifests still outside Flux (ClusterClass/bare-metal templates,
+> preview, mgmt-side workloads). Read access (`kubectl get`) for diagnosis is
+> always fine.
+
 ## 2. Author the Cluster CR
 
-Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-hcloud` ClusterClass. Existing per-env files:
+Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-hcloud` ClusterClass. The Flux-reconciled clusters live one-per-subdir under `clusters/workloads/`:
 
-- [`clusters/cluster-staging.yaml`](clusters/cluster-staging.yaml)
-- [`clusters/cluster-canary.yaml`](clusters/cluster-canary.yaml)
-- [`clusters/cluster-production.yaml`](clusters/cluster-production.yaml)
-- [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml)
+- [`clusters/workloads/staging/cluster.yaml`](clusters/workloads/staging/cluster.yaml)
+- [`clusters/workloads/canary/cluster.yaml`](clusters/workloads/canary/cluster.yaml)
+- [`clusters/workloads/production/cluster.yaml`](clusters/workloads/production/cluster.yaml)
+- tenants: [`clusters/workloads/{hive,once,atlas}/cluster.yaml`](clusters/workloads/)
+- [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml) — preview stays outside Flux (`mgmt-cluster-apply.yml`).
 
-For a new cluster, copy the closest existing file and adjust `metadata.name`, replica counts, machine types, and any per-pool labels/taints. Variables exposed by the ClusterClass are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION` before applying.
+For a new Flux-reconciled cluster, add `clusters/workloads/<cluster>/cluster.yaml` + a `kustomization.yaml` (copy the closest existing subdir) and a matching `infra/flux/mgmt/cluster-<cluster>.yaml` Flux `Kustomization`. Adjust `metadata.name`, replica counts, machine types, and per-pool labels/taints. 3-CP clusters get the absolute-`1` control-plane MHC override; single-CP clusters stay on the ClusterClass 33% default. Variables are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION`.
 
-## 3. Apply the Cluster CR
+## 3. Reconcile the Cluster CR
 
-The `mgmt-cluster-apply.yml` workflow auto-applies anything under `infra/k8s/clusters/**` on push to `main`. For an out-of-band apply (e.g. before a PR is merged):
+Merging the PR is the apply: **Flux** reconciles the `workloads/` Cluster CRs from `main` on its interval, and the `flux-diff` PR job posts the server-side dry-run for review beforehand. Watch it land:
 
 ```bash
-kubectl apply -f infra/k8s/clusters/cluster-<env>.yaml
+# Read-only; the Pomerium/mgmt read path is always allowed.
+flux -n flux-system get kustomization cluster-<cluster>
 kubectl -n org-tuist get cluster <name> -w
-# Ready=True once control plane is up. ~3–5 min cold start.
+# Available=True once control plane is up. ~3–5 min cold start.
+```
+
+Only under break-glass (a wedged Flux, or a cluster still outside Flux like preview) apply directly:
+
+```bash
+kubectl apply -k infra/k8s/clusters/workloads/<cluster>   # or -f cluster-preview.yaml
 ```
 
 ## 4. Bootstrap the workload cluster
 
-Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it: Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + the Cloudflare origin TLS Secret, and a final ingress smoke test.
+Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it: Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + a final ingress smoke test. Non-pentest clusters also receive the shared Cloudflare origin TLS Secret; pentest uses separate certificate-manager-issued host certificates instead.
 
 ```bash
 mise run k8s:bootstrap-workload <cluster_name> <env> [kubeconfig_item]
@@ -200,6 +304,74 @@ ESO then materializes `<release>-capi-kubeconfig` and CAPI binds the fleet. The 
 > **Node `providerID`:** CAPI binds a Node to its Machine by matching `Node.spec.providerID` to `Machine.spec.providerID` (`scw-applesilicon://<zone>/<id>`). tart-kubelet does not yet set this, so a freshly-bootstrapped fleet node needs a one-time patch until that ships:
 > `kubectl patch node <node> --type merge -p '{"spec":{"providerID":"<machine providerID>"}}'`
 
+## 5c. Tailscale fleet credential (Mac-mini fleets only)
+
+Skip this alongside 5b for clusters without a Mac-mini fleet.
+
+Every Mac mini joins the tailnet at bootstrap, and so does every Tart VM the processor Deployment schedules where the xcresult processor runs. Both read one credential: the `auth-key` field of the `TAILSCALE` item in this env's `tuist-k8s-<env>` vault, which ESO syncs into `<release>-capi-scaleway-applesilicon-tailscale`.
+
+**Store an OAuth client secret here, never a pre-auth key.** Tailscale caps pre-auth keys at 90 days and there is no way to extend one, so a fleet joining with a pre-auth key has an outage on the calendar with nothing but a human remembering the date in the way. On 2026-08-12 that key lapsed and the `:process_xcresult` queue ran with zero consumers for ~13h: the Mac mini hosts were fine (they join once and keep their identity) but every processor Pod roll creates a fresh VM that has to join again, and its launchd chain refuses to start the release without a tailnet identity. OAuth clients don't expire, and `tailscale up` accepts the client secret wherever an auth key goes, minting a fresh key per join.
+
+In the Tailscale admin console, create one client per env under [**Settings → Trust credentials**](https://login.tailscale.com/admin/settings/trust-credentials): select **Credential**, then **OAuth**, then **Generate credential**. Note this is not the **Keys** page, which holds only auth keys and API access tokens; there is no "OAuth clients" page.
+
+- Scope: **Keys → Auth Keys → Write**, nothing else. This credential only mints join keys.
+- Tags: this env's `tag:tuist-macmini-<env>` only. The write scope requires at least one tag, and it is what the minted key applies to the joining device. One client per env means a leaked staging credential can't enroll a device under a production tag, the same isolation the `tuist-k8s-<env>` operator clients get.
+
+The secret is shown once, and starts with `tskey-client-`. That prefix is load-bearing: both consumers detect it to decide whether to annotate the credential, so a value stored without it is treated as a legacy pre-auth key.
+
+The tag must already exist under `tagOwners` in [`../tailscale/acls.json`](../tailscale/acls.json). Keys minted through an OAuth client are always tagged and carry no default, so the consumers name the tag at join time from `macosFleet.tailscale.tags`. Set that in the env's values file or the fleet cannot join at all (the CAPI operator rejects the config before it pushes anything, and the VM's `tailscale-up.sh` exits before `tailscale up`).
+
+```bash
+op item create --vault tuist-k8s-<env> --category "API Credential" --title TAILSCALE "auth-key[password]=tskey-client-..."
+```
+
+The consumers pin `ephemeral=true&preauthorized=true` on the minted key themselves; don't append query parameters to the stored value.
+
+> **ESO health is not credential health.** The ExternalSecret reports `SecretSynced` / `Ready=True` whatever the value's validity; it says only that 1Password answered. A fleet that can't join looks identical from the ESO side, so don't use it to rule the credential out. Detection for the failure class lives in [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md), keyed on queue age.
+
+## 5d. Tailscale device reaper credential
+
+One client per env, same as 5c, and for the same reason: confined to one env's tags, a leaked staging credential cannot delete a production device.
+
+Nothing garbage-collects a tailnet device. Tagged devices have key expiry disabled, so a registration outlives whatever created it, and both the xcresult-processor VMs and the Tailscale operator's proxy Pods register a device per Pod. Renaming them does not help: identity is the node key, and an image-booted VM has no persisted state to carry one across boots. The `tailscale-device-reaper` CronJob deletes the leftovers; see [`../helm/tuist/templates/tailscale-device-reaper.yaml`](../helm/tuist/templates/tailscale-device-reaper.yaml) for the grace-window design and the full safety argument.
+
+Create the client under [**Settings → Trust credentials**](https://login.tailscale.com/admin/settings/trust-credentials) exactly as in 5c: **Credential**, then **OAuth**, then **Generate credential**.
+
+- Scope: **Devices → Core → Write**, nothing else. Read alone lists devices but cannot delete them.
+- Tags: this env's two tags only — `tag:tuist-macmini-<env>` and `tag:tuist-k8s-<env>`. Both must already exist under `tagOwners` in [`../tailscale/acls.json`](../tailscale/acls.json).
+
+```bash
+op item create --vault tuist-k8s-<env> --category "API Credential" --title TAILSCALE_DEVICE_REAPER \
+  "client-id[text]=..." "client-secret[password]=tskey-client-..."
+```
+
+Both field labels are load-bearing: the ExternalSecret reads `TAILSCALE_DEVICE_REAPER/client-id` and `/client-secret` by label.
+
+**Then set `tailscaleDeviceReaper.tags` in the env's values file to the same two tags.** This is not redundant with the client scope, and it is not optional — the job refuses to start without it. All envs share one tailnet and the devices listing returns every device on it regardless of how the credential is scoped, so the tag list is what stops this env's reaper walking another env's devices and dying on the first 403. The client scope is the second, independent guard: if the two ever disagree, the credential is what prevents a bug in the predicate from deleting someone else's fleet.
+
+`tag:tuist-mgmt` is swept by no reaper, deliberately. It covers a single long-lived device that has never produced a duplicate, and reaping the mgmt cluster's tailnet identity is the one deletion that could cost you the access you would need to undo it.
+
+Each env ships with `dryRun: true`. Read one run's logs in Grafana Cloud, confirm the list is what you expect, then set `tailscaleDeviceReaper.dryRun: false` in that env's values file to arm it. A run that reports `0 of 0 in-scope device(s)` is the signature of a mistyped tag, not of a clean tailnet — the log line reports in-scope and tailnet-wide counts separately so the two are distinguishable.
+
+## 5e. Durable server distribution cookies
+
+Staging, canary and production each use the `SERVER_CLUSTER_COOKIE` Password item (`password` field) in their own `tuist-k8s-<env>` vault. Each value is an independently generated 64-character alphanumeric secret. Possession grants remote execution on participating Erlang nodes: restrict access like other server credentials and never print or commit the value. Do not reuse cookies between environments.
+
+For a **new environment only**, first check that the item does not already exist, then create it without displaying the generated value:
+
+```bash
+op item create --vault tuist-k8s-<env> --category Password \
+  --title SERVER_CLUSTER_COOKIE --generate-password=letters,digits,64 >/dev/null
+```
+
+Do not run creation during routine deploys or recovery. Preserve the existing item and field; duplicate item titles make the source ambiguous. If migrating an already-private Kubernetes cookie into 1Password, transfer the existing value securely instead of generating a replacement.
+
+`values-managed-common.yaml` configures a dedicated ExternalSecret using the existing per-environment `onepassword` ClusterSecretStore. When `server.cluster.enabled` is true, it syncs `SERVER_CLUSTER_COOKIE/password` to `tuist-server-cluster-cookie` in the release namespace, key `release-cookie`. Only the web container receives it as a nonoptional `RELEASE_COOKIE` reference. It is deliberately absent from the shared server-config Secret, processors, registry and migration jobs. This configuration does not enable clustering in environments where it is currently disabled.
+
+**Bootstrap and rebuild:** restore the environment's existing SecretStore access to the same vault, deploy the chart, and verify the dedicated ExternalSecret reports `Ready=True` before relying on peer joins. Kubernetes holds only the runtime copy; a namespace/cluster rebuild must retrieve the same value from 1Password, not generate one. Missing source fields or empty values fail synchronization; there is no generated-cookie fallback. The target uses `deletionPolicy: Retain`, so source loss does not delete the last synchronized cookie. Investigate sync failures rather than treating retention as a backup of the durable source. ESO readiness proves synchronization, not actual Erlang membership.
+
+**Rotation and rollback:** this ExternalSecret uses `refreshPolicy: OnChange`, not periodic refresh. Source edits alone do not propagate into the runtime Secret; synchronization happens on creation or ExternalSecret metadata/spec changes. Existing `Ready=True` therefore does not attest that the current 1Password value is unchanged or still accessible. During an approved rotation, explicitly request synchronization by updating the ExternalSecret's `force-sync` annotation, then verify synchronization before replacing **every** participant. Changing the Kubernetes Secret does not update environment variables in already-running BEAMs. Coordinate source change, synchronization and process replacement as one maintenance operation, with membership and cross-node notifications checked afterwards. Never rotate incidentally to fix a deploy or missing key. Application rollback with a chart revision that retains this ExternalSecret preserves its Secret and cookie. A Helm rollback to a pre-ExternalSecret revision deletes the ESO resource and its owner-referenced runtime Secret, reverting to the earlier cookie behavior and membership islands; it does not delete the durable 1Password item. The first migration from image-baked cookies and the mixed-version qualification gates are documented in [multi-replica clustering](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).
+
 ## 6. First deploy
 
 ### Manual smoke test
@@ -227,6 +399,14 @@ gh workflow run server-deployment.yml -f environment=<env>
 
 The [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards Kubernetes telemetry to Grafana Cloud. The bootstrap task in §4 installs it; the `observability-install` job in `server-deployment.yml` keeps it in sync on every deploy. After it lights up, look for the cluster name in **Observability → Kubernetes** in Grafana Cloud. Verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
 
+`mgmt-cluster-apply.yml` installs the same chart with
+`values-management.yaml` into the management cluster. That metrics-only
+instance exports Cluster API control-plane replica state and Hetzner
+load-balancer telemetry under `cluster="tuist-management"`, so it remains
+available when a workload cluster is unreachable. Alert queries and setup
+instructions live in
+[`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md).
+
 ## 8. Preview environments (ephemeral pull request / commit deploys)
 
 Preview environments live on the `tuist-preview` workload cluster, which runs Postgres / ClickHouse / MinIO embedded alongside the server. Each preview is its own Helm release in its own namespace, with auto-deletion driven by a time-to-live label and the in-cluster `preview-janitor` CronJob from the platform chart.
@@ -239,9 +419,9 @@ The controller install task requires `KURA_CONTROLLER_IMAGE_TAG` and refuses to 
 
 Each preview's `KuraInstance` is rendered by the Helm chart into that same `kura` namespace ([`templates/kura-instance.yaml`](../helm/tuist/templates/kura-instance.yaml)), so Helm owns it: `helm upgrade` patches it in place and `helm uninstall` reaps it. Managed environments leave `kuraRuntime.instance.enabled` off, because there the server's reconciler authors the CR from the `kura_servers` intent rows.
 
-Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether it is torn down by `helm uninstall`, by the janitor's namespace delete, or by a half-finished run of either. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by `preview-janitor`, with `.github/workflows/preview-sweep.yml` kept as the external Helm-aware backstop.
+Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether the janitor's namespace delete finishes or is interrupted. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by the `preview-janitor` CronJob.
 
-Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, refreshes the `tuistrocks@tuist.dev` test user's password, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
+Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
 
 ### 8.1 Wildcard domain record and certificate
 
@@ -255,6 +435,92 @@ The platform chart issues the wildcard certificate through cert-manager's Cloudf
 
 In the `tuist-k8s-preview` vault: `TUIST_LICENSE_KEY` (Login or Password category, `password` field). The `Service Account Auth Token: tuist-preview-k8s` 1P item authorizes ESO to read it.
 
+### Production air-gapped license
+
+Production uses the signed air-gapped license so server startup does not depend
+on Keygen availability or outbound connectivity. Store the Base64-encoded
+license value in the `password` field of the
+`TUIST_LICENSE_CERTIFICATE_BASE64` Password item in the
+`tuist-k8s-production` vault. Do not also configure `TUIST_LICENSE_KEY`.
+
+Before updating 1Password, validate the encoded certificate locally without
+printing it:
+
+```bash
+chmod 600 /path/to/license.key
+cd server
+mix run --no-start -e '
+encoded = IO.binread(:stdio, :eof) |> String.trim()
+
+with {:ok, certificate} <- Base.decode64(encoded, ignore: :whitespace),
+     {:ok, %Tuist.License{valid: true, expiration_date: expiration_date}} <-
+       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_keys(), certificate) do
+  IO.puts("valid through #{expiration_date}")
+else
+  :error -> raise "air-gapped license is not valid Base64"
+  {:ok, %Tuist.License{valid: false}} -> raise "air-gapped license is expired or invalid"
+  {:error, reason} -> raise "air-gapped license validation failed: #{reason}"
+end
+' < /path/to/license.key
+```
+
+Then create the 1Password item from a JavaScript Object Notation template passed through standard
+input, so the certificate is not placed in shell history or process arguments:
+
+```bash
+op item template get Password --format json \
+  | jq --rawfile certificate /path/to/license.key '
+      .title = "TUIST_LICENSE_CERTIFICATE_BASE64"
+      | (.fields[] | select(.id == "password") | .value) =
+          ($certificate | gsub("[[:space:]]"; ""))
+    ' \
+  | op item create --account tuist.1password.com \
+      --vault tuist-k8s-production -
+```
+
+If the item already exists, update its concealed `password` field through the
+1Password application rather than creating a duplicate. The External Secrets
+Operator refreshes it into the cluster as
+`TUIST_LICENSE_CERTIFICATE_BASE64`.
+
+Validate the stored value through the same parser without printing or writing
+it back to disk:
+
+```bash
+op item get TUIST_LICENSE_CERTIFICATE_BASE64 \
+  --account tuist.1password.com \
+  --vault tuist-k8s-production \
+  --fields label=password \
+  --reveal \
+  | mix run --no-start -e '
+encoded = IO.binread(:stdio, :eof)
+
+with {:ok, certificate} <- Base.decode64(encoded, ignore: :whitespace),
+     {:ok, %Tuist.License{valid: true, expiration_date: expiration_date}} <-
+       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_keys(), certificate) do
+  IO.puts("stored license valid through #{expiration_date}")
+else
+  :error -> raise "stored air-gapped license is not valid Base64"
+  {:ok, %Tuist.License{valid: false}} -> raise "stored air-gapped license is expired or invalid"
+  {:error, reason} -> raise "stored air-gapped license validation failed: #{reason}"
+end
+'
+```
+
+After the stored value validates, remove the local source file and confirm it
+is gone:
+
+```bash
+rm /path/to/license.key
+test ! -e /path/to/license.key
+```
+
+The server publishes `tuist_license_valid` and
+`tuist_license_expiration_timestamp_seconds`. Configure the seven-day critical
+and 30-day warning rules from
+[`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md) before
+the first production deployment.
+
 ### 8.3 First preview
 
 ```bash
@@ -263,15 +529,86 @@ gh workflow run preview-deploy.yml -f pr_number=1234 -f ttl_hours=24
 gh workflow run preview-deploy.yml -f commit_sha=abc1234567890... -f ttl_hours=4
 ```
 
-The hourly `preview-sweep.yml` workflow gets the first cleanup chance and is the path that runs `helm uninstall`. The platform chart's `preview-janitor` CronJob follows at minute 20 and deletes expired preview `KuraInstance` resources and namespaces if the external sweep did not finish the cleanup.
+The platform chart's `preview-janitor` CronJob runs hourly inside the preview cluster, deleting expired preview `KuraInstance` resources and namespaces.
 
-## 9. Teardown
+## 9. Dedicated pentest cluster
+
+`tuist-pentest` has been retired and its manifest removed from
+`infra/k8s/clusters/`. Restore `cluster-pentest.yaml` from git history to run
+another assessment; the steps below still apply.
+
+`tuist-pentest` is a separate workload cluster for an authorized security
+assessment. It uses the existing `tuist-workloads` Hetzner project, not a new
+Hetzner project, but does not share Kubernetes resources with any other
+environment. Its topology is three control-plane nodes and two general workers.
+It deliberately contains no Kura, runner, or Mac worker pools.
+
+Before applying `cluster-pentest.yaml`, create a `tuist-k8s-pentest`
+1Password vault with the pentest-only `TUIST_LICENSE_KEY` and a service-account
+token scoped only to that vault. Keep the service-account item identifier out
+of the repository, then bootstrap the cluster with:
+
+```bash
+PENTEST_OP_TOKEN_ID=<private-service-account-item-id> \
+  mise run k8s:bootstrap-workload tuist-pentest pentest
+```
+
+Use the standard deployment credential process with the application namespace
+set to `tuist-pentest`, then put the generated kubeconfig in the `server-k8s-pentest` GitHub
+Environment. That Environment also needs `PENTEST_USER_EMAIL` and
+`PENTEST_USER_PASSWORD`; these are used once to create the assessment account.
+
+After bootstrap, run the **Pentest Platform Reconcile** workflow. It installs
+the cluster platform required by the application.
+
+Deploy through **Pentest Deployment** with an `expires_at` timestamp. The
+scheduled cleanup removes the application namespace after that time. Extending
+an engagement means re-deploying with a later timestamp.
+
+When the engagement ends, first remove
+`infra/k8s/clusters/cluster-pentest.yaml` in a reviewed change and merge it.
+Then run **Pentest Cluster Retirement** from `main`, typing
+`retire-tuist-pentest` as its confirmation. The workflow uses the protected
+management-cluster environment to delete the workload `Cluster` resource and
+wait for its managed infrastructure to disappear. Removing the source manifest
+first prevents a later management-cluster reconciliation from recreating it.
+Cluster retirement is deliberately manual because it permanently removes the
+control plane and any remaining persistent volumes.
+
+**Before** running it, delete every DNS record that points at the cluster's
+load balancers, and confirm with `dig +short <name>` that each resolves to
+nothing. Today that is the record for the ingress host in
+`infra/helm/tuist/values-pentest.yaml`. Bootstrap has operators create it by
+hand, so nothing removes it.
+
+The workflow releases those load balancers. Once Hetzner reassigns an IP,
+Cloudflare forwards the hostname's traffic to the new holder. The request
+`Host` header tells them which name they received, so they need no prior
+knowledge of it. Cloudflare passes `/.well-known/acme-challenge/` through over
+plain HTTP, so they could also obtain a valid certificate for the name. Strict
+TLS at Cloudflare does not prevent the takeover; only removing the records
+first does.
+
+## 10. Teardown
+
+For `tuist-pentest`, use the **Pentest Cluster Retirement** workflow described
+above instead of the command below. It verifies that the source manifest is no
+longer on `main` before deleting the `Cluster` resource.
 
 ```bash
 KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl -n org-tuist delete cluster <cluster_name>
 ```
 
-caph drains + deletes the nodes and releases the Hetzner LB and servers.
+caph drains + deletes the nodes and servers, and releases its API-server load
+balancer and network. It does not touch the load balancers the Hetzner cloud
+controller created for `type: LoadBalancer` Services such as ingress-nginx:
+delete those Services first, while the controller still runs, or remove the
+leftover load balancers in the Hetzner console afterwards.
+
+Before releasing any load balancer, delete every DNS record that points at it
+(hand-made Cloudflare records especially, since ExternalDNS only removes the
+ones it owns). A record that outlives its load balancer hands the hostname to
+whoever Hetzner gives the IP next.
 
 ---
 
@@ -366,50 +703,18 @@ Deleting a Node object is safe — CAPI re-creates it on the next reconcile if t
 
 When a chart bump changes `postInstallScript` (or any
 `KubeadmConfigTemplate` / `HetznerBareMetalMachineTemplate` field) and
-you need it to take effect before natural Node churn, force a
-re-install. Work against the **mgmt** kubeconfig:
+you need it to take effect before natural Node churn, replace the
+Cluster API Machine and force a physical-host reinstall.
 
-```bash
-export KUBECONFIG=~/.kube/tuist-mgmt.yaml
-CLUSTER=staging  # or canary / production
+For production, use the `Mgmt Cluster Apply` GitHub Actions workflow
+only for declarative management-cluster state. Production runner-node
+replacement is not automated because the two-node fleet has no spare
+physical host for a current-revision Machine to claim. See
+[`clusters/README.md`](clusters/README.md#replacing-a-production-runner-node)
+for the spare-host prerequisite.
 
-# Find the HBM bound to the cluster's HBMM, and snapshot its
-# creationTimestamp — that's how we'll know the controller has
-# re-created it (the HBMM name stays the same on re-bind).
-HBMM=$(kubectl get hetznerbaremetalmachine -n org-tuist \
-  -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
-  -o jsonpath='{.items[0].metadata.name}')
-HBM=$(kubectl get hetznerbaremetalhost -n org-tuist \
-  -o jsonpath="{.items[?(@.spec.consumerRef.name=='$HBMM')].metadata.name}")
-OLD_TS=$(kubectl get hetznerbaremetalhost -n org-tuist $HBM \
-  -o jsonpath='{.metadata.creationTimestamp}')
-
-# Delete the HBM (NOT the HBMM): caph fast-rebinds a fresh HBMM to
-# an already-provisioned HBM without re-running installimage, so
-# only deleting the HBM forces caph to discard the OS state.
-kubectl delete hetznerbaremetalhost -n org-tuist $HBM --wait=false --timeout=2m
-# Strip caph's finalizer if the HBMM still references the HBM after
-# 2 min — otherwise the HBM lingers and `hetzner-robot-controller`
-# can't re-create it cleanly.
-kubectl patch hetznerbaremetalhost -n org-tuist $HBM \
-  -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-
-# Wait ~8–15 min for the full cycle:
-#   (empty) → preparing → registering → image-installing →
-#   ensure-provisioned → provisioned → kubeadm-joined
-# Watch for a fresh creationTimestamp AND HBMM Ready=true:
-while sleep 30; do
-  NEW=$(kubectl get hetznerbaremetalhost -n org-tuist -o jsonpath='{.items[0].metadata.creationTimestamp}')
-  READY=$(kubectl get hetznerbaremetalmachine -n org-tuist \
-    -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
-    -o jsonpath='{.items[0].status.ready}')
-  echo "$(date +%H:%M:%S) ts=$NEW ready=$READY"
-  [ "$NEW" != "$OLD_TS" ] && [ "$READY" = "true" ] && break
-done
-```
-
-Bare-metal Nodes carry `tuist.dev/runner-tier=bare-metal:NoSchedule`,
-so the only workload on them is idempotent runner Pods — no need to
-cordon/drain. The autoscaler reconverges replica count automatically
-after the new Node joins. Run a smoke afterward
-(`linux-runners-staging-smoke.yml`) to confirm the new bootstrap is healthy.
+Do not delete a production host directly from a management kubeconfig.
+Runner pods may be processing customer jobs. Deleting a claimed
+`HetznerBareMetalHost` also leaves the infrastructure provider
+reconciling a missing reference, and deleting a Machine from an
+outdated MachineSet can recreate the same outdated revision.

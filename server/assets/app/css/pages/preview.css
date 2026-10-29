@@ -3,10 +3,17 @@
   position: relative;
   flex-direction: column;
   gap: var(--noora-spacing-6);
-  margin: var(--noora-spacing-7) var(--noora-spacing-0);
+  margin: var(--noora-spacing-7) var(--noora-spacing-5);
 
   &:not(.layout__main &) {
     margin: var(--noora-spacing-7);
+  }
+
+  & [data-part="release-notes"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   & > [data-part="action-buttons"] {

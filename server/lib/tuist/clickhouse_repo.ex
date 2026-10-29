@@ -9,6 +9,8 @@ defmodule Tuist.ClickHouseRepo do
     read_only: true,
     default_dynamic_repo: Application.compile_env(:tuist, [__MODULE__, :default_dynamic_repo], __MODULE__)
 
+  use Tuist.ClickHouse.ArrayInParams
+
   alias Tuist.ClickHouseRetry
 
   # `query/3` and `query!/3` are injected by `Ecto.Adapters.ClickHouse`'s

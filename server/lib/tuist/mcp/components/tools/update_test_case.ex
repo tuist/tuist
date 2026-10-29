@@ -7,6 +7,8 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
     name: "update_test_case",
     title: "Update Test Case",
     read_only_hint: false,
+    open_world_hint: true,
+    destructive_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -66,7 +68,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
   @impl EMCP.Tool
   def description,
     do:
-      "Update mutable fields on a test case. Supports changing `state` between `enabled`, `muted`, and `skipped`, and toggling `is_flaky`. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
+      "Update mutable fields on a test case. Supports changing `state` between `enabled`, `muted`, and `skipped`, and toggling `is_flaky`. A change can dispatch a test-case event to webhook endpoints configured by the account, including external services. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
   @impl EMCP.Tool
   def call(conn, args) do

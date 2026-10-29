@@ -5,14 +5,18 @@ defmodule Tuist.Bundles do
 
   import Ecto.Query
 
+  alias Tuist.Accounts
   alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle
+  alias Tuist.Bundles.BundleSizeApproval
+  alias Tuist.Bundles.BundleSizeApprover
   alias Tuist.Bundles.BundleThreshold
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.VCS
 
   require Logger
 
@@ -260,10 +264,7 @@ defmodule Tuist.Bundles do
           path: a.path,
           size: a.size,
           shasum: a.shasum,
-          artifact_id: a.artifact_id,
-          bundle_id: a.bundle_id,
-          inserted_at: a.inserted_at,
-          updated_at: a.updated_at
+          artifact_id: a.artifact_id
         }
       )
       |> ClickHouseRepo.all()
@@ -349,13 +350,13 @@ defmodule Tuist.Bundles do
 
   def install_size_deviation(%Bundle{} = bundle) do
     project = Repo.preload(bundle, :project).project
-    last_bundle = last_project_bundle(project, git_branch: project.default_branch, bundle: bundle)
+    install_size_deviation(bundle, last_project_bundle(project, git_branch: project.default_branch, bundle: bundle))
+  end
 
-    if is_nil(last_bundle) do
-      0.0
-    else
-      bundle.install_size / last_bundle.install_size - 1
-    end
+  def install_size_deviation(%Bundle{}, nil), do: 0.0
+
+  def install_size_deviation(%Bundle{} = bundle, %Bundle{} = last_bundle) do
+    bundle.install_size / last_bundle.install_size - 1
   end
 
   def distinct_project_app_bundles(%Project{} = project) do
@@ -373,6 +374,22 @@ defmodule Tuist.Bundles do
     |> ClickHouseRepo.all()
     |> decode_bundles()
     |> Enum.uniq_by(& &1.name)
+  end
+
+  def project_app_bundle_options(%Project{} = project) do
+    from(b in Bundle,
+      where: b.project_id == ^project.id,
+      where: b.inserted_at > ^DateTime.add(DateTime.utc_now(), -365, :day),
+      group_by: b.name,
+      order_by: [desc: max(b.inserted_at), asc: b.name],
+      limit: 50,
+      select: %{
+        name: b.name,
+        supported_platforms: fragment("argMax(?, ?)", b.supported_platforms, b.inserted_at)
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn app -> %{app | supported_platforms: decode_platforms(app.supported_platforms)} end)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -419,6 +436,15 @@ defmodule Tuist.Bundles do
         _ -> query
       end
 
+    query =
+      case Keyword.get(opts, :supported_platforms) do
+        platforms when is_list(platforms) and platforms != [] ->
+          where(query, [b], fragment("hasAny(?, ?)", b.supported_platforms, ^Enum.map(platforms, &to_string/1)))
+
+        _ ->
+          query
+      end
+
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
 
@@ -427,7 +453,7 @@ defmodule Tuist.Bundles do
     last_bundle =
       query
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
-      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^Atom.to_string(type))))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^to_string(type))))
       |> order_by([b], desc: b.inserted_at)
       |> limit(1)
       |> ClickHouseRepo.one()
@@ -435,7 +461,7 @@ defmodule Tuist.Bundles do
 
     if is_nil(last_bundle) && fallback do
       query
-      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^Atom.to_string(type))))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^to_string(type))))
       |> order_by([b], desc: b.inserted_at)
       |> limit(1)
       |> ClickHouseRepo.one()
@@ -554,6 +580,8 @@ defmodule Tuist.Bundles do
     name = Keyword.get(opts, :name)
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
 
+    bucket = date_bucket(date_period)
+
     query =
       from(b in Bundle)
       |> where([b], b.project_id == ^project.id)
@@ -561,11 +589,12 @@ defmodule Tuist.Bundles do
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
       |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^Atom.to_string(type))))
       |> then(&if(is_nil(name), do: &1, else: where(&1, [b], b.name == ^name)))
+      |> group_by(^bucket)
       |> select([b], %{
-        id: b.id,
-        inserted_at: b.inserted_at,
-        install_size: b.install_size,
-        download_size: b.download_size
+        id: fragment("argMax(?, ?)", b.id, b.inserted_at),
+        inserted_at: max(b.inserted_at),
+        install_size: fragment("argMax(?, ?)", b.install_size, b.inserted_at),
+        download_size: fragment("tupleElement(argMax(tuple(?), ?), 1)", b.download_size, b.inserted_at)
       })
 
     query
@@ -585,6 +614,10 @@ defmodule Tuist.Bundles do
     end)
     |> Enum.group_by(fn bundle -> bundle.date end)
   end
+
+  defp date_bucket(:hour), do: dynamic([b], fragment("toStartOfHour(?, 'UTC')", b.inserted_at))
+  defp date_bucket(:day), do: dynamic([b], fragment("toStartOfDay(?, 'UTC')", b.inserted_at))
+  defp date_bucket(:month), do: dynamic([b], fragment("toStartOfMonth(?, 'UTC')", b.inserted_at))
 
   defp truncate_to_hour(%DateTime{} = dt) do
     %{dt | minute: 0, second: 0, microsecond: {0, 0}}
@@ -722,6 +755,8 @@ defmodule Tuist.Bundles do
         last_project_bundle(project,
           git_branch: threshold.baseline_branch,
           name: bundle.name,
+          type: bundle.type,
+          supported_platforms: bundle.supported_platforms,
           fallback: false
         )
 
@@ -738,17 +773,183 @@ defmodule Tuist.Bundles do
         :download_size -> {bundle.download_size, baseline.download_size}
       end
 
-    if is_nil(current_size) || is_nil(baseline_size) || baseline_size == 0 do
+    if is_nil(current_size) || is_nil(baseline_size) do
       :ok
     else
-      deviation = (current_size - baseline_size) / baseline_size * 100
+      growth = current_size - baseline_size
 
-      if deviation > threshold.deviation_percentage do
+      if threshold_exceeded?(threshold, growth, baseline_size) do
+        deviation = if baseline_size == 0, do: nil, else: growth / baseline_size * 100
         {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}}
       else
         :ok
       end
     end
+  end
+
+  defp threshold_exceeded?(%{deviation_bytes: bytes}, growth, _baseline_size) when is_integer(bytes), do: growth > bytes
+  defp threshold_exceeded?(_threshold, _growth, 0), do: false
+
+  defp threshold_exceeded?(%{deviation_percentage: percentage}, growth, baseline_size) do
+    growth / baseline_size * 100 > percentage
+  end
+
+  def list_bundle_size_approvers(%Project{} = project) do
+    Repo.all(from(a in BundleSizeApprover, where: a.project_id == ^project.id, order_by: [asc: a.github_handle]))
+  end
+
+  def get_bundle_size_approver(%Project{} = project, id) do
+    case Repo.get_by(BundleSizeApprover, id: id, project_id: project.id) do
+      nil -> {:error, :not_found}
+      approver -> {:ok, approver}
+    end
+  rescue
+    Ecto.Query.CastError -> {:error, :not_found}
+  end
+
+  @doc """
+  Adds an approver by GitHub username.
+
+  The username is resolved against GitHub so the row can store the account's
+  numeric id, which is what authorization compares. A username is not a
+  durable identifier: its owner can change it, and the old one becomes
+  available for someone else to claim, so an allowlist keyed on it can be
+  inherited. Resolving also rejects a username that does not exist, which a
+  format check alone cannot do.
+  """
+  def add_bundle_size_approver(%Project{} = project, handle) do
+    handle = normalize_github_handle(handle)
+
+    # Checked before the call rather than only in the changeset, which runs at
+    # insert time. Input that cannot be a username has no account to find, so
+    # asking GitHub about it is a wasted round-trip.
+    if BundleSizeApprover.valid_handle?(handle) do
+      resolve_and_insert_approver(project, handle)
+    else
+      {:error, :invalid_github_handle}
+    end
+  end
+
+  defp resolve_and_insert_approver(project, handle) do
+    case VCS.get_user_by_username(%{username: handle, project: project}) do
+      {:ok, %VCS.User{id: github_id, username: username}} when is_binary(github_id) ->
+        %BundleSizeApprover{id: UUIDv7.generate()}
+        |> BundleSizeApprover.changeset(%{
+          project_id: project.id,
+          github_handle: username,
+          github_id: github_id
+        })
+        |> Repo.insert()
+
+      {:error, :no_vcs_connection} = error ->
+        error
+
+      {:error, :not_found} ->
+        {:error, :github_user_not_found}
+
+      # Anything else means GitHub could not be asked, which must not be
+      # reported to the caller as the account not existing.
+      _ ->
+        {:error, :github_unavailable}
+    end
+  end
+
+  @doc """
+  The project a bundle belongs to, without loading the bundle itself.
+
+  `get_bundle/2` builds the artifact tree, which is an unbounded read over
+  ClickHouse plus an in-memory recursive build. Callers that only need to know
+  which project owns a bundle should not pay for that, especially inside a
+  webhook GitHub gives about ten seconds.
+  """
+  def get_bundle_project_id(bundle_id) do
+    case Ecto.UUID.cast(bundle_id) do
+      {:ok, uuid} ->
+        ClickHouseRepo.one(from(b in Bundle, where: b.id == type(^uuid, Ecto.UUID), select: b.project_id))
+
+      :error ->
+        nil
+    end
+  end
+
+  def delete_bundle_size_approver(%BundleSizeApprover{} = approver) do
+    Repo.delete(approver)
+  end
+
+  @doc """
+  Whether the GitHub user who requested the `accept_bundle_size` check run
+  action is allowed to accept a size increase for `project`.
+
+  `:everyone` applies no check of its own. GitHub only offers the button to
+  someone with write access to the repository, which is the effective floor
+  either way, and this policy leaves it there.
+
+  `:selected` matches the allowlist on GitHub's numeric id for the sender,
+  which is recorded when the approver is added. Nothing here resolves the
+  sender to a Tuist account, so the policy works the same for members who
+  sign in through SSO and have never linked GitHub.
+  """
+  def authorize_bundle_size_approval(project, sender)
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :everyone}, _sender), do: :ok
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :selected} = project, %{id: github_id})
+      when is_binary(github_id) and github_id != "" do
+    if Repo.exists?(from(a in BundleSizeApprover, where: a.project_id == ^project.id and a.github_id == ^github_id)) do
+      :ok
+    else
+      {:error, :not_an_approver}
+    end
+  end
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :selected}, _sender),
+    do: {:error, :not_an_approver}
+
+  @doc """
+  Records who accepted a bundle size increase.
+
+  Lives in Postgres rather than on the bundle row because `bundles` is a
+  ClickHouse MergeTree, where updating a single row is an asynchronous
+  mutation.
+
+  The GitHub handle is always stored; the Tuist user is resolved on a
+  best-effort basis and stays `nil` for a sender who never linked GitHub.
+  Resolution here never gates the acceptance, so it runs under every policy.
+  """
+  def record_bundle_size_approval(%{bundle_id: bundle_id, project_id: project_id, sender: sender}) do
+    attrs = %{
+      bundle_id: bundle_id,
+      project_id: project_id,
+      approved_by_handle: normalize_github_handle(sender.handle),
+      approved_by_user_id: sender |> user_for_github_sender() |> then(&(&1 && &1.id))
+    }
+
+    %BundleSizeApproval{id: UUIDv7.generate()}
+    |> BundleSizeApproval.changeset(attrs)
+    |> Repo.insert(on_conflict: :nothing, conflict_target: :bundle_id)
+  end
+
+  def get_bundle_size_approval(bundle_id) do
+    BundleSizeApproval
+    |> Repo.get_by(bundle_id: bundle_id)
+    |> Repo.preload(:approved_by_user)
+  end
+
+  defp user_for_github_sender(%{id: nil}), do: nil
+
+  defp user_for_github_sender(%{id: id}) do
+    case Accounts.get_oauth2_identity_by_provider_and_id(:github, id) do
+      nil -> nil
+      identity -> Accounts.get_user_by_id(identity.user_id)
+    end
+  end
+
+  defp user_for_github_sender(_sender), do: nil
+
+  defp normalize_github_handle(nil), do: ""
+
+  defp normalize_github_handle(handle) do
+    handle |> String.trim() |> String.trim_leading("@") |> String.downcase()
   end
 
   defp flatten_artifacts(artifacts, bundle_id, parent_id, current_timestamp) do

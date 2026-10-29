@@ -10,6 +10,7 @@ public struct TeardownCommand: AsyncParsableCommand {
             abstract: "Commands to tear down Tuist services previously set up with `tuist setup`",
             subcommands: [
                 TeardownCacheCommand.self,
+                TeardownInsightsCommand.self,
             ]
         )
     }

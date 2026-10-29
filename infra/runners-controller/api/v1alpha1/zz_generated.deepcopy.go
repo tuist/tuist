@@ -81,14 +81,56 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 		out.Autoscaling = new(RunnerPoolAutoscaling)
 		in.Autoscaling.DeepCopyInto(out.Autoscaling)
 	}
+	if in.Provisioning != nil {
+		out.Provisioning = new(RunnerPoolProvisioning)
+		in.Provisioning.DeepCopyInto(out.Provisioning)
+	}
 	if in.Rollout != nil {
 		out.Rollout = new(RunnerPoolRollout)
 		in.Rollout.DeepCopyInto(out.Rollout)
 	}
 }
 
+func (in *RunnerPoolProvisioning) DeepCopyInto(out *RunnerPoolProvisioning) {
+	*out = *in
+	if in.MaxConcurrentPerNode != nil {
+		in, out := &in.MaxConcurrentPerNode, &out.MaxConcurrentPerNode
+		*out = new(int32)
+		**out = **in
+	}
+	if in.StartTimeoutSeconds != nil {
+		in, out := &in.StartTimeoutSeconds, &out.StartTimeoutSeconds
+		*out = new(int32)
+		**out = **in
+	}
+}
+
+func (in *RunnerPoolProvisioning) DeepCopy() *RunnerPoolProvisioning {
+	if in == nil {
+		return nil
+	}
+	out := new(RunnerPoolProvisioning)
+	in.DeepCopyInto(out)
+	return out
+}
+
 func (in *RunnerPoolAutoscaling) DeepCopyInto(out *RunnerPoolAutoscaling) {
 	*out = *in
+	if in.MinWarmPoolFloor != nil {
+		in, out := &in.MinWarmPoolFloor, &out.MinWarmPoolFloor
+		*out = new(int32)
+		**out = **in
+	}
+	if in.ScaleDownCooldownSeconds != nil {
+		in, out := &in.ScaleDownCooldownSeconds, &out.ScaleDownCooldownSeconds
+		*out = new(int32)
+		**out = **in
+	}
+	if in.HoldRecentPeak != nil {
+		in, out := &in.HoldRecentPeak, &out.HoldRecentPeak
+		*out = new(bool)
+		**out = **in
+	}
 }
 
 func (in *RunnerPoolRollout) DeepCopyInto(out *RunnerPoolRollout) {
@@ -112,4 +154,8 @@ func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {
 		in.LastScaleDownAt.DeepCopyInto(out.LastScaleDownAt)
 	}
 	in.ImageRolledAt.DeepCopyInto(&out.ImageRolledAt)
+	if in.LastDemandAt != nil {
+		out.LastDemandAt = new(metav1.Time)
+		in.LastDemandAt.DeepCopyInto(out.LastDemandAt)
+	}
 }

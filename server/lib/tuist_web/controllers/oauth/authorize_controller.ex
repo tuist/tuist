@@ -17,11 +17,21 @@ defmodule TuistWeb.Oauth.AuthorizeController do
   def authorize(%Plug.Conn{assigns: %{current_user: %Tuist.Accounts.User{} = current_user}} = conn, params) do
     :ok = validate_state_length!(params)
 
-    Oauth.authorize(
-      conn,
-      %ResourceOwner{sub: to_string(current_user.id), username: current_user.email},
-      __MODULE__
-    )
+    case params["response_type"] do
+      "code" ->
+        Oauth.authorize(
+          conn,
+          %ResourceOwner{sub: to_string(current_user.id), username: current_user.email},
+          __MODULE__
+        )
+
+      _ ->
+        render_authorize_error(conn, %Error{
+          status: :bad_request,
+          error: :unsupported_response_type,
+          error_description: "Only the code response type is supported."
+        })
+    end
   end
 
   def authorize(%Plug.Conn{} = conn, _params) do

@@ -4,14 +4,63 @@ defmodule Tuist.Release do
   installed.
   """
   alias Ecto.Adapters.SQL
+  alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
+  alias Tuist.IngestRepo
+  alias Tuist.Runners.CacheVolumes
+  alias Tuist.Tests.Coverage
 
   require Logger
 
   @app :tuist
-  @processor_write_tables ~w(oban_jobs oban_peers)
-  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints)
+  @processor_write_tables ~w(
+    oban_jobs
+    oban_peers
+    test_case_run_flaky_corrections
+    bazel_test_invocations
+    bazel_test_results
+    bazel_test_summaries
+  )
+  @processor_read_tables ~w(
+    accounts
+    projects
+    automation_alerts
+    webhook_endpoints
+    feature_flags
+    coverage_commits
+    git_repositories
+    git_refs
+    git_commits
+  )
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
+  @grafana_query_log_view "grafana_query_log"
+
+  # Exact column allowlist for the Grafana role behind the "Tuist Product Usage"
+  # dashboard and the "Runner cache volume warm rate low" alert rule.
+  # Column-level rather than table-level because every table below sits next to a
+  # secret in the same row: table-level SELECT would hand the dashboard's
+  # credential — the one we store in Grafana Cloud — `users.encrypted_password`,
+  # `users.token`, `projects.token`, `accounts.s3_secret_access_key`, and
+  # `organizations.oauth2_encrypted_client_secret`. `users` is the clearest case:
+  # the dashboard needs only the signup timestamp. The runner cache volume
+  # columns leave out the account, repository and pod the rows belong to.
+  #
+  # Adding a column to a panel or rule is a deliberate change here, not something
+  # a Grafana edit widens silently. Keep in sync with
+  # infra/cnpg/tuist-grafana-ro-grants.sql (a test asserts this).
+  @grafana_read_columns [
+    {"accounts", ~w(id name billing_email organization_id)},
+    {"bundles", ~w(project_id inserted_at git_ref)},
+    {"organizations", ~w(id created_at)},
+    {"previews", ~w(project_id inserted_at)},
+    {"projects", ~w(id name account_id created_at build_system)},
+    {"roles", ~w(id resource_id resource_type)},
+    {"runner_cache_volume_uses", ~w(volume_id base_generation warm attached_at)},
+    {"runner_cache_volumes", ~w(id key platform)},
+    {"subscriptions", ~w(account_id status)},
+    {"users", ~w(created_at)},
+    {"users_roles", ~w(user_id role_id)}
+  ]
 
   def migrate do
     load_app()
@@ -19,6 +68,8 @@ defmodule Tuist.Release do
     Logger.info(
       "Migrating with a pool of size of #{:tuist |> Application.get_env(Tuist.Repo) |> Keyword.get(:pool_size)}"
     )
+
+    assert_supported_clickhouse_version()
 
     for repo <- repos() do
       {:ok, _, _} =
@@ -29,6 +80,9 @@ defmodule Tuist.Release do
           grant_runtime_role(repo)
           grant_processor_role(repo)
           grant_swift_registry_sync_role(repo)
+          grant_grafana_role(repo)
+          reconcile_ops_clickhouse(repo)
+          reconcile_grafana_clickhouse(repo)
         end)
     end
   end
@@ -47,6 +101,126 @@ defmodule Tuist.Release do
       versions = Enum.map_join(pending, ", ", fn {_status, version, _name} -> version end)
 
       raise "Migrations are still pending for #{inspect(repo)} after migrating: #{versions}"
+    end
+  end
+
+  @doc """
+  Sets the coverage tables' time-to-live to the retention now configured
+  (`TUIST_COVERAGE_FILE_RETENTION_DAYS`, `TUIST_COVERAGE_RUN_RETENTION_DAYS`).
+  The tables take it when they are created, so a change made afterwards only
+  applies once this runs:
+
+      bin/tuist eval "Tuist.Release.apply_coverage_retention()"
+  """
+  def apply_coverage_retention do
+    load_app()
+
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(IngestRepo, fn _repo ->
+        for {table, days} <- Coverage.apply_retention() do
+          Logger.info("#{table}: rows expire after #{days} days")
+        end
+      end)
+
+    :ok
+  end
+
+  @doc """
+  Writes the coverage file deltas of every complete commit whose runs' rows
+  are still kept (`Tuist.Tests.Coverage.Deltas.backfill/1`), for one project
+  or every project, each ref's oldest commit first. The migration that
+  ships the tables queues it on its own
+  (`Tuist.Tests.Coverage.Workers.DeltaBackfillWorker`); this runs it again
+  by hand. It reads through the application's repositories and caches, so
+  it runs on a live node, and repeating it rewrites nothing that is current:
+
+      bin/tuist rpc "Tuist.Release.backfill_coverage_deltas()"
+      bin/tuist rpc "Tuist.Release.backfill_coverage_deltas(<project id>)"
+  """
+  def backfill_coverage_deltas(project_id \\ nil) do
+    counts =
+      case project_id && Tuist.Projects.get_project_by_id(project_id) do
+        nil when is_nil(project_id) -> Coverage.Deltas.backfill_all()
+        nil -> %{}
+        project -> %{project.id => Coverage.Deltas.backfill(project)}
+      end
+
+    for {id, %{written: written, unavailable: unavailable}} <- counts do
+      Logger.info("Coverage deltas of project #{id}: #{written} commits written, #{unavailable} without their runs' rows")
+    end
+
+    counts
+  end
+
+  @doc """
+  Records the test versions and target sources carried coverage reads
+  (`Tuist.Tests.Coverage.TestSources.backfill/1`) for the runs still within
+  the file retention, for one project or every project. The migration that
+  ships the index queues it on its own
+  (`Tuist.Tests.Coverage.Workers.SourceBackfillWorker`); this runs it
+  again by hand, on a live node:
+
+      bin/tuist rpc "Tuist.Release.backfill_coverage_sources()"
+      bin/tuist rpc "Tuist.Release.backfill_coverage_sources(<project id>)"
+  """
+  def backfill_coverage_sources(project_id \\ nil) do
+    if project_id do
+      Coverage.TestSources.backfill(project_id)
+      Logger.info("Coverage sources of project #{project_id} recorded")
+    else
+      Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
+    end
+  end
+
+  @doc """
+  Clears an account's runner cache volume, the same clear as
+  **Runners → Volumes**:
+
+      bin/tuist eval 'Tuist.Release.clear_runner_cache_volume(<account id>, "<volume id>")'
+
+  Clearing schedules the deletion of the volume's saved master as an Oban job,
+  and an `eval` node runs no Oban, so this starts an instance that only inserts
+  jobs; the server's nodes run them. Raises when the account has no such volume.
+  """
+  def clear_runner_cache_volume(account_id, volume_id) do
+    Application.load(@app)
+
+    {:ok, result, _apps} =
+      Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
+        with_insert_only_oban(fn -> CacheVolumes.delete(account_id, volume_id) end)
+      end)
+
+    case result do
+      {:ok, volume} ->
+        Logger.info(
+          "Cleared runner cache volume #{volume.id} (#{volume.key}) of account #{account_id}, now at generation #{volume.generation}"
+        )
+
+        {:ok, volume}
+
+      {:error, :not_found} ->
+        raise "Account #{account_id} has no runner cache volume #{inspect(volume_id)}"
+    end
+  end
+
+  defp with_insert_only_oban(fun) do
+    {:ok, _} = Application.ensure_all_started(:oban)
+
+    if Oban.whereis(Oban) do
+      fun.()
+    else
+      config =
+        @app
+        |> Application.fetch_env!(Oban)
+        |> Keyword.merge(queues: false, plugins: false, peer: false)
+
+      {:ok, pid} = Oban.start_link(config)
+
+      try do
+        fun.()
+      after
+        Supervisor.stop(pid)
+      end
     end
   end
 
@@ -127,6 +301,15 @@ defmodule Tuist.Release do
     )
   end
 
+  # Ahead of the migration loop rather than inside it: `repos/0` migrates Postgres
+  # first, so checking per-repo would only reject a below-floor ClickHouse after
+  # Postgres had already migrated.
+  defp assert_supported_clickhouse_version do
+    if IngestRepo in repos() do
+      {:ok, _, _} = Ecto.Migrator.with_repo(IngestRepo, &ClickHouseCapabilities.assert_supported_version!/1)
+    end
+  end
+
   defp ensure_database_schema(repo) when repo == Tuist.Repo do
     if Environment.default_database_schema?() do
       :ok
@@ -137,6 +320,225 @@ defmodule Tuist.Release do
   end
 
   defp ensure_database_schema(_repo), do: :ok
+
+  defp reconcile_ops_clickhouse(repo) when repo == IngestRepo do
+    reconcile_clickhouse_identity(
+      repo,
+      Environment.ops_clickhouse_username(),
+      Environment.ops_clickhouse_password(),
+      Environment.ops_clickhouse_role(),
+      &ops_clickhouse_reconciliation_queries/4
+    )
+  end
+
+  defp reconcile_ops_clickhouse(_repo), do: :ok
+
+  defp reconcile_grafana_clickhouse(repo) when repo == IngestRepo do
+    role = Environment.grafana_clickhouse_role()
+
+    if is_binary(role) and role != "" do
+      ensure_grafana_query_log_view(repo)
+    end
+
+    reconcile_clickhouse_identity(
+      repo,
+      Environment.grafana_clickhouse_username(),
+      Environment.grafana_clickhouse_password(),
+      role,
+      &grafana_clickhouse_reconciliation_queries/4
+    )
+  end
+
+  defp reconcile_grafana_clickhouse(_repo), do: :ok
+
+  # Querying another replica needs the `REMOTE` grant, which the Grafana
+  # identity does not have, so this view reads every replica's query log with
+  # its definer's rights instead. The `default` cluster comes from the server's
+  # configuration, which a replica reads only when it restarts, after this
+  # pre-upgrade migration. A server without one skips the view until a later
+  # migrate; the view resolves the cluster when it is read, so one created
+  # before the restart covers every replica after it.
+  defp ensure_grafana_query_log_view(repo) do
+    %{rows: rows} = repo.query!("SELECT 1 FROM system.clusters WHERE cluster = 'default' LIMIT 1", [], log: false)
+
+    if rows == [] do
+      Logger.info("Skipping the #{@grafana_query_log_view} view: this server has no `default` cluster yet.")
+    else
+      database = repo.config() |> Keyword.fetch!(:database) |> to_string()
+      repo.query!(grafana_query_log_view_statement(database), [], log: false)
+    end
+  end
+
+  @doc false
+  def grafana_query_log_view_statement(database) do
+    database = quote_clickhouse_identifier!(database, "ClickHouse database")
+
+    """
+    CREATE OR REPLACE VIEW #{database}.#{@grafana_query_log_view}
+    DEFINER = default SQL SECURITY DEFINER
+    AS SELECT
+      hostName() AS replica,
+      event_time,
+      type,
+      exception_code,
+      query_duration_ms,
+      normalized_query_hash,
+      query,
+      http_user_agent
+    FROM clusterAllReplicas('default', system.query_log)
+    WHERE event_time >= now() - INTERVAL 1 DAY
+      AND is_initial_query
+      AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
+    """
+  end
+
+  defp reconcile_clickhouse_identity(repo, username, password, role, reconciliation_queries) do
+    if Enum.all?([username, password, role], &(is_binary(&1) and &1 != "")) do
+      database = repo.config() |> Keyword.fetch!(:database) |> to_string()
+      password_hash = :sha256 |> :crypto.hash(password) |> Base.encode16(case: :lower)
+
+      {setup_queries, assignment_queries} =
+        database
+        |> reconciliation_queries.(username, role, password_hash)
+        |> Enum.split(-2)
+
+      Enum.each(setup_queries, &run_clickhouse_access_query(repo, &1))
+      revoke_unexpected_clickhouse_roles(repo, username, role)
+      Enum.each(assignment_queries, &run_clickhouse_access_query(repo, &1))
+    end
+
+    :ok
+  end
+
+  defp revoke_unexpected_clickhouse_roles(repo, username, expected_role) do
+    result =
+      repo.query!(
+        """
+        SELECT granted_role_name
+        FROM system.role_grants
+        WHERE user_name = {username:String}
+          AND granted_role_name != {expected_role:String}
+        """,
+        %{"username" => username, "expected_role" => expected_role},
+        log: false
+      )
+
+    Enum.each(result.rows, fn [role] ->
+      role = quote_clickhouse_identifier!(role, "granted ClickHouse role")
+      username = quote_clickhouse_identifier!(username, "ClickHouse username")
+      run_clickhouse_access_query(repo, {"REVOKE #{role} FROM #{username}", []})
+    end)
+  end
+
+  defp run_clickhouse_access_query(repo, {statement, params}) do
+    repo.query!(statement, params, log: false)
+  end
+
+  @doc false
+  def ops_clickhouse_reconciliation_queries(database, username, role, password_hash) do
+    database = quote_clickhouse_identifier!(database, "ClickHouse database")
+    username = quote_clickhouse_identifier!(username, "TUIST_OPS_CLICKHOUSE_USERNAME")
+    role = quote_clickhouse_identifier!(role, "TUIST_OPS_CLICKHOUSE_ROLE")
+    password_hash = validate_clickhouse_password_hash!(password_hash)
+
+    # Mode 2 still rejects writes but permits client-supplied query settings.
+    # The bounds below prevent callers from raising or disabling resource limits.
+    readonly_clickhouse_identity_queries(
+      username,
+      role,
+      password_hash,
+      """
+      ALTER ROLE #{role} SETTINGS
+        readonly = 2,
+        max_execution_time = 10 MIN 1 MAX 10,
+        max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
+        max_rows_to_read = 100000000 MIN 1 MAX 100000000,
+        max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
+        max_result_rows = 10001 MIN 1 MAX 10001,
+        max_result_bytes = 5242880 MIN 1 MAX 5242880,
+        max_block_size = 10001 MIN 1 MAX 10001,
+        max_threads = 2 MIN 1 MAX 2
+      """,
+      ["#{database}.*", "system.tables", "system.columns"],
+      ["#{database}.#{@grafana_query_log_view}"]
+    )
+  end
+
+  @doc false
+  def grafana_clickhouse_reconciliation_queries(database, username, role, password_hash) do
+    database = quote_clickhouse_identifier!(database, "ClickHouse database")
+    username = quote_clickhouse_identifier!(username, "TUIST_GRAFANA_CLICKHOUSE_USERNAME")
+    role = quote_clickhouse_identifier!(role, "TUIST_GRAFANA_CLICKHOUSE_ROLE")
+    password_hash = validate_clickhouse_password_hash!(password_hash)
+
+    # Dashboards and alert rules aggregate over weeks of builds, so the bounds
+    # are wider than the ops role's, but still capped so a panel cannot take the
+    # memory or cores the application's own queries need. The slow-query
+    # alert reads every replica's query log through the `grafana_query_log`
+    # view, which the database grant covers on the replica it reaches. The
+    # other replicas run their part as this role rather than as the view's
+    # definer, so it also reads `system.query_log` itself.
+    readonly_clickhouse_identity_queries(
+      username,
+      role,
+      password_hash,
+      """
+      ALTER ROLE #{role} SETTINGS
+        readonly = 2,
+        max_execution_time = 60 MIN 1 MAX 120,
+        max_memory_usage = 8589934592 MIN 1 MAX 8589934592,
+        max_threads = 8 MIN 1 MAX 8
+      """,
+      ["#{database}.*", "system.tables", "system.columns", "system.query_log"]
+    )
+  end
+
+  defp readonly_clickhouse_identity_queries(username, role, password_hash, role_settings, readable, unreadable \\ []) do
+    [
+      {"CREATE ROLE IF NOT EXISTS #{role}", []},
+      {"REVOKE ALL ON *.* FROM #{role}", []},
+      {role_settings, []}
+    ] ++
+      Enum.map(readable, &{"GRANT SELECT ON #{&1} TO #{role}", []}) ++
+      Enum.map(unreadable, &{"REVOKE SELECT ON #{&1} FROM #{role}", []}) ++
+      [
+        {
+          """
+          CREATE USER IF NOT EXISTS #{username}
+          IDENTIFIED WITH sha256_hash BY '#{password_hash}'
+          """,
+          []
+        },
+        {
+          """
+          ALTER USER #{username}
+          IDENTIFIED WITH sha256_hash BY '#{password_hash}'
+          """,
+          []
+        },
+        {"REVOKE ALL ON *.* FROM #{username}", []},
+        {"GRANT #{role} TO #{username}", []},
+        {"ALTER USER #{username} DEFAULT ROLE #{role}", []}
+      ]
+  end
+
+  defp quote_clickhouse_identifier!(identifier, source) do
+    identifier = to_string(identifier)
+
+    if Regex.match?(~r/\A[a-zA-Z_][a-zA-Z0-9_]*\z/, identifier) do
+      "`#{identifier}`"
+    else
+      raise "#{source} must be a valid ClickHouse identifier, got: #{inspect(identifier)}"
+    end
+  end
+
+  defp validate_clickhouse_password_hash!(password_hash) do
+    if Regex.match?(~r/\A[0-9a-f]{64}\z/, password_hash) do
+      password_hash
+    else
+      raise "ClickHouse password hash must be a lowercase SHA-256 hash"
+    end
+  end
 
   defp grant_runtime_role(repo) when repo == Tuist.Repo do
     case Environment.database_runtime_role() do
@@ -236,11 +638,20 @@ defmodule Tuist.Release do
     # blanket `GRANT … ON ALL` would.
     [
       "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+      # Table-level REVOKE does not remove column-level privileges.
+      "REVOKE ALL (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads FROM #{role}",
+      "REVOKE ALL (account_id, event_name, project_id, refresh_before) ON TABLE #{quoted_schema}.mcp_event_subscriptions FROM #{role}",
       "GRANT CONNECT ON DATABASE #{database} TO #{role}",
       "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
       "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
       "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
-      "GRANT SELECT ON TABLE #{read_tables} TO #{role}"
+      "GRANT SELECT ON TABLE #{read_tables} TO #{role}",
+      "GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads TO #{role}",
+      # Event publishing only checks whether an agent is subscribed and records
+      # fan-out dedup keys. Columns, not the table, so callback URLs and signing
+      # secrets stay out of reach.
+      "GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE #{quoted_schema}.mcp_event_subscriptions TO #{role}",
+      "GRANT SELECT, INSERT ON TABLE #{quoted_schema}.mcp_event_job_keys TO #{role}"
     ]
   end
 
@@ -280,6 +691,86 @@ defmodule Tuist.Release do
 
         :ok
       end)
+  end
+
+  # Column-level SELECTs for the Grafana dashboard role. Gated on
+  # TUIST_DATABASE_GRAFANA_ROLE, which the chart sets only for managed CNPG
+  # migration Jobs, so self-hosted and non-CNPG deployments leave the role
+  # untouched. Applied on every migrate so the allowlist tracks the schema
+  # declaratively rather than drifting behind a manual psql runbook — the
+  # `.sql` file is only a bootstrap/restore fallback.
+  defp grant_grafana_role(repo) when repo == Tuist.Repo do
+    case Environment.database_grafana_role() do
+      role when is_binary(role) and role != "" ->
+        do_grant_grafana_role(repo, role)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp grant_grafana_role(_repo), do: :ok
+
+  defp do_grant_grafana_role(repo, role) do
+    Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_GRAFANA_ROLE")
+
+    # CloudNativePG creates this role from the Cluster CR, which Helm applies
+    # only after this pre-upgrade migration Job. On the deploy that first
+    # introduces the role it therefore does not exist yet: skip the grants
+    # rather than aborting the migration (which, under --rollback-on-failure,
+    # would roll the release back before CNPG ever creates the role). The next
+    # migrate, once the role exists, applies them.
+    if role_exists?(repo, role) do
+      quoted_role = Environment.quote_postgres_identifier(role)
+      database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
+      quoted_schema = Environment.quote_postgres_identifier(Environment.database_schema())
+
+      {:ok, :ok} =
+        repo.transaction(fn ->
+          Enum.each(
+            grafana_role_grant_statements(quoted_role, database, quoted_schema),
+            &SQL.query!(repo, &1, [])
+          )
+
+          :ok
+        end)
+    else
+      Logger.info(
+        "Skipping Grafana role grants: role #{inspect(role)} does not exist yet " <>
+          "(CloudNativePG creates it after this migration hook)."
+      )
+
+      :ok
+    end
+  end
+
+  defp role_exists?(repo, role) do
+    %{rows: rows} = SQL.query!(repo, "SELECT 1 FROM pg_roles WHERE rolname = $1", [role])
+    rows != []
+  end
+
+  @doc false
+  def grafana_role_grant_statements(role, database, quoted_schema) do
+    column_grants =
+      Enum.map(@grafana_read_columns, fn {table, columns} ->
+        "GRANT SELECT (#{Enum.join(columns, ", ")}) ON #{quoted_schema}.#{table} TO #{role}"
+      end)
+
+    [
+      # Revoking table privileges also drops the column privileges on that table,
+      # so this resets the role to zero before re-granting. That makes the
+      # allowlist authoritative: dropping a column here actually removes access
+      # on the next migrate instead of leaving a stale grant behind.
+      "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+      "GRANT CONNECT ON DATABASE #{database} TO #{role}",
+      "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}"
+    ] ++
+      column_grants ++
+      [
+        # Unlike pg_read_all_data, a table added by a future migration must not
+        # silently become readable by a credential a third party holds.
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} REVOKE ALL ON TABLES FROM #{role}"
+      ]
   end
 
   @doc false

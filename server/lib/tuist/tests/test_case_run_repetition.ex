@@ -2,6 +2,11 @@ defmodule Tuist.Tests.TestCaseRunRepetition do
   @moduledoc """
   A test case run repetition represents a single execution attempt of a test case.
   When tests are run with retry-on-failure, each attempt is stored as a repetition.
+
+  `source` says who asked for the execution: `run` for the run's own attempts,
+  including its retries, and `stress` for the reruns the new-test stress gate
+  solicited. Both are executions of the test case and count as such; the column
+  exists so the dashboard can say which is which.
   """
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
@@ -16,12 +21,15 @@ defmodule Tuist.Tests.TestCaseRunRepetition do
     field :name, :string
     field :status, Ch, type: "LowCardinality(String)"
     field :duration, Ch, type: "Int32"
+    field :source, Ch, type: "LowCardinality(String)", default: "run"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
     belongs_to :test_case_run, Tuist.Tests.TestCaseRun,
       foreign_key: :test_case_run_id,
       define_field: false
   end
+
+  def query, do: Ecto.Queryable.to_query({"reported_test_case_run_repetitions", __MODULE__})
 
   def create_changeset(repetition, attrs) do
     repetition
@@ -33,9 +41,11 @@ defmodule Tuist.Tests.TestCaseRunRepetition do
       :name,
       :status,
       :duration,
+      :source,
       :inserted_at
     ])
     |> validate_required([:id, :test_case_run_id, :repetition_number, :name, :status])
-    |> validate_inclusion(:status, ["success", "failure"])
+    |> validate_inclusion(:status, ["success", "failure", "skipped"])
+    |> validate_inclusion(:source, ["run", "stress"])
   end
 end

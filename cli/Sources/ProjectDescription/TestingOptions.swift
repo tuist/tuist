@@ -10,4 +10,7 @@ public struct TestingOptions: OptionSet, Codable, Equatable, Sendable {
     public static let parallelizable = TestingOptions(rawValue: 1 << 0)
     /// Execute tests in random order
     public static let randomExecutionOrdering = TestingOptions(rawValue: 1 << 1)
+    /// Parallelize only Swift Testing tests, running XCTest tests serially.
+    /// Takes precedence over `parallelizable` when both are set.
+    public static let swiftTestingOnlyParallelizable = TestingOptions(rawValue: 1 << 2)
 }

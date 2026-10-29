@@ -1,0 +1,14 @@
+# Allows the ephemeral admin patcher in mgmt-talos and the automatically
+# renewed backup-only ServiceAccount in mgmt-system. Kubernetes RBAC controls
+# who may create these Talos ServiceAccounts; this allowlist is cluster-wide,
+# not a per-namespace role binding. See ../README.md.
+machine:
+  features:
+    kubernetesTalosAPIAccess:
+      enabled: true
+      allowedRoles:
+        - os:admin
+        - os:etcd:backup
+      allowedKubernetesNamespaces:
+        - mgmt-talos
+        - mgmt-system

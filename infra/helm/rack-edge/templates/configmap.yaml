@@ -1,0 +1,12 @@
+{{- $hash := include "rack-edge.hash" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rack-edge-{{ include "rack-edge.site" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rack-edge.labels" . | nindent 4 }}
+data:
+  {{- include "rack-edge.siteFiles" . | nindent 2 }}
+  rack-edge.yaml: |
+    {{- include "rack-edge.staticPod" (dict "root" . "hash" $hash) | nindent 4 }}

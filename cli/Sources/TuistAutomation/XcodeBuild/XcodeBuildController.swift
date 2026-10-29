@@ -1,4 +1,4 @@
-import Command
+import TuistProcess
 import Foundation
 import Path
 import TuistCore
@@ -113,6 +113,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
     ) async throws {
         let extraArguments = arguments.flatMap(\.arguments)
         var arguments: [String] = []
+        let usesXCTestRun = action == .testWithoutBuilding && passthroughXcodeBuildArguments.contains("-xctestrun")
 
         // Action
         if clean {
@@ -128,11 +129,13 @@ public struct XcodeBuildController: XcodeBuildControlling {
             arguments.append("test-without-building")
         }
 
-        // Scheme
-        arguments.append(contentsOf: ["-scheme", scheme])
+        if !usesXCTestRun {
+            // Scheme
+            arguments.append(contentsOf: ["-scheme", scheme])
 
-        // Target
-        arguments.append(contentsOf: target.xcodebuildArguments)
+            // Target
+            arguments.append(contentsOf: target.xcodebuildArguments)
+        }
 
         // Arguments
         arguments.append(contentsOf: extraArguments)
@@ -179,7 +182,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
             arguments.append(contentsOf: ["-skip-testing", test.description])
         }
 
-        if let testPlanConfiguration {
+        if let testPlanConfiguration, !usesXCTestRun {
             arguments.append(contentsOf: ["-testPlan", testPlanConfiguration.testPlan])
             for configuration in testPlanConfiguration.configurations {
                 arguments.append(contentsOf: ["-only-test-configuration", configuration])
@@ -346,6 +349,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
         // no-output timeout. NSUnbufferedIO makes it flush in real time.
         var environment = Environment.current.variables
         environment["NSUnbufferedIO"] = "YES"
+        environment.merge(XcodeBuildEnvironment.additionalVariables) { _, new in new }
         for try await event in commandRunner.run(arguments: command, environment: environment) {
             switch event {
             case let .standardOutput(bytes):

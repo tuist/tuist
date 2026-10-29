@@ -9,7 +9,20 @@ defmodule Tuist.Accounts.AgentRegistrationEvent do
   alias Tuist.Accounts.AgentRegistration
   alias Tuist.Accounts.User
 
-  @event_types [:created, :claim_resent, :otp_failed, :claimed, :expired, :revoked]
+  @event_types [
+    :created,
+    :assertion_issued,
+    :token_issued,
+    :token_revoked,
+    :claim_requested,
+    :user_code_minted,
+    :claim_confirmed,
+    :claim_resent,
+    :otp_failed,
+    :claimed,
+    :expired,
+    :revoked
+  ]
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "agent_registration_events" do

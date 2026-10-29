@@ -3,6 +3,7 @@ import Foundation
     import FoundationNetworking
 #endif
 import Mockable
+import TuistHTTP
 
 @Mockable
 protocol OIDCTokenFetching {
@@ -40,7 +41,7 @@ struct OIDCTokenFetcher: OIDCTokenFetching {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.tuistDefault.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200

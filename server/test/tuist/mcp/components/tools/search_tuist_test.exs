@@ -5,6 +5,15 @@ defmodule Tuist.MCP.Components.Tools.SearchTuistTest do
   alias Tuist.MCP.Components.Tools.SearchTuist
   alias Tuist.MCP.Search
 
+  test "description states the scope of public Tuist material" do
+    description = SearchTuist.description()
+
+    assert description =~ "public Tuist documentation"
+    assert description =~ "documented behavior"
+    assert description =~ "known issues"
+    assert description =~ "source links"
+  end
+
   test "search_tuist forwards searches to the Typesense-backed search" do
     arguments = %{"query" => "how does selective testing work?", "source" => "docs", "max_results" => 4}
 

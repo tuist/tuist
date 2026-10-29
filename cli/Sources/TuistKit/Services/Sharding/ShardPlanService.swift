@@ -8,6 +8,7 @@
     import TuistCI
     import TuistCore
     import TuistEnvironment
+    import TuistGit
     import TuistLogging
     import TuistServer
     import TuistSupport
@@ -16,6 +17,7 @@
     public protocol ShardPlanServicing {
         func plan(
             xctestproductsPath: AbsolutePath,
+            projectPath: AbsolutePath,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -25,6 +27,7 @@
             fullHandle: String,
             serverURL: URL,
             buildRunId: String?,
+            requestedTestIdentifiers: [TestIdentifier],
             skipUpload: Bool,
             archivePath: AbsolutePath?
         ) async throws -> Components.Schemas.ShardPlan
@@ -32,6 +35,7 @@
 
     public enum ShardPlanServiceError: LocalizedError, Equatable {
         case noTestModulesFound
+        case noRequestedTestModulesFound([String])
         case cannotDeriveSessionId
         case xcTestRunNotFound(AbsolutePath)
 
@@ -39,6 +43,9 @@
             switch self {
             case .noTestModulesFound:
                 return "No test modules found in the .xctestproducts bundle."
+            case let .noRequestedTestModulesFound(modules):
+                return
+                    "None of the identifiers passed to --test-targets can run against the .xctestproducts bundle, which holds \(modules.joined(separator: ", "))."
             case .cannotDeriveSessionId:
                 return
                     "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
@@ -69,6 +76,7 @@
         private let fileArchiver: FileArchivingFactorying
         private let shardMatrixOutputService: ShardMatrixOutputServicing
         private let appleArchiver: AppleArchiving
+        private let gitController: GitControlling
 
         public init(
             createShardPlanService: CreateShardPlanServicing = CreateShardPlanService(),
@@ -82,7 +90,8 @@
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory(),
             shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
-            appleArchiver: AppleArchiving = AppleArchiver()
+            appleArchiver: AppleArchiving = AppleArchiver(),
+            gitController: GitControlling = GitController()
         ) {
             self.createShardPlanService = createShardPlanService
             self.startShardUploadService = startShardUploadService
@@ -94,10 +103,12 @@
             self.fileArchiver = fileArchiver
             self.shardMatrixOutputService = shardMatrixOutputService
             self.appleArchiver = appleArchiver
+            self.gitController = gitController
         }
 
         public func plan(
             xctestproductsPath: AbsolutePath,
+            projectPath: AbsolutePath,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -107,6 +118,7 @@
             fullHandle: String,
             serverURL: URL,
             buildRunId: String?,
+            requestedTestIdentifiers: [TestIdentifier] = [],
             skipUpload: Bool = false,
             archivePath: AbsolutePath? = nil
         ) async throws -> Components.Schemas.ShardPlan {
@@ -122,17 +134,41 @@
                 throw ShardPlanServiceError.xcTestRunNotFound(xctestproductsPath)
             }
             let xcTestRun: XCTestRun = try await fileSystem.readPlistFile(at: xcTestRunPath)
-            let modules = xcTestRun.testModules
+
+            guard !xcTestRun.testModules.isEmpty else {
+                throw ShardPlanServiceError.noTestModulesFound
+            }
+
+            // The products record a test plan's selection but never a command-line `-only-testing`,
+            // so what the run was asked to test has to be applied here. Without it a suite-level
+            // request leaves its module looking unrestricted, and the server resolves the module's
+            // suites from history and plans work the run never asked for.
+            let selection = ShardTestSelection.plan(
+                modules: xcTestRun.testModules,
+                parallelizableModules: xcTestRun.parallelizableTestModules,
+                selectedTestSuites: xcTestRun.selectedTestSuiteIdentifiers(),
+                skippedTestSuites: xcTestRun.skippedTestSuiteIdentifiers(),
+                requested: requestedTestIdentifiers
+            )
+            let modules = selection.modules
+            let parallelizableModules = selection.parallelizableModules
+            let selectedTestSuites = selection.selectedTestSuites
+            let skippedTestSuites = selection.skippedTestSuites
 
             guard !modules.isEmpty else {
-                throw ShardPlanServiceError.noTestModulesFound
+                throw ShardPlanServiceError.noRequestedTestModulesFound(xcTestRun.testModules)
             }
 
             // Suite-granularity plans are balanced server-side from historical per-suite timings, and the
             // catch-all shard guarantees any suite without history still runs. The client therefore no
             // longer enumerates suites by booting every test bundle on the simulator (slow and flaky on
             // large plans — it could take an hour) and sends only the module universe from the
-            // deterministic `.xctestrun`.
+            // deterministic `.xctestrun`, plus the suites that bundle limits a module to, which are
+            // known exactly and don't need inferring.
+            //
+            // The suites the bundle skips go with them. A test plan that disables tests still builds
+            // the target, so it stays in the module universe, and without the skips the server would
+            // resolve its suites from history and plan work the products cannot run.
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
             let shardPlan = try await createShardPlanService.createShardPlan(
@@ -140,16 +176,25 @@
                 serverURL: serverURL,
                 reference: reference,
                 modules: modules,
-                testSuites: nil,
+                parallelizableModules: parallelizableModules,
+                testSuites: selectedTestSuites.isEmpty ? nil : selectedTestSuites,
+                skippedTestSuites: skippedTestSuites.isEmpty ? nil : skippedTestSuites,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
                 shardGranularity: shardGranularity,
-                buildRunId: buildRunId
+                buildRunId: buildRunId,
+                gitBranch: try await gitBranch(projectPath: projectPath)
             )
 
-            Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
+            // The identifier is what a workflow passes to the shard jobs as `--shard-plan-id`, and
+            // the generated matrices below carry it; printing it once here covers the providers
+            // whose output can't.
+            Logger.current.notice(
+                "Shard plan \(shardPlan.id) created: \(shardPlan.shard_count) shards",
+                metadata: .section
+            )
 
             if let archivePath {
                 try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
@@ -169,6 +214,14 @@
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
+        }
+
+        /// The branch of the checkout the tests were built from, which the server reads the suite
+        /// inventory from. The server can't derive it from the linked build run: that row is written
+        /// through an async ingestion buffer and is usually still unreadable when the plan is created
+        /// moments later, which silently falls the inventory back to the project's default branch.
+        private func gitBranch(projectPath: AbsolutePath) async throws -> String? {
+            try? await gitController.gitInfo(workingDirectory: projectPath).branch
         }
 
         /// Uploads the shard test products split so each shard downloads only what it needs: a single

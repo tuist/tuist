@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -10,6 +9,7 @@ import TuistGenerateCommand
 import TuistLoggerTesting
 import TuistLogging
 import TuistNooraTesting
+import TuistProcess
 import TuistRegistryCommand
 import TuistSupport
 import TuistTestCommand
@@ -249,12 +249,20 @@ struct DependenciesAcceptanceTestIosAppWithLocalSPMPackageGenerate {
     @Test(
         .withFixture("generated_ios_app_with_local_spm_package"),
         .inTemporaryDirectory,
-        .timeLimit(.minutes(1))
+        // The limit exists to catch the deadlock described above, which hangs forever, so it only
+        // has to be short enough to fail inside the job timeout. It must not double as a ceiling on
+        // how long the test may take: acceptance tests run ~8-wide per machine and their wall clock
+        // is dominated by co-scheduling, not by their own work.
+        .timeLimit(.minutes(15))
     )
     func install_then_generate_does_not_deadlock() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try TuistTest.expectContainsTarget(
+            "LocalLibTests",
+            inXcodeProj: fixtureDirectory.appending(components: "LocalPackage", "LocalPackage.xcodeproj")
+        )
     }
 }
 
@@ -262,7 +270,10 @@ struct DependenciesAcceptanceTestCommandLineToolWithLocalSPMTestOnlyDependencies
     @Test(
         .withFixture("generated_command_line_tool_with_local_spm_test_only_dependencies"),
         .inTemporaryDirectory,
-        .timeLimit(.minutes(1))
+        // Guards against `install` + `generate` hanging on the SwiftPM scratch-directory lock, the
+        // same failure mode as `install_then_generate_does_not_deadlock`. Sized to catch a hang, not
+        // to bound the test's wall clock, which is dominated by co-scheduling under CI load.
+        .timeLimit(.minutes(15))
     )
     func install_then_generate_ignores_local_package_test_only_dependencies() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -271,6 +282,70 @@ struct DependenciesAcceptanceTestCommandLineToolWithLocalSPMTestOnlyDependencies
             ["--path", fixtureDirectory.pathString, "--force-resolved-versions"]
         )
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+    }
+
+    @Test(
+        .withFixture("generated_command_line_tool_with_local_spm_test_only_dependencies"),
+        .inTemporaryDirectory,
+        .timeLimit(.minutes(15))
+    )
+    func install_then_generate_whenLocalPackageTestsAreEnabled_preservesCrossPackageDependencyClosure() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await FileSystem().writeText(
+            """
+            // swift-tools-version: 5.10
+            import PackageDescription
+
+            #if TUIST
+                import struct ProjectDescription.PackageSettings
+
+                let packageSettings = PackageSettings(
+                    productTypes: [
+                        "RuntimeLib": .staticFramework,
+                    ],
+                    includeLocalPackageTestTargets: true
+                )
+            #endif
+
+            let package = Package(
+                name: "CommandLineToolDependencies",
+                dependencies: [
+                    .package(path: "../RuntimePackage"),
+                    .package(path: "../TestSupportPackage"),
+                ]
+            )
+            """,
+            at: fixtureDirectory.appending(components: "Tuist", "Package.swift"),
+            options: [.overwrite]
+        )
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString, "--force-resolved-versions"]
+        )
+
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        for (package, targets) in [
+            ("RuntimePackage", ["RuntimeLib", "RuntimeLibTests"]),
+            ("TestSupportPackage", ["TestSupport"]),
+            ("TestSupportCorePackage", ["TestSupportCore", "TestSupportUtilities"]),
+        ] {
+            for target in targets {
+                try TuistTest.expectContainsTarget(
+                    target,
+                    inXcodeProj: fixtureDirectory.appending(components: package, "\(package).xcodeproj")
+                )
+            }
+        }
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "CommandLineTool-Workspace",
+                "--path", fixtureDirectory.pathString,
+                "--platform", "macos",
+                "--no-selective-testing",
+                "--no-upload",
+            ]
+        )
     }
 }
 

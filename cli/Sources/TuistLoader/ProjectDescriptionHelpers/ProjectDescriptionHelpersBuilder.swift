@@ -1,11 +1,10 @@
-import struct Command.CommandRunner
-import protocol Command.CommandRunning
 import FileSystem
 import Foundation
 import Path
 import TuistCore
 import TuistEnvironment
 import TuistLogging
+import TuistProcess
 import TuistSupport
 import TuistThreadSafe
 
@@ -191,6 +190,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
 
                 // If the same helpers directory has been previously compiled, we just return the module, no need to recompile it.
                 if try await fileSystem.exists(moduleCacheDirectory) {
+                    await fileSystem.markCacheEntryUsed(at: moduleCacheDirectory)
                     return module
                 }
 
@@ -271,7 +271,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             "-parse-as-library",
             "-emit-library",
             "-suppress-warnings",
-            "-I", projectDescriptionSearchPaths.includeSearchPath.pathString,
+        ] + projectDescriptionSearchPaths.includeSearchPaths.flatMap { ["-I", $0.pathString] } + [
             "-L", projectDescriptionSearchPaths.librarySearchPath.pathString,
             "-F", projectDescriptionSearchPaths.frameworkSearchPath.pathString,
             "-working-directory", outputDirectory.pathString,

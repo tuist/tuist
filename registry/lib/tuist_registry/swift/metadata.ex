@@ -92,7 +92,7 @@ defmodule TuistRegistry.Swift.Metadata do
       :timer.tc(fn ->
         bucket
         |> ExAws.S3.get_object(key)
-        |> ExAws.request()
+        |> S3.request()
       end)
 
     case result do
@@ -166,7 +166,7 @@ defmodule TuistRegistry.Swift.Metadata do
       :timer.tc(fn ->
         bucket
         |> ExAws.S3.head_object(key)
-        |> ExAws.request()
+        |> S3.request()
       end)
 
     case result do

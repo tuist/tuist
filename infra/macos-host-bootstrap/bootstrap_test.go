@@ -1,15 +1,219 @@
 package bootstrap
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
 	"golang.org/x/crypto/ssh"
 )
+
+// renderSSHReachabilityScript must install a minute-interval probe that reloads
+// the ssh socket when loopback :22 stops accepting — draining the exhausted
+// accept backlog that wedges the operator's SSH management channel.
+func TestRenderSSHReachabilityScript(t *testing.T) {
+	s := renderSSHReachabilityScript()
+	for _, want := range []string{
+		// Must create /usr/local/bin before the tee: on the first-boot path this
+		// runs before installTart (which otherwise makes the dir), so a fresh
+		// host has no /usr/local/bin and the tee would fail the whole bootstrap.
+		"mkdir -p /usr/local/bin",
+		"nc -z -G 3 127.0.0.1 22",
+		"bootout system/com.openssh.sshd",
+		"bootstrap system /System/Library/LaunchDaemons/ssh.plist",
+		"dev.tuist.ssh-reachability",
+		"<key>StartInterval</key>",
+		"<key>RunAtLoad</key>",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHReachabilityScript missing %q", want)
+		}
+	}
+	// Dead ends from earlier wrong hypotheses: the app firewall was OFF, and
+	// UseDNS was already `no` (the drop-in was a no-op). Make sure neither
+	// crept back in.
+	for _, forbidden := range []string{"socketfilterfw", "systemsetup -setremotelogin", "UseDNS", "sshd_config.d", "pfctl -d"} {
+		if strings.Contains(s, forbidden) {
+			t.Errorf("renderSSHReachabilityScript should not include the abandoned %q approach", forbidden)
+		}
+	}
+}
+
+// installTailscale must short-circuit on SkipTailscaleInstall before it
+// touches the SSH client — the tailnet-fallback caller relies on this so it
+// never stops tailscaled over the session that rides it. A nil client proves
+// no client method is reached.
+func TestInstallTailscale_SkipShortCircuitsBeforeClient(t *testing.T) {
+	cfg := Config{
+		SkipTailscaleInstall: true,
+		TailscaleBinaries:    []byte("nonempty-archive"),
+		TailscaleAuthKey:     "tskey-abc",
+	}
+	if err := installTailscale(context.Background(), nil, cfg); err != nil {
+		t.Fatalf("installTailscale with SkipTailscaleInstall = %v, want nil (no client use)", err)
+	}
+}
+
+// An OAuth-minted key is always tagged and has no default tag to fall back on,
+// so a fleet configured without tags can never join. Reject before pushing
+// anything, so the error lands on Machine.status.failureMessage rather than
+// surfacing as a join timeout that reads like a network fault. A legacy
+// pre-auth key carries its own tag binding and has to stay pushable untagged
+// while envs migrate.
+func TestValidateTailscaleCredential(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		credential string
+		tags       []string
+		wantErr    bool
+	}{
+		{name: "oauth without tags", credential: "tskey-client-abc123", wantErr: true},
+		{name: "oauth with tags", credential: "tskey-client-abc123", tags: []string{"tag:tuist-macmini-production"}},
+		{name: "pre-auth key without tags", credential: "tskey-auth-abc123"},
+		{name: "tailscale not wired", credential: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateTailscaleCredential(Config{TailscaleAuthKey: tc.credential, TailscaleTags: tc.tags})
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("validateTailscaleCredential = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// installTailscale must run the credential guard before it touches the SSH
+// client, so an unjoinable config never half-pushes. A nil client proves no
+// client method is reached.
+func TestInstallTailscale_GuardsCredentialBeforeClient(t *testing.T) {
+	cfg := Config{
+		TailscaleBinaries: []byte("nonempty-archive"),
+		TailscaleAuthKey:  "tskey-client-abc123",
+	}
+	if err := installTailscale(context.Background(), nil, cfg); err == nil {
+		t.Fatal("installTailscale with an OAuth credential and no tags = nil, want error")
+	}
+}
+
+// The fleet credential is an OAuth client secret, which `tailscale up` turns
+// into a freshly minted key. Two properties have to ride along, because the
+// implicit key defaults to ephemeral=true and preauthorized=false. This runs
+// the classification the renderer emits, rather than matching on its text, so
+// a rewrite that keeps the shape but breaks the behaviour still fails.
+func TestRenderTailscaleScript_AnnotatesOAuthCredential(t *testing.T) {
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	for _, tc := range []struct {
+		name       string
+		cfg        Config
+		credential string
+		want       string
+	}{
+		{
+			// A rented mini is wiped on release, so its record should go
+			// with it.
+			name:       "rented mini",
+			cfg:        Config{TailscaleTags: []string{"tag:tuist-macmini-production"}},
+			credential: "tskey-client-abc123",
+			want:       "tskey-client-abc123?ephemeral=true&preauthorized=true",
+		},
+		{
+			// A rack mini that sits powered off for an hour would lose its
+			// device, and with it the only path that does not go through
+			// the rack's subnet router. Omitting the parameter is not
+			// enough: the minted key defaults to ephemeral.
+			name: "rack mini",
+			cfg: Config{
+				TailscaleTags:             []string{"tag:tuist-macmini-staging"},
+				TailscalePersistentDevice: true,
+			},
+			credential: "tskey-client-abc123",
+			want:       "tskey-client-abc123?ephemeral=false&preauthorized=true",
+		},
+		{
+			// Bootstrap has to keep succeeding against the legacy
+			// credential while envs migrate; a pre-auth key takes no
+			// query parameters and appending them would corrupt it.
+			name:       "legacy pre-auth key",
+			cfg:        Config{TailscalePersistentDevice: true},
+			credential: "tskey-auth-abc123",
+			want:       "tskey-auth-abc123",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			script := renderTailscaleScript(tc.cfg)
+
+			// The minted key's properties only reach Tailscale if `up`
+			// reads the annotated variable. An edit that inlines the
+			// credential back into the flag would silently drop them.
+			if !strings.Contains(script, `--authkey="$TS_AUTH_KEY"`) {
+				t.Fatal("tailscale up must read the annotated $TS_AUTH_KEY, not the raw credential")
+			}
+
+			const marker = `case "$TS_AUTH_KEY" in`
+			start := strings.Index(script, marker)
+			if start < 0 {
+				t.Fatal("rendered script has no credential classification block")
+			}
+			end := strings.Index(script[start:], "esac")
+			if end < 0 {
+				t.Fatal("credential classification block is unterminated")
+			}
+			classify := script[start : start+end+len("esac")]
+
+			out, err := exec.Command(bash, "-c",
+				"TS_AUTH_KEY=\"$1\"\n"+classify+"\nprintf '%s' \"$TS_AUTH_KEY\"",
+				"bash", tc.credential).Output()
+			if err != nil {
+				t.Fatalf("run classification: %v", err)
+			}
+			if string(out) != tc.want {
+				t.Errorf("annotated credential = %q, want %q", out, tc.want)
+			}
+		})
+	}
+}
+
+// Whether a host joins as a standard device is rendered into the Tailscale
+// script, so it has to move the hash: otherwise a rack host bootstrapped
+// before the change would be stamped converged and keep joining ephemeral.
+func TestHostConfigHash_ChangesWithTailscalePersistentDevice(t *testing.T) {
+	base := Config{TailscaleTags: []string{"tag:tuist-macmini-staging"}}
+	persistent := base
+	persistent.TailscalePersistentDevice = true
+	if HostConfigHash(base) == HostConfigHash(persistent) {
+		t.Fatal("HostConfigHash must change when TailscalePersistentDevice changes")
+	}
+}
+
+// SkipTailscaleInstall is a transport-only flag: it must not perturb the
+// fleet-wide HostConfigHash (else a tailnet-fallback update would look like a
+// config drift and re-roll the fleet).
+func TestSkipTailscaleInstall_DoesNotAffectHostConfigHash(t *testing.T) {
+	base := Config{TailscaleBinaries: []byte("archive"), TailscaleAuthKey: "k"}
+	skipped := base
+	skipped.SkipTailscaleInstall = true
+	if HostConfigHash(base) != HostConfigHash(skipped) {
+		t.Fatal("SkipTailscaleInstall changed HostConfigHash; it must be transport-only")
+	}
+}
 
 func TestHostKeyState_PinnedMismatchReturnsTypedError(t *testing.T) {
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -161,37 +365,25 @@ func TestRenderLaunchdPlist_OmitsRunnerCacheWhenDisabled(t *testing.T) {
 }
 
 func TestRenderLaunchdPlist_RendersRunnerCacheRoot(t *testing.T) {
-	out := renderLaunchdPlist(Config{
-		NodeName:                "n1",
-		SSHUser:                 "m1",
-		RunnerCacheVolumeGiB:    400,
-		CacheVolumeMasterCapGiB: 25,
-	})
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", RunnerCacheVolumeGiB: 400})
 	if !strings.Contains(out, "<string>--runner-cache-root="+runnerCacheMountPoint+"</string>") {
 		t.Fatalf("expected --runner-cache-root in plist\n%s", out)
 	}
-	if !strings.Contains(out, "<string>--cache-volume-cap-gib=25</string>") {
-		t.Fatalf("expected --cache-volume-cap-gib in plist\n%s", out)
+	if !strings.Contains(out, "<string>--runner-cache-budget-gib=400</string>") {
+		t.Fatalf("expected --runner-cache-budget-gib in plist\n%s", out)
+	}
+	if strings.Contains(out, "--cache-volume-cap-gib") || strings.Contains(out, "--cache-volume-cas-gib") {
+		t.Fatalf("expected no built-in cache image flags in plist\n%s", out)
 	}
 }
 
-func TestRenderLaunchdPlist_OmitsCapGiBWhenDefault(t *testing.T) {
-	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", RunnerCacheVolumeGiB: 400})
-	if !strings.Contains(out, "--runner-cache-root=") {
-		t.Fatalf("expected --runner-cache-root when volume enabled\n%s", out)
-	}
-	if strings.Contains(out, "--cache-volume-cap-gib") {
-		t.Fatalf("expected --cache-volume-cap-gib omitted when cap is 0 (tart-kubelet default)\n%s", out)
-	}
-}
-
-func TestRenderRunnerCacheVolumeScript_CarriesQuotaAndVolume(t *testing.T) {
+func TestRenderRunnerCacheVolumeScript_CarriesBudgetAndVolume(t *testing.T) {
 	out := renderRunnerCacheVolumeScript(Config{RunnerCacheVolumeGiB: 400})
 	if !strings.Contains(out, "VOL="+runnerCacheVolumeName) {
 		t.Fatalf("expected volume name in script\n%s", out)
 	}
-	if !strings.Contains(out, "QUOTA_GIB=400") {
-		t.Fatalf("expected quota GiB in script\n%s", out)
+	if !strings.Contains(out, "BUDGET_GIB=400") {
+		t.Fatalf("expected budget GiB in script\n%s", out)
 	}
 	if !strings.Contains(out, `-quota "${QUOTA_GIB}GiB"`) {
 		t.Fatalf("expected -quota flag in script\n%s", out)
@@ -261,6 +453,7 @@ func TestHostConfigHash_IndependentOfPerHostFields(t *testing.T) {
 	// Per-host fields must not move the canonical hash, or every host in
 	// a fleet would falsely drift.
 	perHost.NodeName = "macmini-7"
+	perHost.SSHUser = "m1"
 	perHost.IP = "51.15.1.2"
 	perHost.Kubeconfig = "kubeconfig-yaml"
 	perHost.ProviderID = "scw-applesilicon://fr-par-1/abc"
@@ -270,6 +463,84 @@ func TestHostConfigHash_IndependentOfPerHostFields(t *testing.T) {
 	perHost.DisableVMGC = true
 	if HostConfigHash(base) != HostConfigHash(perHost) {
 		t.Fatalf("HostConfigHash must ignore per-host fields")
+	}
+}
+
+// The hash is stamped on Machine status, which the read-only tier can read,
+// and SHA-256 is cheap to brute-force. No credential may reach what it
+// digests, and rotating one must not move it.
+func TestHostConfigHash_KeepsCredentialsOutOfTheHashedMaterial(t *testing.T) {
+	fleet := Config{
+		TartKubeletBinary:    []byte("kubelet-v1"),
+		TailscaleBinaries:    []byte("ts-v1"),
+		LogShipperBinary:     []byte("shipper"),
+		LogShipURL:           "http://receiver:3100/loki/api/v1/push",
+		TailscaleTags:        []string{"tag:tuist-macmini"},
+		VMKuraEgressCIDR:     "10.96.0.0/12",
+		SSHIngressAllowCIDRs: []string{"10.0.0.0/8"},
+	}
+	credentials := func(suffix string) PerHost {
+		return PerHost{
+			UserPassword:     "sudo-password-" + suffix,
+			SSHPrivateKey:    []byte("ssh-private-key-" + suffix),
+			Kubeconfig:       "kubeconfig-token-" + suffix,
+			TailscaleAuthKey: "tskey-auth-" + suffix,
+			TailscaleState:   []byte("tailscaled-state-" + suffix),
+			GHActionsRunner: &GHActionsRunnerConfig{
+				GHOrg:                     "tuist",
+				GHRunnerRegistrationToken: "runner-registration-token-" + suffix,
+			},
+		}
+	}
+
+	first := fleet.WithPerHost(credentials("first"))
+	rotated := fleet.WithPerHost(credentials("rotated"))
+	if HostConfigHash(first) != HostConfigHash(fleet) || HostConfigHash(rotated) != HostConfigHash(fleet) {
+		t.Fatal("HostConfigHash must not depend on per-host credentials")
+	}
+
+	material := hostConfigMaterial(first)
+	for _, secret := range []string{
+		"sudo-password-first",
+		"ssh-private-key-first",
+		"kubeconfig-token-first",
+		"tskey-auth-first",
+		"tailscaled-state-first",
+		"runner-registration-token-first",
+	} {
+		if strings.Contains(material, secret) {
+			t.Errorf("hashed material contains the credential %q", secret)
+		}
+	}
+}
+
+// A render that fails is folded in as the inputs it rejected, not as the
+// error's text: the hashed material is built from Config values alone, so
+// nothing an error message carries can reach the digest on Machine status.
+func TestHostConfigHash_FoldsARenderFailureAsItsInputs(t *testing.T) {
+	for name, broken := range map[string]Config{
+		"firewall":          {VMKuraEgressCIDR: "10.96.0.0/99"},
+		"ssh-ingress-guard": {SSHIngressAllowCIDRs: []string{"10.0.0.0/99"}},
+		"cache-gateway":     {VMCacheGatewayCIDRs: []string{"10.0.0.0/99"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			material := hostConfigMaterial(broken)
+			if strings.Contains(material, "not an IPv4") {
+				t.Fatalf("hashed material carries the render error's text:\n%q", material)
+			}
+			if !strings.Contains(material, "10.0.0.0/99") && !strings.Contains(material, "10.96.0.0/99") {
+				t.Fatalf("hashed material must carry the rejected input:\n%q", material)
+			}
+		})
+	}
+
+	// A second broken value is still a different config, so it must still
+	// lift a FailedHostConfigHash pinned on the first.
+	if HostConfigHash(Config{VMKuraEgressCIDR: "10.96.0.0/99"}) == HostConfigHash(Config{VMKuraEgressCIDR: "10.96.0.0/98"}) {
+		t.Fatal("two different rejected firewall inputs must hash differently")
+	}
+	if HostConfigHash(Config{SSHIngressAllowCIDRs: []string{"10.0.0.0/99"}}) == HostConfigHash(Config{SSHIngressAllowCIDRs: []string{"10.0.0.0/98"}}) {
+		t.Fatal("two different rejected ssh ingress inputs must hash differently")
 	}
 }
 
@@ -375,13 +646,1373 @@ func TestRenderVMNATScript_AssertsDefaultRouteNATLeg(t *testing.T) {
 	if !strings.Contains(out, "route -n get default") {
 		t.Fatalf("expected default-route interface discovery\n%s", out)
 	}
-	if !strings.Contains(out, "nat on $DEFIF from 192.168.64.0/22 to any -> ($DEFIF)") {
+	if !strings.Contains(out, "nat on $DEFIF from 192.168.64.0/22 to $DEFDST -> ($DEFIF)") {
 		t.Fatalf("expected general-internet NAT leg on the default route\n%s", out)
+	}
+	// ...but the PN must be carved out of its destination, so cache traffic is
+	// never masqueraded to the host's public address while the PN route is
+	// briefly absent (that source is outside the kura NetworkPolicy's
+	// 172.16.0.0/22 ipBlock and gets dropped at ingress with no RST).
+	if !strings.Contains(out, `DEFDST="any"`) ||
+		!strings.Contains(out, `[ -n "$PNCIDR" ] && DEFDST="! $PNCIDR"`) {
+		t.Fatalf("expected the general-internet leg to exclude the PN CIDR\n%s", out)
 	}
 	// The idempotency short-circuit must re-converge after an external
 	// anchor flush: skipping the reload purely on a snapshot match would
 	// leave a flushed anchor empty forever (the snapshot still matches).
 	if !strings.Contains(out, `pfctl -a "com.apple/tuist.vmnat" -s nat`) {
 		t.Fatalf("expected short-circuit to verify the live anchor still holds rules\n%s", out)
+	}
+}
+
+// renderSSHIngressGuardScript must drop inbound :22 from everything except the
+// tailnet, loopback and the configured allow list. The flood that wedges a
+// runner arrives on the public interface from scanner ranges, and because
+// launchd binds the ssh socket to *:22 an exhausted backlog takes the tailnet
+// path down with it, so filtering the SYNs is what keeps the operator's
+// management channel alive.
+func TestRenderSSHIngressGuardScript(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, want := range []string{
+		// The tailnet is the unconditional escape hatch: a wrong allow list must
+		// still leave the drift loop a way back in over the fallback path.
+		"100.64.0.0/10",
+		"203.0.113.7/32",
+		// The reachability watchdog probes 127.0.0.1:22 every minute; blocking
+		// loopback would read to it as a permanent wedge.
+		"pass in quick on lo0 proto tcp to any port 22",
+		"block drop in quick proto tcp to any port 22",
+		// Must load under com.apple/, which the stock pf.conf already attaches
+		// to the live ruleset. See the no-pf.conf assertion below.
+		`pfctl -a "com.apple/tuist.sshguard" -f /etc/pf.anchors/tuist.sshguard`,
+		// Re-arm on boot and on an interval, so the rules survive a reboot or
+		// an external ruleset flush without another SSH round trip.
+		"dev.tuist.pfctl-sshguard",
+		"<key>RunAtLoad</key>",
+		"<key>StartInterval</key>",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHIngressGuardScript missing %q", want)
+		}
+	}
+	// The guard MUST NOT rely on a top-level anchor appended to /etc/pf.conf.
+	// That file is only read on a full ruleset load, which happens at boot, so
+	// on a live host `pfctl -a` would populate an anchor nothing evaluates
+	// while the drift update stamped HostConfigHash as converged: the guard
+	// would report shipped and silently filter nothing until a reboot.
+	if strings.Contains(s, "/etc/pf.conf") {
+		t.Error("guard touches /etc/pf.conf; a top-level anchor is not live until the next full load, so the rules would be inert on a running host")
+	}
+	// pf is first-match-wins across `quick` rules, so a block that renders above
+	// the passes would drop every management connection including our own.
+	if strings.Index(s, "block drop in quick proto tcp to any port 22") <
+		strings.Index(s, "pass in quick proto tcp from <ssh_allowed> to any port 22") {
+		t.Error("block rule renders before the pass rules; pf is first-match-wins on quick")
+	}
+}
+
+// A Tart VM's egress arrives inbound on the vmnet bridge before it is routed
+// and NAT'd out, so a bare `to any port 22` block also drops every SSH the
+// customer workload makes — private git dependencies, ssh:// submodules, deploy
+// steps — as a silent timeout rather than a refusal. The guard exists to keep
+// scan traffic off the host's own listener, so it must pass VM egress while
+// still denying a VM the host's and a sibling's :22.
+func TestRenderSSHIngressGuardScript_PassesVMEgress(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	for _, want := range []string{
+		"table <vm_ssh_sources> persist { 192.168.64.0/22 }",
+		"pass in quick proto tcp from <vm_ssh_sources> to any port 22 flags any keep state",
+		"block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHIngressGuardScript missing %q", want)
+		}
+	}
+	// pf is first-match-wins across `quick` rules. The VM pass has to render
+	// above the catch-all block or VM egress stays dropped, and the VM→VM block
+	// has to render above that pass or a VM reaches the host's :22.
+	vmPass := strings.Index(s, "pass in quick proto tcp from <vm_ssh_sources> to any port 22")
+	if strings.Index(s, "block drop in quick proto tcp to any port 22") < vmPass {
+		t.Error("catch-all block renders before the VM pass; VM egress to :22 stays dropped")
+	}
+	if vmPass < strings.Index(s, "block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22") {
+		t.Error("VM pass renders before the VM→VM block; a VM could reach the host's :22")
+	}
+}
+
+// A VM that dials the host's en0, LAN or tailnet address on :22 is delivered to
+// the same launchd listener as one that dials the bridge, so blocking the vmnet
+// range alone still lets a customer workload flood the host's backlog. Verified
+// on ber1-proto-01: from inside a runner VM, the host's LAN and tailnet
+// addresses accepted :22 until a `to self` block was loaded. The dynamic
+// `(self)` form loaded cleanly there and blocked nothing, because xnu has no
+// interface groups and leaves its table empty.
+func TestRenderSSHIngressGuardScript_DeniesVMsEveryHostAddress(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	const selfBlock = "block drop in quick proto tcp from <vm_ssh_sources> to self port 22"
+	if !strings.Contains(s, selfBlock) {
+		t.Fatalf("renderSSHIngressGuardScript missing %q", selfBlock)
+	}
+	if strings.Index(s, "pass in quick proto tcp from <vm_ssh_sources> to any port 22") < strings.Index(s, selfBlock) {
+		t.Error("VM pass renders before the host-address block; a VM reaches the host's :22 through its en0, LAN or tailnet address")
+	}
+
+	anchor := sshGuardAnchor(t, s)
+	for _, line := range strings.Split(anchor, "\n") {
+		if !strings.HasPrefix(line, "#") && strings.Contains(line, "(self)") {
+			t.Errorf("rule uses the dynamic (self), which macOS pf resolves to an empty table: %q", line)
+		}
+	}
+
+	// pfctl expands the static form to one rule per host address, and every
+	// host has loopback, so a parsed anchor without it means `self` was not
+	// expanded.
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	if !strings.Contains(parsed, "from <vm_ssh_sources> to 127.0.0.1 port = 22") {
+		t.Errorf("pfctl did not expand self to the host's addresses\n%s", parsed)
+	}
+}
+
+// On a fresh host pf is enabled under the bootstrap's own SSH session, so that
+// session reaches the guard with no state. With pf's default `flags S/SA` only a
+// SYN creates state, and the session's next packet falls through to the block.
+func TestRenderSSHIngressGuardScript_PassesAdmitEstablishedSessions(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := sshGuardAnchor(t, s)
+
+	assertPassesUseFlagsAny := func(source, rules string) {
+		t.Helper()
+		passes := 0
+		for _, line := range strings.Split(rules, "\n") {
+			if !strings.HasPrefix(line, "pass ") {
+				continue
+			}
+			passes++
+			if !strings.Contains(line, " flags any ") {
+				t.Errorf("%s: pass rule only admits new connections: %q", source, line)
+			}
+		}
+		if passes == 0 {
+			t.Fatalf("%s: no pass rules in\n%s", source, rules)
+		}
+	}
+	assertPassesUseFlagsAny("rendered anchor", anchor)
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	assertPassesUseFlagsAny("pfctl", parsed)
+}
+
+// sshGuardAnchor returns the pf anchor the guard script writes, with the
+// session source filled in the way the host shell does.
+func sshGuardAnchor(t *testing.T, script string) string {
+	t.Helper()
+	const open = "<<PFCONF\n"
+	start := strings.Index(script, open)
+	if start < 0 {
+		t.Fatalf("no PFCONF heredoc in rendered script\n%s", script)
+	}
+	anchor := script[start+len(open):]
+	end := strings.Index(anchor, "\nPFCONF\n")
+	if end < 0 {
+		t.Fatalf("unterminated PFCONF heredoc\n%s", script)
+	}
+	return strings.ReplaceAll(anchor[:end+1], "${SESSION_ENTRY}", ", 198.51.100.9")
+}
+
+// pfctlParse runs the anchor through `pfctl -n -v`, which parses without
+// loading and prints the rules as pf expands them. ok is false where pfctl is
+// not available, i.e. anywhere but macOS.
+func pfctlParse(t *testing.T, anchor string) (parsed string, ok bool) {
+	t.Helper()
+	pfctl, err := exec.LookPath("pfctl")
+	if err != nil {
+		return "", false
+	}
+	file := filepath.Join(t.TempDir(), "tuist.sshguard")
+	if err := os.WriteFile(file, []byte(anchor), 0o600); err != nil {
+		t.Fatalf("write anchor: %v", err)
+	}
+	out, err := exec.Command(pfctl, "-n", "-v", "-f", file).Output()
+	if err != nil {
+		t.Fatalf("pfctl rejects the anchor: %v\n%s", err, anchor)
+	}
+	return string(out), true
+}
+
+// A malformed allow CIDR must fail closed rather than render a creative
+// ruleset onto a host we can only reach through the port it governs.
+func TestRenderSSHIngressGuardScript_RejectsBadCIDR(t *testing.T) {
+	for _, bad := range []string{"not-a-cidr", "203.0.113.7", "2001:db8::/32"} {
+		if _, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{bad}}); err == nil {
+			t.Errorf("renderSSHIngressGuardScript accepted %q; must fail closed", bad)
+		}
+	}
+}
+
+// A rack host's allow list is the fleet's plus the host's subnet routers, and
+// the router entry is the one that matters: with SNAT the operator's LAN dial
+// arrives from the router's own address, which is neither the tailnet nor the
+// operator's egress. The session source cannot stand in for it, because a push
+// over the tailnet fallback replaces it with a tailnet address.
+func TestRenderSSHIngressGuardScript_AdmitsEveryConfiguredSource(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{
+		SSHIngressAllowCIDRs: []string{"78.47.186.71/32", "192.168.0.223/32"},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	want := "table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}, 78.47.186.71/32, 192.168.0.223/32 }"
+	if !strings.Contains(s, want) {
+		t.Fatalf("allow table does not carry every configured source; want %q in\n%s", want, s)
+	}
+}
+
+// The guard needs a second path to be safe: without a tailnet, an allow list
+// that turns out to be wrong strands the host behind VNC with no way back.
+func TestInstallSSHIngressGuard_SkipsWithoutTailnet(t *testing.T) {
+	if err := installSSHIngressGuard(context.Background(), nil, Config{}); err != nil {
+		t.Fatalf("expected a no-op without a tailscale auth key, got %v", err)
+	}
+}
+
+// The allow list is fleet config, not per-host state, so a policy change has to
+// move the hash or it would never roll to already-bootstrapped minis.
+func TestHostConfigHash_ChangesWithSSHIngressAllowCIDRs(t *testing.T) {
+	base := Config{}
+	changed := Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}}
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatal("HostConfigHash must change when the ssh ingress allow list changes")
+	}
+}
+
+// The PN NAT leg must be emitted as soon as the VLAN device exists, not only
+// once DHCP has given it an address. Gating on the address left a window in
+// which the ruleset carried no PN leg at all; a VM booting into that window ran
+// its whole job un-NAT'd and every cache request hung, because once the address
+// (and route) arrived its packets reached the kura node with a 192.168.64.x
+// source that the per-instance NetworkPolicy denies at ingress.
+func TestRenderVMNATScript_PNLegKeysOnDeviceExistenceNotAddress(t *testing.T) {
+	out := renderVMNATScript(Config{VMCachePNCIDR: "172.16.0.0/22"})
+
+	// An addressed VLAN still wins when several exist, so a leftover device
+	// from a re-attachment cannot shadow the live one...
+	if !strings.Contains(out, `if ifconfig "$IFACE" 2>/dev/null | grep -q "inet "; then`) {
+		t.Fatalf("expected an addressed vlan to be preferred\n%s", out)
+	}
+	// ...but an unaddressed one is still recorded rather than skipped.
+	if !strings.Contains(out, `[ -n "$PNIF" ] || PNIF="$IFACE"`) {
+		t.Fatalf("expected an unaddressed vlan to be used as a fallback\n%s", out)
+	}
+	// pf re-resolves a parenthesised interface, so the rule is correct even
+	// when emitted before the address lands.
+	if !strings.Contains(out, "nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)") {
+		t.Fatalf("expected a dynamic-interface PN NAT leg\n%s", out)
+	}
+	// A host with no PN VLAN at all cannot translate cache traffic; that must
+	// reach the daemon log instead of degrading silently.
+	if !strings.Contains(out, "no vlan* interface for PN") {
+		t.Fatalf("expected a missing PN interface to be logged\n%s", out)
+	}
+}
+
+// The helper the LaunchDaemon runs every 60s is written as a heredoc, so a
+// syntax error in it is invisible until pf silently holds no rules on a live
+// host — which reads exactly like the outage this leg exists to prevent.
+func TestRenderVMNATScript_HelperIsValidSh(t *testing.T) {
+	out := renderVMNATScript(Config{
+		VMKuraEgressCIDR: "10.96.0.0/12",
+		VMCachePNCIDR:    "172.16.0.0/22",
+	})
+	const open = "<<'VMNAT'\n"
+	start := strings.Index(out, open)
+	if start < 0 {
+		t.Fatalf("no VMNAT heredoc in rendered script\n%s", out)
+	}
+	body := out[start+len(open):]
+	end := strings.Index(body, "\nVMNAT\n")
+	if end < 0 {
+		t.Fatalf("unterminated VMNAT heredoc\n%s", out)
+	}
+	body = body[:end]
+
+	script := filepath.Join(t.TempDir(), "tuist-pf-vmnat")
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatalf("write helper: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("helper is not valid sh: %v\n%s\n---\n%s", err, combined, body)
+	}
+}
+
+// The guard is delivered as nested heredocs, so a syntax error in it is
+// invisible until pf holds no rules on a live host, which reads exactly like
+// the wedge the guard exists to prevent.
+func TestRenderSSHIngressGuardScript_IsValidSh(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	script := filepath.Join(t.TempDir(), "tuist-ssh-ingress-guard")
+	if err := os.WriteFile(script, []byte(s), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("guard script is not valid sh: %v\n%s", err, combined)
+	}
+}
+
+func TestRenderLogShipperScript_TailsTartKubeletLogWithHostIdentity(t *testing.T) {
+	out := renderLogShipperInstallScript(Config{
+		NodeName:   "tuist-tuist-runners-fleet-abc12",
+		LogShipURL: "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
+		LogShipEnv: "staging",
+	})
+	for _, want := range []string{
+		"<string>--url=http://tuist-alloy-receiver-staging:3100/loki/api/v1/push</string>",
+		"<string>--file=tuist-macos-tart-kubelet=/var/log/tart-kubelet.log</string>",
+		"<string>--instance=tuist-tuist-runners-fleet-abc12</string>",
+		"<string>--env=staging</string>",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("rendered script missing %q\n%s", want, out)
+		}
+	}
+}
+
+// The env label is optional; a chart that hasn't set it must not render an
+// empty flag, which the agent would read as an empty label value.
+func TestRenderLogShipperScript_OmitsEnvWhenUnset(t *testing.T) {
+	out := renderLogShipperInstallScript(Config{LogShipURL: "http://receiver:3100/loki/api/v1/push"})
+	if strings.Contains(out, "--env=") {
+		t.Fatalf("expected no --env flag when LogShipEnv is empty\n%s", out)
+	}
+	if strings.Contains(out, "--instance=") {
+		t.Fatalf("expected no --instance flag when NodeName is empty\n%s", out)
+	}
+}
+
+// A `&` in the push URL would otherwise close the plist's <string> element
+// malformed, launchd would refuse the job, and the host would go quiet with no
+// symptom other than absent logs.
+func TestRenderLogShipperScript_EscapesXMLInSubstitutedValues(t *testing.T) {
+	out := renderLogShipperInstallScript(Config{LogShipURL: "http://receiver:3100/push?a=1&b=2"})
+	if !strings.Contains(out, "--url=http://receiver:3100/push?a=1&amp;b=2</string>") {
+		t.Fatalf("expected the ampersand to be XML-escaped\n%s", out)
+	}
+}
+
+// The script ships the binary on stdin and the plist as a heredoc; a syntax
+// error in it is invisible until a host silently stops shipping logs.
+func TestRenderLogShipperScript_IsValidSh(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "install-log-shipper")
+	body := renderLogShipperInstallScript(Config{
+		NodeName:   "macmini-1",
+		LogShipURL: "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
+		LogShipEnv: "staging",
+	})
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("log shipper script is not valid sh: %v\n%s", err, combined)
+	}
+}
+
+// All three inputs gate the feature. The binary rides the operator image, the
+// push URL comes from the chart, and the tailnet is the only route to that URL
+// — the receiver does not exist on the public internet.
+func TestLogShippingEnabled_RequiresBinaryURLAndTailnet(t *testing.T) {
+	full := Config{
+		LogShipperBinary: []byte("shipper"),
+		LogShipURL:       "http://receiver:3100/loki/api/v1/push",
+		TailscaleAuthKey: "auth-key",
+	}
+	if !logShippingEnabled(full) {
+		t.Fatal("expected a fully wired config to enable host logging")
+	}
+	for name, mutate := range map[string]func(*Config){
+		"no binary":  func(c *Config) { c.LogShipperBinary = nil },
+		"no url":     func(c *Config) { c.LogShipURL = "" },
+		"no tailnet": func(c *Config) { c.TailscaleAuthKey = "" },
+	} {
+		cfg := full
+		mutate(&cfg)
+		if logShippingEnabled(cfg) {
+			t.Fatalf("expected host logging to be disabled with %s", name)
+		}
+	}
+}
+
+// Turning the chart flag off has to REMOVE the daemon, not merely stop pushing
+// a new config to it. A launchd job that is already loaded keeps running with
+// whatever URL and env label it was last given, so a disable that only skipped
+// the install would stop no ingestion at all — leaving the rollback lever
+// attached to nothing.
+func TestRenderLogShipperScript_UninstallsWhenDisabled(t *testing.T) {
+	out := renderLogShipperScript(Config{LogShipperBinary: []byte("shipper")})
+	for _, want := range []string{
+		"launchctl bootout system \"$PLIST\"",
+		"rm -f \"$PLIST\"",
+		"rm -f /usr/local/bin/tuist-log-shipper",
+		// The positions file has to go too: it points into a log that kept
+		// growing while the agent was off, so resuming from it would replay the
+		// whole disabled window — the exact cost the flag was flipped to avoid.
+		"rm -rf /var/lib/tuist-log-shipper",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("disabled render missing %q\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "launchctl bootstrap") {
+		t.Fatalf("disabled render must not load the job\n%s", out)
+	}
+}
+
+// The uninstall is delivered by the drift loop, which only fires when the fleet
+// hash moves. A disable that left the hash unchanged would never reach a host.
+func TestHostConfigHash_ChangesWhenLogShippingIsTurnedOff(t *testing.T) {
+	enabled := Config{
+		TartKubeletBinary: []byte("kubelet-v1"),
+		LogShipperBinary:  []byte("shipper-v1"),
+		LogShipURL:        "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push",
+		LogShipEnv:        "staging",
+		TailscaleAuthKey:  "auth-key",
+	}
+	disabled := enabled
+	disabled.LogShipURL = ""
+	if HostConfigHash(enabled) == HostConfigHash(disabled) {
+		t.Fatal("HostConfigHash must change when host logging is turned off, or the uninstall never rolls")
+	}
+}
+
+// The uninstall runs on hosts that never carried the agent, so it has to be a
+// clean no-op there rather than a failed step that fails the whole drift roll.
+func TestRenderLogShipperUninstallScript_IsIdempotentAndValidSh(t *testing.T) {
+	body := renderLogShipperUninstallScript()
+	if !strings.Contains(body, "2>/dev/null || true") {
+		t.Fatalf("bootout of an absent job must not fail the script\n%s", body)
+	}
+	for _, removal := range []string{"rm -f \"$PLIST\"", "rm -f /usr/local/bin/tuist-log-shipper", "rm -rf /var/lib/tuist-log-shipper"} {
+		if !strings.Contains(body, removal) {
+			t.Fatalf("missing %q\n%s", removal, body)
+		}
+	}
+	script := filepath.Join(t.TempDir(), "uninstall-log-shipper")
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	if combined, err := exec.Command("sh", "-n", script).CombinedOutput(); err != nil {
+		t.Fatalf("uninstall script is not valid sh: %v\n%s", err, combined)
+	}
+}
+
+// Turning host logs on, pointing them at a different receiver, or re-baking the
+// agent all have to move the fleet hash — otherwise the change never reaches
+// an already-bootstrapped mini, which is exactly how node_exporter silently
+// skipped every drift update once.
+func TestHostConfigHash_ChangesWithLogShipping(t *testing.T) {
+	// An operator image that carries the agent but no push URL is the disabled
+	// state, so the URL is what turns the feature on from here.
+	base := Config{
+		TartKubeletBinary: []byte("kubelet-v1"),
+		LogShipperBinary:  []byte("shipper-v1"),
+	}
+
+	url := base
+	url.LogShipURL = "http://tuist-alloy-receiver-staging:3100/loki/api/v1/push"
+	if HostConfigHash(base) == HostConfigHash(url) {
+		t.Fatal("HostConfigHash must change when the log push URL changes")
+	}
+
+	moved := url
+	moved.LogShipURL = "http://tuist-alloy-receiver-canary:3100/loki/api/v1/push"
+	if HostConfigHash(url) == HostConfigHash(moved) {
+		t.Fatal("HostConfigHash must change when the receiver moves")
+	}
+
+	env := url
+	env.LogShipEnv = "staging"
+	if HostConfigHash(url) == HostConfigHash(env) {
+		t.Fatal("HostConfigHash must change when the log env label changes")
+	}
+
+	rebuilt := env
+	rebuilt.LogShipperBinary = []byte("shipper-v2")
+	if HostConfigHash(env) == HostConfigHash(rebuilt) {
+		t.Fatal("HostConfigHash must change when the log shipper binary is re-baked")
+	}
+}
+
+// The shipper tails whatever launchd points tart-kubelet's stdout at. Nothing
+// enforces that at compile time, and a silent mismatch is invisible: the plist
+// would still load, the agent would still run, and the host would just never
+// appear in Loki.
+func TestLogShipperTailsTheTartKubeletLaunchdSink(t *testing.T) {
+	plist := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"})
+	if !strings.Contains(plist, "<key>StandardOutPath</key><string>"+tartKubeletLogPath+"</string>") {
+		t.Fatalf("tart-kubelet's launchd sink is not %s; the log shipper would tail a dead file\n%s", tartKubeletLogPath, plist)
+	}
+	if !strings.Contains(plist, "<key>StandardErrorPath</key><string>"+tartKubeletLogPath+"</string>") {
+		t.Fatalf("tart-kubelet's stderr does not go to %s, so panics would never ship\n%s", tartKubeletLogPath, plist)
+	}
+	shipper := renderLogShipperInstallScript(Config{LogShipURL: "http://receiver:3100/loki/api/v1/push"})
+	if !strings.Contains(shipper, "--file="+tartKubeletLogJob+"="+tartKubeletLogPath+"</string>") {
+		t.Fatalf("the shipper does not tail %s\n%s", tartKubeletLogPath, shipper)
+	}
+}
+
+// Hosts provisioned before the begin/end markers existed carry a bare,
+// un-delimited anchor/load-anchor pair in /etc/pf.conf. A marker-only strip
+// leaves it in place and appends a second copy, so loading /etc/pf.conf hits
+// "cannot define table vm_sources: Resource busy" and rejects the WHOLE
+// ruleset. pf then keeps serving whatever it loaded previously, which no longer
+// carries the stock nat-anchor "com.apple/*" line, so the
+// com.apple/tuist.vmnat sub-anchor holding the VM NAT rules is never evaluated:
+// cache traffic leaves un-NAT'd with its 192.168.64.x source, the per-instance
+// kura NetworkPolicy drops it at ingress with no RST, and every cache request
+// hangs until its client timeout. Observed on a live production host whose
+// anchor held perfectly correct rules that nothing ever consulted.
+func TestRenderVMEgressFirewallScript_StripsLegacyUndelimitedAnchorBlock(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCachePNCIDR: "172.16.0.0/22"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	// The command may be split across continuation lines; collect it whole.
+	var sedLine string
+	lines := strings.Split(script, "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "sudo sed ") {
+			continue
+		}
+		parts := []string{}
+		for _, l := range lines[i:] {
+			parts = append(parts, strings.TrimSuffix(strings.TrimSpace(l), `\`))
+			if !strings.HasSuffix(strings.TrimSpace(l), `\`) {
+				break
+			}
+		}
+		sedLine = strings.Join(parts, " ")
+		break
+	}
+	if sedLine == "" || !strings.Contains(sedLine, "/etc/pf.conf") {
+		t.Fatalf("no pf.conf strip command in rendered script\n%s", script)
+	}
+
+	// A host that has been re-pushed once: the legacy block the old bootstrap
+	// appended, then the canonical marker-delimited block.
+	const legacy = `# Tuist runner VM egress filter — see /etc/pf.anchors/tuist.runners
+anchor "tuist.runners"
+load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
+`
+	fixture := `scrub-anchor "com.apple/*"
+nat-anchor "com.apple/*"
+rdr-anchor "com.apple/*"
+anchor "com.apple/*"
+load anchor "com.apple" from "/etc/pf.anchors/com.apple"
+` + legacy + "# BEGIN tuist.runners\n" + legacy + "# END tuist.runners\n"
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pf.conf")
+	if err := os.WriteFile(path, []byte(fixture), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	// Run the very expressions the host runs, with the in-place flag removed so
+	// the result lands on stdout.
+	cmd := strings.Replace(sedLine, "sudo ", "", 1)
+	cmd = strings.Replace(cmd, "-i.bak ", "", 1)
+	cmd = strings.Replace(cmd, "/etc/pf.conf", path, 1)
+	out, err := exec.Command("sh", "-c", cmd).Output()
+	if err != nil {
+		t.Fatalf("run %q: %v", cmd, err)
+	}
+
+	if n := strings.Count(string(out), `anchor "tuist.runners"`); n != 0 {
+		t.Fatalf("strip left %d tuist.runners anchor line(s); a re-push would duplicate them and break the whole pf load\n%s", n, out)
+	}
+	// The stock Apple hooks must survive: losing nat-anchor "com.apple/*" is
+	// precisely the failure this guards against.
+	if !strings.Contains(string(out), `nat-anchor "com.apple/*"`) {
+		t.Fatalf("strip removed the stock Apple nat-anchor\n%s", out)
+	}
+}
+
+// HostConfigHash zeroes TailscaleAuthKey, so anything the rendered script keys
+// on must survive that. If the render consulted the auth key, the enabled and
+// disabled configs would hash identically and the flag would move nothing —
+// neither the install nor the uninstall would ever reach a host.
+func TestRenderLogShipperScript_ChoiceSurvivesTheHashZeroingTheAuthKey(t *testing.T) {
+	cfg := Config{
+		LogShipperBinary: []byte("shipper"),
+		LogShipURL:       "http://receiver:3100/loki/api/v1/push",
+		TailscaleAuthKey: "auth-key",
+	}
+	withKey := renderLogShipperScript(cfg)
+	cfg.TailscaleAuthKey = ""
+	if renderLogShipperScript(cfg) != withKey {
+		t.Fatal("the rendered script must not depend on the auth key the hash strips")
+	}
+	if !strings.Contains(withKey, "launchctl bootstrap") {
+		t.Fatalf("a configured fleet must render the install, not the uninstall\n%s", withKey)
+	}
+}
+
+// The resolver only redirects `.ts.net`. Scoping it to the whole of
+// tuist.dev would be the obvious shortcut for reaching the registry by its
+// vanity name, and it would break the host: MagicDNS knows nothing of
+// tuist.dev, so every other name under it — the server, the Swift
+// registry — would start resolving nowhere.
+func TestRenderTailnetResolverScript_ScopesToTsNetOnly(t *testing.T) {
+	script := renderTailnetResolverScript()
+	if !strings.Contains(script, "/etc/resolver/ts.net") {
+		t.Fatalf("resolver must be installed for ts.net, got:\n%s", script)
+	}
+	if strings.Contains(script, "/etc/resolver/tuist.dev") {
+		t.Fatalf("resolver must not capture tuist.dev, got:\n%s", script)
+	}
+	if !strings.Contains(script, "nameserver 100.100.100.100") {
+		t.Fatalf("resolver must point at MagicDNS, got:\n%s", script)
+	}
+}
+
+// macOS caches negative answers, and these names answered NXDOMAIN on
+// every host until this file existed. Without a flush the cached
+// negatives outlive the fix, so a roll would look applied while lookups
+// kept failing.
+func TestRenderTailnetResolverScript_FlushesTheNegativeCache(t *testing.T) {
+	script := renderTailnetResolverScript()
+	if !strings.Contains(script, "dscacheutil -flushcache") {
+		t.Fatalf("resolver install must flush the DNS cache, got:\n%s", script)
+	}
+}
+
+// hashPartInstaller names the step that re-applies each part of
+// HostConfigHash on an already-bootstrapped host, across both of the
+// sections it hashes: the rendered scripts and the embedded binary SHAs.
+//
+// Being in the hash is not the same as reaching a host, and the gap between
+// the two is silent in the worst possible way: a part that moves the
+// fingerprint makes the drift loop roll every mini, and if nothing on the
+// update path re-applies it, the roll succeeds and stamps the host
+// converged without the host ever changing. The fleet then reports itself
+// correct while carrying none of the config. A part is therefore a promise
+// that UpdateTartKubelet keeps, and this table is where the promise is
+// written down.
+//
+// Several parts share an installer, which is why this maps to a step rather
+// than pairing names one to one: installVMEgressFirewall renders both the
+// firewall anchor and the NAT helper, and each binary rides the same step
+// that installs the script driving it.
+//
+// Bootstrap-only work must not appear in the hash at all rather than
+// appear here unmapped.
+var hashPartInstaller = map[string]string{
+	"firewall":                "installVMEgressFirewall",
+	"vmnat":                   "installVMEgressFirewall",
+	"pn-interface":            "installVMCachePNInterface",
+	"runner-cache-volume":     "installRunnerCacheVolume",
+	"launchd":                 "loadTartKubeletLaunchd",
+	"launchd-plist":           "loadTartKubeletLaunchd",
+	"tailscale":               "installTailscale",
+	"node-exporter":           "installNodeExporter",
+	"tailnet-resolver":        "installTailnetResolver",
+	"local-network-allowlist": "installLocalNetworkAllowlist",
+	"software-update-policy":  "installSoftwareUpdatePolicy",
+	"command-line-tools":      "installCommandLineTools",
+	"setup-assistant":         "installSetupAssistantSuppression",
+	"log-shipper":             "installLogShipper",
+	"host-sensors":            "installHostSensors",
+	"tart-kubelet-install":    "installTartKubelet",
+	"tart-kubelet-probe":      "installTartKubelet",
+	"ssh-reachability":        "installSSHReachability",
+	"ssh-ingress-guard":       "installSSHIngressGuard",
+	"tart-install":            "installTart",
+	"tart-prune":              "installTart",
+
+	"tart-kubelet":         "installTartKubelet",
+	"tart-tarball":         "installTart",
+	"tailscale-binaries":   "installTailscale",
+	"node-exporter-binary": "installNodeExporter",
+	"log-shipper-binary":   "installLogShipper",
+	"host-sensors-binary":  "installHostSensors",
+}
+
+// Reads the source rather than the behaviour because the invariant is
+// structural: both sides are lists a person edits, and nothing in the type
+// system ties one to the other. Driving a real UpdateTartKubelet would need
+// a live SSH host and would still only prove the steps it happened to
+// reach.
+func TestUpdateTartKubelet_AppliesEveryHashedStep(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "bootstrap.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse bootstrap.go: %v", err)
+	}
+
+	parts := hashedPartNames(t, file)
+	if len(parts) == 0 {
+		t.Fatal("found no hashed part names in HostConfigHash; the part table moved or changed shape")
+	}
+	called := calledFunctions(t, file, "UpdateTartKubelet")
+
+	for _, part := range parts {
+		installer, mapped := hashPartInstaller[part]
+		if !mapped {
+			t.Errorf("HostConfigHash part %q has no entry in hashPartInstaller: name the step that re-applies it on the drift path, or drop the part from the hash if the work is bootstrap-only", part)
+			continue
+		}
+		if !called[installer] {
+			t.Errorf("HostConfigHash part %q is applied by %s, which UpdateTartKubelet never calls: a roll would stamp the host converged without applying it", part, installer)
+		}
+	}
+
+	hashed := make(map[string]bool, len(parts))
+	for _, part := range parts {
+		hashed[part] = true
+	}
+	for part := range hashPartInstaller {
+		if !hashed[part] {
+			t.Errorf("hashPartInstaller names %q, which HostConfigHash no longer hashes; drop the stale entry", part)
+		}
+	}
+}
+
+// hashedPartNames returns the `name` field of every element of the
+// `[]struct{ name, script string }` table hostConfigMaterial iterates.
+func hashedPartNames(t *testing.T, file *ast.File) []string {
+	t.Helper()
+
+	var names []string
+	ast.Inspect(findFunc(t, file, "hostConfigMaterial"), func(n ast.Node) bool {
+		lit, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+		// The part table is the only composite literal here whose elements
+		// are themselves two-string literals.
+		for _, elt := range lit.Elts {
+			inner, ok := elt.(*ast.CompositeLit)
+			if !ok || len(inner.Elts) != 2 {
+				return true
+			}
+			name, ok := inner.Elts[0].(*ast.BasicLit)
+			if !ok || name.Kind != token.STRING {
+				return true
+			}
+			unquoted, err := strconv.Unquote(name.Value)
+			if err != nil {
+				t.Fatalf("unquote part name %s: %v", name.Value, err)
+			}
+			names = append(names, unquoted)
+		}
+		return false
+	})
+	return names
+}
+
+// calledFunctions returns the names of the functions called directly in the
+// named function's body.
+func calledFunctions(t *testing.T, file *ast.File, name string) map[string]bool {
+	t.Helper()
+
+	called := map[string]bool{}
+	ast.Inspect(findFunc(t, file, name), func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			if ident, ok := call.Fun.(*ast.Ident); ok {
+				called[ident.Name] = true
+			}
+		}
+		return true
+	})
+	return called
+}
+
+func findFunc(t *testing.T, file *ast.File, name string) *ast.FuncDecl {
+	t.Helper()
+
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if ok && fn.Recv == nil && fn.Name.Name == name {
+			return fn
+		}
+	}
+	t.Fatalf("no function %s in bootstrap.go", name)
+	return nil
+}
+
+// A single-guest host must render exactly what it rendered before the
+// multi-guest flags existed. Both fields resolve to 1 on such a host, which
+// is already tart-kubelet's default, so emitting them would buy nothing and
+// cost a fleet-wide hash change — i.e. a drift push to every existing mini
+// for a no-op.
+func TestRenderLaunchdPlist_OmitsMultiGuestFlagsForSingleGuestHost(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:          "n1",
+		SSHUser:           "m1",
+		VNCRelayPort:      5900,
+		VNCRelayPortCount: 1,
+		MinGoldensKept:    1,
+	})
+	if strings.Contains(out, "--vnc-relay-port-count") {
+		t.Fatalf("expected --vnc-relay-port-count omitted for a single-guest host\n%s", out)
+	}
+	if strings.Contains(out, "--min-goldens-kept") {
+		t.Fatalf("expected --min-goldens-kept omitted when it equals tart-kubelet's default\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersMultiGuestFlags(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:          "n1",
+		SSHUser:           "m1",
+		VNCRelayPort:      5900,
+		VNCRelayPortCount: 2,
+		MinGoldensKept:    2,
+	})
+	if !strings.Contains(out, "<string>--vnc-relay-port=5900</string>") {
+		t.Fatalf("expected the relay base port in plist\n%s", out)
+	}
+	if !strings.Contains(out, "<string>--vnc-relay-port-count=2</string>") {
+		t.Fatalf("expected --vnc-relay-port-count for a dual-guest host\n%s", out)
+	}
+	if !strings.Contains(out, "<string>--min-goldens-kept=2</string>") {
+		t.Fatalf("expected --min-goldens-kept for a dual-guest host\n%s", out)
+	}
+}
+
+// The relay port range only means anything alongside a pinned base port; an
+// ephemeral relay has the whole ephemeral range to itself.
+func TestRenderLaunchdPlist_OmitsRelayPortCountWithoutBasePort(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", VNCRelayPortCount: 2})
+	if strings.Contains(out, "--vnc-relay-port") {
+		t.Fatalf("expected no relay port flags at all when no base port is pinned\n%s", out)
+	}
+}
+
+// Both multi-guest fields have to move the fleet fingerprint, or a host
+// promoted to two guests would read as already-converged and never receive
+// the launchd config that gives its second guest a relay port and its second
+// pool a golden.
+func TestHostConfigHash_ChangesWithGuestSizedFields(t *testing.T) {
+	base := Config{
+		NodeName:          "n1",
+		SSHUser:           "m1",
+		TartKubeletBinary: []byte("bin"),
+		VNCRelayPort:      5900,
+	}
+	for name, mutate := range map[string]func(*Config){
+		"VNCRelayPortCount": func(c *Config) { c.VNCRelayPortCount = 2 },
+		"MinGoldensKept":    func(c *Config) { c.MinGoldensKept = 2 },
+	} {
+		changed := base
+		mutate(&changed)
+		if HostConfigHash(base) == HostConfigHash(changed) {
+			t.Errorf("HostConfigHash must change when %s does", name)
+		}
+	}
+}
+
+// The auto-login step checks whether macOS replaced /etc/kcpassword with its
+// "<sealed>" marker, which is how a wrong password surfaces: bootstrap would
+// otherwise complete while every later boot fails to raise an Aqua session, so
+// Tart can start no guests at all.
+//
+// The check compares the file's first 8 bytes against a hardcoded hex string
+// rather than decoding them, because decoding needed /usr/bin/python3 and that
+// is a Command Line Tools shim: on a host without Xcode it fails with
+// "xcode-select: error: No developer tools were found" and takes the whole
+// bootstrap with it. That is what stopped the BER1 prototype on 2026-09-09.
+//
+// Hardcoding is only safe if the constant really is the encoding of the marker,
+// so derive it here from the same encoder the writer uses instead of restating
+// my own arithmetic.
+func TestSealedMarkerSignatureMatchesTheEncoder(t *testing.T) {
+	encoded, err := base64.StdEncoding.DecodeString(encodeKCPassword("<sealed>"))
+	if err != nil {
+		t.Fatalf("decode encodeKCPassword output: %v", err)
+	}
+	if len(encoded) < 8 {
+		t.Fatalf("encoded marker is %d bytes, want at least 8", len(encoded))
+	}
+	want := hex.EncodeToString(encoded[:8])
+
+	script := autoLoginScript("tuist", "hunter2")
+	if !strings.Contains(script, want) {
+		t.Fatalf("auto-login script does not test for the sealed signature %q; a sealed kcpassword would pass unnoticed and the host would never raise an Aqua session", want)
+	}
+}
+
+// The whole point of the change: nothing in the auto-login step may depend on
+// Xcode Command Line Tools, because a rack host provisioned by MDM has none.
+func TestAutoLoginScriptNeedsNoDeveloperTools(t *testing.T) {
+	// Comment lines are stripped first: the script explains in prose why it
+	// stopped using python3, and matching that text would fail the test for
+	// documenting the very bug it guards against.
+	var executable []string
+	for _, line := range strings.Split(autoLoginScript("tuist", "hunter2"), "\n") {
+		if trimmed := strings.TrimSpace(line); !strings.HasPrefix(trimmed, "#") {
+			executable = append(executable, line)
+		}
+	}
+	script := strings.Join(executable, "\n")
+
+	for _, forbidden := range []string{"python3", "xcrun", "xcode-select"} {
+		if strings.Contains(script, forbidden) {
+			t.Errorf("auto-login script runs %q, which needs Xcode Command Line Tools that a rack host does not have", forbidden)
+		}
+	}
+}
+
+func TestRenderVMEgressFirewallScript_PassesRackCacheGatewaysOn443(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR:    "10.128.0.0/12",
+		VMCacheGatewayCIDRs: []string{"10.10.0.11/32", "10.10.0.12/32"},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	block := strings.Index(script, "block drop out quick from <vm_sources> to <blocked_dst>")
+	for _, want := range []string{
+		"pass out quick proto tcp from <vm_sources> to 10.10.0.11/32 port 443 keep state",
+		"pass out quick proto tcp from <vm_sources> to 10.10.0.12/32 port 443 keep state",
+	} {
+		pass := strings.Index(script, want)
+		if pass < 0 {
+			t.Fatalf("missing %q in rendered script\n%s", want, script)
+		}
+		if block < 0 || pass > block {
+			t.Fatalf("%q must render before the blocked_dst drop (first quick match wins)\n%s", want, script)
+		}
+	}
+}
+
+func TestRenderVMEgressFirewallScript_NoCacheGatewayPassWhenUnset(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMKuraEgressCIDR: "10.128.0.0/12"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.Contains(script, "port 443") || strings.Contains(script, "gateway carve-out") {
+		t.Fatalf("a fleet without cache gateways must not pass 443\n%s", script)
+	}
+}
+
+func TestRenderVMEgressFirewallScript_RejectsMalformedCacheGatewayCIDR(t *testing.T) {
+	for _, bad := range []string{"10.10.0.11", "10.10.0.11/33", "fd00::1/128", "10.10.0.11/32 port 22"} {
+		if _, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{bad}}); err == nil {
+			t.Fatalf("expected %q to be rejected", bad)
+		}
+	}
+}
+
+func TestHostConfigHash_ChangesWithVMCacheGatewayCIDRs(t *testing.T) {
+	base := Config{VMKuraEgressCIDR: "10.128.0.0/12"}
+	gateway := base
+	gateway.VMCacheGatewayCIDRs = []string{"10.10.0.11/32"}
+	if HostConfigHash(base) == HostConfigHash(gateway) {
+		t.Fatal("HostConfigHash must change when the cache gateway CIDRs change, or existing hosts never get the pass rule")
+	}
+}
+
+func vmGuardAnchor(t *testing.T, script string) string {
+	t.Helper()
+	const open = "sudo tee /etc/pf.anchors/tuist.vmguard >/dev/null <<'PFCONF'\n"
+	start := strings.Index(script, open)
+	if start < 0 {
+		t.Fatalf("no tuist.vmguard anchor in rendered script\n%s", script)
+	}
+	anchor := script[start+len(open):]
+	end := strings.Index(anchor, "\nPFCONF\n")
+	if end < 0 {
+		t.Fatalf("unterminated tuist.vmguard heredoc\n%s", script)
+	}
+	return anchor[:end+1]
+}
+
+// The `tuist.runners` rules are `out` rules keyed on the guest's source, which
+// the host has already translated to its own address on the default-route
+// interface by the time pf filters there. The guard filters the guest where
+// its address is still its own: inbound on the vmnet bridge, in a com.apple/
+// sub-anchor that is live as soon as it loads.
+func TestRenderVMEgressFirewallScript_GuardsGuestsInboundBeforeNAT(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{"10.10.0.11/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(script, `pfctl -a "com.apple/tuist.vmguard" -f /etc/pf.anchors/tuist.vmguard`) {
+		t.Fatal("the guard is not loaded into a com.apple/ sub-anchor; a top-level anchor is only evaluated after a full ruleset load at boot")
+	}
+	if !strings.Contains(script, "<string>dev.tuist.pfctl-vmguard</string>") || !strings.Contains(script, "<key>StartInterval</key>") {
+		t.Fatal("no re-arm for the guard; a reboot or flush would leave guests unfiltered")
+	}
+
+	anchor := vmGuardAnchor(t, script)
+	for _, line := range strings.Split(anchor, "\n") {
+		rule := strings.TrimSpace(line)
+		if rule == "" || strings.HasPrefix(rule, "#") || strings.HasPrefix(rule, "table") || strings.HasPrefix(rule, "vm_bridges =") || rule == vmGuardHostToGuestPass {
+			continue
+		}
+		if !strings.Contains(rule, " in quick ") {
+			t.Errorf("guard rule is not inbound, so NAT has rewritten the guest's address before it matches: %q", rule)
+		}
+		if strings.Contains(rule, "(self)") {
+			t.Errorf("guard uses the dynamic (self), which macOS pf resolves to an empty table: %q", rule)
+		}
+	}
+
+	privateBlock := strings.Index(anchor, "block drop in quick from <vm_sources> to <vm_private_dst>")
+	selfBlock := strings.Index(anchor, "block drop in quick from <vm_sources> to self")
+	if privateBlock < 0 || selfBlock < 0 {
+		t.Fatalf("guard does not drop private destinations and the host's own addresses\n%s", anchor)
+	}
+	for _, private := range []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"} {
+		if !strings.Contains(anchor, private) {
+			t.Errorf("guard does not cover %s", private)
+		}
+	}
+	for _, pass := range []string{
+		"pass in quick proto tcp from <vm_sources> to 10.10.0.11/32 port 443 keep state",
+		"pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state",
+	} {
+		at := strings.Index(anchor, pass)
+		if at < 0 || at > privateBlock {
+			t.Errorf("%q must render before the private drop (first quick match wins)\n%s", pass, anchor)
+		}
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	if !strings.Contains(parsed, "pass out quick from <vm_sources> to <vm_sources> flags any keep state") {
+		t.Errorf("pfctl did not keep the host-to-guest pass\n%s", parsed)
+	}
+	if !strings.Contains(parsed, "from <vm_sources> to 127.0.0.1") {
+		t.Errorf("pfctl did not expand self to the host's addresses\n%s", parsed)
+	}
+}
+
+// A rack guest leaves through the same public address the storage node uses
+// as its cluster InternalIP, so every Cilium node would take its packets for
+// the storage node's. The guard drops the cluster's node ports to every
+// destination.
+func TestRenderVMEgressFirewallScript_GuardDropsClusterNodePorts(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{"10.10.0.11/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	for _, drop := range []string{
+		"block drop in quick proto udp from <vm_sources> to any port 8472",
+		"block drop in quick proto tcp from <vm_sources> to any port { 4240, 10250 }",
+	} {
+		at := strings.Index(anchor, drop)
+		if at < 0 {
+			t.Fatalf("guard does not drop %q\n%s", drop, anchor)
+		}
+		if carveOut := strings.Index(anchor, "pass in quick proto tcp from <vm_sources> to 10.10.0.11/32"); carveOut >= 0 && at > carveOut {
+			t.Errorf("%q renders after a carve-out pass (first quick match wins)\n%s", drop, anchor)
+		}
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	for _, rule := range []string{
+		"block drop in quick proto udp from <vm_sources> to any port = 8472",
+		"block drop in quick proto tcp from <vm_sources> to any port = 4240",
+		"block drop in quick proto tcp from <vm_sources> to any port = 10250",
+	} {
+		if !strings.Contains(parsed, rule) {
+			t.Errorf("pfctl did not load %q\n%s", rule, parsed)
+		}
+	}
+}
+
+// The host dials its guests itself: tart-kubelet's metrics forwarder and VNC
+// relays connect from the bridge address. A guest's reply arrives inbound to a
+// host address, so without a state from the host's side it hits the drop.
+const vmGuardHostToGuestPass = "pass out quick from <vm_sources> to <vm_sources> flags any keep state"
+
+func TestRenderVMEgressFirewallScript_GuardAdmitsGuestRepliesToTheHost(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	pass := strings.Index(anchor, vmGuardHostToGuestPass)
+	if pass < 0 {
+		t.Fatalf("no stateful pass for host-to-guest connections, so a guest's replies to them are dropped\n%s", anchor)
+	}
+	if block := strings.Index(anchor, "block drop in quick from <vm_sources> to self"); pass > block {
+		t.Errorf("host-to-guest pass renders after the drop\n%s", anchor)
+	}
+}
+
+// vmnet gives every guest a link-local and a ULA IPv6 address, which the IPv4
+// guest range does not cover, and the host's listeners bind both families. The
+// IPv6 rules key on the vmnet bridges instead, since pf cannot tell a guest's
+// IPv6 source from the host's own.
+func TestRenderVMEgressFirewallScript_GuardCoversGuestIPv6(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	dns := strings.Index(anchor, "pass in quick on $vm_bridges inet6 proto { tcp, udp } to self port 53 keep state")
+	selfBlock := strings.Index(anchor, "block drop in quick on $vm_bridges inet6 proto { tcp, udp } to self\n")
+	privateBlock := strings.Index(anchor, "block drop in quick on $vm_bridges inet6 proto { tcp, udp } to { fc00::/7, fe80::/10, ff00::/8 }")
+	if dns < 0 || selfBlock < 0 || privateBlock < 0 {
+		t.Fatalf("guard does not cover guest IPv6 to the host and private ranges\n%s", anchor)
+	}
+	if dns > selfBlock {
+		t.Error("the DNS pass renders after the drop, so the guest's IPv6 resolver (the host's link-local) times out on every lookup")
+	}
+	if strings.Contains(anchor, "bridge0,") || strings.Contains(anchor, "bridge0 ") {
+		t.Error("bridge0 is Thunderbolt Bridge, not a vmnet bridge")
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	for _, bridge := range []string{"bridge100", "bridge101", "bridge102", "bridge103"} {
+		if !strings.Contains(parsed, "block drop in quick on "+bridge+" inet6 proto udp from any to ") {
+			t.Errorf("pfctl did not expand the IPv6 drop for %s\n%s", bridge, parsed)
+		}
+	}
+}
+
+// Every carve-out a guest needs must survive the move inbound, or turning the
+// guard on cuts a fleet off from its cache.
+func TestRenderVMEgressFirewallScript_GuardKeepsEveryCarveOut(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR: "10.128.0.0/12",
+		VMClusterDNSIP:   "10.128.0.10",
+		VMCachePNCIDR:    "172.16.0.0/22",
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	for _, want := range []string{
+		"pass in quick proto tcp from <vm_sources> to 10.128.0.0/12 port 4000 keep state",
+		"pass in quick proto { tcp, udp } from <vm_sources> to 10.128.0.10 port 53 keep state",
+		"pass in quick proto tcp from <vm_sources> to 172.16.0.0/22 port { 443, 30000:32767 } keep state",
+	} {
+		if !strings.Contains(anchor, want) {
+			t.Errorf("guard is missing %q\n%s", want, anchor)
+		}
+	}
+	if _, ok := pfctlParse(t, anchor); !ok {
+		return
+	}
+}
+
+// The SSH guard's VM pass is quick, so a guest's :22 to a private network must
+// be dropped there too, whichever com.apple/ sub-anchor pf evaluates first.
+func TestRenderSSHIngressGuardScript_DeniesVMsPrivateNetworks(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	const block = "block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_private> port 22"
+	at := strings.Index(s, block)
+	if at < 0 {
+		t.Fatalf("missing %q", block)
+	}
+	if strings.Index(s, "pass in quick proto tcp from <vm_ssh_sources> to any port 22") < at {
+		t.Error("VM pass renders before the private-network block")
+	}
+	if !strings.Contains(s, "table <vm_ssh_private> persist { "+vmPrivateDestinations+" }") {
+		t.Error("the SSH guard's private table is not the VM egress guard's")
+	}
+}
+
+// The fr-par runner cache is a private gateway: dispatch hands the VM an HTTPS
+// hostname that resolves to the gateway's Private Network address, so the PN
+// carve-out admits 443 beside the NodePorts older jobs were handed.
+func TestRenderVMEgressFirewallScript_PNCarveOutAdmitsPrivateGatewayHTTPS(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCachePNCIDR: "172.16.0.0/22"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if !strings.Contains(vmGuardAnchor(t, script), "pass in quick proto tcp from <vm_sources> to 172.16.0.0/22 port { 443, 30000:32767 } keep state") {
+		t.Fatalf("the guard drops the PN cache gateway's HTTPS\n%s", script)
+	}
+}
+
+// A carve-out names a whole range, and the host's own address can sit in it
+// (its PN address is in the PN CIDR), so the drop to the host comes first.
+func TestRenderVMEgressFirewallScript_GuardDropsHostBeforeCarveOuts(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{
+		VMKuraEgressCIDR:    "10.128.0.0/12",
+		VMCachePNCIDR:       "172.16.0.0/22",
+		VMCacheGatewayCIDRs: []string{"10.10.0.11/32"},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	selfBlock := strings.Index(anchor, "block drop in quick from <vm_sources> to self")
+	gatewayDNS := strings.Index(anchor, "pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state")
+	for _, carveOut := range []string{"to 10.128.0.0/12 port 4000", "to 172.16.0.0/22 port", "to 10.10.0.11/32 port 443"} {
+		at := strings.Index(anchor, carveOut)
+		if at < 0 || at < selfBlock {
+			t.Errorf("carve-out %q renders before the drop to the host's own addresses\n%s", carveOut, anchor)
+		}
+	}
+	if gatewayDNS < 0 || gatewayDNS > selfBlock {
+		t.Errorf("DNS and DHCP to the vmnet gateway must pass before the drop to the host\n%s", anchor)
+	}
+}
+
+// A rack host pulls its golden bases through the rack's image caches, in the
+// order the fleet lists them. A host with none renders the plist it rendered
+// before mirrors existed, so the rented fleets do not drift.
+func TestRenderLaunchdPlist_RendersImageMirrorsInOrder(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:     "n1",
+		SSHUser:      "m1",
+		ImageMirrors: []string{"ghcr.io=http://10.10.0.11:5000", "ghcr.io=http://10.10.0.12:5000"},
+	})
+	first := strings.Index(out, "<string>--image-mirror=ghcr.io=http://10.10.0.11:5000</string>")
+	second := strings.Index(out, "<string>--image-mirror=ghcr.io=http://10.10.0.12:5000</string>")
+	if first < 0 || second < 0 || second < first {
+		t.Fatalf("expected both mirrors in order\n%s", out)
+	}
+	if bare := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"}); strings.Contains(bare, "--image-mirror") {
+		t.Fatalf("expected no --image-mirror without mirrors\n%s", bare)
+	}
+}
+
+// The mirrors reach a running host through the drift loop only if they move
+// the fleet fingerprint.
+func TestHostConfigHash_ChangesWithImageMirrors(t *testing.T) {
+	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin")}
+	changed := base
+	changed.ImageMirrors = []string{"ghcr.io=http://10.10.0.11:5000"}
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatal("HostConfigHash must change when ImageMirrors does")
+	}
+}
+
+func TestValidateImageMirror(t *testing.T) {
+	for _, ok := range []string{"ghcr.io=http://10.10.0.11:5000", "ghcr.io=https://images.example.com/"} {
+		if err := ValidateImageMirror(ok); err != nil {
+			t.Errorf("ValidateImageMirror(%q) = %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "ghcr.io", "=http://x", "ghcr.io=", "ghcr.io=10.10.0.11:5000", "ghcr.io=http://x/v2", "ghcr.io/x=http://x"} {
+		if err := ValidateImageMirror(bad); err == nil {
+			t.Errorf("ValidateImageMirror(%q) accepted a mirror tart-kubelet would refuse", bad)
+		}
+	}
+}
+
+func TestRenderCommandLineToolsScript_NeverFailsAndOnlyInstallsWithoutGit(t *testing.T) {
+	script := renderCommandLineToolsScript()
+	if strings.Contains(script, "set -e") || !strings.HasSuffix(strings.TrimSpace(script), "exit 0") {
+		t.Fatal("the step must never fail the bootstrap")
+	}
+	if !strings.Contains(script, "\nif xcode-select -p >/dev/null 2>&1 && /usr/bin/git --version") {
+		t.Fatal("a host with a working git must skip the install")
+	}
+	for _, forbidden := range []string{"xcrun", "python3"} {
+		if strings.Contains(script, forbidden) {
+			t.Errorf("runs %q, which a host without the tools does not have", forbidden)
+		}
+	}
+	if !strings.Contains(script, ".com.apple.dt.CommandLineTools.installondemand.in-progress") {
+		t.Fatal("softwareupdate only offers the tools while the on-demand marker exists")
+	}
+}
+
+func TestRenderCommandLineToolsScript_FindsTheLabelOnEveryMacOS(t *testing.T) {
+	match := regexp.MustCompile(`sed -n '([^']+)'`).FindStringSubmatch(renderCommandLineToolsScript())
+	if match == nil {
+		t.Fatal("no label filter in the script")
+	}
+	for listing, want := range map[string]string{
+		"* Label: Command Line Tools for Xcode-16.0\n\tTitle: Command Line Tools for Xcode, Version: 16.0\n":           "Command Line Tools for Xcode-16.0",
+		"* Label: Command Line Tools for Xcode 27.0-27.0\n\tTitle: Command Line Tools for Xcode 27.0, Version: 27.0\n": "Command Line Tools for Xcode 27.0-27.0",
+		"* Label: macOS 27.0.1-26A434\n": "",
+	} {
+		cmd := exec.Command("sed", "-n", match[1])
+		cmd.Stdin = strings.NewReader(listing)
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.TrimSpace(string(out)); got != want {
+			t.Errorf("label %q from %q, want %q", got, listing, want)
+		}
+	}
+}
+
+func TestRenderCommandLineToolsScript_ProbesWithoutPromptingForTheTools(t *testing.T) {
+	script := renderCommandLineToolsScript()
+	probe := strings.Index(script, "xcode-select -p")
+	if probe < 0 || probe > strings.Index(script, "/usr/bin/git --version") {
+		t.Fatal("the git stub asks a GUI to install the tools unless xcode-select finds them first")
+	}
+}
+
+// APFS fixes a volume's quota when it is created, so on a disk of 1 TiB or
+// more the script sizes it from the disk rather than the budget: a later budget
+// within it needs no new volume. A smaller disk keeps the quota at the budget,
+// because its other half does not hold the goldens and job VMs. Runs the quota
+// lines of the rendered script against a fake df.
+func TestRenderRunnerCacheVolumeScript_QuotaFollowsTheDisk(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		diskKiB   uint64
+		budgetGiB int
+		want      string
+	}{
+		{"half of a 1858 GiB disk", 1858 * 1024 * 1024, 512, "929"},
+		{"budget above half a 1858 GiB disk", 1858 * 1024 * 1024, 1000, "1000"},
+		{"half of a 1 TiB disk", 1024 * 1024 * 1024, 80, "512"},
+		{"budget on a disk just under 1 TiB", 1023 * 1024 * 1024, 80, "80"},
+		{"budget on a 460 GiB disk", 460 * 1024 * 1024, 80, "80"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			script := renderRunnerCacheVolumeScript(Config{RunnerCacheVolumeGiB: tc.budgetGiB, SSHUser: "m1"})
+			start := strings.Index(script, "BUDGET_GIB=")
+			quota := strings.Index(script, "  DISK_GIB=")
+			if start < 0 || quota < 0 {
+				t.Fatalf("quota lines not found in script\n%s", script)
+			}
+			end := quota + strings.Index(script[quota:], "\n  fi\n") + len("\n  fi\n")
+			budget := script[start : start+strings.Index(script[start:], "\n")]
+			snippet := budget + "\n" + strings.ReplaceAll(script[quota:end], "/bin/df", "fake_df") + "echo \"$QUOTA_GIB\"\n"
+			fakeDF := fmt.Sprintf("fake_df() { printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\\n/dev/disk3s5 %d 1 1 1 /System/Volumes/Data\\n'; }\n", tc.diskKiB)
+			out, err := exec.Command("/bin/sh", "-c", "set -eu\n"+fakeDF+snippet).CombinedOutput()
+			if err != nil {
+				t.Fatalf("run quota lines: %v\n%s", err, out)
+			}
+			if got := strings.TrimSpace(string(out)); got != tc.want {
+				t.Fatalf("quota = %s GiB, want %s", got, tc.want)
+			}
+		})
 	}
 }

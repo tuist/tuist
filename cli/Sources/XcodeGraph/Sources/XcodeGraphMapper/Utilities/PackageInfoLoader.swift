@@ -1,4 +1,3 @@
-import Command
 import Foundation
 import Mockable
 import Path
@@ -10,17 +9,10 @@ protocol PackageInfoLoading {
 }
 
 struct PackageInfoLoader: PackageInfoLoading {
-    private let commandRunner: CommandRunning
     private let decoder = JSONDecoder()
 
-    init(
-        commandRunner: CommandRunning = CommandRunner()
-    ) {
-        self.commandRunner = commandRunner
-    }
-
     func loadPackageInfo(at path: AbsolutePath) async throws -> PackageInfo {
-        let output = try await commandRunner.run(
+        let output = try await SubprocessRunner.capture(
             arguments: [
                 "swift",
                 "package",
@@ -29,7 +21,6 @@ struct PackageInfoLoader: PackageInfoLoading {
                 "dump-package",
             ]
         )
-        .concatenatedString()
 
         let data = Data(output.utf8)
 

@@ -115,10 +115,26 @@ defmodule TuistWeb.PreviewController do
     end)
   end
 
+  # iOS extracts the software-package URL from the manifest and retries that
+  # exact URL on queued/stuck installs without re-fetching the manifest, so the
+  # presigned url baked into the manifest gets a generous window. A browser
+  # hitting /app.ipa directly re-mints the url on every request, so that path
+  # keeps the shorter default.
+  @manifest_ipa_url_expires_in 24 * 60 * 60
+  @archive_ipa_url_expires_in 60 * 60
+
   def download_archive(
         %{assigns: %{current_preview: preview, selected_account: account}} = conn,
         %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
       ) do
+    url = ipa_download_url(preview, account_handle, project_handle, account, @archive_ipa_url_expires_in)
+
+    conn
+    |> redirect(external: url)
+    |> halt()
+  end
+
+  defp ipa_download_url(preview, account_handle, project_handle, account, expires_in) do
     app_build = AppBuilds.latest_ipa_app_build_for_preview(preview)
 
     storage_key =
@@ -133,7 +149,7 @@ defmodule TuistWeb.PreviewController do
       raise NotFoundError, dgettext("dashboard", "The preview ipa doesn't exist or has expired.")
     end
 
-    send_resp(conn, :ok, Storage.get_object_as_string(storage_key, account))
+    Storage.generate_download_url(storage_key, account, expires_in: expires_in)
   end
 
   def download_apk(
@@ -162,9 +178,17 @@ defmodule TuistWeb.PreviewController do
   end
 
   def manifest(
-        %{assigns: %{current_preview: preview}} = conn,
+        %{assigns: %{current_preview: preview, selected_account: account}} = conn,
         %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
       ) do
+    # The manifest points the software-package asset directly at a presigned
+    # storage URL. iOS' install daemon does not follow redirects for this URL,
+    # so it must resolve to the ipa without any indirection through the server.
+    ipa_url =
+      preview
+      |> ipa_download_url(account_handle, project_handle, account, @manifest_ipa_url_expires_in)
+      |> Plug.HTML.html_escape()
+
     plist_content = """
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -179,7 +203,7 @@ defmodule TuistWeb.PreviewController do
                             <key>kind</key>
                             <string>software-package</string>
                             <key>url</key>
-                            <string>#{url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/app.ipa")}</string>
+                            <string>#{ipa_url}</string>
                           </dict>
                     </array>
                     <key>metadata</key>

@@ -1,0 +1,57 @@
+{
+  "name": "SidebarItem",
+  "tagName": "noora-sidebar-item",
+  "elementClassName": "NooraSidebarItem",
+  "className": "noora-sidebar-item",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative sidebar destination.",
+  "usage": "<noora-sidebar-item href=\"/\" icon=\"dashboard\">Dashboard</noora-sidebar-item>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the label instead of using text content."
+    },
+    {
+      "name": "href",
+      "property": "href",
+      "type": "string",
+      "default": "#",
+      "description": "Sets the navigation address."
+    },
+    {
+      "name": "icon",
+      "property": "icon",
+      "type": "string",
+      "description": "Shows an icon before the label."
+    },
+    {
+      "name": "selected",
+      "property": "selected",
+      "type": "boolean",
+      "default": false,
+      "description": "Marks the destination as the current page."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The destination label."
+    }
+  ],
+  "cssParts": [],
+  "notes": [],
+  "examples": [
+    {
+      "id": "item",
+      "title": "Item",
+      "description": "Describe one sidebar destination.",
+      "markup": "<noora-sidebar-item href=\"/\" icon=\"dashboard\">Dashboard</noora-sidebar-item>"
+    }
+  ]
+}

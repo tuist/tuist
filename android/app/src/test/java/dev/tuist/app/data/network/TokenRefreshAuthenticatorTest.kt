@@ -1,91 +1,293 @@
 package dev.tuist.app.data.network
 
 import dev.tuist.app.data.EnvironmentConfig
+import dev.tuist.app.data.auth.AuthEvent
 import dev.tuist.app.data.auth.AuthEventBus
 import dev.tuist.app.data.auth.TokenStorage
 import io.mockk.every
 import io.mockk.mockk
 import okhttp3.OkHttpClient
-import okhttp3.Protocol
 import okhttp3.Request
-import okhttp3.Response
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
+import java.io.IOException
+import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
 class TokenRefreshAuthenticatorTest {
-    @Test
-    fun `concurrent unauthorized requests reuse the refreshed session`() {
-        MockWebServer().use { server ->
-            val release = CountDownLatch(1)
-            server.dispatcher = object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse {
-                    check(release.await(5, TimeUnit.SECONDS))
-                    return MockResponse().setBody("""{"access_token":"new-access","refresh_token":"new-refresh"}""")
+
+    private lateinit var server: MockWebServer
+    private lateinit var tokenStorage: TokenStorage
+    private val authEvents = Collections.synchronizedList(mutableListOf<AuthEvent>())
+    private lateinit var client: OkHttpClient
+
+    @Volatile private var storedAccessToken: String? = "old-access"
+    @Volatile private var storedRefreshToken: String? = "old-refresh"
+    private val refreshRequests = Collections.synchronizedList(mutableListOf<RecordedRequest>())
+    private val refreshCount = AtomicInteger(0)
+    @Volatile private var refreshResponse: (RecordedRequest) -> MockResponse = { successfulRefresh() }
+
+    @Before
+    fun setUp() {
+        server = MockWebServer()
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when (request.path) {
+                "/oauth2/token" -> {
+                    refreshCount.incrementAndGet()
+                    refreshRequests.add(request)
+                    refreshResponse(request)
                 }
-            }
-            server.start()
-            val credentials = AtomicReference("old-access" to "old-refresh")
-            val storage = mockk<TokenStorage> {
-                every { getAccessToken() } answers { credentials.get().first }
-                every { getRefreshToken() } answers { credentials.get().second }
-                every { storeTokens(any(), any()) } answers {
-                    credentials.set(firstArg<String>() to secondArg<String>())
+                else -> if (request.getHeader("Authorization") == "Bearer new-access") {
+                    MockResponse().setResponseCode(200).setBody("{}")
+                } else {
+                    MockResponse().setResponseCode(401)
                 }
-            }
-            val environment = mockk<EnvironmentConfig> {
-                every { serverUrl } returns server.url("/").toString()
-            }
-            val client = OkHttpClient()
-            val authenticator = TokenRefreshAuthenticator(storage, client, environment, AuthEventBus())
-            val request = Request.Builder()
-                .url(server.url("/api/projects"))
-                .header("Authorization", "Bearer old-access")
-                .build()
-            val response = Response.Builder()
-                .request(request)
-                .protocol(Protocol.HTTP_1_1)
-                .code(401)
-                .message("Unauthorized")
-                .build()
-            val executor = Executors.newFixedThreadPool(2)
-            val second = FutureTask<Request?> { authenticator.authenticate(null, response) }
-            val secondThread = Thread(second)
-            try {
-                val first = executor.submit<Request?> { authenticator.authenticate(null, response) }
-                checkNotNull(server.takeRequest(5, TimeUnit.SECONDS))
-                secondThread.start()
-                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
-                fun waiting() = secondThread.state == Thread.State.BLOCKED &&
-                    secondThread.stackTrace.firstOrNull()?.methodName == "authenticate"
-                while (!waiting() && server.requestCount < 2 && !second.isDone && System.nanoTime() < deadline) Thread.yield()
-                check(waiting() || server.requestCount == 2 || second.isDone) { "Second request never reached the authenticator" }
-                release.countDown()
-                assertEquals("Bearer new-access", first.get(5, TimeUnit.SECONDS)?.header("Authorization"))
-                assertEquals("Bearer new-access", second.get(5, TimeUnit.SECONDS)?.header("Authorization"))
-                assertEquals("new-access" to "new-refresh", credentials.get())
-                assertEquals(1, server.requestCount)
-            } finally {
-                release.countDown()
-                secondThread.interrupt()
-                secondThread.join(5000)
-                executor.shutdownNow()
-                client.connectionPool.evictAll()
-                client.dispatcher.executorService.shutdown()
             }
         }
+        server.start()
+
+        tokenStorage = mockk {
+            every { getAccessToken() } answers { storedAccessToken }
+            every { getRefreshToken() } answers { storedRefreshToken }
+            every { storeTokens(any(), any()) } answers {
+                storedAccessToken = firstArg()
+                storedRefreshToken = secondArg()
+            }
+            every { clear() } answers {
+                storedAccessToken = null
+                storedRefreshToken = null
+            }
+        }
+        val environmentConfig = mockk<EnvironmentConfig> {
+            every { serverUrl } returns server.url("/").toString().trimEnd('/')
+            every { oauthClientId } returns "client-id"
+        }
+        val authEventBus = mockk<AuthEventBus> {
+            every { emit(any()) } answers { authEvents.add(firstArg()) }
+        }
+
+        val authenticator = TokenRefreshAuthenticator(
+            tokenStorage = tokenStorage,
+            plainClient = OkHttpClient(),
+            environmentConfig = environmentConfig,
+            authEventBus = authEventBus,
+        )
+        client = OkHttpClient.Builder()
+            .addInterceptor(AuthInterceptor(tokenStorage))
+            .authenticator(authenticator)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .build()
     }
+
+    @After
+    fun tearDown() {
+        server.shutdown()
+    }
+
+    @Test
+    fun `rotates tokens through the OAuth token endpoint and retries the request`() {
+        val response = execute()
+
+        assertEquals(200, response.code)
+        assertEquals("new-access", storedAccessToken)
+        assertEquals("new-refresh", storedRefreshToken)
+        val refreshRequest = refreshRequests.single()
+        assertEquals("POST", refreshRequest.method)
+        assertEquals(
+            "grant_type=refresh_token&refresh_token=old-refresh&client_id=client-id",
+            refreshRequest.body.readUtf8(),
+        )
+    }
+
+    @Test
+    fun `clears tokens when the refresh token is rejected with invalid_grant`() {
+        refreshResponse = { invalidGrant() }
+
+        val response = execute()
+
+        assertEquals(401, response.code)
+        assertNull(storedAccessToken)
+        assertNull(storedRefreshToken)
+        assertEquals(listOf(AuthEvent.SessionExpired), authEvents)
+    }
+
+    @Test
+    fun `clears tokens when the refresh request is unauthorized`() {
+        refreshResponse = { MockResponse().setResponseCode(401).setBody("""{"error":"invalid_client"}""") }
+
+        execute()
+
+        assertNull(storedAccessToken)
+        assertNull(storedRefreshToken)
+    }
+
+    @Test
+    fun `clears tokens when the refresh succeeds without a token pair`() {
+        refreshResponse = {
+            MockResponse().setResponseCode(200).setBody("""{"expires_in":86399,"token_type":"bearer"}""")
+        }
+
+        val response = execute()
+
+        assertEquals(401, response.code)
+        assertNull(storedAccessToken)
+        assertNull(storedRefreshToken)
+        assertEquals(listOf(AuthEvent.SessionExpired), authEvents)
+    }
+
+    @Test
+    fun `keeps tokens when the refresh succeeds with a non-json body`() {
+        refreshResponse = { MockResponse().setResponseCode(200).setBody("<html></html>") }
+
+        assertThrows(TokenRefreshException::class.java) { execute() }
+
+        assertEquals("old-access", storedAccessToken)
+        assertEquals("old-refresh", storedRefreshToken)
+        assertTrue(authEvents.isEmpty())
+    }
+
+    @Test
+    fun `keeps tokens rotated concurrently when the refresh token is rejected`() {
+        refreshResponse = {
+            storedAccessToken = "new-access"
+            storedRefreshToken = "concurrent-refresh"
+            invalidGrant()
+        }
+
+        val response = execute()
+
+        assertEquals(200, response.code)
+        assertEquals("new-access", storedAccessToken)
+        assertEquals("concurrent-refresh", storedRefreshToken)
+        assertTrue(authEvents.isEmpty())
+    }
+
+    @Test
+    fun `keeps tokens when the refresh request fails with a network error`() {
+        refreshResponse = { MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START) }
+
+        assertThrows(IOException::class.java) { execute() }
+
+        assertEquals("old-access", storedAccessToken)
+        assertEquals("old-refresh", storedRefreshToken)
+        assertTrue(authEvents.isEmpty())
+    }
+
+    @Test
+    fun `keeps tokens when the refresh request fails with a server error`() {
+        for (code in listOf(408, 429, 500, 503)) {
+            refreshResponse = { MockResponse().setResponseCode(code) }
+
+            assertThrows(TokenRefreshException::class.java) { execute() }
+
+            assertEquals("old-access", storedAccessToken)
+            assertEquals("old-refresh", storedRefreshToken)
+        }
+        assertTrue(authEvents.isEmpty())
+    }
+
+    @Test
+    fun `retries the next request after a transient refresh failure`() {
+        refreshResponse = { MockResponse().setResponseCode(503) }
+        assertThrows(TokenRefreshException::class.java) { execute() }
+
+        refreshResponse = { successfulRefresh() }
+        val response = execute()
+
+        assertEquals(200, response.code)
+        assertEquals("new-access", storedAccessToken)
+    }
+
+    @Test
+    fun `coalesces concurrent unauthorized responses into a single refresh`() {
+        val refreshing = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        refreshResponse = {
+            refreshing.countDown()
+            check(release.await(5, TimeUnit.SECONDS))
+            successfulRefresh()
+        }
+        val executor = Executors.newSingleThreadExecutor()
+        val second = FutureTask<Int> { execute().code }
+        val secondThread = Thread(second)
+        try {
+            val first = executor.submit<Int> { execute().code }
+            assertTrue(refreshing.await(5, TimeUnit.SECONDS))
+            secondThread.start()
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            fun waiting() = secondThread.state == Thread.State.BLOCKED &&
+                secondThread.stackTrace.any { it.methodName == "authenticate" }
+            while (!waiting() && refreshCount.get() < 2 && !second.isDone && System.nanoTime() < deadline) Thread.yield()
+            assertTrue("Second request never reached the authenticator", waiting() || refreshCount.get() == 2 || second.isDone)
+            release.countDown()
+            assertEquals(200, first.get(5, TimeUnit.SECONDS))
+            assertEquals(200, second.get(5, TimeUnit.SECONDS))
+            assertEquals(1, refreshCount.get())
+            assertEquals("new-access", storedAccessToken)
+            assertEquals("new-refresh", storedRefreshToken)
+        } finally {
+            release.countDown()
+            secondThread.interrupt()
+            secondThread.join(5000)
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `expires the session once when concurrent requests hit a rejected refresh token`() {
+        refreshResponse = {
+            Thread.sleep(200)
+            invalidGrant()
+        }
+        val executor = Executors.newFixedThreadPool(4)
+
+        (1..4)
+            .map { executor.submit<Int> { execute().code } }
+            .forEach { it.get(10, TimeUnit.SECONDS) }
+        executor.shutdown()
+
+        assertEquals(1, refreshCount.get())
+        assertEquals(listOf(AuthEvent.SessionExpired), authEvents.toList())
+    }
+
+    @Test
+    fun `does not expire a session when a signed-out request is unauthorized`() {
+        storedAccessToken = null
+        storedRefreshToken = null
+
+        val response = execute()
+
+        assertEquals(401, response.code)
+        assertEquals(0, refreshCount.get())
+        assertTrue(authEvents.isEmpty())
+    }
+
+    private fun execute() = client.newCall(
+        Request.Builder().url(server.url("/api/projects")).build(),
+    ).execute().use { it }
+
+    private fun successfulRefresh() = MockResponse()
+        .setResponseCode(200)
+        .setBody("""{"access_token":"new-access","refresh_token":"new-refresh","token_type":"bearer"}""")
+
+    private fun invalidGrant() = MockResponse()
+        .setResponseCode(400)
+        .setBody("""{"error":"invalid_grant","error_description":"Given refresh token is invalid."}""")
 }

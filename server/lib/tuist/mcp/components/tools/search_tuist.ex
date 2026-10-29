@@ -7,6 +7,7 @@ defmodule Tuist.MCP.Components.Tools.SearchTuist do
   use Tuist.MCP.Tool,
     name: "search_tuist",
     title: "Search Tuist",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -68,7 +69,9 @@ defmodule Tuist.MCP.Components.Tools.SearchTuist do
 
   @impl EMCP.Tool
   def description do
-    "Search Tuist's documentation, API reference, release notes, community forum, and GitHub issues."
+    "Search public Tuist documentation, the application programming interface reference, release notes, community " <>
+      "discussions, and issues. Use when the user asks about documented behavior, released changes, terminology, or " <>
+      "known issues. Returns matching excerpts and source links."
   end
 
   def execute(_conn, arguments), do: Search.search(arguments)

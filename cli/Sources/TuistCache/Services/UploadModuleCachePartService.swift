@@ -61,7 +61,8 @@ public struct UploadModuleCachePartService: UploadModuleCachePartServicing {
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            fullHandle: "\(accountHandle)/\(projectHandle)"
         )
 
         let response = try await client.uploadModuleCachePart(
@@ -108,6 +109,11 @@ public struct UploadModuleCachePartService: UploadModuleCachePartServicing {
             switch forbidden.body {
             case let .json(error):
                 throw UploadModuleCachePartServiceError.forbidden(error.message)
+            }
+        case let .code402(paymentRequired):
+            switch paymentRequired.body {
+            case let .json(error):
+                throw UploadModuleCachePartServiceError.badRequest(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {

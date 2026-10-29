@@ -9,12 +9,18 @@
 # PREP_SKIP_MARK=1 to prep without naming (to stage capacity ahead and release
 # later with baremetal:mark-ovh).
 #
+# The install lays down a mirrored root plus a separate XFS /data (the filesystem
+# every cache volume lives on, and the only one that can carry the per-account
+# project quota). Partitioning cannot be changed after the fact, so re-prepping
+# is also the only way to convert a box installed before that layout.
+#
 # Usage:
 #   mise run baremetal:prep-ovh <service-name> [fleet-name]
 #   e.g. mise run baremetal:prep-ovh ns543284.ip-144-217-252.net
 #
 # The fleet pubkey and the OVH API triple come from the env's 1Password vault
-# (tuist-k8s-<env>, derived from PREP_NAMESPACE; override with PREP_VAULT) — so a
+# (tuist-k8s-<env>, derived from PREP_NAMESPACE; override with PREP_VAULT) in the
+# tuist.1password.com account (override with OP_ACCOUNT) — so a
 # box can be prepped with no cluster access. Falls back to the in-cluster
 # <fleet>-ssh Secret for fleets still on controller-minted keys. OVH_ENDPOINT
 # selects the entity (default ovh-us).
@@ -34,6 +40,7 @@ fi
 root="$(git rev-parse --show-toplevel)"
 env="${ns#tuist-}"
 vault="${PREP_VAULT:-tuist-k8s-$env}"
+export OP_ACCOUNT="${OP_ACCOUNT:-tuist.1password.com}"
 values="$root/infra/helm/tuist/values-managed-${env}.yaml"
 
 kube=(kubectl)

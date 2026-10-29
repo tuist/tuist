@@ -28,9 +28,12 @@ defmodule TuistWeb.API.CrashReportsControllerTest do
 
       stub(Tests, :get_test_case_run_by_id, fn ^test_case_run_id, opts ->
         assert opts[:project_id] == project.id
-        assert opts[:preload] == [:attachments]
 
-        {:ok, %{id: test_case_run_id, attachments: [%{id: attachment_id}]}}
+        {:ok, %{id: test_case_run_id}}
+      end)
+
+      stub(Tests, :get_test_case_run_attachment, fn ^test_case_run_id, ^attachment_id ->
+        {:ok, %{id: attachment_id, test_case_run_id: test_case_run_id}}
       end)
 
       stub(Tests, :upload_crash_report, fn attrs ->
@@ -68,6 +71,32 @@ defmodule TuistWeb.API.CrashReportsControllerTest do
       other_project = ProjectsFixtures.project_fixture()
       test_case_run = RunsFixtures.test_case_run_fixture(project_id: other_project.id)
       attachment = RunsFixtures.test_case_run_attachment_fixture(test_case_run_id: test_case_run.id)
+
+      conn =
+        post(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/crash-reports",
+          %{
+            test_case_run_id: test_case_run.id,
+            test_case_run_attachment_id: attachment.id
+          }
+        )
+
+      assert json_response(conn, :not_found) == %{
+               "message" => "Test case run or attachment not found."
+             }
+    end
+
+    test "rejects an attachment from another test case run", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      test_case_run = RunsFixtures.test_case_run_fixture(project_id: project.id)
+      other_test_case_run = RunsFixtures.test_case_run_fixture(project_id: project.id)
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(test_case_run_id: other_test_case_run.id)
 
       conn =
         post(

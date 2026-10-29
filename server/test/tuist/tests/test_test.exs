@@ -166,6 +166,14 @@ defmodule Tuist.Tests.TestTest do
       assert "is invalid" in errors_on(changeset).build_system
     end
 
+    test "accepts Bazel as a build system" do
+      attrs = Map.put(@valid_attrs, :build_system, "bazel")
+      changeset = Test.create_changeset(%Test{}, attrs)
+
+      assert changeset.valid?
+      assert changeset.changes.build_system == "bazel"
+    end
+
     test "requires is_ci" do
       attrs = Map.delete(@valid_attrs, :is_ci)
       changeset = Test.create_changeset(%Test{}, attrs)

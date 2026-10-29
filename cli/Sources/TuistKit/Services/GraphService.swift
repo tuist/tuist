@@ -1,4 +1,3 @@
-import Command
 import DOT
 import FileSystem
 import Foundation
@@ -14,6 +13,7 @@ import TuistGenerator
 import TuistLoader
 import TuistLogging
 import TuistPlugin
+import TuistProcess
 import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper

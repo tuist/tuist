@@ -22,6 +22,19 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // side. Runner availability is gated server-side by the `:runners`
 // feature flag.
 type RunnerPoolSpec struct {
+	// Linux cache volumes require a dedicated host filesystem and a node-local agent.
+	// Empty disables the feature. Never expose CacheVolumeRoot without SubPathExpr.
+	// +optional
+	CacheVolumeRoot string `json:"cacheVolumeRoot,omitempty"`
+	// +optional
+	CacheVolumeURL string `json:"cacheVolumeURL,omitempty"`
+	// DockerCache moves each job's dockerd onto its repository's Docker cache
+	// volume. It needs cache volumes. The dind sidecar then runs a supervisor
+	// that owns dockerd and the mount socket, so turning it on replaces the
+	// pool's Pods.
+	// +optional
+	DockerCache bool `json:"dockerCache,omitempty"`
+
 	// Labels are stamped on the Pods + SAs the controller creates;
 	// not the GitHub Actions runner labels (those come from
 	// `DispatchLabel` at JIT-mint time).
@@ -30,9 +43,12 @@ type RunnerPoolSpec struct {
 
 	// Replicas is the count of Pods the controller maintains. The
 	// chart's `runnersFleet.pools[].replicas` flows straight into
-	// this field. Across all pools in a namespace, the sum should
-	// fit within the host fleet's capacity (one VM per host at v1;
-	// Apple's SLA permits up to two).
+	// this field. Across all pools in a namespace, the sum should fit
+	// within the host fleet's guest capacity — which is NOT the host
+	// count on a mixed-SKU fleet: a Mac mini admits
+	// `allocatable memory / podMemoryMB` guests, so one M2-L
+	// contributes one slot and one M4-XL contributes two. Apple's SLA
+	// caps any single host at two.
 	// +kubebuilder:default=0
 	Replicas int32 `json:"replicas,omitempty"`
 
@@ -44,6 +60,14 @@ type RunnerPoolSpec struct {
 	// can share a node fleet (bin-pack different images on the
 	// same Mac mini hosts) or split (dedicated capacity per image).
 	FleetSelector string `json:"fleetSelector"`
+
+	// Site, when set, pins the pool's Pods to the rack site's Nodes
+	// (`node.cluster.x-k8s.io/rack-site=<site>`) within its fleet. A rack
+	// fleet spans every site whose runners are on, so a pool that must run
+	// at one site, such as a smoke pool testing that rack, names it. Empty
+	// places the pool anywhere in its fleet.
+	// +optional
+	Site string `json:"site,omitempty"`
 
 	// DispatchLabel is the GitHub Actions runner label customers
 	// put in `runs-on` to target this fleet. The webhook handler
@@ -97,6 +121,56 @@ type RunnerPoolSpec struct {
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 
+	// NestedVirtualization gives the runner container a usable /dev/kvm,
+	// so a job can run hardware-accelerated guests of its own, such as
+	// x86_64 Android emulators. Linux `kata-qemu` pools only. The Pod
+	// boots the KVM-enabled guest kernel the CAPI provider installs on
+	// every Kata host, lands only on hosts labelled
+	// `tuist.dev/kata-kvm=true` (the provider's proof that the kernel is
+	// installed and the host runs KVM with nesting on), and requests one
+	// `devices.tuist.dev/kvm` from the kvm-device-plugin DaemonSet, which
+	// is what injects the device node into the unprivileged runner
+	// container. The microVM stays the isolation boundary; what the pool
+	// adds is the host's nested-virtualization code path, reachable from
+	// the guest kernel.
+	// +optional
+	NestedVirtualization bool `json:"nestedVirtualization,omitempty"`
+
+	// Provisioning bounds how many Linux Kata sandboxes may be starting at
+	// once across pools that share this pool's FleetSelector, and how long a
+	// bound Pod may take to start its dispatch poller. The bound is
+	// maxConcurrentPerNode times the fleet's healthy node count, using the
+	// lowest per-node value configured by sibling pools so a mismatched pool
+	// cannot weaken the shared safety boundary.
+	//
+	// Linux only. macOS runner Pods use the Tart host lifecycle and do not
+	// participate in this admission gate.
+	// +optional
+	Provisioning *RunnerPoolProvisioning `json:"provisioning,omitempty"`
+
+	// IdleTimeoutSeconds bounds how long a runner that has registered
+	// with GitHub but has not been handed a job stays alive. The runner
+	// image's watchdog reads it as `TUIST_RUNNER_IDLE_TIMEOUT_SECONDS`:
+	// if no `ACTIONS_RUNNER_HOOK_JOB_STARTED` marker appears within the
+	// window, it terminates the runner so the Pod completes and the
+	// reconciler recycles it. A runner executing a job has written the
+	// marker and is never terminated. 0 disables the watchdog.
+	//
+	// The bound is necessary because GitHub assigns a queued job to any
+	// label-eligible runner, independently of which one the server
+	// minted for it. A runner whose job GitHub placed on a sibling
+	// otherwise waits indefinitely, holding warm-pool capacity that
+	// reads as busy — the Pod's owner label is stamped at claim, not at
+	// execution, so the reconciler cannot tell it apart from a runner
+	// mid-job. The in-Pod marker is the only signal that distinguishes
+	// them.
+	//
+	// This bounds only the post-claim window between registering and
+	// being handed work (normally seconds); a Pod still polling for a
+	// claim has no runner container yet and is unaffected.
+	// +optional
+	IdleTimeoutSeconds int32 `json:"idleTimeoutSeconds,omitempty"`
+
 	// Autoscaling is the optional queue-depth-driven autoscaling
 	// config for this pool. When `Enabled` is true the
 	// runners-controller patches `spec.replicas` on a 5 s cadence
@@ -105,13 +179,13 @@ type RunnerPoolSpec struct {
 	// +optional
 	Autoscaling *RunnerPoolAutoscaling `json:"autoscaling,omitempty"`
 
-	// Rollout bounds how aggressively stale-image Pods are drained when
-	// `spec.image` changes. An image roll makes each affected node
-	// `tart pull` the new (tens-of-GB) image before it can boot a
-	// replacement; unthrottled, the whole fleet pulls at once and the
-	// warm pool collapses for minutes. The controller caps the number
-	// of Pods mid-roll and only drains more as in-flight rollers report
-	// Ready. Absent block = the built-in default (5%, min 1).
+	// Rollout bounds how aggressively Pods with a stale image or
+	// RuntimeClass revision are replaced. An image roll can make each
+	// affected node pull a large image before it can boot a replacement;
+	// a RuntimeClass roll changes admission-time sandbox accounting.
+	// The controller caps unavailable serving capacity and only retires
+	// more stale Pods as current-template Pods become warm. Absent block
+	// means the built-in default (5%, minimum 1).
 	// +optional
 	Rollout *RunnerPoolRollout `json:"rollout,omitempty"`
 }
@@ -120,6 +194,28 @@ type RunnerPoolSpec struct {
 // its own struct so an absent block (the v1 default) keeps
 // `RunnerPoolSpec` byte-identical to its pre-autoscaling shape on
 // the wire — no `autoscaling: null` noise on every macOS pool.
+// CRD defaults for the two optional fields whose zero value is
+// meaningful. Kept in sync with the `default:` markers in
+// crds/tuist.dev_runnerpools.yaml; the accessors below apply them when a
+// field is unset so the apiserver default and the in-process default
+// never disagree.
+const (
+	defaultMinWarmPoolFloor         int32 = 1
+	defaultScaleDownCooldownSeconds int32 = 300
+)
+
+// A field here may keep the plain `int32` + `omitempty` only when its
+// CRD default equals its Go zero value; `enabled` (default false) and
+// `maxReplicas` (default 0) qualify. The two fields whose default is
+// non-zero use `*int32` instead: `omitempty` on a plain `int32` drops a
+// deliberate 0, which the apiserver cannot tell from "unset" and so
+// replaces with the CRD default — and the controller serializes the
+// whole spec whenever it adds the drain finalizer
+// (runnerpool_controller.go). A pointer keeps the distinction: nil
+// serializes to nothing (so the apiserver default applies, and a typed
+// client that never set the field gets it), while a non-nil 0 serializes
+// as 0 (so a deliberate zero survives the round-trip). Read them through
+// the OrDefault accessors, never the raw pointer.
 type RunnerPoolAutoscaling struct {
 	// Enabled flips the autoscaling reconciler on for this pool.
 	// When false, the controller leaves `spec.replicas` alone.
@@ -127,16 +223,28 @@ type RunnerPoolAutoscaling struct {
 	Enabled bool `json:"enabled,omitempty"`
 
 	// MinWarmPoolFloor is the preferred lower bound (target) for the
-	// desired warm pool size; the server's rolling p95 of concurrent
-	// claims can lift the effective target higher. It is a target, not
-	// a hard floor: in a shared Linux fleet (multiple shape pools
-	// bin-packing on one bare-metal node pool), the fleet allocator can
+	// desired warm pool size; the server's rolling 95th percentile of
+	// occupied runner sessions can lift the effective target higher. It
+	// is a target, not a hard floor: in a shared Linux fleet (multiple
+	// shape pools bin-packing on one bare-metal node pool), the fleet
+	// allocator can
 	// squeeze an idle pool's desired below this value under memory
 	// contention to admit another shape's real queued work. macOS pools
 	// and uncontended Linux pools honor it as a floor; real load
-	// (claimed + queued) is always funded above it.
+	// (occupied runners + queued jobs) is always funded above it.
+	//
+	// Pointer so a deliberate 0 ("this pool holds no warm capacity")
+	// survives serialization; nil means unset and defaults to 1. Read
+	// via MinWarmPoolFloorOrDefault.
 	// +optional
-	MinWarmPoolFloor int32 `json:"minWarmPoolFloor,omitempty"`
+	MinWarmPoolFloor *int32 `json:"minWarmPoolFloor,omitempty"`
+
+	// MaxLearnedWarmPoolFloor caps the warm floor the server learns from
+	// the pool's own jobs: the burst its jobs arrive in, kept idle above
+	// the pool's load while the pool has had a job in the last day. 0
+	// turns the learned floor off, leaving only MinWarmPoolFloor.
+	// +optional
+	MaxLearnedWarmPoolFloor int32 `json:"maxLearnedWarmPoolFloor,omitempty"`
 
 	// MaxReplicas is the hard ceiling on the autoscaler-driven
 	// `spec.replicas` value. 0 disables autoscaling-driven scale
@@ -147,20 +255,110 @@ type RunnerPoolAutoscaling struct {
 	// ScaleDownCooldownSeconds is the minimum time the controller
 	// waits between successive scale-down actions for this pool.
 	// Anti-thrash guard.
+	//
+	// Pointer so a deliberate 0 ("scale down as soon as demand drops")
+	// survives serialization; nil means unset and defaults to 300. Read
+	// via ScaleDownCooldownSecondsOrDefault.
 	// +optional
-	ScaleDownCooldownSeconds int32 `json:"scaleDownCooldownSeconds,omitempty"`
+	ScaleDownCooldownSeconds *int32 `json:"scaleDownCooldownSeconds,omitempty"`
+
+	// HoldRecentPeak keeps the pool sized to the server's 95th percentile
+	// of concurrent runners over the last hour after load falls. False
+	// sizes it to current load plus minWarmPoolFloor, for pools whose jobs
+	// arrive in one-off bursts the last hour does not predict.
+	//
+	// Pointer so a deliberate false survives serialization; nil means
+	// unset and defaults to true. Read via HoldRecentPeakOrDefault.
+	// +optional
+	HoldRecentPeak *bool `json:"holdRecentPeak,omitempty"`
 }
 
-// RunnerPoolRollout carries the image-roll throttle knob. Its own
-// pointer struct so an absent block keeps the spec wire-identical for
-// pools that don't override the default.
+const (
+	defaultMaxConcurrentProvisioningPerNode int32 = 6
+	defaultProvisioningStartTimeoutSeconds  int32 = 300
+)
+
+// RunnerPoolProvisioning carries the Linux Kata sandbox admission knobs.
+// Pointer fields preserve a deliberate zero for startTimeoutSeconds while
+// allowing the custom-resource defaults to distinguish an omitted value.
+type RunnerPoolProvisioning struct {
+	// MaxConcurrentPerNode is the maximum number of Linux runner Pods that
+	// may be waiting for their dispatch poller to start per healthy fleet
+	// node, across all sibling pools sharing the same operating system and
+	// FleetSelector. The controller multiplies it by the node count to get
+	// the shared fleet ceiling, and uses the lowest sibling value so one
+	// mismatched pool cannot weaken the fleet boundary. Default 6.
+	// +kubebuilder:default=6
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxConcurrentPerNode *int32 `json:"maxConcurrentPerNode,omitempty"`
+
+	// StartTimeoutSeconds bounds how long a Linux runner Pod that has been
+	// assigned to a node may wait for its dispatch poller to start. Timed-out
+	// Pods are reaped so failed Kata sandboxes release their admission slot.
+	// Unscheduled Pods are not timed out. Default 300; 0 disables the timeout.
+	// +kubebuilder:default=300
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	StartTimeoutSeconds *int32 `json:"startTimeoutSeconds,omitempty"`
+}
+
+func (p *RunnerPoolProvisioning) MaxConcurrentPerNodeOrDefault() int32 {
+	// The custom-resource schema rejects 0. Keep the non-positive fallback
+	// defensive for typed test clients and clusters whose schema has not yet
+	// been upgraded; unlike StartTimeoutSeconds, zero never disables this cap.
+	if p == nil || p.MaxConcurrentPerNode == nil || *p.MaxConcurrentPerNode <= 0 {
+		return defaultMaxConcurrentProvisioningPerNode
+	}
+	return *p.MaxConcurrentPerNode
+}
+
+func (p *RunnerPoolProvisioning) StartTimeoutSecondsOrDefault() int32 {
+	if p == nil || p.StartTimeoutSeconds == nil {
+		return defaultProvisioningStartTimeoutSeconds
+	}
+	return *p.StartTimeoutSeconds
+}
+
+// MinWarmPoolFloorOrDefault returns the configured floor, or the CRD
+// default when the field is unset (nil). The apiserver normally fills
+// the default in on admission, so nil is the belt-and-suspenders path —
+// but reading through this accessor means a nil never reaches the
+// allocator as a 0 and silently zeroes a pool's warm floor.
+func (a *RunnerPoolAutoscaling) MinWarmPoolFloorOrDefault() int32 {
+	if a == nil || a.MinWarmPoolFloor == nil {
+		return defaultMinWarmPoolFloor
+	}
+	return *a.MinWarmPoolFloor
+}
+
+// ScaleDownCooldownSecondsOrDefault returns the configured cooldown, or
+// the CRD default when unset (nil).
+func (a *RunnerPoolAutoscaling) ScaleDownCooldownSecondsOrDefault() int32 {
+	if a == nil || a.ScaleDownCooldownSeconds == nil {
+		return defaultScaleDownCooldownSeconds
+	}
+	return *a.ScaleDownCooldownSeconds
+}
+
+// HoldRecentPeakOrDefault returns the configured value, or the CRD
+// default (true) when unset.
+func (a *RunnerPoolAutoscaling) HoldRecentPeakOrDefault() bool {
+	if a == nil || a.HoldRecentPeak == nil {
+		return true
+	}
+	return *a.HoldRecentPeak
+}
+
+// RunnerPoolRollout carries the Pod-template rollout throttle knob.
+// Its own pointer struct keeps the spec wire-identical for pools that
+// do not override the default.
 type RunnerPoolRollout struct {
-	// MaxConcurrentPercent caps the number of Pods that may be mid-roll
-	// (draining the old image, or booting the new one before it reports
-	// Ready) at once, as a percentage of the pool's replica count,
-	// floored, with a hard minimum of 1 so a roll always makes
-	// progress. Lower keeps more of the warm pool serving during a roll
-	// at the cost of a slower rollout. Default 5.
+	// MaxConcurrentPercent caps unavailable serving capacity during a
+	// rollout, as a percentage of the pool's replica count, floored,
+	// with a hard minimum of 1 so a rollout always makes progress.
+	// Lower keeps more of the warm pool serving during a rollout at the
+	// cost of slower replacement. Default 5.
 	// +kubebuilder:default=5
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=100
@@ -194,6 +392,13 @@ type RunnerPoolStatus struct {
 	// +optional
 	ObservedImage string `json:"observedImage,omitempty"`
 
+	// PreviousImage is the `spec.image` the pool ran before
+	// ObservedImage. tart-kubelet reads it to pull the current image on
+	// hosts that hold the previous one before its GC reaps that golden,
+	// so a release costs those hosts only what changed.
+	// +optional
+	PreviousImage string `json:"previousImage,omitempty"`
+
 	// ImageRolledAt is when the controller most recently observed
 	// `spec.image` changing. The server-side dispatch endpoint reads
 	// this to stagger stale-Pod drains across a rolling window —
@@ -204,6 +409,31 @@ type RunnerPoolStatus struct {
 	// replicas and survives a restart mid-rollout.
 	// +optional
 	ImageRolledAt metav1.Time `json:"imageRolledAt,omitempty"`
+
+	// UnplaceableSince is when this pool most recently began holding
+	// demand the scheduler could not place, and has held continuously
+	// since. Nil means the pool is placing everything it wants.
+	//
+	// It lives on the pool rather than being derived from Pod ages
+	// because the reaper deletes an unplaced Pod at
+	// `provisioning.startTimeoutSeconds` (300s by default) and the pool
+	// immediately recreates it. A starvation clock read from
+	// `pod.CreationTimestamp` therefore restarts every five minutes and
+	// can never measure a starvation longer than one reap cycle — which
+	// is exactly the window a node reservation needs to converge. The
+	// reservation state machine reads this to decide both when a pool
+	// has waited long enough to be worth draining a host for, and which
+	// of several starved pools on a fleet goes first.
+	// +optional
+	UnplaceableSince *metav1.Time `json:"unplaceableSince,omitempty"`
+
+	// LastDemandAt is when the autoscaler last saw the pool with real work
+	// (occupied, queued or held at an account's limit), stamped at most
+	// every demandStampInterval. tart-kubelet ranks the images it keeps
+	// within a host's golden budget by it, so the images in use stay on
+	// every host and the idle ones give way.
+	// +optional
+	LastDemandAt *metav1.Time `json:"lastDemandAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

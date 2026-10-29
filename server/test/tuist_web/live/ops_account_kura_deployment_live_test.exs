@@ -38,4 +38,22 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLiveTest do
     assert html =~ "Grafana"
     assert html =~ "tuist.grafana.net/explore"
   end
+
+  test "renders a superseded deployment", %{conn: conn, user: user} do
+    {:ok, server} =
+      Kura.create_server(%{
+        account_id: user.account.id,
+        region: "local-controller",
+        image_tag: "0.5.2"
+      })
+
+    deployment = List.first(server.deployments)
+    {:ok, deployment} = Kura.mark_superseded(deployment, "superseded by Kura image 0.5.3")
+
+    {:ok, _live_view, html} =
+      live(conn, ~p"/ops/accounts/#{user.account.id}/kura/deployments/#{deployment.id}")
+
+    assert html =~ "Superseded"
+    assert html =~ "superseded by Kura image 0.5.3"
+  end
 end

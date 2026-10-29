@@ -4,6 +4,9 @@
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 
+# Local Tuist test shard plans.
+/.tuist-shard-matrix.json
+
 # The directory Mix downloads your dependencies sources to.
 /deps/
 
@@ -30,18 +33,6 @@ hello-*.tar
 /priv/static/app/assets/
 /priv/static/marketing/assets/
 /priv/static/docs/assets/
-/priv/docs/images/og/
-# Generated OG images for marketing pages (produced at build time via mix marketing.gen.og_images)
-# Blog and newsletter images are kept in git since they are English-only and static.
-/priv/static/marketing/images/og/generated/*.jpg
-/priv/static/marketing/images/og/generated/es/
-/priv/static/marketing/images/og/generated/ja/
-/priv/static/marketing/images/og/generated/ko/
-/priv/static/marketing/images/og/generated/ru/
-/priv/static/marketing/images/og/generated/yue_Hant/
-/priv/static/marketing/images/og/generated/zh_Hans/
-/priv/static/marketing/images/og/generated/zh_Hant/
-/priv/static/marketing/images/og/generated/changelog/
 /priv/static/apidocs/assets/
 /priv/static/storybook/assets/
 
@@ -74,3 +65,6 @@ config.d
 .opencode/
 .claude/
 minio/
+
+# Built by native/xcresult_nif/build.sh
+/priv/native/

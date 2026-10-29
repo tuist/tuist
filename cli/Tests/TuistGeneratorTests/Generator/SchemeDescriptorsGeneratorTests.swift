@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -932,57 +933,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertEqual(result.testPlans?.count, 1)
         XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
-    }
-
-    func test_generateProjectSchemes_emits_testPlan_side_effects_for_generated_plans() throws {
-        // Given
-        let projectPath = try AbsolutePath(validating: "/Project")
-        let target = Target.test(name: "App", product: .app)
-        let testTarget = Target.test(name: "AppTests", product: .unitTests)
-        let planPath = projectPath.appending(component: "UnitTests.xctestplan")
-        let plan = TestPlan(
-            path: planPath,
-            testTargets: [
-                TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests")),
-            ],
-            isDefault: true,
-            kind: .generated
-        )
-        let existingPlanPath = projectPath.appending(component: "Existing.xctestplan")
-        let existingPlan = TestPlan(
-            path: existingPlanPath,
-            testTargets: [],
-            isDefault: false,
-            kind: .referenced
-        )
-        let scheme = Scheme.test(
-            testAction: TestAction.test(testPlans: [plan, existingPlan])
-        )
-        let project = Project.test(path: projectPath, targets: [target, testTarget], schemes: [scheme])
-        let graph = Graph.test(projects: [project.path: project])
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // When
-        let (_, sideEffects) = try subject.generateProjectSchemes(
-            project: project,
-            generatedProject: generatedProject(
-                targets: Array(project.targets.values),
-                projectPath: project.xcodeProjPath.pathString
-            ),
-            graphTraverser: graphTraverser
-        )
-
-        // Then
-        let testPlanDescriptors = sideEffects.compactMap { sideEffect -> TestPlanDescriptor? in
-            guard case let .testPlan(descriptor) = sideEffect else { return nil }
-            return descriptor
-        }
-        XCTAssertEqual(testPlanDescriptors.count, 1)
-        XCTAssertEqual(testPlanDescriptors.first?.path, planPath)
-        XCTAssertEqual(
-            testPlanDescriptors.first?.testTargets.map(\.pbxTarget.name),
-            ["AppTests"]
-        )
     }
 
     func test_generateProjectSchemes_rejects_duplicate_generated_test_plan_paths() throws {
@@ -2554,6 +2504,48 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         return GeneratedProject(pbxproj: .init(), path: path, targets: pbxTargets, name: path.basename)
     }
 
+    func test_schemeTestAction_passes_through_swiftTestingOnly_parallelization() throws {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(targets: [target, testTarget])
+
+        let testableTarget = TestableTarget(
+            target: TargetReference(projectPath: project.path, name: "AppTests"),
+            skipped: false,
+            parallelization: .swiftTestingOnly,
+            randomExecutionOrdering: false
+        )
+        let testAction = TestAction.test(targets: [testableTarget])
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: project.path, name: "App")])
+        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: testTarget.name, path: project.path): [
+                    .target(name: target.name, path: project.path),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: project.path,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then: the generated TestableReference preserves .swiftTestingOnly.
+        // XcodeProj's serialiser turns that into an .xcscheme TestableReference without a
+        // `parallelizable` attribute; that XML behaviour is covered separately by
+        // XCSchemeMapperTests and TestPlanDescriptorTests.
+        let result = try XCTUnwrap(got)
+        let testableReference = try XCTUnwrap(result.testables.first)
+        XCTAssertEqual(testableReference.parallelization, .swiftTestingOnly)
+    }
+
     private func makeProfileActionScheme(
         _ launchArguments: Arguments? = nil,
         preActions: [ExecutionAction] = [],
@@ -2578,5 +2570,387 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             runAction: runAction,
             profileAction: profileAction
         )
+    }
+}
+
+struct SchemeDescriptorsGeneratorDebuggerTests {
+    private let subject = SchemeDescriptorsGenerator()
+
+    @Test func schemeTestAction_withCustomLLDBInitFile() throws {
+        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Project")
+        let lldbInitPath = projectPath.appending(components: "Derived", "TuistCacheDebugging", "test.lldbinit")
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(path: projectPath, targets: [testTarget])
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            customLLDBInitFile: lldbInitPath
+        )
+        let scheme = Scheme.test(testAction: testAction)
+        let generatedProject = GeneratedProject(
+            pbxproj: .init(),
+            path: project.xcodeProjPath,
+            targets: [testTarget.name: PBXNativeTarget(name: testTarget.name)],
+            name: project.xcodeProjPath.basename
+        )
+
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: GraphTraverser(graph: Graph.test(projects: [projectPath: project])),
+            rootPath: projectPath,
+            generatedProjects: [project.xcodeProjPath: generatedProject]
+        )
+        let result = try #require(got)
+
+        #expect(result.customLLDBInitFile == "$(SRCROOT)/Derived/TuistCacheDebugging/test.lldbinit")
+    }
+}
+
+struct SchemeDescriptorsGeneratorCodeCoverageTests {
+    private let subject = SchemeDescriptorsGenerator()
+
+    @Test func schemeTestAction_with_codeCoverageTargets_fromLocalPackage() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let packagePath = try AbsolutePath(validating: "/somepath/Package")
+
+        let target = Target.test(
+            name: "App",
+            product: .app,
+            dependencies: [.package(product: "PackageProduct", type: .runtime)]
+        )
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            coverage: true,
+            codeCoverageTargets: [TargetReference(projectPath: packagePath, name: "PackageProduct")]
+        )
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+
+        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+
+        let project = Project.test(
+            path: projectPath,
+            targets: [target, testTarget],
+            packages: [.local(path: packagePath)]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try #require(got)
+        #expect(result.onlyGenerateCoverageForSpecifiedTargets == true)
+        let references = try #require(result.codeCoverageTargets)
+        let reference = try #require(references.first)
+        #expect(references.count == 1)
+        #expect(reference.referencedContainer == "container:../Package")
+        #expect(reference.blueprintIdentifier == "PackageProduct")
+        #expect(reference.buildableName == "PackageProduct")
+        #expect(reference.blueprintName == "PackageProduct")
+        #expect(reference.buildableIdentifier == "primary")
+    }
+
+    @Test func schemeTestAction_with_codeCoverageTargets_notMatchingALocalPackageProduct() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let packagePath = try AbsolutePath(validating: "/somepath/Package")
+
+        let target = Target.test(
+            name: "App",
+            product: .app,
+            dependencies: [.package(product: "PackageProduct", type: .runtime)]
+        )
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            coverage: true,
+            // The name of the package target backing the product, not the product itself.
+            codeCoverageTargets: [TargetReference(projectPath: packagePath, name: "PackageProductCore")]
+        )
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+
+        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+
+        let project = Project.test(
+            path: projectPath,
+            targets: [target, testTarget],
+            packages: [.local(path: packagePath)]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try #require(got)
+        let references = try #require(result.codeCoverageTargets)
+        #expect(references.isEmpty)
+        #expect(result.onlyGenerateCoverageForSpecifiedTargets == nil)
+    }
+
+    @Test func schemeTestAction_with_codeCoverageTargets_notInGraphNorPackages() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            coverage: true,
+            codeCoverageTargets: [
+                TargetReference(
+                    projectPath: try AbsolutePath(validating: "/somepath/Unknown"),
+                    name: "UnknownTarget"
+                ),
+            ]
+        )
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+
+        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+
+        let project = Project.test(path: projectPath, targets: [target, testTarget])
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try #require(got)
+        let references = try #require(result.codeCoverageTargets)
+        #expect(references.isEmpty)
+    }
+
+    private func createGeneratedProjects(projects: [Project]) -> [AbsolutePath: GeneratedProject] {
+        Dictionary(uniqueKeysWithValues: projects.map { project in
+            var pbxTargets: [String: PBXTarget] = [:]
+            for target in project.targets.values {
+                pbxTargets[target.name] = PBXNativeTarget(name: target.name)
+            }
+            return (
+                project.xcodeProjPath,
+                GeneratedProject(
+                    pbxproj: .init(),
+                    path: project.xcodeProjPath,
+                    targets: pbxTargets,
+                    name: project.xcodeProjPath.basename
+                )
+            )
+        })
+    }
+}
+
+struct SchemeDescriptorsGeneratorTestPlanTests {
+    @Test func generates_test_plan_side_effects_only_for_generated_plans() throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let planPath = projectPath.appending(component: "UnitTests.xctestplan")
+        let plan = TestPlan(
+            path: planPath,
+            testTargets: [
+                TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests")),
+            ],
+            isDefault: true,
+            kind: .generated,
+            language: "en",
+            region: "US"
+        )
+        let existingPlan = TestPlan(
+            path: projectPath.appending(component: "Existing.xctestplan"),
+            testTargets: [],
+            isDefault: false,
+            kind: .referenced
+        )
+        let scheme = Scheme.test(testAction: TestAction.test(testPlans: [plan, existingPlan]))
+        let project = Project.test(path: projectPath, targets: [target, testTarget], schemes: [scheme])
+        let graphTraverser = GraphTraverser(graph: .test(projects: [project.path: project]))
+        let generatedProject = GeneratedProject(
+            pbxproj: .init(),
+            path: project.xcodeProjPath,
+            targets: ["App": PBXNativeTarget(name: "App"), "AppTests": PBXNativeTarget(name: "AppTests")],
+            name: project.xcodeProjPath.basename
+        )
+
+        let (_, sideEffects) = try SchemeDescriptorsGenerator().generateProjectSchemes(
+            project: project,
+            generatedProject: generatedProject,
+            graphTraverser: graphTraverser
+        )
+
+        let testPlanDescriptors = sideEffects.compactMap { sideEffect -> TestPlanDescriptor? in
+            guard case let .testPlan(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }
+        #expect(testPlanDescriptors.count == 1)
+        let descriptor = try #require(testPlanDescriptors.first)
+        #expect(descriptor.path == planPath)
+        #expect(descriptor.testTargets.map(\.pbxTarget.name) == ["AppTests"])
+        #expect(descriptor.language == "en")
+        #expect(descriptor.region == "US")
+    }
+}
+
+struct SchemeDescriptorsGeneratorBuildForTests {
+    @Test func perTargetBuildForOptions() throws {
+        try expectBuildFor(
+            options: [.analyzing, .archiving, .profiling, .running],
+            expected: [.analyzing, .archiving, .profiling, .running]
+        )
+    }
+
+    @Test func explicitlyEmptyBuildForOptions() throws {
+        try expectBuildFor(options: [], expected: [])
+    }
+
+    @Test func defaultBuildForOptions() throws {
+        try expectBuildFor(options: nil, expected: [.analyzing, .archiving, .profiling, .running, .testing])
+    }
+
+    private func expectBuildFor(
+        options: Set<BuildAction.BuildFor>?,
+        expected: [XCScheme.BuildAction.Entry.BuildFor]
+    ) throws {
+        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
+        let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
+        let appReference = TargetReference(projectPath: projectPath, name: "App")
+        let testsReference = TargetReference(projectPath: projectPath, name: "AppTests")
+        var buildAction = BuildAction(
+            targets: [appReference, testsReference],
+            buildFor: [testsReference: [.testing]]
+        )
+        buildAction.buildFor[appReference] = options
+        let scheme = Scheme.test(buildAction: buildAction)
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(path: projectPath, xcodeProjPath: xcodeProjPath, targets: [app, tests])
+        let graphTraverser = GraphTraverser(graph: .test(projects: [project.path: project]))
+        let generatedProject = GeneratedProject(
+            pbxproj: .init(),
+            path: xcodeProjPath,
+            targets: ["App": PBXNativeTarget(name: "App"), "AppTests": PBXNativeTarget(name: "AppTests")],
+            name: "Project"
+        )
+
+        let got = try SchemeDescriptorsGenerator().schemeBuildAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: [xcodeProjPath: generatedProject]
+        )
+
+        let result = try #require(got)
+        #expect(result.buildActionEntries.count == 2)
+        #expect(result.buildActionEntries[0].buildFor == expected)
+        #expect(result.buildActionEntries[1].buildFor == [.testing])
+    }
+}
+
+struct GeneratedTestPlanCoverageSchemeTests {
+    @Test(arguments: [false, true])
+    func coverage_resolves_actual_targets_and_rejects_unavailable_projects(external: Bool) throws {
+        let root = try AbsolutePath(validating: "/Project")
+        let otherPath = root.appending(component: "Framework")
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let coverageReference = TargetReference(projectPath: external ? otherPath : root, name: external ? "Framework" : "App")
+        let plan = TestPlan(
+            path: root.appending(component: "Plan.xctestplan"),
+            testTargets: [.init(target: .init(projectPath: root, name: "AppTests"))],
+            isDefault: true,
+            kind: .generated,
+            coverage: true,
+            codeCoverageTargets: [coverageReference],
+            language: "fr",
+            region: "NZ"
+        )
+        let scheme = Scheme(name: "Scheme", testAction: .test(testPlans: [plan]))
+        let project = Project.test(
+            path: root, xcodeProjPath: root.appending(component: "App.xcodeproj"), targets: [app, tests], schemes: [scheme]
+        )
+        let otherProject = Project.test(
+            path: otherPath, xcodeProjPath: otherPath.appending(component: "Framework.xcodeproj"), targets: [framework]
+        )
+        let workspace = Workspace.test(
+            path: root,
+            xcWorkspacePath: root.appending(component: "App.xcworkspace"),
+            projects: [root, otherPath],
+            schemes: [scheme]
+        )
+        let traverser = GraphTraverser(graph: .test(
+            path: root, workspace: workspace, projects: [root: project, otherPath: otherProject]
+        ))
+        let appPBX = PBXNativeTarget(name: "App")
+        let frameworkPBX = PBXNativeTarget(name: "Framework")
+        let generated = GeneratedProject.test(
+            path: project.xcodeProjPath,
+            targets: ["App": appPBX, "AppTests": PBXNativeTarget(name: "AppTests")]
+        )
+        let generator = SchemeDescriptorsGenerator()
+        if external {
+            #expect(throws: SchemeDescriptorsGeneratorError.unresolvedTestPlanCoverageTarget(
+                plan: plan.path, target: coverageReference
+            )) {
+                try generator.generateProjectSchemes(project: project, generatedProject: generated, graphTraverser: traverser)
+            }
+        } else {
+            let (_, effects) = try generator.generateProjectSchemes(
+                project: project, generatedProject: generated, graphTraverser: traverser
+            )
+            #expect(effects.count == 1)
+        }
+
+        let (_, effects) = try generator.generateWorkspaceSchemes(
+            workspace: workspace,
+            generatedProjects: [
+                project.xcodeProjPath: generated,
+                otherProject.xcodeProjPath: .test(path: otherProject.xcodeProjPath, targets: ["Framework": frameworkPBX]),
+            ],
+            graphTraverser: traverser
+        )
+        let descriptor = try #require(effects.compactMap { effect -> TestPlanDescriptor? in
+            guard case let .testPlan(descriptor) = effect else { return nil }
+            return descriptor
+        }.first)
+        let json = try #require(JSONSerialization.jsonObject(with: descriptor.encode()) as? [String: Any])
+        let options = try #require(json["defaultOptions"] as? [String: Any])
+        #expect(options["language"] as? String == "fr")
+        #expect(options["region"] as? String == "NZ")
+        let coverage = try #require(options["codeCoverage"] as? [String: Any])
+        let targets = try #require(coverage["targets"] as? [[String: String]])
+        let expectedProject = external ? otherProject : project
+        #expect(targets == [[
+            "name": external ? "Framework" : "App",
+            "identifier": external ? frameworkPBX.uuid : appPBX.uuid,
+            "containerPath": "container:\(expectedProject.xcodeProjPath.relative(to: root).pathString)",
+        ]])
     }
 }

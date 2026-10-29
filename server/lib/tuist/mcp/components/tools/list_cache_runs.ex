@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListCacheRuns do
   use Tuist.MCP.Tool,
     name: "list_cache_runs",
     title: "List Cache Runs",
+    read_only_hint: true,
     authorize: [action: :read, category: :run],
     schema: %{
       "type" => "object",
@@ -46,6 +47,7 @@ defmodule Tuist.MCP.Components.Tools.ListCacheRuns do
             "type" => "object",
             "properties" => %{
               "id" => %{"type" => "string"},
+              "actor" => Tuist.MCP.Tool.report_actor_schema(),
               "duration" => %{"type" => "integer"},
               "status" => %{"type" => "string"},
               "tuist_version" => %{"type" => "string"},
@@ -116,6 +118,7 @@ defmodule Tuist.MCP.Components.Tools.ListCacheRuns do
          Enum.map(events, fn event ->
            %{
              id: event.id,
+             actor: Tuist.ReportActor.actor(event, event.user_account_name),
              duration: event.duration,
              status: status_to_string(event.status),
              tuist_version: event.tuist_version,

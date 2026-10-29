@@ -45,9 +45,9 @@ export function ConfigEditor(props: Props) {
       </InlineField>
 
       <InlineField
-        label="Account token"
+        label="Token"
         labelWidth={16}
-        tooltip="A Tuist account token with project:builds:read and project:tests:read scopes (both covered by the 'mcp' scope group)."
+        tooltip="A Tuist token with read access to your projects. For account tokens, grant project:builds:read for builds and project:tests:read for tests."
       >
         <SecretInput
           width={40}

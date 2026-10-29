@@ -1,5 +1,6 @@
 package dev.tuist.gradle
 
+import com.google.gson.JsonParser
 import org.gradle.caching.BuildCacheEntryReader
 import org.gradle.caching.BuildCacheEntryWriter
 import org.gradle.caching.BuildCacheException
@@ -9,9 +10,15 @@ import org.gradle.caching.BuildCacheServiceFactory
 import org.gradle.caching.configuration.AbstractBuildCache
 import org.slf4j.LoggerFactory
 import java.io.EOFException
+import java.io.FilterInputStream
+import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URI
+import java.security.DigestOutputStream
+import java.security.MessageDigest
+import java.util.HexFormat
 import java.util.zip.ZipException
 
 /**
@@ -79,20 +86,22 @@ data class ProjectHandle(val accountHandle: String, val projectHandle: String) {
 }
 
 /**
- * Default configuration provider that resolves auth and cache endpoints natively.
+ * Authenticated access to the Tuist server without cache endpoint discovery, for requests that
+ * only need the server, a token and the project. [CacheConfiguration.url] is the resolved server URL.
  */
-class DefaultConfigurationProvider(
+class ServerConfigurationProvider(
     private val project: String?,
     private val serverUrl: String,
     private val projectDir: java.io.File,
-    private val httpClients: TuistHttpClients = TuistHttpClients()
+    private val httpClients: TuistHttpClients = TuistHttpClients(),
+    private val tokenProviderFactory: ((URI) -> TokenProvider)? = null
 ) : ConfigurationProvider {
 
-    private val resolvedServerUrl: java.net.URI by lazy {
+    internal val resolvedServerUrl: java.net.URI by lazy {
         java.net.URI.create(ServerUrlResolver.resolve(extensionUrl = serverUrl, projectDir = projectDir))
     }
 
-    private val resolvedProject: ProjectHandle by lazy {
+    internal val resolvedProject: ProjectHandle by lazy {
         val fullName = if (!project.isNullOrBlank()) project
         else {
             val tomlFile = ServerUrlResolver.findTomlFile(projectDir)
@@ -104,33 +113,67 @@ class DefaultConfigurationProvider(
         ProjectHandle.parse(fullName)
     }
 
-    private val tokenProvider: TokenProvider by lazy {
-        TokenProvider(resolvedServerUrl, httpClients = httpClients)
+    internal val tokenProvider: TokenProvider by lazy {
+        tokenProviderFactory?.invoke(resolvedServerUrl) ?: TokenProvider(resolvedServerUrl, httpClients = httpClients)
     }
-
-    private val cacheEndpointCache: CachedValueStore<String> = CachedValueStore()
 
     override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
         val token = tokenProvider.getToken(forceRefresh)
         val handle = resolvedProject
-
-        val cacheEndpoint = cacheEndpointCache.getValue(forceRefresh) {
-            resolveCacheEndpoint(handle.accountHandle)
-        }
-
         return CacheConfiguration(
-            url = cacheEndpoint,
+            url = resolvedServerUrl.toString(),
             token = token,
             accountHandle = handle.accountHandle,
             projectHandle = handle.projectHandle
         )
     }
+}
+
+/**
+ * Default configuration provider that resolves auth and cache endpoints natively.
+ */
+class DefaultConfigurationProvider(
+    project: String?,
+    serverUrl: String,
+    projectDir: java.io.File,
+    private val httpClients: TuistHttpClients = TuistHttpClients(),
+    tokenProviderFactory: ((URI) -> TokenProvider)? = null
+) : ConfigurationProvider {
+
+    private val server = ServerConfigurationProvider(project, serverUrl, projectDir, httpClients, tokenProviderFactory)
+
+    private val cacheEndpointCache: CachedValueStore<String> = CachedValueStore()
+
+    override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
+        val token = server.tokenProvider.getOptionalToken(forceRefresh)
+        if (token == null) {
+            if (!NetworkTrustDiscovery.available(server.resolvedServerUrl, "network_trusted_cache_access", httpClients)) {
+                throw TokenProvider.NotAuthenticatedException(server.resolvedServerUrl)
+            }
+            val handle = server.resolvedProject
+            val endpoint = server.tokenProvider.envProvider("TUIST_CACHE_ENDPOINT")?.takeUnless { it.isBlank() }
+                ?: NetworkTrustDiscovery.get(server.resolvedServerUrl.resolve("/api/cache/endpoint"), httpClients) { body ->
+                    JsonParser.parseString(body).asJsonObject["endpoint"]?.takeUnless { it.isJsonNull }?.asString
+                }
+            check(!endpoint.isNullOrBlank() && NetworkTrustDiscovery.isSelfHosted(URI(endpoint))) {
+                "Network-trusted caching requires a self-hosted cache endpoint."
+            }
+            return CacheConfiguration(endpoint, "", handle.accountHandle, handle.projectHandle)
+        }
+        val serverConfiguration = server.getConfiguration(forceRefresh)
+
+        val cacheEndpoint = cacheEndpointCache.getValue(forceRefresh) {
+            resolveCacheEndpoint(serverConfiguration.accountHandle)
+        }
+
+        return serverConfiguration.copy(url = cacheEndpoint)
+    }
 
     private fun resolveCacheEndpoint(accountHandle: String): Pair<String, Long?> {
         val endpoint = CacheEndpointResolver.resolve(
-            serverURL = resolvedServerUrl,
+            serverURL = server.resolvedServerUrl,
             accountHandle = accountHandle,
-            tokenProvider = tokenProvider,
+            tokenProvider = server.tokenProvider,
             httpClients = httpClients
         )
         val expiresAtMs = System.currentTimeMillis() + CACHE_ENDPOINT_TTL_MS
@@ -146,7 +189,9 @@ class DefaultConfigurationProvider(
  * Custom BuildCacheService that handles authentication and automatic token refresh.
  *
  * When a 401 Unauthorized response is received, this service automatically
- * refreshes the configuration and retries the request.
+ * refreshes the configuration and retries the request. Transient failures are retried with
+ * [TuistRetry]; once its attempts run out the failure is a [BuildCacheException], so Gradle
+ * disables the remote cache for the rest of the build.
  */
 class TuistBuildCacheService(
     private val httpClient: TuistHttpClient,
@@ -158,26 +203,40 @@ class TuistBuildCacheService(
             val url = buildCacheUrl(config, key.hashCode)
             val cacheKey = key.hashCode
 
-            val connection = try {
-                httpClient.openConnection(url, config).also { it.requestMethod = "GET" }
-            } catch (e: Throwable) {
-                throw cacheFailure("load", cacheKey, url, "Failed to open connection", cause = e)
-            }
+            // The body is read once, outside the retries: the reader may already hold part of it.
+            val (connection, responseCode) = httpClient.retrying("Remote cache load of $cacheKey", replaySafe = true) {
+                val connection = try {
+                    httpClient.openConnection(url, config).also { it.requestMethod = "GET" }
+                } catch (e: Throwable) {
+                    throw cacheFailure("load", cacheKey, url, "Failed to open connection", cause = e)
+                }
 
-            val responseCode = try {
-                connection.responseCode
-            } catch (e: Throwable) {
-                throw cacheFailure("load", cacheKey, url, "Failed to read HTTP response status", cause = e)
+                val responseCode = try {
+                    connection.responseCode
+                } catch (e: Throwable) {
+                    throw cacheFailure("load", cacheKey, url, "Failed to read HTTP response status", cause = e)
+                }
+
+                if (responseCode in TuistRetry.RETRYABLE_STATUSES) {
+                    throw TuistRetry.statusFailure(connection, responseCode) {
+                        unexpectedStatus("load", cacheKey, url, connection, responseCode)
+                    }
+                }
+                connection to responseCode
             }
 
             when (responseCode) {
                 HttpURLConnection.HTTP_OK -> {
+                    val expectedChecksum = parseChecksum(connection.getHeaderField(CHECKSUM_HEADER))
                     try {
-                        connection.inputStream.use { input -> reader.readFrom(input) }
+                        connection.inputStream.use { input ->
+                            reader.readFrom(expectedChecksum?.let { ChecksumVerifyingInputStream(input, it) } ?: input)
+                        }
                         true
                     } catch (e: Throwable) {
-                        if (looksLikeInvalidCompressedCacheEntry(e)) {
-                            logCorruptCacheEntry(url, cacheKey, connection, e)
+                        val checksumMismatch = causalChain(e).filterIsInstance<ChecksumMismatchException>().firstOrNull()
+                        if (checksumMismatch != null || looksLikeInvalidCompressedCacheEntry(e)) {
+                            logCorruptCacheEntry(url, cacheKey, connection, checksumMismatch ?: e)
                             false
                         } else {
                             throw cacheFailure(
@@ -191,12 +250,7 @@ class TuistBuildCacheService(
                 }
                 HttpURLConnection.HTTP_NOT_FOUND -> false
                 HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                else -> throw cacheFailure(
-                    "load", cacheKey, url,
-                    "Server returned unexpected HTTP status",
-                    status = responseCode,
-                    body = readErrorBodySnippet(connection)
-                )
+                else -> throw unexpectedStatus("load", cacheKey, url, connection, responseCode)
             }
         }
     }
@@ -204,48 +258,86 @@ class TuistBuildCacheService(
     override fun store(key: BuildCacheKey, writer: BuildCacheEntryWriter) {
         if (!isPushEnabled) return
 
-        httpClient.execute<Unit> { config ->
-            val url = buildCacheUrl(config, key.hashCode)
-            val cacheKey = key.hashCode
+        val checksumRefusal = storeOnce(key.hashCode, writer) ?: return
+        logger.warn("Tuist: Retrying store because the server refused the cache entry body: {}", checksumRefusal.message)
+        storeOnce(key.hashCode, writer)?.let { throw it }
+    }
 
-            val connection = try {
-                httpClient.openConnection(url, config).also {
-                    it.requestMethod = "PUT"
-                    it.doOutput = true
-                    it.setRequestProperty("Content-Type", "application/octet-stream")
+    /**
+     * Returns the failure instead of throwing it when the server refuses the body's checksum (422).
+     */
+    private fun storeOnce(cacheKey: String, writer: BuildCacheEntryWriter): BuildCacheException? {
+        val checksum = lazy { sha256Hex(writer) }
+
+        return httpClient.execute { config ->
+            val url = buildCacheUrl(config, cacheKey)
+
+            val expectedChecksum = try {
+                checksum.value
+            } catch (e: Throwable) {
+                throw cacheFailure("store", cacheKey, url, "Failed to compute cache entry checksum", cause = e)
+            }
+
+            // Entries are content-addressed, so the same PUT can be sent again.
+            val (connection, responseCode) = httpClient.retrying("Remote cache store of $cacheKey", replaySafe = true) {
+                val connection = try {
+                    httpClient.openConnection(url, config).also {
+                        it.requestMethod = "PUT"
+                        it.doOutput = true
+                        it.setRequestProperty("Content-Type", "application/octet-stream")
+                        it.setRequestProperty(CHECKSUM_HEADER, expectedChecksum)
+                    }
+                } catch (e: Throwable) {
+                    throw cacheFailure("store", cacheKey, url, "Failed to open connection", cause = e)
                 }
-            } catch (e: Throwable) {
-                throw cacheFailure("store", cacheKey, url, "Failed to open connection", cause = e)
-            }
 
-            try {
-                connection.outputStream.use { output -> writer.writeTo(output) }
-            } catch (e: Throwable) {
-                throw cacheFailure(
-                    "store", cacheKey, url,
-                    "Failed to write cache entry body (size=${runCatching { writer.size }.getOrNull()})",
-                    cause = e
-                )
-            }
+                try {
+                    connection.outputStream.use { output -> writer.writeTo(output) }
+                } catch (e: Throwable) {
+                    throw cacheFailure(
+                        "store", cacheKey, url,
+                        "Failed to write cache entry body (size=${runCatching { writer.size }.getOrNull()})",
+                        cause = e
+                    )
+                }
 
-            val responseCode = try {
-                connection.responseCode
-            } catch (e: Throwable) {
-                throw cacheFailure("store", cacheKey, url, "Failed to read HTTP response status", cause = e)
+                val responseCode = try {
+                    connection.responseCode
+                } catch (e: Throwable) {
+                    throw cacheFailure("store", cacheKey, url, "Failed to read HTTP response status", cause = e)
+                }
+
+                if (responseCode in TuistRetry.RETRYABLE_STATUSES) {
+                    throw TuistRetry.statusFailure(connection, responseCode) {
+                        unexpectedStatus("store", cacheKey, url, connection, responseCode)
+                    }
+                }
+                connection to responseCode
             }
 
             when (responseCode) {
-                HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED, HttpURLConnection.HTTP_NO_CONTENT -> {}
+                HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED, HttpURLConnection.HTTP_NO_CONTENT -> null
                 HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                else -> throw cacheFailure(
-                    "store", cacheKey, url,
-                    "Server returned unexpected HTTP status",
-                    status = responseCode,
-                    body = readErrorBodySnippet(connection)
-                )
+                else -> {
+                    val failure = unexpectedStatus("store", cacheKey, url, connection, responseCode)
+                    if (responseCode == HTTP_UNPROCESSABLE_ENTITY) failure else throw failure
+                }
             }
         }
     }
+
+    private fun unexpectedStatus(
+        operation: String,
+        cacheKey: String,
+        url: URI,
+        connection: HttpURLConnection,
+        responseCode: Int
+    ): BuildCacheException = cacheFailure(
+        operation, cacheKey, url,
+        "Server returned unexpected HTTP status",
+        status = responseCode,
+        body = readErrorBodySnippet(connection)
+    )
 
     override fun close() {
         // No resources to clean up
@@ -265,7 +357,10 @@ class TuistBuildCacheService(
     }
 
     companion object {
+        internal const val CHECKSUM_HEADER = "tuist-checksum-sha256"
+        private const val HTTP_UNPROCESSABLE_ENTITY = 422
         private const val ERROR_BODY_MAX_BYTES = 1024
+        private val checksumPattern = Regex("[0-9a-fA-F]{64}")
         private val logger = LoggerFactory.getLogger(TuistBuildCacheService::class.java)
         private val invalidCompressionMessageHints = listOf(
             "unexpected end of zlib input stream",
@@ -354,6 +449,58 @@ class TuistBuildCacheService(
 
         private fun causalChain(error: Throwable): Sequence<Throwable> =
             generateSequence(error) { current -> current.cause }
+
+        // Hashing in its own pass keeps a single in-memory copy of the entry: HttpURLConnection
+        // already buffers the request body. Gradle's writer copies from a packed file, so it can
+        // be written more than once.
+        private fun sha256Hex(writer: BuildCacheEntryWriter): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            DigestOutputStream(OutputStream.nullOutputStream(), digest).use { writer.writeTo(it) }
+            return HexFormat.of().formatHex(digest.digest())
+        }
+
+        private fun parseChecksum(value: String?): String? =
+            value?.trim()?.takeIf(checksumPattern::matches)?.lowercase()
+    }
+}
+
+internal class ChecksumMismatchException(expected: String, actual: String) :
+    IOException("Body does not match ${TuistBuildCacheService.CHECKSUM_HEADER}: declared $expected, received $actual")
+
+/**
+ * Hashes every byte read from [input]. The declared checksum covers the whole object, so it is
+ * compared when [input] reports end of stream, which also catches a body that ends early.
+ */
+internal class ChecksumVerifyingInputStream(
+    input: InputStream,
+    private val expectedChecksum: String
+) : FilterInputStream(input) {
+    private val digest = MessageDigest.getInstance("SHA-256")
+    private var actualChecksum: String? = null
+
+    override fun read(): Int {
+        val byte = super.read()
+        if (byte == -1) verify() else digest.update(byte.toByte())
+        return byte
+    }
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
+        val count = super.read(b, off, len)
+        if (count == -1) verify() else digest.update(b, off, count)
+        return count
+    }
+
+    override fun skip(n: Long): Long {
+        if (n <= 0) return 0
+        val count = read(ByteArray(minOf(n, 8192L).toInt()))
+        return if (count == -1) 0 else count.toLong()
+    }
+
+    override fun markSupported(): Boolean = false
+
+    private fun verify() {
+        val actual = actualChecksum ?: HexFormat.of().formatHex(digest.digest()).also { actualChecksum = it }
+        if (actual != expectedChecksum) throw ChecksumMismatchException(expectedChecksum, actual)
     }
 }
 

@@ -1,7 +1,7 @@
-import Command
 import Path
 import Testing
 import TuistAcceptanceTesting
+import TuistProcess
 import TuistSupport
 import TuistTesting
 

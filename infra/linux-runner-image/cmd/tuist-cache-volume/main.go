@@ -1,0 +1,417 @@
+// tuist-cache-volume attaches a disposable directory in the job's own namespace.
+// It runs directly in either the runner or the workflow's Docker container.
+package main
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type paths []string
+
+func (p *paths) String() string         { return fmt.Sprint([]string(*p)) }
+func (p *paths) Set(value string) error { *p = append(*p, value); return nil }
+
+const maxPaths = 16
+
+var keyPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_./-]{0,199}$`)
+var directoryPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
+var sizePattern = regexp.MustCompile(`(?i)^([0-9]{1,3})gb$`)
+
+// reservedKeys name the volumes Tuist manages itself, which no job can request.
+var reservedKeys = map[string]string{"checkout": "cached checkouts", "docker": "the Docker cache"}
+
+var errInvalidPath = errors.New("invalid cache path")
+var errArguments = errors.New("invalid arguments")
+var errExecutionPending = errors.New("GitHub had not yet reported which job this runner is running, so the Tuist server could not authorize a volume in time")
+var hexComponent = regexp.MustCompile(`^[0-9a-f]{8,}$`)
+
+func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex.EncodeToString(h[:]) }
+
+// parseSize returns the requested capacity in bytes for a size such as 50gb.
+func parseSize(value string) (int64, error) {
+	if match := sizePattern.FindStringSubmatch(value); match != nil {
+		if gb, err := strconv.Atoi(match[1]); err == nil && gb >= 1 && gb <= 100 {
+			return int64(gb) * 1_000_000_000, nil
+		}
+	}
+	return 0, fmt.Errorf("invalid cache volume size %q: use a whole number of GB from 1gb to 100gb, such as 50gb", value)
+}
+
+func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "dind" {
+		if err := runDind(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) >= 2 && (os.Args[1] == "mount-server" || os.Args[1] == "mount-worker") {
+		var err error
+		if os.Args[1] == "mount-worker" && (len(os.Args) == 2 || (len(os.Args) == 3 && os.Args[2] == "local")) {
+			err = mountWorker(len(os.Args) == 3)
+		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
+			err = serveMounts(os.Args[2], os.Args[3], nil)
+		} else {
+			err = errors.New("invalid mount helper arguments")
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	opts, err := parseArguments(os.Args[1:], os.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		return
+	}
+	if err != nil {
+		if !errors.Is(err, errArguments) {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		os.Exit(2)
+	}
+	if opts.checkout != "" {
+		// Never fails the job: without a cached checkout, actions/checkout clones as usual.
+		if runtime.GOOS == "darwin" {
+			fmt.Println("Tuist cached checkout: " + checkoutMac(opts.checkout))
+		} else {
+			fmt.Println("Tuist cached checkout: " + checkoutLinux(opts.checkout))
+		}
+		return
+	}
+	if opts.docker {
+		// Never fails the job: without a data root dockerd keeps its ephemeral one.
+		fmt.Println("Tuist Docker cache: " + dockerLinux())
+		return
+	}
+	if opts.dockerTeardown {
+		// Never fails the teardown: without a report the host withholds the data root.
+		fmt.Println("Tuist Docker cache teardown: " + dockerTeardownLinux())
+		return
+	}
+	if opts.export {
+		// Never fails the teardown: without an export the host keeps its master.
+		if runtime.GOOS == "darwin" {
+			fmt.Println("Tuist cached checkout export: " + exportCheckoutMac())
+		} else {
+			fmt.Println("Tuist cached checkout export: " + exportCheckoutLinux())
+		}
+		return
+	}
+	if opts.detach {
+		if runtime.GOOS != "darwin" {
+			os.Exit(2)
+		}
+		if err := detachMac(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if contentHashedKey(opts.key) {
+		fmt.Fprintf(os.Stderr, "::notice::Cache volume key %q looks like it contains a content hash. Every new key starts an empty volume; use a stable name and let your tools update the saved contents.\n", opts.key)
+	}
+	if err := attach(opts.key, opts.targets, opts.size); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		if errors.Is(err, errInvalidPath) {
+			os.Exit(2)
+		}
+		os.Exit(1)
+	}
+}
+
+type options struct {
+	detach         bool
+	checkout       string
+	export         bool
+	docker         bool
+	dockerTeardown bool
+	key            string
+	targets        []string
+	size           int64
+}
+
+// parseArguments validates the command line before anything is acquired. The
+// size is zero when --size is absent.
+func parseArguments(args []string, output io.Writer) (options, error) {
+	flags := flag.NewFlagSet("tuist-cache-volume", flag.ContinueOnError)
+	flags.SetOutput(output)
+	detach := flags.Bool("detach-all", false, "Detach macOS volumes after the job")
+	checkout := flags.String("checkout", "", "Mount the job's cached checkout at this workspace (before the first step)")
+	export := flags.Bool("checkout-export", false, "Hand the host what the job's checkout added (after the job)")
+	docker := flags.Bool("docker", false, "Move dockerd onto the job's Docker cache volume (before the first step)")
+	dockerTeardown := flags.Bool("docker-teardown", false, "Clean and hand back the job's Docker cache volume (after the job)")
+	key := flags.String("key", "", "Stable cache name; change it to invalidate")
+	var targets paths
+	flags.Var(&targets, "path", "Directory to cache (repeatable, up to 16; relative to the working directory)")
+	size := flags.String("size", "", "Volume capacity, a whole number of GB from 1gb to 100gb, such as 50gb")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return options{}, err
+		}
+		// The flag set has already printed the error and the usage.
+		return options{}, errArguments
+	}
+	if *checkout != "" {
+		return options{checkout: *checkout}, nil
+	}
+	if *export {
+		return options{export: true}, nil
+	}
+	if *docker {
+		return options{docker: true}, nil
+	}
+	if *dockerTeardown {
+		return options{dockerTeardown: true}, nil
+	}
+	if *detach {
+		return options{detach: true}, nil
+	}
+	if reserved, ok := reservedKeys[*key]; ok {
+		return options{}, fmt.Errorf("the cache volume key %q is reserved for %s; choose another key", *key, reserved)
+	}
+	if !keyPattern.MatchString(*key) || len(targets) == 0 {
+		return options{}, errors.New("usage: tuist-cache-volume --key NAME --path DIR [--path DIR] [--size NGB]")
+	}
+	if len(targets) > maxPaths {
+		return options{}, fmt.Errorf("a cache volume takes at most %d paths", maxPaths)
+	}
+	result := options{key: *key, targets: targets}
+	var err error
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "size" {
+			result.size, err = parseSize(*size)
+		}
+	})
+	return result, err
+}
+func attach(key string, targets []string, size int64) error {
+	statePath := linuxCheckoutStatePath
+	if runtime.GOOS == "darwin" {
+		statePath = checkoutStatePath
+	}
+	if targets = withoutCheckoutPaths(targets, statePath); len(targets) == 0 {
+		return writeOutput(false)
+	}
+	root := "/home/runner/work/_tuist_cache"
+	if runtime.GOOS == "darwin" {
+		root = macMountRoot
+	}
+	if info, err := os.Stat("/__w/_tuist_cache"); err == nil && info.IsDir() {
+		root = "/__w/_tuist_cache"
+	}
+	if runtime.GOOS == "darwin" {
+		return attachMac(key, targets, root, size)
+	}
+	return attachUsing(key, targets, root, func() (string, string, bool, error) {
+		client, err := newCacheHTTPClient(30 * time.Second)
+		if err != nil {
+			return "", "", false, err
+		}
+		defer client.CloseIdleConnections()
+		return acquire(client, key, size)
+	}, bindDirectory)
+}
+func attachUsing(key string, targets []string, root string, getVolume func() (string, string, bool, error), mount func(string, string, string) error) error {
+	// Validate all paths before acquiring storage. Never replace existing content.
+	absolute := make([]string, len(targets))
+	for i, p := range targets {
+		if p == "" || strings.ContainsFunc(p, func(r rune) bool { return r < 32 || r == 127 }) {
+			return fmt.Errorf("%w: paths must be nonempty and contain no control characters", errInvalidPath)
+		}
+		abs, err := absolutePath(p)
+		if err != nil {
+			return err
+		}
+		absolute[i] = abs
+		if err := emptyTarget(abs); err != nil {
+			return err
+		}
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	for i, path := range absolute {
+		if containsPath(path, cwd) || containsPath(path, root) || containsPath(root, path) {
+			return fmt.Errorf("cache path overlaps workspace or cache mount: %s", path)
+		}
+		for j := 0; j < i; j++ {
+			if containsPath(path, absolute[j]) || containsPath(absolute[j], path) {
+				return errors.New("cache paths must not overlap")
+			}
+		}
+	}
+	directory, lease, warm, err := getVolume()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "::warning::Cache volume unavailable: %v\n", err)
+		return coldDirectories(absolute)
+	}
+	if !directoryPattern.MatchString(directory) {
+		return errors.New("invalid cache directory response")
+	}
+	base := filepath.Join(root, directory)
+	if info, err := os.Stat(base); err != nil || !info.IsDir() {
+		return coldDirectories(absolute)
+	}
+	proof, err := os.ReadFile(filepath.Join(base, ".tuist-volume"))
+	if err != nil || lease == "" || string(proof) != lease {
+		return coldDirectories(absolute)
+	}
+	sourceNames, manifest := volumeLayout(base, targets)
+	for _, sourceName := range sourceNames {
+		if err := os.MkdirAll(filepath.Join(base, sourceName), 0777); err != nil {
+			return err
+		}
+	}
+	if manifest != nil {
+		if err := writeManifest(base, manifest); err != nil {
+			fmt.Fprintf(os.Stderr, "::warning::Could not record the cache volume's path layout: %v\n", err)
+		}
+	}
+	for i, path := range absolute {
+		sourceName := sourceNames[i]
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return err
+		}
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return err
+		}
+		if err := mount(filepath.Join(filepath.Dir(root), ".tuist-cache-mount.sock"), filepath.Join(directory, sourceName), path); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("Tuist cache volume attached (warm=%t)\n", warm)
+	return writeOutput(warm)
+}
+
+// absolutePath resolves a cache path against the home and working directories.
+func absolutePath(p string) (string, error) {
+	if p == "~" || strings.HasPrefix(p, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		if p == "~" {
+			p = home
+		} else {
+			p = filepath.Join(home, strings.TrimPrefix(p, "~/"))
+		}
+	}
+	return filepath.Abs(p)
+}
+func writeOutput(warm bool) error {
+	if output := os.Getenv("GITHUB_OUTPUT"); output != "" {
+		f, err := os.OpenFile(output, os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = fmt.Fprintf(f, "cache-hit=%t\n", warm)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func emptyTarget(path string) error {
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%w: cache path must be absent or an empty directory: %s", errInvalidPath, path)
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	if len(entries) != 0 {
+		return fmt.Errorf("%w: cache path must be absent or an empty directory: %s", errInvalidPath, path)
+	}
+	return nil
+}
+func acquire(client *http.Client, key string, size int64) (string, string, bool, error) {
+	endpoint := os.Getenv("TUIST_CACHE_VOLUME_URL")
+	if endpoint == "" {
+		return "", "", false, errors.New("cache volumes disabled")
+	}
+	request := map[string]any{"pod_name": os.Getenv("TUIST_CACHE_VOLUME_POD"), "pod_uid": os.Getenv("TUIST_CACHE_VOLUME_UID"), "key": key, "architecture": runtime.GOARCH, "uid": os.Getuid()}
+	if size > 0 {
+		request["requested_volume_bytes"] = size
+	}
+	body, _ := json.Marshal(request)
+	req, err := http.NewRequest("POST", endpoint+"/acquire", bytes.NewReader(body))
+	if err != nil {
+		return "", "", false, cacheRequestError{err}
+	}
+	req.Header.Set("Content-Type", "application/json")
+	var result struct {
+		Directory string `json:"directory"`
+		ID        string `json:"id"`
+		Warm      bool   `json:"warm"`
+	}
+	err = requestJSON(client, req, &result)
+	return result.Directory, result.ID, result.Warm, err
+}
+func requestJSON(client *http.Client, req *http.Request, result any) error {
+	response, err := client.Do(req)
+	if err != nil {
+		return cacheRequestError{err}
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusTooEarly {
+		return errExecutionPending
+	}
+	if response.StatusCode != 200 {
+		return fmt.Errorf("cache service returned %d", response.StatusCode)
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 32768)).Decode(result); err != nil {
+		return cacheResponseError{err}
+	}
+	return nil
+}
+
+// contentHashedKey reports a key with a component that looks like a lockfile or
+// commit hash: hex with both digits and letters, at least eight characters long.
+func contentHashedKey(key string) bool {
+	for _, part := range strings.FieldsFunc(strings.ToLower(key), func(r rune) bool { return strings.ContainsRune("-_./", r) }) {
+		if hexComponent.MatchString(part) && strings.ContainsAny(part, "0123456789") && strings.ContainsAny(part, "abcdef") {
+			return true
+		}
+	}
+	return false
+}
+
+func containsPath(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func coldDirectories(paths []string) error {
+	fmt.Fprintln(os.Stderr, "::warning::Tuist cache volume unavailable; using empty job-local directories")
+	for _, path := range paths {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return err
+		}
+	}
+	return writeOutput(false)
+}

@@ -97,15 +97,15 @@ curl "http://localhost:${port}/up"
 
 ### Managed Kura Regions
 
-Managed deployments expose the regions listed in `TUIST_KURA_AVAILABLE_REGIONS`. The production Helm overlay currently sets `eu-central,us-east,us-west`, so account settings can deploy one Kura server per account in any managed region that is not already occupied by that account.
+Managed deployments expose the regions listed in `TUIST_KURA_AVAILABLE_REGIONS`. The production Helm overlay currently sets `eu-west,us-east,us-west`, so account settings can deploy one Kura server per account in any managed region that is not already occupied by that account.
 
-Managed deploys use the latest `kura@...` GitHub release as the visible Kura version. The reconciler rolls active Kura servers to the corresponding Docker tag, for example `kura@0.5.2` maps to `ghcr.io/tuist/kura:0.5.2`. Local development can still set `TUIST_KURA_RUNTIME_IMAGE_TAG=dev`.
+Managed deploys use the newest `kura@...-canary.N` tag contained in the deployed commit as the Kura version, so hosted Kura follows `main` like the server; the RC/stable train is for self-hosted operators. The reconciler rolls active Kura servers to the corresponding Docker tag, for example `kura@0.56.0-canary.8` maps to `ghcr.io/tuist/kura:0.56.0-canary.8`. Local development can still set `TUIST_KURA_RUNTIME_IMAGE_TAG=dev`.
 
 Production maps those product regions to Hetzner-backed node pools inside the `tuist` workload cluster:
 
 | Product region | Cluster ID | Kubernetes client | Node pool | Hetzner location |
 | --- | --- | --- | --- | --- |
-| `eu-central` | `eu-central-1` | in-cluster ServiceAccount on `tuist` | `kura` | `fsn1` |
+| `eu-west` | `eu-west-1` | in-cluster ServiceAccount on `tuist` | `kura-dedibox` | Scaleway Dedibox, Paris |
 | `us-east` | `us-east-1` | in-cluster ServiceAccount on `tuist` | `kura-us-east` | `ash` |
 | `us-west` | `us-west-1` | in-cluster ServiceAccount on `tuist` | `kura-us-west` | `hil` |
 

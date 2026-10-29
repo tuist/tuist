@@ -39,6 +39,7 @@ enum PackageInfoCacheWriter {
         packageDir: URL,
         scratchDir: URL,
         resolved: ResolvedPins,
+        mirrors: MirrorConfig,
         cacheDir customCacheDir: URL?,
         disableSandbox: Bool,
         quiet: Bool
@@ -67,15 +68,21 @@ enum PackageInfoCacheWriter {
             .sorted { $0.identity < $1.identity }
 
         let packages = try await ConcurrentTasks.map(packagePins) { pin in
-            let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin)
+            let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin, mirrors: mirrors)
             let packageInfoPath =
                 cacheDir
                 .appendingPathComponent("packages")
                 .appendingPathComponent(
                     "\(SafeFileName.make(pin.identity))-\(entryHash(pin)).json")
-            _ = try await cachedOrDumpPackageJSON(
-                packageDir: packagePath, destination: packageInfoPath,
-                disableSandbox: disableSandbox)
+            do {
+                _ = try await cachedOrDumpPackageJSON(
+                    packageDir: packagePath, destination: packageInfoPath,
+                    disableSandbox: disableSandbox)
+            } catch {
+                throw ToolError.message(
+                    "failed to load the manifest for \(pin.identity): \(error)"
+                )
+            }
             return packageEntry(
                 pin: pin, packagePath: packagePath, packageInfoPath: packageInfoPath)
         }.sorted { $0.identity < $1.identity }
@@ -98,9 +105,20 @@ enum PackageInfoCacheWriter {
                 cacheDir
                 .appendingPathComponent("packages")
                 .appendingPathComponent(packageInfoFileName)
-            _ = try await cachedOrDumpPackageJSON(
-                packageDir: packagePath, destination: packageInfoPath,
-                disableSandbox: disableSandbox)
+            do {
+                _ = try await cachedOrDumpPackageJSON(
+                    packageDir: packagePath, destination: packageInfoPath,
+                    disableSandbox: disableSandbox,
+                    manifestCacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: packageDir, packageDir: packagePath)
+                )
+            } catch {
+                throw ToolError.message(
+                    """
+                    failed to load the manifest for the local package \
+                    \(dependency.identity), declared as "\(dependency.path)": \(error)
+                    """
+                )
+            }
             let entry = PackageInfoEntry(
                 identity: dependency.identity,
                 kind: "fileSystem",
@@ -145,7 +163,11 @@ enum PackageInfoCacheWriter {
         }
     }
 
-    private static func packagePathForPin(scratchDir: URL, pin: ResolvedPin) throws -> URL {
+    private static func packagePathForPin(
+        scratchDir: URL,
+        pin: ResolvedPin,
+        mirrors: MirrorConfig
+    ) throws -> URL {
         if PinKind.isRegistry(pin.kind) {
             return
                 scratchDir
@@ -155,31 +177,21 @@ enum PackageInfoCacheWriter {
         return
             scratchDir
             .appendingPathComponent("checkouts")
-            .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+            .appendingPathComponent(PinKind.checkoutDirectoryName(pin, mirrors: mirrors))
     }
 
     private static func cachedOrDumpPackageJSON(
-        packageDir: URL, destination: URL, disableSandbox: Bool
+        packageDir: URL, destination: URL, disableSandbox: Bool, manifestCacheFile: URL? = nil
     ) async throws -> Data {
-        if try await isFreshPackageInfo(destination: destination, packageDir: packageDir) {
-            return try await fileSystem.readFile(at: destination.absolutePath)
+        let inputs = try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
+        if let inputs, let cached = await ManifestCache.read(at: destination, inputs: inputs) {
+            return cached
         }
-        let data = try await ManifestLoader.dumpPackageJSON(
-            packageDir: packageDir, disableSandbox: disableSandbox)
-        try await fileSystem.atomicWrite(data, to: destination)
-        return data
-    }
-
-    private static func isFreshPackageInfo(destination: URL, packageDir: URL) async throws -> Bool {
-        guard
-            let cacheDate = try await fileSystem.fileMetadata(at: destination.absolutePath)?.lastModificationDate,
-            let manifestDate = try await fileSystem.fileMetadata(
-                at: packageDir.appendingPathComponent("Package.swift").absolutePath
-            )?.lastModificationDate
-        else {
-            return false
-        }
-        return cacheDate >= manifestDate
+        let evaluation = try await ManifestLoader.dumpPackageJSON(
+            packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: manifestCacheFile, inputs: inputs
+        )
+        try await ManifestCache.write(evaluation.data, at: destination, inputs: evaluation.inputs)
+        return evaluation.data
     }
 
     private static func packageEntry(pin: ResolvedPin, packagePath: URL, packageInfoPath: URL)
@@ -197,7 +209,8 @@ enum PackageInfoCacheWriter {
     }
 
     private static func entryHash(_ pin: ResolvedPin) -> String {
-        let input = "\(pin.location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
+        let location = SourceControlLocations.canonicalLocation(pin.location)
+        let input = "\(location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
         return String(Hashing.stable(input).prefix(16))
     }
 }

@@ -1,11 +1,22 @@
 defmodule TuistWeb.RateLimit.PersistentTokenBucket do
-  @moduledoc ~S"""
-  This module provides an interface for rate-limit that persisted across deployments and uses the [token bucket](https://github.com/ExHammer/hammer-backend-redis/blob/master/lib/hammer/redis/token_bucket.ex) algorithm.
+  @moduledoc false
 
-  With this algorithm the bucket is filled at a certain rate, and once it's filled, no more hits are allowed. Note that the
-  cleaning of old hits doesn't happened based on the option :clean_period as stated in the docs. The Redis LUA script
-  of the backend is configured such that the expiration time is determined dynamically based on how long it would take for the
-  token bucket to refill completely, plus a 60-second buffer.
-  """
-  use Hammer, backend: Hammer.Redis, timeout: :infinity, algorithm: :token_bucket
+  @behaviour Hammer
+
+  alias Hammer.Redis.TokenBucket
+  alias TuistWeb.RateLimit.RedisPool
+
+  @prefix "TuistWeb.RateLimit.PersistentTokenBucket"
+  @timeout 500
+
+  def child_spec(opts), do: RedisPool.child_spec(__MODULE__, opts)
+  def start_link(opts), do: RedisPool.start_link(__MODULE__, opts)
+
+  def hit(key, refill_rate, capacity, cost \\ 1) do
+    TokenBucket.hit(RedisPool.connection(__MODULE__), @prefix, key, refill_rate, capacity, cost, @timeout)
+  end
+
+  def get(key, _scale) do
+    TokenBucket.get(RedisPool.connection(__MODULE__), @prefix, key, @timeout)
+  end
 end

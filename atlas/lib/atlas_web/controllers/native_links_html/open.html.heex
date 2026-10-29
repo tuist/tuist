@@ -1,0 +1,33 @@
+<main id="native-link" data-part="native-link">
+  <div data-part="frame">
+    <img src={~p"/images/tuist-logo.svg"} alt="Atlas" data-part="logo" />
+    <div data-part="header">
+      <h1 data-part="title">{title(@destination)}</h1>
+      <p data-part="subtitle">
+        {if @native_url,
+          do:
+            gettext(
+              "Open it in the Atlas app, or continue in your browser. You may need to sign in."
+            ),
+          else: gettext("Continue in your browser. You may need to sign in.")}
+      </p>
+    </div>
+    <div data-part="actions">
+      <.button
+        :if={@native_url}
+        id="native-link-open-app"
+        href={native_href(@native_url)}
+        variant="primary"
+        size="large"
+        label={gettext("Open in Atlas")}
+      />
+      <.button
+        id="native-link-continue-browser"
+        href={@browser_path}
+        variant="secondary"
+        size="large"
+        label={gettext("Continue in browser")}
+      />
+    </div>
+  </div>
+</main>

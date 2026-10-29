@@ -10,12 +10,21 @@
           id="build-runs-sort-by"
           label={
             case @build_runs_sort_by do
+              "failure-category" -> dgettext("dashboard_builds", "Failure category")
               "duration" -> dgettext("dashboard_builds", "Duration")
               _ -> dgettext("dashboard_builds", "Ran at")
             end
           }
           secondary_text={dgettext("dashboard_builds", "Sort by:")}
         >
+          <.dropdown_item
+            value="failure-category"
+            label={dgettext("dashboard_builds", "Failure category")}
+            patch={TuistWeb.XcodeBuildRunsLive.column_patch_sort(assigns, "failure-category")}
+            data-selected={@build_runs_sort_by == "failure-category"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
           <.dropdown_item
             value="duration"
             label={dgettext("dashboard_builds", "Duration")}
@@ -56,37 +65,10 @@
           }
         >
           <:col :let={build_run} label={dgettext("dashboard_builds", "Scheme")}>
-            <div data-part="cell" data-type="text">
-              <div
-                data-part="scheme-with-tags"
-                style="display: flex; align-items: center; gap: 8px;"
-              >
-                <span data-part="label">
-                  {if(build_run.scheme == "", do: "None", else: build_run.scheme)}
-                </span>
-                <.badge
-                  :if={Enum.any?(build_run.custom_tags || [])}
-                  label={List.first(build_run.custom_tags)}
-                  color="success"
-                  style="light-fill"
-                  size="large"
-                />
-                <.badge
-                  :if={length(build_run.custom_tags || []) == 2}
-                  label={Enum.at(build_run.custom_tags, 1)}
-                  color="information"
-                  style="light-fill"
-                  size="large"
-                />
-                <.badge
-                  :if={length(build_run.custom_tags || []) > 2}
-                  label={"+#{length(build_run.custom_tags) - 1}"}
-                  color="information"
-                  style="light-fill"
-                  size="large"
-                />
-              </div>
-            </div>
+            <.project_with_tags_cell
+              label={if(build_run.scheme == "", do: "None", else: build_run.scheme)}
+              tags={build_run.custom_tags || []}
+            />
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Configuration")}>
             <.text_cell label={

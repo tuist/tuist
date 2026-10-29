@@ -1,6 +1,6 @@
 defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   @moduledoc false
-  use Oban.Worker, max_attempts: 3, queue: :default
+  use Oban.Worker, max_attempts: 3, queue: :alert_evaluations
 
   import Ecto.Query
 
@@ -8,9 +8,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.Automations.Workers.AlertEvaluationBatchWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.Projects
-  alias Tuist.Tests
   alias Tuist.Tests.TestCaseRun
 
   require Logger
@@ -19,19 +19,48 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # `Array(UUID)` parameter and the run scan stay within the engine's request
   # limits no matter how many tests an alert has quarantined.
   @recovery_candidate_batch_size 500
+  @attempts_per_window 3
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args}) do
+  def timeout(_job), do: to_timeout(minute: 4)
+
+  @impl Oban.Worker
+  def perform(
+        %Oban.Job{
+          args: %{
+            "project_id" => project_id,
+            "cadence_seconds" => cadence_seconds,
+            "evaluate_recent_test_case_runs" => true
+          }
+        } = job
+      ) do
+    alerts =
+      project_id
+      |> Automations.list_alerts()
+      |> Enum.filter(fn alert ->
+        alert.enabled and Alert.scoped_evaluation?(alert) and
+          Alert.cadence_seconds(alert.cadence) == cadence_seconds and
+          trigger_window_supported?(alert)
+      end)
+
+    evaluate_recent_test_case_runs_and_execute(alerts, job)
+  end
+
+  def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args} = job) do
     case Automations.get_alert(alert_id) do
       {:ok, alert} ->
-        if alert.enabled do
-          if evaluate_recent_test_case_runs?(args) do
-            evaluate_recent_test_case_runs_and_execute(alert)
-          else
+        cond do
+          not alert.enabled ->
+            :ok
+
+          not trigger_window_supported?(alert) ->
+            :ok
+
+          evaluate_recent_test_case_runs?(args) ->
+            evaluate_recent_test_case_runs_and_execute(alert, job)
+
+          true ->
             evaluate_and_execute(alert, scoped_test_case_ids(args))
-          end
-        else
-          :ok
         end
 
       {:error, :not_found} ->
@@ -39,37 +68,135 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end
   end
 
-  defp evaluate_recent_test_case_runs_and_execute(alert) do
+  defp trigger_window_supported?(alert) do
+    if Alert.trigger_window_supported?(alert) do
+      true
+    else
+      Logger.warning(
+        "Skipping automation alert #{alert.id}, including recovery: rolling trigger windows must be between 1 and #{Alert.max_rolling_trigger_window_size()}"
+      )
+
+      false
+    end
+  end
+
+  defp evaluate_recent_test_case_runs_and_execute(%Alert{} = alert, job) do
     if alert.baseline_established_at == nil do
       evaluate_and_execute(alert, nil)
     else
-      %{test_case_ids: test_case_ids, cursor: cursor} = Automations.recent_test_case_run_changes_for_alert(alert)
+      %{test_case_ids: test_case_ids, cursor: cursor, more?: more?} =
+        Automations.recent_test_case_run_changes_for_alert(alert)
 
-      test_case_ids
-      |> Enum.chunk_every(Automations.scoped_evaluation_chunk_size())
-      |> Enum.each(&evaluate_and_execute(alert, &1))
+      ranges = Automations.scoped_evaluation_ranges(test_case_ids)
+      active_events = preread_active_alert_events([alert], ranges, test_case_ids)
 
-      {:ok, _alert} = Automations.update_alert_scoped_evaluation_cursor(alert, cursor)
+      Enum.each(ranges, &evaluate_and_execute(alert, &1, Map.get(active_events, alert.id)))
+
+      {:ok, updated_alert} = Automations.update_alert_scoped_evaluation_cursor(alert, cursor)
+      continue_scoped_evaluation(updated_alert, job, more?)
     end
+  end
 
-    :ok
+  defp evaluate_recent_test_case_runs_and_execute([], _job), do: :ok
+
+  defp evaluate_recent_test_case_runs_and_execute(alerts, job) when is_list(alerts) do
+    {established_alerts, pending_baseline_alerts} =
+      Enum.split_with(alerts, &(&1.baseline_established_at != nil))
+
+    Enum.each(pending_baseline_alerts, &evaluate_and_execute(&1, nil))
+
+    if established_alerts == [] do
+      :ok
+    else
+      %{test_case_ids: test_case_ids, cursor: cursor, more?: more?} =
+        Automations.recent_test_case_run_changes_for_alerts(established_alerts)
+
+      ranges = Automations.scoped_evaluation_ranges(test_case_ids)
+      active_events = preread_active_alert_events(established_alerts, ranges, test_case_ids)
+
+      Enum.each(ranges, &evaluate_alert_group(established_alerts, &1, active_events))
+
+      {:ok, _updated_count} = Automations.advance_alert_scoped_evaluation_cursors(established_alerts, cursor)
+      continue_scoped_evaluation(hd(established_alerts), job, more?)
+    end
+  end
+
+  defp continue_scoped_evaluation(_alert, _job, false), do: :ok
+
+  defp continue_scoped_evaluation(_alert, %Oban.Job{id: nil}, true), do: {:snooze, 0}
+
+  defp continue_scoped_evaluation(_alert, %Oban.Job{} = job, true) do
+    max_attempts = job.attempt + @attempts_per_window - 1
+
+    case Oban.update_job(job, %{max_attempts: max_attempts}) do
+      {:ok, _job} -> {:snooze, 0}
+      error -> error
+    end
   end
 
   defp evaluate_recent_test_case_runs?(%{"evaluate_recent_test_case_runs" => true}), do: true
   defp evaluate_recent_test_case_runs?(_args), do: false
 
-  defp evaluate_and_execute(alert, test_case_ids) do
+  # Each range re-read the same alert's active events, scoped to that range.
+  # Reading the union once and letting `reject_unevaluated_this_tick/2` narrow
+  # it per range yields the same set for a quarter of the round trips, since
+  # `scoped_evaluation_ranges/1` splits into at least four. Ranges are disjoint,
+  # so an event a range writes is never one another range reads back.
+  defp preread_active_alert_events(_alerts, ranges, _test_case_ids) when length(ranges) < 2, do: %{}
+
+  defp preread_active_alert_events(alerts, _ranges, test_case_ids) do
+    Map.new(alerts, &{&1.id, Automations.list_active_alert_events(&1, test_case_ids)})
+  end
+
+  defp evaluate_and_execute(alert, test_case_ids, active_events \\ nil) do
     if alert.baseline_established_at == nil do
-      %{triggered: triggered_ids} = evaluate_monitor(alert, nil)
-      triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
-      establish_baseline(alert, triggered_ids)
+      establish_baseline(alert)
     else
       %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
-      triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
-      run_transitions(alert, triggered_ids, test_case_ids)
+      execute_evaluation(alert, triggered_ids, test_case_ids, active_events)
     end
 
     :ok
+  end
+
+  defp evaluate_alert_group(alerts, test_case_ids, active_events_by_alert_id) do
+    alerts
+    |> Enum.group_by(&FlakyTestsMonitor.rolling_group_key/1)
+    |> Enum.each(fn
+      {nil, alerts} ->
+        Enum.each(alerts, &evaluate_and_execute(&1, test_case_ids, Map.get(active_events_by_alert_id, &1.id)))
+
+      {_rolling_group_key, [alert]} ->
+        evaluate_and_execute(alert, test_case_ids, Map.get(active_events_by_alert_id, alert.id))
+
+      {_rolling_group_key, alerts} ->
+        triggered_by_alert_id = FlakyTestsMonitor.evaluate_rolling_alerts(alerts, test_case_ids)
+
+        Enum.each(alerts, fn alert ->
+          execute_evaluation(
+            alert,
+            Map.fetch!(triggered_by_alert_id, alert.id),
+            test_case_ids,
+            Map.get(active_events_by_alert_id, alert.id)
+          )
+        end)
+    end)
+  end
+
+  defp execute_evaluation(alert, triggered_ids, test_case_ids, active_events) do
+    AlertEvaluationBatchWorker.enqueue(alert, triggered_ids, test_case_ids, active_events)
+  end
+
+  @doc false
+  def evaluate_batch(alert, test_case_ids) do
+    %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
+    apply_evaluation(alert, triggered_ids, test_case_ids, nil)
+  end
+
+  @doc false
+  def apply_evaluation(alert, triggered_ids, test_case_ids, active_events) do
+    triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
+    run_transitions(alert, triggered_ids, test_case_ids, active_events)
   end
 
   # A test case that has never had a successful, non-flaky run on the project's
@@ -87,54 +214,54 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp reject_unvalidated_test_cases(alert, triggered_ids) do
     %{default_branch: default_branch} = Projects.get_project_by_id(alert.project_id)
 
-    validated =
-      MapSet.new(Tests.test_case_ids_with_successful_default_branch_run(alert.project_id, triggered_ids, default_branch))
-
-    Enum.filter(triggered_ids, &MapSet.member?(validated, &1))
+    Automations.validated_test_case_ids(triggered_ids, alert.project_id, default_branch)
   end
 
-  # First evaluation after the alert was created: every test case currently
-  # matching the condition is part of the established state. Record them as
-  # `triggered` AlertEvents so subsequent evaluations only fire on
-  # transitions, but skip the trigger actions — there's no transition to
-  # announce yet, and firing for the entire matching set would spam users.
-  defp establish_baseline(alert, triggered_ids) do
-    now = NaiveDateTime.utc_now()
+  # The default baseline is silent. Opted-in rules also act on current matches,
+  # with durable publication progress so the existing backlog is processed once.
+  defp establish_baseline(alert) do
+    default_branch = Projects.get_project_by_id(alert.project_id).default_branch
+    evaluate_batch = &Automations.matching_test_case_ids(alert, &1, default_branch)
 
-    Enum.each(triggered_ids, fn test_case_id ->
-      Automations.create_alert_event(%{
-        alert_id: alert.id,
-        test_case_id: test_case_id,
-        status: "triggered",
-        triggered_at: now
-      })
-    end)
-
-    {:ok, _} = Automations.establish_alert_baseline(alert)
+    if Alert.apply_actions_to_existing_matches?(alert) do
+      Automations.establish_alert_baseline(alert, evaluate_batch, &apply_baseline_match/2)
+    else
+      Automations.establish_alert_baseline(alert, evaluate_batch)
+    end
   end
 
-  defp run_transitions(alert, triggered_ids, scoped_test_case_ids) do
-    active_events = active_alert_events(alert, scoped_test_case_ids)
+  defp apply_baseline_match(alert, test_case_id) do
+    ActionExecutor.execute_actions(alert.trigger_actions, alert, %{type: :test_case, id: test_case_id})
+  end
+
+  defp run_transitions(alert, triggered_ids, scoped_test_case_ids, preread_active_events) do
+    active_events = active_alert_events(alert, scoped_test_case_ids, preread_active_events)
     already_triggered_ids = MapSet.new(active_events, & &1.test_case_id)
 
-    newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(already_triggered_ids, &1))
+    newly_triggered =
+      triggered_ids
+      |> Enum.reject(&MapSet.member?(already_triggered_ids, &1))
+      |> filter_by_current_state(alert, alert.trigger_config)
 
-    Enum.each(newly_triggered, fn test_case_id ->
-      entity = %{type: :test_case, id: test_case_id}
+    trigger_results =
+      Enum.map(newly_triggered, fn test_case_id ->
+        entity = %{type: :test_case, id: test_case_id}
 
-      case ActionExecutor.execute_actions(alert.trigger_actions, alert, entity) do
-        :ok ->
-          Automations.create_alert_event(%{
-            alert_id: alert.id,
-            test_case_id: test_case_id,
-            status: "triggered",
-            triggered_at: NaiveDateTime.utc_now()
-          })
+        case ActionExecutor.execute_actions(alert.trigger_actions, alert, entity) do
+          :ok ->
+            Automations.create_alert_event(%{
+              alert_id: alert.id,
+              baseline_generation: Alert.event_generation(alert),
+              test_case_id: test_case_id,
+              status: "triggered",
+              triggered_at: NaiveDateTime.utc_now()
+            })
 
-        {:error, reason} ->
-          Logger.error("Alert #{alert.id} trigger actions failed for test_case #{test_case_id}: #{inspect(reason)}")
-      end
-    end)
+          {:error, reason} ->
+            Logger.error("Alert #{alert.id} trigger actions failed for test_case #{test_case_id}: #{inspect(reason)}")
+            {:error, reason}
+        end
+      end)
 
     # Only metric monitors use this worker's scheduled triggered/recovered
     # ledger. Event-driven (`test_updated`) monitors keep their own ledger via
@@ -142,15 +269,23 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     # dwell or recovery — and unknown/legacy monitor types have no evaluator
     # here, so neither participates in recovery. Gating positively also stops a
     # monitor-type change from running recovery over stale `triggered` events.
-    if Alert.recovery_ledger?(alert) do
-      handle_recovery(alert, triggered_ids, active_events, scoped_test_case_ids)
-    end
+    recovery_results =
+      if Alert.recovery_ledger?(alert) do
+        handle_recovery(alert, triggered_ids, active_events, scoped_test_case_ids)
+      else
+        []
+      end
+
+    if Enum.any?(trigger_results ++ recovery_results, &match?({:error, _}, &1)), do: {:error, :actions_failed}, else: :ok
   end
 
-  defp active_alert_events(alert, nil), do: Automations.list_active_alert_events(alert.id)
+  defp active_alert_events(_alert, _scoped_test_case_ids, preread_active_events) when is_list(preread_active_events),
+    do: preread_active_events
 
-  defp active_alert_events(alert, scoped_test_case_ids),
-    do: Automations.list_active_alert_events(alert.id, scoped_test_case_ids)
+  defp active_alert_events(alert, nil, _preread), do: Automations.list_active_alert_events(alert)
+
+  defp active_alert_events(alert, scoped_test_case_ids, _preread),
+    do: Automations.list_active_alert_events(alert, scoped_test_case_ids)
 
   defp handle_recovery(alert, currently_triggered_ids, active_events, scoped_test_case_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
@@ -159,35 +294,52 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       active_events
       |> Enum.reject(&MapSet.member?(currently_triggered_set, &1.test_case_id))
       |> reject_unevaluated_this_tick(scoped_test_case_ids)
+      |> reject_unmeasurable_test_cases(alert)
 
     # Re-arming (appending the "recovered" event so the next rising edge can
-    # fire again) happens for every alert once its condition clears — without
-    # it, an alert latches in `triggered` forever and silently stops acting.
-    # When recovery is enabled the user's dwell and undo actions apply; when
-    # it's disabled we re-arm the moment the condition clears (no dwell, no
-    # undo) and leave any effect in place until a human clears it. The
-    # persisted recovery_config is intentionally ignored on the disabled path
-    # because `Alert.changeset` only validates it when recovery is on.
-    {recovered, recovery_actions} =
+    # fire again) happens for every alert once its condition clears past the
+    # dwell window — without it, an alert latches in `triggered` forever and
+    # silently stops acting. When recovery is enabled the user's dwell gates
+    # re-arming and the undo actions run on top; when it's disabled we re-arm
+    # the moment the condition clears (no dwell, no undo) and leave any effect
+    # in place until a human clears it. The persisted recovery_config is
+    # intentionally ignored on the disabled path because `Alert.changeset`
+    # only validates it when recovery is on.
+    #
+    # The recovery STATE filter only gates whether the undo actions run — it
+    # must not gate re-arming. A test whose state was manually changed away
+    # from the recovery filter (e.g. someone muted a test the automation had
+    # skipped) should be left untouched by recovery, but the alert still has
+    # to re-arm once the dwell elapses, or it latches and can never trigger
+    # again for that test. So we re-arm every dwell-elapsed candidate and run
+    # the actions only on the subset that still matches the filter.
+    {to_rearm, actionable_ids} =
       if alert.recovery_enabled do
-        {filter_recovered_candidates(alert, candidates, alert.recovery_config || %{}), alert.recovery_actions}
+        elapsed = filter_recovered_candidates(alert, candidates, alert.recovery_config || %{})
+        actionable = filter_by_current_state(elapsed, alert, alert.recovery_config)
+        {elapsed, MapSet.new(actionable, & &1.test_case_id)}
       else
-        {candidates, []}
+        {candidates, MapSet.new([])}
       end
 
-    Enum.each(recovered, fn event ->
+    Enum.map(to_rearm, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}
 
-      # Run recovery actions BEFORE appending the "recovered" event. If we
-      # flipped the order, a failure in the Slack ping / label removal /
-      # state reset would leave the rule visually resolved while the user's
-      # intended side effects never happened.
-      case ActionExecutor.execute_actions(recovery_actions, alert, entity) do
+      actions =
+        if MapSet.member?(actionable_ids, event.test_case_id),
+          do: alert.recovery_actions,
+          else: []
+
+      # Apply state changes and enqueue notifications before recording recovery.
+      # An enqueue/state failure must remain retryable; Slack delivery itself
+      # is handled independently by the notification worker.
+      case ActionExecutor.execute_actions(actions, alert, entity) do
         :ok ->
           now = NaiveDateTime.utc_now()
 
           Automations.create_alert_event(%{
             alert_id: alert.id,
+            baseline_generation: Alert.event_generation(alert),
             test_case_id: event.test_case_id,
             status: "recovered",
             triggered_at: now,
@@ -198,6 +350,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
           Logger.error(
             "Alert #{alert.id} recovery actions failed for test_case #{event.test_case_id}: #{inspect(reason)}"
           )
+
+          {:error, reason}
       end
     end)
   end
@@ -212,6 +366,34 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp reject_unevaluated_this_tick(candidates, scoped_test_case_ids) do
     evaluated = MapSet.new(scoped_test_case_ids)
     Enum.filter(candidates, &MapSet.member?(evaluated, &1.test_case_id))
+  end
+
+  # `reject_unevaluated_this_tick/2` answers "was this test case in the batch we
+  # looked at"; this answers "was there anything to look at". They are different
+  # questions under default-branch scoping, where a test case can be in the batch
+  # and still have no default-branch runs to measure — a quarantined test whose
+  # work has moved onto pull-request branches, for instance. Absent from the
+  # triggered set for that reason is not the condition clearing, and recovering on
+  # it would un-quarantine a test nothing has re-proven.
+  defp reject_unmeasurable_test_cases([], _alert), do: []
+
+  defp reject_unmeasurable_test_cases(candidates, alert) do
+    measurable =
+      candidates
+      |> Enum.map(& &1.test_case_id)
+      |> Enum.chunk_every(@recovery_candidate_batch_size)
+      |> Enum.flat_map(&FlakyTestsMonitor.measurable_test_case_ids(alert, &1))
+      |> MapSet.new()
+
+    Enum.filter(candidates, &MapSet.member?(measurable, &1.test_case_id))
+  end
+
+  # A state filter makes an action conditional on the test case's current
+  # control-plane state. It lets a skipped-test recovery leave a test alone
+  # after someone manually changes it to muted. Omitting the filter preserves
+  # the behavior of automations created before this option existed.
+  defp filter_by_current_state(items, alert, config) do
+    Automations.filter_test_case_states(items, alert.project_id, config)
   end
 
   # In `last_days` mode the recovery cooldown is "wait this long without a
@@ -273,6 +455,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
     from(r in TestCaseRun,
       where: r.project_id == ^project_id,
+      where: r.submission_auth != "network_trusted",
+      where: r.is_flakiness_excluded == false,
       where: fragment("? IN (?)", r.test_case_id, type(^test_case_ids, {:array, Ecto.UUID})),
       where: r.ran_at > ^min_triggered_at,
       where:

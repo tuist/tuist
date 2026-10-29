@@ -7,6 +7,7 @@ defmodule TuistWeb.OpsAccountsLive do
   import TuistWeb.OpsAccountHelpers
 
   alias Tuist.Accounts
+  alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias Tuist.Repo
   alias TuistWeb.Utilities.Query
@@ -43,7 +44,7 @@ defmodule TuistWeb.OpsAccountsLive do
         :user,
         subscriptions:
           from(s in Subscription,
-            where: s.status in ["active", "trialing"],
+            where: s.status in ^Billing.live_subscription_statuses(),
             order_by: [desc: s.inserted_at]
           )
       ])

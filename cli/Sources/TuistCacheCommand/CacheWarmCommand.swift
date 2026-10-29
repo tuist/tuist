@@ -3,11 +3,12 @@
     import Foundation
     import TuistAlert
     import TuistConfig
+    import TuistEnvironment
     import TuistEnvKey
     import TuistExtension
     import TuistSupport
 
-    public struct CacheWarmCommand: AsyncParsableCommand {
+    public struct CacheWarmCommand: AsyncParsableCommand, ProjectPathProviding {
         public init() {}
 
         public static var configuration: CommandConfiguration {
@@ -24,7 +25,7 @@
             completion: .directory,
             envKey: .cachePath
         )
-        var path: String?
+        public var path: String?
 
         @Option(
             name: .shortAndLong,
@@ -57,11 +58,21 @@
         var generateOnly: Bool = false
 
         @Flag(
-            name: .long,
+            name: .customLong("upload"),
+            inversion: .prefixedNo,
             help: "When passed, the generated artifacts are stored only in the local cache and not uploaded to the remote cache.",
-            envKey: .cacheNoUpload
+            envKey: .cacheNoUpload,
+            envValueInverted: true
         )
-        var noUpload: Bool = false
+        var upload: Bool = true
+
+        var noUpload: Bool { !upload }
+
+        @Option(
+            name: .long,
+            help: "Destinations to warm: all, simulator, or device. Native macOS targets and exact-target products retain complete caching."
+        )
+        var destination: CacheDestination = .all
 
         @Option(
             name: .long,
@@ -69,6 +80,10 @@
             envKey: .cacheProfile
         )
         var cacheProfile: String?
+
+        var scratchDirectory: String? {
+            Environment.current.variables[EnvKey.cacheWarmScratchDirectory.rawValue]
+        }
 
         @Flag(
             name: .long,
@@ -83,7 +98,7 @@
                     "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
                     takeaway: "Use \(.command("tuist hash cache")) instead."
                 ))
-                try await Extension.hashCacheService.run(path: path, configuration: configuration)
+                try await Extension.hashCacheService.run(path: path, configuration: configuration, destination: destination)
                 return
             }
 
@@ -101,7 +116,9 @@
                 externalOnly: externalOnly,
                 generateOnly: generateOnly,
                 noUpload: noUpload,
-                cacheProfile: cacheProfile
+                cacheProfile: cacheProfile,
+                scratchDirectory: scratchDirectory,
+                destination: destination
             )
         }
     }

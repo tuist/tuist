@@ -5,6 +5,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
   alias OpenApiSpex.Schema
   alias Tuist.Storage
   alias Tuist.Tests
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -64,7 +65,8 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
            required: [:test_case_run_id, :attachments]
          }},
       not_found: {"Test case run not found", "application/json", Error},
-      forbidden: {"Not authorized to perform this action", "application/json", Error}
+      forbidden: {"Not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -178,6 +180,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"Not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }

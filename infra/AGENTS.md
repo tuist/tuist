@@ -2,7 +2,45 @@
 
 Deployment assets for the Tuist stack — both the managed cluster we operate and the self-host chart our customers install.
 
+## What we are aiming at
+
+Two properties, stated because they decide arguments that would otherwise be
+settled by whatever is quickest that week.
+
+**As Kubernetes-native as the hardware allows.** Inventory, desired state and
+observed status belong in objects, reconciled where a controller can safely
+reconcile and rendered from one source where it cannot. The point is not
+Kubernetes for its own sake; it is that a thing described in one place, with its
+status next to it, is a thing the next person can find. The rack's machines are
+`RackHost`, its switches are `RackSwitch`, and where two inventories describe
+overlapping things they are joined by reference rather than kept in step by
+hand.
+
+**As zero-touch as the hardware allows.** A machine or a switch arriving in a
+rack should reach a working state without somebody holding a cable. Where that
+is not yet true, the manual step is a gap to close and is written down as one
+rather than accepted as the procedure.
+
+"As the hardware allows" is doing real work in both. A switch whose only
+programmatic surface is an SSH CLI that stops accepting connections after a
+handful cannot carry a reconcile loop, and saying so is not a failure to aim at
+the principle; it is the principle meeting a vendor. When that happens, record
+what the constraint costs, keep the manual path honest, and let it inform what
+gets bought next. See [`rack-switch-fleet/AGENTS.md`](rack-switch-fleet/AGENTS.md)
+for a worked example of both halves, including the price of the alternative, and
+[`rack-switch-fleet/omada-assessment.md`](rack-switch-fleet/omada-assessment.md)
+for a case where checking the constraint showed the original decision had
+assumed one that was not there.
+
 ## Layout
+
+Agent sandboxes share the Linux runner fleet. Read
+[`sandboxd/AGENTS.md`](sandboxd/AGENTS.md) for daemon lifecycle and protocol,
+[`sandbox-image/AGENTS.md`](sandbox-image/AGENTS.md) for guest image work, and
+[`sandboxd/fleet-sharing.md`](sandboxd/fleet-sharing.md) for capacity policy
+and rollout gates.
+
+The standalone Atlas chart in `helm/atlas/` uses external PostgreSQL and an existing application Secret by default. Its `values-managed-production.yaml` overlay explicitly sets `ATLAS_ALLOWED_EMAIL_DOMAIN=tuist.dev`. Keep the organization admission policy in deployment configuration as Atlas decoupling proceeds. Hosted native-link association identities are also explicit in this overlay, never standalone defaults; see `helm/atlas/AGENTS.md`.
 
 ### `helm/tuist/` — main Tuist Helm chart
 Umbrella chart for the server, cache, processor, auxiliary public server-owned workloads, and optional embedded infrastructure (Postgres, ClickHouse, object storage, observability). Used by:
@@ -11,8 +49,17 @@ Umbrella chart for the server, cache, processor, auxiliary public server-owned w
 
 When editing this chart, anything gated behind `managedSecrets` must stay gated so self-hosters aren't forced into the ESO dependency.
 
+macOS RunnerPools name their runner image by digest. `server-deployment.yml` resolves each profile of the deployed `runner-image@<semver>` release to the digest GHCR serves for its tag and passes them as `runnersFleet.runnerImageDigests`; it keeps a pool on its current digest until the hosts serving it have pulled the new one, for up to an hour (`.github/scripts/runner-image-staging-gate.sh`, see `tart-kubelet/AGENTS.md`); `tuist.macosRunnerImage` renders the tag only for an `xcodeOverrides[].imageTag` pin or a render without digests (CI, local). The runners-controller and tart-kubelet compare and key goldens on the ref string, so a tag ref would roll pools and cold-pull hosts for every release, even one that re-tags unchanged content.
+
+Server rollouts: a server pod's `preStop` creates `/tmp/tuist-server-draining` and waits 15 s while endpoints stop routing to it. During that wait the release (`TuistWeb.Draining`) answers HTTP/1.x with `Connection: close`, so kept-alive connections close after a complete response; clients drop idle connections after 10 s, so none is left idle when the listener stops. Bandit's and Oban's 15 s shutdown timeouts follow within the 60 s grace period. The managed server Ingress sets `proxy-next-upstream: "error timeout"` (3 tries) and the main controller `retry-non-idempotent: "false"`: nginx moves a request to another pod only when it could not connect (refused, unreachable, connect timeout; nginx's `request_sent` is still 0), for every method, and `proxy-request-buffering: off` stops any retry once it started sending, so nothing that reached Phoenix is replayed. `mise/tasks/helm/server-rollout.sh` checks all of this on the rendered charts.
+
+Two grace-period garbage collectors live here, both off or in dry-run by default and both documented at length in their own templates: `released-pv-reaper` (orphaned Hetzner block volumes) and `tailscale-device-reaper` (abandoned tagged tailnet devices). The Tailscale one runs per env and each instance requires `tailscaleDeviceReaper.tags` set to that env's ACL tags — all envs share a single tailnet, and that list is what confines a reaper to its own devices. It must match the tag scope of the env's OAuth client; see §5d of [`k8s/onboarding.md`](k8s/onboarding.md).
+
 ### `helm/noora-storybook/` — standalone Noora Storybook chart
 Dedicated chart for the public `storybook.noora.tuist.dev` release. It deploys independently from the Tuist server so Noora Storybook changes do not have to share the server release boundary.
+
+### `helm/mdm/` — fleet MDM chart (managed only)
+Self-hosted Apple MDM for the Mac runner fleet (BER1 rack program): NanoMDM + SCEP CA + NanoDEP + a small enrollment-orchestration service, backed by its own CNPG Postgres. One instance owns every Mac we own whatever cluster that Mac ends up serving, because the MDM manages a host before it joins anything; there is deliberately no per-cluster MDM. Deployed to the production cluster (namespace `mdm`) via `.github/workflows/mdm-deployment.yml`, alongside `tuist-ops` and for the same reason: it provisions the fleet, so it does not belong in the cluster we treat as disposable. Sources, operator runbook, and the manual Apple ceremonies live in [`mdm/`](mdm/AGENTS.md).
 
 ### `helm/slack/` — standalone Slack invitation chart
 Dedicated chart for the public `slack.tuist.dev` release. It deploys independently from the Tuist server so Slack invitation-flow changes and operational state (SQLite PVC + ExternalSecret wiring) stay isolated from the main app release.
@@ -22,54 +69,186 @@ Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO
 
 README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 
+Kura zero-Ready availability alert artifacts and their scoped notification
+routes live in `helm/k8s-monitoring/kura-availability-*.json`. They are
+provisioned separately from Helm and reflect the enabled live rule. Its separate
+`Cache availability` evaluation group must use a 60-second interval. Merge the
+three policy routes into the current Grafana tree, preserving existing staging
+exceptions first; never PUT the route array as a whole-tree replacement. The Bash/jq
+regression script uses promtool and amtool to check query behavior and production-only IRM routing.
+
 ### `helm/platform/` — platform bootstrap chart
 cert-manager + external-dns + ESO + metrics-server + ingress-nginx controllers, installed once per workload cluster. Kura customer endpoints default to dedicated shared regional Kura ingress controllers rather than the main web ingress dataplane. Enterprise/high-volume exceptions are reconciled dynamically by the Kura controller from `KuraGateway` CRs, not hard-coded as customer-specific platform chart aliases. Provider-specific LB annotations live in per-provider and cluster overlays (e.g., `values-hetzner.yaml`, `values-tuist.yaml`).
 
+### `helm/omada/` — Omada SDN Controller wrapper (evaluation)
+Wraps mbentley's Omada controller chart. Stood up to answer whether the controller can take over switch management from `rack-switch-fleet`'s SSH driver: TP-Link's own feature list says a controller-managed switch supports everything that directory renders, and under the controller SSH goes read-only, which would delete its write path. Measured 2026-09-22: on 6.3 the Open API can write everything that directory renders (5.15 could not set RSTP or a LAG on a standalone switch, so the image tag is pinned), though spanning-tree state is write-only and still verified over SSH. What adoption does to an already-configured switch is the open question. Deployed by `.github/workflows/omada-deployment.yml` to the cluster the rack belongs to, the env its site definition's `kubernetes.namespace` names (production for BER1), and exposed only on the tailnet; switches reach it through the rack's edge node (the `helm/rack-edge` DaemonSet) and are pointed at it with `controller inform-url`, since L2 discovery does not cross into the cluster. See [`omada/README.md`](helm/omada/README.md) and [`rack-switch-fleet/omada-assessment.md`](rack-switch-fleet/omada-assessment.md).
+
 ### `helm/tailscale-operator/` — Tailscale Kubernetes operator wrapper
-Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides two tailnet paths used today: a Connector subnet router (tailnet devices dial in-cluster Services) and Mac mini egress (cluster Pods scrape the macOS fleet). Human kubectl access to workload clusters does NOT flow through the operator's API-server proxy anymore — see `helm/pomerium/` below.
+Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides a Connector subnet router (tailnet devices dial in-cluster Services), Mac mini egress (cluster Pods scrape the macOS fleet), and per-Service ingress nodes via `tailscale.com/expose: "true"` (a Service gets its own tailnet name, used by `tuist-ops`). Staging kubectl also uses the operator's API-server proxy; canary and production use `helm/pomerium/` below. The chart's Connector, ProxyClasses and ProxyGroups are ordinary release resources that only render once the `tailscale.com` CRDs exist, so a new cluster needs two installs (the deploy workflow does both); never make them Helm hooks, because a hook is recreated on every upgrade and the operator deletes a ProxyGroup's tailnet devices and state with it (`templates/_helpers.tpl`).
 
 ### `helm/pomerium/` — kubectl gateway, one per workload cluster
-Self-contained chart (NOT a wrapper around upstream's split-mode `pomerium/pomerium` — too heavy for our scale; one binary in all-in-one mode covers our 5-human team). One Helm release per workload env (staging / canary / production) deployed into that cluster. Pomerium fronts `https://kube-<env>.tuist.dev` and authenticates humans via Google Workspace OIDC. Per-request impersonation injection is handled by the `kube-impersonator` sidecar in the same pod (see [`kube-impersonator/`](../kube-impersonator/)) — Pomerium forwards every kubectl call to the sidecar, the sidecar calls tuist-ops's `/api/v1/policy` over the tailnet, the policy returns `Impersonate-User` + `Impersonate-Group` response headers, the sidecar attaches them plus the pod SA bearer to the upstream request, and the apiserver RBAC-binds the impersonated group to a built-in `ClusterRole`. ClusterRoleBindings for `tuist-admins / tuist-eng / tuist-<env>-write` ship in this chart (`templates/access-tiers.yaml`). Default tier is **`view` for everyone (founders and engineers alike)**; elevated `edit` access flows through the JIT Slack flow (see [Cluster access for agents](#cluster-access-for-agents) below). The sidecar reaches tuist-ops over the tailnet via a `tailscale.com/tailnet-fqdn`-annotated egress Service.
+Self-contained chart (NOT a wrapper around upstream's split-mode `pomerium/pomerium` — too heavy for our scale; one binary in all-in-one mode covers our 5-human team). One Helm release per workload env (staging / canary / production) deployed into that cluster. Pomerium fronts `https://kube-<env>.tuist.dev` and authenticates humans via Google Workspace OIDC. Per-request impersonation injection is handled by the `kube-impersonator` sidecar in the same pod (see [`kube-impersonator/`](../kube-impersonator/)) — Pomerium forwards every kubectl call to the sidecar, the sidecar calls tuist-ops's `/api/v1/policy` over the tailnet, the policy returns `Impersonate-User` + `Impersonate-Group` response headers, the sidecar attaches them plus the pod SA bearer to the upstream request, and the apiserver RBAC-binds the impersonated group to a built-in `ClusterRole`. ClusterRoleBindings for `tuist-admins / tuist-eng / tuist-<env>-write` ship in this chart (`templates/access-tiers.yaml`). Default tier is **`view` for everyone (founders and engineers alike)** on canary and production, where elevated `edit` access flows through the JIT Slack flow (see [Cluster access for agents](#cluster-access-for-agents) below). **Staging is the exception on both counts**: `TuistOps.JIT.Policy.always_write_env?/1` flags it, so its `tuist-staging-write` group rides on every engineering identity unconditionally and staging is writable with no elevation at all — and because that leaves no per-request decision to make, staging kubectl bypasses this chart entirely in favour of Tailscale's API server proxy (`infra/helm/tailscale-operator/values-staging.yaml`). The release stays deployed in staging regardless: `templates/access-tiers.yaml` is what binds the impersonation groups the tailnet path also depends on, and the gateway remains a working door for anyone off the tailnet. The sidecar reaches tuist-ops over the tailnet via a `tailscale.com/tailnet-fqdn`-annotated egress Service.
 
 ### `helm/tuist-ops/` — internal ops Phoenix app
 Single-replica deploy of the `tuist-ops` app into the production cluster (same cluster as `server/` and `slack/`; matches the "internal Tuist-team tooling lives alongside customer workload" pattern). Hosts the JIT elevation Slack bot (`/webhooks/slack/*`) and the impersonation policy endpoint (`/api/v1/policy`) called by each env's `kube-impersonator` sidecar. Public ingress on `ops.tuist.dev` routes ONLY the Slack-signed webhook paths to the upstream; everything else is reachable solely on the tailnet as `ops.<tailnet>.ts.net` via a `tailscale.com/expose: true` Service (Pomerium pods in all envs cross-call here through their `tuist-ops-egress` Service). Includes its own CNPG Cluster in the production cluster (3-table schema, ~5Gi storage, daily Tigris backups). Decoupled from `server/` at the deploy / namespace / chart level so customer-facing changes can roll independently of internal-ops changes.
 
 ### `k8s/` — CAPI cluster manifests
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
-- `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).
-- `clusters/cluster-{staging,canary,production,preview}.yaml` — per-env Cluster CRs in topology mode.
-- Production Kura regions are node pools in `clusters/cluster-production.yaml`, not separate workload clusters.
+- `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config). Applied by `mgmt-cluster-apply.yml` (immutable templates stay out of Flux — see below).
+- `clusters/workloads/<cluster>/{cluster.yaml,kustomization.yaml}` — the per-cluster `Cluster` CRs **reconciled by Flux** (`infra/flux/mgmt/`): `staging` / `canary` / `production` plus the `hive` / `once` / `atlas` tenants (migrated in from `tuist/{hive,once,atlas}`, all reuse `org-tuist` + the `hetzner` Secret). One subdir per cluster so each has its own Flux `Kustomization` + health gate.
+- Canary's general-purpose `md-0` pool has three workers to leave capacity for deployment hooks and rolling updates alongside two CNPG instances. Keep this headroom when sizing the pool; see `k8s/clusters/README.md` for the deployment retry sequence.
+- `clusters/cluster-preview.yaml` — the preview Cluster CR, still on `mgmt-cluster-apply.yml`, not Flux (its replicas are mutated out-of-band by the preview workflows). Control-plane `MachineHealthCheck` remediation is defined once in the shared ClusterClass (`clusterclass-tuist.yaml`); a degraded control plane also pages via Pillar 2. See [hive/specs/72](https://hive.tuist.dev/specs/72).
+- `clusters/bare-metal.yaml` and `clusters/bare-metal-stateful.yaml`: Hetzner Robot substrates. The first backs the `bare-metal-worker` class (runner-shaped: Kata pre-baked, root takes the whole array); the second backs `stateful-worker` (database-shaped: capped root plus a separate `/data`, no Kata, and a per-cluster `statefulRaidLevel` because SWRAIDLEVEL 1 on a four-disk box installs as a four-way mirror). Both are applied by a `bare-metal*.yaml` glob in `mgmt-cluster-apply.yml`. Host CRs come from `hetzner-robot-controller`, which stamps only managed-by + cluster, so any bare-metal MachineDeployment in an env can claim any host in it.
+- Production Kura regions are node pools in `clusters/workloads/production/cluster.yaml` (US East/West moved to OVH fleets in the tuist chart), not separate workload clusters.
 - The preview cluster also hosts Slack-requested preview environments:
   app workloads and preview Kura runtime pods both land on the tainted
   preview worker pool (`role=preview`, with the preview toleration on the
   KuraInstance). The Kura controller itself runs once cluster-wide in the
   `kura` namespace; each preview's `KuraInstance` is created there.
-- `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
-- `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
+- The isolated security-assessment cluster (`tuist-pentest`) is retired: its
+  Cluster CR was removed, and **Pentest Cluster Retirement** deletes the live
+  cluster. Its pentest workflows and values files remain until that has run.
+  Before running it, delete every DNS record pointing at the cluster's load
+  balancers, since the run frees their IPs.
+- `clusters/README.md` — reconciliation ownership (Flux vs `mgmt-cluster-apply.yml`), ClusterClass authoring + caph-upstream porting notes.
+- `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access). Snapshots use a Talos-issued, automatically renewed six-hour `os:etcd:backup` credential in `mgmt-system`, the in-cluster Talos Service and the scheduled node's host IP, without host networking or first-node affinity. The workflow verifies uploads from every control-plane node; `verify-etcd-snapshot.sh --delete-legacy-credential` removes the old static credential only after every upload succeeds. `tailscale.yaml` is a DaemonSet in its own `mgmt-tailscale` namespace, one tailnet device per control-plane node named after it; `infra/mise/tasks/mgmt/migrate-tailscale.sh` moved the old single-node Deployment over, keeping `tuist-mgmt`'s identity. `cleanup-ha-secrets.sh` checks live references and rollout health before an operator deletes the exact obsolete Secret names.
+- `mgmt/external-secrets.yaml` + `mgmt/flux-git-externalsecret.yaml` — ESO on the mgmt cluster (Flux bootstrap prerequisite): the `onepassword` `ClusterSecretStore` for the `tuist-k8s-mgmt` vault, and Flux's git (GitHub App) credential synced from it.
+- `mgmt/flux-diff-rbac.yaml` — least-privilege `flux-diff` SA/Role for the `flux diff` PR job (`.github/workflows/flux-diff.yml`); dry-run write on `clusters` only.
+- `mgmt/reconciliation-checks.yaml` — CronJob (+ scrape-target Pushgateway) that reports orphan Hetzner servers and stale (removed-from-git) Clusters as metrics; alerts via Pillar 2.
+- `mgmt/talos/` — the mgmt control-plane nodes, their Hetzner resources and Talos patches. `hetzner.yaml` (control-plane servers, created from the Talos snapshot without user data, private network, spread placement group, `tuist-mgmt-api` load balancer and its primary IPv4) is reconciled on merge by the `hetzner` job in `mgmt-cluster-apply.yml` via `infra/mise/tasks/mgmt/reconcile-hetzner.sh`; its Hetzner token lives in the `tuist-k8s-mgmt-hetzner` vault, readable only through the main-only `mgmt-hetzner` environment. The `talos` job (`infra/mise/tasks/mgmt/reconcile-talos.sh`) joins listed nodes missing from the cluster by copying an existing node's machine config to them in maintenance mode, one at a time behind etcd and health gates, then applies `patches/` (Talos machine config patches). It runs `talosctl` in a Job in namespace `mgmt-talos` with a Talos-minted credential (`mgmt/talos-patcher.yaml`), so CI never needs the tailnet. Patches are applied set, clear, set, so each one owns the lists it mentions; plans print only changed lines because talosctl diffs include private keys. See `mgmt/talos/README.md`.
+- Management HA networking: `mgmt/talos/patches/60-private-flannel.yaml` owns Flannel's private-interface arguments; `infra/mise/tasks/mgmt/reconcile-flannel.sh` synchronizes only those arguments onto the live DaemonSet after Talos patches, since bootstrap manifests do not update existing objects. `check-pod-network.sh` gates joins and migration on DNS and all-pairs pod HTTP. Talos Jobs stay on an existing Ready member; the static-pod gate requires all three components and logs window resets. `mgmt/controller-pdbs.yaml` protects the six webhook Deployments during voluntary evictions, with caph restored to two replicas. API load-balancer targets are declared private; target removals require a healthy sibling, and switches wait for recovery. Retain public node TCP 6443 until all private targets pass verification. Keep firewall removal, private API targets and OS upgrades ordered after network verification; see `mgmt/talos/README.md`. Credential-free health regressions live in `infra/mise/tasks/mgmt/test-health.sh`.
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
+  The hcloud-csi node affinity excludes both Robot pools (`runners-linux` and `clickhouse`); these nodes lack the provider labels used by the other exclusions. Keep this list aligned when adding Robot pools, since Hetzner Cloud volumes and metadata are unavailable on bare metal.
 - `mgmt/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer (applied per workload).
-- `mgmt/preview-mgmt-rbac.yaml` — narrow SA + Role on the mgmt cluster used by the preview-deploy / preview-sweep workflows to scale the preview MachineDeployment.
+- `mgmt/preview-mgmt-rbac.yaml` — narrow SA + Role on the mgmt cluster used by the preview-deploy workflow to scale the preview MachineDeployment.
 - `onboarding.md` — end-to-end runbook for standing up a new workload cluster.
 
+### `flux/` — GitOps reconciliation on the mgmt cluster
+Flux (`infra/flux/mgmt/`) is **Pillar 1** of [hive/specs/72](https://hive.tuist.dev/specs/72): it continuously reconciles the workload `Cluster` CRs under `k8s/clusters/workloads/` onto the mgmt cluster, so drift is corrected on an interval instead of only on merge and routine changes need no break-glass. Health alerting is the independent **Pillar 2** (`helm/k8s-monitoring/values-management.yaml` + `alerts.md`), Grafana Cloud, evaluated outside the management cluster with a heartbeat. Per-cluster `Kustomization`s never prune `Cluster` objects and use `force: false`; the immutable ClusterClass/bare-metal templates and preview stay on `mgmt-cluster-apply.yml`. See `infra/flux/mgmt/README.md` for bootstrap, the never-prune destroy flow, and the break-glass recovery path.
+
+Flux also installs management-cluster controllers whose desired state
+belongs in this repository. The Cloudflare operator release lives under
+`flux/cloudflare-operator/` and is reached through the
+`flux/mgmt/cloudflare-operator.yaml` Kustomization. Cloudflare resources
+live under `flux/cloudflare-config/`; their separate dependent
+Kustomization ensures the operator and its custom resource definitions
+are ready first.
+See [`flux/cloudflare-config/AGENTS.md`](flux/cloudflare-config/AGENTS.md) for the crawlability and edge-protection boundary.
+`flux/cloudflare-config/skip-sbfm-api-paths.yaml` exempts signed Open Graph images and canonical two-segment public-project root candidates from SBFM. Keep sockets, authentication, operator and scanner-shaped paths excluded; never use an unrestricted `/*/*` wildcard that also admits deeper dashboards. Origin authorization/challenges and edge rate limits remain active. Deploy the bounded cached overview before the root exemption; re-enabling the legacy custom dashboard rule overrides that exemption for unverified crawlers.
+`flux/cloudflare-config/browser-telemetry-bot-filter.yaml` blocks
+Cloudflare-verified bots and explicitly declared crawler/headless user agents
+only when they POST to the production Faro collector;
+public page access remains governed by the separate crawler rules. Rollout
+checks and the distinction between verified bots and unrecognized automation
+are documented in `helm/k8s-monitoring/alerts.md` under Browser LCP percentiles.
+
 ### `kura-controller/` — Kura endpoint controller
-Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.
+
+Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle. Customer-plane TLS uses a controller-maintained shared wildcard Certificate configured by `kuraController.publicWildcardCertificate`, not a chart resource or an instance-owned resource. Keep certificate adoption and fallback gates in [`kura-controller/AGENTS.md`](kura-controller/AGENTS.md).
+
+Opt-in read-only connectivity diagnostics use a fixed-profile background worker
+in Kura and existing `pods/log` access, without `pods/exec` or a gateway bypass.
+The controller deployment selects exact instances; defaults remain disabled.
+See [`kura-controller/connectivity-diagnostics.md`](kura-controller/connectivity-diagnostics.md)
+for the threat model and the separate approved rollout required to add it to pods.
+
+### `egress-tree-agent/` — per-node shared egress HTB tree
+Go DaemonSet that enforces the kura per-tenant egress floors (`egress_guaranteed_mbps`), ceilings (`egress_burst_mbps`), and the node's advertised egress budget (`tuist.dev/egress-mbps`) with one shared HTB tree per node (tuist/tuist#12363). Shaped packets take a tcx BPF veth-trampoline detour (attached ahead of `cil_from_container`, returned to the same hook afterwards) so Cilium policy/identity/masquerade stay fully applied — the classic ifb detour measurably bypasses NetworkPolicy and must not come back. Consumes the `tuist.dev/egress-class` pod annotation rendered by kura-controller; co-located replica sync takes an unshaped bypass. Deliberately no pod-level qdisc underneath. See `egress-tree-agent/AGENTS.md`.
 
 ### `tart-kubelet/` — Mac mini VM kubelet
 Go kubelet-shaped agent that registers a Mac mini as a Kubernetes Node and maps Pods to Tart VMs. Interactive runner VNC is host-controlled here: runner VMs start with Tart's host-owned experimental VNC enabled, generated VNC credentials stay in host-control state, and a relay opens only while either a legacy host-local `vnc-control-dir/requests/<namespace>_<pod>` file exists or the server stamps its session annotation on the runner Pod.
 
-### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
-Routes public registry requests to the health-checked standalone registry frontend while preserving `registry.tuist.dev` as the request host and using `registry-origin.tuist.dev` only for origin resolution. Regional cache nodes remain automatic fallback origins during the cutover soak period.
+A macOS Pod's phase and Ready condition are synthesized from "the VM process is alive and has an IP" — there are no container probes here — so nothing in Kubernetes can tell a warm runner from one whose guest died, and warm standby is deliberately unbounded. `publishRunnerHeartbeat` closes that for runner Pods specifically: `dispatch-poll.sh` beats its state into the per-VM status share every poll (`polling` while warm, `claimed` once it takes a job, with the file's mtime as the beat), and the host republishes it as the `tuist.dev/runner-heartbeat-state` / `tuist.dev/runner-heartbeat-at` Pod annotations for the runners-controller's `isWarmCapacity`. Deliberately annotations and not the Ready condition: readiness gates rollouts and drains fleet-wide, and a false negative there would stall both. The timestamp is throttled to one write a minute per Pod (a state change always publishes immediately), and once published the annotations are never withdrawn — clearing them when the guest stops beating would turn the one state worth reporting back into "no signal", which is the reading that fails open. Absence means the host cannot speak for the guest (no status share, or a pre-heartbeat runner image), never that it is dead.
+
+`internal/podagent/volume*.go` holds the runner-cache volume every cache on the host shares (`CacheSpace`): the quota-bounded APFS volume at `--runner-cache-root`, its free space within `--runner-cache-budget-gib` and above the host's 15% physical floor, and the lock custom-volume admission records reservations under. Custom cache volumes (`custom_volumes*.go`, including the managed `tuist-xcode` and `tuist-module` volumes and cached checkouts) are the only runner cache on macOS hosts; see [`tart-kubelet/AGENTS.md`](tart-kubelet/AGENTS.md). Every five minutes `CacheSpace` removes the built-in cache's leftovers from the root (top-level directories named by a decimal account ID, `_converge/`, `usage-reports/` and `branches/`, keeping `branches/<vm>` while that VM runs) and leaves every other entry alone. Every runner Pod gets the guest-writable `status` share, which carries the runner's exit code, log and heartbeat.
+
+`PrefetchPoller` (`volume_prefetch.go`) asks the server which custom-volume HEADs this host should hold (`ServerPrefetch`, `GET /api/internal/runners/cache-masters`) every ten minutes, and as soon as a runner Pod's `TUIST_RUNNER_DISPATCH_URL` tells it where the server is. It hands entries of kind `custom` to the custom-volume agent's background queue and ignores the rest. It authenticates with a TokenRequest for its own `tart-kubelet-<machine>` ServiceAccount, found by a SelfSubjectReview, for the `tuist-runner-host` audience. The answer names other accounts' volumes, so it never goes through a guest. The server (`Tuist.Runners.VolumePrefetch`) answers for the Node the ServiceAccount names.
+
+### `macos-host-bootstrap/` — Mac mini host install and drift push
+The SSH steps the CAPI provider runs to turn a Mac mini into a tart-kubelet
+Node and to keep it converged, including the in-place Tart install. See
+[`macos-host-bootstrap/AGENTS.md`](macos-host-bootstrap/AGENTS.md).
+
+### `macos-log-shipper/` — Mac mini host log agent
+`tuist-log-shipper`, a launchd daemon on every mini that tails
+`/var/log/tart-kubelet.log` and pushes the lines to the in-cluster Alloy
+receiver's `loki.source.api` over the tailnet. It exists because the standard
+collector-as-DaemonSet path is structurally unavailable on these hosts: a Pod
+scheduled to a macOS Node *is* a Tart VM, so an in-cluster collector never sees
+the host filesystem, and `kubectl logs` can't resolve the tailnet-only kubelet
+either. Metrics are pulled (alloy-metrics dials `:9100`); logs are pushed,
+because a file has no scrapeable surface. Pushing to the cluster rather than
+straight to Grafana Cloud keeps every ingest credential off nine
+internet-facing minis — the tailnet ACL is the access control and Alloy
+forwards with the token it already holds. Installed and drift-rolled by
+`macos-host-bootstrap` exactly like `node_exporter`. Per-env gate:
+`macosFleet.hostLogs.enabled`. See
+[`macos-log-shipper/AGENTS.md`](macos-log-shipper/AGENTS.md).
+
+### `macos-host-sensors/` — Mac mini hardware sensors
+`tuist-host-sensors`, run by launchd every 30 seconds on every mini, writes the
+host's temperatures, fan speeds, system power and thermal pressure for
+node_exporter's textfile collector, so they ride the existing
+`tuist-macos-node-exporter` scrape. It exists because released node_exporter
+reports no temperature on a healthy Apple silicon host and no fan or power
+reading on macOS at all. It calls IOKit and the SMC through purego rather than
+cgo, which is what lets it cross-build in the operator image like the other host
+binaries. Installed and drift-rolled by `macos-host-bootstrap`. See
+[`macos-host-sensors/AGENTS.md`](macos-host-sensors/AGENTS.md).
+
+### `registry-router/` — Cloudflare Worker for the Tuist registry path
+Routes `tuist.dev/api/registry/*` to the standalone registry frontend at `registry.tuist.dev`. Preserve `registry.tuist.dev` as the upstream request Host. The ingress hostname is an origin, not a separately advertised registry endpoint.
 
 ### `cnpg/` — CloudNativePG bootstrap SQL
-SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.
+SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables and scoped updates to Bazel staging rows, including `bazel_profile_uploads`; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.
+
+### `clickhouse/` — ClickHouse access recovery
+Recovery fallback for the restricted ClickHouse identity reconciled automatically by the server migration release task and Helm chart. See [`clickhouse/README.md`](clickhouse/README.md).
+
+### `rack-switch-prep/` — first-touch provisioning for BER1 rack switches
+Console-driven bring-up for the rack's TP-Link switches: hostname, fixed management address, SSH, config saved. Run as `mise run rack:prep-switch <switch>` with a USB-C cable to the switch's console port, because a factory switch sits on 192.168.0.1 with SSH off and collides with the gateway of whatever network it is unboxed on. The inventory is the site definition in [`rack-switch-fleet/sites/`](rack-switch-fleet/sites/ber1.json); `mise run rack:ztp <device> --interface <iface>` serves DHCP and TFTP on an isolated segment so a switch provisions itself through Auto Install, refusing to run on the interface carrying the default route. `mise run rack:prep-test` covers everything reachable without a cable, and runs in CI; see [`rack-switch-prep/AGENTS.md`](rack-switch-prep/AGENTS.md) for the console baud rate, the CLI's input quirks, and the firmware-line trap that bricks these units.
+
+### `rack-switch-fleet/` — config as code for BER1 rack switches
+Everything after first touch: the VLANs, management interface, services and port roles that apply to a rack's switches as a set. `mise run rack:fleet render|diff|apply|backup|drift` (shell and ssh, tested with `mise run rack:fleet-test`) renders each switch's whole configuration from `sites/<site>.json`, compares it against the live device over SSH, and applies it one switch at a time in an order the site definition fixes by blast radius (ToR B, then ToR A which carries the WAN, then the management switch alone). `apply` refuses a switch whose predecessors are not already at the render, so the ordering is a precondition rather than a runbook line. `sites/<site>.json` also carries the rack's port map as the join between `nodes` and switch ports, so a port's config follows from the role of whatever is plugged into it and racking a machine is a data edit; `mise run rack:fleet ports` prints it. Nodes cover appliances (KVMs, PDU, ATS card) as well as machines, and `node_models.json` carries the NIC facts that let the render refuse a management link on a socket without out-of-band (AMT rides the MS-01's i226-LM only). Each switch also renders as a `RackSwitch` (`tuist.dev/v1alpha1`, CRD in `helm/tuist/crds/`) so its drift, reachability and remaining SSH connection budget are visible beside the RackHosts behind it; spec comes from the same site definition and status is pushed by `mise run rack:fleet publish`. Nothing polls the switches over SSH: a switch accepts about eight to ten connections per boot even spaced ten minutes apart, so any observation loop would wedge it. The controller path is the Omada controller, whose Open API writes everything rendered on 6.3 and needs no SSH. `mise run rack:fleet sessions <device> [tid]` lists the switch's terminal lines and frees a leaked one, which is the recovery for a wedged SSH daemon that does not involve power. Startup configs are committed, because the single management switch per rack is recovered with a cold spare plus a restorable config. Zero touch ran end to end on 2026-09-22: `rack:ztp` serves the rendered config with the login and the fleet key download, Auto Install fetches, saves and reboots it, and `rack:fleet save` seals the verbatim save; whether a factory-fresh unit starts Auto Install by itself is still open. `apply` is a confirmed commit: it arms a no-save reboot, applies, verifies and only then cancels and saves. The TFTP config export was confirmed to be text on 2026-09-21, so `mise run rack:fleet replace <device> [--reboot]` pushes a switch's whole configuration and verifies it; it merges the switch's current unmanaged lines in first, because the render omits the admin login and pushing it bare would delete the account used to log in. It ran end to end on both ToRs. See [`rack-switch-fleet/AGENTS.md`](rack-switch-fleet/AGENTS.md) for the three hardware checks the design rests on, what the render deliberately does not own, and the SSH session-table trap that wedges these units. The rack belongs to the cluster its site definition's `kubernetes.namespace` names, production for BER1 (staging while it was built at home): its `RackSwitch` objects are applied to that namespace on merge, `rack:ztp --via` serves zero-touch provisioning from the edge node, the edge node is a node of that cluster (a `RackLinuxMachine`, see `rack-nodes/`) whose rack-edge pod routes the switches into the tailnet and serves their DHCP, and `rack:omada` adopts them into the Omada controller there.
+
+### `rack-nodes/`: install sticks for the rack's Linux machines
+`mise run rack:write-install-usb <disk> --host <node>` writes an Ubuntu stick that installs a rack x86 machine (edge, services; storage once its layout exists) with no keystrokes and joins it to the tailnet on first boot with a single-use tagged key minted from the `TAILSCALE_RACK_NODES` OAuth client. The host is declared in `rackLinuxFleet.hosts` of the tuist chart values, rendered as a `RackLinuxHost`, and the CAPI provider's `RackLinuxMachine` joins it to the cluster over the tailnet and keeps it converged. The rack belongs to production, which lends staging and canary one Mac mini each; those are their only macOS runners, since they rent none on Scaleway (their Scaleway minis run only the xcresult processor). See [`rack-nodes/AGENTS.md`](rack-nodes/AGENTS.md) ("Customer jobs", "Lending a host to another env").
+
+### `rack-switch-controller/`: the RackSwitch reconciler, through the Omada controller
+Go controller that adopts each `RackSwitch` with `managedBy: controller` into the site's Omada controller and writes its configuration through the Open API: the management address, hostname, port descriptions and spanning-tree mode, and behind flags that default off, VLANs, LAGs, port spanning tree and site services. It writes only when a switch's revision or generation moves or it has just been adopted, one switch at a time in the site's apply order, and between changes it reads every ten minutes and reports drift without writing over it. It never opens SSH. The RackSwitch CRD is generated from its Go types (`mise run rack-switch-controller:generate`). Deployed beside the Omada controller by `.github/workflows/omada-deployment.yml` from [`helm/rack-switch-controller/`](helm/rack-switch-controller/values.yaml), never onto a node behind the switches it reconciles. See [`rack-switch-controller/AGENTS.md`](rack-switch-controller/AGENTS.md).
+
+### `helm/rack-edge/`: the rack edge node's DaemonSet
+One pod on each rack's edge node, which registers with a `tuist.dev/rack-edge=<site>` label and taint (`rackLinuxFleet.roles.edge`): it installs the path from the switches' management addresses into the tailnet (addresses, host routes, an nft table translating into tailscale0 with an MSS clamp) and serves their DHCP with the Omada controller in option 138, which is what makes a factory switch zero touch. Host networking with NET_ADMIN, not privileged; the node carries `cilium.io/no-schedule=true` because its own networks sit inside the pod CIDR, and the Cilium agent stays off it. The files it runs are rendered from the site definition by `rack:fleet render` into `sites/<site>/`, checked in CI. Its image is `rack-switch-fleet/edge/Dockerfile`. Deployed beside the Omada controller by `.github/workflows/omada-deployment.yml`. See [`rack-switch-fleet/AGENTS.md`](rack-switch-fleet/AGENTS.md), "The edge node".
+
+### `helm/rack-nodes/` and `helm/rack-cache-gateways/`: what runs on rack nodes, in releases no deploy waits on
+The rack node agent, the boot server and the rack's VM image cache (a zot registry on each storage node that the minis' tart-kubelet pulls golden bases through, falling back to ghcr.io; see "The rack's VM image cache" in [`rack-nodes/AGENTS.md`](rack-nodes/AGENTS.md)) (`rack-nodes`, rendered from the tuist chart's values after the tuist release in `server-deployment.yml`) and the Kura gateways on rack storage nodes (`rack-cache-gateways`, rendered from the platform chart's values after the platform release in `k8s:install-platform`), each installed with `--wait=hookOnly`. Helm 4's wait holds a DaemonSet until every pod it wants is Ready, and a rack is dark for days at a time, so nothing in a waited release (tuist, k8s-monitoring, platform) may run a pod on a rack node; node-exporter excludes them, and `alloy-rack` exports their host metrics. `mise -C infra run helm:rack-independence` checks it in the Helm workflow. See "Deploys and the rack's health" in [`rack-nodes/AGENTS.md`](rack-nodes/AGENTS.md).
+
+### `helm/xcresult-processor/`: the xcresult processor, in a release no deploy waits on
+The tuist chart's xcresult processor Deployment and PDB as the `tuist-xcresult-processor` release. Its templates, helpers and default values are symlinks into `helm/tuist/`, and `tuistRelease` gives the objects the tuist release's names and labels. Managed values set `xcresultProcessor.ownRelease`, so the tuist release leaves them out and `server-deployment.yml` upgrades this release after it with `--wait=hookOnly`, then reports `kubectl rollout status` without failing the deploy. The processor's readinessProbe follows Postgres, ClickHouse and the Mac mini's path to its Tart guest, and inside the tuist release's `--atomic --wait` one NotReady processor rolled back every server deploy. The deploy moves the live objects between the two releases by rewriting their `meta.helm.sh/release-name` annotation (with `helm.sh/resource-policy: keep` until both upgrades succeed, including any `keep` an interrupted run left behind), in whichever direction the commit's values ask for, so the processor keeps running. "Recover interrupted Helm releases" covers the processor release too, since its preflight runs on every deploy. A commit that renders the processor in the tuist release and predates that handover fails its deploy preflight on the ownership conflict instead of deleting anything.
 
 ### `vm-image-builder.md` — bare-metal builder fleet operator runbook
 End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
 
+### `log-review.md` — periodic log review runbook
+The queries behind the review cadence in the Logging and monitoring policy, plus the
+record template. Four reconciliations: privileged cluster access against approved
+elevations, operator grant usage against issued grants, authentication failures, and
+loss of log ingestion. Retention is 30 days, so a slipped monthly review cannot be
+performed retrospectively.
+
 ### `grafana-dashboards/` — Grafana Cloud dashboards (managed only)
 Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/git-sync/). The `Tuist Dashboards` folder in Grafana Cloud is bound to this directory; changes propagate in both directions.
 
-Each file is a `dashboard.grafana.app/v1` resource. The raw dashboard JSON lives under `spec`; the wrapper (`apiVersion`, `kind`, `metadata.name`) is what Grafana Git Sync expects. `metadata.name` must match the dashboard UID.
+Each file is a `dashboard.grafana.app/v1` or `dashboard.grafana.app/v2` resource. The raw dashboard JSON lives under `spec`; the wrapper (`apiVersion`, `kind`, `metadata.name`) is what Grafana Git Sync expects. `metadata.name` must match the dashboard UID.
+
+`processor-service.json` compares application database queues and query phases
+across the web and processor runtimes using the shared `tuist_repo_*` metrics
+and the `workload` label. Cloud, shadow, and ops pools have distinct repository
+labels; include all physical pools when investigating routed ClickHouse reads.
+The idle-time panel measures time before checkout, not connection occupancy.
+Its background job panels use the shared Oban
+metrics and an independent queue selector. Do not reintroduce the retired
+standalone service's `processor_*` metrics or `job="processor"` selectors.
 
 **Editing workflow:**
 - Prefer editing dashboards in the Grafana UI. On save, Grafana opens a pull request against `tuist/tuist` with the updated file. Direct commits to `main` from Grafana are disabled, so every UI save goes through PR review.
@@ -79,30 +258,42 @@ Each file is a `dashboard.grafana.app/v1` resource. The raw dashboard JSON lives
 
 ## Cluster access for agents
 
-This section is normative for agents (Claude, Codex, anything driving `kubectl` on a teammate's behalf). The cluster-access design has a specific shape *because* of the agent threat model — read it before reaching for any escalation path.
+Do not read Kubernetes Secrets or bypass the view tier with another credential path, including asking a human to fetch an admin kubeconfig for you. The operator procedures linked below do not grant permission to use their credentials or run mutations.
 
-### Default: read-only is always allowed, no setup needed
+Two doors, one identity. **Canary and production** go through Pomerium fronting `https://kube-<env>.tuist.dev`, carrying the team's Google Workspace identity. **Staging** goes straight over the tailnet to `https://tuist-k8s-staging.taild6d7bb.ts.net` — Tailscale's in-process API server proxy on the staging operator, running in auth mode — with no browser step and no `pomerium-cli`; being on the tailnet is the authentication, and the impersonated groups come from the `tailscale.com/cap/kubernetes` grants in [`tailscale/acls.json`](tailscale/acls.json) rather than from tuist-ops. If a staging `kubectl` fails to resolve its host, the answer is `tailscale status`, not a login. Everything below about tiers applies to both doors — they land on the same groups and the same ClusterRoles.
 
-The team's Google Workspace identity carries through to every workload cluster via Pomerium fronting `https://kube-<env>.tuist.dev`. From an agent running on a teammate's laptop, `kubectl --context tuist-k8s-<env>` works for any read operation: `get pods`, `logs`, `describe`, `get configmap`, `get events`, `get nodes`, the cluster-scoped infra CRs (`scalewayelasticmetalmachines`, `machinedeployments`, `kurainstances`, `customresourcedefinitions`), and RBAC objects (`get clusterrole`, `get rolebinding`) for diagnosing authorization. The `pomerium-cli` exec credential plugin handles the bearer; the teammate's existing browser-cached session is used silently. Each request then flows through the `kube-impersonator` sidecar in the Pomerium pod, which calls tuist-ops's `/api/v1/policy` over the tailnet; the policy returns `Impersonate-User: <email>` + `Impersonate-Group: tuist-eng` (or `tuist-admins` for Owner/Admin tailnet roles). RBAC binds those groups to `view`, which **excludes `Secret`s** — deliberate, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of agent context. The upstream `view` role also omits cluster-scoped and custom resources, so the `tuist-view-infra-read` aggregated ClusterRole (in [`helm/pomerium/templates/access-tiers.yaml`](helm/pomerium/templates/access-tiers.yaml)) extends it with `get`/`list`/`watch` on `nodes`, CAPI machines (`cluster.x-k8s.io`, `infrastructure.cluster.x-k8s.io`), Kura CRs (`kura.tuist.dev`), CRDs, and RBAC objects (`rbac.authorization.k8s.io`). It aggregates into `view` via a label (no extra binding) and adds no `Secret` rule, so the exclusion above is unaffected. RBAC read is the one deliberate departure from upstream `view` (which hides the authz graph as anti-recon); accepted here because containment is on mutation, not reads, and it lets agents diagnose a misbound/`NotFound` RBAC object during a deploy.
+From an agent running on a teammate's laptop, `kubectl --context tuist-k8s-<env>` works for any read operation: `get pods`, `logs`, `describe`, `get configmap`, `get events`, `get nodes`, the cluster-scoped infra CRs (`scalewayelasticmetalmachines`, `machinedeployments`, `kurainstances`, `customresourcedefinitions`), and RBAC objects (`get clusterrole`, `get rolebinding`) for diagnosing authorization. The `pomerium-cli` exec credential plugin handles the bearer; the teammate's existing browser-cached session is used silently. Each request then flows through the `kube-impersonator` sidecar in the Pomerium pod, which calls tuist-ops's `/api/v1/policy` over the tailnet; the policy returns `Impersonate-User: <email>` + `Impersonate-Group: tuist-eng` (or `tuist-admins` for Owner/Admin tailnet roles). RBAC binds those groups to `view`, which **excludes `Secret`s** — deliberate, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of agent context. The upstream `view` role also omits cluster-scoped and custom resources, so the `tuist-view-infra-read` aggregated ClusterRole (in [`helm/pomerium/templates/access-tiers.yaml`](helm/pomerium/templates/access-tiers.yaml)) extends it with `get`/`list`/`watch` on `nodes`, `persistentvolumes`, CAPI machines (`cluster.x-k8s.io`, `infrastructure.cluster.x-k8s.io`), Kura CRs (`kura.tuist.dev`), CRDs, and RBAC objects (`rbac.authorization.k8s.io`). It aggregates into `view` via a label (no extra binding) and adds no `Secret` rule, so the exclusion above is unaffected. RBAC read is the one deliberate departure from upstream `view` (which hides the authz graph as anti-recon); accepted here because containment is on mutation, not reads, and it lets agents diagnose a misbound/`NotFound` RBAC object during a deploy.
 
-For anything an agent typically needs (looking at a failing pod, tailing logs, sanity-checking a deploy), this is the right path. Use it freely. The one-time local kubeconfig setup (install `pomerium-cli`, merge the three per-env contexts) is in [`k8s/onboarding.md` → Engineer read access](k8s/onboarding.md#engineer-read-access-pomerium-kubeconfig).
+For anything an agent typically needs (looking at a failing pod, tailing logs, sanity-checking a deploy), this is the right path. Use it freely. The one-time local kubeconfig setup (staging's tailnet entry, plus `pomerium-cli` and the two gateway contexts for canary and production) is in [`k8s/onboarding.md` → Engineer read access](k8s/onboarding.md#engineer-read-access-pomerium-kubeconfig).
 
-### Writes: never escalate without explicit human approval
+### Writes: staging is open, canary and production are not
 
-Every mutating operation (`delete pod`, `apply -f`, `scale deployment`, `patch`, `create` of any kind) returns `403 Forbidden` by default. This is the agent-containment property the design protects — an agent with a teammate's Pomerium session cannot wreck a cluster silently.
+**Staging is writable with no elevation.** tuist-ops's policy response adds `tuist-staging-write` to every engineering identity's impersonation headers on `kube-staging.tuist.dev` — no request, no second human, no TTL. `kubectl --context tuist-k8s-staging apply/delete/scale/patch` succeeds, as do the capabilities bound straight to the write group (`tuist-fleet-unwedge`, `tuist-fleet-scale`, `tuist-volume-decommission`, `tuist-cnpg-decommission`) and the `edit`-aggregated live-debug verbs (`kubectl debug`, `nodes/proxy`). This is deliberate: staging serves no customers, and gating a pod restart there behind a second human cost more than the containment it bought. It is not a licence to skip the usual care — staging is what acceptance tests and Slack-requested previews run against, so scope the change and say what you did. `/elevate staging` is rejected by the bot: there is nothing left to grant.
 
-The bot's `/elevate <env> [duration] <intent>` Slack flow is the path to write access. **It is not an agent-driven path.** `TuistOps.JIT.Policy` currently allows Owner/Admin tailnet roles to self-approve any env and Member to self-approve non-prod, but that policy assumes the click comes from a human at a keyboard. An agent that drives both `/elevate` and the Approve click via the same workstation's Slack token has defeated the entire design. Don't do it.
+**On canary and production, every mutating operation** (`delete pod`, `apply -f`, `scale deployment`, `patch`, `create` of any kind) **returns `403 Forbidden` by default.** This is the agent-containment property the design protects — an agent with a teammate's Pomerium session cannot wreck the envs that serve customers.
+
+The bot's `/elevate <env> [duration] <intent>` Slack flow is the path to write access. **It is not an agent-driven path.** `TuistOps.JIT.Policy` currently allows Owner/Admin and Member tailnet roles alike to self-approve canary and production, but that policy assumes the click comes from a human at a keyboard. An agent that drives both `/elevate` and the Approve click via the same workstation's Slack token has defeated the entire design. Don't do it.
 
 Concrete rules for agents:
 
-- **Do not invoke `/elevate` autonomously.** If you think a write is needed, surface that to the human ("this would require elevation; can you run `/elevate ...` and grant the access?") and let them drive both the request and the approval.
+- **Do not invoke `/elevate` autonomously.** If you think a canary or production write is needed, surface that to the human ("this would require elevation; can you run `/elevate ...` and grant the access?") and let them drive both the request and the approval.
 - **Do not click Approve on any elevation request**, including (especially) one triggered by the human you're operating for. The "second human" attestation is meaningless if an agent is one of the two clicks.
 - **Do not retrieve the 1Password admin kubeconfig.** `op document get "kubeconfig: tuist-<env>"` requires biometric on the local 1P CLI, which is the explicit friction that keeps an agent from silently fetching cluster-admin credentials. Asking the human to fetch it for you defeats that.
 - **If the human has elevated themselves and you're now running inside that window**, mutating operations will succeed — tuist-ops's policy response adds the env's write group to the impersonation headers, widening the *identity's* tier, not just the human's session. Treat the elevation as a scoped, time-bounded license to do exactly what was stated in the `intent` field of the request. Don't expand scope mid-session.
+- The elevated `tuist-fleet-unwedge` role may delete a Kubernetes Node only after confirming that it is orphaned and its Cluster API Machine and infrastructure are already gone. Live fleet replacement must continue through Machine deletion so the owning controller recreates the host.
+- `tuist-fleet-unwedge` also permits patching an existing `OVHDedicatedMachine`
+  to repair diagnosed spec drift, such as a missing `egressBudgetMbps` already
+  declared by the reviewed fleet template. Compare the live Machine and template
+  first, patch only the intended field, and verify provider reconciliation and
+  Node capacity afterwards. This grant is resource-level, not field-level; it
+  does not authorize unrelated spec/metadata changes. It grants no OVH template
+  or status writes. Staging needs no elevation; canary/production still require
+  human elevation whose intent covers the repair.
+- The elevated `tuist-volume-decommission` role may delete a PersistentVolume only after confirming it is Released with no live claim. For a node-local (`scw-local-nvme`) PV, also confirm the node its `kubernetes.io/hostname` affinity names is gone, since deleting the PV skips the local-path teardown and would leak the directory on a live box. For an `hcloud-volumes` PV, patch `persistentVolumeReclaimPolicy` to `Delete` before deleting, or the backing block volume is stranded with nothing pointing at it.
 
 ### Forensic trail
 
-Every elevation produces records in three independent stores:
+Staging writes produce **no** elevation record — there is no elevation behind them. The Pomerium access log below is their only trail, and it is per-request and complete, so a staging mutation is still attributable to an email and a timestamp. Every canary/production elevation produces records in three independent stores:
 - **Slack thread** in `#tailscale-jit-approvals` (request → approval → outcome).
 - **tuist-ops Postgres** (`tailscale_jit_requests` + `tailscale_jit_elevations`).
 - **Pomerium access log** in Grafana Cloud Loki — one line per kubectl call with `user_email`, `method`, `path`, `response_code`, joined-on-elevation via the active row at request time.
@@ -114,16 +305,19 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 - Service code: [`tuist-ops/lib/tuist_ops/jit/`](../tuist-ops/lib/tuist_ops/jit/) (the standalone Phoenix app in [`tuist-ops/`](../tuist-ops/)).
 - Policy (self-approve + approver trust tiers): `TuistOps.JIT.Policy`. Both decisions read the requester's / approver's **tailnet role** (Owner / Admin / Member) from `GET /api/v2/tailnet/-/users` via `TuistOps.JIT.TailscaleClient.user_role/1`. There are no email lists in code; promoting someone in the Tailscale admin console Users page changes their bot policy on the next 30s cache tick.
 - Per-call impersonation resolution: `TuistOpsWeb.PolicyController` is the HTTP endpoint each env's `kube-impersonator` sidecar dials on every kubectl request. Reads the active Elevation row for `(subject, env)` and returns `Impersonate-User` / `Impersonate-Group` response headers; the sidecar copies them onto the upstream request to the apiserver.
-- Tailnet ACL: [`tailscale/acls.json`](tailscale/acls.json). View-tier only; static; humans edit it through code review. The `tuist-admins` / `tuist-eng` / `tuist-<env>-write` strings are *Kubernetes-side* impersonation labels, bound to ClusterRoles by `infra/helm/pomerium/templates/access-tiers.yaml`.
+- Tailnet ACL: [`tailscale/acls.json`](tailscale/acls.json). Static; humans edit it through code review. View-tier only for canary and production — their `edit` tier is a per-request elevation the gateway resolves, which a static ACL cannot express. For **staging** the ACL is the tier decision: its `tailscale.com/cap/kubernetes` grants hand out `tuist-staging-write` alongside the view group. The `tuist-admins` / `tuist-eng` / `tuist-<env>-write` strings are *Kubernetes-side* impersonation labels, bound to ClusterRoles by `infra/helm/pomerium/templates/access-tiers.yaml` — that file now serves both doors, so it outlives any future Pomerium teardown in staging.
+- **The ACL is not applied by CI, on purpose.** A change to `acls.json` only takes effect once someone pastes it into the admin console's Access controls page. A staging kubectl 403 right after a deploy usually means that step is outstanding. Tailscale does have both an API and an official GitOps action for this; we deliberately don't use them, because the `policy_file` scope is whole-file and a CI identity holding it could grant itself `tuist-production-write` — the thing the JIT flow exists to gate. The reasoning and the conditions for revisiting are in the header of [`tailscale/acls.json`](tailscale/acls.json). Don't "fix" this by wiring up the action.
 
 ## Deployment
 
 - **Tuist server** (managed) is deployed to our self-hosted CAPI Kubernetes clusters via the CI workflows:
   - `.github/workflows/server-deployment.yml` — build + deploy to one environment (workflow_dispatch or workflow_call).
-- `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests → production, with hotfix fast-path). One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
+  - When staging has a platform experiment that must survive an application smoke deployment, `staging_platform_revision` restores that existing Helm revision through the normal deployment identity instead of applying the branch's platform chart. Verify the revision with `helm history platform -n platform` first. This override is rejected outside staging; omitting it keeps normal platform reconciliation.
+- `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests, runners acceptance and the Kura rollout gate → production, with hotfix fast-path). Runners acceptance (`runners-acceptance.yml`, see `.github/AGENTS.md`) dispatches jobs onto canary's runner fleets and requires remote compilation-cache hits through the endpoint dispatch hands them; production's fleets, the BER1 rack included, are probed hourly by the same workflow because infra and network changes reach them without a server deploy. One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
+- **Kura runtime (hosted)** pins the newest `kura@X.Y.0-canary.N` tag contained in the deployed commit (falling back to the newest stable for commits that predate canaries). The cascade publishes that canary itself: when `kura/` changed, `server-production-deployment.yml` calls `kura-release.yml` before its canary and hotfix legs. Fresh staging deploys still build and pin `sha-<commit>` from the deployed commit. The `kura_runtime_image_tag` input overrides it for one deploy. Self-hosted Kura (the `kura` chart's `appVersion`, GHCR `:latest`, GitHub "Latest") still moves only on `kura-promote.yml`.
 - **Noora Storybook** (managed) is deployed via `.github/workflows/noora-storybook-deployment.yml` using the standalone `infra/helm/noora-storybook` chart.
 - **Slack invitation app** (managed) is deployed via `.github/workflows/slack-deployment.yml` using the standalone `infra/helm/slack` chart.
-- **kube-system add-ons** (HCCM, node CSI drivers) live in the per-workload bootstrap (`mgmt/bootstrap/`), but bootstrap only runs at cluster onboarding. Edits to their values reach existing clusters via dedicated re-apply workflows so they don't silently drift: `.github/workflows/hccm-deployment.yml` (HCCM) and `.github/workflows/csi-deployment.yml` (re-applies `hcloud-csi` with its pool-exclusion affinity and uninstalls the now-obsolete `scaleway-csi` on the Elastic Metal kura fleets). Both fan out over all envs in parallel and share the `server-deploy-<env>` concurrency lane.
+- **kube-system add-ons** (Cilium, HCCM, node CSI drivers) live in the per-workload bootstrap (`mgmt/bootstrap/`), but bootstrap only runs at cluster onboarding. Edits to their values reach existing clusters via dedicated re-apply workflows so they don't silently drift: `.github/workflows/hccm-deployment.yml` (HCCM), `.github/workflows/csi-deployment.yml` (re-applies `hcloud-csi` with its pool-exclusion affinity and uninstalls the now-obsolete `scaleway-csi` on the Elastic Metal kura fleets), and `.github/workflows/cilium-deployment.yml` (Cilium). All three share the `server-deploy-<env>` concurrency lane (which serializes them against each other, but *not* against `server-deployment.yml`, whose groups are suffixed). CSI fans out over all envs in parallel. HCCM image replacements require a qualified, single-environment dispatch (staging → canary → production); both its workflow and bootstrap guard Robot InternalIP targets and patched rollback access. See `certificate-trust/management-replacements.md`. **Cilium cascades staging → canary → production**, with `preview` hanging off staging outside that path, because it is the CNI. Cilium's re-apply also reconciles pod-template config hashes: the chart renders three ConfigMaps and none of its four workloads carries a checksum annotation over them, so a bare `helm upgrade` rewrites config, rolls nothing, and reports success while the pods keep their old in-memory copy. The workflow records the applied hash on each pod template and rolls only the workloads whose hash actually moved, which is also what makes it safe to re-run.
 - **Swift Registry** (managed) is deployed as the `registry` component of the main `infra/helm/tuist` chart via `.github/workflows/server-deployment.yml`, so the read frontend and server-owned `swift-registry-sync` writer roll in the same Helm release.
 - **Registry Router** — `wrangler deploy` from `registry-router/`.
 - **Helm charts** under `helm/` target Kubernetes (managed + self-hosted).
@@ -133,3 +327,27 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 - Keep the main Tuist chart (`helm/tuist/`) provider-agnostic. Managed-cluster-specific behavior hides behind feature flags (`managedSecrets`, `externalSecrets`) that default to self-host-safe values.
 - Don't let `helm/k8s-monitoring/` grow dependencies on things the self-host chart needs — the two are consumed by different users.
 - When a new managed-cluster operational step becomes reproducible, document it in `k8s/onboarding.md` rather than in this AGENTS.md. This file maps the territory; the runbook walks you through it.
+
+- Managed cache proximity DNS: `cache-dns/AGENTS.md` and `cache-dns/README.md` cover the retained Route53 zone, scoped identities, delegation, staged flags, and withdrawal-safe rollback. Defaults are inert.
+
+- Linux runner cache volumes use a dedicated privileged local-image agent
+  and private per-job reflink clones. They reuse macOS HEAD/object storage.
+  The chart is off by default for self-hosting; managed production enables an
+  idempotent provisioning init container for the bounded reflink filesystem.
+  Host preparation and agent readiness precede volume attachment; runner scheduling
+  only prefers ready hosts so ordinary jobs remain available. See
+  [workflow setup and rollout](runners-controller/cache-volumes.md). The same agent builds and
+  serves cached checkouts (`checkout` volumes) with the shared runner-cache
+  populator.
+
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+- Shared runner-cache lifecycle: [`runner-cache/AGENTS.md`](runner-cache/AGENTS.md).
+
+- Linux runner pools with `nestedVirtualization` give the runner container `/dev/kvm` for Android emulators: a KVM-enabled Kata guest kernel ([`kata-kvm-kernel/AGENTS.md`](kata-kvm-kernel/AGENTS.md)), installed and proven per boot by the CAPI provider, plus a CDI-backed device plugin. Enabled on managed Linux pools with an internal rollback switch; self-hosted defaults stay off. See "Nested virtualization" in [`runners-controller/AGENTS.md`](runners-controller/AGENTS.md).
+
+## Validation and operations references
+
+- Render Helm changes locally with `helm template` before any explicitly approved cluster validation; use leaf instructions for chart-specific placeholder values.
+- Put reproducible cluster setup/operator procedures in [k8s/onboarding.md](k8s/onboarding.md), not AGENTS files. [ClusterClass authoring](k8s/clusters/README.md), [platform chart](helm/platform/README.md), and [VM image builders](vm-image-builder.md) cover their respective procedures. Runbooks do not override the agent access restrictions above.

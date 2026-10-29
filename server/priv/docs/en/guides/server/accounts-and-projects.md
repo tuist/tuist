@@ -29,6 +29,26 @@ You can manage the organization through the subcommands under <.localized_link h
 tuist organization create {account-handle}
 ```
 
+### Organization membership {#organization-membership}
+
+Users can become organization members through an invitation, automatic single sign-on enrollment, or <.localized_link href="/guides/integrations/authentication/scim">System for Cross-domain Identity Management provisioning</.localized_link>.
+
+Authenticating with an organization's identity provider does not grant membership by itself. The organization's <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">single sign-on enrollment policy</.localized_link> determines whether a user from its trusted domain needs an invitation or may join automatically.
+
+Administrators can invite a member from the dashboard or with <.localized_link href="/cli/organization/invite">`tuist organization invite`</.localized_link>. Pass `--role admin` or `--role viewer` to give the invitee a role other than `user` when they accept.
+
+### Roles {#roles}
+
+Every organization member holds one of three roles:
+
+| Role | What it grants |
+| --- | --- |
+| **Admin** | Everything a user can do, plus managing the organization: members and invitations, projects, billing, tokens, webhooks, and settings. |
+| **User** | Reads and acts on the organization's work: running builds and tests, writing to the cache, creating and deleting previews, and changing a test case's state. |
+| **Viewer** | Reads the organization's work and changes none of it. Dashboards, builds, test runs, flaky and quarantined tests, previews, bundles, and runner activity are all readable. Attaching an interactive shell or VNC session to a runner is not, because it runs commands on the machine. |
+
+Pick a role when you invite someone, and change it later from **Members** in the dashboard. A role set this way is never overwritten by a later sign-in.
+
 ## Projects {#projects}
 
 Your projects need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <.localized_link href="/cli/project">`tuist project`</.localized_link> to create and manage projects.

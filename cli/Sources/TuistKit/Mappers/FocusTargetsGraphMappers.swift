@@ -55,6 +55,10 @@ public struct FocusTargetsGraphMappers: GraphMapping {
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         let graphTraverser = GraphTraverser(graph: graph)
+        var environment = environment
+        if !includedProducts.isDisjoint(with: [.unitTests, .uiTests]) {
+            environment.graphBeforeTestFocus = graph
+        }
         var graph = graph
 
         let hasExplicitFilters = !includedTargets.isEmpty || !excludedTargets.isEmpty || testPlan != nil
@@ -126,23 +130,27 @@ public struct FocusTargetsGraphMappers: GraphMapping {
             sourceTargets = userSpecifiedSourceTargets
         }
 
-        let filteredTargets = Set(try topologicalSort(
+        var filteredTargets = Set(try topologicalSort(
             Array(sourceTargets),
             successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)).map(\.graphTarget) }
         ))
+
+        if !hasExplicitFilters, includedProducts.isEmpty {
+            let localPackageTests = graphTraverser.allTargets().filter { target in
+                target.target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
+                    && graphTraverser.directTargetDependencies(path: target.path, name: target.target.name)
+                    .contains(where: { filteredTargets.contains($0.graphTarget) })
+            }
+            filteredTargets.formUnion(localPackageTests)
+            filteredTargets.formUnion(graphTraverser.allTargetDependencies(traversingFromTargets: Array(localPackageTests)))
+        }
 
         graph.projects = graph.projects.mapValues { project in
             var project = project
             project.targets = project.targets.mapValues { target in
                 var target = target
                 if !filteredTargets.contains(GraphTarget(path: project.path, target: target, project: project)) {
-                    let isPreservedLocalPackageTest = !hasExplicitFilters
-                        && target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
-                        && graphTraverser.directTargetDependencies(path: project.path, name: target.name)
-                        .contains(where: { filteredTargets.contains($0.graphTarget) })
-                    if !isPreservedLocalPackageTest {
-                        target.metadata.tags.formUnion(["tuist:prunable"])
-                    }
+                    target.metadata.tags.formUnion(["tuist:prunable"])
                 }
                 return target
             }

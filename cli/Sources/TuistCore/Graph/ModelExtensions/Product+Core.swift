@@ -45,7 +45,7 @@ extension Product {
         case .commandLineTool:
             return .commandLineTool
         case .macro:
-            return .commandLineTool
+            return .hostBuildTool
         case .appClip:
             return .onDemandInstallCapableApplication
         case .xpc:

@@ -4,8 +4,8 @@ import Path
 import TuistConstants
 import XcodeGraph
 
-/// A file Tuist writes into a target's Derived directory to expose `Bundle.module` (and the
-/// SwiftPM-compatible C entry point) to the target's own sources.
+/// A file Tuist writes into a target's Derived directory to expose `Bundle.module` to the target's
+/// own sources.
 public struct SynthesizedBundleAccessorFile {
     public let path: AbsolutePath
     public let contents: Data?
@@ -16,13 +16,11 @@ public struct SynthesizedBundleAccessorFile {
     }
 }
 
-/// Renders the Swift / Objective-C accessor files Tuist injects so that user code can reach the
-/// companion resource bundle via `Bundle.module` — mirroring the shape SwiftPM produces.
+/// Renders the Swift accessor files Tuist injects so that user code can reach the companion
+/// resource bundle via `Bundle.module` — mirroring the shape Swift Package Manager produces.
 @Mockable
 public protocol BundleAccessorTemplating {
     func swiftAccessor(target: Target, bundleName: String, project: Project) -> SynthesizedBundleAccessorFile
-    func objcAccessorHeader(target: Target, project: Project) -> SynthesizedBundleAccessorFile
-    func objcAccessorImplementation(target: Target, bundleName: String, project: Project) -> SynthesizedBundleAccessorFile
 }
 
 public struct BundleAccessorTemplate: BundleAccessorTemplating {
@@ -38,26 +36,6 @@ public struct BundleAccessorTemplate: BundleAccessorTemplating {
             .appending(components: Constants.DerivedDirectory.sources, filename)
         let contents = Self.swiftAccessorContents(target: target, bundleName: bundleName, project: project)
         return SynthesizedBundleAccessorFile(path: path, contents: contents.data(using: .utf8))
-    }
-
-    public func objcAccessorHeader(target: Target, project: Project) -> SynthesizedBundleAccessorFile {
-        let path = Self.objcAccessorPath(target: target, project: project, fileExtension: "h")
-        return SynthesizedBundleAccessorFile(
-            path: path,
-            contents: Self.objcHeaderContents(targetName: target.name).data(using: .utf8)
-        )
-    }
-
-    public func objcAccessorImplementation(
-        target: Target,
-        bundleName: String,
-        project: Project
-    ) -> SynthesizedBundleAccessorFile {
-        let path = Self.objcAccessorPath(target: target, project: project, fileExtension: "m")
-        return SynthesizedBundleAccessorFile(
-            path: path,
-            contents: Self.objcImplementationContents(targetName: target.name, bundleName: bundleName).data(using: .utf8)
-        )
     }
 
     // MARK: - Rendering
@@ -85,86 +63,7 @@ public struct BundleAccessorTemplate: BundleAccessorTemplating {
         """
     }
 
-    static func objcHeaderContents(targetName: String) -> String {
-        let identifier = targetName.toValidSwiftIdentifier()
-        return """
-        #import <Foundation/Foundation.h>
-
-        #if __cplusplus
-        extern "C" {
-        #endif
-
-        NSBundle* \(identifier)_SWIFTPM_MODULE_BUNDLE(void) NS_SWIFT_NONISOLATED;
-
-        #define SWIFTPM_MODULE_BUNDLE \(identifier)_SWIFTPM_MODULE_BUNDLE()
-
-        #if __cplusplus
-        }
-        #endif
-        """
-    }
-
-    static func objcImplementationContents(targetName: String, bundleName: String) -> String {
-        let identifier = targetName.toValidSwiftIdentifier()
-        return """
-        #import <Foundation/Foundation.h>
-        #import "TuistBundle+\(targetName).h"
-
-        @interface \(identifier)BundleFinder : NSObject
-        @end
-
-        @implementation \(identifier)BundleFinder
-        @end
-
-        NSBundle* \(identifier)_SWIFTPM_MODULE_BUNDLE(void) {
-            NSString *bundleName = @"\(bundleName)";
-
-            NSURL *bundleURL = [[NSBundle bundleForClass:\(identifier)BundleFinder.self] resourceURL];
-            NSMutableArray *candidates = [NSMutableArray arrayWithObjects:
-                                          [[NSBundle mainBundle] resourceURL],
-                                          bundleURL,
-                                          [[NSBundle mainBundle] bundleURL],
-                                          nil];
-
-            NSString* override = [[[NSProcessInfo processInfo] environment] objectForKey:@"PACKAGE_RESOURCE_BUNDLE_PATH"];
-            if (override) {
-                [candidates addObject:override];
-
-                NSString *subpaths = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:override error:nil];
-                if (subpaths) {
-                    for (NSString *subpath in subpaths) {
-                        if ([subpath hasSuffix:@".framework"]) {
-                            [candidates addObject:[NSURL fileURLWithPath:[NSString stringWithFormat:@"%@/%@", override, subpath]]];
-                        }
-                    }
-                }
-            }
-
-            #if __has_include(<XCTest/XCTest.h>)
-            [candidates addObject:[bundleURL URLByAppendingPathComponent:@".."]];
-            #endif
-
-            for (NSURL *candidate in candidates) {
-                NSURL *bundlePath = [candidate URLByAppendingPathComponent:[NSString stringWithFormat:@"%@%@", bundleName, @".bundle"]];
-                NSBundle *bundle = [NSBundle bundleWithURL:bundlePath];
-
-                if (bundle) {
-                    return bundle;
-                }
-            }
-
-            [NSException raise:@"BundleNotFound" format:nil];
-        }
-        """
-    }
-
     // MARK: - Helpers
-
-    private static func objcAccessorPath(target: Target, project: Project, fileExtension: String) -> AbsolutePath {
-        let filename = "TuistBundle+\(target.name.uppercasingFirst).\(fileExtension)"
-        return project.derivedDirectoryPath(for: target)
-            .appending(components: Constants.DerivedDirectory.sources, filename)
-    }
 
     private static func swiftAccessorPreamble(
         target: Target,

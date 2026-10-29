@@ -31,7 +31,9 @@ defmodule TuistWeb.RouterTest do
     stub(Environment, :prod?, fn -> true end)
 
     for route <- [~p"/blog", ~p"/about", ~p"/pricing", ~p"/terms", ~p"/blog"] do
-      assert conn |> get(route) |> get_resp_header("x-robots-tag") == ["index, follow"]
+      response_conn = get(conn, route)
+      assert get_resp_header(response_conn, "x-robots-tag") == ["index, follow"]
+      assert get_resp_header(response_conn, "x-tuist-public") == ["1"]
     end
   end
 
@@ -68,6 +70,11 @@ defmodule TuistWeb.RouterTest do
   test "bare docs routes redirect to the English docs overview", %{conn: conn} do
     assert conn |> get("/docs") |> redirected_to(301) == "/en/docs"
     assert conn |> get("/docs/") |> redirected_to(301) == "/en/docs"
+  end
+
+  test "the retired flaky-tests and test-insights pages redirect to the tests page", %{conn: conn} do
+    assert conn |> get("/flaky-tests") |> redirected_to(301) == "/tests"
+    assert conn |> get("/test-insights?utm_source=test") |> redirected_to(301) == "/tests?utm_source=test"
   end
 
   test "locale-first docs routes render documentation pages", %{conn: conn} do

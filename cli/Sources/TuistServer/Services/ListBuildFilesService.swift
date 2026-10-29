@@ -95,6 +95,10 @@ public struct ListBuildFilesService: ListBuildFilesServicing {
             case let .json(error):
                 throw ListBuildFilesServiceError.notFound(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw ListBuildFilesServiceError.unknownError(statusCode)
         }

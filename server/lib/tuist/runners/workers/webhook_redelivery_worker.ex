@@ -77,9 +77,9 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorker do
     :ok
   end
 
-  defp redeliver_for_app(%{credentials: creds, api_url: api_url}, threshold) do
+  defp redeliver_for_app(%{credentials: creds, api_url: api_url} = app, threshold) do
     threshold
-    |> list_deliveries_since(creds, api_url)
+    |> list_deliveries_since(creds, api_url, Map.get(app, :client_url))
     |> Enum.filter(&workflow_job?/1)
     |> Enum.group_by(& &1.guid)
     |> Enum.count(fn {guid, attempts} ->
@@ -87,8 +87,8 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorker do
     end)
   end
 
-  defp list_deliveries_since(threshold, creds, api_url) do
-    fetch_pages(threshold, [credentials: creds, api_url: api_url], [])
+  defp list_deliveries_since(threshold, creds, api_url, client_url) do
+    fetch_pages(threshold, [credentials: creds, api_url: api_url, client_url: client_url], [])
   end
 
   defp fetch_pages(threshold, opts, acc) do

@@ -5,7 +5,9 @@ import TuistEnvironment
 import TuistEnvKey
 import TuistSupport
 
-public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableCommand {
+public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableCommand, RunReportingCommand,
+    XcodeBuildPassthroughCommand
+{
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
@@ -30,6 +32,8 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
     )
     public var passthroughXcodebuildArguments: [String] = []
 
+    var xcodebuildActionIndex: Int = 0
+
     @Option(name: .long, help: "The zero-based shard index to execute.")
     var shardIndex: Int?
 
@@ -39,6 +43,13 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
         envKey: .testShardReference
     )
     var shardReference: String?
+
+    @Option(
+        name: .long,
+        help: "Exact shard plan identifier emitted by the build-for-testing job.",
+        envKey: .testShardPlanId
+    )
+    var shardPlanId: String?
 
     @Option(
         name: .long,
@@ -55,6 +66,21 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
     )
     var inspectMode: TestProcessingMode?
 
+    @Option(
+        name: .long,
+        help: "Rerun the test cases this branch adds, priced by duration, and flag any that prove flaky. 'report' warns; 'enforce' fails the run on a flaky test case. Off when omitted.",
+        envKey: .testStressNewTests
+    )
+    var stressNewTests: StressNewTestsMode?
+
+    @Option(
+        name: .long,
+        help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
+        completion: .file(),
+        envKey: .runReportPath
+    )
+    public var runReportPath: String?
+
     public func run() async throws {
         let shardArchivePath = try await { () async throws -> AbsolutePath? in
             if let shardArchivePath = self.shardArchivePath {
@@ -64,12 +90,14 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
         }()
         try await XcodeBuildTestCommandService()
             .run(
-                passthroughXcodebuildArguments: ["test"] + passthroughXcodebuildArguments,
+                passthroughXcodebuildArguments: xcodebuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue(),
                 shardReference: shardReference,
+                shardPlanId: shardPlanId,
                 shardArchivePath: shardArchivePath,
-                mode: inspectMode
+                mode: inspectMode,
+                stressNewTests: stressNewTests
             )
     }
 }

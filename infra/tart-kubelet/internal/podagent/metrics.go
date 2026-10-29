@@ -96,11 +96,22 @@ var guestDiskUsagePercent = prometheus.NewGaugeVec(
 //
 // Pool label from the Pod's `tuist.dev/runner-pool` label, same as the
 // boot histogram, for per-pool breakdowns.
+//
+// Buckets run to an hour: a cold pull of a tens-of-GB image behind the
+// single-concurrency reconcile puts real observations well past ten
+// minutes, and prod p99 sits on the top bucket through every busy hour.
+// Anything censored at the ceiling reads as "10 minutes" no matter how
+// much worse it is, which defeats the rising-p90 signal above.
+//
+// This only measures Pods that eventually run — it is observed on the
+// path to Run, so a Pod that never provisions contributes nothing here
+// and no quantile will show it. Detection of that case belongs on a
+// gauge over live Pods, not on this histogram.
 var podProvisionDelaySeconds = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Name:    "tart_kubelet_pod_provision_delay_seconds",
 		Help:    "Wall-clock from Pod creation to tart run start (scheduling + image pull + clone).",
-		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600},
+		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600, 1200, 1800, 3600},
 	},
 	[]string{"pool"},
 )
@@ -114,75 +125,107 @@ var podProvisionDelaySeconds = prometheus.NewHistogramVec(
 // materialized) makes the cold-pull tail explicit, so a high
 // podProvisionDelaySeconds can be attributed to queue wait vs. a genuine
 // re-pull at a glance rather than guessed at.
+// Buckets match podProvisionDelaySeconds so the two are comparable at a
+// glance; a cold pull is exactly the case that exceeds ten minutes.
 var vmProvisionWorkSeconds = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Name:    "tart_kubelet_vm_provision_work_seconds",
 		Help:    "Wall-clock for on-host provisioning work (ensureGolden + runner clone), per pool and path (warm=clonefile, cold=pull).",
-		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600},
+		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600, 1200, 1800, 3600},
 	},
 	[]string{"pool", "path"},
 )
 
-// cacheVolumeOutcomeTotal counts how per-account cache-volume branches end
-// their lives: promoted (became the account's new master),
-// discarded (read-only/clean/failed/never-dispatched job), or none (no volume
-// was attached — feature off or admission declined). promoted/(promoted+
-// discarded) is the warmth-capture rate.
-var cacheVolumeOutcomeTotal = prometheus.NewCounterVec(
-	prometheus.CounterOpts{
-		Name: "tart_kubelet_cache_volume_outcome_total",
-		Help: "Terminal disposition of per-account cache-volume branches, by outcome.",
+// cacheVolumeRootFreeBytes is the runner-cache volume's free space within its
+// budget (--runner-cache-budget-gib, or the quota without one) — the ground
+// truth behind admission and eviction.
+var cacheVolumeRootFreeBytes = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_root_free_bytes",
+		Help: "Free bytes on the runner-cache root volume within its budget.",
 	},
-	[]string{"outcome"},
 )
 
-// cacheVolumeMaterializeTotal counts post-dispatch materializations by whether
-// a master existed for the dispatched account on this host: "warm" (the
-// account's master was clonefiled into the VM's branch) or "cold" (no master
-// yet — a first job for that account here, whose writes seed the master).
-// warm/(warm+cold) is the hit rate of the local warm set against dispatched
-// demand — the signal for whether affinity is routing jobs to hosts that hold
-// their account's master.
-var cacheVolumeMaterializeTotal = prometheus.NewCounterVec(
+// cacheVolumeEnabled is 1 when the feature is active on this host
+// (--runner-cache-root set). It exists so root_mounted is never read in
+// isolation: every gauge here is registered unconditionally and so reports its
+// zero default on a host where the feature is off and Start never runs. Without
+// this, a disabled host (enabled 0, mounted 0) is indistinguishable from an
+// enabled-but-unmounted one (enabled 1, mounted 0) — the very ambiguity
+// root_mounted is meant to remove. Read root_mounted only where enabled == 1.
+var cacheVolumeEnabled = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_enabled",
+		Help: "1 when runner cache volumes are enabled on this host (--runner-cache-root set); 0 when the feature is off. Gate root_mounted on this.",
+	},
+)
+
+// cacheVolumeRootMounted is 1 when --runner-cache-root points at an actually-
+// mounted volume and 0 when the feature is enabled but the path is not a mount
+// (unprovisioned, or the host rebooted and the volume did not auto-remount).
+// A 0 here WHILE enabled == 1 is the direct, unambiguous signal that every job
+// on this host is silently falling back to the cold path.
+var cacheVolumeRootMounted = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_root_mounted",
+		Help: "1 when the runner-cache root is a mounted volume, 0 when --runner-cache-root is set but the path is not mounted (all jobs run cold until it mounts). Only meaningful when cache_volume_enabled is 1.",
+	},
+)
+
+// imageMirrorProbeTotal counts what a host learned each time it asked a rack
+// image cache for a golden base's image: `ok` (pulled from it next),
+// `syncing` (requeued while the cache fetches it), `syncing_bypassed` (still
+// fetching it, but another cache held it), `sync_timeout` (waited too long,
+// pulled from the upstream), `absent`, `unavailable` or `error`
+// (pulled from the upstream).
+var imageMirrorProbeTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: "tart_kubelet_cache_volume_materialize_total",
-		Help: "Post-dispatch cache materializations, by warm/cold.",
+		Name: "tart_kubelet_image_mirror_probe_total",
+		Help: "Rack image cache probes for a golden base's image, by result.",
 	},
 	[]string{"result"},
 )
 
-// cacheVolumeConvergedTotal counts background fast-forwards of this host's
-// master to the account's HEAD — a host that was behind pulling the latest
-// master after a job started (off the job-start path), so the next job on it
-// starts fresher. A high rate relative to materialize means hosts are
-// frequently stale (jobs spread thin across hosts, or the cache churns fast).
-var cacheVolumeConvergedTotal = prometheus.NewCounter(
+// imagePullSeconds is how long each golden base's `tart pull` took, by where
+// it pulled from (`mirror` or `upstream`) and whether it succeeded. The
+// before/after of a rack image cache is the `upstream` and `mirror`
+// distributions on the same hosts.
+var imagePullSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_image_pull_seconds",
+		Help:    "Wall-clock time of a golden base's tart pull, by source and result.",
+		Buckets: []float64{30, 60, 120, 180, 300, 450, 600, 900, 1200},
+	},
+	[]string{"source", "result"},
+)
+
+// goldenStagedTotal counts the goldens a serving host staged ahead of its
+// Pods (stage.go), by result: `pulled`, `present` (a Pod pulled it first),
+// `syncing` (the rack image cache is still fetching it) or `error`. Whether
+// staging works shows in the pools' materialized and reused counts.
+var goldenStagedTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: "tart_kubelet_cache_volume_converged_total",
-		Help: "Materialize-time master fast-forwards to the account's HEAD.",
+		Name: "tart_kubelet_golden_staged_total",
+		Help: "Golden bases staged ahead of the Pods that clone them, by result.",
 	},
+	[]string{"result"},
 )
 
-// cacheVolumeResidentCount is the number of resident master images on this
-// host (all accounts, all volume names). Divided by the quota, it's the "how
-// many accounts does this host keep hot" signal.
-var cacheVolumeResidentCount = prometheus.NewGauge(
-	prometheus.GaugeOpts{
-		Name: "tart_kubelet_cache_volume_resident_count",
-		Help: "Resident per-account cache master images on this host.",
-	},
-)
+func recordGoldenStaged(result string) {
+	goldenStagedTotal.WithLabelValues(result).Inc()
+}
 
-// cacheVolumeRootFreeBytes is statfs free space on the quota-bounded
-// runner-cache volume — the ground truth behind admission and watermark
-// eviction. A sustained decline toward the low watermark is the eviction-
-// pressure signal.
-var cacheVolumeRootFreeBytes = prometheus.NewGauge(
-	prometheus.GaugeOpts{
-		Name: "tart_kubelet_cache_volume_root_free_bytes",
-		Help: "Free bytes on the quota-bounded runner-cache root volume.",
-	},
-)
+func recordImageMirrorProbe(result string) {
+	imageMirrorProbeTotal.WithLabelValues(result).Inc()
+}
+
+func recordImagePull(source string, err error, seconds float64) {
+	result := "ok"
+	if err != nil {
+		result = "error"
+	}
+	imagePullSeconds.WithLabelValues(source, result).Observe(seconds)
+}
 
 func init() {
 	metrics.Registry.MustRegister(
@@ -192,44 +235,35 @@ func init() {
 		goldenBaseMaterializedTotal,
 		goldenBaseReusedTotal,
 		vmProvisionWorkSeconds,
-		cacheVolumeOutcomeTotal,
-		cacheVolumeMaterializeTotal,
-		cacheVolumeConvergedTotal,
-		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
+		cacheVolumeEnabled,
+		cacheVolumeRootMounted,
+		imageMirrorProbeTotal,
+		imagePullSeconds,
+		goldenStagedTotal,
 	)
 }
 
-// RecordVolumeOutcome increments the per-outcome count of finalized cache
-// volume branches.
-func RecordVolumeOutcome(outcome string) {
-	if outcome == "" {
-		outcome = string(VolumeOutcomeNone)
-	}
-	cacheVolumeOutcomeTotal.WithLabelValues(outcome).Inc()
-}
-
-// RecordVolumeMaterialized increments the warm/cold count of post-dispatch
-// cache materializations.
-func RecordVolumeMaterialized(warm bool) {
-	result := "cold"
-	if warm {
-		result = "warm"
-	}
-	cacheVolumeMaterializeTotal.WithLabelValues(result).Inc()
-}
-
-// RecordVolumeConverged increments the count of materialize-time master
-// fast-forwards to the account's HEAD.
-func RecordVolumeConverged() {
-	cacheVolumeConvergedTotal.Inc()
-}
-
-// RecordVolumeResident publishes the resident master count and root free
-// bytes, sampled on the reconcile tick.
-func RecordVolumeResident(count int, freeBytes uint64) {
-	cacheVolumeResidentCount.Set(float64(count))
+// RecordVolumeRootFree publishes the runner-cache volume's free bytes within its budget.
+func RecordVolumeRootFree(freeBytes uint64) {
 	cacheVolumeRootFreeBytes.Set(float64(freeBytes))
+}
+
+// RecordVolumeEnabled marks the cache-volume feature active on this host. Set
+// once when an enabled cache space starts; a disabled host never calls it, so the
+// gauge stays at its 0 default there.
+func RecordVolumeEnabled() {
+	cacheVolumeEnabled.Set(1)
+}
+
+// RecordVolumeRootMounted publishes whether the runner-cache root is a mounted
+// volume, sampled at startup and on every reconcile tick.
+func RecordVolumeRootMounted(mounted bool) {
+	if mounted {
+		cacheVolumeRootMounted.Set(1)
+		return
+	}
+	cacheVolumeRootMounted.Set(0)
 }
 
 // RecordGoldenMaterialized increments the per-pool count of golden base

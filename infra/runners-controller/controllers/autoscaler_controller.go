@@ -2,14 +2,18 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	nodev1 "k8s.io/api/node/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -25,16 +29,24 @@ import (
 // gives the memory budget the pool's shapes compete for.
 const fleetNodePoolLabel = "node.cluster.x-k8s.io/pool"
 
-// macosFleetLabel + macosNodeOSLabel identify the Mac mini hosts
+// macosFleetLabel + nodeOSLabel identify the Mac mini hosts
 // claimed by a macOS RunnerPool's fleetSelector. tuist.dev/fleet is
 // stamped by the runners-fleet's MachineDeployment (and matched by
 // the macOS runner Pods' nodeSelector); kubernetes.io/os=darwin
-// filters out any cross-OS noise. Counting these nodes gives the
-// host-slot budget the macOS Xcode pools compete for — one VM per
-// Mac mini under the Virtualization.framework SLA.
+// filters out any cross-OS noise. Summing what these nodes can
+// actually admit gives the slot budget the macOS Xcode pools compete
+// for.
+//
+// nodeOSLabel is not macOS-only: the reservation path pairs it with
+// fleetNodePoolLabel to address the Linux fleet's bare-metal hosts.
+//
+// One fleet label can span several MachineDeployments — that is how a
+// mixed-SKU fleet is expressed (M2-L at one guest per host next to
+// M4-XL at two), so the node set behind a fleetSelector is NOT
+// homogeneous and its capacity is not its cardinality.
 const (
 	macosFleetLabel   = "tuist.dev/fleet"
-	macosNodeOSLabel  = "kubernetes.io/os"
+	nodeOSLabel       = "kubernetes.io/os"
 	macosNodeOSDarwin = "darwin"
 )
 
@@ -43,6 +55,8 @@ const (
 // system DaemonSets (Cilium, kube-proxy replacement, node-exporter)
 // and kata per-sandbox overhead that doesn't show up in Pod requests.
 const defaultMemReserveFraction = 0.90
+
+var errPodCostUnavailable = errors.New("per-Pod cost unavailable")
 
 // AutoscalerReconciler reconciles autoscaling-enabled RunnerPools.
 // On a 5-second cadence (RequeueAfter), it:
@@ -89,11 +103,27 @@ type AutoscalerReconciler struct {
 	// Defaults to defaultMemReserveFraction. 0 (unset) uses the
 	// default; set explicitly in tests.
 	MemReserveFraction float64
+
+	// SandboxesNamespace is where sandbox daemons run, whose memory is
+	// kept out of the Linux fleet's budget (see sandboxes.go). Empty
+	// when the chart runs no sandboxes.
+	SandboxesNamespace string
+
+	// APIReader is an uncached reader for the sandbox daemons, which live
+	// outside the namespace the manager caches. Nil falls back to Client.
+	APIReader client.Reader
+
+	// sandboxRetired remembers the runners retired for sandbox growths,
+	// per node, for preemptionSettle (see sandboxes.go).
+	sandboxMu      sync.Mutex
+	sandboxRetired map[string]map[types.UID]retiredRunner
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;patch
+// +kubebuilder:rbac:groups=node.k8s.io,resources=runtimeclasses,verbs=get;list;watch
 
 func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("autoscaler", req.NamespacedName)
@@ -136,14 +166,27 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
 	}
 
-	knobs := scaling.PolicyKnobs{
-		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloor,
-		MaxReplicas:      pool.Spec.Autoscaling.MaxReplicas,
+	knobs := policyKnobs(pool)
+	desired, fleet := r.desiredForPool(ctx, pool, *signals, knobs, logger)
+	if err := r.publishSandboxAllocations(ctx, pool, fleet); err != nil {
+		// CI scaling continues. A failed publication cannot renew the server's
+		// short-lived grant, so sandbox admission fails closed independently.
+		logger.Error(err, "publish sandbox capacity allocation")
 	}
-	desired := r.desiredForPool(ctx, pool, *signals, knobs, logger)
 
 	current := pool.Spec.Replicas
 	now := r.now()
+	r.stampDemand(ctx, pool, *signals, now, logger)
+
+	// A sandbox carve-out's growth waiting for room on a node outranks the
+	// idle warm runners there, whatever the cooldown.
+	preempted, err := r.preemptForSandboxGrowth(ctx, pool, fleet, now, logger)
+	if err != nil {
+		logger.Error(err, "retire idle runners for a sandbox growth; will retry")
+	}
+	if preempted {
+		return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+	}
 
 	switch {
 	case desired == current:
@@ -160,13 +203,20 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// desired < current — scale down candidate. Cooldown gate
 		// stops us from oscillating: a single brief idle window
 		// shouldn't drop warm capacity that's about to be reused.
-		cooldown := time.Duration(pool.Spec.Autoscaling.ScaleDownCooldownSeconds) * time.Second
+		cooldown := time.Duration(pool.Spec.Autoscaling.ScaleDownCooldownSecondsOrDefault()) * time.Second
 		if cooldown < 0 {
 			cooldown = 0
 		}
 		if pool.Status.LastScaleDownAt != nil {
 			elapsed := now.Sub(pool.Status.LastScaleDownAt.Time)
 			if elapsed < cooldown {
+				preempted, err := r.preemptForStarvedSiblings(ctx, pool, fleet, now, logger)
+				if err != nil {
+					logger.Error(err, "preempt idle runners for starved siblings; will retry")
+				}
+				if preempted {
+					return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+				}
 				logger.V(1).Info("scale-down deferred by cooldown",
 					"elapsed", elapsed.String(),
 					"cooldown", cooldown.String(),
@@ -198,6 +248,16 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
 }
 
+// policyKnobs reads a pool's autoscaling knobs from its spec.
+func policyKnobs(pool *tuistv1.RunnerPool) scaling.PolicyKnobs {
+	return scaling.PolicyKnobs{
+		MinWarmPoolFloor:        pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
+		MaxLearnedWarmPoolFloor: pool.Spec.Autoscaling.MaxLearnedWarmPoolFloor,
+		MaxReplicas:             pool.Spec.Autoscaling.MaxReplicas,
+		IgnoreRecentPeak:        !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
+	}
+}
+
 // desiredForPool computes the target replica count for `pool`.
 //
 // Pools with autoscaling-disabled `maxReplicas` keep the simple
@@ -208,35 +268,61 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 //
 //   - Linux pools share a bare-metal node pool, contending for
 //     memory; budget = sum of allocatable memory bytes across the
-//     fleet's nodes.
-//   - macOS pools share a Mac mini fleet; each Pod claims a whole
-//     host (Apple's Virtualization.framework SLA caps at 2 VMs/host
-//     and we run 1 today), so budget = host count.
+//     fleet's nodes, scaled by a reserve fraction for DaemonSets and
+//     kata sandbox overhead.
+//   - macOS pools share a Mac mini fleet and contend for the same
+//     unit; budget = sum of allocatable memory bytes, unscaled. A
+//     Pod's cost is its memory request, so the quotient is the guest
+//     count each host admits — 1 on an M2-L, 2 on an M4-XL — which is
+//     the same division kube-scheduler performs when it places the
+//     Pod.
 //
-// Any failure gathering the fleet view falls back to the per-pool
-// target — a node-read blip must never trigger a mass scale-down.
+// Fleet-capacity, pool-list, and sibling-signal read failures fall
+// back to the per-pool target, preserving the existing anti-thrash
+// behavior and allowing queued work to scale up. A RuntimeClass cost
+// failure leaves replicas unchanged because scaling without that
+// scheduling overhead could overcommit the fleet.
 func (r *AutoscalerReconciler) desiredForPool(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
 	signals scaling.Signals,
 	knobs scaling.PolicyKnobs,
 	logger logr.Logger,
-) int32 {
+) (int32, *fleetAllocation) {
 	perPool := scaling.DesiredReplicas(signals, knobs)
-	allocated := r.allocate(ctx, pool, signals, knobs, perPool, logger)
+	allocated, fleet := r.allocate(ctx, pool, signals, knobs, perPool, logger)
 
 	// Publish the allocation outcome so the warm-pool squeeze (target
 	// reaped down to `allocated` under fleet contention) is observable
 	// on its own series, not inferred from alive-vs-desired.
-	metrics.RecordAllocation(pool.Name, signals.Claimed+signals.Queued, knobs.MinWarmPoolFloor, perPool, allocated)
+	metrics.RecordAllocation(pool.Name, signals.Load(), knobs.MinWarmPoolFloor, max(knobs.MinWarmPoolFloor, scaling.LearnedSpare(signals, knobs)), perPool, allocated)
+	metrics.RecordLearnedWarmFloor(pool.Name, signals.LearnedWarmFloor, scaling.LearnedSpare(signals, knobs))
 
-	return allocated
+	// Publish the demand signals unsummed as well. The allocator only
+	// needs occupied+queued, but the split shows both dispatch progress
+	// (queued -> claimed) and the post-job tail (claimed -> occupied).
+	metrics.RecordDemand(pool.Name, signals.Claimed, signals.CurrentOccupancy(), signals.Queued)
+
+	return allocated, fleet
+}
+
+// fleetAllocation is one tick's view of the capacity domain a pool was
+// allocated in. Nil when the allocator was bypassed or fell back.
+type fleetAllocation struct {
+	members map[string]fleetMember
+}
+
+type fleetMember struct {
+	pool      *tuistv1.RunnerPool
+	cost      int64
+	queued    int32
+	allocated int32
 }
 
 // allocate runs the shared-capacity fleet allocator for `pool`,
-// returning the (possibly squeezed) replica target. Any failure
-// gathering the fleet view falls back to the per-pool target — a
-// node-read blip must never trigger a mass scale-down.
+// returning the (possibly squeezed) replica target. Fleet-view read
+// failures fall back to the per-pool target, while an unavailable
+// per-Pod scheduling cost leaves replicas unchanged.
 func (r *AutoscalerReconciler) allocate(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -244,16 +330,21 @@ func (r *AutoscalerReconciler) allocate(
 	knobs scaling.PolicyKnobs,
 	perPool int32,
 	logger logr.Logger,
-) int32 {
+) (int32, *fleetAllocation) {
 	if knobs.MaxReplicas <= 0 {
-		return perPool
+		return perPool, nil
 	}
 
-	demands, err := r.gatherFleetDemands(ctx, pool, signals, knobs)
+	demands, shapes, members, err := r.gatherFleetDemands(ctx, pool, signals, knobs)
 	if err != nil {
+		if errors.Is(err, errPodCostUnavailable) {
+			logger.Error(err, "per-Pod scheduling cost unknown; leaving replicas unchanged",
+				"fleetSelector", pool.Spec.FleetSelector)
+			return pool.Spec.Replicas, nil
+		}
 		logger.Error(err, "gather fleet demands; falling back to per-pool target",
 			"fleetSelector", pool.Spec.FleetSelector)
-		return perPool
+		return perPool, nil
 	}
 
 	// capacity <= 0 is treated like an error on purpose. A zero sum is
@@ -268,62 +359,261 @@ func (r *AutoscalerReconciler) allocate(
 	if err != nil || capacity <= 0 {
 		logger.Error(err, "read fleet capacity; falling back to per-pool target",
 			"fleetSelector", pool.Spec.FleetSelector, "os", pool.Spec.OS)
-		return perPool
+		return perPool, nil
 	}
 
-	alloc := scaling.AllocateFleet(demands, capacity)
-	if v, ok := alloc[pool.Name]; ok {
-		return v
+	// A cap read failure degrades to the byte budget alone rather than
+	// freezing the pool: the budget is never LOWER than the true
+	// placeable count, so the worst case is the over-scheduling this cap
+	// exists to prevent — which is where the fleet already was.
+	shapeCaps, err := r.shapePlacementCaps(ctx, pool, shapes)
+	if err != nil {
+		logger.Error(err, "read shape placement caps; allocating on the byte budget alone",
+			"fleetSelector", pool.Spec.FleetSelector)
 	}
-	return perPool
+
+	alloc := scaling.AllocateFleet(demands, capacity, shapeCaps)
+	v, ok := alloc[pool.Name]
+	if !ok {
+		return perPool, nil
+	}
+	for name, granted := range alloc {
+		member := members[name]
+		member.allocated = granted
+		members[name] = member
+	}
+	return v, &fleetAllocation{members: members}
+}
+
+// podShape is the placement footprint of one pool's Pod. Two pools with
+// the same footprint compete for the same node slots regardless of which
+// runner image they carry, which is what makes it the right grouping key
+// for a placement cap.
+type podShape struct {
+	cpuMilli int32
+	memoryMB int32
+}
+
+func podShapeOf(pool *tuistv1.RunnerPool) podShape {
+	return podShape{cpuMilli: pool.Spec.PodCPUMilli, memoryMB: pool.Spec.PodMemoryMB}
+}
+
+// placementShapeOf is podShapeOf plus the RuntimeClass overhead the
+// scheduler adds at admission, which is the footprint a node is actually
+// asked to seat. Under kata a 16 GiB shape costs 18.5 GiB and a 4 vCPU
+// shape costs 4.25, so dividing a node's allocatable by the bare shape
+// reports seats that do not exist: 117 GiB / 16 GiB is seven where the
+// truth is six. Runtimes without overhead (macOS Tart guests) return the
+// bare shape unchanged, so both platforms use one definition.
+//
+// This is also the right grouping key for capByShape: two pools whose
+// Pods request the same resources but run under different RuntimeClasses
+// do not compete for the same node slots.
+func (r *AutoscalerReconciler) placementShapeOf(ctx context.Context, pool *tuistv1.RunnerPool) (podShape, error) {
+	shape := podShapeOf(pool)
+
+	overheadCPU, overheadMemory, err := r.runtimeClassOverhead(ctx, pool)
+	if err != nil {
+		return podShape{}, err
+	}
+	shape.cpuMilli += int32(overheadCPU)
+	shape.memoryMB += int32(overheadMemory / (1024 * 1024))
+	return shape, nil
+}
+
+// runtimeClassOverhead reads the pool's RuntimeClass podFixed overhead as
+// (CPU milli, memory bytes). No RuntimeClass, or one without overhead,
+// is zero rather than an error. A RuntimeClass that is named but cannot
+// be read IS an error: scaling without known admission overhead
+// overcommits the fleet.
+func (r *AutoscalerReconciler) runtimeClassOverhead(ctx context.Context, pool *tuistv1.RunnerPool) (int64, int64, error) {
+	if pool.Spec.RuntimeClass == "" {
+		return 0, 0, nil
+	}
+
+	runtimeClass := &nodev1.RuntimeClass{}
+	if err := r.Get(ctx, client.ObjectKey{Name: pool.Spec.RuntimeClass}, runtimeClass); err != nil {
+		return 0, 0, fmt.Errorf("%w: get RuntimeClass %q: %w", errPodCostUnavailable, pool.Spec.RuntimeClass, err)
+	}
+	if runtimeClass.Overhead == nil {
+		return 0, 0, nil
+	}
+
+	var cpuMilli, memoryBytes int64
+	if cpu := runtimeClass.Overhead.PodFixed.Cpu(); cpu != nil {
+		cpuMilli = cpu.MilliValue()
+	}
+	if memory := runtimeClass.Overhead.PodFixed.Memory(); memory != nil {
+		memoryBytes = memory.Value()
+	}
+	return cpuMilli, memoryBytes, nil
+}
+
+func (s podShape) key() string {
+	return fmt.Sprintf("%dm-%dMi", s.cpuMilli, s.memoryMB)
+}
+
+// shapePlacementCaps returns, per shape, how many Pods of that shape the
+// fleet's Ready nodes can actually seat — summing each node's own
+// `min(cpu, memory)` quotient rather than dividing a fleet-wide total.
+//
+// The distinction is the whole point. Summing first and dividing after
+// answers "how much fleet is there", which over-counts twice over on a
+// mixed fleet: it pools memory from hosts too small to seat the shape at
+// all, and it ignores CPU, which is what actually binds a guest whose
+// memory-per-vCPU is richer than its host's. Per-node `min` answers the
+// question kube-scheduler will actually be asked.
+//
+// Both platforms schedule on CPU and memory requests. Linux sandbox daemon
+// allocations come off each node before computing its runner seats.
+func (r *AutoscalerReconciler) shapePlacementCaps(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	shapes map[string]podShape,
+) (map[string]int32, error) {
+	if len(shapes) == 0 {
+		return nil, nil
+	}
+
+	// fleetNodeSelector mirrors the nodeSelector podtemplate stamps on
+	// these Pods, so the cap counts exactly the nodes the scheduler will
+	// consider.
+	var nodes corev1.NodeList
+	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
+		return nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
+	}
+	if pool.Spec.OS == "linux" {
+		daemons, err := r.sandboxDaemons(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for i := range nodes.Items {
+			nodes.Items[i] = *nodeWithoutSandboxes(&nodes.Items[i], daemons)
+		}
+	}
+
+	caps := make(map[string]int32, len(shapes))
+	for key, shape := range shapes {
+		if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
+			continue
+		}
+		var seats int32
+		for i := range nodes.Items {
+			if nodeFilterReason(&nodes.Items[i]) != "" {
+				continue
+			}
+			seats += nodeSeatsForShape(&nodes.Items[i], shape)
+		}
+		caps[key] = seats
+	}
+	return caps, nil
+}
+
+// nodeSeatsForShape is how many Pods of `shape` one node could hold if
+// it were empty: the smaller of its CPU and memory quotients. Current
+// occupancy is deliberately not subtracted — the allocator sizes a
+// steady-state target, and the Pods already running are themselves part
+// of that target.
+func nodeSeatsForShape(node *corev1.Node, shape podShape) int32 {
+	cpu := node.Status.Allocatable.Cpu()
+	memory := node.Status.Allocatable.Memory()
+	if cpu == nil || memory == nil {
+		return 0
+	}
+
+	byCPU := cpu.MilliValue() / int64(shape.cpuMilli)
+	byMemory := memory.Value() / (int64(shape.memoryMB) * 1024 * 1024)
+	if byMemory < byCPU {
+		byCPU = byMemory
+	}
+	if byCPU < 0 {
+		return 0
+	}
+	return int32(byCPU)
 }
 
 // fleetCapacity returns the shared budget `pool` competes for with
-// its siblings, in the same unit AllocateFleet expects PerPodCost
-// to be expressed in (memory bytes for Linux, host slots for macOS).
-// An unrecognised OS returns (0, nil), which trips the per-pool
-// fallback in desiredForPool without an error log — pools without a
-// known OS quietly skip the allocator.
+// its siblings, in the same unit AllocateFleet expects PerPodCost to
+// be expressed in — allocatable memory bytes, for both OSes. An
+// unrecognised OS returns (0, nil), which trips the per-pool fallback
+// in desiredForPool without an error log — pools without a known OS
+// quietly skip the allocator.
+//
+// macOS used to have its own unit ("host slots", one per Ready Mac
+// mini, PerPodCost fixed at 1). That was exactly right while every
+// host ran exactly one guest and exactly wrong the moment one did not:
+// a host advertising room for two VMs still contributed 1, so half of
+// a dual-guest host's capacity was invisible to the allocator and the
+// pools it feeds would never scale into it.
+//
+// Counting bytes instead of hosts is not a new mechanism, it is the
+// removal of a special case. tart-kubelet advertises hostMemoryMB as
+// the Node's allocatable memory and the macOS runner Pod requests
+// podMemoryMB, so kube-scheduler ALREADY decides how many guests fit
+// by exactly this division. Doing the same arithmetic here makes the
+// allocator agree with the scheduler by construction, instead of via
+// a second number an operator has to remember to keep in sync — which
+// is what a per-SKU fleet would otherwise require.
 func (r *AutoscalerReconciler) fleetCapacity(ctx context.Context, pool *tuistv1.RunnerPool) (int64, error) {
 	switch pool.Spec.OS {
 	case "linux":
 		return r.fleetAllocatableMemory(ctx, pool.Spec.FleetSelector)
 	case "darwin":
-		return r.fleetHostCount(ctx, pool.Spec.FleetSelector)
+		return r.macosFleetAllocatableMemory(ctx, pool.Spec.FleetSelector)
 	default:
 		return 0, nil
 	}
 }
 
 // perPodCost is one Pod's claim on the shared fleet budget, in the
-// same unit as fleetCapacity returns above.
-func perPodCost(pool *tuistv1.RunnerPool) int64 {
-	if pool.Spec.OS == "darwin" {
-		// One Mac mini = one slot = one VM.
-		return 1
+// same unit as fleetCapacity returns above. Linux RuntimeClass
+// overhead is admission-time scheduling cost, so include the live
+// podFixed memory instead of duplicating that value in RunnerPool.
+//
+// macOS has no RuntimeClass (the guest is a Tart VM, not a sandboxed
+// container), so its cost is the Pod's memory request and nothing
+// else — the same request kube-scheduler bin-packs against the Node's
+// allocatable.
+// A zero cost is NOT an error here. It is reported to the caller, which
+// drops that one pool from the allocation instead of failing the whole
+// call — see gatherFleetDemands. An error from this function freezes
+// every pool in the capacity domain, which is the right response to an
+// unreadable RuntimeClass (scaling without known admission overhead
+// could overcommit the fleet) and much too broad for one pool with a
+// bad number in its own spec.
+func (r *AutoscalerReconciler) perPodCost(ctx context.Context, pool *tuistv1.RunnerPool) (int64, error) {
+	cost := int64(pool.Spec.PodMemoryMB) * 1024 * 1024
+
+	_, overheadMemory, err := r.runtimeClassOverhead(ctx, pool)
+	if err != nil {
+		return 0, err
 	}
-	return int64(pool.Spec.PodMemoryMB) * 1024 * 1024
+	return cost + overheadMemory, nil
 }
 
 // gatherFleetDemands builds the allocator input for every
 // autoscaling-enabled sibling pool sharing `pool`'s OS and
 // FleetSelector (the set contending for the same capacity domain).
-// Pools of a different OS are excluded — Linux memory bytes and
-// macOS host slots aren't commensurable units in one
-// AllocateFleet call. The reconciled pool reuses the signals
+// Pools of a different OS are excluded — the unit is bytes on both
+// sides now, but the fleets are different physical machines, so
+// pooling them would let a Linux pool's demand squeeze a macOS pool's
+// warm floor against capacity it could never schedule onto. The
+// reconciled pool reuses the signals
 // already fetched this tick; siblings get a fresh fetch.
 func (r *AutoscalerReconciler) gatherFleetDemands(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
 	signals scaling.Signals,
 	knobs scaling.PolicyKnobs,
-) ([]scaling.PoolDemand, error) {
+) ([]scaling.PoolDemand, map[string]podShape, map[string]fleetMember, error) {
 	var pools tuistv1.RunnerPoolList
 	if err := r.List(ctx, &pools, client.InNamespace(pool.Namespace)); err != nil {
-		return nil, fmt.Errorf("list runner pools: %w", err)
+		return nil, nil, nil, fmt.Errorf("list runner pools: %w", err)
 	}
 
 	var demands []scaling.PoolDemand
+	shapes := map[string]podShape{}
+	members := map[string]fleetMember{}
 	for i := range pools.Items {
 		p := &pools.Items[i]
 		if p.Spec.OS != pool.Spec.OS || p.Spec.FleetSelector != pool.Spec.FleetSelector {
@@ -338,25 +628,62 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 		if p.Name != pool.Name {
 			fetched, err := r.SignalsClient.Signals(ctx, p.Name)
 			if err != nil {
-				return nil, fmt.Errorf("signals for sibling %q: %w", p.Name, err)
+				return nil, nil, nil, fmt.Errorf("signals for sibling %q: %w", p.Name, err)
 			}
 			sig = *fetched
-			k = scaling.PolicyKnobs{
-				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloor,
-				MaxReplicas:      p.Spec.Autoscaling.MaxReplicas,
-			}
+			k = policyKnobs(p)
 		}
+
+		cost, err := r.perPodCost(ctx, p)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("calculate per-Pod cost for %q: %w", p.Name, err)
+		}
+
+		// A costless Pod would consume none of the shared budget, so
+		// the allocator would grant this pool its whole target while
+		// still believing the fleet empty, and its siblings would then
+		// be squeezed against capacity that is already spoken for.
+		//
+		// Drop just this pool rather than failing the batch. Returning
+		// an error here would take the errPodCostUnavailable path in
+		// allocate and freeze EVERY pool sharing the OS + fleetSelector
+		// at its current replica count, visible only as a log line — one
+		// mis-set pool would quietly stop the whole fleet responding to
+		// queue depth. A dropped pool falls back to its own per-pool
+		// target (desiredForPool finds no allocation for it), which is
+		// the same treatment a pool with autoscaling off already gets.
+		//
+		// The cost is checked after RuntimeClass overhead is folded in,
+		// so a Linux pool that legitimately derives its whole cost from
+		// kata's podFixed memory is unaffected. Reaching zero means both
+		// are absent, which the CRD's podMemoryMB default makes hard to
+		// do by accident.
+		if cost <= 0 {
+			logger := log.FromContext(ctx)
+			logger.Error(errPodCostUnavailable,
+				"pool declares no per-Pod cost; excluding it from fleet allocation and leaving it on its per-pool target",
+				"pool", p.Name, "podMemoryMB", p.Spec.PodMemoryMB, "runtimeClass", p.Spec.RuntimeClass)
+			continue
+		}
+
+		shape, err := r.placementShapeOf(ctx, p)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("placement shape for %q: %w", p.Name, err)
+		}
+		shapes[shape.key()] = shape
 
 		demands = append(demands, scaling.PoolDemand{
 			Name:       p.Name,
-			PerPodCost: perPodCost(p),
-			Floor:      k.MinWarmPoolFloor,
-			Load:       sig.Claimed + sig.Queued,
+			PerPodCost: cost,
+			Floor:      scaling.WarmFloor(sig, k),
+			Load:       sig.Load(),
 			Target:     scaling.DesiredReplicas(sig, k),
+			ShapeKey:   shape.key(),
 		})
+		members[p.Name] = fleetMember{pool: p, cost: cost, queued: sig.Queued}
 	}
 
-	return demands, nil
+	return demands, shapes, members, nil
 }
 
 // fleetAllocatableMemory sums allocatable memory across nodes in the
@@ -368,7 +695,14 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	}
 
 	var total int64
+	ready, filtered := summarizeFleetNodes(nodes.Items)
+	metrics.RecordFleetNodes(fleetSelector, "linux", ready, filtered)
+	included := map[string]bool{}
 	for i := range nodes.Items {
+		if nodeFilterReason(&nodes.Items[i]) != "" {
+			continue
+		}
+		included[nodes.Items[i].Name] = true
 		if mem := nodes.Items[i].Status.Allocatable.Memory(); mem != nil {
 			total += mem.Value()
 		}
@@ -378,30 +712,85 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	if reserve <= 0 {
 		reserve = defaultMemReserveFraction
 	}
-	return int64(float64(total) * reserve), nil
+	// Sandbox daemons' carve-outs are Pod requests the reserve fraction does
+	// not cover, and they move: counting them here is what hands memory to
+	// the warm pools when a carve-out shrinks and takes it back when one
+	// grows.
+	daemons, err := r.sandboxDaemons(ctx)
+	if err != nil {
+		return 0, err
+	}
+	budget := int64(float64(total)*reserve) - sandboxMemoryOnNodes(daemons, included)
+	return max(budget, 0), nil
 }
 
-// fleetHostCount counts Mac mini nodes claimed by `fleetSelector`.
-// Each host is one schedulable slot (one VM per Mac mini), so the
-// returned int64 is the macOS pool family's slot budget. Tracks the
-// actually-Ready host count — a host being CAPI-rolled drops out of
-// the result, and the per-pool fallback in desiredForPool keeps the
+// macosFleetAllocatableMemory sums allocatable memory across the Mac
+// mini nodes claimed by `fleetSelector`. Divided by a pool's
+// podMemoryMB (perPodCost) this is the fleet's guest-slot budget, and
+// it is correct for a mixed-SKU fleet without anything having to know
+// which SKU a given host is: a 14336 MB M2-L contributes one 14 GB
+// slot, a 28672 MB M4-XL contributes two.
+//
+// Tracks the actually-Ready hosts — a host being CAPI-rolled drops out
+// of the sum, and the per-pool fallback in desiredForPool keeps the
 // pool at its current size through the blip.
-func (r *AutoscalerReconciler) fleetHostCount(ctx context.Context, fleetSelector string) (int64, error) {
+//
+// No reserve fraction, unlike the Linux path. There is nothing here
+// for a reserve to cover: hostMemoryMB is a number the operator picks
+// for tart-kubelet to advertise, already net of the ~2 GB Apple's
+// Virtualization.framework holds back from the host, and macOS runs no
+// memory-requesting DaemonSets on these Nodes. Scaling it down again
+// would double-count that reserve and strand a whole guest slot on a
+// dual-guest host.
+func (r *AutoscalerReconciler) macosFleetAllocatableMemory(ctx context.Context, fleetSelector string) (int64, error) {
 	var nodes corev1.NodeList
 	if err := r.List(ctx, &nodes, client.MatchingLabels{
-		macosFleetLabel:  fleetSelector,
-		macosNodeOSLabel: macosNodeOSDarwin,
+		macosFleetLabel: fleetSelector,
+		nodeOSLabel:     macosNodeOSDarwin,
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
 	}
-	return int64(len(nodes.Items)), nil
+	ready, filtered := summarizeFleetNodes(nodes.Items)
+	metrics.RecordFleetNodes(fleetSelector, "darwin", ready, filtered)
+
+	var total int64
+	for i := range nodes.Items {
+		if nodeFilterReason(&nodes.Items[i]) != "" {
+			continue
+		}
+		if mem := nodes.Items[i].Status.Allocatable.Memory(); mem != nil {
+			total += mem.Value()
+		}
+	}
+	return total, nil
 }
 
 func (r *AutoscalerReconciler) applyReplicas(ctx context.Context, pool *tuistv1.RunnerPool, desired int32) error {
 	original := pool.DeepCopy()
 	pool.Spec.Replicas = desired
 	return r.Patch(ctx, pool, client.MergeFrom(original))
+}
+
+// demandStampInterval bounds how often a pool's status.lastDemandAt is
+// written. tart-kubelet ranks images by it over hours and days, so a write
+// every five-second tick would only churn the object.
+const demandStampInterval = 10 * time.Minute
+
+// stampDemand records on the pool's status that it has real work now, for
+// tart-kubelet's golden budget. A failed write is retried on a later tick.
+func (r *AutoscalerReconciler) stampDemand(ctx context.Context, pool *tuistv1.RunnerPool, signals scaling.Signals, now time.Time, logger logr.Logger) {
+	if signals.Load() <= 0 {
+		return
+	}
+	if last := pool.Status.LastDemandAt; last != nil && now.Sub(last.Time) < demandStampInterval {
+		return
+	}
+	original := pool.DeepCopy()
+	ts := metav1.NewTime(now)
+	pool.Status.LastDemandAt = &ts
+	if err := r.Status().Patch(ctx, pool, client.MergeFrom(original)); err != nil && !apierrors.IsNotFound(err) {
+		logger.Error(err, "stamp lastDemandAt; will retry")
+	}
 }
 
 func (r *AutoscalerReconciler) pollInterval() time.Duration {

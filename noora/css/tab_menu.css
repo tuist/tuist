@@ -33,6 +33,12 @@
   }
 }
 
+.noora-tab-menu-vertical-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 .noora-tab-menu-horizontal {
   display: flex;
   flex-direction: row;

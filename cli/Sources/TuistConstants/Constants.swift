@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Constants {
-    // Sentinel for local builds; the release pipeline (cli-release.yml) replaces it with the real version at build time.
+    // The `tuist` executable binds its stamped release version at startup; "x.y.z" is the sentinel everywhere else.
     @TaskLocal public static var version: String! = "x.y.z"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
@@ -28,7 +28,7 @@ public enum Constants {
 
     public static let tuistManifestFileName = "Tuist.swift"
     public static let tuistTomlFileName = "tuist.toml"
-    public static let gradlePluginVersion = "0.9.3"
+    public static let gradlePluginVersion = "0.10.0"
 
     /// The cache version.
     /// This should change only when it changes the logic to map a `XcodeGraph.Target` to a cached build artifact.
@@ -48,6 +48,8 @@ public enum Constants {
         public static let privacyManifest = "PrivacyManifests"
         public static let moduleMaps = "ModuleMaps"
         public static let frameworkSearchPaths = "FrameworkSearchPaths"
+        /// Per-scheme debugger files that may still be referenced by another generated workspace.
+        public static let tuistCacheDebugging = "TuistCacheDebugging"
         public static let sources = "Sources"
         public static let testPlans = "TestPlans"
         public static let signingKeychain = "signing.keychain"

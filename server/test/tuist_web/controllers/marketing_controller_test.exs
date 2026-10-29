@@ -2,9 +2,50 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Tuist.Loops
+  alias Plug.CSRFProtection.InvalidCSRFTokenError
+  alias Tuist.AppStore
+  alias Tuist.Atlas.Email
+  alias Tuist.GitHub.Releases
+  alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.CacheGlobe
+  alias Tuist.Marketing.Changelog
+  alias Tuist.Marketing.Newsletter
+  alias Tuist.Marketing.Stats
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Utilities.MarketingMarkdown
+
+  @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+
+  defp stub_latest_app_release do
+    stub(Releases, :get_latest_app_release, fn ->
+      %{
+        published_at: Timex.format!(DateTime.utc_now(), "{ISO:Extended}"),
+        name: "App 0.25.6",
+        tag_name: "app@0.25.6",
+        html_url: "https://github.com/tuist/tuist/releases/tag/app@0.25.6",
+        assets: [
+          %{
+            name: "Tuist.dmg",
+            browser_download_url: "https://github.com/tuist/tuist/releases/download/app@0.25.6/Tuist.dmg"
+          }
+        ]
+      }
+    end)
+  end
 
   describe "GET /" do
+    test "marketing responses do not advertise server software", %{conn: conn} do
+      for method <- [:get, :head], path <- ["/", "/about", "/customers/delivery-hero"] do
+        response = dispatch(conn, @endpoint, method, path)
+
+        assert response.status == if(path == "/customers/delivery-hero", do: 302, else: 200)
+        assert get_resp_header(response, "server") == []
+        assert get_resp_header(response, "x-powered-by") == []
+      end
+    end
+
     test "includes agent discovery link headers on the homepage", %{conn: conn} do
       conn = get(conn, "/")
 
@@ -16,6 +57,553 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert link_header =~ ~s(</api/spec>; rel="service-desc"; type="application/json")
       assert link_header =~ ~s(</api/docs>; rel="service-doc"; type="text/html")
     end
+
+    test "shows today's cache download count linking to the globe page", %{conn: conn} do
+      stub(Stats, :get_globe, fn ->
+        Map.merge(CacheGlobe.empty(), %{
+          downloads: 658_422,
+          recent_downloads: 1_200,
+          updated_at: "2026-10-13T12:00:00Z",
+          observed_at: "2026-10-13T11:58:00Z",
+          status: :available
+        })
+      end)
+
+      html = conn |> get("/") |> html_response(200)
+
+      assert [eyebrow] = html |> LazyHTML.from_document() |> LazyHTML.query("#home-hero-cache-count") |> Enum.to_list()
+      assert LazyHTML.attribute(eyebrow, "href") == ["/globe"]
+      assert LazyHTML.attribute(eyebrow, "data-recent-downloads") == ["1200"]
+      assert LazyHTML.text(eyebrow) =~ "Cache download requests today:"
+      assert LazyHTML.text(eyebrow) =~ "658,422"
+    end
+
+    test "renders the customer stories carousel with OpenAI's quote first", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200) |> LazyHTML.from_document()
+
+      slides = html |> LazyHTML.query("#customers-carousel [data-part=slide]") |> Enum.to_list()
+
+      assert Enum.flat_map(slides, &LazyHTML.attribute(&1, "data-company")) ==
+               ["openai", "monzo", "toss", "trendyol", "monday", "delivery-hero"]
+
+      assert [first | rest] = slides
+      assert LazyHTML.attribute(first, "data-active") == ["true"]
+      assert LazyHTML.attribute(first, "inert") == []
+      assert Enum.all?(rest, &(LazyHTML.attribute(&1, "inert") != []))
+      assert LazyHTML.text(first) =~ "Tuist has made a meaningful difference to developer productivity"
+      assert LazyHTML.text(first) =~ "Eric Burke"
+      assert first |> LazyHTML.query("a") |> Enum.count() == 0
+
+      assert html |> LazyHTML.query("#customers-carousel a[href='/customers/monzo']") |> Enum.count() == 1
+
+      assert html
+             |> LazyHTML.query("#customers-carousel a[href^='https://deliveryhero.jobs/']")
+             |> Enum.count() == 1
+
+      tabs = html |> LazyHTML.query("#customers-carousel [role=tab]") |> Enum.to_list()
+
+      assert Enum.flat_map(tabs, &LazyHTML.attribute(&1, "aria-label")) ==
+               ["OpenAI", "Monzo", "Toss", "Trendyol", "monday.com", "Delivery Hero"]
+
+      assert Enum.flat_map(tabs, &LazyHTML.attribute(&1, "aria-selected")) ==
+               ["true", "false", "false", "false", "false", "false"]
+
+      assert LazyHTML.attribute(first, "aria-labelledby") == ["customers-tab-openai"]
+      assert first |> LazyHTML.query("[data-part=logo]") |> Enum.count() == 0
+    end
+
+    test "omits the cache download count while the globe has no data", %{conn: conn} do
+      stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
+
+      html = conn |> get("/") |> html_response(200)
+
+      refute html =~ "home-hero-cache-count"
+    end
+
+    test "describes the site and the product with structured data", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200)
+
+      types =
+        ~r|<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>|s
+        |> Regex.scan(html, capture: :all_but_first)
+        |> Enum.map(fn [json] -> json |> String.trim() |> JSON.decode!() |> Map.get("@type") end)
+
+      assert "Organization" in types
+      assert "WebSite" in types
+      assert "SoftwareApplication" in types
+    end
+
+    test "gives the homepage a descriptive title and a single h1", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200)
+
+      assert html =~ "Tuist · Build infrastructure for productive teams"
+      assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
+    end
+
+    test "links the get started CTA to the docs", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200)
+      document = Floki.parse_document!(html)
+
+      assert Floki.attribute(document, ~s([data-part="cta"] a[data-variant="primary"]), "href") ==
+               ["https://tuist.dev/en/docs/"]
+    end
+
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/")
+      end
+    end
+  end
+
+  describe "marketing languages" do
+    @describetag :locale
+
+    test "deep links select their language regardless of browser or session preferences", %{conn: conn} do
+      for {path, language} <- [{"/about", "en"}, {"/zh_Hans", "zh-Hans"}, {"/ja", "ja"}] do
+        document =
+          conn
+          |> init_test_session(%{locale: "ko"})
+          |> put_req_cookie("tuist_locale", "es")
+          |> put_req_header("accept-language", "zh-TW,ja;q=0.9")
+          |> get(path)
+          |> html_response(200)
+          |> Floki.parse_document!()
+
+        assert Floki.attribute(document, "html", "lang") == [language]
+
+        assert Floki.attribute(document, "link[rel='canonical']", "href") ==
+                 [Tuist.Environment.app_url(path: path)]
+      end
+    end
+
+    test "only the root temporarily redirects, preserving tracking and language preferences", %{conn: conn} do
+      for method <- [:get, :head] do
+        response =
+          conn
+          |> put_req_header("accept-language", "ja;q=0,zh-TW;q=0.9,zh-CN;q=1")
+          |> dispatch(@endpoint, method, "/?utm_source=google")
+
+        assert redirected_to(response, 302) == "/zh_Hans?utm_source=google"
+        assert get_resp_header(response, "cache-control") == ["private, no-store"]
+        refute Map.has_key?(response.resp_cookies, "tuist_locale")
+      end
+    end
+
+    test "unsupported or absent browser languages render an uncached English root", %{conn: conn} do
+      for header <- ["", "fr-FR", "ja;q=0,en;q=1"] do
+        response = conn |> put_req_header("accept-language", header) |> get("/")
+        assert html_response(response, 200) =~ ~s(lang="en")
+        assert get_resp_header(response, "cache-control") == ["private, no-store"]
+      end
+    end
+
+    test "the switcher remembers explicit choices, including English, without redirect loops", %{conn: conn} do
+      document = conn |> get("/?utm_source=google") |> html_response(200) |> Floki.parse_document!()
+
+      for {locale, language} <- [{"en", "en"}, {"ja", "ja"}, {"zh_Hans", "zh-Hans"}, {"yue_Hant", "yue-Hant"}] do
+        assert Floki.attribute(document, "#footer-locale-dropdown a[data-value='#{locale}']", "data-glossia-language") ==
+                 [language]
+      end
+
+      assert length(Floki.find(document, "a[data-glossia-language]")) == length(Localization.languages())
+      [japanese_link] = Floki.attribute(document, "#footer-locale-dropdown a[data-value='ja']", "href")
+      assert japanese_link == "/ja?set_locale=ja"
+
+      chosen =
+        conn
+        |> put_req_header("accept-language", "zh-CN")
+        |> get(japanese_link <> "&utm_source=google&utm_content[]=first&utm_content[]=second")
+
+      assert %URI{path: "/ja", query: query} = URI.parse(redirected_to(chosen, 302))
+
+      assert query |> URI.query_decoder() |> Enum.to_list() == [
+               {"utm_source", "google"},
+               {"utm_content[]", "first"},
+               {"utm_content[]", "second"}
+             ]
+
+      assert chosen.resp_cookies["tuist_locale"].value == "ja"
+      assert chosen.resp_cookies["tuist_locale"].http_only
+      assert get_resp_header(chosen, "cache-control") == ["private, no-store"]
+
+      returning = chosen |> recycle() |> put_req_header("accept-language", "zh-CN") |> get("/")
+      assert redirected_to(returning, 302) == "/ja"
+
+      document = chosen |> recycle() |> get("/ja") |> html_response(200) |> Floki.parse_document!()
+      [english_link] = Floki.attribute(document, "#footer-locale-dropdown a[data-value='en']", "href")
+      english = chosen |> recycle() |> put_req_header("accept-language", "zh-CN") |> get(english_link)
+      assert redirected_to(english, 302) == "/"
+      assert english.resp_cookies["tuist_locale"].value == "en"
+
+      returning = english |> recycle() |> put_req_header("accept-language", "zh-CN") |> get("/")
+      assert html_response(returning, 200) =~ ~s(lang="en")
+      assert get_resp_header(returning, "cache-control") == ["private, no-store"]
+    end
+
+    test "invalid preferences cannot select a redirect target or overwrite an explicit choice", %{conn: conn} do
+      response =
+        conn
+        |> put_req_cookie("tuist_locale", "//evil.example")
+        |> put_req_header("accept-language", "ja")
+        |> get("/")
+
+      assert redirected_to(response, 302) == "/ja"
+
+      for query <- ["set_locale=//evil.example", "set_locale=ja", "set_locale[]=en"] do
+        response = get(conn, "/es?#{query}")
+        assert html_response(response, 200)
+        refute Map.has_key?(response.resp_cookies, "tuist_locale")
+      end
+    end
+
+    test "translated pages share query-free alternates and an English fallback", %{conn: conn} do
+      languages = [
+        {"en", ""},
+        {"es", "/es"},
+        {"ja", "/ja"},
+        {"ka", "/ka"},
+        {"ko", "/ko"},
+        {"ru", "/ru"},
+        {"yue-Hant", "/yue_Hant"},
+        {"zh-Hans", "/zh_Hans"},
+        {"zh-Hant", "/zh_Hant"}
+      ]
+
+      for page <- ["/", "/about"], {language, prefix} <- languages do
+        path = if page == "/", do: if(prefix == "", do: "/", else: prefix), else: prefix <> page
+        document = conn |> get(path <> "?utm_source=google") |> html_response(200) |> Floki.parse_document!()
+
+        assert Floki.attribute(document, "html", "lang") == [language]
+
+        assert Floki.attribute(document, "link[rel='canonical']", "href") ==
+                 [Tuist.Environment.app_url(path: path)]
+
+        alternates = Floki.find(document, "link[rel='alternate'][hreflang]")
+        assert length(alternates) == length(languages) + 1
+
+        for {target_language, target_prefix} <- languages do
+          target_path =
+            if page == "/",
+              do: if(target_prefix == "", do: "/", else: target_prefix),
+              else: target_prefix <> page
+
+          assert Floki.attribute(alternates, "[hreflang='#{target_language}']", "href") ==
+                   [Tuist.Environment.app_url(path: target_path)]
+        end
+
+        assert Floki.attribute(alternates, "[hreflang='x-default']", "href") ==
+                 [Tuist.Environment.app_url(path: page)]
+
+        assert Floki.find(document, "link[type='text/markdown'][hreflang]") == []
+
+        if page == "/" do
+          website =
+            document
+            |> Floki.find("script[type='application/ld+json']")
+            |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+            |> Enum.find(&(&1["@type"] == "WebSite"))
+
+          assert website["inLanguage"] == language
+        end
+      end
+    end
+  end
+
+  describe "Markdown-only problem and comparison guides" do
+    test "does not register standalone marketing browser routes" do
+      for page <- MarketingMarkdown.decision_guides() do
+        case Phoenix.Router.route_info(TuistWeb.Router, "GET", page.path, "") do
+          :error -> :ok
+          route -> refute Map.get(route, :type) == :marketing, page.path
+        end
+      end
+    end
+
+    test "does not link the Markdown-only guides from browser navigation", %{conn: conn} do
+      document = conn |> get("/") |> html_response(200) |> Floki.parse_document!()
+      links = Floki.attribute(document, "a", "href")
+
+      for page <- MarketingMarkdown.decision_guides() do
+        refute page.path in links
+        refute MarketingMarkdown.alternate_path(page.path) in links
+      end
+
+      assert Floki.find(document, "#footer-locale-dropdown") != []
+    end
+
+    test "legacy feature redirects remain intact", %{conn: conn} do
+      assert conn |> get("/flaky-tests") |> redirected_to(301) == "/tests"
+    end
+  end
+
+  describe "GET /blog/:year/:month/:day/:slug" do
+    test "emits article metadata with a profile URL for the author", %{conn: conn} do
+      post = List.first(Blog.get_posts())
+      html = conn |> get(post.slug) |> html_response(200)
+
+      assert html =~ ~s(<meta property="og:type" content="article">)
+      # Open Graph types article:author as a profile, so a display name is not
+      # a valid value here.
+      assert [author] = Regex.run(~r|article:author" content="([^"]*)"|, html, capture: :all_but_first)
+      assert author =~ ~r|\Ahttps://|
+      assert html =~ ~s(<meta property="twitter:url" content="#{Tuist.Environment.app_url(path: post.slug)}">)
+    end
+
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      post = List.first(Blog.get_posts())
+
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get(post.slug)
+      end
+    end
+  end
+
+  describe "GET /sitemap.xml" do
+    # The sitemap enumerates documentation slugs, which include command-line
+    # pages fetched from the latest GitHub release. Stub them so the test does
+    # not depend on the network.
+    setup do
+      stub(Tuist.Docs.CLI, :get_pages, fn -> [] end)
+      :ok
+    end
+
+    test "includes the product pages", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      for path <- ["/cache", "/tests", "/compute", "/previews", "/download"] do
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+
+      for path <- ["/about", "/brand", "/newsletter"] do
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+
+      # Folded into the tests page; their URLs redirect and are not advertised.
+      for path <- ["/flaky-tests", "/test-insights"] do
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+    end
+
+    test "does not advertise Markdown-only problem and comparison guides", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      for page <- MarketingMarkdown.decision_guides() do
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: page.path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/ko" <> page.path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))}</loc>"
+      end
+    end
+
+    test "includes individual changelog entries", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+      entry = List.first(Changelog.get_entries())
+
+      for locale <- Localization.all_locales() do
+        path = Localization.localized_href("/changelog/#{entry.id}", locale)
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+    end
+
+    test "carries lastmod for dated content and omits it elsewhere", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      post = List.first(Blog.get_posts())
+      post_date = post.date |> DateTime.to_date() |> Date.to_iso8601()
+
+      assert xml =~
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: post.slug))}</loc>\s*<lastmod>#{post_date}</lastmod>|
+
+      # A docs page has no trustworthy modification date, so it gets no lastmod
+      # rather than one Google would later learn to distrust.
+      refute xml =~
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: "/en/docs"))}</loc>\s*<lastmod>|
+    end
+
+    test "no longer emits the directives search engines ignore", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      refute xml =~ "<priority>"
+      refute xml =~ "<changefreq>"
+    end
+  end
+
+  describe "GET / (caching)" do
+    test "links the marketing stylesheet", %{conn: conn} do
+      conn = get(conn, "/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "anonymous deep links stay publicly cacheable", %{conn: conn} do
+      conn = get(conn, "/about")
+
+      assert get_resp_header(conn, "cache-control") == ["public, max-age=60, stale-while-revalidate=86400"]
+    end
+
+    test "authenticated responses are not cacheable by shared caches", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      conn = conn |> log_in_user(user) |> get("/")
+
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+    end
+  end
+
+  describe "GET /compute" do
+    test "renders the page", %{conn: conn} do
+      conn = get(conn, "/compute")
+
+      html = html_response(conn, 200)
+      assert html =~ "marketing-compute"
+      # The hero's CI switch and both migration diffs it toggles between.
+      assert html =~ ~s(data-part="ci-switch")
+      assert html =~ "runs-on: tuist-macos"
+      assert html =~ ~s(queue: "tuist-macos")
+
+      # The redesign ships a designed social card instead of a rendered one.
+      assert html =~
+               ~s(property="og:image" content="#{Tuist.Environment.app_url(path: "/marketing/images/og/compute.png")}")
+
+      assert html =~ "/marketing/assets/bundle.css"
+    end
+  end
+
+  describe "GET /pricing" do
+    test "shows usage-based pricing", %{conn: conn} do
+      html = conn |> get("/pricing") |> html_response(200)
+
+      assert html =~ "Cache egress"
+      assert html =~ "+ $0.10 per additional GB"
+      assert html =~ "Cache requests"
+      assert html =~ "+ $0.01 per additional 1,000"
+      assert html =~ "Test Insights"
+      assert html =~ "+ $2 per additional million"
+      assert html =~ "What counts as cache egress and requests?"
+      refute html =~ "+ $0.5 per additional unit"
+    end
+  end
+
+  describe "GET /tests" do
+    test "renders the page", %{conn: conn} do
+      conn = get(conn, "/tests")
+
+      html = html_response(conn, 200)
+      assert html =~ "marketing-tests"
+      assert html =~ "/marketing/assets/bundle.css"
+    end
+  end
+
+  describe "GET /download" do
+    test "renders the download page with the macOS hero by default", %{conn: conn} do
+      stub_latest_app_release()
+      stub(AppStore, :get_latest_ios_app_version, fn -> "1.2.3" end)
+
+      conn = get(conn, ~p"/download")
+
+      html = html_response(conn, 200)
+      assert html =~ "Download Tuist"
+      assert html =~ "Download for macOS"
+      assert html =~ "Version 0.25.6"
+      assert html =~ "https://github.com/tuist/tuist/releases/download/app@0.25.6/Tuist.dmg"
+      assert [vary] = get_resp_header(conn, "vary")
+      assert vary =~ "user-agent"
+    end
+
+    test "renders the iPhone hero with the iOS app version for iOS visitors", %{conn: conn} do
+      stub_latest_app_release()
+      stub(AppStore, :get_latest_ios_app_version, fn -> "1.2.3" end)
+
+      conn =
+        conn
+        |> put_req_header("user-agent", @iphone_user_agent)
+        |> get(~p"/download")
+
+      html = html_response(conn, 200)
+      assert html =~ "Download on iPhone"
+      assert html =~ "Version 1.2.3"
+      assert html =~ AppStore.ios_app_url()
+    end
+
+    test "omits the hero version when no release information is available", %{conn: conn} do
+      stub(Releases, :get_latest_app_release, fn -> nil end)
+      stub(AppStore, :get_latest_ios_app_version, fn -> nil end)
+
+      conn = get(conn, ~p"/download")
+
+      html = html_response(conn, 200)
+      assert html =~ "Download for macOS"
+      refute html =~ ~s(data-part="version")
+      assert html =~ "https://github.com/tuist/tuist/releases"
+    end
+  end
+
+  describe "GET /newsletter" do
+    test "renders the newsletter page", %{conn: conn} do
+      conn = get(conn, ~p"/newsletter")
+
+      html = html_response(conn, 200)
+      assert html =~ "Tuist Digest"
+      assert html =~ ~s(id="marketing-newsletter-form")
+      assert html =~ ~s(phx-hook="NewsletterForm")
+      assert html =~ "Supercharge your development"
+      assert html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "lists every past issue newest first with the sort control", %{conn: conn} do
+      conn = get(conn, ~p"/newsletter")
+
+      html = html_response(conn, 200)
+      assert html =~ "Past newsletter issues"
+      assert html =~ ~s(phx-hook="NewsletterIssuesSort")
+
+      numbers =
+        ~r/data-part="row" data-number="(\d+)"/
+        |> Regex.scan(html)
+        |> Enum.map(fn [_, number] -> String.to_integer(number) end)
+
+      expected = Newsletter.issues() |> Enum.map(& &1.number) |> Enum.sort(:desc)
+      assert numbers == expected
+      assert html =~ ~s(href="/newsletter/issues/#{List.first(expected)}")
+    end
+  end
+
+  describe "GET /newsletter/issues/:issue_number" do
+    test "renders the issue page", %{conn: conn} do
+      issue = Enum.max_by(Newsletter.issues(), & &1.number)
+
+      conn = get(conn, ~p"/newsletter/issues/#{issue.number}")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="newsletter-issue")
+      assert html =~ issue.title
+      assert html =~ "Worthy Five: #{issue.interview["interviewee"]}"
+      assert html =~ "/newsletter/issues/#{issue.number - 1}"
+      assert html =~ "This is the latest issue"
+      assert html =~ "All issues"
+      refute html =~ "View in web browser"
+      refute html =~ "{unsubscribe_url}"
+      refute html =~ "#622ed4"
+    end
+
+    test "renders the same page as the email export", %{conn: conn} do
+      issue = Enum.max_by(Newsletter.issues(), & &1.number)
+
+      conn = get(conn, ~p"/newsletter/issues/#{issue.number}?email")
+
+      assert response_content_type(conn, :text) =~ "charset=utf-8"
+      body = response(conn, 200)
+      assert body =~ ~s(id="newsletter-issue")
+      assert body =~ issue.title
+      assert body =~ "View in web browser"
+      assert body =~ "{unsubscribe_url}"
+      refute body =~ "@font-face"
+      assert body =~ "[data-ogsc] .button-primary"
+    end
   end
 
   describe "POST /newsletter" do
@@ -23,7 +611,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Given
       email = "test@example.com"
 
-      expect(Loops, :send_newsletter_confirmation, fn ^email, verification_url ->
+      expect(Email, :send_newsletter_confirmation, fn ^email, verification_url ->
         uri = URI.parse(verification_url)
         assert uri.path == "/newsletter/verify"
         assert %{"token" => token} = URI.decode_query(uri.query)
@@ -35,7 +623,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end)
 
       # When
-      conn = post(conn, ~p"/newsletter", %{"email" => email})
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/newsletter", %{"email" => email})
 
       # Then
       assert json_response(conn, 200) == %{
@@ -44,11 +635,11 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
              }
     end
 
-    test "returns error when Loops API fails", %{conn: conn} do
+    test "returns error when the email API fails", %{conn: conn} do
       # Given
       email = "test@example.com"
 
-      expect(Loops, :send_newsletter_confirmation, fn ^email, _verification_url ->
+      expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url ->
         {:error, {:http_error, 400, %{"error" => "Invalid request"}}}
       end)
 
@@ -66,7 +657,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Given
       email = "test@example.com"
 
-      expect(Loops, :send_newsletter_confirmation, fn ^email, _verification_url ->
+      expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url ->
         {:error, :timeout}
       end)
 
@@ -79,15 +670,69 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
                "message" => "Something went wrong. Please try again."
              }
     end
+
+    test "accepts a same-origin submission whose cached page carried a stale CSRF token", %{conn: conn} do
+      email = "test@example.com"
+      expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url -> :ok end)
+
+      conn =
+        conn
+        |> enforce_csrf()
+        |> put_req_header("sec-fetch-site", "same-origin")
+        |> post(~p"/newsletter", %{"email" => email, "_csrf_token" => "token-from-a-cached-page"})
+
+      assert %{"success" => true} = json_response(conn, 200)
+    end
+
+    test "accepts a submission whose origin matches the public origin without fetch metadata", %{conn: conn} do
+      email = "test@example.com"
+      expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url -> :ok end)
+
+      conn =
+        conn
+        |> enforce_csrf()
+        |> put_req_header("x-forwarded-proto", "https")
+        |> put_req_header("x-forwarded-host", "tuist.dev")
+        |> put_req_header("origin", "https://tuist.dev")
+        |> post(~p"/newsletter", %{"email" => email})
+
+      assert %{"success" => true} = json_response(conn, 200)
+    end
+
+    test "rejects submissions that are not provably same-origin", %{conn: conn} do
+      reject(&Email.send_newsletter_confirmation/2)
+
+      for headers <- [
+            [],
+            [{"origin", "https://evil.example"}],
+            [{"sec-fetch-site", "cross-site"}],
+            [{"sec-fetch-site", "same-site"}, {"origin", "http://www.example.com"}]
+          ] do
+        conn = Enum.reduce(headers, enforce_csrf(conn), fn {name, value}, conn -> put_req_header(conn, name, value) end)
+
+        assert_raise InvalidCSRFTokenError, fn ->
+          post(conn, ~p"/newsletter", %{"email" => "test@example.com", "_csrf_token" => "token-from-a-cached-page"})
+        end
+      end
+    end
   end
 
   describe "GET /page" do
     test "raises NotFoundError when page is not found", %{conn: conn} do
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         conn
         |> Map.put(:request_path, "//terms")
         |> TuistWeb.Marketing.MarketingController.page(%{})
       end
+    end
+  end
+
+  describe "GET /terms" do
+    test "renders the page with the marketing stylesheet", %{conn: conn} do
+      conn = get(conn, "/terms")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
     end
   end
 
@@ -107,6 +752,60 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert redirected_to(conn) ==
                "https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/"
     end
+
+    test "renders a case study with its generated cover artwork on the social card", %{conn: conn} do
+      conn = get(conn, ~p"/customers/monzo")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      assert html =~ "/open-graph-images/"
+    end
+  end
+
+  describe "GET /newsletter/verify (states)" do
+    test "renders the confirm state", %{conn: conn} do
+      email = "test@example.com"
+      token = signed_newsletter_token(email)
+
+      conn = get(conn, ~p"/newsletter/verify?token=#{token}")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="marketing-newsletter-verify")
+      assert html =~ "Confirm Subscription"
+      assert html =~ "Confirm subscription"
+      assert html =~ ~s(name="token" value="#{token}")
+      assert html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "renders the failed state for an invalid token", %{conn: conn} do
+      conn = get(conn, ~p"/newsletter/verify?token=invalid")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="marketing-newsletter-verify")
+      assert html =~ "Newsletter Verification Failed"
+      assert html =~ "Subscribe again"
+    end
+
+    test "renders the subscribed state after confirming", %{conn: conn} do
+      email = "test@example.com"
+      token = signed_newsletter_token(email)
+      expect(Email, :add_to_newsletter_list, fn ^email -> :ok end)
+
+      conn = post(conn, ~p"/newsletter/verify", %{"token" => token})
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="marketing-newsletter-verify")
+      assert html =~ "Successfully Subscribed!"
+      assert html =~ "Back to home"
+    end
+
+    test "is not stored by shared caches", %{conn: conn} do
+      token = signed_newsletter_token("test@example.com")
+
+      conn = get(conn, ~p"/newsletter/verify?token=#{token}")
+
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+    end
   end
 
   describe "GET /newsletter/verify" do
@@ -120,6 +819,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       # Then
       assert html_response(conn, 200)
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
       assert conn.assigns.email == email
       assert conn.assigns.verification_token == token
       assert conn.assigns.subscription_confirmed == false
@@ -177,12 +877,22 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "POST /newsletter/verify" do
+    test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
+      reject(&Email.add_to_newsletter_list/1)
+
+      assert_error_sent 406, fn ->
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/newsletter/verify", %{"token" => signed_newsletter_token("test@example.com")})
+      end
+    end
+
     test "subscribes email with a valid token", %{conn: conn} do
       # Given
       email = "test@example.com"
       token = signed_newsletter_token(email)
 
-      expect(Loops, :add_to_newsletter_list, fn ^email ->
+      expect(Email, :add_to_newsletter_list, fn ^email ->
         :ok
       end)
 
@@ -197,12 +907,12 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert conn.assigns.head_title == "Successfully Subscribed!"
     end
 
-    test "shows error page when Loops API fails during verification", %{conn: conn} do
+    test "shows error page when the email API fails during verification", %{conn: conn} do
       # Given
       email = "test@example.com"
       token = signed_newsletter_token(email)
 
-      expect(Loops, :add_to_newsletter_list, fn ^email ->
+      expect(Email, :add_to_newsletter_list, fn ^email ->
         {:error, {:http_error, 400}}
       end)
 
@@ -243,7 +953,38 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert conn.assigns.head_title == "Newsletter Verification Failed"
     end
+
+    test "confirms from a same-origin form whose page carried a stale CSRF token", %{conn: conn} do
+      email = "test@example.com"
+      token = signed_newsletter_token(email)
+      expect(Email, :add_to_newsletter_list, fn ^email -> :ok end)
+
+      conn =
+        conn
+        |> enforce_csrf()
+        |> put_req_header("sec-fetch-site", "same-origin")
+        |> post(~p"/newsletter/verify", %{"token" => token, "_csrf_token" => "token-from-a-cached-page"})
+
+      assert html_response(conn, 200) =~ "Successfully Subscribed!"
+      assert conn.assigns.subscription_confirmed == true
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+    end
+
+    test "rejects submissions that are not provably same-origin", %{conn: conn} do
+      reject(&Email.add_to_newsletter_list/1)
+      token = signed_newsletter_token("test@example.com")
+
+      for headers <- [[], [{"origin", "https://evil.example"}], [{"sec-fetch-site", "cross-site"}]] do
+        conn = Enum.reduce(headers, enforce_csrf(conn), fn {name, value}, conn -> put_req_header(conn, name, value) end)
+
+        assert_raise InvalidCSRFTokenError, fn ->
+          post(conn, ~p"/newsletter/verify", %{"token" => token})
+        end
+      end
+    end
   end
+
+  defp enforce_csrf(conn), do: Plug.Conn.put_private(conn, :plug_skip_csrf_protection, false)
 
   defp signed_newsletter_token(email) do
     Phoenix.Token.sign(TuistWeb.Endpoint, "newsletter_subscription", email)

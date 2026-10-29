@@ -32,6 +32,7 @@ defmodule Tuist.Gradle.Analytics do
           select: %{
             local_hit: sum(b.tasks_local_hit_count),
             remote_hit: sum(b.tasks_remote_hit_count),
+            cache_hit: sum(b.tasks_cache_hit_count),
             cacheable: sum(b.cacheable_tasks_count)
           }
         ),
@@ -41,9 +42,9 @@ defmodule Tuist.Gradle.Analytics do
     result = ClickHouseRepo.one(query)
 
     case result do
-      %{local_hit: local_hit, remote_hit: remote_hit, cacheable: cacheable}
+      %{local_hit: local_hit, remote_hit: remote_hit, cache_hit: cache_hit, cacheable: cacheable}
       when not is_nil(cacheable) ->
-        from_cache = (local_hit || 0) + (remote_hit || 0)
+        from_cache = Enum.sum(Enum.map([local_hit, remote_hit, cache_hit], &(&1 || 0)))
 
         if cacheable > 0 do
           from_cache / cacheable * 100.0
@@ -79,9 +80,10 @@ defmodule Tuist.Gradle.Analytics do
             root_project_name: b.root_project_name,
             hit_rate:
               fragment(
-                "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
+                "(ifNull(?, 0) + ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
                 b.tasks_local_hit_count,
                 b.tasks_remote_hit_count,
+                b.tasks_cache_hit_count,
                 b.cacheable_tasks_count
               )
           }
@@ -166,6 +168,7 @@ defmodule Tuist.Gradle.Analytics do
     %{
       trend: trend(previous_hit_rate, current_hit_rate),
       avg_hit_rate: current_hit_rate,
+      has_data: Enum.any?(hit_rate_data),
       dates: Enum.map(processed_data, & &1.date),
       values: Enum.map(processed_data, & &1.hit_rate)
     }
@@ -183,6 +186,7 @@ defmodule Tuist.Gradle.Analytics do
             date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
             local_hit: sum(b.tasks_local_hit_count),
             remote_hit: sum(b.tasks_remote_hit_count),
+            cache_hit: sum(b.tasks_cache_hit_count),
             cacheable: sum(b.cacheable_tasks_count)
           },
           order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
@@ -194,7 +198,7 @@ defmodule Tuist.Gradle.Analytics do
     |> ClickHouseRepo.all()
     |> Enum.map(fn row ->
       cacheable = row.cacheable || 0
-      from_cache = (row.local_hit || 0) + (row.remote_hit || 0)
+      from_cache = (row.local_hit || 0) + (row.remote_hit || 0) + (row.cache_hit || 0)
 
       hit_rate =
         if cacheable > 0 do
@@ -262,10 +266,11 @@ defmodule Tuist.Gradle.Analytics do
             b.cacheable_tasks_count > 0,
         select:
           fragment(
-            "quantile(?)(( ? + ? ) / ? * 100.0)",
+            "quantile(?)(( ? + ? + ? ) / ? * 100.0)",
             ^flipped_percentile,
             b.tasks_local_hit_count,
             b.tasks_remote_hit_count,
+            b.tasks_cache_hit_count,
             b.cacheable_tasks_count
           )
       )
@@ -292,10 +297,11 @@ defmodule Tuist.Gradle.Analytics do
           date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           percentile_hit_rate:
             fragment(
-              "quantile(?)(( ? + ? ) / ? * 100.0)",
+              "quantile(?)(( ? + ? + ? ) / ? * 100.0)",
               ^flipped_percentile,
               b.tasks_local_hit_count,
               b.tasks_remote_hit_count,
+              b.tasks_cache_hit_count,
               b.cacheable_tasks_count
             )
         },
@@ -541,11 +547,14 @@ defmodule Tuist.Gradle.Analytics do
       case category do
         :gradle_version -> dynamic([b], b.gradle_version)
         :java_version -> dynamic([b], b.java_version)
+        :elixir_version -> dynamic([b], b.elixir_version)
+        :otp_version -> dynamic([b], b.otp_version)
+        :mix_env -> dynamic([b], b.mix_env)
       end
 
     query =
       select_merge(
-        from(b in Build,
+        from(b in build_schema(opts),
           where:
             b.project_id == ^project_id and
               b.inserted_at >= ^DateTime.to_naive(start_datetime) and
@@ -567,7 +576,7 @@ defmodule Tuist.Gradle.Analytics do
   defp build_total_count(project_id, start_datetime, end_datetime, opts) do
     query =
       maybe_filter_ci(
-        from(b in Build,
+        from(b in build_schema(opts),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
               b.inserted_at <= ^DateTime.to_naive(end_datetime),
@@ -584,7 +593,7 @@ defmodule Tuist.Gradle.Analytics do
   defp build_counts_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
     query =
       maybe_filter_ci(
-        from(b in Build,
+        from(b in build_schema(opts),
           group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
@@ -606,7 +615,7 @@ defmodule Tuist.Gradle.Analytics do
   defp success_rate(project_id, start_datetime, end_datetime, opts) do
     query =
       maybe_filter_ci(
-        from(b in Build,
+        from(b in build_schema(opts),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
               b.inserted_at <= ^DateTime.to_naive(end_datetime),
@@ -630,7 +639,7 @@ defmodule Tuist.Gradle.Analytics do
   defp success_rates_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
     query =
       maybe_filter_ci(
-        from(b in Build,
+        from(b in build_schema(opts),
           group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
@@ -651,7 +660,7 @@ defmodule Tuist.Gradle.Analytics do
   defp build_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
     query =
       maybe_filter_ci(
-        from(b in Build,
+        from(b in build_schema(opts),
           where:
             b.project_id == ^project_id and
               b.inserted_at >= ^DateTime.to_naive(start_datetime) and
@@ -671,7 +680,7 @@ defmodule Tuist.Gradle.Analytics do
   defp build_percentiles_over_time(project_id, percentile, start_datetime, end_datetime, date_format, opts) do
     query =
       maybe_filter_ci(
-        from(b in Build,
+        from(b in build_schema(opts),
           group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           where:
             b.project_id == ^project_id and
@@ -692,7 +701,7 @@ defmodule Tuist.Gradle.Analytics do
   defp average_build_duration(project_id, start_datetime, end_datetime, opts) do
     query =
       maybe_filter_ci(
-        from(b in Build,
+        from(b in build_schema(opts),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
               b.inserted_at <= ^DateTime.to_naive(end_datetime),
@@ -710,7 +719,7 @@ defmodule Tuist.Gradle.Analytics do
   defp build_durations_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
     query =
       maybe_filter_ci(
-        from(b in Build,
+        from(b in build_schema(opts),
           group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
@@ -849,6 +858,10 @@ defmodule Tuist.Gradle.Analytics do
       is_ci -> from(b in query, where: b.is_ci == ^is_ci)
     end
   end
+
+  # The build-level queries only touch project_id, inserted_at, duration_ms,
+  # status and is_ci, which Tuist.Mix.Build shares, so Mix reuses them.
+  defp build_schema(opts), do: Keyword.get(opts, :schema, Build)
 
   defp maybe_filter_status(query, opts) do
     case Keyword.get(opts, :status) do

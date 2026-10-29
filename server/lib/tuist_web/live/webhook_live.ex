@@ -47,7 +47,7 @@ defmodule TuistWeb.WebhookLive do
 
   @impl true
   def handle_params(_params, uri, socket) do
-    params = Query.query_params(uri)
+    params = uri |> Query.query_params() |> Query.clear_incompatible_cursors([:inserted_at])
     uri_struct = URI.new!("?" <> URI.encode_query(params))
 
     {:noreply,

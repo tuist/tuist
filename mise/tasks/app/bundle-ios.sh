@@ -23,6 +23,25 @@ mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
 op read "op://tuist/Tuist App Ad Hoc/Tuist_App_Ad_Hoc.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist_ad_hoc.mobileprovision"
 op read "op://tuist/Tuist App Store Connect Provisioning Profile/Tuist_App_Store_Connect.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist_app_store.mobileprovision"
 
+# The App Store upload path needs an app-store-connect export, while the
+# shareable device preview needs an ad-hoc (release-testing) export so it can be
+# installed on registered devices over the air. Both provisioning profiles are
+# imported above; select the matching one for the requested method.
+EXPORT_METHOD="${EXPORT_METHOD:-app-store-connect}"
+
+case "$EXPORT_METHOD" in
+    app-store-connect)
+        PROVISIONING_PROFILE_NAME="Tuist App Store Connect"
+        ;;
+    release-testing)
+        PROVISIONING_PROFILE_NAME="Tuist App Ad Hoc"
+        ;;
+    *)
+        echo "Unsupported EXPORT_METHOD '$EXPORT_METHOD' (expected 'app-store-connect' or 'release-testing')" >&2
+        exit 1
+        ;;
+esac
+
 EXPORT_OPTIONS_PLIST_PATH=$TMP_DIR/ExportOptions.plist
 
 cat << EOF > "$EXPORT_OPTIONS_PLIST_PATH"
@@ -33,11 +52,11 @@ cat << EOF > "$EXPORT_OPTIONS_PLIST_PATH"
 	<key>destination</key>
 	<string>export</string>
 	<key>method</key>
-	<string>app-store-connect</string>
+	<string>${EXPORT_METHOD}</string>
 	<key>provisioningProfiles</key>
 	<dict>
 		<key>dev.tuist.app</key>
-		<string>Tuist App Store Connect</string>
+		<string>${PROVISIONING_PROFILE_NAME}</string>
 	</dict>
 	<key>signingCertificate</key>
 	<string>Apple Distribution: Tuist GmbH (U6LC622NKF)</string>

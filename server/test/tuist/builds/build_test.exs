@@ -23,6 +23,22 @@ defmodule Tuist.Builds.BuildTest do
       assert changeset.valid?
     end
 
+    test "normalizes optional build start timestamps without inferring them from upload time" do
+      changeset = Build.create_changeset(%Build{}, @valid_attrs)
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :started_at) == nil
+
+      changeset = Build.create_changeset(%Build{}, Map.put(@valid_attrs, :started_at, ~U[2023-10-01 11:59:00.123456Z]))
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :started_at) == ~N[2023-10-01 11:59:00.123456]
+      assert Build.to_buffer_map(Ecto.Changeset.apply_changes(changeset)).started_at == ~N[2023-10-01 11:59:00.123456]
+    end
+
+    test "rejects invalid build start timestamps" do
+      changeset = Build.create_changeset(%Build{}, Map.put(@valid_attrs, :started_at, "not-a-date"))
+      assert "is invalid" in errors_on(changeset).started_at
+    end
+
     test "ensures id is present" do
       changeset = Build.create_changeset(%Build{}, Map.delete(@valid_attrs, :id))
       assert "can't be blank" in errors_on(changeset).id
@@ -136,11 +152,11 @@ defmodule Tuist.Builds.BuildTest do
       assert changeset.valid?
     end
 
-    test "rejects more than 20 custom_values" do
-      values = Map.new(1..21, fn i -> {"key#{i}", "value#{i}"} end)
+    test "rejects more than 64 custom_values" do
+      values = Map.new(1..65, fn i -> {"key#{i}", "value#{i}"} end)
       attrs = Map.put(@valid_attrs, :custom_values, values)
       changeset = Build.create_changeset(%Build{}, attrs)
-      assert "cannot have more than 20 key-value pairs" in errors_on(changeset).custom_values
+      assert "cannot have more than 64 key-value pairs" in errors_on(changeset).custom_values
     end
 
     test "rejects custom_values with keys longer than 50 characters" do
@@ -157,6 +173,56 @@ defmodule Tuist.Builds.BuildTest do
       changeset = Build.create_changeset(%Build{}, attrs)
       errors = errors_on(changeset).custom_values
       assert Enum.any?(errors, &String.contains?(&1, "exceeds maximum length of 500 characters"))
+    end
+  end
+
+  describe "to_buffer_map/1" do
+    defp build_with(attrs) do
+      struct!(
+        %Build{
+          id: "B12673DA-1345-4077-BB30-D7576FEACE09",
+          duration: 120,
+          is_ci: true,
+          project_id: 1,
+          account_id: 1,
+          status: "success"
+        },
+        attrs
+      )
+    end
+
+    test "virtual failure categories never enter the ingestion map" do
+      buffer_map = Build.to_buffer_map(build_with(failure_category: "verification"))
+      refute Map.has_key?(buffer_map, :failure_category)
+    end
+
+    test "versions a first write with its own inserted_at" do
+      inserted_at = ~N[2023-10-01 12:00:00.000000]
+
+      buffer_map = Build.to_buffer_map(build_with(inserted_at: inserted_at))
+
+      assert buffer_map.updated_at == inserted_at
+    end
+
+    test "treats a supplied updated_at as a floor, not as the version to store" do
+      buffer_map =
+        Build.to_buffer_map(
+          build_with(
+            inserted_at: ~N[2023-10-01 12:00:00.000000],
+            updated_at: ~N[2023-10-01 12:00:00.000001]
+          )
+        )
+
+      assert NaiveDateTime.after?(buffer_map.updated_at, ~N[2023-10-01 12:00:00.000001])
+    end
+
+    test "keeps a floor that is ahead of the clock" do
+      floor = NaiveDateTime.add(NaiveDateTime.utc_now(), 1, :hour)
+
+      buffer_map =
+        Build.to_buffer_map(build_with(inserted_at: ~N[2023-10-01 12:00:00.000000], updated_at: floor))
+
+      assert buffer_map.updated_at == %{floor | microsecond: {elem(floor.microsecond, 0), 6}}
     end
   end
 end

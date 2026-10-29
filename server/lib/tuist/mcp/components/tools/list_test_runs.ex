@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
   use Tuist.MCP.Tool,
     name: "list_test_runs",
     title: "List Test Runs",
+    read_only_hint: true,
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",
@@ -25,7 +26,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
         "query" => %{
           "type" => "string",
           "description" =>
-            ~s(Search query for richer filtering. Supports exact matches with `field:"value"` and substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`. Query filters compose with the explicit arguments using AND semantics.)
+            ~s(Search query for richer filtering. Supported fields: `git_branch`, `scheme`, and `status`. Supports exact matches with `field:"value"` and case-insensitive substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"` excludes branches containing `gh-readonly-queue`. Whitespace-separated query filters compose with each other and the explicit arguments using AND semantics.)
         },
         "status" => %{
           "type" => "string",
@@ -55,6 +56,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
             "type" => "object",
             "properties" => %{
               "id" => %{"type" => "string"},
+              "actor" => Tuist.MCP.Tool.report_actor_schema(),
               "duration" => %{"type" => "integer"},
               "status" => %{"type" => "string"},
               "is_ci" => %{"type" => "boolean"},
@@ -128,6 +130,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
 
                %{
                  id: run.id,
+                 actor: Tuist.ReportActor.actor(run),
                  duration: run.duration,
                  status: to_string(run.status),
                  is_ci: run.is_ci,

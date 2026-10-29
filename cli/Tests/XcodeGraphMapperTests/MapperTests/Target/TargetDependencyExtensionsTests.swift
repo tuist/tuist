@@ -9,6 +9,11 @@ struct TargetDependencyExtensionsTests {
     let sourceDirectory = AssertionsTesting.fixturePath()
     let target = Target.test(platform: .iOS)
 
+    @Test("Maps host build tools to macros")
+    func mapProductType_HostBuildTool() {
+        #expect(PBXProductType.hostBuildTool.mapProductType() == .macro)
+    }
+
     @Test("Resolves a target dependency into a target graph dependency")
     func targetGraphDependency_Target() async throws {
         // Given

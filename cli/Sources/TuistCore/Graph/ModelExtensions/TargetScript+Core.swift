@@ -1,5 +1,5 @@
-import Command
 import Path
+import TuistProcess
 import TuistSupport
 import XcodeGraph
 

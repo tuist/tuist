@@ -28,7 +28,6 @@ defaults:
     working-directory: cache
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_ATTESTATIONS: 0
@@ -39,20 +38,19 @@ jobs:
     name: Format
     runs-on: tuist-linux
     timeout-minutes: 15
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
+      - uses: ./.github/actions/mise
         with:
+          install_args: "erlang elixir ruby"
+          working_directory: cache
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-cache-${{ github.job }}-mix-v1
           path: |
             cache/deps
             cache/_build
-          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir ruby"
-          working_directory: cache
       - name: Install dependencies
         run: mise run --skip-tools install
       - name: Check format
@@ -62,21 +60,19 @@ jobs:
     name: Credo
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
+      - uses: ./.github/actions/mise
         with:
+          install_args: "erlang elixir ruby"
+          working_directory: cache
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-cache-${{ github.job }}-mix-v1
           path: |
             cache/deps
             cache/_build
-          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir ruby"
-          working_directory: cache
       - name: Install dependencies
         run: mise run --skip-tools install
       - name: Run Credo
@@ -86,21 +82,19 @@ jobs:
     name: Test
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
+      - uses: ./.github/actions/mise
         with:
+          install_args: "erlang elixir ruby"
+          working_directory: cache
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-cache-${{ github.job }}-mix-v1
           path: |
             cache/deps
             cache/_build
-          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir ruby"
-          working_directory: cache
       - name: Install dependencies
         run: mise run --skip-tools install
       - name: Run tests
@@ -110,21 +104,19 @@ jobs:
     name: Compile (prod)
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
+      - uses: ./.github/actions/mise
         with:
+          install_args: "erlang elixir ruby"
+          working_directory: cache
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-cache-${{ github.job }}-mix-v1
           path: |
             cache/deps
             cache/_build
-          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir ruby"
-          working_directory: cache
       - name: Install dependencies
         run: mise run --skip-tools install
       - name: Compile with MIX_ENV=prod
@@ -134,6 +126,7 @@ jobs:
     name: Docker Compose
     runs-on: tuist-linux
     timeout-minutes: 5
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
       - name: Validate docker-compose.yml

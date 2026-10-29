@@ -36,6 +36,13 @@ defmodule TuistWeb.BillingController do
     end
   end
 
+  def pay(%{assigns: %{billing_account: billing_account}} = conn, _params) do
+    case Billing.outstanding_payment_url(billing_account) do
+      nil -> conn |> redirect(to: ~p"/#{billing_account.name}/billing") |> halt()
+      url -> conn |> redirect(external: url) |> halt()
+    end
+  end
+
   def assign_billing_account(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
     assign(conn, :billing_account, Accounts.get_account_by_handle(account_handle))
   end

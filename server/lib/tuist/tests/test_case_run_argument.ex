@@ -21,10 +21,17 @@ defmodule Tuist.Tests.TestCaseRunArgument do
       foreign_key: :test_case_run_id,
       define_field: false
 
-    has_many :failures, Tuist.Tests.TestCaseFailure, foreign_key: :test_case_run_argument_id
-    has_many :repetitions, Tuist.Tests.TestCaseRunRepetition, foreign_key: :test_case_run_argument_id
-    has_many :attachments, Tuist.Tests.TestCaseRunAttachment, foreign_key: :test_case_run_argument_id
+    has_many :failures, {"reported_test_case_failures", Tuist.Tests.TestCaseFailure},
+      foreign_key: :test_case_run_argument_id
+
+    has_many :repetitions, {"reported_test_case_run_repetitions", Tuist.Tests.TestCaseRunRepetition},
+      foreign_key: :test_case_run_argument_id
+
+    has_many :attachments, {"reported_test_case_run_attachments", Tuist.Tests.TestCaseRunAttachment},
+      foreign_key: :test_case_run_argument_id
   end
+
+  def query, do: Ecto.Queryable.to_query({"reported_test_case_run_arguments", __MODULE__})
 
   def create_changeset(argument, attrs) do
     argument

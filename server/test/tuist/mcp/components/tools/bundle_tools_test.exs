@@ -155,5 +155,24 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
       refute Map.has_key?(first, "id")
       refute Map.has_key?(first, "shasum")
     end
+
+    test "accepts a dashboard URL in place of the bundle ID" do
+      bundle_id = "38338b32-3437-42e4-bc01-f048d6d3368f"
+      project = %{id: 1, name: "app"}
+
+      stub(Bundles, :get_bundle, fn ^bundle_id -> {:ok, %{id: bundle_id, project_id: 1}} end)
+      stub(Bundles, :get_bundle_artifact_tree, fn ^bundle_id -> [] end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :bundle_read, :subject, ^project -> :ok end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               GetBundleArtifactTree.call(conn, %{
+                 "bundle_id" => "https://tuist.dev/acme/app/bundles/#{bundle_id}"
+               })
+
+      assert JSON.decode!(text)["bundle_id"] == bundle_id
+    end
   end
 end

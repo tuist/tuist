@@ -166,6 +166,104 @@ defmodule TuistWeb.Utilities.QueryTest do
     end
   end
 
+  describe "clear_cursors_on_initial_load/2" do
+    test "clears cursors before current parameters have been assigned" do
+      params = %{"before" => "cursor123", "search" => "App"}
+
+      assert Query.clear_cursors_on_initial_load(params, %{}) == %{"search" => "App"}
+    end
+
+    test "preserves cursors after current parameters have been assigned" do
+      params = %{"after" => "cursor123", "search" => "App"}
+      assigns = %{current_params: %{"search" => "App"}}
+
+      assert Query.clear_cursors_on_initial_load(params, assigns) == params
+    end
+  end
+
+  describe "positive_integer/2" do
+    test "parses positive integers and rejects invalid values" do
+      assert Query.positive_integer("2") == 2
+      assert Query.positive_integer(3) == 3
+      assert Query.positive_integer("0") == 1
+      assert Query.positive_integer("invalid", 4) == 4
+      assert Query.positive_integer(nil) == 1
+    end
+  end
+
+  describe "bounded_page/2" do
+    test "parses positive integer strings" do
+      assert Query.bounded_page("3") == 3
+    end
+
+    test "defaults to 1 for nil, non-integer, and non-positive inputs" do
+      assert Query.bounded_page(nil) == 1
+      assert Query.bounded_page("") == 1
+      assert Query.bounded_page("xyz") == 1
+      assert Query.bounded_page("0") == 1
+      assert Query.bounded_page("-3") == 1
+    end
+
+    test "clamps to the default maximum of 100" do
+      assert Query.bounded_page("100") == 100
+      assert Query.bounded_page("101") == 100
+      assert Query.bounded_page("5000") == 100
+    end
+
+    test "honors an explicit max" do
+      assert Query.bounded_page("500", max: 200) == 200
+      assert Query.bounded_page("50", max: 200) == 50
+    end
+
+    test "honors an explicit default" do
+      assert Query.bounded_page(nil, default: 2) == 2
+      assert Query.bounded_page("xyz", default: 2) == 2
+    end
+
+    test "does not raise on the ArgumentError-triggering shapes String.to_integer would" do
+      assert Query.bounded_page("1.5") == 1
+      assert Query.bounded_page("99999999999999999999") == 100
+    end
+  end
+
+  describe "clear_incompatible_cursors/2" do
+    test "preserves a cursor whose fields match the sort order" do
+      cursor = Flop.Cursor.encode(%{inserted_at: ~N[2025-04-14 12:30:17]})
+      params = %{"after" => cursor, "search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == params
+    end
+
+    test "clears a cursor whose fields do not match the sort order" do
+      cursor = Flop.Cursor.encode(%{inserted_at_naive: ~N[2025-04-14 12:30:17]})
+      params = %{"before" => cursor, "search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == %{"search" => "App"}
+    end
+
+    test "clears a cursor that carries extra fields beyond the sort order" do
+      # Flop validates the cursor's key set against the exact order_by fields,
+      # so a superset cursor (e.g. from a page sorted by [:inserted_at, :id])
+      # would still raise on a page sorted only by [:inserted_at].
+      cursor = Flop.Cursor.encode(%{inserted_at: ~N[2025-04-14 12:30:17], id: 42})
+      params = %{"after" => cursor, "search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == %{"search" => "App"}
+    end
+
+    test "clears a cursor that cannot be decoded" do
+      params = %{"after" => "not-a-valid-cursor", "search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == %{"search" => "App"}
+    end
+
+    test "returns params unchanged when no cursor is present" do
+      params = %{"search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == params
+    end
+  end
+
   describe "has_cursor?/1" do
     test "returns true when after param present" do
       assert Query.has_cursor?(%{"after" => "cursor123"}) == true

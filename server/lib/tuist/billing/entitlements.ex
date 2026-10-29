@@ -20,7 +20,28 @@ defmodule Tuist.Billing.Entitlements do
   Returns true when the account's plan grants access to `feature`.
   """
   def allows?(account, feature) do
-    not Environment.tuist_hosted?() or plan_allows?(current_plan(account), feature)
+    MapSet.member?(allowed_features(account, [feature]), feature)
+  end
+
+  @doc """
+  Returns the requested features granted by the account's current plan.
+
+  The plan is resolved once for the complete feature set. When subscriptions
+  are preloaded on the account, the lookup stays in memory so batch callers do
+  not issue one subscription query per account.
+  """
+  def allowed_features(_account, []), do: MapSet.new()
+
+  def allowed_features(account, features) when is_list(features) do
+    if Environment.tuist_hosted?() do
+      plan = resolve_plan(account)
+
+      features
+      |> Enum.filter(&plan_allows?(plan, &1))
+      |> MapSet.new()
+    else
+      MapSet.new(features)
+    end
   end
 
   # Enterprise gets everything.
@@ -40,12 +61,6 @@ defmodule Tuist.Billing.Entitlements do
 
   defp plan_allows?(_plan, _feature), do: false
 
-  defp current_plan(%Account{} = account) do
-    case Billing.get_current_active_subscription(account) do
-      %{plan: plan} when is_atom(plan) -> plan
-      _ -> :air
-    end
-  end
-
-  defp current_plan(_), do: :air
+  defp resolve_plan(%Account{} = account), do: Billing.effective_plan(account)
+  defp resolve_plan(_), do: :air
 end

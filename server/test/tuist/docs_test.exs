@@ -2,8 +2,10 @@ defmodule Tuist.DocsTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias Tuist.ClickHouseVersions
   alias Tuist.Docs
   alias Tuist.Docs.CLI
+  alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Docs.Page
 
   describe "get_page/1" do
@@ -15,12 +17,127 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
+    test "workload authentication documents account-wide access and shared-provider trust boundaries" do
+      guide = Docs.get_page("/en/guides/server/authentication").markdown
+      assert guide =~ "only the `ci` scope group and covers all current and future projects"
+      assert guide =~ "without granting project creation, project administration, runner administration"
+      assert guide =~ "bind the policy to your organization or tenant"
+      assert guide =~ "not only `ref`"
+      assert guide =~ "cache poisoning"
+      assert guide =~ "upgrade every serving Tuist server replica before configuring workload identities"
+      assert guide =~ "Deleting a policy does not immediately revoke those tokens"
+      assert guide =~ "access tokens that were already issued remain valid until they expire"
+      refute guide =~ "projects explicitly selected"
+    end
+
+    test "cache documentation exposes Rust with its experimental qualification" do
+      index = Docs.get_page("/en/index").markdown
+      assert index =~ "supported_for=\"apple,gradle,bazel,rust\""
+      assert index =~ "Rust's experimental compilation cache"
+
+      cache = Docs.get_page("/en/guides/features/cache").markdown
+      assert cache =~ "Rust cache (experimental)"
+      assert cache =~ "supported_for=\"rust\""
+      assert cache =~ "/guides/features/cache/rust"
+
+      assert Docs.get_page("/en/guides/features/cache/rust").markdown =~
+               "/guides/features/build-insights/rust#cache-measurements"
+
+      guide = Docs.get_page("/en/guides/features/build-insights/rust").markdown
+      assert guide =~ "{#cache-measurements}"
+      assert guide =~ "registry leaf libraries"
+      assert guide =~ "absolute paths"
+      refute guide =~ "compatible cache runtime"
+      refute guide =~ "verification detects"
+    end
+
+    test "loads the per-build-system Get Started pages with the agent prompt and prerequisites" do
+      pages = [
+        "/en/guides/get-started/existing-xcode-project",
+        "/en/guides/get-started/generated-xcode-project",
+        "/en/guides/get-started/gradle-project",
+        "/en/guides/get-started/elixir-project",
+        "/en/guides/get-started/rust-project",
+        "/en/guides/get-started/bazel-project"
+      ]
+
+      for slug <- pages do
+        page = Docs.get_page(slug)
+
+        refute is_nil(page), "missing page: #{slug}"
+        assert page.markdown =~ "[Agent prompt]"
+        assert page.markdown =~ "## Prerequisites"
+      end
+    end
+
+    test "Rust guides document plain Cargo reporting and supported boundaries" do
+      for path <- ["build-insights", "test-insights", "test-insights/flaky-tests"] do
+        page = Docs.get_page("/en/guides/features/" <> path <> "/rust")
+        assert page
+        assert page.title =~ "Rust"
+        assert page.markdown =~ "tuist cargo"
+        assert page.markdown =~ "[!IMPORTANT] Requirements"
+        refute Regex.match?(~r/^> \[![A-Z]+\] [A-Z][A-Z ]+\??$/m, page.markdown)
+        assert Docs.get_page("/en/guides/features/" <> path).markdown =~ path <> "/rust"
+      end
+
+      getting_started = Docs.get_page("/en/guides/get-started/rust-project").markdown
+      assert getting_started =~ "[!TIP] Coding agents"
+      assert getting_started =~ "tuist cargo test --workspace"
+      assert getting_started =~ "tuist cargo test --doc"
+      refute getting_started =~ "## Test sharding"
+      refute getting_started =~ "test-build"
+      refute getting_started =~ "## Coverage and selective testing"
+      refute getting_started =~ "compiler-invocation timings"
+      sharding = Docs.get_page("/en/guides/features/test-sharding/rust").markdown
+      assert sharding =~ "tuist cargo test -p store --no-run --shard-max 4"
+      assert sharding =~ "TUIST_SHARD_PLAN_ID=<plan-id> TUIST_SHARD_INDEX=0 tuist cargo test -p store"
+      assert sharding =~ "Multi-package sharding is not supported"
+      assert sharding =~ "target-level sharding, not build-once distribution"
+      refute sharding =~ "test-build"
+      assert Docs.get_page("/en/guides/features/test-sharding").markdown =~ "test-sharding/rust"
+      tests = Docs.get_page("/en/guides/features/test-insights/rust").markdown
+      assert tests =~ "unit tests, integration tests, and doctests"
+      assert tests =~ "tuist cargo test --doc"
+      assert tests =~ "excluded from per-case duration histories"
+      refute tests =~ "stale, or oversized report"
+      flaky = Docs.get_page("/en/guides/features/test-insights/flaky-tests/rust").markdown
+
+      for heading <- [
+            "How flaky detection works",
+            "Managing flaky tests",
+            "Quarantining and stress-testing",
+            "Slack notifications"
+          ] do
+        assert flaky =~ "## #{heading}"
+      end
+
+      assert flaky =~ "Cargo does not automatically retry failed tests"
+      assert flaky =~ "CI runs on the same commit"
+      assert flaky =~ "**Muted** tests still run and report their actual results"
+      assert flaky =~ "**Skipped** tests are excluded from execution and reported as quarantined skips"
+      assert flaky =~ "Skip quarantine requires one selected package"
+      assert flaky =~ "TUIST_TEST_SKIP_QUARANTINE=1 tuist cargo test --workspace"
+      refute flaky =~ "Quarantine boundaries"
+    end
+
+    test "English documentation does not mention alternative Rust test runners" do
+      paths = :tuist |> Application.app_dir("priv/docs/en/**/*.md") |> Path.wildcard()
+      refute paths == []
+
+      for path <- paths do
+        refute Regex.match?(~r/nextest|nexttest|nexte\.st/i, File.read!(path)),
+               "unexpected test-runner mention in #{path}"
+      end
+    end
+
     test "supports index aliases" do
       root_page = Docs.get_page("/en/index")
       selective_testing_page = Docs.get_page("/en/guides/features/selective-testing/index")
 
       assert root_page.slug == "/en"
       assert selective_testing_page.slug == "/en/guides/features/selective-testing"
+      assert selective_testing_page.source_path == "en/guides/features/selective-testing/index.md"
     end
 
     test "loads static CLI documentation pages" do
@@ -66,6 +183,28 @@ defmodule Tuist.DocsTest do
       assert migration_page.body =~ "localized_link"
     end
 
+    test "self-hosting documents independent insights and cache access with shared setup" do
+      page = Docs.get_page("/en/guides/server/self-host/server")
+
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS=true"
+      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_CACHE_ACCESS=true"
+      assert page.markdown =~ "no client opt-in is needed"
+      assert page.markdown =~ "does not follow redirects"
+      assert page.markdown =~ "Upgrade every server and Kura replica before upgrading clients"
+      assert page.markdown =~ "Older tools can delete credentials"
+      assert page.markdown =~ "omit Git origins from unsigned reports"
+      assert page.markdown =~ "Keep Kura authentication enabled"
+      assert page.markdown =~ "across all accounts and projects, including private projects"
+      assert page.markdown =~ "restart **every relevant server replica**"
+      assert page.markdown =~ "within 60 seconds"
+      assert page.markdown =~ "dashboard and administration still require authentication"
+      refute page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
+
+      assert Enum.any?(page.headings, &(&1.id == "network-trusted-access"))
+      assert page.body =~ ~s(id="network-trusted-report-publishing")
+      assert page.body =~ ~s(id="network-trusted-cache-access")
+    end
+
     test "wraps Markdown tables in a scroll container" do
       page = Docs.get_page("/en/guides/server/self-host/server")
 
@@ -77,6 +216,22 @@ defmodule Tuist.DocsTest do
 
       assert page.body =~
                ~s(<div data-part="overlay-scrollbar" aria-hidden="true"><div data-part="overlay-thumb"></div></div>)
+    end
+
+    test "renders the compatibility matrix from the canonical ClickHouse version" do
+      page = Docs.get_page("/en/guides/server/self-host/server")
+
+      assert page.body =~
+               ~s(<td>ClickHouse</td><td>#{ClickHouseVersions.minimum_supported_version()}</td>)
+    end
+
+    test "does not cache missing pages" do
+      slug = "/en/guides/does-not-exist-#{System.unique_integer([:positive])}"
+
+      assert Docs.get_page(slug) == nil
+
+      cache_state = :sys.get_state(Cache)
+      refute Map.has_key?(cache_state.values, {:page, slug})
     end
   end
 

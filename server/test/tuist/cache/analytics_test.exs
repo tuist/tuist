@@ -779,194 +779,234 @@ defmodule Tuist.Cache.AnalyticsTest do
     end
   end
 
-  describe "cache_hit_rate_metric_by_count/3" do
-    test "averages module cache and Xcode cache hit rates by count" do
+  describe "cache_hit_rate_metric_window_comparison/4" do
+    test "averages module cache and Xcode cache hit rates across both windows" do
       project = ProjectsFixtures.project_fixture()
 
-      # Module cache: 50% hit rate (1 hit out of 2 cacheable)
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        cacheable_targets: ["A", "B"],
-        local_cache_target_hits: ["A"],
-        remote_cache_target_hits: [],
-        ran_at: ~U[2024-04-30 10:00:00Z]
-      )
+      # Module cache: 50% hit rate in both windows
+      for offset <- 1..4 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.add(~U[2024-04-30 10:00:00Z], -offset, :minute)
+        )
+      end
 
-      # Xcode cache: 100% hit rate (2 hits out of 2 cacheable)
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        inserted_at: ~U[2024-04-30 10:00:00Z],
-        cacheable_tasks: [
-          %{key: "task1_key", type: :swift, status: :hit_local},
-          %{key: "task2_key", type: :swift, status: :hit_remote}
-        ]
-      )
+      # Xcode cache: 100% hit rate in both windows
+      for offset <- 1..4 do
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          cacheable_tasks_count: 2,
+          cacheable_task_local_hits_count: 2,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(~U[2024-04-30 10:00:00Z], -offset, :minute)
+        )
+      end
 
       # When
-      got = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+      got =
+        Analytics.cache_hit_rate_metric_window_comparison(
+          project.id,
+          :average,
+          [limit: 2, offset: 0],
+          limit: 2,
+          offset: 2
+        )
 
-      # Then - Average of [0.5 (module), 1.0 (xcode)] = 0.75
-      assert got == 0.75
+      # Then - Average of [0.5 (module), 1.0 (xcode)] on both sides
+      assert got == {0.75, 0.75}
     end
 
-    test "returns nil when no data exists" do
+    test "returns nil for both windows when no data exists" do
       project = ProjectsFixtures.project_fixture()
 
       # When
-      got = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+      got =
+        Analytics.cache_hit_rate_metric_window_comparison(
+          project.id,
+          :average,
+          [limit: 2, offset: 0],
+          limit: 2,
+          offset: 2
+        )
 
       # Then
-      assert got == nil
+      assert got == {nil, nil}
     end
 
-    test "returns only module hit rate when no Xcode builds exist" do
+    test "uses the module cache alone when the Xcode cache has no runs at all" do
       project = ProjectsFixtures.project_fixture()
 
-      # Module cache: 50% hit rate
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        cacheable_targets: ["A", "B"],
-        local_cache_target_hits: ["A"],
-        remote_cache_target_hits: [],
-        ran_at: ~U[2024-04-30 10:00:00Z]
-      )
+      # Newest two events: 100% hit rate
+      for offset <- 1..2 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A", "B"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.add(~U[2024-04-30 10:00:00Z], -offset, :minute)
+        )
+      end
+
+      # Oldest two events: 50% hit rate
+      for offset <- 3..4 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.add(~U[2024-04-30 10:00:00Z], -offset, :minute)
+        )
+      end
 
       # When
-      got = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+      got =
+        Analytics.cache_hit_rate_metric_window_comparison(
+          project.id,
+          :average,
+          [limit: 2, offset: 0],
+          limit: 2,
+          offset: 2
+        )
 
-      # Then - Only module cache: 0.5
-      assert got == 0.5
+      # Then
+      assert got == {1.0, 0.5}
     end
 
-    test "returns only Xcode hit rate when no module cache events exist" do
+    test "drops a source that only fills one of the two windows" do
       project = ProjectsFixtures.project_fixture()
 
-      # Xcode cache: 75% hit rate (3 hits out of 4 cacheable)
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        inserted_at: ~U[2024-04-30 10:00:00Z],
-        cacheable_tasks: [
-          %{key: "task1_key", type: :swift, status: :hit_local},
-          %{key: "task2_key", type: :swift, status: :hit_remote},
-          %{key: "task3_key", type: :swift, status: :hit_local},
-          %{key: "task4_key", type: :clang, status: :miss}
-        ]
-      )
+      # Module cache: 50% hit rate, but only enough events for the current window
+      for offset <- 1..2 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.add(~U[2024-04-30 10:00:00Z], -offset, :minute)
+        )
+      end
+
+      # Xcode cache: 100% hit rate across both windows
+      for offset <- 1..4 do
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          cacheable_tasks_count: 2,
+          cacheable_task_local_hits_count: 2,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(~U[2024-04-30 10:00:00Z], -offset, :minute)
+        )
+      end
 
       # When
-      got = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+      got =
+        Analytics.cache_hit_rate_metric_window_comparison(
+          project.id,
+          :average,
+          [limit: 2, offset: 0],
+          limit: 2,
+          offset: 2
+        )
 
-      # Then - Only Xcode cache: 0.75
-      assert got == 0.75
+      # Then - the module cache is absent from the previous window, so it is
+      # excluded from the current one too rather than dragging it down
+      assert got == {1.0, 1.0}
     end
 
-    test "respects limit and offset parameters" do
+    test "returns nil for both windows when a window did not fill up" do
       project = ProjectsFixtures.project_fixture()
 
-      # Oldest event: 25% hit rate
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        cacheable_targets: ["A", "B", "C", "D"],
-        local_cache_target_hits: ["A"],
-        remote_cache_target_hits: [],
-        ran_at: ~U[2024-04-29 10:00:00Z]
-      )
-
-      # Newest event: 100% hit rate
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        cacheable_targets: ["E", "F"],
-        local_cache_target_hits: ["E", "F"],
-        remote_cache_target_hits: [],
-        ran_at: ~U[2024-04-30 10:00:00Z]
-      )
-
-      # Oldest build: 50% hit rate
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        inserted_at: ~U[2024-04-29 10:00:00Z],
-        cacheable_tasks: [
-          %{key: "task1_key", type: :swift, status: :hit_local},
-          %{key: "task2_key", type: :swift, status: :miss}
-        ]
-      )
-
-      # Newest build: 100% hit rate
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        inserted_at: ~U[2024-04-30 10:00:00Z],
-        cacheable_tasks: [
-          %{key: "task3_key", type: :swift, status: :hit_local},
-          %{key: "task4_key", type: :swift, status: :hit_remote}
-        ]
-      )
-
-      # When - get newest 1 item
-      current =
-        Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 0)
-
-      # Then - Average of [1.0 (module), 1.0 (xcode)] = 1.0
-      assert current == 1.0
-
-      # When - skip newest, get older item
-      previous =
-        Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 1)
-
-      # Then - Average of [0.25 (module), 0.5 (xcode)] = 0.375
-      assert previous == 0.375
-    end
-
-    test "works with p50 metric" do
-      project = ProjectsFixtures.project_fixture()
-
-      # Create multiple events with varying hit rates
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        cacheable_targets: ["A", "B"],
-        local_cache_target_hits: ["A"],
-        remote_cache_target_hits: [],
-        ran_at: ~U[2024-04-30 09:00:00Z]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "build",
-        cacheable_targets: ["C", "D"],
-        local_cache_target_hits: ["C", "D"],
-        remote_cache_target_hits: [],
-        ran_at: ~U[2024-04-30 10:00:00Z]
-      )
-
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        inserted_at: ~U[2024-04-30 09:00:00Z],
-        cacheable_tasks: [
-          %{key: "task1_key", type: :swift, status: :miss},
-          %{key: "task2_key", type: :swift, status: :miss}
-        ]
-      )
-
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        inserted_at: ~U[2024-04-30 10:00:00Z],
-        cacheable_tasks: [
-          %{key: "task3_key", type: :swift, status: :hit_local},
-          %{key: "task4_key", type: :swift, status: :hit_remote}
-        ]
-      )
+      # Only three builds for a window that holds two, so the previous window is short
+      for offset <- 1..3 do
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          cacheable_tasks_count: 2,
+          cacheable_task_local_hits_count: 2,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(~U[2024-04-30 10:00:00Z], -offset, :minute)
+        )
+      end
 
       # When
-      got = Analytics.cache_hit_rate_metric_by_count(project.id, :p50, limit: 10)
+      got =
+        Analytics.cache_hit_rate_metric_window_comparison(
+          project.id,
+          :average,
+          [limit: 2, offset: 0],
+          limit: 2,
+          offset: 2
+        )
 
-      # Then - Module p50 of sorted [0.5, 1.0] at index trunc(2*0.5)=1 = 1.0
-      # Xcode p50 of sorted [0.0, 1.0] at index trunc(2*0.5)=1 = 1.0
-      # Average of [1.0, 1.0] = 1.0
-      assert got == 1.0
+      # Then
+      assert got == {nil, nil}
+    end
+
+    test "scopes both windows and both sources to the given branch" do
+      project = ProjectsFixtures.project_fixture()
+
+      # main: 50% module hit rate, 100% Xcode hit rate, across both windows
+      for offset <- 1..4 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          git_branch: "main",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.add(~U[2024-04-30 10:00:00Z], -offset, :minute)
+        )
+
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          cacheable_tasks_count: 2,
+          cacheable_task_local_hits_count: 2,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(~U[2024-04-30 10:00:00Z], -offset, :minute)
+        )
+      end
+
+      # feature: 0% on both sources, newer than everything on main
+      for offset <- 1..4 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          git_branch: "feature",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: [],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.add(~U[2024-04-30 11:00:00Z], -offset, :minute)
+        )
+
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          git_branch: "feature",
+          cacheable_tasks_count: 2,
+          cacheable_task_local_hits_count: 0,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(~U[2024-04-30 11:00:00Z], -offset, :minute)
+        )
+      end
+
+      # When
+      got =
+        Analytics.cache_hit_rate_metric_window_comparison(
+          project.id,
+          :average,
+          [limit: 2, offset: 0, git_branch: "main"],
+          limit: 2,
+          offset: 2,
+          git_branch: "main"
+        )
+
+      # Then - only main is considered: average of [0.5, 1.0]
+      assert got == {0.75, 0.75}
     end
   end
 end

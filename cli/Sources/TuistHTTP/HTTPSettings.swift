@@ -2,12 +2,14 @@ import Foundation
 
 public struct HTTPSettings: Equatable, Sendable {
     public var useEnvironmentProxy: Bool
+    public var caCertificatePath: String?
 
     private static let lock = NSLock()
     private static var storedCurrent = HTTPSettings()
 
-    public init(useEnvironmentProxy: Bool = true) {
+    public init(useEnvironmentProxy: Bool = true, caCertificatePath: String? = nil) {
         self.useEnvironmentProxy = useEnvironmentProxy
+        self.caCertificatePath = caCertificatePath
     }
 
     public static var current: HTTPSettings {

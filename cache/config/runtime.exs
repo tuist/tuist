@@ -3,12 +3,19 @@ import Config
 if config_env() == :dev do
   cache_port = String.to_integer(System.get_env("TUIST_CACHE_PORT") || "8087")
   server_url = System.get_env("TUIST_CACHE_SERVER_URL") || "http://localhost:8080"
+  minio_api_port = String.to_integer(System.get_env("TUIST_MINIO_API_PORT") || "9095")
 
   config :cache, CacheWeb.Endpoint,
     url: [host: "localhost", port: cache_port, scheme: "http"],
     http: [ip: {0, 0, 0, 0}, port: cache_port]
 
   config :cache, server_url: server_url
+
+  config :ex_aws, :s3,
+    scheme: "http://",
+    host: "localhost",
+    port: minio_api_port,
+    region: "us-east-1"
 end
 
 if config_env() == :prod do
@@ -155,8 +162,6 @@ if config_env() == :prod do
     analytics_receive_timeout_ms: Cache.Config.int_env("ANALYTICS_RECEIVE_TIMEOUT_MS", 2_000),
     analytics_pool_timeout_ms: Cache.Config.int_env("ANALYTICS_POOL_TIMEOUT_MS", 1_000),
     xcode_database_interactions_enabled: Cache.Config.bool_env("XCODE_DATABASE_INTERACTIONS_ENABLED", true),
-    registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
-    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
     key_value_max_db_size_bytes: String.to_integer(System.get_env("KEY_VALUE_MAX_DB_SIZE_BYTES") || "26843545600"),
     key_value_eviction_min_retention_days:
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MIN_RETENTION_DAYS") || "1"),

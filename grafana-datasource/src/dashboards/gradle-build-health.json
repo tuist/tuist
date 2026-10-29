@@ -1,0 +1,807 @@
+{
+  "uid": "tuist-gradle-build-health",
+  "title": "Tuist Gradle Build Health",
+  "tags": [
+    "tuist",
+    "builds"
+  ],
+  "description": "Success rate excludes cancelled builds. Attention is failure or duration above the 90th percentile of builds in the selected date range. Cache savings require reported metadata; see reporting coverage. Unknown failures are retained.",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "",
+  "timezone": "utc",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "tuist-metrics-datasource",
+        "refresh": 1
+      },
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": {
+          "type": "tuist-metrics-datasource",
+          "uid": "${datasource}"
+        },
+        "query": "projects",
+        "refresh": 1
+      },
+      {
+        "name": "environment",
+        "label": "Environment",
+        "type": "custom",
+        "query": "Any : any,Automated : ci,Local : local",
+        "current": {
+          "text": "Any",
+          "value": "any"
+        }
+      },
+      {
+        "name": "branch",
+        "label": "Branch",
+        "type": "query",
+        "datasource": {
+          "type": "tuist-metrics-datasource",
+          "uid": "${datasource}"
+        },
+        "query": "gradleBranches $project",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "__tuist_all__",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "workload",
+        "label": "Workload",
+        "type": "query",
+        "datasource": {
+          "type": "tuist-metrics-datasource",
+          "uid": "${datasource}"
+        },
+        "query": "gradleWorkloads $project",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "__tuist_all__",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Build success rate",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleHealth",
+          "metric": "success_rate",
+          "resultMode": "total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Builds",
+      "type": "stat",
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleHealth",
+          "metric": "builds",
+          "resultMode": "total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Typical build time",
+      "type": "stat",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleHealth",
+          "metric": "p50",
+          "resultMode": "total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "unit": "ms",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Slow-build threshold",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleHealth",
+          "metric": "slow_build_threshold",
+          "resultMode": "total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "unit": "ms",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Cache time saved (reported)",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleHealth",
+          "metric": "cache_time_saved",
+          "resultMode": "total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Not reported",
+          "unit": "ms",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "description": "Sum of reported elapsed cache savings. Missing observations remain unknown; compare reporting coverage below."
+    },
+    {
+      "id": 6,
+      "title": "Builds needing attention",
+      "type": "stat",
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleHealth",
+          "metric": "builds_needing_attention",
+          "resultMode": "total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Successful and failed builds",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleHealth",
+          "metric": "successful_builds",
+          "resultMode": "series"
+        },
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "B",
+          "queryType": "gradleHealth",
+          "metric": "failed_builds",
+          "resultMode": "series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 50,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed_builds"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Why builds failed",
+      "type": "barchart",
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleFailureReasons"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "Failure category",
+        "groupWidth": 0.7,
+        "barWidth": 0.97,
+        "barRadius": 0,
+        "fullHighlight": false,
+        "showValue": "always",
+        "stacking": "none",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Recent failed builds (latest 100)",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleRecentFailures"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 10,
+      "title": "Build duration trend",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleHealth",
+          "metric": "p50",
+          "resultMode": "series"
+        },
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "B",
+          "queryType": "gradleHealth",
+          "metric": "p90",
+          "resultMode": "series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "unit": "ms",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p90"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Health by workload (up to 1000 groups)",
+      "type": "table",
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "",
+          "refId": "A",
+          "queryType": "gradleWorkloads"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Workload"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Builds"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Success rate"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 105
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Median duration"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "90th percentile duration"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 12,
+      "title": "Builds reporting cache time saved",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "tuist-metrics-datasource",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "projectHandle": "$project",
+          "environment": "$environment",
+          "gitBranch": "$branch",
+          "workload": "$workload",
+          "refId": "A",
+          "queryType": "gradleHealth",
+          "metric": "cache_time_saved_samples",
+          "resultMode": "total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    }
+  ]
+}

@@ -16,6 +16,17 @@ defmodule Noora.ProgressBar do
   attr(:max, :integer, required: true, doc: "Maximum value.")
   attr(:title, :string, default: nil, doc: "The title of the progress bar")
 
+  attr(:value_label, :string,
+    default: nil,
+    doc: """
+    Text to show in place of `value`. The bar still measures itself with
+    `value`, so this is for presentation only: formatting a large count
+    for the reader without making the geometry depend on a string.
+    """
+  )
+
+  attr(:max_label, :string, default: nil, doc: "Text to show in place of `max`. See `value_label`.")
+
   attr(:rest, :global)
 
   slot(:description)
@@ -28,10 +39,10 @@ defmodule Noora.ProgressBar do
           {@title}
         </span>
         <span data-part="value">
-          {@value}
+          {@value_label || @value}
         </span>
         <span data-part="max-value">
-          {@max}
+          {@max_label || @max}
         </span>
       </div>
       <div data-part="progress-bar">

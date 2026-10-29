@@ -13,7 +13,7 @@ defmodule Tuist.Webhooks.DispatcherTest do
 
   defp insert_test_case(project, attrs \\ []) do
     test_case = RunsFixtures.test_case_fixture([project_id: project.id] ++ attrs)
-    IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+    IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
     test_case
   end
 
@@ -122,6 +122,44 @@ defmodule Tuist.Webhooks.DispatcherTest do
   end
 
   describe "dispatch_test_case_created/2" do
+    test "delivers every case-endpoint pair when their product exceeds one PostgreSQL statement" do
+      project = ProjectsFixtures.project_fixture()
+
+      endpoints =
+        for index <- 1..2 do
+          {:ok, endpoint, _} =
+            Webhooks.create_endpoint(project.account_id, %{
+              "name" => "Hook #{index}",
+              "url" => "https://example.com/hook-#{index}",
+              "event_types" => ["test_case.created"]
+            })
+
+          endpoint
+        end
+
+      test_cases =
+        for index <- 1..4_001 do
+          %TestCase{
+            id: UUIDv7.generate(),
+            name: "test#{index}",
+            module_name: "Tests",
+            suite_name: "Suite",
+            project_id: project.id,
+            is_flaky: false,
+            state: "active",
+            last_status: "success"
+          }
+        end
+
+      assert :ok = Dispatcher.dispatch_test_case_created(project.id, test_cases)
+
+      jobs = Tuist.Repo.all(Oban.Job)
+      assert length(jobs) == length(test_cases) * length(endpoints)
+
+      assert MapSet.new(jobs, &{&1.args["webhook_endpoint_id"], &1.args["payload"]["object"]["id"]}) ==
+               MapSet.new(for endpoint <- endpoints, test_case <- test_cases, do: {endpoint.id, test_case.id})
+    end
+
     test "enqueues one delivery per (endpoint, new test case) pair" do
       project = ProjectsFixtures.project_fixture()
 

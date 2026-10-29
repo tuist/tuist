@@ -17,8 +17,8 @@ defmodule Tuist.Storage.RetentionPolicy do
     xcode_cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 30},
     preview_app_build: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
     preview_icon: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
-    build_archive: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
-    run_session: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
+    build_archive: %{air: 7, open_source: 7, pro: 30, enterprise: 30},
+    run_session: %{air: 7, open_source: 7, pro: 30, enterprise: 30},
     test_attachment: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
     shard_bundle: %{air: 7, open_source: 7, pro: 14, enterprise: 30}
   }
@@ -71,7 +71,7 @@ defmodule Tuist.Storage.RetentionPolicy do
   defp active_subscription_plans_by_account_id(account_ids) do
     Subscription
     |> where([subscription], subscription.account_id in ^account_ids)
-    |> where([subscription], subscription.status == "active" or subscription.status == "trialing")
+    |> where([subscription], subscription.status in ^Billing.live_subscription_statuses())
     |> distinct([subscription], subscription.account_id)
     |> order_by([subscription], asc: subscription.account_id, desc: subscription.inserted_at)
     |> select([subscription], {subscription.account_id, subscription.plan})

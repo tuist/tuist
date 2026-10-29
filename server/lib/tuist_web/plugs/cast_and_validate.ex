@@ -12,10 +12,41 @@ defmodule TuistWeb.Plugs.CastAndValidate do
   @impl true
   def init(opts), do: CastAndValidate.init(opts)
 
+  # No field of any request holds an integer wider than 64 bits. One that is
+  # makes the validation library raise when it converts the integer to a
+  # float, before any schema limit is looked at, so it is refused here.
+  @integers -0x8000000000000000..0xFFFFFFFFFFFFFFFF
+
   @impl true
   def call(conn, opts) do
-    OpenTelemetry.Tracer.with_span "openapi_spex.cast_and_validate" do
-      CastAndValidate.call(conn, opts)
+    if integers_fit?(conn.body_params) do
+      OpenTelemetry.Tracer.with_span "openapi_spex.cast_and_validate" do
+        # Inferring controller actions inside OpenApiSpex rewrites the entire
+        # persistent-term spec cache. Concurrent cold actions can exhaust the
+        # literal allocator; pass the operation ID to keep validation read-only.
+        case conn.private do
+          %{open_api_spex: _, phoenix_controller: controller, phoenix_action: action}
+          when not is_map_key(opts, :operation_id) ->
+            case controller.open_api_operation(action) do
+              nil -> conn
+              operation -> CastAndValidate.call(conn, Map.put(opts, :operation_id, operation.operationId))
+            end
+
+          _ ->
+            CastAndValidate.call(conn, opts)
+        end
+      end
+    else
+      conn
+      |> Plug.Conn.put_status(:bad_request)
+      |> Phoenix.Controller.json(%{message: "A number in the request is out of range."})
+      |> Plug.Conn.halt()
     end
   end
+
+  defp integers_fit?(value) when is_integer(value), do: value in @integers
+  defp integers_fit?(value) when is_list(value), do: Enum.all?(value, &integers_fit?/1)
+  defp integers_fit?(%_struct{}), do: true
+  defp integers_fit?(value) when is_map(value), do: Enum.all?(value, fn {_key, value} -> integers_fit?(value) end)
+  defp integers_fit?(_value), do: true
 end

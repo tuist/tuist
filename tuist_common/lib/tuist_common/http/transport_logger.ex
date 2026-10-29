@@ -37,7 +37,7 @@ defmodule TuistCommon.HTTP.TransportLogger do
 
     if Transport.bandit_request_timeout?(metadata) do
       Logger.warning(
-        "Bandit request body read timed out",
+        "Bandit request read timed out",
         Map.to_list(Transport.bandit_timeout_log_metadata(measurements, metadata))
       )
     end

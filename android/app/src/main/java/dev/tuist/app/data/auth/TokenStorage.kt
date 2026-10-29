@@ -46,7 +46,7 @@ class TokenStorage @Inject constructor(
         prefs.edit()
             .remove(KEY_ACCESS_TOKEN)
             .remove(KEY_REFRESH_TOKEN)
-            .apply()
+            .commit()
         _accessTokenFlow.value = null
     }
 

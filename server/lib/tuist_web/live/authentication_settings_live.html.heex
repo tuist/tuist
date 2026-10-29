@@ -19,7 +19,13 @@
   <%!-- ============================================================ --%>
   <%!-- Single Sign-On                                                --%>
   <%!-- ============================================================ --%>
-  <.form for={@form} id="sso-form" phx-submit="save_sso" phx-change="validate_sso">
+  <.form
+    :if={@organization}
+    for={@form}
+    id="sso-form"
+    phx-submit="save_sso"
+    phx-change="validate_sso"
+  >
     <.card_section data-part="sso-card">
       <div data-part="header">
         <span data-part="title">
@@ -58,7 +64,7 @@
           <span data-part="description">
             {dgettext(
               "dashboard_account",
-              "Select an SSO provider to allow users to sign in to Tuist and automatically join this organization."
+              "Select the identity provider that authenticates your organization members."
             )}
           </span>
         </div>
@@ -71,6 +77,7 @@
           >
             <:item value="google" label="Google" />
             <:item value="okta" label="Okta" />
+            <:item value="entra" label="Microsoft Entra ID" />
             <:item value="oauth2" label={dgettext("dashboard_account", "OAuth2")} />
           </.select>
         </div>
@@ -123,9 +130,11 @@
               </li>
               <li>
                 {dgettext("dashboard_account", "Set the sign-in redirect URI to:")}
-                <div data-part="read-only-value">
-                  <code>{Tuist.Environment.app_url(path: "/users/auth/okta/callback")}</code>
-                </div>
+                <.copyable_value
+                  id="okta-redirect-uri"
+                  value={Tuist.Environment.app_url(path: "/users/auth/okta/callback")}
+                  copy_label={dgettext("dashboard_account", "Copy redirect URI")}
+                />
               </li>
               <li>
                 {dgettext(
@@ -135,13 +144,83 @@
               </li>
               <li>
                 {dgettext("dashboard_account", "Set the initiate login URI to:")}
-                <div data-part="read-only-value">
-                  <code>
-                    {Tuist.Environment.app_url(
+                <.copyable_value
+                  id="okta-initiate-login-uri"
+                  value={
+                    Tuist.Environment.app_url(
                       path: "/users/auth/okta?organization_id=#{@organization.id}"
-                    )}
-                  </code>
-                </div>
+                    )
+                  }
+                  copy_label={dgettext("dashboard_account", "Copy initiate login URI")}
+                />
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <%!-- Microsoft Entra ID setup instructions --%>
+      <div :if={@sso_enabled and @selected_provider == "entra"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Setup instructions")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Register an application in your Microsoft Entra admin center before configuring the fields below."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <div data-part="setup-steps">
+            <ol>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Go to Identity > Applications > App registrations > New registration"
+                )}
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Select the \"Web\" platform and set the redirect URI to:"
+                )}
+                <.copyable_value
+                  id="entra-redirect-uri"
+                  value={Tuist.Environment.app_url(path: "/users/auth/oauth2/callback")}
+                  copy_label={dgettext("dashboard_account", "Copy redirect URI")}
+                />
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Copy the Directory (tenant) ID and Application (client) ID from the application overview"
+                )}
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Create a client secret under Certificates & secrets and copy its value"
+                )}
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Under API permissions, grant the delegated openid, profile, and email permissions"
+                )}
+              </li>
+              <li>
+                {dgettext("dashboard_account", "Set the home page URL to:")}
+                <.copyable_value
+                  id="entra-home-page-url"
+                  value={
+                    Tuist.Environment.app_url(
+                      path: "/users/auth/oauth2?organization_id=#{@organization.id}"
+                    )
+                  }
+                  copy_label={dgettext("dashboard_account", "Copy home page URL")}
+                />
               </li>
             </ol>
           </div>
@@ -172,11 +251,11 @@
               </li>
               <li>
                 {dgettext("dashboard_account", "Set the sign-in redirect URI to:")}
-                <div data-part="read-only-value">
-                  <code>
-                    {Tuist.Environment.app_url(path: "/users/auth/oauth2/callback")}
-                  </code>
-                </div>
+                <.copyable_value
+                  id="oauth2-redirect-uri"
+                  value={Tuist.Environment.app_url(path: "/users/auth/oauth2/callback")}
+                  copy_label={dgettext("dashboard_account", "Copy redirect URI")}
+                />
               </li>
               <li>
                 {dgettext(
@@ -186,18 +265,167 @@
               </li>
               <li>
                 {dgettext("dashboard_account", "Set the initiate login URI to:")}
-                <div data-part="read-only-value">
-                  <code>
-                    {Tuist.Environment.app_url(
+                <.copyable_value
+                  id="oauth2-initiate-login-uri"
+                  value={
+                    Tuist.Environment.app_url(
                       path: "/users/auth/oauth2?organization_id=#{@organization.id}"
-                    )}
-                  </code>
-                </div>
+                    )
+                  }
+                  copy_label={dgettext("dashboard_account", "Copy initiate login URI")}
+                />
               </li>
             </ol>
           </div>
         </div>
       </div>
+
+      <div
+        :if={@sso_enabled and oauth2_form_provider?(@selected_provider)}
+        data-part="section"
+        data-section="login-domain"
+      >
+        <div data-part="label">
+          <div data-part="title-row">
+            <span data-part="title">
+              {dgettext("dashboard_account", "Login email domain")}
+            </span>
+            <%= if domain_verification_shown?(@organization, @form) do %>
+              <%= cond do %>
+                <% @login_domain_trust == :instance -> %>
+                  <span data-part="domain-verification-status" data-status="instance">
+                    {dgettext("dashboard_account", "Trusted by instance configuration")}
+                  </span>
+                <% Accounts.sso_login_domain_expiring?(@organization) -> %>
+                  <span data-part="domain-verification-status" data-status="expiring">
+                    {dngettext(
+                      "dashboard_account",
+                      "Expires in %{count} day",
+                      "Expires in %{count} days",
+                      Accounts.sso_login_domain_days_until_expiry(@organization)
+                    )}
+                  </span>
+                <% @organization.sso_login_domain_verified_at -> %>
+                  <span data-part="domain-verification-status" data-status="verified">
+                    {dgettext("dashboard_account", "Verified")}
+                  </span>
+                <% true -> %>
+                  <span data-part="domain-verification-status" data-status="pending">
+                    {dgettext("dashboard_account", "Pending verification")}
+                  </span>
+              <% end %>
+            <% end %>
+          </div>
+          <span data-part="description">
+            <%= if @login_domain_trust in [:instance, :dns_verified] do %>
+              {dgettext(
+                "dashboard_account",
+                "Used to find your provider and to decide which email addresses to trust."
+              )}
+            <% else %>
+              {dgettext(
+                "dashboard_account",
+                "Once verified, used to find your provider and to decide which email addresses to trust."
+              )}
+            <% end %>
+            <%= if @login_domain_trust != :instance or @login_domain_shared do %>
+              {domain_record_instruction(@organization, @form)}
+            <% end %>
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:sso_login_domain]}
+            type="basic"
+            placeholder="example.com"
+            error={@field_errors["sso_login_domain"]}
+          />
+          <.button
+            :if={
+              (@login_domain_trust != :instance or @login_domain_shared) and
+                domain_verification_shown?(@organization, @form) and
+                Accounts.sso_login_domain_awaiting_record?(@organization)
+            }
+            id="verify-sso-login-domain-button"
+            type="button"
+            label={dgettext("dashboard_account", "Verify domain")}
+            variant="secondary"
+            size="medium"
+            phx-click={
+              JS.push("verify_sso_login_domain",
+                loading: "#sso-login-domain-verification-error"
+              )
+            }
+          />
+        </div>
+        <div
+          :if={
+            (@login_domain_trust != :instance or @login_domain_shared) and
+              domain_verification_shown?(@organization, @form) and
+              (Accounts.sso_login_domain_awaiting_record?(@organization) or
+                 not is_nil(@domain_verification_error))
+          }
+          id="sso-login-domain-verification"
+          data-part="domain-verification"
+        >
+          <.alert
+            :if={@domain_verification_error}
+            id="sso-login-domain-verification-error"
+            data-part="domain-verification-error"
+            status="error"
+            type="secondary"
+            size="small"
+            title={@domain_verification_error}
+          />
+          <div
+            :if={Accounts.sso_login_domain_awaiting_record?(@organization)}
+            data-part="domain-records"
+          >
+            <div data-part="domain-record">
+              <span data-part="domain-record-label">
+                {dgettext("dashboard_account", "Record type")}
+              </span>
+              <div data-part="read-only-value">
+                <code>TXT</code>
+              </div>
+            </div>
+            <div data-part="domain-record">
+              <span data-part="domain-record-label">
+                {dgettext("dashboard_account", "Record name")}
+              </span>
+              <.copyable_value
+                id="sso-login-domain-record-name"
+                value={Accounts.sso_login_domain_record_name(@organization)}
+                copy_label={dgettext("dashboard_account", "Copy record name")}
+              />
+            </div>
+            <div data-part="domain-record">
+              <span data-part="domain-record-label">
+                {dgettext("dashboard_account", "Record value")}
+              </span>
+              <.copyable_value
+                id="sso-login-domain-record-value"
+                value={Accounts.sso_login_domain_record_value(@organization)}
+                copy_label={dgettext("dashboard_account", "Copy record value")}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <.alert
+        :if={@login_domain_shared}
+        id="sso-shared-login-domain"
+        status="warning"
+        type="secondary"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_account",
+            "Another organization uses this login domain. Email lookup prefers a DNS-verified organization; otherwise, use your organization's SSO sign-in link."
+          )
+        }
+      />
 
       <%!-- Okta domain field --%>
       <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
@@ -218,6 +446,29 @@
             type="basic"
             placeholder="your-company.okta.com"
             error={@field_errors["okta_domain"]}
+          />
+        </div>
+      </div>
+
+      <%!-- Microsoft Entra ID directory (tenant) ID --%>
+      <div :if={@sso_enabled and @selected_provider == "entra"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Directory (tenant) ID")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The directory (tenant) ID of your Entra application. Tuist derives the authorize, token, and user info endpoints from it."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:entra_tenant_id]}
+            type="basic"
+            placeholder="00000000-0000-0000-0000-000000000000"
+            error={@field_errors["entra_tenant_id"]}
           />
         </div>
       </div>
@@ -311,7 +562,7 @@
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider in ["okta", "oauth2"]} data-part="section">
+      <div :if={@sso_enabled and oauth2_form_provider?(@selected_provider)} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Client ID")}
@@ -330,7 +581,7 @@
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider in ["okta", "oauth2"]} data-part="section">
+      <div :if={@sso_enabled and oauth2_form_provider?(@selected_provider)} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Client secret")}
@@ -358,8 +609,100 @@
       <div :if={@sso_enabled} data-part="section">
         <div data-part="toggle-label">
           <.toggle
-            id="sso-enforced-toggle"
+            id={
+              "sso-automatic-enrollment-toggle-#{@selected_provider}-#{@sso_automatic_enrollment}-#{automatic_enrollment_toggle_disabled?(@selected_provider, @organization, @login_domain_trust, @sso_automatic_enrollment)}"
+            }
+            data-testid="sso-automatic-enrollment-toggle"
+            checked={@sso_automatic_enrollment}
+            disabled={
+              automatic_enrollment_toggle_disabled?(
+                @selected_provider,
+                @organization,
+                @login_domain_trust,
+                @sso_automatic_enrollment
+              )
+            }
+            phx-click="toggle_sso_automatic_enrollment"
+          />
+          <div data-part="label-text">
+            <span data-part="title">
+              {dgettext("dashboard_account", "Automatic enrollment")}
+            </span>
+            <span data-part="description">
+              <%= cond do %>
+                <% @selected_provider == "google" -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "When enabled, users whose Google Workspace domain matches can join this organization automatically. Other users need an invitation."
+                  )}
+                <% @login_domain_trust == :instance -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "When enabled, users from the login email domain trusted by this instance can join this organization automatically. Other users need an invitation."
+                  )}
+                <% @login_domain_trust == :dns_verified -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "When enabled, users from the verified login email domain can join this organization automatically. Other users need an invitation."
+                  )}
+                <% @sso_automatic_enrollment -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "Automatic enrollment is paused until the login email domain is verified. Existing linked users can continue signing in."
+                  )}
+                <% true -> %>
+                  {dgettext(
+                    "dashboard_account",
+                    "Add and verify a login email domain before enabling automatic enrollment. Until then, the provider cannot create accounts, and members link their existing account after logging in. Existing linked users can continue signing in."
+                  )}
+              <% end %>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @sso_automatic_enrollment} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Role for enrolled members")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The role members get when they join through automatic enrollment."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.select
+            id="sso-default-role-select"
+            name="sso_default_role"
+            value={@sso_default_role}
+            label={dgettext("dashboard_account", "Role")}
+            on_value_change="select_sso_default_role"
+          >
+            <:item value="user" label={dgettext("dashboard_account", "User")} />
+            <:item value="viewer" label={dgettext("dashboard_account", "Viewer")} />
+          </.select>
+        </div>
+      </div>
+
+      <div :if={@sso_enabled} data-part="section">
+        <div data-part="toggle-label">
+          <.toggle
+            id={
+              "sso-enforced-toggle-#{@selected_provider}-#{@sso_enforced}-#{sso_enforcement_toggle_disabled?(@selected_provider, @organization, @login_domain_trust, @sso_enforced)}"
+            }
+            data-testid="sso-enforced-toggle"
             checked={@sso_enforced}
+            disabled={
+              sso_enforcement_toggle_disabled?(
+                @selected_provider,
+                @organization,
+                @login_domain_trust,
+                @sso_enforced
+              )
+            }
             phx-click="toggle_sso_enforced"
           />
           <div data-part="label-text">
@@ -367,10 +710,19 @@
               {dgettext("dashboard_account", "Enforce SSO")}
             </span>
             <span data-part="description">
-              {dgettext(
-                "dashboard_account",
-                "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
-              )}
+              <%= if oauth2_form_provider?(@selected_provider) and
+                       @login_domain_trust not in [:instance, :dns_verified] and
+                       not @sso_enforced do %>
+                {dgettext(
+                  "dashboard_account",
+                  "Verify a login email domain before enforcing single sign-on for this provider."
+                )}
+              <% else %>
+                {dgettext(
+                  "dashboard_account",
+                  "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
+                )}
+              <% end %>
             </span>
           </div>
         </div>
@@ -391,7 +743,7 @@
   <%!-- ============================================================ --%>
   <%!-- SCIM provisioning                                             --%>
   <%!-- ============================================================ --%>
-  <.card_section data-part="scim-card">
+  <.card_section :if={@organization} data-part="scim-card">
     <div data-part="header">
       <span data-part="title">
         {dgettext("dashboard_account", "SCIM provisioning")}
@@ -411,9 +763,11 @@
           </span>
         </div>
         <div data-part="field">
-          <div data-part="read-only-value">
-            <code id="scim-base-url">{@scim_base_url}</code>
-          </div>
+          <.copyable_value
+            id="scim-base-url"
+            value={@scim_base_url}
+            copy_label={dgettext("dashboard_account", "Copy SCIM endpoint URL")}
+          />
         </div>
       </div>
 
@@ -585,4 +939,6 @@
       </div>
     </div>
   </.card_section>
+
+  <WorkloadIdentities.workload_identities {assigns} />
 </div>

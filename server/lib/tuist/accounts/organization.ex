@@ -8,6 +8,7 @@ defmodule Tuist.Accounts.Organization do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.Invitation
+  alias Tuist.Accounts.Role
   alias Tuist.Vault.Binary
 
   @oauth2_endpoint_fields [
@@ -18,10 +19,40 @@ defmodule Tuist.Accounts.Organization do
 
   @oauth2_providers [:okta, :oauth2]
 
+  # Automatic enrollment must never mint an admin, so the default is limited to
+  # the two non-privileged roles.
+  @sso_default_roles Role.names() -- ["admin"]
+
+  @sso_update_fields [
+    :sso_provider,
+    :sso_organization_id,
+    :sso_enforced,
+    :sso_login_domain,
+    :sso_automatic_enrollment,
+    :sso_default_role,
+    :oauth2_client_id,
+    :oauth2_encrypted_client_secret,
+    :oauth2_authorize_url,
+    :oauth2_token_url,
+    :oauth2_user_info_url
+  ]
+
+  @sso_verification_fields [
+    :sso_login_domain_verification_token,
+    :sso_login_domain_verified_at,
+    :sso_login_domain_last_verified_at
+  ]
+
   schema "organizations" do
     field :sso_provider, Ecto.Enum, values: [okta: 1, google: 2, oauth2: 3]
     field :sso_organization_id, :string
     field :sso_enforced, :boolean, default: false
+    field :sso_login_domain, :string
+    field :sso_login_domain_verification_token, :string
+    field :sso_login_domain_verified_at, :utc_datetime
+    field :sso_login_domain_last_verified_at, :utc_datetime
+    field :sso_automatic_enrollment, :boolean, default: false
+    field :sso_default_role, :string, default: "user"
     field :oauth2_client_id, :string
     field :oauth2_encrypted_client_secret, Binary
     field :oauth2_authorize_url, :string
@@ -40,6 +71,11 @@ defmodule Tuist.Accounts.Organization do
       :sso_provider,
       :sso_organization_id,
       :sso_enforced,
+      :sso_login_domain,
+      :sso_login_domain_verification_token,
+      :sso_login_domain_verified_at,
+      :sso_automatic_enrollment,
+      :sso_default_role,
       :oauth2_client_id,
       :oauth2_encrypted_client_secret,
       :oauth2_authorize_url,
@@ -47,29 +83,44 @@ defmodule Tuist.Accounts.Organization do
       :oauth2_user_info_url,
       :created_at
     ])
+    |> normalize_sso_login_domain()
     |> normalize_oauth2_urls()
+    |> validate_sso_login_domain()
+    |> validate_sso_security_policy()
+    |> validate_inclusion(:sso_default_role, @sso_default_roles)
     |> validate_inclusion(:sso_provider, [:okta, :google, :oauth2])
     |> validate_oauth2_required_fields()
     |> validate_oauth2_urls()
     |> unique_constraint([:sso_provider, :sso_organization_id],
       message:
         "SSO provider and SSO organization ID must be unique. Make sure no other organization has the same SSO provider and SSO organization ID."
+    )
+    |> unique_constraint(:sso_login_domain,
+      name: :organizations_verified_sso_login_domain_index,
+      message: "has already been verified by another organization"
     )
   end
 
   def update_changeset(organization, attrs) do
+    update_changeset(organization, attrs, @sso_update_fields)
+  end
+
+  def sso_configuration_changeset(organization, attrs, opts \\ []) do
+    update_changeset(organization, attrs, @sso_update_fields ++ @sso_verification_fields, opts)
+  end
+
+  defp update_changeset(organization, attrs, fields, opts \\ []) do
     organization
-    |> cast(attrs, [
-      :sso_provider,
-      :sso_organization_id,
-      :sso_enforced,
-      :oauth2_client_id,
-      :oauth2_encrypted_client_secret,
-      :oauth2_authorize_url,
-      :oauth2_token_url,
-      :oauth2_user_info_url
-    ])
+    |> cast(attrs, fields)
+    |> normalize_sso_login_domain()
     |> normalize_oauth2_urls()
+    |> validate_sso_login_domain()
+    |> then(fn changeset ->
+      if Keyword.get(opts, :validate_security_policy, true),
+        do: validate_sso_security_policy(changeset),
+        else: changeset
+    end)
+    |> validate_inclusion(:sso_default_role, @sso_default_roles)
     |> validate_inclusion(:sso_provider, [:okta, :google, :oauth2])
     |> validate_oauth2_required_fields()
     |> validate_oauth2_urls()
@@ -77,7 +128,70 @@ defmodule Tuist.Accounts.Organization do
       message:
         "SSO provider and SSO organization ID must be unique. Make sure no other organization has the same SSO provider and SSO organization ID."
     )
+    |> unique_constraint(:sso_login_domain,
+      name: :organizations_verified_sso_login_domain_index,
+      message: "has already been verified by another organization"
+    )
   end
+
+  def verify_sso_login_domain_changeset(organization, verified_at) do
+    organization
+    |> change(
+      sso_login_domain_verified_at: verified_at,
+      sso_login_domain_last_verified_at: verified_at
+    )
+    |> unique_constraint(:sso_login_domain,
+      name: :organizations_verified_sso_login_domain_index,
+      message: "has already been verified by another organization"
+    )
+  end
+
+  def validate_sso_security_policy(changeset, domain_trust \\ :dns) do
+    if get_field(changeset, :sso_provider) in @oauth2_providers do
+      changeset
+      |> require_verified_domain(:sso_automatic_enrollment, domain_trust)
+      |> require_verified_domain(:sso_enforced, domain_trust)
+    else
+      changeset
+    end
+  end
+
+  defp normalize_sso_login_domain(changeset) do
+    update_change(changeset, :sso_login_domain, fn
+      nil -> nil
+      domain -> domain |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+    end)
+  end
+
+  defp validate_sso_login_domain(changeset) do
+    validate_format(
+      changeset,
+      :sso_login_domain,
+      ~r/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/,
+      message: "must be a valid domain"
+    )
+  end
+
+  # Existing enabled policies survive loss or absence of domain trust so admins
+  # can edit their configuration. Enrollment still checks trust at runtime.
+  defp require_verified_domain(changeset, field, domain_trust) do
+    previously_enabled? = Map.get(changeset.data, field) == true and get_change(changeset, field) != true
+
+    cond do
+      get_field(changeset, field) != true -> changeset
+      trusted_domain?(changeset, domain_trust) -> changeset
+      previously_enabled? -> changeset
+      true -> add_error(changeset, field, "requires a verified login email domain for this provider")
+    end
+  end
+
+  defp trusted_domain?(changeset, :dns) do
+    domain = get_field(changeset, :sso_login_domain)
+    verified_at = get_field(changeset, :sso_login_domain_verified_at)
+    is_binary(domain) and not is_nil(verified_at)
+  end
+
+  defp trusted_domain?(_changeset, trust), do: trust in [:instance, :dns_verified]
 
   defp validate_oauth2_required_fields(changeset) do
     if get_field(changeset, :sso_provider) in @oauth2_providers do
@@ -176,7 +290,6 @@ defmodule Tuist.Accounts.Organization do
     end)
   end
 
-  defp normalize_oauth2_site(nil), do: nil
   defp normalize_oauth2_site(site), do: site |> String.trim() |> String.trim_trailing("/")
 
   defp trim_value(nil), do: nil

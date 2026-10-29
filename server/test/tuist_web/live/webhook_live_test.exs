@@ -39,6 +39,16 @@ defmodule TuistWeb.WebhookLiveTest do
     assert html =~ "No deliveries yet"
   end
 
+  test "ignores a stale pagination cursor on initial load", %{conn: conn, account: account} do
+    {:ok, endpoint, _} = Webhooks.create_endpoint(account.id, valid_attrs())
+    stale_cursor = Flop.Cursor.encode(%{inserted_at_naive: ~N[2025-04-14 12:30:17]})
+
+    {:ok, _lv, html} =
+      live(conn, ~p"/#{account.name}/webhooks/#{endpoint.id}?before=#{stale_cursor}")
+
+    assert html =~ "No deliveries yet"
+  end
+
   test "rotate_endpoint_signing_secret reveals the new secret on the page", %{conn: conn, account: account} do
     {:ok, endpoint, original} = Webhooks.create_endpoint(account.id, valid_attrs())
 

@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
+import OpenAPIRuntime
 import Path
 import Testing
 import TuistConstants
@@ -19,6 +20,7 @@ struct ServerAuthenticationControllerTests {
 
     private var subject: ServerAuthenticationController!
     private let refreshAuthTokenService: MockRefreshAuthTokenServicing!
+    private let refreshOAuthTokenService: MockRefreshOAuthTokenServicing
     private let cachedValueStore: MockCachedValueStoring
 
     private let accessToken =
@@ -29,8 +31,10 @@ struct ServerAuthenticationControllerTests {
     init() throws {
         cachedValueStore = MockCachedValueStoring()
         refreshAuthTokenService = MockRefreshAuthTokenServicing()
+        refreshOAuthTokenService = MockRefreshOAuthTokenServicing()
         subject = ServerAuthenticationController(
             refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
             cachedValueStore: cachedValueStore
         )
     }
@@ -303,6 +307,7 @@ struct ServerAuthenticationControllerTests {
         let error = RefreshAuthTokenServiceError.unauthorized("Invalid token")
         given(refreshAuthTokenService).refreshTokens(serverURL: .value(serverURL), refreshToken: .any).willThrow(error)
         given(serverCredentialsStore).delete(serverURL: .value(serverURL)).willReturn()
+        given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willReturn()
 
         try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
             try await Date.$now.withValue({ date }) {
@@ -465,6 +470,42 @@ struct ServerAuthenticationControllerTests {
             // Then
             let expiresAt = try #require(result?.expiresAt)
             #expect(expiresAt == date.addingTimeInterval(+570))
+        }
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func executeRefresh_preserves_transient_client_errors() async throws {
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let date = Date()
+        try await Date.$now.withValue({ date }) {
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access")
+            let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh")
+            let storeCredentials: ServerCredentials = .test(
+                accessToken: accessToken.token,
+                refreshToken: refreshToken.token
+            )
+            let error = ClientError(
+                operationID: "refreshToken",
+                operationInput: "",
+                causeDescription: "Request timed out",
+                underlyingError: URLError(.timedOut)
+            )
+
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
+            given(refreshAuthTokenService)
+                .refreshTokens(serverURL: .value(serverURL), refreshToken: .value(refreshToken.token))
+                .willThrow(error)
+
+            await #expect(throws: ClientError.self) {
+                try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+            }
         }
     }
 
@@ -768,6 +809,242 @@ struct ServerAuthenticationControllerTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies()
+    ) func executeRefresh_refreshes_expired_oauth_account_token_through_oauth_grant() async throws {
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let date = Date()
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access_token", type: "account")
+            let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh_token", type: "account")
+            let newAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(+86400), typ: "access_token", type: "account")
+            let newRefreshToken = try JWT.make(
+                expiryDate: date.addingTimeInterval(+2_592_000),
+                typ: "refresh_token",
+                type: "account"
+            )
+
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(
+                .test(accessToken: accessToken.token, refreshToken: refreshToken.token)
+            )
+            given(serverCredentialsStore).store(credentials: .any, serverURL: .any).willReturn()
+            given(refreshOAuthTokenService)
+                .refreshTokens(serverURL: .value(serverURL), refreshToken: .value(refreshToken.token))
+                .willReturn(ServerAuthenticationTokens(accessToken: newAccessToken.token, refreshToken: newRefreshToken.token))
+
+            // When
+            let result = try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+
+            // Then
+            #expect(
+                result?.value == .user(
+                    accessToken: try JWT.parse(newAccessToken.token),
+                    refreshToken: try JWT.parse(newRefreshToken.token)
+                )
+            )
+            verify(serverCredentialsStore)
+                .store(
+                    credentials: .value(ServerCredentials(
+                        accessToken: newAccessToken.token,
+                        refreshToken: newRefreshToken.token
+                    )),
+                    serverURL: .value(serverURL)
+                )
+                .called(1)
+            verify(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(0)
+        }
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) mutating func authenticationToken_refreshes_an_expired_oauth_account_token_once() async throws {
+        let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
+        subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let serverURL: URL = .test()
+        let serverCredentialsStore = MockServerCredentialsStoring()
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access_token", type: "account")
+        let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh_token", type: "account")
+        let newAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(+86400), typ: "access_token", type: "account")
+        let newRefreshToken = try JWT.make(
+            expiryDate: date.addingTimeInterval(+2_592_000),
+            typ: "refresh_token",
+            type: "account"
+        )
+        let credentialsBox = TestStore<ServerCredentials?>(
+            .test(accessToken: accessToken.token, refreshToken: refreshToken.token, oauthClientID: "self-hosted-client")
+        )
+        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willProduce { _ in credentialsBox.value }
+        given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willProduce { credentials, _ in
+            credentialsBox.value = credentials
+        }
+        given(refreshOAuthTokenService)
+            .refreshTokens(serverURL: .value(serverURL), refreshToken: .value(refreshToken.token))
+            .willReturn(ServerAuthenticationTokens(accessToken: newAccessToken.token, refreshToken: newRefreshToken.token))
+
+        let expected: AuthenticationToken = .user(
+            accessToken: try JWT.parse(newAccessToken.token),
+            refreshToken: try JWT.parse(newRefreshToken.token)
+        )
+        let subject = subject!
+        let tokens = try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
+            try await Date.$now.withValue({ date }) {
+                [
+                    try await subject.authenticationToken(serverURL: serverURL),
+                    try await subject.authenticationToken(serverURL: serverURL),
+                ]
+            }
+        }
+
+        #expect(tokens == [expected, expected])
+        #expect(credentialsBox.value?.oauthClientID == "self-hosted-client")
+        verify(refreshOAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(1)
+        verify(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(0)
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func executeRefresh_does_not_refresh_account_token_without_account_refresh_token() async throws {
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let date = Date()
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+            let userRefreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh")
+
+            for refreshToken in [nil, "", userRefreshToken.token] {
+                given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(
+                    .test(accessToken: accessToken.token, refreshToken: refreshToken)
+                )
+
+                // When
+                let result = try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+
+                // Then
+                #expect(result?.value == .account(try JWT.parse(accessToken.token)))
+            }
+            verify(refreshOAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(0)
+            verify(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(0)
+        }
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func executeRefresh_preserves_credentials_when_oauth_refresh_token_is_rejected() async throws {
+        let subject = ServerAuthenticationController(
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let date = Date()
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access_token", type: "account")
+            let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh_token", type: "account")
+            let error = RefreshAuthTokenServiceError.unauthorized("Given refresh token is invalid, revoked, or expired.")
+
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(
+                .test(accessToken: accessToken.token, refreshToken: refreshToken.token)
+            )
+            given(serverCredentialsStore).delete(serverURL: .value(serverURL)).willReturn()
+            given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willReturn()
+            given(refreshOAuthTokenService)
+                .refreshTokens(serverURL: .value(serverURL), refreshToken: .value(refreshToken.token))
+                .willThrow(error)
+
+            // When / Then
+            await #expect(throws: error) {
+                try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+            }
+            verify(serverCredentialsStore).delete(serverURL: .value(serverURL)).called(0)
+        }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    mutating func rejected_credentials_fail_fast_in_later_authenticated_and_network_workflows() async throws {
+        subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            cachedValueStore: CachedValueStore()
+        )
+        let store = try #require(ServerCredentialsStore.mocked)
+        let url: URL = .test()
+        let access = try JWT.make(expiryDate: Date().addingTimeInterval(-100), typ: "access")
+        let refresh = try JWT.make(expiryDate: Date().addingTimeInterval(100), typ: "refresh")
+        let credentials = TestStore(ServerCredentials(accessToken: access.token, refreshToken: refresh.token))
+        given(store).read(serverURL: .value(url)).willProduce { _ in credentials.value }
+        given(store).store(credentials: .any, serverURL: .value(url)).willProduce { value, _ in credentials.value = value }
+        let rejected = RefreshAuthTokenServiceError.unauthorized("revoked")
+        given(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).willThrow(rejected)
+        await #expect(throws: rejected) { try await subject.executeRefresh(serverURL: url, forceRefresh: false) }
+        #expect(credentials.value.rejected == true)
+        for enabled in ["false", "true"] {
+            try await Environment.$current.withValue(Environment(
+                variables: ["TUIST_NETWORK_TRUSTED_PUBLISHING": enabled],
+                arguments: []
+            )) {
+                let start = ContinuousClock.now
+                await #expect(throws: ServerReportPublishingError.invalidCredentials) {
+                    try await subject.authenticationToken(serverURL: url)
+                }
+                #expect(start.duration(to: .now) < .seconds(1))
+            }
+        }
+        verify(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(1)
+        verify(store).delete(serverURL: .any).called(0)
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func executeRefresh_preserves_credentials_on_transient_oauth_refresh_errors() async throws {
+        let subject = ServerAuthenticationController(
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let date = Date()
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access_token", type: "account")
+            let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh_token", type: "account")
+
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(
+                .test(accessToken: accessToken.token, refreshToken: refreshToken.token)
+            )
+            given(refreshOAuthTokenService)
+                .refreshTokens(serverURL: .value(serverURL), refreshToken: .value(refreshToken.token))
+                .willThrow(URLError(.notConnectedToInternet))
+
+            // When / Then
+            await #expect(throws: URLError.self) {
+                try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+            }
+            verify(serverCredentialsStore).delete(serverURL: .any).called(0)
+        }
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
     ) mutating func unauthorized_refresh_does_not_delete_credentials_when_peer_rotated_them() async throws {
         // When two `tuist` processes race on a token refresh, the slower one
         // ends up POSTing an already-rotated refresh token and the server
@@ -831,6 +1108,59 @@ struct ServerAuthenticationControllerTests {
             .delete(serverURL: .value(serverURL))
             .called(0)
         #expect(credentialsBox.value == rotatedCredentials)
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) mutating func refresh_keeps_credentials_a_peer_rotated_while_the_exchange_was_in_flight() async throws {
+        let date = Date()
+        subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            cachedValueStore: CachedValueStore()
+        )
+        let serverCredentialsStore = MockServerCredentialsStoring()
+        let serverURL: URL = .test()
+
+        let spentAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access")
+        let spentRefreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+60), typ: "refresh")
+        let replayedTokens = try Self.makeTokens(date: date)
+        let rotatedAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(+900), typ: "access")
+        let rotatedRefreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+9000), typ: "refresh")
+        let rotatedCredentials: ServerCredentials = .test(
+            accessToken: rotatedAccessToken.token,
+            refreshToken: rotatedRefreshToken.token
+        )
+
+        let credentialsBox = TestStore<ServerCredentials?>(.test(
+            accessToken: spentAccessToken.token,
+            refreshToken: spentRefreshToken.token
+        ))
+        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willProduce { _ in
+            credentialsBox.value
+        }
+        given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willProduce { credentials, _ in
+            credentialsBox.value = credentials
+        }
+        given(refreshAuthTokenService)
+            .refreshTokens(serverURL: .value(serverURL), refreshToken: .value(spentRefreshToken.token))
+            .willProduce { _, _ in
+                credentialsBox.value = rotatedCredentials
+                return replayedTokens
+            }
+
+        let got = try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
+            try await Date.$now.withValue({ date }) {
+                try await subject.executeRefresh(serverURL: serverURL, forceRefresh: true)
+            }
+        }
+
+        #expect(credentialsBox.value == rotatedCredentials)
+        #expect(got?.value == .user(
+            accessToken: try JWT.parse(rotatedAccessToken.token),
+            refreshToken: try JWT.parse(rotatedRefreshToken.token)
+        ))
+        verify(serverCredentialsStore).store(credentials: .any, serverURL: .any).called(0)
     }
 
     private static func makeTokens(date: Date) throws -> ServerAuthenticationTokens {

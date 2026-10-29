@@ -4,19 +4,28 @@ defmodule TuistWeb.API.CacheController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.User
   alias Tuist.API.Pipeline
   alias Tuist.Authorization
+  alias Tuist.Billing
   alias Tuist.Cache
   alias Tuist.CacheActionItems
+  alias Tuist.CacheEndpoints
+  alias Tuist.Kura
+  alias Tuist.Kura.Identity
   alias Tuist.Storage
+  alias TuistWeb.API.Authorization.BillingPlug
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
   alias TuistWeb.API.Schemas.ArtifactUploadId
   alias TuistWeb.API.Schemas.CacheArtifactDownloadURL
   alias TuistWeb.API.Schemas.CacheCategory
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
+  alias TuistWeb.RemoteIp
 
   plug(
     TuistWeb.Plugs.CastAndValidate,
@@ -24,25 +33,60 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints]
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoint, :endpoints, :token]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
-       [
-         category: :cache,
-         caching: true,
-         cache_ttl: to_timeout(minute: 1)
-       ]
-       when action not in [:access, :endpoints]
+       [category: :cache]
+       when action not in [:access, :endpoint, :endpoints, :token]
 
-  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints]
+  plug BillingPlug when action not in [:access, :endpoint, :endpoints, :token]
 
   plug :sign
 
   tags(["Cache"])
 
+  operation(:endpoint,
+    summary: "Get the main self-hosted cache endpoint.",
+    description:
+      "Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.",
+    operation_id: "getCacheEndpoint",
+    responses: %{
+      ok: %OpenApiSpex.Response{
+        description: "Main cache endpoint",
+        headers: %{
+          "cache-control" => %OpenApiSpex.Header{
+            description: "How long the endpoint configuration can be cached.",
+            schema: %Schema{type: :string}
+          }
+        },
+        content: %{
+          "application/json" => %OpenApiSpex.MediaType{
+            schema: %Schema{
+              title: "CacheEndpoint",
+              type: :object,
+              required: [:endpoint],
+              properties: %{endpoint: %Schema{type: :string, nullable: true}}
+            }
+          }
+        }
+      }
+    }
+  )
+
+  def endpoint(conn, _params) do
+    endpoint = CacheEndpoints.primary_endpoint_url()
+    max_age = if endpoint, do: 60, else: 5
+
+    conn
+    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+    |> json(%{endpoint: endpoint})
+  end
+
   operation(:endpoints,
     summary: "Get cache endpoints.",
-    description: "Returns cache endpoints for the requested account.",
+    description:
+      "Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.",
+    deprecated: true,
     operation_id: "getCacheEndpoints",
     parameters: [
       {:account_handle,
@@ -54,58 +98,175 @@ defmodule TuistWeb.API.CacheController do
        ]}
     ],
     responses: %{
-      ok:
-        {"List of cache endpoints", "application/json",
-         %Schema{
-           title: "CacheEndpoints",
-           description: "List of available cache endpoints",
-           type: :object,
-           required: [:endpoints],
-           properties: %{
-             endpoints: %Schema{
-               type: :array,
-               items: %Schema{type: :string}
-             }
-           }
-         }},
+      ok: %OpenApiSpex.Response{
+        description: "List of cache endpoints",
+        headers: %{
+          "cache-control" => %OpenApiSpex.Header{
+            description:
+              "How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right. Clients that wait for the instance get `no-cache` in that state, so each poll reaches the server.",
+            schema: %Schema{type: :string}
+          }
+        },
+        content: %{
+          "application/json" => %OpenApiSpex.MediaType{
+            schema: %Schema{
+              title: "CacheEndpoints",
+              description: "List of available cache endpoints",
+              type: :object,
+              required: [:endpoints],
+              properties: %{
+                endpoints: %Schema{
+                  type: :array,
+                  items: %Schema{type: :string}
+                },
+                provisioning: %Schema{
+                  type: :boolean,
+                  description:
+                    "Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready."
+                }
+              }
+            }
+          }
+        }
+      },
       forbidden: {"Not authorized to perform this action", "application/json", Error}
     }
   )
 
+  # Freshness rather than a body field: how long an endpoint answer stays good
+  # for is exactly what `Cache-Control` is for, and putting it on the server
+  # means the interval is set by the side that knows whether an instance is
+  # minutes away or already serving.
+  # An instance placement is leaving keeps serving for at least this long after
+  # its endpoint is unpublished, so an answer held for its full life is never
+  # pointing at something already gone. `Tuist.Kura.placement_drain_seconds/0`
+  # is what guarantees it.
+  @provisioning_cache_max_age 5
+
+  # The first CLI and Gradle plugin versions that no longer send the `kura` client
+  # feature flag. They are always routed to Kura, and never to the legacy cache
+  # nodes. A CLI built from source reports `x.y.z`.
+  @kura_minimum_cli_version Version.parse!("4.209.0-canary.23")
+  @kura_minimum_gradle_plugin_version Version.parse!("0.15.0")
+
+  # The first CLI version that falls back to the local cache when this endpoint
+  # refuses the account, rather than failing the cache proxy or `tuist bazel
+  # setup`. Earlier versions get an empty endpoint list instead.
+  @forbidden_minimum_cli_version Version.parse!("4.211.0")
+
+  # Answers where the cache is, not whether the caller may use it. Clients hold
+  # the answer for up to an hour, so a plan that lapses inside that window would
+  # never be reported here; the refusal belongs on the token exchange, and
+  # finally on the cache node itself.
+  #
+  # Membership is the exception: a caller that cannot read the account's cache
+  # at all is refused, so the client can say which account it is logged in as.
   def endpoints(conn, params) do
-    case params[:account_handle] do
-      nil ->
-        endpoints =
-          nil
-          |> Accounts.get_cache_endpoints_for_handle(technology(conn))
-          |> Enum.reject(&is_nil/1)
+    technology = technology(conn)
+    account_handle = params[:account_handle]
+    authorized_account_handle = authorized_account_handle(account_handle, conn)
 
-        json(conn, %{endpoints: endpoints})
-
-      account_handle ->
-        account = Accounts.get_account_by_handle(account_handle)
-        subject = Authentication.authenticated_subject(conn)
-
-        if is_nil(account) or Authorization.authorize(:account_cache_read, subject, account) == :ok do
-          endpoints =
-            account_handle
-            |> Accounts.get_cache_endpoints_for_handle(technology(conn))
-            |> Enum.reject(&is_nil/1)
-
-          json(conn, %{endpoints: endpoints})
-        else
-          conn
-          |> put_status(:forbidden)
-          |> json(%{message: "The authenticated subject is not authorized to perform this action"})
-        end
+    if is_binary(account_handle) and is_nil(authorized_account_handle) and handles_forbidden_endpoints?(conn) do
+      conn
+      |> put_status(:forbidden)
+      |> json(%{message: forbidden_endpoints_message(conn, account_handle)})
+    else
+      render_endpoints(conn, authorized_account_handle, technology)
     end
   end
 
+  defp render_endpoints(conn, account_handle, technology) do
+    %{endpoints: endpoints, provisioning: provisioning} =
+      Accounts.get_cache_resolution_for_handle(account_handle, technology, RemoteIp.attributed_origin(conn))
+
+    # `no-cache` while provisioning: `:kura` clients poll this endpoint until the
+    # instance serves, and an HTTP cache honoring the max-age would answer every
+    # poll with the same empty list.
+    cache_control =
+      cond do
+        provisioning and technology == :kura -> "private, no-cache, max-age=#{@provisioning_cache_max_age}"
+        provisioning -> "private, max-age=#{@provisioning_cache_max_age}"
+        true -> "private, max-age=#{Kura.endpoint_freshness_seconds()}"
+      end
+
+    conn
+    |> put_resp_header("cache-control", cache_control)
+    |> json(%{endpoints: Enum.reject(endpoints, &is_nil/1), provisioning: provisioning})
+  end
+
   defp technology(conn) do
-    if Headers.get_client_feature_flag(conn, "kura") do
-      :kura
-    else
-      :default
+    cond do
+      kura_client?(conn) -> :kura
+      Headers.get_client_feature_flag(conn, "kura") -> :kura_with_legacy_fallback
+      true -> :legacy
+    end
+  end
+
+  defp kura_client?(conn) do
+    cond do
+      Headers.get_cli_version_string(conn) == "x.y.z" ->
+        true
+
+      cli_version = Headers.get_cli_version(conn) ->
+        Version.compare(cli_version, @kura_minimum_cli_version) != :lt
+
+      gradle_plugin_version = Headers.get_gradle_plugin_version(conn) ->
+        Version.compare(gradle_plugin_version, @kura_minimum_gradle_plugin_version) != :lt
+
+      true ->
+        false
+    end
+  end
+
+  defp handles_forbidden_endpoints?(conn) do
+    cond do
+      Headers.get_cli_version_string(conn) == "x.y.z" -> true
+      cli_version = Headers.get_cli_version(conn) -> Version.compare(cli_version, @forbidden_minimum_cli_version) != :lt
+      true -> false
+    end
+  end
+
+  defp forbidden_endpoints_message(conn, account_handle) do
+    case Authentication.authenticated_subject(conn) do
+      %User{} = user ->
+        user_account_name = Accounts.get_account_from_user(user).name
+
+        "You are logged in as '#{user_account_name}', which is not a member of '#{account_handle}', so you can't access its remote cache. Log in with an account that has access to '#{account_handle}', or ask one of its admins to invite you."
+
+      _ ->
+        "The credentials in use cannot access the remote cache of '#{account_handle}'."
+    end
+  end
+
+  defp free_tier_exhausted_account(nil), do: nil
+
+  defp free_tier_exhausted_account(account_handle) do
+    account = Accounts.get_account_by_handle(account_handle)
+
+    if not is_nil(account) and Billing.cache_access_blocked?(account), do: account
+  end
+
+  defp render_free_tier_exhausted(conn, account) do
+    message =
+      if Billing.payment_failed?(account) do
+        BillingPlug.payment_failed_message(account.name)
+      else
+        "The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}."
+      end
+
+    conn
+    |> put_status(:payment_required)
+    |> json(%{message: message})
+  end
+
+  defp authorized_account_handle(nil, _conn), do: nil
+
+  defp authorized_account_handle(account_handle, conn) do
+    account = Identity.account_for_handle(account_handle)
+    subject = Authentication.authenticated_subject(conn)
+
+    if not is_nil(account) and Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok do
+      account.name
     end
   end
 
@@ -120,7 +281,7 @@ defmodule TuistWeb.API.CacheController do
            title: "CacheAccess",
            description: "Account-scoped and project-scoped cache access handles",
            type: :object,
-           required: [:accounts, :projects],
+           required: [:accounts, :projects, :payment_required],
            properties: %{
              accounts: %Schema{
                type: :array,
@@ -128,6 +289,18 @@ defmodule TuistWeb.API.CacheController do
              },
              projects: %Schema{
                type: :array,
+               items: %Schema{type: :string}
+             },
+             payment_required: %Schema{
+               type: :array,
+               description:
+                 "Account handles the subject reaches whose free tier is exhausted. Absent from the grants above, and named here so a cache node can tell an exhausted plan from a lack of access.",
+               items: %Schema{type: :string}
+             },
+             payment_failed: %Schema{
+               type: :array,
+               description:
+                 "The subset of payment_required whose paid plan lapsed because a subscription payment failed, so a cache node can tell the caller to settle the payment rather than to upgrade.",
                items: %Schema{type: :string}
              }
            }
@@ -141,6 +314,79 @@ defmodule TuistWeb.API.CacheController do
     |> Authentication.authenticated_subject()
     |> Cache.accessible_handles()
     |> then(&json(conn, &1))
+  end
+
+  operation(:token,
+    summary: "Exchange the current credential for a cache token.",
+    description: """
+    Returns a short-lived token that carries the authenticated subject's cache grants.
+
+    Cache nodes verify it themselves and authorize from the grants it carries, so
+    clients holding a credential a cache node cannot verify locally (a CI project
+    token, for example) avoid a server round-trip per cache authorization. Exchange
+    it once and reuse it until it expires. It is only accepted by cache nodes; it is
+    not an API credential.
+    """,
+    operation_id: "getCacheToken",
+    parameters: [
+      {:full_handle,
+       [
+         in: :query,
+         type: :string,
+         required: false,
+         description:
+           "Narrows the token to one project, as `account/project`. Account-wide credentials should send this: without it the token carries every project the credential reaches, which outgrows a request header on a large account."
+       ]}
+    ],
+    responses: %{
+      ok:
+        {"A cache token for the authenticated subject", "application/json",
+         %Schema{
+           title: "CacheToken",
+           description: "A short-lived token that proves the subject's cache access",
+           type: :object,
+           required: [:token, :expires_in],
+           properties: %{
+             token: %Schema{type: :string, description: "The token to send to cache nodes."},
+             expires_in: %Schema{
+               type: :integer,
+               description: "Seconds until the token expires."
+             }
+           }
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error}
+    }
+  )
+
+  def token(conn, params) do
+    # Authorized before its billing status is revealed: `full_handle` is
+    # caller-controlled, so answering 402 for an account the subject cannot
+    # reach would let anyone probe which accounts are over the free tier.
+    case params[:full_handle]
+         |> scope_account_handle()
+         |> authorized_account_handle(conn)
+         |> free_tier_exhausted_account() do
+      nil ->
+        {:ok, token, _claims} =
+          conn
+          |> Authentication.authenticated_subject()
+          |> Cache.issue_cache_token(scope: params[:full_handle], origin: RemoteIp.origin(conn))
+
+        json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
+
+      account ->
+        render_free_tier_exhausted(conn, account)
+    end
+  end
+
+  defp scope_account_handle(nil), do: nil
+
+  defp scope_account_handle(full_handle) do
+    case String.split(full_handle, "/") do
+      [account_handle, _project_handle] -> account_handle
+      _ -> nil
+    end
   end
 
   operation(:get_cache_action_item,
@@ -172,6 +418,7 @@ defmodule TuistWeb.API.CacheController do
       not_found: {"The item doesn't exist in the actino cache", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
@@ -200,6 +447,7 @@ defmodule TuistWeb.API.CacheController do
 
     if is_nil(cache_action_item) do
       conn
+      |> assign(:cache_outcome, :miss)
       |> put_status(:not_found)
       |> json(%{message: "The item doesn't exist in the cache."})
     else
@@ -213,7 +461,13 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:download,
     summary: "Downloads an artifact from the cache.",
-    description: "This endpoint returns a signed URL that can be used to download an artifact from the cache.",
+    description: """
+    This endpoint returns a signed URL that can be used to download an artifact from the cache.
+
+    The URL is signed from the request parameters alone, without a storage round trip, so
+    this endpoint cannot report a cache miss. Use `cacheArtifactExists` to tell a hit from a
+    miss, or treat a failing download as the miss signal.
+    """,
     operation_id: "downloadCacheArtifact",
     parameters: [
       cache_category: [
@@ -237,10 +491,13 @@ defmodule TuistWeb.API.CacheController do
       name: [in: :query, type: :string, required: true, description: "The name of the artifact."]
     ],
     responses: %{
-      ok: {"The artifact exists and is downloadable", "application/json", CacheArtifactDownloadURL},
+      ok:
+        {"A signed download URL was generated. The URL is returned without verifying that the artifact is stored, so this status does not imply a cache hit: a hash that was never uploaded is signed just the same, and the download then fails with a 404 at the storage provider.",
+         "application/json", CacheArtifactDownloadURL},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      not_found: {"The project or the cache artifact doesn't exist", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
+      not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
@@ -283,10 +540,14 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:exists,
     summary: "It checks if an artifact exists in the cache.",
-    description:
-      "This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.",
+    description: """
+    This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+
+    It is the only cache endpoint that reaches storage to answer, so it is what clients
+    should use to tell a cache hit from a miss. `downloadCacheArtifact` signs a URL without
+    checking storage and answers 200 either way.
+    """,
     operation_id: "cacheArtifactExists",
-    deprecated: true,
     parameters: [
       cache_category: [
         in: :query,
@@ -325,13 +586,14 @@ defmodule TuistWeb.API.CacheController do
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found:
         {"The artifact doesn't exist", "application/json",
          %Schema{
            title: "AbsentCacheArtifact",
            type: :object,
            properties: %{
-             error: %Schema{
+             errors: %Schema{
                type: :array,
                items: %Schema{
                  type: :object,
@@ -417,6 +679,7 @@ defmodule TuistWeb.API.CacheController do
       bad_request: {"The request has missing or invalid parameters", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -472,6 +735,7 @@ defmodule TuistWeb.API.CacheController do
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -489,21 +753,21 @@ defmodule TuistWeb.API.CacheController do
         } = conn,
         _params
       ) do
-    json(conn, %{
-      status: "success",
-      data: %{
-        upload_id:
-          Storage.multipart_start(
-            get_object_key(%{
-              hash: hash,
-              name: name,
-              project_slug: project_slug,
-              cache_category: cache_category
-            }),
-            selected_project.account
-          )
-      }
-    })
+    object_key =
+      get_object_key(%{
+        hash: hash,
+        name: name,
+        project_slug: project_slug,
+        cache_category: cache_category
+      })
+
+    case Storage.multipart_start(object_key, selected_project.account) do
+      {:ok, upload_id} ->
+        json(conn, %{status: "success", data: %{upload_id: upload_id}})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
+    end
   end
 
   def multipart_start(conn, _params) do
@@ -558,6 +822,7 @@ defmodule TuistWeb.API.CacheController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -670,6 +935,7 @@ defmodule TuistWeb.API.CacheController do
          }},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       conflict: {"The multipart upload is no longer active", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
@@ -712,6 +978,9 @@ defmodule TuistWeb.API.CacheController do
         conn
         |> put_status(:conflict)
         |> json(%{message: "The multipart upload is no longer active. Start a new upload and retry."})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
     end
   end
 
@@ -740,6 +1009,7 @@ defmodule TuistWeb.API.CacheController do
       no_content: "The cache has been successfully cleaned",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project was not found", "application/json", Error}
     }
   )

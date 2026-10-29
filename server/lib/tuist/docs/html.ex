@@ -8,7 +8,7 @@ defmodule Tuist.Docs.HTML do
   @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
   @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
   @copy_check_icon @noora_icons_path
-                   |> Path.join("copy-check.svg")
+                   |> Path.join("check.svg")
                    |> File.read!()
                    |> String.trim()
 
@@ -20,7 +20,7 @@ defmodule Tuist.Docs.HTML do
   <div class="code-window">\
   <div data-part="bar">\
   <div data-part="language"><%= language %></div>\
-  <div data-part="copy"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></div>\
+  <div data-part="copy" class="noora-neutral-button" data-size="large"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></div>\
   </div>\
   <template data-part="copy-source"><%= copy_source %></template>\
   <div data-part="code"><code><%= code %></code>\

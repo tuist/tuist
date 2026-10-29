@@ -71,7 +71,7 @@ public struct ProfileView: View {
                         .font(.body)
                         .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                     Spacer()
-                    Text("1.0.0")
+                    Text(appVersion)
                         .font(.body)
                         .foregroundColor(Noora.Colors.surfaceLabelSecondary)
                 }
@@ -113,5 +113,9 @@ public struct ProfileView: View {
         } message: {
             Text("Are you sure you want to delete your account? This action cannot be undone.")
         }
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
 }

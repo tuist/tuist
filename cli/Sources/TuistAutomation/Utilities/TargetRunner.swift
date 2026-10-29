@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Foundation
 import Path
@@ -6,6 +5,7 @@ import struct TSCUtility.Version
 import TuistCore
 import TuistLogging
 import TuistOpener
+import TuistProcess
 import TuistSupport
 import TuistXcodeBuildProducts
 import XcodeGraph

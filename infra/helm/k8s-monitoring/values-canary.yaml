@@ -26,3 +26,16 @@ k8s-monitoring:
             - action: insert
               key: deployment.environment
               value: canary
+
+  # Put the receiver on the tailnet. See values-production.yaml for the full
+  # rationale; the short version is that everything running on a Mac mini —
+  # the Tart guests and now the host itself — reaches the cluster only over
+  # the tailnet, and the receiver's `loki.source.api` on 3100 is where their
+  # logs land (infra/helm/tuist macosFleet.hostLogs.url points here).
+  collectors:
+    alloy-receiver:
+      service:
+        annotations:
+          tailscale.com/expose: "true"
+          tailscale.com/hostname: tuist-alloy-receiver-canary
+          tailscale.com/tags: tag:tuist-k8s-canary

@@ -1,9 +1,9 @@
-import Command
 import Foundation
 import SwifterPMCore
 import Synchronization
 import TSCUtility
 import TuistCore
+import TuistProcess
 import TuistTesting
 import XcodeGraph
 import XCTest
@@ -59,6 +59,12 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     func test_resolve() async throws {
         // Given
         let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
+        )
         mockCommandRunner.succeedCommand([
             "swift",
             "package",
@@ -87,7 +93,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -128,7 +134,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertNil(request.cachedDirectoryMaterialization)
     }
 
-    func test_resolve_when_swifterpm_is_not_truthy_usesSwiftPackageManager() async throws {
+    func test_resolve_when_swifterpm_is_disabled_usesSwiftPackageManager() async throws {
         // Given
         let path = try temporaryPath()
         subject = SwiftPackageManagerController(
@@ -157,6 +163,72 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertTrue(swifterPM.resolveRequests.isEmpty)
     }
 
+    func test_resolve_excludes_configured_manifest_environment_variables() async throws {
+        // Given
+        let path = try temporaryPath()
+        let environment = [
+            "TUIST_USE_SWIFTERPM": "0",
+            "CI_JOB_ID": "first-job",
+            "CI_PIPELINE_ID": "pipeline",
+            "RETAINED": "value",
+        ]
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { environment }
+        )
+        mockCommandRunner.succeedCommand([
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "resolve",
+        ])
+
+        // When
+        try await PackageManifestEnvironment.withConfiguration(
+            .init(usesAutomaticProviderDefaults: false, excludedVariablePatterns: ["CI_*"])
+        ) {
+            try await subject.resolve(at: path, arguments: [], printOutput: false)
+        }
+
+        // Then
+        XCTAssertEqual(
+            mockCommandRunner.env,
+            [
+                "TUIST_USE_SWIFTERPM": "0",
+                "RETAINED": "value",
+            ]
+        )
+    }
+
+    func test_resolve_passes_excluded_manifest_environment_to_swifterpm() async throws {
+        // Given
+        let path = try temporaryPath()
+        let environment = [
+            "CI_JOB_ID": "first-job",
+            "RETAINED": "value",
+        ]
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { environment }
+        )
+
+        // When
+        try await PackageManifestEnvironment.withConfiguration(
+            .init(usesAutomaticProviderDefaults: false, excludedVariablePatterns: ["CI_JOB_ID"])
+        ) {
+            try await subject.resolve(at: path, arguments: [], printOutput: false)
+        }
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertEqual(request.manifestEnvironment, ["RETAINED": "value"])
+    }
+
     func test_resolve_when_swifterpm_is_enabled_and_packagePathArgument_is_passed_usesIt() async throws {
         // Given
         let path = try temporaryPath()
@@ -165,7 +237,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -189,7 +261,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -211,7 +283,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -233,7 +305,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -249,6 +321,28 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         }
     }
 
+    func test_resolve_when_swifterpm_is_enabled_and_deprecatedSwiftPackageManagerArgument_is_passed_succeeds() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
+        )
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--disable-prefetching", "--force-resolved-versions"],
+            printOutput: false
+        )
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertTrue(request.forceResolvedVersions)
+    }
+
     func test_resolve_when_swifterpm_is_enabled_and_transformArgumentsConflict_fails() async throws {
         // Given
         let path = try temporaryPath()
@@ -256,7 +350,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -283,7 +377,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -311,6 +405,12 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     func test_update() async throws {
         // Given
         let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
+        )
         mockCommandRunner.succeedCommand([
             "swift",
             "package",

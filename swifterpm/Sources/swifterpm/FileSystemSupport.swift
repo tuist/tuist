@@ -79,6 +79,18 @@ extension FileSystem {
         return (stats.st_mode & S_IFMT) == S_IFDIR
     }
 
+    /// True if a path resolves to a directory, following symbolic links.
+    /// Use this to classify a path a manifest named explicitly; use
+    /// `isDirectoryAndNotSymlink(_:)` when walking a tree, where following links
+    /// risks escaping the tree or cycling.
+    /// Synchronous because `stat` is a single non-blocking metadata call.
+    func isDirectoryFollowingSymlinks(_ url: URL) -> Bool {
+        var stats = stat()
+        let result = url.path.withCString { stat($0, &stats) }
+        guard result == 0 else { return false }
+        return (stats.st_mode & S_IFMT) == S_IFDIR
+    }
+
     /// True if a path exists or is a (potentially broken) symlink.
     /// Synchronous because `lstat` is a single non-blocking metadata call.
     func existsIncludingSymlinks(_ url: URL) -> Bool {
@@ -115,12 +127,16 @@ extension FileSystem {
         return url
     }
 
-    /// If `directory` contains exactly one subdirectory, replace `directory` with that subdirectory's contents.
+    /// If `directory` contains exactly one subdirectory, move that subdirectory's contents up one level.
     func flattenSingleDirectory(_ url: URL) async throws {
-        let entries = try await contentsOfDirectory(url.absolutePath)
-        guard entries.count == 1 else { return }
-        let nested = entries[0].fileURL
-        guard isDirectoryAndNotSymlink(nested) else { return }
+        let subdirectories = try await contentsOfDirectory(at: url)
+            .filter { isDirectoryAndNotSymlink($0) }
+        guard subdirectories.count == 1, let nested = subdirectories.first else { return }
+        if try await exists(url.appendingPathComponent("Package.swift").absolutePath),
+           ["Plugins", "Sources", "Tests"].contains(nested.lastPathComponent)
+        {
+            return
+        }
 
         let temp = url.deletingLastPathComponent().appendingPathComponent(
             "\(url.lastPathComponent).flattening")
@@ -128,8 +144,99 @@ extension FileSystem {
             try await remove(temp.absolutePath)
         }
         try await move(from: nested.absolutePath, to: temp.absolutePath, options: [])
-        try await remove(url.absolutePath)
-        try await move(from: temp.absolutePath, to: url.absolutePath, options: [])
+        for entry in try await contentsOfDirectory(at: temp) {
+            let destination = url.appendingPathComponent(entry.lastPathComponent)
+            if isSymlink(entry) {
+                try moveSymbolicLink(from: entry, to: destination)
+            } else {
+                try await move(from: entry.absolutePath, to: destination.absolutePath, options: [])
+            }
+        }
+        try await remove(temp.absolutePath)
+    }
+
+    private func moveSymbolicLink(from source: URL, to destination: URL) throws {
+        let result = source.path.withCString { sourcePath in
+            destination.path.withCString { destinationPath in
+                rename(sourcePath, destinationPath)
+            }
+        }
+        guard result == 0 else {
+            let errorCode = errno
+            let message = String(cString: strerror(errorCode))
+            throw ToolError.message("failed to move symbolic link from \(source.path) to \(destination.path): \(message)")
+        }
+    }
+
+    private func movePreservingSymbolicLink(from source: URL, to destination: URL) async throws {
+        try Task.checkCancellation()
+        if isSymlink(source) {
+            try moveSymbolicLink(from: source, to: destination)
+        } else {
+            try await move(from: source.absolutePath, to: destination.absolutePath)
+        }
+    }
+
+    /// Keep the previous directory entry recoverable until its staged replacement is installed.
+    /// Rollback must run independently of cancellation of a sibling package's restoration.
+    func replaceWithStagedItem(
+        source: URL, destination: URL,
+        install: (@Sendable (URL, URL) async throws -> Void)? = nil
+    ) async throws {
+        try Task.checkCancellation()
+        guard existsIncludingSymlinks(destination) else {
+            try await movePreservingSymbolicLink(from: source, to: destination)
+            return
+        }
+        let backupDirectory = try await temporaryDirectory(in: destination.deletingLastPathComponent())
+        let backup = backupDirectory.appendingPathComponent("previous")
+        do {
+            try await movePreservingSymbolicLink(from: destination, to: backup)
+        } catch {
+            try? await removePath(backupDirectory)
+            throw error
+        }
+        do {
+            if let install {
+                try await install(source, destination)
+            } else {
+                try await movePreservingSymbolicLink(from: source, to: destination)
+            }
+        } catch {
+            let replacementError = error
+            do {
+                try await Task.detached {
+                    try await fileSystem.movePreservingSymbolicLink(from: backup, to: destination)
+                    try? await fileSystem.removePath(backupDirectory)
+                }.value
+            } catch {
+                throw ToolError
+                    .message(
+                        "could not restore checkout at \(destination.path); previous data is preserved at \(backup.path): \(error)"
+                    )
+            }
+            throw replacementError
+        }
+        await Task.detached { try? await fileSystem.removePath(backupDirectory) }.value
+    }
+
+    /// A private directory with independent inodes. APFS shares data blocks until written;
+    /// other filesystems safely fall back to a copy, never hard links or source-cache aliases.
+    func copyPrivately(source: URL, destination: URL, preferClone: Bool = true) async throws {
+        #if canImport(Darwin)
+            if preferClone {
+                let result = source.path.withCString { sourcePath in
+                    destination.path.withCString { destinationPath in
+                        clonefile(sourcePath, destinationPath, UInt32(CLONE_NOFOLLOW | CLONE_NOOWNERCOPY))
+                    }
+                }
+                if result == 0 { return }
+                if existsIncludingSymlinks(destination) {
+                    try await removePath(destination)
+                }
+            }
+        #endif
+        try await copy(source.absolutePath, to: destination.absolutePath)
     }
 
     /// Materialise `source` at `destination`, removing any existing item first. By default,

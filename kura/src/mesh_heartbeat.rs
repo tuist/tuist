@@ -7,10 +7,11 @@
 //!   live mesh members. The control plane withholds peers that stop
 //!   heartbeating and answers `mesh_member: false` once a node has been
 //!   withheld; the node then performs a **recovery re-enrollment** (with
-//!   backoff), which restores its membership server-side and — because the
-//!   writes it missed while out of the mesh were never enqueued for it —
-//!   resets local bootstrap progress and leaves serving until the full
-//!   dataset has been re-pulled.
+//!   backoff), which restores its membership server-side and re-arms a
+//!   backfill pass for every peer in view. Nothing local is torn down for it:
+//!   the walker's watermarks are durable, so those passes re-walk from them
+//!   and reconcile back to the backfill window, and readiness is latched for
+//!   the process lifetime so the node keeps serving through it.
 //! - **Managed pods** don't enroll (Kubernetes owns their liveness), but they
 //!   consume the same dynamic peer view through a peers-only fetch, so a
 //!   self-hosted peer joining or leaving propagates at heartbeat cadence
@@ -33,7 +34,9 @@ use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 use tracing::{info, warn};
 
-use crate::state::SharedState;
+use crate::{
+    request_observability::FailureLogThrottle, state::SharedState, sync::roles::PublishedRole,
+};
 
 const HEARTBEAT_PATH: &str = "/_internal/kura/mesh/heartbeat";
 const PEERS_PATH: &str = "/_internal/kura/mesh/peers";
@@ -41,8 +44,6 @@ const PEERS_PATH: &str = "/_internal/kura/mesh/peers";
 const KURA_MESH_PEERS_SYNC: &str = "KURA_MESH_PEERS_SYNC";
 
 const DEFAULT_INTERVAL_MS: u64 = 60_000;
-const CONNECT_TIMEOUT: Duration = Duration::from_millis(1_000);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 // Recovery re-enrollments mint fresh certificates; the backoff keeps a
 // persistent `mesh_member: false` (control-plane bug, clock skew) from
 // becoming a per-minute signing loop while staying well inside the server's
@@ -117,38 +118,57 @@ struct MeshHeartbeat<'a> {
 
 #[derive(Deserialize)]
 struct MeshHeartbeatResponse {
+    #[serde(default)]
+    account_handle: Option<String>,
+    #[serde(default)]
+    account_aliases: Option<Vec<String>>,
+    #[serde(default)]
+    endpoint_redirects: Option<std::collections::BTreeMap<String, String>>,
     // Deliberately NOT defaulted: `false` is the destructive value (it
-    // triggers recovery re-enrollment + a full re-bootstrap), so a response
-    // that merely lacks the field — shape drift, an intermediary answering
-    // 200 with a different body — must fail the decode and land in the safe
-    // keep-last-view error path instead.
+    // triggers a recovery re-enrollment, which mints fresh certificates), so
+    // a response that merely lacks the field — shape drift, an intermediary
+    // answering 200 with a different body — must fail the decode and land in
+    // the safe keep-last-view error path instead.
     mesh_member: bool,
     #[serde(default)]
     peers: Vec<String>,
     #[serde(default)]
     heartbeat_interval_seconds: Option<u64>,
+    /// Roles beside the peer list (design §2.2); an older server sends none.
+    #[serde(default)]
+    peer_roles: Vec<PublishedRole>,
 }
 
 #[derive(Deserialize)]
 struct MeshPeersResponse {
     #[serde(default)]
+    account_handle: Option<String>,
+    #[serde(default)]
+    account_aliases: Option<Vec<String>>,
+    #[serde(default)]
+    endpoint_redirects: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(default)]
     peers: Vec<String>,
     #[serde(default)]
     refresh_interval_seconds: Option<u64>,
+    #[serde(default)]
+    peer_roles: Vec<PublishedRole>,
 }
 
 pub fn spawn(state: SharedState, config: MeshHeartbeatConfig) {
     info!(
-        "sending mesh heartbeats to control plane at {}",
-        config.heartbeat_url
+        event.name = "kura.mesh.heartbeat_started",
+        server.address = %config.heartbeat_url,
+        "mesh heartbeat started"
     );
     tokio::spawn(async move { run(state, config).await });
 }
 
 pub fn spawn_peers_sync(state: SharedState, config: MeshPeersSyncConfig) {
     info!(
-        "syncing mesh peer view from control plane at {}",
-        config.peers_url
+        event.name = "kura.mesh.peer_sync_started",
+        server.address = %config.peers_url,
+        "mesh peer synchronization started"
     );
     tokio::spawn(async move { run_peers_sync(state, config).await });
 }
@@ -156,11 +176,27 @@ pub fn spawn_peers_sync(state: SharedState, config: MeshPeersSyncConfig) {
 async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
     let client = http_client();
     let mut recovery = RecoveryBackoff::new();
+    let mut failure_logs =
+        FailureLogThrottle::new(Duration::from_millis(state.config.warning_log_interval_ms));
 
     loop {
         match send_heartbeat(&client, &config).await {
             Ok(payload) => {
-                apply_peers(&state, payload.peers);
+                if let Some((failures, suppressed)) = failure_logs.record_success() {
+                    info!(
+                        event.name = "kura.mesh.heartbeat_recovered",
+                        kura.failure.count = failures,
+                        kura.log.suppressed_count = suppressed,
+                        "mesh heartbeat recovered"
+                    );
+                }
+                state.update_account_identity(
+                    payload.account_handle.as_deref(),
+                    payload.account_aliases.as_deref(),
+                    payload.endpoint_redirects.as_ref(),
+                );
+                apply_peers(&state, payload.peers).await;
+                apply_roles(&state, payload.peer_roles);
                 if !payload.mesh_member {
                     maybe_recover_membership(&state, &mut recovery).await;
                 } else {
@@ -175,7 +211,17 @@ async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
                     config.interval = Duration::from_secs(seconds);
                 }
             }
-            Err(error) => warn!("mesh heartbeat failed: {error}"),
+            Err(error) => {
+                if let Some(suppressed) = failure_logs.record_failure() {
+                    warn!(
+                        event.name = "kura.mesh.heartbeat_failed",
+                        error = %error,
+                        kura.failure.consecutive_count = failure_logs.consecutive_failures(),
+                        kura.log.suppressed_count = suppressed,
+                        "mesh heartbeat failed"
+                    );
+                }
+            }
         }
         tokio::time::sleep(config.interval).await;
     }
@@ -183,11 +229,27 @@ async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
 
 async fn run_peers_sync(state: SharedState, mut config: MeshPeersSyncConfig) {
     let client = http_client();
+    let mut failure_logs =
+        FailureLogThrottle::new(Duration::from_millis(state.config.warning_log_interval_ms));
 
     loop {
         match fetch_peers(&client, &config).await {
             Ok(payload) => {
-                apply_peers(&state, payload.peers);
+                if let Some((failures, suppressed)) = failure_logs.record_success() {
+                    info!(
+                        event.name = "kura.mesh.peer_sync_recovered",
+                        kura.failure.count = failures,
+                        kura.log.suppressed_count = suppressed,
+                        "mesh peer synchronization recovered"
+                    );
+                }
+                state.update_account_identity(
+                    payload.account_handle.as_deref(),
+                    payload.account_aliases.as_deref(),
+                    payload.endpoint_redirects.as_ref(),
+                );
+                apply_peers(&state, payload.peers).await;
+                apply_roles(&state, payload.peer_roles);
                 // First successful fetch lifts the boot serving gate.
                 state.runtime.mark_peer_view_ready();
                 state.maybe_mark_serving().await;
@@ -197,7 +259,17 @@ async fn run_peers_sync(state: SharedState, mut config: MeshPeersSyncConfig) {
                     config.interval = Duration::from_secs(seconds);
                 }
             }
-            Err(error) => warn!("mesh peer view sync failed: {error}"),
+            Err(error) => {
+                if let Some(suppressed) = failure_logs.record_failure() {
+                    warn!(
+                        event.name = "kura.mesh.peer_sync_failed",
+                        error = %error,
+                        kura.failure.consecutive_count = failure_logs.consecutive_failures(),
+                        kura.log.suppressed_count = suppressed,
+                        "mesh peer synchronization failed"
+                    );
+                }
+            }
         }
         tokio::time::sleep(config.interval).await;
     }
@@ -258,10 +330,18 @@ async fn fetch_peers(
 // `mesh_member: false` means the node was withheld from the mesh (deactivated
 // as stale, or its row was purged). Heartbeats never create membership —
 // enrollment is the only door — so recovery is a re-enrollment: the server's
-// enrollment upsert reactivates or recreates the row, and locally the node
-// must forget its bootstrap progress and step out of serving until the
-// re-pull completes, because whatever was written while it was out of the
-// mesh was never enqueued for it.
+// enrollment upsert reactivates or recreates the row. Nothing local has to be
+// forgotten: whatever was written while the node was out of the mesh was never
+// enqueued for it, and the walker's watermarks are durable and monotonic, so a
+// pass re-walks from them and reconciles back to the backfill window.
+//
+// The passes have to be armed explicitly. A pass is otherwise scheduled from a
+// membership edge, and edges are a set difference over the probed peer set, so
+// a control-plane-only outage produces none: the node keeps reaching its peers
+// and its view never changes, while the server withholds it and its peers
+// prune the outbox messages queued for it. Readiness is not clawed back for
+// any of this — a node that already holds usable data keeps serving while it
+// catches up.
 async fn maybe_recover_membership(state: &SharedState, recovery: &mut RecoveryBackoff) {
     if !recovery.should_attempt(Instant::now()) {
         return;
@@ -271,14 +351,13 @@ async fn maybe_recover_membership(state: &SharedState, recovery: &mut RecoveryBa
     match crate::enrollment::renew().await {
         Ok(outcome) => match crate::app::apply_renewed_enrollment(state, &outcome).await {
             Ok(()) => {
-                state.reset_bootstrap_progress().await;
                 // The backoff is deliberately NOT reset here: recovery is
                 // only proven by a later heartbeat answering
                 // `mesh_member: true` (which resets it in the run loop). A
                 // successful re-enrollment that the server still answers
-                // `false` to must keep backing off, or it becomes an
-                // enroll/bootstrap-clear loop at heartbeat cadence.
-                info!("re-enrolled to recover mesh membership; re-bootstrapping from peers");
+                // `false` to must keep backing off, or it becomes a
+                // re-enrollment loop at heartbeat cadence.
+                info!("re-enrolled to recover mesh membership; re-arming backfill passes");
             }
             Err(error) => warn!("recovery re-enrollment: failed to apply: {error}"),
         },
@@ -316,7 +395,7 @@ impl RecoveryBackoff {
     }
 }
 
-fn apply_peers(state: &SharedState, mut peers: Vec<String>) {
+async fn apply_peers(state: &SharedState, mut peers: Vec<String>) {
     // The server's row order is incidental; compare and store sorted so an
     // unchanged membership never registers as an update.
     peers.sort();
@@ -331,6 +410,16 @@ fn apply_peers(state: &SharedState, mut peers: Vec<String>) {
     }
 }
 
+/// Adopts the control plane's roles.
+fn apply_roles(state: &SharedState, mut roles: Vec<PublishedRole>) {
+    roles.sort_by(|a, b| a.url.cmp(&b.url));
+    let current = state.published_roles.load();
+    if **current != roles {
+        info!("mesh peer roles updated: {} role(s)", roles.len());
+        state.published_roles.store(std::sync::Arc::new(roles));
+    }
+}
+
 fn basic_auth(client_id: &str, client_secret: &str) -> String {
     format!(
         "Basic {}",
@@ -339,9 +428,8 @@ fn basic_auth(client_id: &str, client_secret: &str) -> String {
 }
 
 fn http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(REQUEST_TIMEOUT)
+    crate::control_plane_http::client_builder()
+        .expect("mesh heartbeat TLS configuration should build")
         .build()
         .expect("mesh heartbeat HTTP client should build")
 }
@@ -352,21 +440,67 @@ mod tests {
     use crate::test_support::test_context;
 
     #[tokio::test]
+    async fn managed_sync_learns_auth_handle_without_changing_the_storage_tenant() {
+        use axum::{Json, Router, extract::Query, routing::get};
+        use std::collections::HashMap;
+
+        let ctx = test_context(|config| config.tenant_id = "original".into()).await;
+        ctx.state.runtime.require_peer_view();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route(
+                    PEERS_PATH,
+                    get(|Query(query): Query<HashMap<String, String>>| async move {
+                        assert_eq!(query.get("tenant_id").unwrap(), "original");
+                        Json(serde_json::json!({"account_handle": "renamed", "peers": []}))
+                    }),
+                ),
+            )
+            .await
+            .unwrap();
+        });
+        let sync = tokio::spawn(run_peers_sync(
+            ctx.state.clone(),
+            MeshPeersSyncConfig {
+                peers_url: format!("http://{address}{PEERS_PATH}"),
+                client_id: "test-client".into(),
+                client_secret: "test-secret".into(),
+                tenant_id: "original".into(),
+                interval: Duration::from_secs(60),
+            },
+        ));
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while ctx.state.runtime.peer_view_pending() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(ctx.state.account_identity.load().handle.as_str(), "renamed");
+        assert_eq!(ctx.state.config.tenant_id, "original");
+        sync.abort();
+        server.abort();
+    }
+
+    #[tokio::test]
     async fn apply_peers_swaps_dynamic_peers_only_on_change() {
         let ctx = test_context(|_| {}).await;
         let peers = vec!["https://peer-1.test:7443".to_string()];
 
-        apply_peers(&ctx.state, peers.clone());
+        apply_peers(&ctx.state, peers.clone()).await;
         assert_eq!(**ctx.state.dynamic_peers.load(), peers);
 
         let same = ctx.state.dynamic_peers.load_full();
-        apply_peers(&ctx.state, peers.clone());
+        apply_peers(&ctx.state, peers.clone()).await;
         assert!(std::sync::Arc::ptr_eq(
             &same,
             &ctx.state.dynamic_peers.load_full()
         ));
 
-        apply_peers(&ctx.state, Vec::new());
+        apply_peers(&ctx.state, Vec::new()).await;
         assert!(ctx.state.dynamic_peers.load().is_empty());
     }
 
@@ -377,13 +511,15 @@ mod tests {
         apply_peers(
             &ctx.state,
             vec!["https://b.test:7443".into(), "https://a.test:7443".into()],
-        );
+        )
+        .await;
         let stored = ctx.state.dynamic_peers.load_full();
 
         apply_peers(
             &ctx.state,
             vec!["https://a.test:7443".into(), "https://b.test:7443".into()],
-        );
+        )
+        .await;
         assert!(std::sync::Arc::ptr_eq(
             &stored,
             &ctx.state.dynamic_peers.load_full()
@@ -425,51 +561,6 @@ mod tests {
         assert!(!ctx.state.runtime.is_serving());
 
         ctx.state.runtime.mark_peer_view_ready();
-        ctx.state.maybe_mark_serving().await;
-        assert!(ctx.state.runtime.is_serving());
-    }
-
-    #[tokio::test]
-    async fn recovery_resets_bootstrap_progress_so_peers_are_repulled() {
-        let ctx = test_context(|_| {}).await;
-        let peer = "https://peer-1.test:7443".to_string();
-        ctx.state
-            .apply_membership_view(
-                std::collections::BTreeSet::from(["remote".to_string()]),
-                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-        ctx.state
-            .note_bootstrap_succeeded(&peer, ctx.state.current_bootstrap_epoch().await)
-            .await;
-        ctx.state.expire_readiness_settle_window().await;
-        ctx.state.maybe_mark_serving().await;
-        assert!(ctx.state.runtime.is_serving());
-        assert!(ctx.state.peers_needing_bootstrap().await.is_empty());
-
-        ctx.state.reset_bootstrap_progress().await;
-
-        // Readiness implies complete data: the node must leave serving for
-        // the whole re-bootstrap window, not just re-pull in the background.
-        assert!(!ctx.state.runtime.is_serving());
-        assert_eq!(
-            ctx.state.peers_needing_bootstrap().await,
-            vec![peer.clone()]
-        );
-        ctx.state.maybe_mark_serving().await;
-        assert!(
-            !ctx.state.runtime.is_serving(),
-            "serving must not resume before a clean pass under the new epoch"
-        );
-
-        let epoch = ctx
-            .state
-            .note_bootstrap_started(&peer)
-            .await
-            .expect("fresh pass should start");
-        ctx.state.note_bootstrap_succeeded(&peer, epoch).await;
-        ctx.state.expire_readiness_settle_window().await;
         ctx.state.maybe_mark_serving().await;
         assert!(ctx.state.runtime.is_serving());
     }

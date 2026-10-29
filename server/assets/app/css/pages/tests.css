@@ -31,6 +31,10 @@
     padding: var(--noora-spacing-3);
   }
 
+  & .noora-card {
+    overflow-x: hidden;
+  }
+
   & > [data-part="analytics"] {
     display: flex;
     flex-direction: column;

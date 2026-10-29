@@ -1,28 +1,44 @@
 defmodule Tuist.Runners.Claims do
   @moduledoc """
   Postgres-backed claim coordination for the dispatch path. The
-  table is **very thin** — one row per currently-claimed
-  workflow_job, deleted on completion / release / stale recovery.
+  table is **very thin** — one row per Pod holding one of its
+  account's concurrency slots, deleted on completion / release /
+  stale recovery.
+
+  The row is keyed by `pod_name`, and `workflow_job_id` is the job
+  that Pod is currently reserved for. The two are only incidentally
+  1:1: GitHub binds a JIT runner to a label set rather than to a
+  job, so the Pod minted for job A often runs job B instead. When
+  `record_execution/3` learns that, it clears `workflow_job_id` and
+  re-queues the displaced job — that job is dispatchable again
+  immediately, while the Pod keeps the slot for the job it actually
+  took.
 
   Two responsibilities, both genuinely OLTP:
 
-    1. **Atomic claim.** `attempt/4` runs the full check-and-set
-       inside a single Postgres transaction, holding an
-       advisory lock keyed on `account_id` for the duration:
+    1. **Atomic claim.** `attempt/5` runs the full check-and-set
+       inside a single Postgres transaction. It inserts the
+       uniqueness-sensitive reservation before acquiring a non-blocking
+       row lock on the account's platform limit, so a unique-index wait
+       cannot hold the account's admission lock. Once acquired, the lock
+       covers only the resource aggregate, capacity decision, and
+       transaction completion:
 
-         * pod-in-use rejection if the polling Pod already owns
-           a live claim (defends against the SA-token reuse
-           attack: customer workflow code can read
-           `/etc/tuist-sa-token` and call dispatch a second
-           time; the active claim makes the second attempt
-           fail-closed)
-         * `INSERT … ON CONFLICT (workflow_job_id) DO NOTHING`
-           collapses concurrent attempts for the same job;
-           the loser sees zero rows and bails with `:lost_race`
+         * platform resource-limit check against the account's
+           vCPU and memory budgets and this platform's live claims
+         * the partial unique index on `workflow_job_id` collapses
+           concurrent attempts for the same job
+         * the `pod_name` primary key prevents one Pod from owning
+           two live claims, including attempts spanning accounts or
+           platforms
 
-       The advisory lock serialises concurrent claim attempts
-       for the same account so the pod-in-use check and the
-       INSERT land atomically.
+       The INSERT names no conflict target, so it collapses on
+       either constraint; `claim_conflict/2` reads back which one
+       to tell `:lost_race` from `:pod_in_use`.
+
+       A busy lock returns immediately so one account cannot fill the
+       database pool with waiting transactions. The dispatcher skips
+       that account for the current poll and considers other work.
 
     2. **Per-account inflight count.** `counts_per_account/0` is
        a single indexed `GROUP BY account_id` against this table
@@ -31,89 +47,223 @@ defmodule Tuist.Runners.Claims do
 
   Lifecycle column (`lifecycle_state`):
 
-    * `claimed` — INSERTed by `attempt/4`, pre-mint. Stale
+    * `claimed` — INSERTed by `attempt/5`, pre-mint. Stale
       reaper targets these.
-    * `running` — set by `mark_running/2` once the JIT mint
+    * `running` — set by `mark_running/3` once the JIT mint
       lands and we're handing the runner to GitHub. A
       long-running build holds this slot until
       `workflow_job.completed` (or its webhook arrives) calls
       `complete/1`. Stale reaper never touches `running` rows;
       they're healthy cap accounting, not stuck claims.
 
-  ClickHouse `runner_jobs` is the customer-facing view (queued,
-  running, completed, history). The two stores stay in sync via a
-  one-way protocol: PG is the source of truth for "is this
-  claimed and counted?" and every transition that flips that bit
-  pairs the PG write with an INSERT to CH.
+  The claim row sits next to the workflow_job lifecycle row
+  (`Tuist.Runners.WorkflowJobs`), and every claim mutation carries
+  the matching lifecycle transition in the same transaction:
+  `attempt/5` moves the row `queued → claimed`, `mark_running/2`
+  `claimed → running`, and the release paths — including the detach
+  in `record_execution/3` and the unreported displacement
+  `complete_by_runner_name/3` finds — move it back to `queued`. There
+  is no cross-store ordering to get right, and no window in which a
+  job is attached to no claim yet still `running`: a release either
+  fully returns the job to the queue or does nothing.
 
   Recovery: `list_stale/1` returns `claimed` claims older than the
-  threshold WITHOUT deleting them; the stale-claims worker iterates
-  the result, writes `queued` to ClickHouse first, then calls
-  `release/2` to delete the PG row. CH-first is critical — if PG
-  were deleted first and we crashed, the CH row would stay
-  `claimed`, `Jobs.pick_queued` would skip it, and no PG claim
-  would remain for the next worker run to recover, stranding the
-  workflow_job permanently.
+  threshold WITHOUT deleting them; the stale-claims worker calls
+  `release/2` per row, which deletes the claim and re-queues the
+  lifecycle row atomically.
   """
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.Repo
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
+  alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.ConcurrencyLimit
+  alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.WorkflowJobs
 
-  # Postgres advisory locks accept a single 64-bit int or two
-  # 32-bit ints. Using the two-int form lets us namespace by a
-  # constant so we don't collide with other advisory-lock users
-  # in the same DB. `runner_claim_account_lock` truncated to 32
-  # bits.
-  @claim_lock_namespace 0x52434C4B
+  require Logger
 
   @doc """
   Attempts to claim `workflow_job_id` for `pod_name` on behalf of
-  `account_id`. Runs check-and-set inside one Postgres transaction
-  with an advisory lock on `account_id`:
+  `account_id`, consuming the requested platform resources. Runs
+  check-and-set inside one Postgres transaction. The claim reservation
+  is inserted before taking a non-blocking row lock on the account's
+  platform limit; the lock then serialises the capacity check through
+  transaction completion:
 
   Returns one of:
 
     * `{:ok, %Claim{}}` — claim landed; caller should mint the
-      JIT and call `mark_running/2` on success.
-    * `{:error, :lost_race}` — another pod beat us to the
-      `workflow_job_id` PK.
+      JIT and call `mark_running/3` on success.
+    * `{:error, :account_busy}` — another transaction is currently
+      admitting work for this account and platform. The caller should
+      try another account instead of waiting.
+    * `{:error, :concurrency_limit_missing}` — the account's platform
+      limit invariant is broken and admission cannot proceed safely.
+    * `{:error, :lost_race}` — another pod already holds the live
+      claim for this `workflow_job_id`.
+    * `{:error, {:concurrency_limit_reached, details}}` — adding the
+      requested shape would exceed either the platform's vCPU or
+      memory limit.
     * `{:error, :pod_in_use}` — `pod_name` already owns a live
       claim. Closes the SA-token-reuse path.
+
+  `site` is the rack site of the Node the claiming Pod runs on, nil off the
+  rack. The claim and the job's lifecycle row record it, and so does the row of
+  any other job GitHub places on the Pod's runner.
   """
-  def attempt(workflow_job_id, account_id, fleet_name, pod_name)
-      when is_integer(workflow_job_id) and is_integer(account_id) and is_binary(fleet_name) and is_binary(pod_name) do
-    Repo.transaction(fn ->
-      with :ok <- acquire_account_lock(account_id),
-           :ok <- check_pod_not_in_use(pod_name) do
-        case insert_claim(workflow_job_id, account_id, fleet_name, pod_name) do
+  def attempt(workflow_job_id, account_id, fleet_name, pod_name, resources, site \\ nil) do
+    with :ok <- validate_claim_inputs(workflow_job_id, account_id, fleet_name, pod_name, resources),
+         :ok <- validate_resources(resources) do
+      Repo.transaction(fn ->
+        result =
+          with {:ok, account} <- fetch_account(account_id),
+               {:ok, claim} <- insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources, site),
+               {:ok, limit} <- try_lock_concurrency_limit(account.id, resources.platform),
+               :ok <- check_reserved_capacity(account.id, limit, resources) do
+            # Same transaction as the claim insert, so the claim and the
+            # lifecycle row's `queued → claimed` commit or roll back
+            # together. A `:noop` does not fail the claim — a completion
+            # that raced it wins, and the caller's post-claim completion
+            # guard releases — but it does mean the store dispatch reads
+            # disagrees with the claim that just landed, so it is logged
+            # rather than swallowed.
+            log_unmoved_lifecycle_row(
+              WorkflowJobs.transition_claimed(claim.workflow_job_id, claim.pod_name, claim.claimed_at, claim.site),
+              claim
+            )
+
+            {:ok, claim}
+          end
+
+        case result do
           {:ok, claim} -> claim
-          {:error, :lost_race} -> Repo.rollback(:lost_race)
+          {:error, reason} -> Repo.rollback(reason)
         end
+      end)
+    end
+  end
+
+  defp log_unmoved_lifecycle_row(:ok, _claim), do: :ok
+
+  defp log_unmoved_lifecycle_row(:noop, claim) do
+    Logger.warning("runners: claim landed but its lifecycle row did not move to claimed",
+      workflow_job_id: claim.workflow_job_id,
+      pod: claim.pod_name,
+      account_id: claim.account_id
+    )
+
+    :noop
+  end
+
+  defp validate_claim_inputs(workflow_job_id, account_id, fleet_name, pod_name, resources) do
+    valid? =
+      Enum.all?([
+        positive_integer?(workflow_job_id),
+        positive_integer?(account_id),
+        non_empty_binary?(fleet_name),
+        non_empty_binary?(pod_name),
+        is_map(resources)
+      ])
+
+    if valid?, do: :ok, else: {:error, :invalid_resources}
+  end
+
+  defp positive_integer?(value), do: is_integer(value) and value > 0
+  defp non_empty_binary?(value), do: is_binary(value) and value != ""
+
+  defp try_lock_concurrency_limit(account_id, platform) do
+    limit_query =
+      from(limit in ConcurrencyLimit,
+        where: limit.account_id == ^account_id and limit.platform == ^platform
+      )
+
+    case Repo.one(from(limit in limit_query, lock: "FOR UPDATE SKIP LOCKED")) do
+      %ConcurrencyLimit{} = limit ->
+        {:ok, limit}
+
+      nil ->
+        if Repo.exists?(limit_query) do
+          {:error, :account_busy}
+        else
+          {:error, :concurrency_limit_missing}
+        end
+    end
+  end
+
+  defp fetch_account(account_id) do
+    case Repo.get(Account, account_id) do
+      nil -> {:error, :unknown_account}
+      account -> {:ok, account}
+    end
+  end
+
+  defp check_reserved_capacity(account_id, limit, resources) do
+    with {:ok, reserved} <- usage_for_platform(account_id, resources.platform) do
+      # The transaction sees its own reservation; preserve the `fits?/3`
+      # contract by passing only the usage that existed before this claim.
+      used = %{
+        vcpus: reserved.vcpus - resources.vcpus,
+        memory_gb: reserved.memory_gb - resources.memory_gb
+      }
+
+      limit = Concurrency.limit_resources(limit)
+
+      if Concurrency.fits?(used, limit, resources) do
+        :ok
       else
-        {:error, reason} -> Repo.rollback(reason)
+        {:error,
+         {:concurrency_limit_reached,
+          %{
+            platform: resources.platform,
+            requested: resources,
+            used: used,
+            limit: limit
+          }}}
+      end
+    end
+  end
+
+  defp usage_for_platform(account_id, platform) do
+    Claim
+    |> where([claim], claim.account_id == ^account_id)
+    |> select([claim], %{
+      fleet_name: claim.fleet_name,
+      platform: claim.platform,
+      vcpus: claim.vcpus,
+      memory_gb: claim.memory_gb
+    })
+    |> Repo.all()
+    |> Enum.reduce_while({:ok, %{vcpus: 0, memory_gb: 0}}, fn claim, {:ok, usage} ->
+      case resources_for_claim(claim) do
+        {:ok, %{platform: ^platform} = resources} ->
+          {:cont,
+           {:ok,
+            %{
+              vcpus: usage.vcpus + resources.vcpus,
+              memory_gb: usage.memory_gb + resources.memory_gb
+            }}}
+
+        {:ok, _other_platform} ->
+          {:cont, {:ok, usage}}
+
+        {:error, :invalid_resources} = error ->
+          {:halt, error}
       end
     end)
   end
 
-  defp acquire_account_lock(account_id) do
-    # `pg_advisory_xact_lock` is released automatically on
-    # COMMIT/ROLLBACK — no need to track release ourselves.
-    case Repo.query("SELECT pg_advisory_xact_lock($1, $2)", [@claim_lock_namespace, account_id]) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, {:lock_failed, reason}}
-    end
+  defp resources_for_claim(%{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
+       when platform in [:linux, :macos] and vcpus > 0 and memory_gb > 0 do
+    {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}}
   end
 
-  defp check_pod_not_in_use(pod_name) do
-    case Repo.one(from(c in Claim, where: c.pod_name == ^pod_name, select: c.workflow_job_id, limit: 1)) do
-      nil -> :ok
-      _ -> {:error, :pod_in_use}
-    end
-  end
+  defp resources_for_claim(%{fleet_name: fleet_name}), do: Catalog.resources_for_fleet(fleet_name)
 
-  defp insert_claim(workflow_job_id, account_id, fleet_name, pod_name) do
+  defp insert_claim(workflow_job_id, account_id, fleet_name, pod_name, resources, site) do
     now = DateTime.utc_now()
 
     {count, rows} =
@@ -125,29 +275,57 @@ defmodule Tuist.Runners.Claims do
             account_id: account_id,
             fleet_name: fleet_name,
             pod_name: pod_name,
+            site: site,
             claimed_at: now,
+            platform: resources.platform,
+            vcpus: resources.vcpus,
+            memory_gb: resources.memory_gb,
             lifecycle_state: "claimed",
             runner_name: ""
           }
         ],
         on_conflict: :nothing,
-        conflict_target: :workflow_job_id,
         returning: [
           :workflow_job_id,
           :account_id,
           :fleet_name,
           :pod_name,
+          :site,
           :claimed_at,
+          :platform,
+          :vcpus,
+          :memory_gb,
           :lifecycle_state,
           :runner_name
         ]
       )
 
     case count do
-      0 -> {:error, :lost_race}
+      0 -> claim_conflict(workflow_job_id, pod_name)
       1 -> {:ok, struct(Claim, Map.from_struct(hd(rows)))}
     end
   end
+
+  defp claim_conflict(workflow_job_id, pod_name) do
+    cond do
+      Repo.exists?(from(claim in Claim, where: claim.workflow_job_id == ^workflow_job_id)) ->
+        {:error, :lost_race}
+
+      Repo.exists?(from(claim in Claim, where: claim.pod_name == ^pod_name)) ->
+        {:error, :pod_in_use}
+
+      true ->
+        {:error, :lost_race}
+    end
+  end
+
+  defp validate_resources(%{platform: platform, vcpus: vcpus, memory_gb: memory_gb}) when platform in [:linux, :macos] do
+    if Enum.all?([vcpus, memory_gb], &(is_integer(&1) and &1 > 0)),
+      do: :ok,
+      else: {:error, :invalid_resources}
+  end
+
+  defp validate_resources(_resources), do: {:error, :invalid_resources}
 
   @doc """
   Promotes a `claimed` claim to `running`. Called after the JIT
@@ -156,17 +334,37 @@ defmodule Tuist.Runners.Claims do
   for the stale reaper — it's an active cap slot for a healthy
   build.
 
+  Keyed by the job rather than the Pod because the claim still names it:
+  this runs pre-mint, before GitHub has had a chance to place a different
+  job on the runner. The lifecycle transition needs the job id anyway.
+
+  Both writes are guarded on `claimed_at`, so they only ever promote
+  the caller's own claim generation. A mint that finishes after its
+  claim was reaped and the job re-claimed by another Pod matches
+  neither, rather than stamping the losing runner's name on the
+  winner's claim and lifecycle row.
+
   Returns `:ok` whether or not the row is still around (the
   `workflow_job.completed` webhook can arrive between mint and
-  the call to `mark_running/2`, deleting the row out from
+  the call to `mark_running/3`, deleting the row out from
   under us).
   """
-  def mark_running(workflow_job_id, runner_name) when is_integer(workflow_job_id) and is_binary(runner_name) do
-    {_count, _} =
-      Repo.update_all(
-        from(c in Claim, where: c.workflow_job_id == ^workflow_job_id and c.lifecycle_state == "claimed"),
-        set: [lifecycle_state: "running", runner_name: runner_name]
-      )
+  def mark_running(workflow_job_id, runner_name, %DateTime{} = claimed_at)
+      when is_integer(workflow_job_id) and is_binary(runner_name) do
+    {:ok, _} =
+      Repo.transaction(fn ->
+        {_count, _} =
+          Repo.update_all(
+            from(c in Claim,
+              where:
+                c.workflow_job_id == ^workflow_job_id and c.lifecycle_state == "claimed" and
+                  c.claimed_at == ^claimed_at
+            ),
+            set: [lifecycle_state: "running", runner_name: runner_name]
+          )
+
+        WorkflowJobs.transition_running(workflow_job_id, runner_name, claimed_at)
+      end)
 
     :ok
   end
@@ -174,36 +372,274 @@ defmodule Tuist.Runners.Claims do
   @doc """
   Releases the claim for `workflow_job_id` — DELETE'd from PG.
   The `claimed_at` argument is the claim handle returned by
-  `attempt/4`; the DELETE filters on it so a stale serve whose
+  `attempt/5`; the DELETE filters on it so a stale serve whose
   PG row was already deleted by the stale-claims worker (and
   then re-claimed by a different poll) doesn't delete the second
   claim's row out from under it.
+
+  Keyed by the job rather than the Pod on purpose. This releases the
+  claim *held for that job*, and a displaced claim no longer names the job
+  it was minted for, so this can never free the slot of a runner busy with
+  the job GitHub actually gave it.
 
   Returns `:ok` on success, `{:error, :stale_claim}` if the row
   is gone or its `claimed_at` has moved on.
   """
   def release(workflow_job_id, %DateTime{} = claimed_at) when is_integer(workflow_job_id) do
-    {count, _} =
-      Repo.delete_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id and c.claimed_at == ^claimed_at))
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        {count, _} =
+          Repo.delete_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id and c.claimed_at == ^claimed_at))
 
-    if count == 1, do: :ok, else: {:error, :stale_claim}
+        # The lifecycle row re-queues in the same transaction as the
+        # claim delete, so claim and row state cannot diverge across
+        # a crash. Terminal rows never match the requeue guard and
+        # stay completed.
+        #
+        # Handle-guarded, like the row's own claim transition: the row
+        # carries this claim's `claimed_at` only while it belongs to
+        # this generation. A job the runner shuffle displaced *onto*
+        # another Pod carries that Pod's execution handle instead, and
+        # ClickHouse dispatch lag can still hand it a second, stale
+        # claim; re-queueing off that one would put a job that is
+        # actively running back in the queue.
+        if count == 1 do
+          WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at)
+          :ok
+        else
+          {:error, :stale_claim}
+        end
+      end)
+
+    outcome
   end
 
   @doc """
   Deletes the claim for `workflow_job_id` regardless of handle.
-  Called from the `workflow_job.completed` webhook to free the
-  cap slot the instant GitHub tells us the job finished — without
-  this the slot stays occupied until `StaleClaimsWorker` sweeps
-  it (~5 min later), which is a real UX issue for a customer who
-  just freed a slot and wants to claim the next workflow_job.
 
-  Idempotent — repeated webhook deliveries are a no-op. Returns
-  `:ok` whether or not a row existed.
+  **Recovery path only.** This releases the claim of whichever Pod
+  *claimed* the job, which is not necessarily the Pod that *ran* it —
+  GitHub assigns jobs to any label-eligible runner. The completed
+  webhook must therefore NOT use this (see `complete_by_runner_name/3`);
+  it exists for `OrphanedRunnersWorker`, where a GitHub-side terminal
+  status has already proven the claim is stale and the slot is leaked.
+
+  Job-keyed, like `release/2`: a claim whose job was displaced no longer
+  names it and is left alone, which is right — that Pod's slot is held for
+  the job it actually took, not for this one.
+
+  Idempotent — repeated deliveries are a no-op. Returns `:ok` whether
+  or not a row existed.
   """
   def complete(workflow_job_id) when is_integer(workflow_job_id) do
     Repo.delete_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id))
     :ok
   end
+
+  @doc """
+  Deletes claims with nothing left to run: every workflow_job attached to
+  the claim has a recorded completion, and `claimed_at` predates
+  `threshold`. Returns the row count.
+
+  A `runner_job_completions` row is proof a job is over. It is written
+  from the `workflow_job.completed` webhook, the same handler that
+  releases the claim, so a claim still present alongside one is a slot
+  held for work that finished. Every other recovery path is blind to it:
+
+    * `list_stale/1` filters `lifecycle_state = 'claimed'`, and these
+      sit in `running`.
+    * `OrphanedRunnersWorker` drives off lifecycle rows still in
+      `status = 'running'`. The completion already moved the row out of
+      that state, so the scan never returns it.
+
+  That leaves the row consuming the account's concurrency budget
+  permanently. Because a completion is independent proof rather than a
+  timeout, this can safely release `running` claims that the time-based
+  sweep must not touch.
+
+  ## Why the claimed job alone is not enough
+
+  GitHub hands a queued job to any label-eligible runner, so the Pod that
+  *claimed* job A is often executing job B (`executed_workflow_job_id`,
+  learned from `workflow_job.in_progress`). Keying release on the claimed
+  job's completion alone would delete a live runner's reservation the
+  moment A finished elsewhere, pushing the account over cap while B is
+  still running. This is the same trap `complete/1` warns about and that
+  `executing?/1` guards for the queued-side recovery.
+
+  So the claim is released only when the claimed job AND the executed job
+  (whichever of the two the claim still names) are both complete. A runner
+  minted for a single-shot JIT runs at most one job, so those two cover
+  everything the claim can be holding the slot for. A displaced claim names
+  no job at all — `record_execution/3` cleared it — and is held purely for
+  the executed one; a claim naming neither is not this pass's to release,
+  since nothing proves the runner is finished.
+
+  `threshold` only avoids racing the webhook's own release between the
+  completion insert and the delete; it is not the staleness signal.
+  """
+  def release_completed(%DateTime{} = threshold) do
+    completed = from(completion in JobCompletion, select: completion.workflow_job_id)
+
+    {count, _} =
+      Repo.delete_all(
+        from(c in Claim,
+          where: c.claimed_at < ^threshold,
+          where: not (is_nil(c.workflow_job_id) and is_nil(c.executed_workflow_job_id)),
+          where: is_nil(c.workflow_job_id) or c.workflow_job_id in subquery(completed),
+          where:
+            is_nil(c.executed_workflow_job_id) or
+              c.executed_workflow_job_id in subquery(completed)
+        )
+      )
+
+    count
+  end
+
+  @doc """
+  Releases the claim held by the runner that GitHub says actually ran
+  the job — keyed by the `runner_name` on the `workflow_job.completed`
+  payload, not by the completed job's id.
+
+  Job-keyed release is wrong under the claim↔execution mismatch: if Pod
+  A claimed J1 and Pod B claimed J2, but GitHub ran J1 on B, then
+  releasing on J2's completion would free B's slot while B is still
+  executing J1 — the account's budget would under-count a live runner
+  and admit work above its limit. Releasing by executor frees exactly
+  the runner that finished, whichever job it was minted for.
+
+  A job cancelled while still queued carries no `runner_name` (no
+  runner ever ran it); nothing is released, because the Pod that
+  claimed it is still alive and may still be handed a sibling job. Its
+  slot is reclaimed when that Pod stops (idle timeout / scale-down) or
+  by `OrphanedRunnersWorker`.
+
+  A claim that still names a job other than `completed_workflow_job_id`
+  is proof of a mismatch nobody told us about: `record_execution/3`
+  detaches the displaced job the moment `workflow_job.in_progress`
+  arrives, so reaching a completion with the binding intact means that
+  delivery never landed. The runner is finished, so the job it was minted
+  for ran nowhere; it is re-queued here, in the same transaction as the
+  delete, rather than waiting on `OrphanedRunnersWorker`. Handle-guarded
+  on `claimed_at`, so a job another Pod has since claimed or completed is
+  left alone.
+
+  Idempotent. Returns the number of claims released and the displaced jobs
+  handed back, if any.
+  """
+  def complete_by_runner_name(runner_name, account_id, completed_workflow_job_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(account_id) do
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        {count, released} =
+          Repo.delete_all(
+            from(c in Claim,
+              where: c.runner_name == ^runner_name and c.account_id == ^account_id,
+              select: {c.workflow_job_id, c.claimed_at}
+            )
+          )
+
+        %{
+          released: count,
+          requeued: requeue_unreported_displacements(released || [], completed_workflow_job_id)
+        }
+      end)
+
+    outcome
+  end
+
+  def complete_by_runner_name(_runner_name, _account_id, _completed_workflow_job_id), do: %{released: 0, requeued: []}
+
+  # Every claim the delete took, not just the first. A `runner_name` is
+  # only probabilistically unique, so this can free two claims at once;
+  # handing back only one of their jobs would strand the other detached
+  # from any claim with its lifecycle row still `running`.
+  defp requeue_unreported_displacements(released, completed_workflow_job_id) do
+    for {workflow_job_id, claimed_at} <- released,
+        is_integer(workflow_job_id),
+        workflow_job_id != completed_workflow_job_id,
+        WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at) == :ok do
+      workflow_job_id
+    end
+  end
+
+  @doc """
+  Releases the claim held by `pod_name` — DELETE'd from PG,
+  regardless of lifecycle state or which workflow_job it was minted
+  for. Called when the runners-controller reports the Pod stopped.
+
+  A stopped Pod consumes no capacity, so its claim must not keep
+  charging the account's concurrency budget. This is the release
+  path for the claim↔execution mismatch: a Pod stranded because
+  GitHub ran its claimed job on a *different* eligible runner keeps
+  a `running` claim that neither the completed webhook (that job
+  completes elsewhere) nor `OrphanedRunnersWorker` (GitHub reports
+  the job `in_progress`, so it's left alone) will free — until the
+  Pod stops.
+
+  Freeing the budget is only half the recovery: the lifecycle row
+  stays at `running`, which `pick_queued/2` skips, so the released
+  job is invisible to dispatch until something moves it back to
+  `queued`. GitHub does not do that for us. A runner that never
+  registered leaves the workflow_job `queued` on GitHub's side for
+  its whole life, so there is no state change for GitHub to
+  announce and no second `queued` webhook ever arrives — the job
+  only moved through `claimed → running` in *our* store. Whether it
+  should run again is GitHub's call, since the runner may be
+  executing a sibling's job, so a `running` row is left for the
+  caller to schedule recovery on.
+
+  That scheduling reads the lifecycle rows bound to the Pod rather
+  than this function's return value. The two sets differ in the
+  direction that matters: a Pod whose runner executed a sibling's job
+  has already had its claim released by that job's completion
+  (`release_by_executor/2`), so nothing is released here while the job
+  it was minted for is still sitting at `running`.
+
+  A claim still in `claimed` needs no such cross-check: the Pod
+  stopped before the JIT was minted, so nothing is running for that
+  job anywhere. Its lifecycle row is re-queued here, in the same
+  transaction as the delete and guarded on the claim handle, because
+  a `claimed` row with no claim behind it is invisible to everything
+  — not `queued` for dispatch, not `running` for the orphan scans,
+  and with no claim left for `StaleClaimsWorker` to find.
+
+  Returns the job each released claim was holding a slot for (empty in
+  the common case where the job's `completed` webhook already freed the
+  claim before the Pod halted; non-empty only for a stranded or
+  crashed-mid-job Pod). A displaced claim names no job of its own —
+  `record_execution/3` handed that one back — so it reports the job the
+  runner actually took.
+  """
+  def release_by_pod_name(pod_name) when is_binary(pod_name) and pod_name != "" do
+    {:ok, released} =
+      Repo.transaction(fn ->
+        {_count, released} =
+          Repo.delete_all(
+            from(c in Claim,
+              where: c.pod_name == ^pod_name,
+              select: {c.workflow_job_id, c.lifecycle_state, c.claimed_at, c.executed_workflow_job_id}
+            )
+          )
+
+        released = released || []
+
+        # A `claimed` row always still names its job: the clear only happens
+        # once GitHub reports a runner, which is also what moves the row to
+        # `running`.
+        for {workflow_job_id, "claimed", claimed_at, _executed} <- released do
+          WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at)
+        end
+
+        Enum.map(released, fn {workflow_job_id, _state, _claimed_at, executed} ->
+          workflow_job_id || executed
+        end)
+      end)
+
+    released
+  end
+
+  def release_by_pod_name(_pod_name), do: []
 
   @doc """
   Counts active claims per fleet **across all accounts**. Returns
@@ -215,25 +651,17 @@ defmodule Tuist.Runners.Claims do
 
   Counts `claimed` + `running` together — both occupy a Pod and
   must be reflected as busy capacity when sizing the warm pool.
+  Counts the Pod rather than `workflow_job_id`, which is NULL for a
+  claim whose job was displaced onto another runner — that Pod is
+  still busy.
   """
   def counts_per_fleet do
     from(c in Claim,
       group_by: c.fleet_name,
-      select: {c.fleet_name, count(c.workflow_job_id)}
+      select: {c.fleet_name, count(c.pod_name)}
     )
     |> Repo.all()
     |> Map.new()
-  end
-
-  @doc """
-  Returns active claim workflow_job IDs for `fleet_name`.
-
-  Dispatch uses this as an anti-list when selecting queued ClickHouse
-  rows. If ClickHouse still says a job is queued while Postgres already
-  has a live claim for it, that row must not pin the fleet's queue head.
-  """
-  def workflow_job_ids_for_fleet(fleet_name) when is_binary(fleet_name) do
-    Repo.all(from(c in Claim, where: c.fleet_name == ^fleet_name, select: c.workflow_job_id))
   end
 
   @doc """
@@ -249,7 +677,7 @@ defmodule Tuist.Runners.Claims do
   def counts_per_account do
     from(c in Claim,
       group_by: c.account_id,
-      select: {c.account_id, count(c.workflow_job_id)}
+      select: {c.account_id, count(c.pod_name)}
     )
     |> Repo.all()
     |> Map.new()
@@ -258,13 +686,9 @@ defmodule Tuist.Runners.Claims do
   @doc """
   Returns claims still in `lifecycle_state = 'claimed'` and older
   than `threshold` without deleting them. The stale-claims worker
-  uses this to recover row-by-row: for each stale claim it FIRST
-  writes `queued` to ClickHouse, THEN calls `release/2` with the
-  handle to delete the PG row. Reversing that order would leave a
-  window where the PG row is gone but CH still shows `claimed` —
-  `pick_queued` would skip the row and no PG claim would remain
-  for the next worker run to recover, stranding the workflow_job
-  permanently.
+  recovers row-by-row via `release/2` with the `claimed_at` handle —
+  each release deletes the claim and re-queues the lifecycle row in
+  one transaction, so a partial recovery cannot strand a job.
 
   `running` rows are deliberately excluded: a build running for
   hours is healthy, not stuck mid-mint. Reaping it here would
@@ -300,22 +724,462 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
-  Resolves the live claim (`claimed` or `running`) owning `pod_name`
-  to its `workflow_job_id` and `account_id`. The metrics ingest
-  endpoint uses this to map a sampled Pod back to the job it's running,
-  so the runners-controller can POST samples keyed by Pod name without
-  knowing job ids. Returns `:error` when the Pod holds no live claim
-  (an idle/warm Pod, or one whose job already released its claim).
+  Resolves the live claim (`claimed` or `running`) owning `pod_name` to
+  the workflow_job it was minted for, plus its account and fleet.
+  Interactive access (terminal / VNC) uses it to reconcile the
+  customer-facing job view against the Pod that actually holds the claim.
+
+  Note this answers with the **claimed** job, which is not necessarily
+  the one the Pod is running: GitHub assigns a queued job to any
+  label-eligible runner. Anything that must follow real execution (e.g.
+  machine metrics) uses `RunnerSessions.executed_job_for_pod/1`, which
+  only answers once GitHub has proven the binding.
+
+  Returns `:error` when the Pod holds no live claim (an idle/warm Pod, or
+  one whose job already released its claim), and when its claim names no
+  job at all: a Pod whose claimed job was displaced onto another runner is
+  reserved for nothing, and the caller's runner-session fallback is the
+  execution-aware binding for it.
   """
   def by_pod_name(pod_name) when is_binary(pod_name) do
     Claim
-    |> where([c], c.pod_name == ^pod_name)
-    |> select([c], %{workflow_job_id: c.workflow_job_id, account_id: c.account_id})
+    |> where([c], c.pod_name == ^pod_name and not is_nil(c.workflow_job_id))
+    |> select([c], %{
+      workflow_job_id: c.workflow_job_id,
+      account_id: c.account_id,
+      fleet_name: c.fleet_name,
+      pod_name: c.pod_name
+    })
     |> limit(1)
     |> Repo.one()
     |> case do
       nil -> :error
       claim -> {:ok, claim}
     end
+  end
+
+  @doc """
+  Resolves the live claim for `workflow_job_id`.
+
+  This is the OLTP source of truth for which Pod currently owns a runner
+  job. ClickHouse can lag or briefly carry an older lifecycle row, so
+  interactive access uses this to reconcile the customer-facing job view
+  with the actual claimed Pod before opening a terminal or VNC relay.
+  """
+  def by_workflow_job_id(workflow_job_id) when is_integer(workflow_job_id) do
+    Claim
+    |> where([c], c.workflow_job_id == ^workflow_job_id)
+    |> select([c], %{
+      workflow_job_id: c.workflow_job_id,
+      account_id: c.account_id,
+      fleet_name: c.fleet_name,
+      pod_name: c.pod_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      claim -> {:ok, claim}
+    end
+  end
+
+  @doc """
+  Claims eligible for Pod reconciliation: older than `grace_threshold`.
+
+  The grace window is a correctness requirement, not tuning. A claim is
+  inserted before its Pod carries the owner label, and the cluster read
+  is eventually consistent, so a just-claimed Pod can legitimately be
+  absent from an otherwise complete listing.
+  """
+  def list_for_pod_reconciliation(%DateTime{} = grace_threshold) do
+    Repo.all(
+      from(c in Claim,
+        where: c.claimed_at < ^grace_threshold and c.pod_name != "",
+        select: %{
+          pod_name: c.pod_name,
+          pod_missing_since: c.pod_missing_since
+        }
+      )
+    )
+  end
+
+  @doc """
+  Stamps `pod_missing_since` on claims whose Pod was absent this tick,
+  leaving an existing stamp alone so the clock measures the FIRST
+  observed absence rather than the most recent one.
+  """
+  def mark_pods_missing([], _now), do: 0
+
+  def mark_pods_missing(pod_names, %DateTime{} = now) when is_list(pod_names) do
+    {count, _} =
+      Repo.update_all(
+        from(c in Claim,
+          where: c.pod_name in ^pod_names and is_nil(c.pod_missing_since)
+        ),
+        set: [pod_missing_since: now]
+      )
+
+    count
+  end
+
+  @doc """
+  Clears `pod_missing_since` for claims whose Pod is present again.
+
+  A Pod that reappears resets the clock: absence has to be *consecutive*
+  to count, so an intermittently-visible Pod never accumulates its way to
+  a release.
+  """
+  def clear_pods_missing([]), do: 0
+
+  def clear_pods_missing(pod_names) when is_list(pod_names) do
+    {count, _} =
+      Repo.update_all(
+        from(c in Claim,
+          where: c.pod_name in ^pod_names and not is_nil(c.pod_missing_since)
+        ),
+        set: [pod_missing_since: nil]
+      )
+
+    count
+  end
+
+  @doc """
+  Candidates for release: claims whose Pod has been continuously absent
+  since before `confirmed_before`, at most `limit` per call.
+
+  Returns the rows WITHOUT deleting them, carrying `pod_missing_since` as
+  the release handle. A claim is capacity held by a Pod, and with no Pod
+  there is no runner and no capacity; `release_pod_missing/2` deletes the
+  claim and re-queues the lifecycle row in one transaction so the job is
+  immediately claimable again.
+
+  The `limit` bounds the blast radius of a wrong-but-plausible cluster
+  read that survives the caller's checks. Anything above it waits for the
+  next tick, and the caller reports the overflow.
+  """
+  def list_pods_missing_since(%DateTime{} = confirmed_before, limit) when is_integer(limit) and limit > 0 do
+    Repo.all(
+      from(c in Claim,
+        where: not is_nil(c.pod_missing_since) and c.pod_missing_since < ^confirmed_before,
+        order_by: [asc: c.pod_missing_since],
+        limit: ^limit,
+        select: %{
+          pod_name: c.pod_name,
+          pod_missing_since: c.pod_missing_since
+        }
+      )
+    )
+  end
+
+  @doc """
+  Releases one claim selected by `list_pods_missing_since/2`, keyed on
+  the `pod_missing_since` handle it was selected with.
+
+  The handle closes a stale-delete race. Between selection and delete,
+  another path can release the row and the Pod's name be reused by a
+  fresh claim; deleting by name alone would drop that fresh claim. A
+  re-claimed row carries a NULL `pod_missing_since`, so the handle no
+  longer matches and nothing is deleted. Same reason `release/2` keys on
+  `claimed_at`.
+
+  The re-queue is `claimed_at`-guarded for the same reason `release/2`'s
+  is: the job this claim names may be running on a *different* Pod, the
+  one GitHub actually placed it on. Dispatch can hand a second claim to
+  a job the runner shuffle already started elsewhere, and this Pod
+  vanishing says nothing about that execution.
+  """
+  def release_pod_missing(pod_name, %DateTime{} = pod_missing_since) when is_binary(pod_name) do
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        {count, released} =
+          Repo.delete_all(
+            from(c in Claim,
+              where: c.pod_name == ^pod_name and c.pod_missing_since == ^pod_missing_since,
+              select: {c.workflow_job_id, c.claimed_at}
+            )
+          )
+
+        if count == 1 do
+          requeue_released_job(released)
+          :ok
+        else
+          {:error, :stale_claim}
+        end
+      end)
+
+    outcome
+  end
+
+  # A displaced claim names no job: `record_execution/3` handed it back to
+  # the queue the moment GitHub proved the Pod was running a different one,
+  # so there is nothing left here to re-queue.
+  defp requeue_released_job([{workflow_job_id, %DateTime{} = claimed_at}]) when is_integer(workflow_job_id) do
+    WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at)
+  end
+
+  defp requeue_released_job(_released), do: :ok
+
+  @doc """
+  Count of claims eligible for release right now, ignoring the per-tick
+  limit. The reconciler reports the difference so a sustained backlog is
+  visible instead of silently trickling.
+  """
+  def count_pods_missing_since(%DateTime{} = confirmed_before) do
+    Repo.aggregate(
+      from(c in Claim, where: not is_nil(c.pod_missing_since) and c.pod_missing_since < ^confirmed_before),
+      :count
+    )
+  end
+
+  @doc """
+  Whether the runner holding the claim for `workflow_job_id` has been
+  proven to be executing some job — i.e. `executed_workflow_job_id` is
+  set, whichever job it turned out to be.
+
+  This is the busy signal for recovery paths that would otherwise judge a
+  claim by its *claimed* job's GitHub status. Releasing such a claim would
+  delete a live runner's reservation mid-job.
+
+  A displaced job no longer resolves to a claim at all —
+  `record_execution/3` detaches it as soon as GitHub reports the runner
+  took something else — so this now answers `true` only for a runner
+  running the job it was minted for. It stays the guard for a claim whose
+  `in_progress` webhook was dropped, where the mismatch is still unknown.
+  """
+  def executing?(workflow_job_id) when is_integer(workflow_job_id) do
+    Repo.exists?(
+      from(c in Claim,
+        where: c.workflow_job_id == ^workflow_job_id and not is_nil(c.executed_workflow_job_id)
+      )
+    )
+  end
+
+  @doc """
+  Records the workflow_job GitHub actually placed on the runner named
+  `runner_name`, learned from the `workflow_job.in_progress` /
+  `completed` webhook. The mint-chosen `runner_name` is unique per
+  runner and stored on the claim at `mark_running/3`, so it resolves
+  the live claim regardless of which job the claim was minted for.
+
+  Scoped to `account_id` (resolved from the webhook's App installation):
+  a runner name is only ours to act on within the account that minted
+  it, since every other account controls the names of its own
+  self-hosted runners.
+
+  On a mismatch the claim also **stops naming the job it was minted
+  for**, and that job goes back to the queue in the same transaction.
+  It is not running on this Pod and GitHub will never re-announce it — a
+  job it still considers queued produces no further webhook — so leaving
+  the binding in place is what kept it unclaimable until the Pod stopped.
+  Detaching frees the job without touching the Pod's slot, which the
+  runner needs for the job it actually took, and clears the unique index
+  so another Pod can claim it. The claim is keyed by `pod_name`, so it
+  survives losing its job.
+
+  The same transaction starts the job the runner *did* take
+  (`Tuist.Runners.WorkflowJobs.transition_executing/3`). The Pod's slot
+  has moved from one job to the other, and both lifecycle rows have to
+  move with it: the executed job was never claimed here, so no mint will
+  ever transition it, and GitHub sends nothing more until it completes.
+
+  The detach and the re-queue must commit together. Split across two
+  transactions, a crash or a failed write between them leaves the job
+  attached to no claim yet still `running` in the lifecycle store — and a
+  webhook redelivery cannot repair that, because the claim it reads no
+  longer names the job and so reports nothing to hand back. The job would
+  wait for the delayed recovery this path exists to avoid.
+
+  Idempotent: repeated deliveries set the same value. Returns which
+  of the three attribution outcomes occurred so the webhook path can
+  emit it as telemetry:
+
+    * `:matched` — GitHub ran the job the claim was minted for.
+    * `{:mismatch, displaced}` — GitHub ran a *different* job on this
+      runner than the one claimed (the claim↔execution mismatch we're
+      measuring). `displaced` names the detached job and whether its
+      lifecycle row was `requeued` (false when a completion or a newer
+      claim already moved it past the handle guard). When another
+      minted claim of the same fleet still names the executed job, that
+      runner is idle, so the detached job moves onto that claim instead
+      of the queue and `displaced` carries `handed_to`, its Pod. `nil`
+      when there is nothing to hand back: a redelivery that finds the
+      job already detached, or a claim whose generation moved on between
+      the read and the write.
+    * `:unknown_runner` — no live claim carries this `runner_name`
+      (a dropped/late webhook, or the claim already completed). The
+      durable session binding is the backstop for this case.
+  """
+  def record_execution(runner_name, executed_workflow_job_id, account_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
+             is_integer(account_id) do
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["runner_executions:#{account_id}"])
+
+        case lock_execution_claims(runner_name, executed_workflow_job_id, account_id) do
+          {nil, _stale_claim} ->
+            :unknown_runner
+
+          {%Claim{workflow_job_id: ^executed_workflow_job_id} = claim, _stale_claim} ->
+            bind_execution(claim, executed_workflow_job_id: executed_workflow_job_id)
+            :matched
+
+          {%Claim{} = claim, stale_claim} ->
+            {:mismatch, detach_displaced_job(claim, executed_workflow_job_id, stale_claim)}
+        end
+      end)
+
+    outcome
+  end
+
+  def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
+
+  # The runner's claim together with any stale claim naming the executed
+  # job: dispatch can hand out a job GitHub has already started elsewhere,
+  # because the `in_progress` webhook that proves it lands seconds later,
+  # and that claim then names a job its runner will never run. The
+  # caller's per-account advisory lock runs these webhooks one at a time,
+  # so this statement sees every claim the previous one rebound; a row
+  # lock alone does not, because a claim that started naming the executed
+  # job after this statement's snapshot is never returned to it. The rows
+  # are still locked, ordered by Pod, against the other claim writers.
+  defp lock_execution_claims(runner_name, executed_workflow_job_id, account_id) do
+    claims =
+      Claim
+      |> where(
+        [c],
+        c.account_id == ^account_id and
+          (c.runner_name == ^runner_name or c.workflow_job_id == ^executed_workflow_job_id)
+      )
+      |> order_by([c], c.pod_name)
+      |> lock("FOR UPDATE")
+      |> Repo.all()
+
+    case Enum.find(claims, &(&1.runner_name == runner_name)) do
+      nil ->
+        {nil, nil}
+
+      %Claim{pod_name: pod_name} = claim ->
+        stale_claim =
+          Enum.find(claims, fn candidate ->
+            candidate.pod_name != pod_name and candidate.workflow_job_id == executed_workflow_job_id and
+              is_nil(candidate.executed_workflow_job_id)
+          end)
+
+        {claim, stale_claim}
+    end
+  end
+
+  defp detach_displaced_job(%Claim{workflow_job_id: claimed_job_id} = claim, executed_workflow_job_id, stale_claim) do
+    case bind_execution(claim,
+           executed_workflow_job_id: executed_workflow_job_id,
+           workflow_job_id: nil
+         ) do
+      1 ->
+        adopt_executed_job(claim, executed_workflow_job_id, stale_claim)
+        hand_over_or_requeue_displaced_job(claimed_job_id, claim, stale_claim)
+
+      0 ->
+        nil
+    end
+  end
+
+  # The slot moves from the claimed job to the executed one, so both
+  # lifecycle rows move with it, in the transaction that moves the claim.
+  # Nothing else will start the executed job: it was never claimed by this
+  # Pod, so `mark_running/3` runs for a different row, and GitHub sends no
+  # further webhook until the job is over.
+  #
+  # When a stale claim holds the row, the row moves off its handle, so
+  # that claim's later detach cannot re-queue a job that is running.
+  defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name, site: site}, executed_workflow_job_id, nil) do
+    WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site)
+  end
+
+  defp adopt_executed_job(
+         %Claim{pod_name: pod_name, runner_name: runner_name, site: site},
+         executed_workflow_job_id,
+         %Claim{claimed_at: stale_claimed_at}
+       ) do
+    case WorkflowJobs.take_over_executing(executed_workflow_job_id, runner_name, pod_name, stale_claimed_at, site) do
+      :ok -> :ok
+      :noop -> WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site)
+    end
+  end
+
+  # The stale claim's runner is idle and carries the same labels, so it is
+  # the runner GitHub will place the displaced job on. Re-queueing it
+  # instead reserves another Pod for it, one runner more than there are
+  # jobs, and the spare idles until its timeout holding the account's
+  # capacity. A claim that has not minted yet is left alone: its promotion
+  # in `mark_running/3` is keyed on the job it names.
+  defp hand_over_or_requeue_displaced_job(
+         claimed_job_id,
+         %Claim{fleet_name: fleet_name, claimed_at: claimed_at},
+         %Claim{fleet_name: fleet_name, lifecycle_state: "running"} = stale_claim
+       )
+       when is_integer(claimed_job_id) do
+    case WorkflowJobs.hand_over(claimed_job_id, claimed_at, stale_claim) do
+      :ok ->
+        1 = rebind_claim(stale_claim, claimed_job_id)
+        %{workflow_job_id: claimed_job_id, requeued: false, handed_to: stale_claim.pod_name}
+
+      :noop ->
+        requeue_displaced_job(claimed_job_id, claimed_at)
+    end
+  end
+
+  defp hand_over_or_requeue_displaced_job(claimed_job_id, %Claim{claimed_at: claimed_at}, _stale_claim) do
+    requeue_displaced_job(claimed_job_id, claimed_at)
+  end
+
+  defp rebind_claim(
+         %Claim{pod_name: pod_name, claimed_at: claimed_at, workflow_job_id: workflow_job_id},
+         new_workflow_job_id
+       ) do
+    {count, _} =
+      Repo.update_all(
+        from(c in Claim,
+          where: c.pod_name == ^pod_name and c.claimed_at == ^claimed_at and c.workflow_job_id == ^workflow_job_id
+        ),
+        set: [workflow_job_id: new_workflow_job_id]
+      )
+
+    count
+  end
+
+  # Writes the claim that was read, by its primary key, rather than every
+  # claim sharing the `runner_name` it was found by. That name is only
+  # probabilistically unique — the mint truncates a long service-account
+  # prefix — so a stale claim and a live one can carry the same one. A
+  # name-scoped UPDATE would detach the job from both while only the
+  # arbitrarily-selected claim's job is re-queued, stranding the other in
+  # the exact attached-to-nothing-but-still-`running` state the
+  # transaction above exists to prevent.
+  #
+  # Guarded on `claimed_at` as well, so a claim released and its Pod
+  # re-claimed between the read and this write is left to its own
+  # generation. The caller re-queues only when the guard held, since a
+  # `claimed_job_id` read from the previous generation says nothing about
+  # the current one.
+  defp bind_execution(%Claim{pod_name: pod_name, claimed_at: claimed_at}, updates) do
+    {count, _} =
+      Repo.update_all(
+        from(c in Claim, where: c.pod_name == ^pod_name and c.claimed_at == ^claimed_at),
+        set: updates
+      )
+
+    count
+  end
+
+  # A redelivery finds the job already detached and re-queued by the first
+  # one; there is nothing left to hand back.
+  defp requeue_displaced_job(nil, _claimed_at), do: nil
+
+  defp requeue_displaced_job(workflow_job_id, %DateTime{} = claimed_at) do
+    %{
+      workflow_job_id: workflow_job_id,
+      requeued: WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at) == :ok
+    }
   end
 end

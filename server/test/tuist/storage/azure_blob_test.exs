@@ -95,7 +95,7 @@ defmodule Tuist.Storage.AzureBlobTest do
         {:ok, %{status: 201, headers: [], body: ""}}
       end)
 
-      assert %{status: 201} = AzureBlob.put_object("icons/icon.png", "png")
+      assert {:ok, %{status: 201}} = AzureBlob.put_object("icons/icon.png", "png")
     end
   end
 

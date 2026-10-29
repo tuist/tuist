@@ -95,6 +95,19 @@ struct CommandEnvironmentVariableTests {
         #expect(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments == ["-configuration", "Debug"])
     }
 
+    @Test(.withMockedEnvironment()) func optionalOptionWithEnvVarRejectsInvalidArgument() throws {
+        setVariable(.buildOptionsPlatform, value: "ios")
+
+        let error = #expect(throws: (any Error).self) {
+            try BuildRunCommand.parse(["--platform", "android"])
+        }
+        #expect(
+            BuildRunCommand.message(for: try #require(error)) ==
+                "The value 'android' is invalid for '--platform <platform>': " +
+                "Please provide one of 'ios', 'macos', 'tvos', 'watchos', 'visionos'."
+        )
+    }
+
     @Test(.withMockedEnvironment()) func cleanCommandUsesEnvVars() throws {
         setVariable(.cleanCleanCategories, value: "dependencies")
         setVariable(.cleanPath, value: "/path/to/clean")
@@ -485,9 +498,11 @@ struct CommandEnvironmentVariableTests {
         setVariable(.testBinaryCache, value: "false")
         setVariable(.testSelectiveTesting, value: "false")
         setVariable(.testShardReference, value: "shard-ref")
+        setVariable(.testShardPlanId, value: "shard-plan-id")
         setVariable(.testShardIndex, value: "2")
         setVariable(.testShardSkipUpload, value: "true")
         setVariable(.testShardArchivePath, value: "/path/to/shards/bundle.aar")
+        setVariable(.testStressNewTests, value: "report")
 
         // Execute TestRunCommand without command line arguments
         let testCommandWithEnvVars = try TestRunCommand.parse([])
@@ -517,9 +532,11 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithEnvVars.binaryCache == false)
         #expect(testCommandWithEnvVars.selectiveTesting == false)
         #expect(testCommandWithEnvVars.shardReference == "shard-ref")
+        #expect(testCommandWithEnvVars.shardPlanId == "shard-plan-id")
         #expect(testCommandWithEnvVars.shardIndex == 2)
         #expect(testCommandWithEnvVars.shardSkipUpload == true)
         #expect(testCommandWithEnvVars.shardArchivePath == "/path/to/shards/bundle.aar")
+        #expect(testCommandWithEnvVars.stressNewTests == .report)
 
         // Execute TestRunCommand with command line arguments
         let testCommandWithArgs = try TestRunCommand.parse([
@@ -543,11 +560,14 @@ struct CommandEnvironmentVariableTests {
             "--no-binary-cache",
             "--no-selective-testing",
             "--shard-reference", "cli-shard-ref",
+            "--shard-plan-id", "cli-shard-plan-id",
             "--shard-index", "3",
             "--no-shard-skip-upload",
             "--shard-archive-path", "/new/shards/bundle.aar",
+            "--stress-new-tests", "enforce",
         ])
         #expect(testCommandWithArgs.scheme == "NewScheme")
+        #expect(testCommandWithArgs.stressNewTests == .enforce)
         #expect(testCommandWithArgs.clean == false)
         #expect(testCommandWithArgs.path == "/new/test/path")
         #expect(testCommandWithArgs.device == "iPad")
@@ -571,6 +591,7 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithArgs.binaryCache == false)
         #expect(testCommandWithArgs.selectiveTesting == false)
         #expect(testCommandWithArgs.shardReference == "cli-shard-ref")
+        #expect(testCommandWithArgs.shardPlanId == "cli-shard-plan-id")
         #expect(testCommandWithArgs.shardIndex == 3)
         #expect(testCommandWithArgs.shardSkipUpload == false)
         #expect(testCommandWithArgs.shardArchivePath == "/new/shards/bundle.aar")
@@ -578,6 +599,8 @@ struct CommandEnvironmentVariableTests {
 
     @Test(.withMockedEnvironment()) func xcodeBuildShardCommandsUseEnvVars() throws {
         setVariable(.testShardArchivePath, value: "/tmp/env-shards/bundle.aar")
+        setVariable(.testShardPlanId, value: "shard-plan-id")
+        setVariable(.testStressNewTests, value: "report")
 
         let buildForTestingCommandWithEnvVars = try #require(
             XcodeBuildCommand.parseAsRoot(["build-for-testing"]) as? XcodeBuildBuildForTestingCommand
@@ -588,11 +611,14 @@ struct CommandEnvironmentVariableTests {
             XcodeBuildCommand.parseAsRoot(["test"]) as? XcodeBuildTestCommand
         )
         #expect(testCommandWithEnvVars.shardArchivePath == "/tmp/env-shards/bundle.aar")
+        #expect(testCommandWithEnvVars.shardPlanId == "shard-plan-id")
+        #expect(testCommandWithEnvVars.stressNewTests == .report)
 
         let testWithoutBuildingCommandWithEnvVars = try #require(
             XcodeBuildCommand.parseAsRoot(["test-without-building"]) as? XcodeBuildTestWithoutBuildingCommand
         )
         #expect(testWithoutBuildingCommandWithEnvVars.shardArchivePath == "/tmp/env-shards/bundle.aar")
+        #expect(testWithoutBuildingCommandWithEnvVars.shardPlanId == "shard-plan-id")
 
         let buildForTestingCommandWithArgs = try #require(
             XcodeBuildCommand.parseAsRoot([
@@ -606,17 +632,23 @@ struct CommandEnvironmentVariableTests {
             XcodeBuildCommand.parseAsRoot([
                 "test",
                 "--shard-archive-path", "/tmp/cli-shards/test.aar",
+                "--shard-plan-id", "cli-shard-plan-id",
+                "--stress-new-tests", "enforce",
             ]) as? XcodeBuildTestCommand
         )
         #expect(testCommandWithArgs.shardArchivePath == "/tmp/cli-shards/test.aar")
+        #expect(testCommandWithArgs.shardPlanId == "cli-shard-plan-id")
+        #expect(testCommandWithArgs.stressNewTests == .enforce)
 
         let testWithoutBuildingCommandWithArgs = try #require(
             XcodeBuildCommand.parseAsRoot([
                 "test-without-building",
                 "--shard-archive-path", "/tmp/cli-shards/test-without-building.aar",
+                "--shard-plan-id", "cli-shard-plan-id",
             ]) as? XcodeBuildTestWithoutBuildingCommand
         )
         #expect(testWithoutBuildingCommandWithArgs.shardArchivePath == "/tmp/cli-shards/test-without-building.aar")
+        #expect(testWithoutBuildingCommandWithArgs.shardPlanId == "cli-shard-plan-id")
     }
 
     @Test(.withMockedEnvironment()) func organizationBillingCommandUsesEnvVars() throws {
@@ -818,21 +850,31 @@ struct CommandEnvironmentVariableTests {
     @Test(.withMockedEnvironment()) func organizationInviteCommandUsesEnvVars() throws {
         setVariable(.organizationInviteOrganizationName, value: "InviteOrganization")
         setVariable(.organizationInviteEmail, value: "email@example.com")
+        setVariable(.organizationInviteRole, value: "viewer")
         setVariable(.organizationInvitePath, value: "/path/to/invite")
 
         let commandWithEnvVars = try OrganizationInviteCommand.parse([])
         #expect(commandWithEnvVars.organizationName == "InviteOrganization")
         #expect(commandWithEnvVars.email == "email@example.com")
+        #expect(commandWithEnvVars.role == .viewer)
         #expect(commandWithEnvVars.path == "/path/to/invite")
 
         let commandWithArgs = try OrganizationInviteCommand.parse([
             "NewInviteOrganization",
             "newemail@example.com",
+            "--role", "admin",
             "--path", "/new/invite/path",
         ])
         #expect(commandWithArgs.organizationName == "NewInviteOrganization")
         #expect(commandWithArgs.email == "newemail@example.com")
+        #expect(commandWithArgs.role == .admin)
         #expect(commandWithArgs.path == "/new/invite/path")
+    }
+
+    @Test(.withMockedEnvironment()) func organizationInviteCommandRejectsUnknownRoles() throws {
+        #expect(throws: (any Error).self) {
+            try OrganizationInviteCommand.parse(["InviteOrganization", "email@example.com", "--role", "owner"])
+        }
     }
 
     @Test(.withMockedEnvironment()) func organizationShowCommandUsesEnvVars() throws {
@@ -919,6 +961,22 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/logout/path")
     }
 
+    @Test(.withMockedEnvironment()) func hashCacheCommandUsesEnvVars() throws {
+        setVariable(.hashCachePath, value: "/hash/path")
+        setVariable(.hashCacheConfiguration, value: "Debug")
+
+        let commandWithEnvVars = try HashCacheCommand.parse([])
+        #expect(commandWithEnvVars.path == "/hash/path")
+        #expect(commandWithEnvVars.configuration == "Debug")
+
+        let commandWithArgs = try HashCacheCommand.parse([
+            "--path", "/other/path",
+            "--configuration", "Release",
+        ])
+        #expect(commandWithArgs.path == "/other/path")
+        #expect(commandWithArgs.configuration == "Release")
+    }
+
     @Test(.withMockedEnvironment()) func cacheWarmCommandUsesEnvVars() throws {
         setVariable(.cacheExternalOnly, value: "true")
         setVariable(.cacheProfile, value: "development")
@@ -927,6 +985,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cachePrintHashes, value: "true")
         setVariable(.cacheConfiguration, value: "CacheConfig")
         setVariable(.cachePath, value: "/cache/path")
+        setVariable(.cacheWarmScratchDirectory, value: "/cache/warm-scratch-directory")
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
 
         let commandWithEnvVars = try CacheWarmCommand.parse([])
@@ -937,6 +996,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithEnvVars.printHashes == true)
         #expect(commandWithEnvVars.configuration == "CacheConfig")
         #expect(commandWithEnvVars.path == "/cache/path")
+        #expect(commandWithEnvVars.scratchDirectory == "/cache/warm-scratch-directory")
         #expect(commandWithEnvVars.targets == ["Fmk1", "Fmk2"])
 
         let commandWithArgs = try CacheWarmCommand.parse([
@@ -957,7 +1017,19 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.printHashes == true)
         #expect(commandWithArgs.configuration == "CacheConfig")
         #expect(commandWithArgs.path == "/cache/path")
+        #expect(commandWithArgs.scratchDirectory == "/cache/warm-scratch-directory")
         #expect(commandWithArgs.targets == ["Fmk1", "Fmk2"])
+
+        let commandWithUpload = try CacheWarmCommand.parse(["--upload"])
+        #expect(commandWithUpload.noUpload == false)
+
+        #expect(throws: (any Error).self) {
+            try CacheWarmCommand.parse(["--no-no-upload"])
+        }
+
+        #expect(throws: (any Error).self) {
+            try CacheWarmCommand.parse(["--scratch-directory", "/cache/warm-scratch-directory"])
+        }
     }
 
     @Test(.withMockedEnvironment()) func tuistVariablesFiltersTuistAndCIOnly() throws {

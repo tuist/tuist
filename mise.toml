@@ -1,7 +1,10 @@
 [tools]
     aube = "1.6.2"
+    # Needed at the repo root for the stylelint-based CSS token check, whose
+    # config and devDependencies live here rather than in a package.
+    node = "24.11.0"
     # Auto-bumped to the latest Tuist CLI release (incl. canary) by the update-tuist-cli workflow.
-    tuist = "4.203.0-canary.24"
+    tuist = "4.216.0-canary.12"
     swiftlint = "0.59.1"
     "elixir" = "1.20.2"
     "erlang" = "29.0.3"
@@ -11,17 +14,19 @@
     age = "1.2.1"
     protoc = "32.1"
     "1password-cli" = "2.32.0"
-    bats = "1.11.1"
+    bats = "1.12.0"
     rclone = "1.73.3"
     jq = "1.8.1"
     oras = "1.3.0"
-    xcodes = "1.6.0"
+    xcodes = "2.1.0"
     yq = "4.52.5"
     java = "21"
     gradle = "8.12"
-    caddy = "2.11.2"
+    caddy = "2.11.4"
     kubectl = "1.36.1"
     helm = "4.2.0"
+    # Management cluster Hetzner resources (infra/k8s/mgmt/talos/hetzner.yaml).
+    hcloud = "1.70.1"
     # pomerium-cli is the kubeconfig exec credential plugin that does
     # the Google OIDC dance + caches the session for kubectl calls
     # against the kube-<env>.tuist.dev Pomerium gateway. See
@@ -36,9 +41,15 @@
     _.source = ["{{config_root}}/mise/utilities/dev_instance_env.sh", "{{config_root}}/mise/utilities/cache_ee_env.sh"]
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
     TUIST_FILESYSTEM_BACKEND = "swift-file-system"
-    TUIST_USE_SWIFTERPM = "1"
     TUIST_INSPECT_TEST_MODE = "remote"
-    TUIST_FEATURE_FLAG_KURA = "1"
+    # Xcode code coverage, for every job and developer alike. They stand in for
+    # Tuist.swift's `coverage: .coverage(enabled: true, prefixMapping: true)`
+    # until the backward-compatibility gate's CLI knows the option. Prefix
+    # mapping is hashed into cache keys, so it must match wherever the cache is
+    # shared.
+    TUIST_FEATURE_FLAG_COVERAGE = "1"
+    TUIST_COVERAGE_ENABLED = "1"
+    TUIST_COVERAGE_PREFIX_MAPPING = "1"
     TUIST_HOSTED = "1"
     TUIST_S3_VIRTUAL_HOST = "1"
     TUIST_S3_BUCKET_AS_HOST = "1"

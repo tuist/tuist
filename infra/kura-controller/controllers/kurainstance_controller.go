@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -14,13 +15,17 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math/big"
+	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +39,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -50,7 +56,10 @@ const (
 	// httpPort is the single cache port: Kura co-hosts the HTTP cache API
 	// and REAPI gRPC (h2c) on one listener (KURA_PORT).
 	httpPort int32 = 4000
-	peerPort int32 = 7443
+	// gatewayGRPCPort serves only REAPI gRPC (KURA_GATEWAY_GRPC_PORT). The
+	// regional ingress routes gRPC here; direct clients keep httpPort.
+	gatewayGRPCPort int32 = 4001
+	peerPort        int32 = 7443
 
 	// drainCompletionTimeoutMs and preStopDelaySeconds together set how
 	// long a Kura pod is given to bleed connections off before SIGTERM.
@@ -60,6 +69,28 @@ const (
 	drainCompletionTimeoutMs int64 = 240_000
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
+	// teardownTerminationGraceSeconds stops the pods of a deleted instance.
+	// Every path that deletes a KuraInstance has already moved its traffic
+	// away and deletes its data with it, so there is nothing to drain, and an
+	// instance recreated under the same name waits for the old claims.
+	teardownTerminationGraceSeconds int64 = 5
+	// A liveness failure means the serving process is already unable to make
+	// progress. It must not inherit the rollout drain budget: Kubernetes runs
+	// preStop for liveness restarts too, so this gives the hook time to remove
+	// the endpoint while bounding an otherwise unbounded cache outage.
+	livenessTerminationGraceSeconds int64 = 30
+	// The bootstrap /up listener starts before store recovery. This budget
+	// covers reaching that listener; recovery itself is supervised by the
+	// runtime's progress watchdog while readiness stays false. Keep this
+	// aligned with kura/ops/helm/kura/templates/statefulset.yaml.
+	startupBudgetSeconds int32 = 300
+	// readinessFailureBudgetSeconds is how long /ready may keep failing before
+	// a serving pod leaves its Service. The public Service pins one pod, so
+	// this is also how long a briefly slow /ready is tolerated before the
+	// account has no endpoint at all.
+	readinessFailureBudgetSeconds int32 = 30
+	fastProbePeriodSeconds        int32 = 1
+	legacyProbePeriodSeconds      int32 = 10
 
 	// podNameLabel is the per-pod label the StatefulSet controller stamps
 	// on every pod (<statefulset>-<ordinal>). The public backend Service
@@ -72,10 +103,28 @@ const (
 	// before the public Services can route cache reads to it.
 	minPrimaryPodAge = 10 * time.Minute
 
-	sharedSecretsName         = "kura-shared-secrets"
-	otlpTracesEndpointEnvVar  = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-	environmentEnvVar         = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
-	sharedSecretsRVAnnotation = "kura.tuist.dev/shared-secrets-resource-version"
+	sharedSecretsName                           = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar                    = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	environmentEnvVar                           = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
+	snapshotCacheMaxBytesEnvVar                 = "KURA_SNAPSHOT_CACHE_MAX_BYTES"
+	manifestCacheMaxBytesEnvVar                 = "KURA_MANIFEST_CACHE_MAX_BYTES"
+	metadataStoreReadCacheBytesEnvVar           = "KURA_METADATA_STORE_READ_CACHE_BYTES"
+	sharedSecretsRVAnnotation                   = "kura.tuist.dev/shared-secrets-resource-version"
+	externalDNSHostnameAnnotation               = "external-dns.alpha.kubernetes.io/hostname"
+	legacyPeerHostAnnotation                    = "kura.tuist.dev/legacy-peer-host"
+	legacyPeerMigrationAnnotation               = "kura.tuist.dev/legacy-peer-migration-phase"
+	legacyPeerOldAddressesAnnotation            = "kura.tuist.dev/legacy-peer-old-addresses"
+	legacyPeerTargetAddressesAnnotation         = "kura.tuist.dev/legacy-peer-target-addresses"
+	legacyPeerRetireAfterAnnotation             = "kura.tuist.dev/legacy-peer-retire-after"
+	legacyPeerFallbackRepublishAnnotation       = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
+	legacyPeerFallbackObservedAnnotation        = "kura.tuist.dev/legacy-peer-fallback-observed-at"
+	unreadyPodsReplacedForImageAnnotation       = "kura.tuist.dev/unready-pods-replaced-for-image"
+	legacyPeerPhaseRepairing                    = "repairing-fallback"
+	legacyPeerPhaseCutoverRequested             = "cutover-requested"
+	legacyPeerPhaseDraining                     = "draining"
+	peerDNSRecordTTLSeconds               int64 = 300
+	legacyPeerRetirementDelay                   = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
+	hetznerNodeSelectorAnnotation               = "load-balancer.hetzner.cloud/node-selector"
 
 	peerTLSVolumeName = "peer-tls"
 	peerTLSMountPath  = "/etc/kura/peer-tls"
@@ -88,29 +137,172 @@ const (
 
 type KuraInstanceReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	// APIReader reads straight from the apiserver, bypassing the informer
+	// cache. The egress classid allocation scan must see every claim already
+	// written — a cached List can lag a just-completed Update and hand two
+	// accounts the same minor.
+	APIReader   client.Reader
+	StableDNS   StableDNSProvider
+	StableProbe StableHostProber
+	StableDrain time.Duration
+	stableDNSMu sync.Mutex
+	Scheme      *runtime.Scheme
 
-	// GRPCClusterIssuer, when non-empty, makes the controller request a
-	// cert-manager Certificate per instance with this ClusterIssuer for the
-	// single public host (which serves both the HTTP cache and gRPC, see
-	// reconcileGRPCIngress). The issued Secret is referenced by the regional
-	// Kura ingress layer that terminates TLS for customer-facing traffic.
-	// The name is historical; there is no longer a separate gRPC certificate.
-	GRPCClusterIssuer   string
+	// egressClassMu serializes egress classid allocation across concurrent
+	// reconciles; see reconcileEgressClassID.
+	egressClassMu sync.Mutex
+
+	// GRPCClusterIssuer, when non-empty, is the ClusterIssuer backing the
+	// per-instance public-host Certificate. It only applies to instances the
+	// shared wildcard in PublicTLSSecretName does not cover. The name is
+	// historical; there is no longer a separate gRPC certificate.
+	GRPCClusterIssuer string
+
+	// PublicTLSSecretName is the shared wildcard TLS Secret, in the watched
+	// namespace, that every public Ingress terminates on. While it holds a
+	// certificate no per-instance Certificate is requested, so onboarding an
+	// account issues nothing against the ACME per-registered-domain limit.
+	PublicTLSSecretName string
+
 	OTLPTracesEndpoint  string
 	Environment         string
+	PrivateReplication  bool
 	RuntimeStatusClient RuntimeStatusClient
+	// NodeLocalRuntimeStatusClient samples the pods of instances with
+	// spec.nodeLocalNetwork, whose pod IPs the controller cannot reach.
+	NodeLocalRuntimeStatusClient RuntimeStatusClient
+	PeerDNSResolver              PeerDNSResolver
+	PeerPathProber               PeerPathProber
+
+	// MetricsClient sources the readings behind requests.cpu. Nil leaves
+	// every instance on the cold-start constant.
+	MetricsClient                    PodMetricsClient
+	ConnectivityDiagnosticsInstances []string
+	gatewayCacheMu                   sync.Mutex
+	gatewayCache                     map[string]gatewaySnapshot
+	clientDNSCache                   map[string]clientDNSObservation
+
+	// podSamples holds the last-known /status/rollout report per pod, keyed
+	// by instance. It exists for the rollout-health aggregate: a pod that
+	// temporarily stops answering keeps contributing its last report (with
+	// its old timestamp, so staleness is visible), and the monotone counters
+	// survive pod restarts through reset clamping. In-memory only — a
+	// controller restart starts the accumulation over, which the consumer
+	// tolerates by treating counter decreases as no growth.
+	podSamplesMu sync.Mutex
+	podSamples   map[types.NamespacedName]map[string]*podRuntimeSample
 }
 
 type RuntimeStatusClient interface {
 	Status(ctx context.Context, pod corev1.Pod) (runtimeStatus, error)
 }
 
+type PeerDNSResolver interface {
+	LookupHost(ctx context.Context, host string) ([]string, error)
+}
+
+type PeerPathProber interface {
+	Probe(ctx context.Context, address string, serverName string, tlsData map[string][]byte) error
+}
+
+type netPeerDNSResolver struct{}
+
+func (netPeerDNSResolver) LookupHost(ctx context.Context, host string) ([]string, error) {
+	return net.DefaultResolver.LookupHost(ctx, host)
+}
+
+type tlsPeerPathProber struct{}
+
+func (tlsPeerPathProber) Probe(ctx context.Context, address string, serverName string, tlsData map[string][]byte) error {
+	certificate, err := tls.X509KeyPair(tlsData[peerTLSCertFile], tlsData[peerTLSKeyFile])
+	if err != nil {
+		return fmt.Errorf("loading peer client certificate: %w", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(tlsData[peerTLSCAFile]) {
+		return fmt.Errorf("loading peer certificate authority")
+	}
+	dialer := &tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: 5 * time.Second},
+		Config: &tls.Config{
+			Certificates: []tls.Certificate{certificate},
+			RootCAs:      roots,
+			ServerName:   serverName,
+			MinVersion:   tls.VersionTLS12,
+		},
+	}
+	connection, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(address, strconv.Itoa(int(peerPort))))
+	if err != nil {
+		return err
+	}
+	return connection.Close()
+}
+
 type runtimeStatus struct {
-	Ready           bool   `json:"ready"`
-	State           string `json:"state"`
-	RingMembers     int    `json:"ring_members"`
-	WriterLockOwned bool   `json:"writer_lock_owned"`
+	invalidObservation         bool
+	ServingAuthority           servingReport `json:"serving_authority"`
+	Ready                      bool          `json:"ready"`
+	State                      string        `json:"state"`
+	RingMembers                int           `json:"ring_members"`
+	RingFingerprint            string        `json:"ring_fingerprint"`
+	WriterLockOwned            bool          `json:"writer_lock_owned"`
+	Generation                 uint64        `json:"generation"`
+	BackfillingPeers           int64         `json:"backfill_backfilling_peers"`
+	MemoryPressureState        int64         `json:"memory_pressure_state"`
+	FDTimeoutCount             uint64        `json:"fd_timeout_count"`
+	PeerConnectionFailureCount uint64        `json:"peer_connection_failure_count"`
+	// BackfillInitialCycle reports whether a pod's initial peer catch-up has
+	// settled. Primary selection deliberately does NOT consume it (see
+	// primaryPodHealth): a rolling deploy has to promote a caught-up standby
+	// immediately to stay gapless, and readiness plus ring membership is the
+	// right gate there. Node evacuation does consume it, because moving a
+	// replica destroys the peer the next one would refill from, so "ready" is
+	// not enough to justify the next move.
+	BackfillInitialCycle string `json:"backfill_initial_cycle"`
+	// BackfillBudgetExhaustedRealPeers counts peers whose backfill passes are
+	// blocked by real failures, as opposed to the benign capability variant.
+	// With the cycle mode it says backfill is in TROUBLE rather than merely
+	// in flight, which is what the rollout gate needs: a rollout restarts
+	// every pod, so backfill running afterwards is expected work.
+	BackfillBudgetExhaustedRealPeers int64 `json:"backfill_budget_exhausted_real_peers"`
+	// GatewayGRPCPort is the gRPC-only listener the process has bound, zero
+	// when it has none. It is the evidence the gRPC Ingress switches on.
+	GatewayGRPCPort int32 `json:"gateway_grpc_port"`
+}
+
+// podRuntimeSample is one pod's last observed /status/rollout report plus
+// the reset-clamped counter accumulation. clampedFDTimeouts/clampedPeerFailures
+// are the values published upward: base + the pod's current reading, where
+// the base absorbs everything a previous incarnation of the pod's counter
+// had reached before a restart reset it.
+type podRuntimeSample struct {
+	status    runtimeStatus
+	sampledAt time.Time
+	// podUID is the pod incarnation the status came from. A recreated pod
+	// keeps its name, so the UID is what tells a stale report from a current one.
+	podUID types.UID
+
+	fdTimeoutBase   uint64
+	peerFailureBase uint64
+}
+
+func (s *podRuntimeSample) observe(status runtimeStatus, now time.Time) {
+	if status.FDTimeoutCount < s.status.FDTimeoutCount {
+		s.fdTimeoutBase += s.status.FDTimeoutCount
+	}
+	if status.PeerConnectionFailureCount < s.status.PeerConnectionFailureCount {
+		s.peerFailureBase += s.status.PeerConnectionFailureCount
+	}
+	s.status = status
+	s.sampledAt = now
+}
+
+func (s *podRuntimeSample) clampedFDTimeouts() uint64 {
+	return s.fdTimeoutBase + s.status.FDTimeoutCount
+}
+
+func (s *podRuntimeSample) clampedPeerFailures() uint64 {
+	return s.peerFailureBase + s.status.PeerConnectionFailureCount
 }
 
 type httpRuntimeStatusClient struct {
@@ -127,6 +319,66 @@ func grpcTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 
 func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-public-tls"
+}
+
+// sharedPublicTLSCovers gates the switch onto the shared wildcard. An Ingress
+// pointed at a Secret without a leaf, or at one whose leaf does not span the
+// host, makes ingress-nginx serve its self-signed default. Coverage is checked
+// rather than presence because an ACME wildcard matches exactly one label.
+//
+// A private gateway is asked the same question about its own hostname. Minting
+// a certificate per instance spends the ACME per-registered-domain allowance,
+// which is shared across everything under tuist.dev and is what stranded six
+// instances for a day when eleven were ordered at once; a host the wildcard
+// already spans needs no certificate of its own. A private host the wildcard
+// does not span still gets one, which is the only way to serve a hostname
+// outside the zone.
+func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
+	hosts := clientHosts(instance)
+	if len(hosts) == 0 {
+		return false
+	}
+	for _, host := range hosts {
+		if !r.sharedTLSCoversHost(ctx, instance, host) {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *KuraInstanceReconciler) sharedTLSCoversHost(ctx context.Context, instance *kurav1alpha1.KuraInstance, host string) bool {
+	if r.PublicTLSSecretName == "" || host == "" {
+		return false
+	}
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Name: r.PublicTLSSecretName, Namespace: instance.Namespace}, secret); err != nil {
+		return false
+	}
+	block, _ := pem.Decode(secret.Data[corev1.TLSCertKey])
+	if block == nil {
+		return false
+	}
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false
+	}
+	return leaf.VerifyHostname(host) == nil && time.Now().Before(leaf.NotAfter) && time.Now().After(leaf.NotBefore)
+}
+
+func (r *KuraInstanceReconciler) sharedTLSCoversAllHosts(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
+	for _, host := range stableClientHosts(instance) {
+		if !r.sharedTLSCoversHost(ctx, instance, host) {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *KuraInstanceReconciler) publicIngressTLSSecretName(ctx context.Context, instance *kurav1alpha1.KuraInstance) string {
+	if r.sharedPublicTLSCovers(ctx, instance) {
+		return r.PublicTLSSecretName
+	}
+	return publicTLSSecretName(instance)
 }
 
 func peerTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
@@ -181,8 +433,14 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete;patch
+// +kubebuilder:rbac:groups="",resources=pods/resize,verbs=patch
+// +kubebuilder:rbac:groups=apps,resources=controllerrevisions,verbs=get
+// +kubebuilder:rbac:groups="",resources=pods/portforward,verbs=create
+// +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -202,6 +460,20 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if !instance.DeletionTimestamp.IsZero() {
+		done, err := r.withdrawStableEndpoint(ctx, instance)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if !done {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
+		// The pre-instance public peer Service has no owner reference. Remove it
+		// with the last matching account/region instance so its load balancer and
+		// public record cannot outlive the cache. A surviving move sibling keeps
+		// the fallback and finishes the migration from its normal reconcile path.
+		if err := r.cleanupLegacyAccountPublicPeerService(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
 		// The StatefulSet's Delete retention policy drops the data PVCs when the
 		// StatefulSet is garbage-collected with the instance, but the default
 		// hcloud-volumes StorageClass retains the underlying Hetzner volume. Flip
@@ -211,6 +483,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err := r.reclaimDataVolumes(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
+		if err := r.releaseWorkload(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
+		r.forgetPodSamples(instance)
 		controllerutil.RemoveFinalizer(instance, KuraInstanceFinalizer)
 		return ctrl.Result{}, r.Update(ctx, instance)
 	}
@@ -222,38 +498,55 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	// A StatefulSet's volumeClaimTemplates are immutable, and a node-local data
-	// volume is pinned to the box it was carved on. Two states wedge an instance
-	// Pending forever with nothing to self-heal it: a storageClassName change on
-	// the CR that the live StatefulSet silently ignores (immutable template), and
-	// a bare-metal fleet node reprovisioned out from under a node-local PV. The
-	// cache is regenerable, so recreate the StatefulSet — dropping its PVCs via the
-	// Delete retention policy — and let it provision fresh volumes on the current
-	// storage class and node. Requeue while the cleanup is in flight so the
-	// recreated StatefulSet never re-adopts a stale PVC.
-	if inProgress, err := r.reconcileStaleDataStorage(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	} else if inProgress {
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	if instance.Status.StableEndpoint != nil && !stableAdvertising(instance) {
+		done, err := r.withdrawStableEndpoint(ctx, instance)
+		if err != nil {
+			logger.Error(err, "withdraw stable DNS advertisement")
+		}
+		if !done && (instance.Spec.Private || instance.Spec.PublicHost == "") {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, err
+		}
 	}
 
-	if err := r.reconcileConfigMap(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileHeadlessService(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileAccountPeerService(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileInstancePublicPeerService(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	primaryPod, err := r.selectPrimaryPod(ctx, instance)
+	// Roles, and the Services that carry them, resolve BEFORE the storage
+	// lifecycle below. Both storage paths rebuild a volume by deleting a pod and
+	// then short-circuiting the rest of the reconcile until the replacement is
+	// serving again — one ordinal per pass, a full cold bootstrap each — so
+	// whatever is left underneath them is frozen for the length of the rebuild.
+	// A Service pinned to one pod is only correct while it keeps naming a live
+	// one, and the pod a rebuild takes down is exactly the one a frozen pin
+	// still names. That is tolerable for a pin that recovers on the next pass
+	// and not for one that cannot: the public peer Service follows the gateway,
+	// which on a two-replica region is the ordinal the primary is not, so
+	// whichever of the two the rebuild starts with, one of the two pins is left
+	// pointing at a deleted pod for the whole rebuild. Nothing in this block
+	// touches a PVC or the StatefulSet, so the storage paths keep the priority
+	// their own triggers assume.
+	pods, err := r.instancePods(ctx, instance)
 	if err != nil {
+		return ctrl.Result{}, err
+	}
+	seedCPURequest(instance, pods)
+	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
+	r.observeSteadyCPUUsage(ctx, instance, pods, samples)
+	applyScheduleCap(instance, pods, time.Now())
+	primaryPod, evacuating, err := r.selectPrimaryPod(ctx, instance, pods, samples)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	gatewayPod, err := r.selectGatewayPod(ctx, instance, pods, samples, primaryPod, evacuating)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	// The public peer plane follows the gateway, and the gateway is derived
+	// from the primary, so both reconcile only once the roles are settled.
+	if err := r.reconcileInstancePublicPeerService(ctx, instance, gatewayPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	// The gRPC Ingress follows the pods' evidence for the gRPC-only port. It
+	// reconciles before the Service so a move back to the co-hosted port lands
+	// before the Service can select a pod without the gRPC-only listener.
+	if err := r.reconcileGRPCIngress(ctx, instance, pods, r.retainedRuntimeStatuses(instance, pods), primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileService(ctx, instance, primaryPod); err != nil {
@@ -271,16 +564,78 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+	if err := r.reconcilePublicDNSEndpoint(ctx, instance, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.retireLegacyGRPCCertificate(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileStableEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {
+		// A DNS control-plane outage must not block repairs to the cache workload.
+		// The failed observation clears readiness; the periodic pass retries it.
+		logger.Error(err, "reconcile stable DNS advertisement")
+	}
+	if err := r.observePrivateEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// A StatefulSet's volumeClaimTemplates are immutable, and a node-local data
+	// volume is pinned to the box it was carved on. Two states leave an instance
+	// with a claim that can never bind, with nothing to self-heal it: a
+	// storageClassName change the live StatefulSet silently ignores (immutable
+	// template), and a bare-metal fleet node reprovisioned out from under a
+	// node-local PV. Both are already broken, so recreate the StatefulSet —
+	// dropping its PVCs via the Delete retention policy — and let it provision
+	// fresh volumes on the current class and node. Requeue while the cleanup is
+	// in flight so the recreated StatefulSet never re-adopts a stale PVC.
+	if fencedServing(instance) {
+		if err := r.holdRecoveryRollout(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+	if err := r.requestExitRecovery(ctx, instance, pods); err != nil {
+		return ctrl.Result{}, err
+	}
+	if inProgress, err := r.reconcileReplicaRecovery(ctx, instance, pods, samples, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: 2 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+	}
+	if inProgress, err := r.reconcileStaleDataStorage(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+	}
+
+	// A grown claim reaches the same immutability, but from a healthy instance
+	// that is still serving, so it does not get the same treatment: re-template
+	// the StatefulSet without disturbing what it runs, then replace the volumes
+	// one replica at a time behind the standby. Requeue between replicas so each
+	// rebuilt pod is serving again before the next is taken. The StatefulSet is
+	// held on OnDelete meanwhile, so its template keeps following the instance
+	// without a rolling update restarting the replica that is still serving.
+	if inProgress, err := r.reconcileDataStorageResize(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	} else if inProgress {
+		if err := r.reconcileStatefulSetDuringResize(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+	}
+
+	if err := r.reconcileHeadlessService(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileAccountPeerService(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.retireLegacyAccountPublicPeerService(ctx, instance, time.Now().UTC()); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePeerTLSSecret(ctx, instance); err != nil {
@@ -292,7 +647,28 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePodDisruptionBudget(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileEgressClassID(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileCPUResizeHold(ctx, instance, time.Now()); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.releaseResizeRolloutHold(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.replacePendingPodsForStorageDecrease(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	// Retiring a cache box means abandoning node-local volumes and refilling
+	// them from a peer, so the moves are sequenced rather than done at once.
+	// Paced by this reconciler's requeue below.
+	if err := r.evacuateMarkedNodes(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -311,9 +687,21 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	instance.Status.ImageHold = rollout.imageHold
+	if image, held := heldRuntimeImage(instance); held {
+		instance.Status.Phase = "Pending"
+		instance.Status.ImageHold = imageHoldFencedPin
+		instance.Status.Message = fmt.Sprintf("Requested runtime image %s is held at qualified image %s; qualify the new image before updating the fenced runtime pin", instance.Spec.Image, image)
+	}
+	if fencedServing(instance) && primaryPod == "fenced-unavailable" {
+		instance.Status.Phase = "Pending"
+		instance.Status.Message = "No acknowledged serving authority; inspect the durable serving grant"
+	}
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
+	instance.Status.RolloutHealth = r.aggregateRolloutHealth(instance, pods)
+	instance.Status.PeerRoles = peerRoles(instance, pods, primaryPod, gatewayPod)
 
 	if err := r.Status().Update(ctx, instance); err != nil {
 		return ctrl.Result{}, err
@@ -321,22 +709,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-}
-
-func (r *KuraInstanceReconciler) reconcileConfigMap(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	if instance.Spec.ExtensionScript == "" {
-		return nil
-	}
-	configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: extensionConfigMapName(instance), Namespace: instance.Namespace}}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, configMap, func() error {
-		if err := controllerutil.SetControllerReference(instance, configMap, r.Scheme); err != nil {
-			return err
-		}
-		configMap.Labels = labels(instance)
-		configMap.Data = map[string]string{"hooks.lua": instance.Spec.ExtensionScript}
-		return nil
-	})
-	return err
 }
 
 func (r *KuraInstanceReconciler) reconcileHeadlessService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -388,8 +760,11 @@ func (r *KuraInstanceReconciler) reconcileAccountPeerService(ctx context.Context
 // MeshPublicPeerHost to the assigned address. One Service per instance (region)
 // so the host, cert, and selected pods stay aligned across a multi-region
 // account. Only created when the controller owns the account CA
-// (meshManagedPeerTLS) and a public host is requested.
-func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+// (meshManagedPeerTLS) and a public host is requested. It selects the gateway
+// pod only: a self-hosted node that dials in is a non-gateway of this region,
+// and non-gateways pull from their gateway (kura/docs/replication-design.md
+// §2).
+func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance, gatewayPod string) error {
 	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}}
 	if !meshManagedPeerTLS(instance) || instance.Spec.MeshPublicPeerHost == "" {
 		// No public peer plane requested (a non-mesh region, or the host was
@@ -425,18 +800,20 @@ func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.
 			for k, v := range instance.Spec.MeshPublicPeerLoadBalancerAnnotations {
 				service.Annotations[k] = v
 			}
-			service.Annotations["external-dns.alpha.kubernetes.io/hostname"] = instance.Spec.MeshPublicPeerHost
+			service.Annotations[externalDNSHostnameAnnotation] = instance.Spec.MeshPublicPeerHost
 			service.Spec.Type = corev1.ServiceTypeLoadBalancer
 			// Local routes the LoadBalancer straight to a node that hosts a peer pod
 			// instead of round-robining across every node and SNAT-hopping to the
 			// pod, which intermittently reset long-lived bootstrap connections.
 			service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
 		}
-		// Per-region (per-instance): MeshPublicPeerHost and the peer cert SAN are
-		// region-scoped, so the Service must select only this instance's pods. An
-		// account-scoped selector would route one region's hostname to another
-		// region's pods and mismatch the cert.
-		service.Spec.Selector = selectorLabels(instance)
+		// The selector doubles as the persisted gateway designation that
+		// selectGatewayPod reads back, which is what keeps the role sticky
+		// across reconciles and controller restarts. It keeps the instance
+		// labels because MeshPublicPeerHost and the peer cert SAN are
+		// region-scoped: an account-scoped selector would route one region's
+		// hostname to another region's pods and mismatch the cert.
+		service.Spec.Selector = gatewayServiceSelector(instance, gatewayPod)
 		service.Spec.Ports = []corev1.ServicePort{
 			{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
 		}
@@ -493,20 +870,25 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 	// IP. On bare-metal regions the node InternalIP is the box's public IP.
 	target := instance.Spec.MeshPeerFailoverIP
 	if target == "" {
-		ip, err := r.instanceNodeIP(ctx, instance)
+		ip, err := r.instanceNodeIP(ctx, instance, "")
 		if err != nil {
 			return err
 		}
 		target = ip
 	}
 
-	// No public host, or no routable target yet (failover IP unset and no pod
-	// scheduled): tear down any DNSEndpoint created earlier so external-dns stops
-	// publishing a dead peer record, mirroring reconcileInstancePublicPeerService.
-	if instance.Spec.MeshPublicPeerHost == "" || target == "" {
+	// No public host: tear down any DNSEndpoint created earlier so external-dns
+	// stops publishing it, mirroring reconcileInstancePublicPeerService.
+	if instance.Spec.MeshPublicPeerHost == "" {
 		if err := r.Delete(ctx, endpoint); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
+		return nil
+	}
+	// No routable target yet (failover IP unset and no pod scheduled): an
+	// existing record keeps its last target until a replacement is known, as
+	// reconcilePublicDNSEndpoint does.
+	if target == "" {
 		return nil
 	}
 
@@ -521,7 +903,7 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 			map[string]interface{}{
 				"dnsName":    instance.Spec.MeshPublicPeerHost,
 				"recordType": "A",
-				"recordTTL":  int64(300),
+				"recordTTL":  peerDNSRecordTTLSeconds,
 				"targets":    []interface{}{target},
 			},
 		}, "spec", "endpoints"); err != nil {
@@ -532,20 +914,666 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 	return err
 }
 
-// reconcilePublicDNSEndpoint publishes the account's customer host on
-// host-network (bare-metal) regions, where the gateway is a DaemonSet across
-// every box: a per-account DNSEndpoint pointing PublicHost at the box the
-// account's pods run on, so each account resolves to its own box and the gateway
-// there routes locally (no cross-box hop). It is the authoritative source once
-// the gateway stops feeding external-dns the ambiguous all-nodes address; on a
-// single box the target equals that address, so the two coexist harmlessly until
-// then. LB regions publish DNS off the gateway Service/Ingress and never touch
-// this. The short TTL keeps client re-resolution quick when the account moves
-// boxes (the warm-handoff cutover flips this record's target).
-func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	// Only host-network regions get a per-account public DNSEndpoint. Never
-	// touching the DNSEndpoint API elsewhere keeps the common reconcile path
-	// (LB regions, Private instances) free of it.
+// retireLegacyAccountPublicPeerService migrates a host-network region from the
+// old account-wide LoadBalancer Service to the per-instance address object. Its
+// phase is persisted on the ownerless legacy Service, so every transition is
+// restart-safe:
+//
+//  1. Repair the old LoadBalancer as a Cluster-routed fallback while it still
+//     owns public DNS.
+//  2. Verify the exact replacement Service, demultiplexer rollout, and both
+//     public TLS paths before removing the legacy DNS annotation.
+//  3. Observe public DNS returning only the replacement address.
+//  4. Retain the repaired fallback for two DNS cache lifetimes, then delete it.
+func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	now time.Time,
+) error {
+	if !meshManagedPeerTLS(instance) || !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" {
+		return nil
+	}
+
+	legacyName := legacyAccountPublicPeerServiceName(instance)
+	if legacyName == instancePublicPeerServiceName(instance) {
+		return nil
+	}
+
+	ownsRoute, err := r.ownsPeerDemuxRoute(ctx, instance)
+	if err != nil {
+		return err
+	}
+	if !ownsRoute {
+		return nil
+	}
+
+	service := &corev1.Service{}
+	if err := r.Get(ctx, types.NamespacedName{Name: legacyName, Namespace: instance.Namespace}, service); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if !legacyAccountPublicPeerService(instance, service) {
+		return nil
+	}
+
+	annotations := service.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	phase := annotations[legacyPeerMigrationAnnotation]
+	if phase != "" && annotations[legacyPeerHostAnnotation] != instance.Spec.MeshPublicPeerHost {
+		return nil
+	}
+
+	state, ready, err := r.peerAddressCutoverReady(ctx, instance)
+	if err != nil {
+		return err
+	}
+	storedTargets, storedTargetsValid := decodePeerAddresses(annotations[legacyPeerTargetAddressesAnnotation])
+	targetChanged := len(state.targetAddresses) > 0 &&
+		(!storedTargetsValid || !stringSlicesEqual(storedTargets, normalizePeerAddresses(state.targetAddresses)))
+
+	switch phase {
+	case "":
+		if annotations[externalDNSHostnameAnnotation] != instance.Spec.MeshPublicPeerHost {
+			return nil
+		}
+		if !ready {
+			return nil
+		}
+		oldAddresses := legacyPeerServiceAddresses(service)
+		if len(oldAddresses) == 0 {
+			return nil
+		}
+
+		annotations[legacyPeerMigrationAnnotation] = legacyPeerPhaseRepairing
+		annotations[legacyPeerHostAnnotation] = instance.Spec.MeshPublicPeerHost
+		annotations[legacyPeerOldAddressesAnnotation] = encodePeerAddresses(oldAddresses)
+		annotations[legacyPeerTargetAddressesAnnotation] = encodePeerAddresses(state.targetAddresses)
+		service.SetAnnotations(annotations)
+		repairLegacyPeerFallback(service, instance)
+		return r.Update(ctx, service)
+
+	case legacyPeerPhaseRepairing:
+		if annotations[externalDNSHostnameAnnotation] != instance.Spec.MeshPublicPeerHost {
+			return nil
+		}
+		if !legacyPeerFallbackRepaired(service, instance) {
+			repairLegacyPeerFallback(service, instance)
+			return r.Update(ctx, service)
+		}
+		if targetChanged {
+			annotations[legacyPeerTargetAddressesAnnotation] = encodePeerAddresses(state.targetAddresses)
+			service.SetAnnotations(annotations)
+			return r.Update(ctx, service)
+		}
+		if !ready {
+			return nil
+		}
+		oldAddresses, targetAddresses, valid := legacyPeerMigrationAddresses(annotations, state.targetAddresses)
+		if !valid {
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		pathsReady, err := r.peerPublicPathsReady(ctx, instance, append(oldAddresses, targetAddresses...))
+		if err != nil {
+			return err
+		}
+		if !pathsReady {
+			return nil
+		}
+		if annotations[legacyPeerFallbackRepublishAnnotation] != "" {
+			if !r.peerPublicDNSFallbackObserved(ctx, instance.Spec.MeshPublicPeerHost, oldAddresses) {
+				if _, observed := annotations[legacyPeerFallbackObservedAnnotation]; observed {
+					delete(annotations, legacyPeerFallbackObservedAnnotation)
+					service.SetAnnotations(annotations)
+					return r.Update(ctx, service)
+				}
+				return nil
+			}
+			observedAt, err := time.Parse(time.RFC3339, annotations[legacyPeerFallbackObservedAnnotation])
+			if err != nil {
+				annotations[legacyPeerFallbackObservedAnnotation] = now.Format(time.RFC3339)
+				service.SetAnnotations(annotations)
+				return r.Update(ctx, service)
+			}
+			if now.Before(observedAt.Add(time.Duration(peerDNSRecordTTLSeconds) * time.Second)) {
+				return nil
+			}
+			delete(annotations, legacyPeerFallbackRepublishAnnotation)
+			delete(annotations, legacyPeerFallbackObservedAnnotation)
+		}
+
+		delete(annotations, externalDNSHostnameAnnotation)
+		annotations[legacyPeerMigrationAnnotation] = legacyPeerPhaseCutoverRequested
+		service.SetAnnotations(annotations)
+		return r.Update(ctx, service)
+
+	case legacyPeerPhaseCutoverRequested:
+		if targetChanged {
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		if !ready {
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		oldAddresses, targetAddresses, valid := legacyPeerMigrationAddresses(annotations, state.targetAddresses)
+		if !valid {
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		pathReady, err := r.peerPublicPathsReady(ctx, instance, targetAddresses)
+		if err != nil {
+			return err
+		}
+		if !pathReady {
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		if !r.peerPublicDNSCutoverObserved(ctx, instance.Spec.MeshPublicPeerHost, oldAddresses, targetAddresses) {
+			return nil
+		}
+
+		annotations[legacyPeerMigrationAnnotation] = legacyPeerPhaseDraining
+		annotations[legacyPeerRetireAfterAnnotation] = now.Add(legacyPeerRetirementDelay).Format(time.RFC3339)
+		service.SetAnnotations(annotations)
+		return r.Update(ctx, service)
+
+	case legacyPeerPhaseDraining:
+		if targetChanged {
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		oldAddresses, targetAddresses, valid := legacyPeerMigrationAddresses(annotations, state.targetAddresses)
+		if !valid {
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		pathReady, err := r.peerPublicPathsReady(ctx, instance, targetAddresses)
+		if err != nil {
+			return err
+		}
+		if !pathReady || !r.peerPublicDNSCutoverObserved(ctx, instance.Spec.MeshPublicPeerHost, oldAddresses, targetAddresses) {
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		if !ready {
+			if annotations[legacyPeerRetireAfterAnnotation] == "" {
+				return nil
+			}
+			delete(annotations, legacyPeerRetireAfterAnnotation)
+			service.SetAnnotations(annotations)
+			return r.Update(ctx, service)
+		}
+		if annotations[legacyPeerRetireAfterAnnotation] == "" {
+			annotations[legacyPeerRetireAfterAnnotation] = now.Add(legacyPeerRetirementDelay).Format(time.RFC3339)
+			service.SetAnnotations(annotations)
+			return r.Update(ctx, service)
+		}
+
+		retireAfter, err := time.Parse(time.RFC3339, annotations[legacyPeerRetireAfterAnnotation])
+		if err != nil {
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		if now.Before(retireAfter) {
+			return nil
+		}
+		return r.Delete(ctx, service)
+
+	default:
+		return nil
+	}
+}
+
+func (r *KuraInstanceReconciler) ownsPeerDemuxRoute(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+) (bool, error) {
+	instances := &kurav1alpha1.KuraInstanceList{}
+	if err := r.List(ctx, instances, client.InNamespace(instance.Namespace)); err != nil {
+		return false, err
+	}
+
+	routes, _, _, _ := peerDemuxDesiredState(instance.Spec.Region, instance.Namespace, instances.Items)
+	wantBackend := fmt.Sprintf(
+		"%s.%s.svc.cluster.local:%d",
+		instancePublicPeerServiceName(instance),
+		instance.Namespace,
+		peerPort,
+	)
+	for _, route := range routes {
+		if route.host == instance.Spec.MeshPublicPeerHost {
+			return route.backend == wantBackend, nil
+		}
+	}
+	return false, nil
+}
+
+func (r *KuraInstanceReconciler) restartLegacyPeerCutover(
+	ctx context.Context,
+	service *corev1.Service,
+	instance *kurav1alpha1.KuraInstance,
+	annotations map[string]string,
+	targetAddresses []string,
+	now time.Time,
+) error {
+	annotations[externalDNSHostnameAnnotation] = instance.Spec.MeshPublicPeerHost
+	annotations[legacyPeerMigrationAnnotation] = legacyPeerPhaseRepairing
+	annotations[legacyPeerFallbackRepublishAnnotation] = now.Format(time.RFC3339)
+	delete(annotations, legacyPeerRetireAfterAnnotation)
+	delete(annotations, legacyPeerFallbackObservedAnnotation)
+	if _, valid := decodePeerAddresses(annotations[legacyPeerOldAddressesAnnotation]); !valid {
+		if oldAddresses := legacyPeerServiceAddresses(service); len(oldAddresses) > 0 {
+			annotations[legacyPeerOldAddressesAnnotation] = encodePeerAddresses(oldAddresses)
+		}
+	}
+	if len(targetAddresses) > 0 {
+		annotations[legacyPeerTargetAddressesAnnotation] = encodePeerAddresses(targetAddresses)
+	}
+	service.SetAnnotations(annotations)
+	repairLegacyPeerFallback(service, instance)
+	return r.Update(ctx, service)
+}
+
+type peerAddressCutoverState struct {
+	targetAddresses []string
+}
+
+func (r *KuraInstanceReconciler) peerAddressCutoverReady(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+) (peerAddressCutoverState, bool, error) {
+	state := peerAddressCutoverState{}
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name + "-peer-dns", Namespace: instance.Namespace}, endpoint); err != nil {
+		if apierrors.IsNotFound(err) {
+			return state, false, nil
+		}
+		return state, false, err
+	}
+	targetAddresses, found := dnsEndpointTargets(endpoint, instance.Spec.MeshPublicPeerHost)
+	if !found {
+		return state, false, nil
+	}
+	state.targetAddresses = targetAddresses
+	observedGeneration, observed, err := unstructured.NestedInt64(endpoint.Object, "status", "observedGeneration")
+	if err != nil || !observed || observedGeneration != endpoint.GetGeneration() {
+		return state, false, err
+	}
+
+	serviceName := instancePublicPeerServiceName(instance)
+	service := &corev1.Service{}
+	if err := r.Get(ctx, types.NamespacedName{Name: serviceName, Namespace: instance.Namespace}, service); err != nil {
+		if apierrors.IsNotFound(err) {
+			return state, false, nil
+		}
+		return state, false, err
+	}
+	if service.Spec.Type != corev1.ServiceTypeClusterIP || !gatewayServiceSelectorMatches(instance, service.Spec.Selector) {
+		return state, false, nil
+	}
+	endpointSlices := &discoveryv1.EndpointSliceList{}
+	if err := r.List(
+		ctx,
+		endpointSlices,
+		client.InNamespace(instance.Namespace),
+		client.MatchingLabels{discoveryv1.LabelServiceName: serviceName},
+	); err != nil {
+		return state, false, err
+	}
+	if !peerEndpointSliceReady(endpointSlices.Items) {
+		return state, false, nil
+	}
+
+	demuxName := peerDemuxName(instance.Spec.Region)
+	configMap := &corev1.ConfigMap{}
+	if err := r.Get(ctx, types.NamespacedName{Name: demuxName, Namespace: instance.Namespace}, configMap); err != nil {
+		if apierrors.IsNotFound(err) {
+			return state, false, nil
+		}
+		return state, false, err
+	}
+	config := configMap.Data["nginx.conf"]
+	wantRoute := peerDemuxRoute{
+		host: instance.Spec.MeshPublicPeerHost,
+		backend: fmt.Sprintf("%s.%s.svc.cluster.local:%d",
+			serviceName, instance.Namespace, peerPort),
+	}
+	if !peerDemuxConfigHasRoute(config, wantRoute) {
+		return state, false, nil
+	}
+
+	demux := &appsv1.DaemonSet{}
+	if err := r.Get(ctx, types.NamespacedName{Name: demuxName, Namespace: instance.Namespace}, demux); err != nil {
+		if apierrors.IsNotFound(err) {
+			return state, false, nil
+		}
+		return state, false, err
+	}
+	configHash := fmt.Sprintf("%x", sha256.Sum256([]byte(config)))
+	if demux.Spec.Template.Annotations[peerDemuxConfigHashAnnotation] != configHash {
+		return state, false, nil
+	}
+	ready := demux.Status.ObservedGeneration >= demux.Generation &&
+		demux.Status.DesiredNumberScheduled > 0 &&
+		demux.Status.UpdatedNumberScheduled == demux.Status.DesiredNumberScheduled &&
+		demux.Status.NumberReady == demux.Status.DesiredNumberScheduled &&
+		demux.Status.NumberAvailable == demux.Status.DesiredNumberScheduled &&
+		demux.Status.NumberUnavailable == 0
+	return state, ready, nil
+}
+
+func dnsEndpointTargets(endpoint *unstructured.Unstructured, host string) ([]string, bool) {
+	endpoints, found, err := unstructured.NestedSlice(endpoint.Object, "spec", "endpoints")
+	if err != nil || !found {
+		return nil, false
+	}
+	for _, value := range endpoints {
+		record, ok := value.(map[string]interface{})
+		if !ok || record["dnsName"] != host || record["recordType"] != "A" {
+			continue
+		}
+		targets, found, err := unstructured.NestedStringSlice(record, "targets")
+		if err == nil && found && len(targets) > 0 {
+			return normalizePeerAddresses(targets), true
+		}
+	}
+	return nil, false
+}
+
+func peerEndpointSliceReady(slices []discoveryv1.EndpointSlice) bool {
+	for _, slice := range slices {
+		portReady := false
+		for _, port := range slice.Ports {
+			if port.Port != nil && *port.Port == peerPort {
+				portReady = true
+				break
+			}
+		}
+		if !portReady {
+			continue
+		}
+		for _, endpoint := range slice.Endpoints {
+			if endpoint.Conditions.Ready != nil && *endpoint.Conditions.Ready && len(endpoint.Addresses) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func peerDemuxConfigHasRoute(config string, route peerDemuxRoute) bool {
+	want := route.host + " " + route.backend + ";"
+	for _, line := range strings.Split(config, "\n") {
+		if strings.TrimSpace(line) == want {
+			return true
+		}
+	}
+	return false
+}
+
+func repairLegacyPeerFallback(service *corev1.Service, instance *kurav1alpha1.KuraInstance) {
+	annotations := service.GetAnnotations()
+	delete(annotations, hetznerNodeSelectorAnnotation)
+	service.SetAnnotations(annotations)
+	service.Spec.Selector = selectorLabels(instance)
+	service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeCluster
+	service.Spec.HealthCheckNodePort = 0
+}
+
+func legacyPeerFallbackRepaired(service *corev1.Service, instance *kurav1alpha1.KuraInstance) bool {
+	_, hasStaleNodeSelector := service.GetAnnotations()[hetznerNodeSelectorAnnotation]
+	return !hasStaleNodeSelector &&
+		stringMapEqual(service.Spec.Selector, selectorLabels(instance)) &&
+		service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeCluster &&
+		service.Spec.HealthCheckNodePort == 0
+}
+
+func legacyPeerServiceAddresses(service *corev1.Service) []string {
+	addresses := make([]string, 0, len(service.Status.LoadBalancer.Ingress))
+	for _, ingress := range service.Status.LoadBalancer.Ingress {
+		if ingress.IP != "" {
+			addresses = append(addresses, ingress.IP)
+		}
+		if ingress.Hostname != "" {
+			addresses = append(addresses, ingress.Hostname)
+		}
+	}
+	return normalizePeerAddresses(addresses)
+}
+
+func encodePeerAddresses(addresses []string) string {
+	encoded, _ := json.Marshal(normalizePeerAddresses(addresses))
+	return string(encoded)
+}
+
+func decodePeerAddresses(value string) ([]string, bool) {
+	var addresses []string
+	if value == "" || json.Unmarshal([]byte(value), &addresses) != nil || len(addresses) == 0 {
+		return nil, false
+	}
+	return normalizePeerAddresses(addresses), true
+}
+
+func normalizePeerAddresses(addresses []string) []string {
+	unique := map[string]struct{}{}
+	for _, address := range addresses {
+		address = strings.TrimSpace(strings.ToLower(address))
+		if address != "" {
+			unique[address] = struct{}{}
+		}
+	}
+	result := make([]string, 0, len(unique))
+	for address := range unique {
+		result = append(result, address)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func legacyPeerMigrationAddresses(
+	annotations map[string]string,
+	currentTargets []string,
+) ([]string, []string, bool) {
+	oldAddresses, oldValid := decodePeerAddresses(annotations[legacyPeerOldAddressesAnnotation])
+	targetAddresses, targetValid := decodePeerAddresses(annotations[legacyPeerTargetAddressesAnnotation])
+	if !oldValid || !targetValid || !stringSlicesEqual(targetAddresses, normalizePeerAddresses(currentTargets)) {
+		return nil, nil, false
+	}
+	return oldAddresses, targetAddresses, true
+}
+
+func (r *KuraInstanceReconciler) peerPublicPathsReady(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	addresses []string,
+) (bool, error) {
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	prober := r.PeerPathProber
+	if prober == nil {
+		prober = tlsPeerPathProber{}
+	}
+	logger := log.FromContext(ctx)
+	for _, address := range normalizePeerAddresses(addresses) {
+		if err := prober.Probe(ctx, address, instance.Spec.MeshPublicPeerHost, secret.Data); err != nil {
+			logger.Info("Kura peer public path is not ready", "host", instance.Spec.MeshPublicPeerHost, "address", address, "error", err.Error())
+			return false, nil
+		}
+	}
+	return len(addresses) > 0, nil
+}
+
+func (r *KuraInstanceReconciler) peerPublicDNSCutoverObserved(
+	ctx context.Context,
+	host string,
+	oldAddresses []string,
+	targetAddresses []string,
+) bool {
+	resolver := r.PeerDNSResolver
+	if resolver == nil {
+		resolver = netPeerDNSResolver{}
+	}
+	resolved, err := resolver.LookupHost(ctx, host)
+	if err != nil {
+		log.FromContext(ctx).Info("Kura peer public DNS cutover is not observable yet", "host", host, "error", err.Error())
+		return false
+	}
+	resolved = normalizePeerAddresses(resolved)
+	targets := normalizePeerAddresses(targetAddresses)
+	if len(resolved) == 0 || len(targets) == 0 {
+		return false
+	}
+	targetSet := stringSet(targets)
+	oldSet := stringSet(normalizePeerAddresses(oldAddresses))
+	for _, address := range resolved {
+		if _, expected := targetSet[address]; !expected {
+			return false
+		}
+		if _, old := oldSet[address]; old {
+			if _, alsoTarget := targetSet[address]; !alsoTarget {
+				return false
+			}
+		}
+	}
+	for _, target := range targets {
+		if _, found := stringSet(resolved)[target]; !found {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *KuraInstanceReconciler) peerPublicDNSFallbackObserved(
+	ctx context.Context,
+	host string,
+	oldAddresses []string,
+) bool {
+	resolver := r.PeerDNSResolver
+	if resolver == nil {
+		resolver = netPeerDNSResolver{}
+	}
+	resolved, err := resolver.LookupHost(ctx, host)
+	if err != nil {
+		log.FromContext(ctx).Info("Kura peer public DNS fallback is not observable yet", "host", host, "error", err.Error())
+		return false
+	}
+	resolvedSet := stringSet(normalizePeerAddresses(resolved))
+	oldAddresses = normalizePeerAddresses(oldAddresses)
+	if len(resolvedSet) == 0 || len(oldAddresses) == 0 {
+		return false
+	}
+	for _, address := range oldAddresses {
+		if _, found := resolvedSet[address]; !found {
+			return false
+		}
+	}
+	return true
+}
+
+func stringSet(values []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		result[value] = struct{}{}
+	}
+	return result
+}
+
+func stringSlicesEqual(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func stringMapEqual(left, right map[string]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, value := range left {
+		if right[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
+func legacyAccountPublicPeerService(instance *kurav1alpha1.KuraInstance, service *corev1.Service) bool {
+	labels := service.GetLabels()
+	return len(service.OwnerReferences) == 0 &&
+		labels["app.kubernetes.io/managed-by"] == "kura-controller" &&
+		labels["tuist.dev/account"] == instance.Spec.AccountHandle &&
+		labels["app.kubernetes.io/instance"] == ""
+}
+
+func (r *KuraInstanceReconciler) cleanupLegacyAccountPublicPeerService(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+) error {
+	legacyName := legacyAccountPublicPeerServiceName(instance)
+	service := &corev1.Service{}
+	if err := r.Get(ctx, types.NamespacedName{Name: legacyName, Namespace: instance.Namespace}, service); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if !legacyAccountPublicPeerService(instance, service) || !legacyPeerServiceMatchesHost(service, instance.Spec.MeshPublicPeerHost) {
+		return nil
+	}
+
+	instances := &kurav1alpha1.KuraInstanceList{}
+	if err := r.List(ctx, instances, client.InNamespace(instance.Namespace)); err != nil {
+		return err
+	}
+	for i := range instances.Items {
+		sibling := &instances.Items[i]
+		if sibling.Name != instance.Name && sibling.DeletionTimestamp.IsZero() &&
+			sibling.Spec.AccountHandle == instance.Spec.AccountHandle &&
+			sibling.Spec.MeshPublicPeerHost == instance.Spec.MeshPublicPeerHost {
+			return nil
+		}
+	}
+
+	return r.Delete(ctx, service)
+}
+
+func legacyPeerServiceMatchesHost(service *corev1.Service, host string) bool {
+	if host == "" {
+		return false
+	}
+	annotations := service.GetAnnotations()
+	recordedHost := annotations[legacyPeerHostAnnotation]
+	if recordedHost != "" {
+		return recordedHost == host
+	}
+	return annotations[externalDNSHostnameAnnotation] == host
+}
+
+func legacyAccountPublicPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
+	name := "kura-" + instance.Spec.AccountHandle + "-peers-public"
+	if len(name) <= 63 {
+		return name
+	}
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(instance.Spec.AccountHandle))
+	suffix := fmt.Sprintf("-%x", hash.Sum32())
+	return strings.TrimRight(name[:63-len(suffix)], "-") + suffix
+}
+
+// reconcilePublicDNSEndpoint publishes the client hostname for host-network
+// gateways. Public instances follow the primary's public InternalIP; private
+// instances retain a healthy gateway's PN address. The historical resource name is retained for both paths.
+// The gateway routes through the primary Service even when pods span hosts.
+// LB-backed regions continue to publish DNS from their Service/Ingress.
+func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
+	// Legacy private and LB-backed instances do not need a DNSEndpoint.
 	if !instance.Spec.PublicHostNetwork {
 		return nil
 	}
@@ -555,21 +1583,54 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 	endpoint.SetNamespace(instance.Namespace)
 	endpoint.SetName(instance.Name + "-public-dns")
 
-	// The box the account's pods run on. The account is pinned to one box per
-	// region (co-location), so the box IP is the per-account customer target. On
-	// bare-metal regions the node InternalIP is the box's public IP.
-	target, err := r.instanceNodeIP(ctx, instance)
+	var target string
+	var err error
+	if instance.Spec.Private {
+		target, err = r.privateGatewayTarget(ctx, instance)
+	} else {
+		target, err = r.instanceNodeIP(ctx, instance, primaryPod)
+	}
 	if err != nil {
 		return err
 	}
 
-	// No public host (Private, or none set), or no box yet (no pod scheduled):
-	// tear down any DNSEndpoint created earlier so external-dns stops publishing
-	// a dead record, mirroring reconcilePublicIngress.
-	if instance.Spec.Private || instance.Spec.PublicHost == "" || target == "" {
+	// No client host: tear down any DNSEndpoint created earlier so external-dns
+	// stops publishing it, mirroring reconcilePublicIngress.
+	if clientHost(instance) == "" {
 		if err := r.Delete(ctx, endpoint); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
+		return nil
+	}
+	// No pod is scheduled. An existing record keeps its last target until a
+	// replacement is known: every pod is between being deleted and being
+	// scheduled again, as in a storage rebuild or a node evacuation, and deleting
+	// the record would have external-dns unpublish a host clients are using, and
+	// resolvers cache the NXDOMAIN for the zone's negative TTL. A new instance's
+	// record is published now, at a box of the region, and follows the primary
+	// once one is scheduled: the record takes seconds to propagate once
+	// external-dns writes it, and starting that while volumes are provisioned and
+	// pods start, rather than after, is most of how soon a new instance can be
+	// handed out.
+	if target == "" {
+		existing := &unstructured.Unstructured{}
+		existing.SetGroupVersionKind(dnsEndpointGVK)
+		err := r.Get(ctx, types.NamespacedName{Namespace: endpoint.GetNamespace(), Name: endpoint.GetName()}, existing)
+		switch {
+		case err == nil:
+			return r.pruneClientDNSAliases(ctx, instance, existing)
+		case !apierrors.IsNotFound(err):
+			return err
+		}
+		if instance.Spec.Private {
+			return nil
+		}
+		target, err = r.regionBoxIP(ctx, instance)
+		if err != nil {
+			return err
+		}
+	}
+	if target == "" {
 		return nil
 	}
 
@@ -580,14 +1641,13 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 			"app.kubernetes.io/managed-by": "kura-controller",
 			"tuist.dev/account":            instance.Spec.AccountHandle,
 		})
-		if err := unstructured.SetNestedSlice(endpoint.Object, []interface{}{
-			map[string]interface{}{
-				"dnsName":    instance.Spec.PublicHost,
-				"recordType": "A",
-				"recordTTL":  int64(60),
-				"targets":    []interface{}{target},
-			},
-		}, "spec", "endpoints"); err != nil {
+		records := make([]interface{}, 0, len(clientHosts(instance)))
+		for _, host := range clientHosts(instance) {
+			records = append(records, map[string]interface{}{
+				"dnsName": host, "recordType": "A", "recordTTL": int64(60), "targets": []interface{}{target},
+			})
+		}
+		if err := unstructured.SetNestedSlice(endpoint.Object, records, "spec", "endpoints"); err != nil {
 			return err
 		}
 		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)
@@ -595,25 +1655,99 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 	return err
 }
 
+// Retiring a hostname must not depend on a healthy gateway. Preserve the last
+// targets of still-desired records while removing aliases absent from the spec.
+func (r *KuraInstanceReconciler) pruneClientDNSAliases(ctx context.Context, instance *kurav1alpha1.KuraInstance, endpoint *unstructured.Unstructured) error {
+	records, _, err := unstructured.NestedSlice(endpoint.Object, "spec", "endpoints")
+	if err != nil {
+		return err
+	}
+	hosts := map[string]bool{}
+	for _, host := range clientHosts(instance) {
+		hosts[host] = true
+	}
+	retained := make([]interface{}, 0, len(records))
+	for _, record := range records {
+		fields, ok := record.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("invalid client DNS record for %s", instance.Name)
+		}
+		host, _ := fields["dnsName"].(string)
+		if hosts[host] {
+			retained = append(retained, record)
+		}
+	}
+	if len(retained) == len(records) {
+		return nil
+	}
+	if err := unstructured.SetNestedSlice(endpoint.Object, retained, "spec", "endpoints"); err != nil {
+		return err
+	}
+	return r.Update(ctx, endpoint)
+}
+
+// regionBoxIP returns the InternalIP of a box the instance's pods could be
+// placed on, or "" when there is none: a Ready node matching the instance's
+// node selector that is not being evacuated, the first by name so the answer is
+// stable across reconciles. On a host-network region every such box runs the
+// regional gateway, which forwards to the instance's pods wherever they are.
+// An instance with no node selector names no pool, and so no box.
+func (r *KuraInstanceReconciler) regionBoxIP(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+	if len(instance.Spec.NodeSelector) == 0 {
+		return "", nil
+	}
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes, client.MatchingLabels(instance.Spec.NodeSelector)); err != nil {
+		return "", err
+	}
+	items := nodes.Items
+	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+	for i := range items {
+		node := &items[i]
+		if _, evacuating := node.Annotations[EvacuateNodeAnnotation]; evacuating || !nodeReady(node) || node.Spec.Unschedulable {
+			continue
+		}
+		for _, address := range node.Status.Addresses {
+			if address.Type == corev1.NodeInternalIP && address.Address != "" {
+				return address.Address, nil
+			}
+		}
+	}
+	return "", nil
+}
+
 // instanceNodeIP returns the InternalIP of a node running one of the instance's
-// pods (the account's co-located box), or "" when none is scheduled yet. On
-// bare-metal regions the node InternalIP is the box's public IP, which is what
-// both the peer host (self-hosted dial-in) and the customer host (per-account
-// public DNSEndpoint) must resolve to.
-func (r *KuraInstanceReconciler) instanceNodeIP(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+// pods, or "" when none is scheduled yet. On bare-metal regions the node
+// InternalIP is the box's public IP, which is what both the peer host
+// (self-hosted dial-in) and the customer host (per-account public DNSEndpoint)
+// must resolve to.
+//
+// preferredPod wins when it is named and scheduled. Callers publishing a record
+// for a Service that pins one pod pass that pod, so the record names the box
+// actually serving the account. The replicas are usually on one box, since the
+// pod affinity prefers co-location, and then every pod resolves to the same
+// address; but that is a preference, not a guarantee, and for a split account
+// the two answers are different boxes.
+//
+// The remaining order is by pod name rather than List order so the answer is
+// stable across reconciles. Returning whichever pod came back first let a split
+// account's record flip between boxes every reconcile.
+func (r *KuraInstanceReconciler) instanceNodeIP(ctx context.Context, instance *kurav1alpha1.KuraInstance, preferredPod string) (string, error) {
 	var pods corev1.PodList
 	if err := r.List(ctx, &pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return "", err
 	}
-	for i := range pods.Items {
-		nodeName := pods.Items[i].Spec.NodeName
-		if nodeName == "" {
-			continue
+	items := pods.Items
+	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+
+	nodeIP := func(pod *corev1.Pod) (string, error) {
+		if pod.Spec.NodeName == "" {
+			return "", nil
 		}
 		var node corev1.Node
-		if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, &node); err != nil {
 			if apierrors.IsNotFound(err) {
-				continue
+				return "", nil
 			}
 			return "", err
 		}
@@ -621,6 +1755,32 @@ func (r *KuraInstanceReconciler) instanceNodeIP(ctx context.Context, instance *k
 			if addr.Type == corev1.NodeInternalIP && addr.Address != "" {
 				return addr.Address, nil
 			}
+		}
+		return "", nil
+	}
+
+	if preferredPod != "" {
+		for i := range items {
+			if items[i].Name != preferredPod {
+				continue
+			}
+			ip, err := nodeIP(&items[i])
+			if err != nil {
+				return "", err
+			}
+			if ip != "" {
+				return ip, nil
+			}
+			break
+		}
+	}
+	for i := range items {
+		ip, err := nodeIP(&items[i])
+		if err != nil {
+			return "", err
+		}
+		if ip != "" {
+			return ip, nil
 		}
 	}
 	return "", nil
@@ -758,7 +1918,7 @@ func (r *KuraInstanceReconciler) deleteLegacyServiceIfExists(ctx context.Context
 
 func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
-	if instance.Spec.Private || instance.Spec.PublicHost == "" {
+	if clientHost(instance) == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -770,14 +1930,22 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 			return err
 		}
 		ingress.Labels = labels(instance)
-		ingress.Annotations = publicIngressAnnotations()
+		ingress.Annotations = clientIngressAnnotations(instance, publicIngressAnnotations())
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = []networkingv1.IngressTLS{{
-			Hosts:      []string{instance.Spec.PublicHost},
-			SecretName: publicTLSSecretName(instance),
+			Hosts:      clientHosts(instance),
+			SecretName: r.publicIngressTLSSecretName(ctx, instance),
 		}}
+
+		for _, host := range stableClientHosts(instance)[len(clientHosts(instance)):] {
+			secret := publicTLSSecretName(instance)
+			if r.sharedTLSCoversHost(ctx, instance, host) {
+				secret = r.PublicTLSSecretName
+			}
+			ingress.Spec.TLS = append(ingress.Spec.TLS, networkingv1.IngressTLS{Hosts: []string{host}, SecretName: secret})
+		}
 		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: instance.Spec.PublicHost,
+			Host: clientHost(instance),
 			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
 				Paths: []networkingv1.HTTPIngressPath{{
 					Path:     "/",
@@ -786,15 +1954,21 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 				}},
 			}},
 		}}
+		for _, host := range stableClientHosts(instance)[1:] {
+			rule := *ingress.Spec.Rules[0].DeepCopy()
+			rule.Host = host
+			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
+		}
 		return nil
 	})
 	return err
 }
 
-// grpcREAPIPathPrefixes are the disjoint, stable URL prefixes of the gRPC
-// services Kura serves: the Bazel Remote Execution API and ByteStream.
-// Paired with the use-regex annotation (see grpcIngressAnnotations) they are
-// rendered by ingress-nginx as anchored regex locations
+// grpcPublicPathPrefixes are the disjoint, stable URL prefixes of the gRPC
+// services Kura serves on the public host: the Bazel Remote Execution and Asset APIs,
+// ByteStream, and the Build Event Protocol (PublishBuildEvent). Paired with
+// the use-regex annotation (see grpcIngressAnnotations) they are rendered by
+// ingress-nginx as anchored regex locations
 // (`location ~* "^/build\.bazel\.remote\.execution\.v2\."`), so a real method
 // path such as /build.bazel.remote.execution.v2.Capabilities/GetCapabilities
 // routes to the gRPC backend. A plain Prefix/ImplementationSpecific path
@@ -808,12 +1982,22 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 // anchor itself when use-regex is set, so it is not — and must not be —
 // included here.
 //
-// Note: only the REAPI and ByteStream packages are routed. Kura registers no
-// gRPC health or reflection service, so those paths intentionally fall to the
-// HTTP backend; add `/grpc\.` here if Kura ever serves them.
-var grpcREAPIPathPrefixes = []string{
+// The Build Event Protocol prefix `/google\.devtools\.build\.v1\.` covers
+// both PublishLifecycleEvent (unary) and PublishBuildToolEventStream (bidi
+// streaming). Without it BEP falls through to the HTTP `/` location and
+// ingress-nginx forwards h2 gRPC frames as HTTP/1 to Kura, which returns a
+// 200 response with no gRPC trailers — Bazel then aborts with
+// "unexpected EOS on empty DATA frame from server" and no build/test/cache
+// insight events land in the analytics pipeline.
+//
+// Note: no gRPC health or reflection service is registered by Kura, so
+// `/grpc\.` intentionally falls to the HTTP backend; add it here if Kura
+// ever serves them.
+var grpcPublicPathPrefixes = []string{
+	`/build\.bazel\.remote\.asset\.v1\.`,
 	`/build\.bazel\.remote\.execution\.v2\.`,
 	`/google\.bytestream\.`,
+	`/google\.devtools\.build\.v1\.`,
 }
 
 // reconcileGRPCIngress co-hosts the gRPC (Bazel REAPI) backend on the public
@@ -825,14 +2009,14 @@ var grpcREAPIPathPrefixes = []string{
 // of its own. Host equals PublicHost (not GRPCPublicHost) so existing CRs
 // that still carry a legacy grpc.<host> in grpcPublicHost converge onto the
 // single host as soon as this controller rolls out.
-func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, observed map[string]runtimeStatus, primaryPod string) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
-	// Private instances expose no public endpoint, so neither the public
-	// nor the gRPC Ingress is reconciled. For non-private instances, gRPC
-	// co-hosts on PublicHost (it is the rule host below), so an empty
-	// PublicHost has nowhere to route — delete rather than emit an Ingress
+	// PrivateHost opts into the same gateway path. Without it, private
+	// instances have no ingress. For gateway instances, gRPC
+	// co-hosts on the client hostname, so an empty host has nowhere to
+	// route — delete rather than emit an Ingress
 	// with an empty host, even when the legacy GRPCPublicHost is set.
-	if instance.Spec.Private || instance.Spec.PublicHost == "" {
+	if clientHost(instance) == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -844,29 +2028,140 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 			return err
 		}
 		ingress.Labels = labels(instance)
-		ingress.Annotations = grpcIngressAnnotations()
+		ingress.Annotations = clientIngressAnnotations(instance, grpcIngressAnnotations())
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = nil
-		// The backend is the same co-hosted cache port that serves HTTP;
-		// this Ingress only exists so ingress-nginx renders these paths
-		// with grpc_pass (backend-protocol: GRPC) instead of proxy_pass.
-		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcREAPIPathPrefixes))
-		for _, prefix := range grpcREAPIPathPrefixes {
+		// This Ingress exists so ingress-nginx renders these paths with
+		// grpc_pass (backend-protocol: GRPC) instead of proxy_pass.
+		servicePort := grpcIngressServicePort(pods, observed, primaryPod)
+		// With no pod ready nothing is routed, so there is no evidence to act
+		// on and no traffic a stale port could misroute. Keeping the port an
+		// existing Ingress already names spares an instance whose pods are all
+		// restarting two nginx reloads, which the regional gateway rate-limits
+		// and which would otherwise delay the moment its endpoint is routable
+		// again.
+		if current := grpcIngressBackendPort(ingress); current != "" && !anyPodReady(pods) {
+			servicePort = current
+		}
+		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcPublicPathPrefixes))
+		for _, prefix := range grpcPublicPathPrefixes {
 			paths = append(paths, networkingv1.HTTPIngressPath{
 				Path:     prefix,
 				PathType: ptr(networkingv1.PathTypeImplementationSpecific),
-				Backend:  ingressBackend(instance.Name, "http"),
+				Backend:  ingressBackend(instance.Name, servicePort),
 			})
 		}
 		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: instance.Spec.PublicHost,
+			Host: clientHost(instance),
 			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
 				Paths: paths,
 			}},
 		}}
+		for _, host := range stableClientHosts(instance)[1:] {
+			rule := *ingress.Spec.Rules[0].DeepCopy()
+			rule.Host = host
+			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
+		}
 		return nil
 	})
 	return err
+}
+
+const gatewayGRPCPortEnvVar = "KURA_GATEWAY_GRPC_PORT"
+
+// grpcIngressServicePort routes gRPC to the gRPC-only port only on evidence from
+// the pods: every ready pod declares it, every ready pod with a status report
+// from its current incarnation reports serving it, and the primary has such a
+// report. ingress-nginx reuses pooled upstream connections by address alone, so
+// gRPC and HTTP/1.1 sent to one pod port would be handed each other's
+// connections. A pod's image and env are fixed for its lifetime, so a missed
+// probe keeps its last report instead of reading as "does not serve the port";
+// only a pod that contradicts it, or a primary never observed serving it, moves
+// gRPC back to the co-hosted port, which every Kura image serves.
+func grpcIngressServicePort(pods []corev1.Pod, observed map[string]runtimeStatus, primaryPod string) string {
+	primaryServes := false
+	for i := range pods {
+		pod := &pods[i]
+		if !podReady(pod) {
+			continue
+		}
+		if !podDeclaresContainerPort(pod, "grpc", gatewayGRPCPort) {
+			return "http"
+		}
+		status, ok := observed[pod.Name]
+		if !ok {
+			continue
+		}
+		if status.GatewayGRPCPort != gatewayGRPCPort {
+			return "http"
+		}
+		if pod.Name == primaryPod {
+			primaryServes = true
+		}
+	}
+	if !primaryServes {
+		return "http"
+	}
+	return "grpc"
+}
+
+func grpcIngressBackendPort(ingress *networkingv1.Ingress) string {
+	for _, rule := range ingress.Spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
+		for _, path := range rule.HTTP.Paths {
+			if path.Backend.Service != nil && path.Backend.Service.Port.Name != "" {
+				return path.Backend.Service.Port.Name
+			}
+		}
+	}
+	return ""
+}
+
+func anyPodReady(pods []corev1.Pod) bool {
+	for i := range pods {
+		if podReady(&pods[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+func podDeclaresContainerPort(pod *corev1.Pod, name string, port int32) bool {
+	for _, container := range pod.Spec.Containers {
+		if container.Name != kuraContainerName {
+			continue
+		}
+		for _, containerPort := range container.Ports {
+			if containerPort.Name == name && containerPort.ContainerPort == port {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// templateServesGatewayGRPC decides whether the pod template carries the
+// gateway gRPC env var and port. Adding them changes the template, which
+// restarts every pod, so they are only added alongside a change that restarts
+// the pods anyway (a new StatefulSet or a new image) and kept once present.
+func templateServesGatewayGRPC(existing *corev1.PodTemplateSpec, instance *kurav1alpha1.KuraInstance) bool {
+	for _, container := range existing.Spec.Containers {
+		if container.Name != kuraContainerName {
+			continue
+		}
+		if container.Image != instance.Spec.Image {
+			return true
+		}
+		for _, env := range container.Env {
+			if env.Name == gatewayGRPCPortEnvVar {
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }
 
 func ingressBackend(serviceName string, servicePortName string) networkingv1.IngressBackend {
@@ -893,11 +2188,39 @@ func primaryServiceSelector(instance *kurav1alpha1.KuraInstance, primaryPod stri
 	return selector
 }
 
+// gatewayServiceSelector pins the public peer Service to the gateway pod the
+// way the public Services pin to the primary.
+func gatewayServiceSelector(instance *kurav1alpha1.KuraInstance, gatewayPod string) map[string]string {
+	selector := selectorLabels(instance)
+	selector[podNameLabel] = gatewayPod
+	return selector
+}
+
+// gatewayServiceSelectorMatches reports whether selector has the shape
+// gatewayServiceSelector renders, whichever pod it names.
+func gatewayServiceSelectorMatches(instance *kurav1alpha1.KuraInstance, selector map[string]string) bool {
+	gatewayPod := selector[podNameLabel]
+	return gatewayPod != "" && stringMapEqual(selector, gatewayServiceSelector(instance, gatewayPod))
+}
+
 // selectPrimaryPod resolves which pod the public Services should route
 // to. The currently routed pod is read back from the existing Service
 // selector so the choice is sticky across reconciles and survives a
 // controller restart without a dedicated status field.
-func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+//
+// It also returns the pods sitting on nodes marked for evacuation, so the
+// gateway derivation demotes the same set rather than re-deriving it from a
+// second node listing that could disagree.
+func (r *KuraInstanceReconciler) selectPrimaryPod(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+	samples map[string]runtimeStatus,
+) (string, map[string]bool, error) {
+	if fencedServing(instance) {
+		primary, err := r.fencedPrimary(ctx, instance, samples)
+		return primary, map[string]bool{}, err
+	}
 	current := ""
 	service := &corev1.Service{}
 	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
@@ -905,36 +2228,322 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 		current = service.Spec.Selector[podNameLabel]
 	case apierrors.IsNotFound(err):
 	default:
-		return "", err
+		return "", nil, err
 	}
 
-	pods := &corev1.PodList{}
-	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
-		return "", err
+	health, caughtUp := primaryPodHealthFromSamples(instance, pods, samples, time.Now())
+
+	// A pod on a box being retired must not hold the primary role: evacuation
+	// deletes it, and a Service still pointing at it has no endpoint until the
+	// next reconcile repoints the selector. Demoting it here, BEFORE the
+	// Services are reconciled in this same pass, is what makes the handover
+	// ordered rather than a race.
+	//
+	// Only when something else can actually serve. If every pod is on the way
+	// out there is no better primary, and dropping the role would replace a
+	// short gap with no endpoint at all.
+	evacuating, err := r.evacuatingPodNames(ctx, pods)
+	if err != nil {
+		return "", nil, err
 	}
-	return choosePrimaryPod(current, instance.Name, pods.Items, r.primaryPodHealth(ctx, instance, pods.Items)), nil
+	// Prefer a fully joined member, but if every sibling is absent or
+	// restarting, keep routing to a Ready serving process. Ring completeness
+	// must not pin the Service to a dead primary while a survivor can serve.
+	anyJoined := false
+	for _, healthy := range health {
+		anyJoined = anyJoined || healthy
+	}
+	if !anyJoined {
+		for i := range pods {
+			if status, fresh := samples[pods[i].Name]; fresh && podReady(&pods[i]) && runtimeStatusServing(status) {
+				health[pods[i].Name] = true
+			}
+		}
+	}
+	demoteEvacuatingPods(pods, health, caughtUp, evacuating)
+	return choosePrimaryPod(current, instance.Name, pods, health), evacuating, nil
 }
 
-func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
-	now := time.Now()
+// selectGatewayPod resolves which pod carries the region's cross-region
+// replication: the Ready, non-draining pod that is not the primary, or the
+// primary itself when there is none (kura/docs/replication-design.md §2.1).
+// As with the primary, the current holder is read back from the selector of
+// the Service that routes to it, so the role is sticky without a dedicated
+// status field.
+func (r *KuraInstanceReconciler) selectGatewayPod(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+	samples map[string]runtimeStatus,
+	primaryPod string,
+	evacuating map[string]bool,
+) (string, error) {
+	current := ""
+	service := &corev1.Service{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, service); {
+	case err == nil:
+		current = service.Spec.Selector[podNameLabel]
+	case apierrors.IsNotFound(err):
+	default:
+		return "", err
+	}
+	return chooseGatewayPod(current, primaryPod, pods, gatewayEligibleFromSamples(pods, samples, evacuating)), nil
+}
 
-	statusClient := r.RuntimeStatusClient
-	if statusClient == nil {
-		statusClient = defaultRuntimeStatusClient()
+// gatewayEligibleFromSamples marks the pods that may hold the gateway role:
+// Ready, not reported draining by the runtime, and not on a node marked for
+// evacuation. Readiness alone is not enough because the drain overlap keeps a
+// pod Ready while it hands off, and a role given to it evaporates seconds
+// later. A pod that could not be sampled has only its readiness as evidence.
+//
+// A pod on an evacuating node is Ready, not draining and has no deletion
+// timestamp right up until this same reconcile pass deletes it, so nothing in
+// the runtime report distinguishes it — but it is precisely the pod primary
+// selection has just stepped off, which under the complement rule makes it the
+// obvious gateway. Designating it violates INV-5 the same way a draining pod
+// does (kura/docs/replication-design.md §7), only over minutes rather than
+// seconds.
+//
+// Unlike the primary's demotion this is unconditional, with no "only when
+// something else can serve" gate. The gateway has a fallback the primary does
+// not: chooseGatewayPod names the primary when nothing else is eligible, so
+// excluding every evacuating pod still publishes a gateway (INV-3) and lands
+// the role on the replica that leaves last. Gating it would instead deadlock
+// the evacuation sequence, because the standby that has to move first is
+// exactly the pod the complement rule names.
+func gatewayEligibleFromSamples(pods []corev1.Pod, samples map[string]runtimeStatus, evacuating map[string]bool) map[string]bool {
+	eligible := map[string]bool{}
+	for i := range pods {
+		if !podReady(&pods[i]) {
+			continue
+		}
+		if evacuating[pods[i].Name] {
+			continue
+		}
+		if status, ok := samples[pods[i].Name]; ok && status.State == "draining" {
+			continue
+		}
+		eligible[pods[i].Name] = true
+	}
+	return eligible
+}
+
+func (r *KuraInstanceReconciler) instancePods(ctx context.Context, instance *kurav1alpha1.KuraInstance) ([]corev1.Pod, error) {
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return nil, err
+	}
+	return pods.Items, nil
+}
+
+// evacuatingPodNames lists the instance's pods sitting on nodes annotated for
+// evacuation.
+//
+// Both role derivations read it, from one node listing, so the primary and the
+// gateway demote the same pods. Deriving them separately is what let the
+// gateway land on exactly the pod the primary had just stepped off.
+func (r *KuraInstanceReconciler) evacuatingPodNames(ctx context.Context, pods []corev1.Pod) (map[string]bool, error) {
+	scheduled := false
+	for i := range pods {
+		if pods[i].Spec.NodeName != "" {
+			scheduled = true
+			break
+		}
+	}
+	if !scheduled {
+		return nil, nil
 	}
 
-	// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
-	// status endpoint is unreachable for every pod: without the runtime's
-	// bootstrap signal we keep the minPrimaryPodAge buffer so a still-bootstrapping
-	// pod isn't promoted. When the runtime status IS reachable it supersedes this —
-	// a pod that reports Ready+serving has already completed bootstrap (the runtime's
-	// is_serving requires bootstrapped_peers == known_peers), so the runtime-confirmed
-	// path does NOT age-gate. That lets a freshly-rolled but caught-up standby be
-	// promoted immediately, which is what makes a rolling deploy gapless instead of
-	// waiting out the 10-minute age with no eligible primary. The runtime status is
-	// therefore probed for every Ready pod, not just the age-eligible ones.
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		return nil, err
+	}
+	leaving := map[string]bool{}
+	for i := range nodes.Items {
+		if _, marked := nodes.Items[i].Annotations[EvacuateNodeAnnotation]; marked {
+			leaving[nodes.Items[i].Name] = true
+		}
+	}
+	if len(leaving) == 0 {
+		return nil, nil
+	}
+
+	evacuating := map[string]bool{}
+	for i := range pods {
+		if leaving[pods[i].Spec.NodeName] {
+			evacuating[pods[i].Name] = true
+		}
+	}
+	return evacuating, nil
+}
+
+// demoteEvacuatingPods marks pods on nodes annotated for evacuation as
+// unroutable, so primary selection hands the role to a pod that is staying.
+// A no-op unless some pod outside the evacuating set is healthy enough to take
+// over.
+func demoteEvacuatingPods(pods []corev1.Pod, health, caughtUp, evacuating map[string]bool) {
+	if len(evacuating) == 0 {
+		return
+	}
+
+	// A successor has to be able to serve AND have the content to serve. Moving
+	// the role to a pod that is still filling gives the account a cold cache
+	// with none of the outage a bad handover would cause, which is the failure
+	// that looks like success and so is worth gating on explicitly.
+	staying := false
+	for i := range pods {
+		name := pods[i].Name
+		if health[name] && caughtUp[name] && !evacuating[name] {
+			staying = true
+			break
+		}
+	}
+	if !staying {
+		return
+	}
+	for name := range evacuating {
+		delete(health, name)
+	}
+}
+
+// sampleRuntimeStatuses polls /status/rollout on every pod backing the
+// instance — including not-ready ones, since the endpoint keeps answering
+// while a pod bootstraps or drains and a sick standby is exactly what the
+// rollout-health aggregate exists to surface. Fresh reports are folded into
+// the per-pod sample cache (reset-clamping the monotone counters) and
+// returned; pods that could not be sampled this tick keep their cached
+// last-known report for the aggregate, with its old timestamp.
+func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+) map[string]runtimeStatus {
+	statusClient := r.runtimeStatusClient(instance)
+
+	fresh := map[string]runtimeStatus{}
+	uids := map[string]types.UID{}
+	for i := range pods {
+		status, err := statusClient.Status(ctx, pods[i])
+		if err != nil {
+			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+		}
+		observation, observed := observedRuntimeStatus(status, err)
+		if !observed {
+			continue
+		}
+		fresh[pods[i].Name] = observation
+		uids[pods[i].Name] = pods[i].UID
+	}
+
+	now := time.Now()
+
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	if r.podSamples == nil {
+		r.podSamples = map[types.NamespacedName]map[string]*podRuntimeSample{}
+	}
+	key := types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}
+	samples := r.podSamples[key]
+	if samples == nil {
+		samples = map[string]*podRuntimeSample{}
+		r.podSamples[key] = samples
+	}
+	for name, status := range fresh {
+		if status.invalidObservation {
+			continue
+		}
+		sample := samples[name]
+		if sample == nil {
+			sample = &podRuntimeSample{}
+			samples[name] = sample
+		}
+		sample.observe(status, now)
+		sample.podUID = uids[name]
+	}
+	// A pod that no longer exists stops contributing: its counters leave the
+	// aggregate (the consumer clamps decreases to no-growth) and its stale
+	// timestamp stops pinning SampledAt.
+	current := map[string]bool{}
+	for i := range pods {
+		current[pods[i].Name] = true
+	}
+	for name := range samples {
+		if !current[name] {
+			delete(samples, name)
+		}
+	}
+
+	return fresh
+}
+
+// retainedRuntimeStatuses returns each pod's latest status report from its
+// current incarnation, whether or not the probe answered this pass.
+func (r *KuraInstanceReconciler) retainedRuntimeStatuses(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]runtimeStatus {
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	samples := r.podSamples[types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}]
+	retained := map[string]runtimeStatus{}
+	for i := range pods {
+		if sample := samples[pods[i].Name]; sample != nil && sample.podUID == pods[i].UID {
+			retained[pods[i].Name] = sample.status
+		}
+	}
+	return retained
+}
+
+func (r *KuraInstanceReconciler) forgetPodSamples(instance *kurav1alpha1.KuraInstance) {
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	delete(r.podSamples, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name})
+}
+
+// primaryPodHealth samples the runtime statuses and derives routability in
+// one call. The reconcile loop instead samples once via
+// sampleRuntimeStatuses and reuses the result for both primary selection and
+// the rollout-health aggregate.
+func (r *KuraInstanceReconciler) primaryPodHealth(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+) (map[string]bool, map[string]bool) {
+	return primaryPodHealthFromSamples(instance, pods, r.sampleRuntimeStatuses(ctx, instance, pods), time.Now())
+}
+
+// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
+// status endpoint is unreachable for every pod: without the runtime's own
+// catch-up signal we keep the minPrimaryPodAge buffer so a pod that is still
+// filling isn't promoted. When the runtime status IS reachable it supersedes
+// this, and the runtime-confirmed path does NOT age-gate — which is what lets
+// a freshly-rolled but caught-up standby be promoted immediately, making a
+// rolling deploy gapless instead of waiting out the 10-minute age with no
+// eligible primary. The runtime status is therefore probed for every Ready
+// pod, not just the age-eligible ones.
+//
+// Note that Ready+serving is NOT proof of a completed catch-up. It once was
+// (is_serving required bootstrapped_peers == known_peers), but readiness now
+// latches at a ring-fullness threshold or when the initial backfill cycle
+// settles, and a cycle settles even when a peer stays unreachable. A pod that
+// reports serving can therefore still be filling, or be cold on an empty
+// volume whose only peer is down. Ring members and the writer lock below are
+// what this gate actually rests on; `backfill_initial_cycle` on
+// /status/rollout is the completeness signal, and it is deliberately not
+// consumed for routability (see the region-move note in kura/README.md); it
+// is reported separately as caughtUp for the callers that need it.
+func primaryPodHealthFromSamples(
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+	samples map[string]runtimeStatus,
+	now time.Time,
+) (map[string]bool, map[string]bool) {
 	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
+	// caughtUp is reported separately from routability because they answer
+	// different questions. Routable means a pod can serve; caught up means it
+	// has the content to serve WELL. Primary selection rightly moves on the
+	// first, since a rolling deploy has to promote quickly; handing traffic to a
+	// pod during an evacuation additionally wants the second, or the handover is
+	// warm in name only.
+	caughtUp := map[string]bool{}
 	runtimeStatuses := 0
 	for i := range pods {
 		if !podReady(&pods[i]) {
@@ -943,23 +2552,209 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 		if podOldEnoughForPrimary(&pods[i], now, replicas(instance)) {
 			fallbackReady[pods[i].Name] = true
 		}
-		status, err := statusClient.Status(ctx, pods[i])
-		if err != nil {
-			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+		status, ok := samples[pods[i].Name]
+		if !ok || status.invalidObservation {
 			continue
 		}
 		runtimeStatuses++
 		runtimeHealthy[pods[i].Name] = runtimeStatusRoutable(status, replicas(instance))
+		caughtUp[pods[i].Name] = status.BackfillInitialCycle == backfillCycleComplete
 	}
 
 	if runtimeStatuses == 0 {
-		return fallbackReady
+		// No runtime status anywhere means no catch-up evidence either, and a
+		// guess is not evidence: leave caughtUp empty so demotion holds.
+		return fallbackReady, map[string]bool{}
 	}
-	return runtimeHealthy
+	return runtimeHealthy, caughtUp
+}
+
+// peerRoles publishes the resolved roles keyed by the KURA_NODE_URL each pod
+// registers with the server: one entry per expected ordinal plus any surplus
+// pod still present, so the server can hand every node its own role and its
+// peers' from one document (kura/docs/replication-design.md §2.2). Expected
+// ordinals are listed even before their pod exists because the primary
+// defaults to ordinal 0 before any pod is routable.
+func peerRoles(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, primaryPod, gatewayPod string) []kurav1alpha1.KuraInstancePeerRole {
+	names := map[string]bool{}
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		names[fmt.Sprintf("%s-%d", instance.Name, ordinal)] = true
+	}
+	for i := range pods {
+		names[pods[i].Name] = true
+	}
+	ordered := make([]string, 0, len(names))
+	for name := range names {
+		ordered = append(ordered, name)
+	}
+	sort.Slice(ordered, func(i, j int) bool {
+		left, _ := podOrdinalSuffix(ordered[i])
+		right, _ := podOrdinalSuffix(ordered[j])
+		if left != right {
+			return left < right
+		}
+		return ordered[i] < ordered[j]
+	})
+	scheduled := make(map[string]string, len(pods))
+	for i := range pods {
+		scheduled[pods[i].Name] = pods[i].Spec.NodeName
+	}
+	roles := make([]kurav1alpha1.KuraInstancePeerRole, 0, len(ordered))
+	for _, name := range ordered {
+		roles = append(roles, kurav1alpha1.KuraInstancePeerRole{
+			NodeURL: podNodeURL(instance, name),
+			Gateway: name == gatewayPod,
+			Primary: name == primaryPod,
+			Node:    scheduled[name],
+		})
+	}
+	return roles
+}
+
+// publishPeerRoles writes status.peerRoles on a pass that returns before the
+// full status update at the end of Reconcile.
+//
+// The storage-lifecycle paths hold the reconcile for as long as each ordinal
+// takes to rebuild and bootstrap, and the server hands every node its own role
+// and its peers' from this document. Left at its pre-rebuild answer it names a
+// pod the same pass has deleted, so nodes address replication at an address
+// that is gone for the length of the rebuild rather than for a requeue.
+//
+// Only the roles are republished: phase, message and the rollout aggregate are
+// reported from a full pass and a rebuild is not one.
+func (r *KuraInstanceReconciler) publishPeerRoles(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+	primaryPod, gatewayPod string,
+) error {
+	roles := peerRoles(instance, pods, primaryPod, gatewayPod)
+	if peerRolesEqual(instance.Status.PeerRoles, roles) {
+		return nil
+	}
+	instance.Status.PeerRoles = roles
+	return r.Status().Update(ctx, instance)
+}
+
+func peerRolesEqual(left, right []kurav1alpha1.KuraInstancePeerRole) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// aggregateRolloutHealth folds the per-pod sample cache into the status
+// aggregate. Per-field semantics are documented on the API type. Pods that
+// answered a previous reconcile but not this one contribute their last-known
+// report with its old timestamp, so the oldest-sample rule surfaces them as
+// stale instead of dropping them from the conjunctions.
+func (r *KuraInstanceReconciler) aggregateRolloutHealth(
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+) *kurav1alpha1.KuraInstanceRolloutHealth {
+	expected := replicas(instance)
+
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	samples := r.podSamples[types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}]
+
+	health := &kurav1alpha1.KuraInstanceRolloutHealth{ExpectedPods: expected}
+	var oldest time.Time
+	var ringMembers int
+	var ringFingerprints []string
+	ringConsistent := true
+	backfillDegraded := false
+	allReady := true
+	allServing := true
+	for i := range pods {
+		sample := samples[pods[i].Name]
+		if sample == nil {
+			continue
+		}
+		// The runtime's generation is a process-local change counter, so
+		// absolute values never agree across pods. The ring fingerprint (a
+		// digest of the sorted member identities) is the comparable
+		// mesh-view signal: equal ring sizes alone cannot prove the views
+		// match — three pods can each see two members from different peer
+		// subsets. Runtimes predating the fingerprint contribute only the
+		// size comparison until the fleet catches up.
+		if sample.status.RingFingerprint != "" {
+			ringFingerprints = append(ringFingerprints, sample.status.RingFingerprint)
+		}
+		if health.SampledPods == 0 {
+			ringMembers = sample.status.RingMembers
+		} else if sample.status.RingMembers != ringMembers {
+			ringConsistent = false
+		}
+		health.SampledPods++
+		allReady = allReady && sample.status.Ready
+		allServing = allServing && sample.status.State == "serving"
+		health.BackfillingPeers += sample.status.BackfillingPeers
+		health.BackfillBudgetExhaustedPeers += sample.status.BackfillBudgetExhaustedRealPeers
+		if sample.status.BackfillInitialCycle == backfillCycleDegraded {
+			backfillDegraded = true
+		}
+		health.FDTimeoutCount += int64(sample.clampedFDTimeouts())
+		health.PeerConnectionFailures += int64(sample.clampedPeerFailures())
+		if sample.status.MemoryPressureState > health.MemoryPressureState {
+			health.MemoryPressureState = sample.status.MemoryPressureState
+		}
+		if oldest.IsZero() || sample.sampledAt.Before(oldest) {
+			oldest = sample.sampledAt
+		}
+	}
+	// A mismatch between any two fingerprinted pods is a true
+	// inconsistency, whatever the rest of the fleet reports.
+	for i := 1; i < len(ringFingerprints); i++ {
+		if ringFingerprints[i] != ringFingerprints[0] {
+			ringConsistent = false
+			break
+		}
+	}
+	// The conjunctions require every expected pod to have a report: a pod
+	// that exists but cannot be sampled, or a replica that never came up,
+	// reads as unhealthy rather than silently narrowing the aggregate to
+	// the pods that happened to answer. `>=` rather than `==` because a
+	// scale-down leaves the retired ordinal answering /status/rollout for a
+	// while, and counting more reports than replicas is not a reason to call
+	// a healthy instance unready — which is how the Elixir gate would read
+	// it, resetting the soak clock for the whole drain window. It also
+	// matches how that gate writes the same comparison.
+	sampledAll := health.SampledPods >= expected
+	health.Ready = sampledAll && allReady
+	health.Serving = sampledAll && allServing
+	health.RingConsistent = sampledAll && ringConsistent
+	health.BackfillDegraded = backfillDegraded
+	if !oldest.IsZero() {
+		t := metav1.NewTime(oldest.UTC())
+		health.SampledAt = &t
+	}
+	return health
 }
 
 func defaultRuntimeStatusClient() RuntimeStatusClient {
-	return &httpRuntimeStatusClient{client: &http.Client{Timeout: 2 * time.Second}}
+	return &httpRuntimeStatusClient{client: &http.Client{Timeout: runtimeStatusTimeout}}
+}
+
+// runtimeStatusClient picks how an instance's pods are sampled: by pod IP,
+// or through the API server for pods on a node-local network the controller
+// cannot route to.
+func (r *KuraInstanceReconciler) runtimeStatusClient(instance *kurav1alpha1.KuraInstance) RuntimeStatusClient {
+	if instance.Spec.NodeLocalNetwork != nil {
+		if r.NodeLocalRuntimeStatusClient != nil {
+			return r.NodeLocalRuntimeStatusClient
+		}
+		return unavailableRuntimeStatusClient{reason: "no API server port-forward client is configured for node-local instances"}
+	}
+	if r.RuntimeStatusClient != nil {
+		return r.RuntimeStatusClient
+	}
+	return defaultRuntimeStatusClient()
 }
 
 func (c *httpRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (runtimeStatus, error) {
@@ -974,23 +2769,15 @@ func (c *httpRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (r
 	if err != nil {
 		return runtimeStatus{}, err
 	}
-	defer response.Body.Close()
+	return decodeRuntimeStatus(response)
+}
 
-	if response.StatusCode != http.StatusOK {
-		return runtimeStatus{}, fmt.Errorf("unexpected status %d", response.StatusCode)
-	}
-	var status runtimeStatus
-	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
-		return runtimeStatus{}, err
-	}
-	return status, nil
+func runtimeStatusServing(status runtimeStatus) bool {
+	return status.Ready && status.State == "serving" && status.WriterLockOwned
 }
 
 func runtimeStatusRoutable(status runtimeStatus, replicas int32) bool {
-	if !status.Ready || status.State != "serving" || !status.WriterLockOwned {
-		return false
-	}
-	return status.RingMembers >= requiredPrimaryRingMembers(replicas)
+	return runtimeStatusServing(status) && status.RingMembers >= requiredPrimaryRingMembers(replicas)
 }
 
 func requiredPrimaryRingMembers(replicas int32) int {
@@ -1046,6 +2833,55 @@ func choosePrimaryPod(current, instanceName string, pods []corev1.Pod, routable 
 	return fmt.Sprintf("%s-0", instanceName)
 }
 
+// chooseGatewayPod derives the gateway from the primary instead of keeping a
+// second designation: the lowest-ordinal eligible pod that is not the
+// primary, else the primary itself so the region never loses the role. It is
+// sticky the way choosePrimaryPod is — the current holder keeps the role
+// while it stays eligible and is not the primary, so a recovered
+// lower-ordinal pod does not take it back — but it moves off the primary as
+// soon as a standby is eligible, since carrying cross-region work off the
+// node that serves clients is the point of the role.
+func chooseGatewayPod(current, primary string, pods []corev1.Pod, eligible map[string]bool) string {
+	if current != "" && current != primary && eligible[current] {
+		return current
+	}
+
+	best := ""
+	bestOrdinal := -1
+	for i := range pods {
+		name := pods[i].Name
+		if name == primary || !eligible[name] {
+			continue
+		}
+		ordinal, ok := podOrdinalSuffix(name)
+		if !ok {
+			continue
+		}
+		if best == "" || ordinal < bestOrdinal {
+			best = name
+			bestOrdinal = ordinal
+		}
+	}
+	if best != "" {
+		return best
+	}
+	return primary
+}
+
+// podOrdinalSuffix parses the StatefulSet ordinal off a pod name without the
+// instance name, which the role derivation does not carry.
+func podOrdinalSuffix(podName string) (int, bool) {
+	index := strings.LastIndex(podName, "-")
+	if index < 0 {
+		return 0, false
+	}
+	ordinal, err := strconv.Atoi(podName[index+1:])
+	if err != nil {
+		return 0, false
+	}
+	return ordinal, true
+}
+
 func podReady(pod *corev1.Pod) bool {
 	if pod.DeletionTimestamp != nil {
 		return false
@@ -1077,12 +2913,41 @@ func podOrdinal(podName, instanceName string) (int, bool) {
 	return ordinal, true
 }
 
+// publicIngressServesSharedTLS reads back the live Ingress. The per-instance
+// certificate is retired against this rather than against the write issued
+// earlier in the same pass, so the Secret ingress-nginx is serving is never
+// the one deleted.
+func (r *KuraInstanceReconciler) publicIngressServesSharedTLS(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
+	if !r.sharedTLSCoversAllHosts(ctx, instance) {
+		return false
+	}
+	ingress := &networkingv1.Ingress{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		return false
+	}
+	for _, tls := range ingress.Spec.TLS {
+		if tls.SecretName == r.PublicTLSSecretName {
+			return true
+		}
+	}
+	return false
+}
+
 // reconcilePublicCertificate provisions a cert-manager Certificate for
 // the regional Kura ingress that terminates public HTTPS. Deletes any
-// existing Certificate when the instance is private, GRPCClusterIssuer
-// is unset, or spec.publicHost is unset, so a public→private flip does
+// existing Certificate when no client host is configured or GRPCClusterIssuer
+// is unset, so a public→private flip without a private gateway does
 // not leak the Certificate (and the cert-manager-rotated leaf Secret)
 // after the matching Ingress is torn down.
+//
+// An instance whose Ingress has moved onto the shared wildcard has its
+// Certificate deleted, which stops the renewal it would otherwise spend
+// against the ACME per-registered-domain limit every 60 days. Its issued
+// Secret is deliberately left in place: nothing references it, ingress-nginx
+// watches Ingresses and Secrets independently so deleting it races that
+// controller's own view of the cutover, and keeping it is what makes the
+// cutover reversible. Recreating the Certificate over a still-valid Secret
+// adopts it rather than ordering again.
 // cert-manager must be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
@@ -1090,10 +2955,22 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 	cert.SetName(publicTLSSecretName(instance))
 	cert.SetNamespace(instance.Namespace)
 
-	if instance.Spec.Private || r.GRPCClusterIssuer == "" || instance.Spec.PublicHost == "" {
+	if r.publicIngressServesSharedTLS(ctx, instance) {
+		return r.deleteIfExists(ctx, cert)
+	}
+
+	if r.GRPCClusterIssuer == "" || clientHost(instance) == "" {
 		if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {
 			return client.IgnoreNotFound(err)
 		}
+		return nil
+	}
+
+	// The Ingress write from this same pass may not have reached the cache the
+	// retire above reads, so issuance is gated on the wildcard itself. Reusing
+	// the read-back there would order a certificate for a host the wildcard
+	// already covers.
+	if r.sharedTLSCoversAllHosts(ctx, instance) {
 		return nil
 	}
 
@@ -1104,7 +2981,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   dnsNames(instance.Spec.PublicHost),
+			"dnsNames":   dnsNames(stableClientHosts(instance)...),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -1504,6 +3381,16 @@ func (r *KuraInstanceReconciler) reconcilePodDisruptionBudget(ctx context.Contex
 }
 
 func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	return r.applyStatefulSet(ctx, instance, false)
+}
+
+// applyStatefulSet creates or updates the instance's StatefulSet. With
+// createHeld, a StatefulSet it creates starts on the resize's rollout hold.
+func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance *kurav1alpha1.KuraInstance, createHeld bool) error {
+	if image, held := heldRuntimeImage(instance); held {
+		instance = instance.DeepCopy()
+		instance.Spec.Image = image
+	}
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	sharedSecretsResourceVersion, err := r.sharedSecretsResourceVersion(ctx, instance.Namespace)
 	if err != nil {
@@ -1511,15 +3398,31 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
 		existingVolumeClaimTemplates := sts.Spec.VolumeClaimTemplates
+		tolerations := nodeLocalTolerations(instance, sts)
+		fastProbes := templateUsesFastProbes(sts, instance)
 		if err := controllerutil.SetControllerReference(instance, sts, r.Scheme); err != nil {
 			return err
+		}
+		if createHeld && sts.ResourceVersion == "" {
+			holdNewStatefulSetForResize(sts)
 		}
 		sts.Labels = labels(instance)
 		sts.Spec.ServiceName = headlessServiceName(instance)
 		sts.Spec.Replicas = ptr(replicas(instance))
 		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
-		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion)
+		binPackCeiling, err := r.ceilingBudgetAdvertised(ctx, instance)
+		if err != nil {
+			return err
+		}
+		gatewayGRPC := templateServesGatewayGRPC(&sts.Spec.Template, instance)
+		previousTemplate := sts.Spec.Template.DeepCopy()
+		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, gatewayGRPC, fastProbes)
+		sts.Spec.Template.Spec.Tolerations = tolerations
+		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template)
+		if err := r.configurePrivateReplication(ctx, instance, &sts.Spec.Template, previousTemplate); err != nil {
+			return err
+		}
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
 		} else {
@@ -1532,41 +3435,315 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 			WhenDeleted: appsv1.DeletePersistentVolumeClaimRetentionPolicyType,
 			WhenScaled:  appsv1.RetainPersistentVolumeClaimRetentionPolicyType,
 		}
+		if fencedServing(instance) || instance.Spec.ReplicaRecovery != nil || instance.Status.ReplicaRecovery != nil {
+			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
+			sts.Spec.PersistentVolumeClaimRetentionPolicy.WhenDeleted = appsv1.RetainPersistentVolumeClaimRetentionPolicyType
+			delete(sts.Annotations, cpuResizeHoldAnnotation)
+		}
+		holdCPURequestChange(sts, previousTemplate, time.Now())
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return r.reconcileDataPersistentVolumeClaims(ctx, instance)
+	return err
 }
 
-func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	desiredStorage := storageQuantity(instance)
+// replaceUnreadyPodsForImageChange lets a new Kura image escape a rollout that
+// the ordinary StatefulSet readiness gate cannot advance. Ready pods keep
+// serving and roll through the normal ordered path. Pods that are not ready and
+// still run the previous image are deleted in parallel so the StatefulSet
+// recreates them directly on the desired image.
+//
+// The handled image is recorded on the KuraInstance only after every deletion
+// succeeds. If the controller stops midway, the next pass retries only the
+// remaining old-image pods and ignores pods already recreated on the desired
+// image. This makes the operation safe across retries without repeatedly
+// restarting a new pod that is still bootstrapping.
+func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if fencedServing(instance) {
+		return nil
+	}
+	if instance.Annotations[unreadyPodsReplacedForImageAnnotation] == instance.Spec.Image {
+		return nil
+	}
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if rolloutPausedByOperator(sts) {
+		return nil
+	}
+	// Do not bypass an incident pause or replace pods from an old template
+	// while the informer has not observed the desired image yet.
+	if podKuraImage(&corev1.Pod{Spec: sts.Spec.Template.Spec}) != instance.Spec.Image {
+		return nil
+	}
+
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.DeletionTimestamp != nil || podReady(pod) || podKuraImage(pod) == instance.Spec.Image {
+			continue
+		}
+		if err := r.Delete(ctx, pod, client.Preconditions{UID: &pod.UID, ResourceVersion: &pod.ResourceVersion}); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		log.FromContext(ctx).Info(
+			"replacing unready Kura pod on image change",
+			"pod",
+			pod.Name,
+			"previousImage",
+			podKuraImage(pod),
+			"desiredImage",
+			instance.Spec.Image,
+		)
+	}
+
+	before := instance.DeepCopy()
+	if instance.Annotations == nil {
+		instance.Annotations = map[string]string{}
+	}
+	instance.Annotations[unreadyPodsReplacedForImageAnnotation] = instance.Spec.Image
+	return r.Patch(ctx, instance, client.MergeFrom(before))
+}
+
+func podKuraImage(pod *corev1.Pod) string {
+	for _, container := range pod.Spec.Containers {
+		if container.Name == "kura" {
+			return container.Image
+		}
+	}
+	return ""
+}
+
+// reconcileDataStorageResize grows an instance's data volumes to the claim it
+// declares, one replica at a time, so the account keeps serving throughout. It
+// reports true while a resize is in flight.
+//
+// Neither half of a StatefulSet's storage can be changed in place: the fleet's
+// storage class is allowVolumeExpansion: false, so patching a bound claim is
+// rejected outright, and volumeClaimTemplates are immutable on a live
+// StatefulSet. The way through is to re-template the StatefulSet without
+// disturbing what it runs, then replace the volumes ordinal by ordinal.
+//
+// The standby replica is what makes that safe, and it is what these pods are
+// co-located for in the first place (see instancePodAffinity: "the standby
+// exists for gapless rolling deploys"). While one ordinal is rebuilt the other
+// keeps the endpoint up, and the rebuilt pod refills its ring from that sibling
+// over the peer mesh rather than from cold. Dropping the whole StatefulSet
+// instead -- which is what the stale-storage path does for a wedged volume --
+// would take the account's cache offline and discard both copies of it at once,
+// and a customer sees that as failed requests rather than as cache misses.
+//
+// A single-replica instance has no sibling to serve or to refill from, so there
+// it is an interruption. Nothing short of the warm handoff avoids that.
+//
+// A replica that is not serving is rebuilt before any that is. It may be stuck
+// on exactly the volume being replaced: a pod recreated at the grown
+// ephemeral-storage request stays pinned by its old local PV to a box that may
+// not fit it, and only a new volume unpins it. Waiting for it to serve before
+// rebuilding its sibling deadlocked a two-replica resize (an eu-east
+// instance, 2026-10-06).
+//
+// Only grows. A volume larger than the declared claim already holds the ring it
+// is told to budget and evicts down into it, so it is left alone.
+func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+	if fencedServing(instance) {
+		return r.reconcileFencedDataStorageResize(ctx, instance)
+	}
+	desired := storageQuantity(instance)
+	if desired.IsZero() {
+		return false, nil
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return false, err
+		}
+		// Claims below the declared size outliving their StatefulSet are the
+		// re-template below, and reconcileStatefulSetDuringResize recreates it
+		// held. Without them there is nothing to resize, and reconcileStatefulSet
+		// builds one at the declared claim on this same pass.
+		undersized, deleting, err := r.undersizedDataVolumes(ctx, instance, desired)
+		if err != nil {
+			return false, err
+		}
+		return deleting || len(undersized) > 0, nil
+	}
+	if sts.DeletionTimestamp != nil {
+		return true, nil
+	}
+
+	// Re-template by replacing the StatefulSet, orphaning its pods and PVCs.
+	// Orphan propagation strips owner references instead of collecting the
+	// dependents, so the instance goes on serving the volumes it already has
+	// while the object is replaced under it; the next pass recreates it from the
+	// current spec and adopts them back. The pod template does change, because
+	// the ephemeral-storage request follows the claim, so the StatefulSet is
+	// recreated already on the resize's hold: on the default RollingUpdate it
+	// would replace the highest ordinal at the grown request on its old volume,
+	// pinned to a box that may not fit it.
+	if template := templateStorage(sts); !template.IsZero() && template.Cmp(desired) != 0 {
+		log.FromContext(ctx).Info(
+			"re-templating Kura StatefulSet for a changed claim",
+			"from", template.String(), "to", desired.String(),
+		)
+		if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationOrphan)); err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+		return true, nil
+	}
+
+	undersized, deleting, err := r.undersizedDataVolumes(ctx, instance, desired)
+	if err != nil {
+		return false, err
+	}
+	if deleting {
+		return true, nil
+	}
+	if len(undersized) == 0 {
+		return false, nil
+	}
+
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return false, err
+	}
+	serving := map[int32]bool{}
+	for i := range pods.Items {
+		if ordinal, ok := podOrdinal(pods.Items[i].Name, instance.Name); ok && podReady(&pods.Items[i]) {
+			serving[int32(ordinal)] = true
+		}
+	}
+	awaitingRebuild := map[int32]bool{}
+	for _, volume := range undersized {
+		awaitingRebuild[volume.ordinal] = true
+	}
+	othersSettled := func(ordinal int32, tolerateAwaitingRebuild bool) bool {
+		for other := int32(0); other < replicas(instance); other++ {
+			if other == ordinal || serving[other] || (tolerateAwaitingRebuild && awaitingRebuild[other]) {
+				continue
+			}
+			return false
+		}
+		return true
+	}
+
+	// A replica that is not serving goes first and needs no serving sibling,
+	// since taking it down takes nothing out of service. It still waits for a
+	// replica already rebuilt and coming back, or with nothing serving a second
+	// rebuild would discard the copy that could have recovered first.
+	for _, volume := range undersized {
+		if !serving[volume.ordinal] && othersSettled(volume.ordinal, true) {
+			return true, r.rebuildDataVolume(ctx, instance, volume, desired, false)
+		}
+	}
+	// Never take a serving replica down while another is already down. Waiting
+	// here is what keeps the rebuild rolling rather than wholesale, and it is
+	// also what makes a rebuilt pod's backfill worth anything: it has a serving
+	// sibling to read from.
+	for _, volume := range undersized {
+		if serving[volume.ordinal] && othersSettled(volume.ordinal, false) {
+			return true, r.rebuildDataVolume(ctx, instance, volume, desired, true)
+		}
+	}
+	return true, nil
+}
+
+type undersizedDataVolume struct {
+	ordinal int32
+	claim   *corev1.PersistentVolumeClaim
+}
+
+// undersizedDataVolumes returns the instance's data claims below the declared
+// size in ordinal order, and whether any claim is already being deleted, which
+// is a rebuild still in flight.
+func (r *KuraInstanceReconciler) undersizedDataVolumes(ctx context.Context, instance *kurav1alpha1.KuraInstance, desired resource.Quantity) ([]undersizedDataVolume, bool, error) {
+	var undersized []undersizedDataVolume
 	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
 		pvc := &corev1.PersistentVolumeClaim{}
-		name := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
-		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("data-%s-%d", instance.Name, ordinal), Namespace: instance.Namespace}, pvc); err != nil {
+			// Absent: the StatefulSet creates it from the current template.
 			if apierrors.IsNotFound(err) {
 				continue
 			}
-			return err
+			return nil, false, err
 		}
-
-		currentStorage := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-		if desiredStorage.Cmp(currentStorage) <= 0 {
-			continue
+		if pvc.DeletionTimestamp != nil {
+			return nil, true, nil
 		}
-
-		before := pvc.DeepCopy()
-		if pvc.Spec.Resources.Requests == nil {
-			pvc.Spec.Resources.Requests = corev1.ResourceList{}
-		}
-		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = desiredStorage.DeepCopy()
-		if err := r.Patch(ctx, pvc, client.MergeFrom(before)); err != nil {
-			return err
+		if bound, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]; ok && bound.Cmp(desired) < 0 {
+			undersized = append(undersized, undersizedDataVolume{ordinal: ordinal, claim: pvc})
 		}
 	}
+	return undersized, false, nil
+}
+
+func (r *KuraInstanceReconciler) rebuildDataVolume(ctx context.Context, instance *kurav1alpha1.KuraInstance, volume undersizedDataVolume, desired resource.Quantity, serving bool) error {
+	bound := volume.claim.Spec.Resources.Requests[corev1.ResourceStorage]
+	log.FromContext(ctx).Info(
+		"rebuilding one Kura data volume for a grown claim",
+		"pvc", volume.claim.Name, "from", bound.String(), "to", desired.String(), "serving", serving,
+	)
+	if err := r.reclaimDataVolume(ctx, volume.claim); err != nil {
+		return err
+	}
+	// The claim first: it is held by the pod-protection finalizer until the
+	// pod using it goes away, so deleting the pod second is what releases it.
+	if err := r.Delete(ctx, volume.claim); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      fmt.Sprintf("%s-%d", instance.Name, volume.ordinal),
+		Namespace: instance.Namespace,
+	}}
+	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
 	return nil
+}
+
+// templateStorage is the claim size the StatefulSet's data volumeClaimTemplate
+// carries, which is what its next PVC would be created at.
+func templateStorage(sts *appsv1.StatefulSet) resource.Quantity {
+	for i := range sts.Spec.VolumeClaimTemplates {
+		if sts.Spec.VolumeClaimTemplates[i].Name != "data" {
+			continue
+		}
+		if quantity, ok := sts.Spec.VolumeClaimTemplates[i].Spec.Resources.Requests[corev1.ResourceStorage]; ok {
+			return quantity
+		}
+	}
+	return resource.Quantity{}
+}
+
+// reclaimDataVolume flips one PVC's bound PersistentVolume to reclaimPolicy
+// Delete, so the CSI driver reaps the underlying volume when the claim is
+// removed. Same reasoning as reclaimDataVolumes below, scoped to the single
+// claim a rolling resize is replacing.
+func (r *KuraInstanceReconciler) reclaimDataVolume(ctx context.Context, pvc *corev1.PersistentVolumeClaim) error {
+	if pvc.Spec.VolumeName == "" {
+		return nil
+	}
+	pv := &corev1.PersistentVolume{}
+	if err := r.Get(ctx, types.NamespacedName{Name: pvc.Spec.VolumeName}, pv); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if pv.Annotations[recoveryQuarantine] != "" || pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+		return nil
+	}
+	before := pv.DeepCopy()
+	pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimDelete
+	return r.Patch(ctx, pv, client.MergeFrom(before))
 }
 
 // reclaimDataVolumes flips the bound PersistentVolume of each of the instance's
@@ -1597,7 +3774,7 @@ func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instanc
 			}
 			return err
 		}
-		if pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+		if pv.Annotations[recoveryQuarantine] != "" || pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
 			continue
 		}
 		before := pv.DeepCopy()
@@ -1609,15 +3786,36 @@ func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instanc
 	return nil
 }
 
-// reconcileStaleDataStorage recreates the StatefulSet when its data PVCs can
-// never bind on the current infrastructure. It reports true while the cleanup is
-// still in flight; the caller requeues and skips the rest of the reconcile until
-// the stale StatefulSet and PVCs are gone, at which point the normal
-// reconcileStatefulSet path recreates them fresh.
+// releaseWorkload stops a deleted instance's pods on the teardown grace rather
+// than the rollout drain budget garbage collection would give them. The
+// StatefulSet goes first so it cannot replace them.
+func (r *KuraInstanceReconciler) releaseWorkload(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+	for i := range pods.Items {
+		if err := r.Delete(ctx, &pods.Items[i], client.GracePeriodSeconds(teardownTerminationGraceSeconds)); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// Activated instances require explicit fenced recovery. Legacy instances retain
+// their automatic stale-storage recreation until they opt into serving authority.
 func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
 	reason, err := r.staleDataStorageReason(ctx, instance)
 	if err != nil || reason == "" {
 		return false, err
+	}
+	if fencedServing(instance) {
+		log.FromContext(ctx).Info("holding Kura storage recovery; explicit fenced replica recovery required", "reason", reason)
+		return true, r.holdRecoveryRollout(ctx, instance)
 	}
 	log.FromContext(ctx).Info("recreating Kura StatefulSet for stale data storage", "reason", reason)
 
@@ -1634,9 +3832,10 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 		return false, err
 	}
 	// Delete the StatefulSet so it stops backing the stale PVCs, then the PVCs
-	// themselves. Both deletions are idempotent; staleDataStorageReason keeps
-	// returning a reason (so the caller keeps requeuing) until the objects are
-	// gone, which is what stops the recreated StatefulSet from adopting them.
+	// themselves, then the pods that hold them. All three deletions are
+	// idempotent; staleDataStorageReason keeps returning a reason (so the caller
+	// keeps requeuing) until the objects are gone, which is what stops the
+	// recreated StatefulSet from adopting them.
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !apierrors.IsNotFound(err) {
 		return false, err
@@ -1649,20 +3848,73 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 		if err := r.Delete(ctx, pvc); err != nil && !apierrors.IsNotFound(err) {
 			return false, err
 		}
+		// The pod as well, rather than trusting the foreground delete above to
+		// collect it. A pod this StatefulSet no longer owns is not a dependent,
+		// so nothing cascades to it -- and one whose ownership was stripped by
+		// the resize path's Orphan re-template is exactly the pod most likely to
+		// be standing here. It holds the claim open through the pvc-protection
+		// finalizer, so leaving it running leaves a PVC that can never finish
+		// terminating, and above that a reason that can never clear. This path
+		// is taking the instance down by design; the pod is going either way.
+		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%d", instance.Name, ordinal),
+			Namespace: instance.Namespace,
+		}}
+		if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
 	}
 	return true, nil
 }
 
+// statefulSetAbsent reports whether the instance's StatefulSet is gone or on its
+// way out. Only reconcileStaleDataStorage removes it and leaves it removed:
+// every other pass that reaches reconcileStatefulSet builds it back, and the
+// resize path's Orphan re-template is followed by that same rebuild. So its
+// absence is the signal that a teardown is the thing in flight.
+func (r *KuraInstanceReconciler) statefulSetAbsent(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	return sts.DeletionTimestamp != nil, nil
+}
+
 // staleDataStorageReason returns a non-empty reason when a data PVC can never
-// bind and the StatefulSet must be recreated: it is still terminating from an
-// earlier pass, its storage class no longer matches spec.StorageClassName
-// (StatefulSet volumeClaimTemplates are immutable, so a CR change is otherwise
-// silently dropped), or it is Bound to a volume pinned to a node that no longer
+// serve spec as written and the StatefulSet must be recreated: it is still
+// terminating from an earlier pass, its storage class no longer matches
+// spec.StorageClassName (StatefulSet volumeClaimTemplates are immutable, so a CR
+// change is otherwise silently dropped), or it is Bound to a volume pinned to a
+// node that no longer
 // exists (a bare-metal fleet node was reprovisioned). A still-present stale PVC
 // keeps returning a reason so the caller waits for deletion to finish before the
 // StatefulSet is recreated.
+//
+// A changed claim is deliberately not in that list. It is reached the same way
+// -- neither the bound claim nor the volumeClaimTemplate can be changed in
+// place -- but it does not need the instance taken down to get there, and
+// `reconcileDataStorageResize` replaces the volumes one replica at a time
+// instead.
+//
+// Termination alone is deliberately not a reason either. Deleting a data PVC is
+// the ordinary first step of that one-replica-at-a-time replacement, so reading
+// any DeletionTimestamp as evidence of a prior recreate let the resize path trip
+// this one within the same second and escalate a rolling rebuild into a full
+// teardown. What survives is the narrower claim the check was there to make:
+// once this function has decided to recreate, the StatefulSet is gone, and a PVC
+// still terminating under that absence is cleanup this path is waiting on rather
+// than cleanup another path is doing. The substantive reasons below need no such
+// guard, because a PVC terminating for one of them still carries it -- a wrong
+// storage class and a missing pinned node are both readable until the object is.
 func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
 	desiredStorageClass := instance.Spec.StorageClassName
+	stsGone, err := r.statefulSetAbsent(ctx, instance)
+	if err != nil {
+		return "", err
+	}
 	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
 		name := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
 		pvc := &corev1.PersistentVolumeClaim{}
@@ -1672,7 +3924,7 @@ func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, ins
 			}
 			return "", err
 		}
-		if pvc.DeletionTimestamp != nil {
+		if pvc.DeletionTimestamp != nil && stsGone {
 			return fmt.Sprintf("data PVC %s is still terminating from a prior recreate", name), nil
 		}
 		if desiredStorageClass != "" && pvcStorageClassName(pvc) != desiredStorageClass {
@@ -1756,6 +4008,7 @@ type rolloutState struct {
 	observedImage string
 	readyReplicas int32
 	message       string
+	imageHold     string
 }
 
 func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *kurav1alpha1.KuraInstance) (rolloutState, error) {
@@ -1782,15 +4035,28 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	observedImage := instance.Status.ObservedImage
 	observedGeneration := sts.Status.ObservedGeneration >= sts.Generation
 	revisionsMatch := sts.Status.UpdateRevision != "" && sts.Status.CurrentRevision == sts.Status.UpdateRevision
+	// Kubernetes advances currentRevision only for RollingUpdate. Under OnDelete,
+	// manually replaced pods can all be ready on updateRevision while currentRevision
+	// still names the original template. Require the complete replica set to be updated.
+	revisionReady := revisionsMatch
+	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
+		revisionReady = sts.Status.UpdateRevision != "" && sts.Status.Replicas == replicas && updatedReplicas == replicas
+	}
 
-	if observedGeneration && revisionsMatch && readyReplicas >= replicas && updatedReplicas >= replicas {
+	// The StatefulSet is read from the informer cache right after this reconcile
+	// wrote the new template, so it can still be the previous object, internally
+	// consistent and complete for the previous image. Its status only describes
+	// the desired image when its template does.
+	templateCurrent := statefulSetTemplateImage(sts) == instance.Spec.Image
+
+	if templateCurrent && observedGeneration && revisionReady && readyReplicas >= replicas && updatedReplicas >= replicas {
 		observedImage = instance.Spec.Image
 
 		return rolloutState{
 			phase:         "Ready",
 			observedImage: observedImage,
 			readyReplicas: readyReplicas,
-			message:       fmt.Sprintf("%d/%d replicas ready on revision %s", readyReplicas, replicas, sts.Status.CurrentRevision),
+			message:       fmt.Sprintf("%d/%d replicas ready on revision %s", readyReplicas, replicas, sts.Status.UpdateRevision),
 		}
 	}
 
@@ -1798,6 +4064,7 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 		phase:         "Pending",
 		observedImage: observedImage,
 		readyReplicas: readyReplicas,
+		imageHold:     operatorImageHold(instance, sts, replicas),
 		message: fmt.Sprintf(
 			"%d/%d replicas ready, %d/%d updated, observedGeneration=%t, revisionsMatch=%t",
 			readyReplicas,
@@ -1810,33 +4077,129 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	}
 }
 
-func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string) corev1.PodTemplateSpec {
-	return corev1.PodTemplateSpec{
+func statefulSetTemplateImage(sts *appsv1.StatefulSet) string {
+	for _, container := range sts.Spec.Template.Spec.Containers {
+		if container.Name == kuraContainerName {
+			return container.Image
+		}
+	}
+	return ""
+}
+
+// ceilingBudgetAdvertised reports whether a node this instance can land on
+// actually publishes tuist.dev/memory-ceiling-mib.
+//
+// The spec flag states the server's intent; this checks it against reality. The
+// CAPI provider that advertises the budget rolls to the management cluster on
+// its own cadence, so the server can ask for the resource before any node
+// offers it, and a pod requesting an extended resource no node advertises stays
+// Pending forever. Resolving it here makes the ordering a property of the
+// system rather than a runbook step, in both directions: the request appears
+// within a reconcile of the provider rolling, and disappears within a reconcile
+// of a node ceasing to advertise, which is what lets a provider rollback
+// un-wedge Pending pods without a server deploy.
+//
+// Allocatable, not Capacity: that is the field the scheduler fits against. The
+// kubelet mirrors externally patched extended-resource capacity into it.
+func (r *KuraInstanceReconciler) ceilingBudgetAdvertised(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+	if !instance.Spec.MemoryCeilingBinPacked {
+		return false, nil
+	}
+	nodes := &corev1.NodeList{}
+	var opts []client.ListOption
+	if len(instance.Spec.NodeSelector) > 0 {
+		opts = append(opts, client.MatchingLabels(instance.Spec.NodeSelector))
+	}
+	if err := r.List(ctx, nodes, opts...); err != nil {
+		return false, err
+	}
+	for i := range nodes.Items {
+		if quantity, ok := nodes.Items[i].Status.Allocatable[memoryCeilingResource]; ok && !quantity.IsZero() {
+			return true, nil
+		}
+	}
+	log.FromContext(ctx).Info("memory ceiling bin-packing requested but no node advertises the budget; omitting the request",
+		"instance", instance.Name, "resource", memoryCeilingResource)
+	return false, nil
+}
+
+func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string, binPackCeiling bool, gatewayGRPC bool, fastProbes bool) corev1.PodTemplateSpec {
+	template := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels(instance),
 			Annotations: podAnnotations(instance, sharedSecretsResourceVersion),
 		},
 		Spec: corev1.PodSpec{
+			EnableServiceLinks:            ptr(false),
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
 			NodeSelector:                  nodeSelector(instance),
 			Tolerations:                   instance.Spec.Tolerations,
 			Affinity:                      instancePodAffinity(instance),
 			Containers: []corev1.Container{{
-				Name:            "kura",
+				Name:            kuraContainerName,
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				Ports:           containerPorts(instance),
-				Env:             append(baseEnv(instance, otlpTracesEndpoint, environment), instance.Spec.ExtraEnv...),
+				Ports:           containerPorts(instance, gatewayGRPC),
+				Env:             podEnv(instance, otlpTracesEndpoint, environment, gatewayGRPC),
 				EnvFrom:         sharedSecretsEnvFrom(),
-				Resources:       defaultResources(instance),
+				Resources:       defaultResources(instance, binPackCeiling),
 				VolumeMounts:    volumeMounts(instance),
 				Lifecycle:       preStopLifecycle(),
-				ReadinessProbe:  httpProbe("/ready", 5, 10),
-				LivenessProbe:   httpProbe("/up", 20, 20),
-				StartupProbe:    httpProbe("/up", 0, 10),
+				ReadinessProbe:  readinessProbe(fastProbes),
+				LivenessProbe:   livenessProbe(),
+				StartupProbe:    startupProbe(fastProbes),
 			}},
 			Volumes: volumes(instance),
 		},
+	}
+	if fencedServing(instance) {
+		template.Spec.ServiceAccountName = instance.Name + "-serving"
+		template.Spec.AutomountServiceAccountToken = ptr(true)
+		reserved := map[string]bool{"KURA_SERVING_AUTHORITY": true, "KURA_INSTANCE_UID": true, "POD_UID": true, "POD_NODE_NAME": true}
+		env := []corev1.EnvVar{}
+		for _, value := range template.Spec.Containers[0].Env {
+			if !reserved[value.Name] {
+				env = append(env, value)
+			}
+		}
+		template.Spec.Containers[0].Env = append(env,
+			corev1.EnvVar{Name: "KURA_SERVING_AUTHORITY", Value: instance.Name},
+			corev1.EnvVar{Name: "KURA_INSTANCE_UID", Value: string(instance.UID)},
+			corev1.EnvVar{Name: "POD_UID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+			corev1.EnvVar{Name: "POD_NODE_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}}},
+		)
+	}
+	applyPodDNS(instance, &template.Spec)
+	return template
+}
+
+// clusterDNSOptions keep cluster DNS lookups short for pods outside the provider
+// that hosts CoreDNS, where every query crosses the internet. The peer discovery
+// name has four dots, so under the default ndots:5 it walks three search domains
+// first: eight queries per lookup instead of two. glibc fails the whole lookup
+// when one query exhausts its attempts; three two-second attempts survive more
+// loss than the default two five-second ones.
+var clusterDNSOptions = []corev1.PodDNSConfigOption{
+	{Name: "ndots", Value: ptr("2")},
+	{Name: "timeout", Value: ptr("2")},
+	{Name: "attempts", Value: ptr("3")},
+}
+
+// applyPodDNS points the pods of a node-local instance at resolvers their node
+// can reach, since cluster DNS is not one of them. With no search domains,
+// ndots:1 sends every name straight to the nameservers as given. Every other
+// instance keeps cluster DNS with clusterDNSOptions.
+func applyPodDNS(instance *kurav1alpha1.KuraInstance, spec *corev1.PodSpec) {
+	if instance.Spec.NodeLocalNetwork == nil {
+		spec.DNSConfig = &corev1.PodDNSConfig{
+			Options: append([]corev1.PodDNSConfigOption(nil), clusterDNSOptions...),
+		}
+		return
+	}
+	spec.DNSPolicy = corev1.DNSNone
+	spec.DNSConfig = &corev1.PodDNSConfig{
+		Nameservers: append([]string(nil), instance.Spec.NodeLocalNetwork.Nameservers...),
+		Options:     []corev1.PodDNSConfigOption{{Name: "ndots", Value: ptr("1")}},
 	}
 }
 
@@ -1852,6 +4215,9 @@ func podAnnotations(instance *kurav1alpha1.KuraInstance, sharedSecretsResourceVe
 	annotations["prometheus.io/scrape"] = "true"
 	annotations["prometheus.io/port-name"] = "http"
 	annotations["prometheus.io/path"] = "/metrics"
+	if value, ok := egressClassPodAnnotation(instance); ok {
+		annotations[egressClassAnnotation] = value
+	}
 	if sharedSecretsResourceVersion != "" {
 		annotations[sharedSecretsRVAnnotation] = sharedSecretsResourceVersion
 	}
@@ -1879,9 +4245,9 @@ func preStopLifecycle() *corev1.Lifecycle {
 }
 
 // sharedSecretsEnvFrom mounts the kura-shared-secrets Secret if it
-// exists. The Tuist control plane and operator drop credentials such as
-// KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET into this Secret so they
-// stay out of the KuraInstance spec (which is readable by anyone with
+// exists. The Tuist control plane and operator drop authorization material
+// such as KURA_AUTH_JWT_PUBLIC_KEY into this Secret so it
+// stays out of the KuraInstance spec (which is readable by anyone with
 // list/watch on the CR).
 func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 	return []corev1.EnvFromSource{{
@@ -1892,6 +4258,206 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 	}}
 }
 
+// egressBandwidthAnnotation is the standard per-pod egress annotation the
+// server's reconciler renders from a region's egress_burst_mbps ("<n>M").
+// Cilium's bandwidth manager paces the wire-bound leg from it; here it is
+// also the source of the tenant's ceiling in the shared per-node tree.
+const egressBandwidthAnnotation = "kubernetes.io/egress-bandwidth"
+
+// egressClassIDAnnotation persists an account's shared-tree HTB classid on
+// its KuraInstances ("1:<hex minor>"). The id must never change for a live
+// account — the egress-tree-agent's per-node class and every pod's stamp key
+// off it — so it is allocated once and carried as CR metadata rather than
+// derived on the fly.
+const egressClassIDAnnotation = "kura.tuist.dev/egress-class-id"
+
+// egressClassAnnotation is the pod annotation infra/egress-tree-agent
+// consumes: JSON {"classid","floor_mbps","burst_mbps"}. Inert until an agent
+// runs on the pod's node.
+const egressClassAnnotation = "tuist.dev/egress-class"
+
+// Minor range for tenant classes in the shared tree. Starts well above the
+// tree's structural classes (root qdisc handle 1:, root class 1:1) and stays
+// under the 0xFFFF handle ceiling.
+const (
+	egressClassIDMinorMin uint16 = 0x100
+	egressClassIDMinorMax uint16 = 0xFFFE
+)
+
+// egressBurstMbpsValue parses the egress-bandwidth annotation's integer
+// Mbit/s. The bool is false when the annotation is absent or does not parse;
+// the value is machine-rendered by the server, so a malformed one simply
+// yields no ceiling (the tenant class then caps at the node budget).
+func egressBurstMbpsValue(instance *kurav1alpha1.KuraInstance) (int64, bool) {
+	raw, ok := instance.Spec.PodAnnotations[egressBandwidthAnnotation]
+	if !ok {
+		return 0, false
+	}
+	digits, hadSuffix := strings.CutSuffix(raw, "M")
+	if !hadSuffix {
+		return 0, false
+	}
+	parsed, err := strconv.ParseInt(digits, 10, 64)
+	if err != nil || parsed <= 0 {
+		return 0, false
+	}
+	return parsed, true
+}
+
+// instanceNeedsEgressClass mirrors "this instance's traffic is shaped":
+// either a per-pod ceiling (the egress-bandwidth annotation) or a floor is
+// configured. Cloud regions with neither never get a class.
+func instanceNeedsEgressClass(instance *kurav1alpha1.KuraInstance) bool {
+	_, shaped := instance.Spec.PodAnnotations[egressBandwidthAnnotation]
+	return shaped || instance.Spec.EgressGuaranteedMbps > 0
+}
+
+func parseEgressClassID(value string) (uint16, bool) {
+	rest, ok := strings.CutPrefix(value, "1:")
+	if !ok {
+		return 0, false
+	}
+	minor, err := strconv.ParseUint(rest, 16, 16)
+	if err != nil || uint16(minor) < egressClassIDMinorMin || uint16(minor) > egressClassIDMinorMax {
+		return 0, false
+	}
+	return uint16(minor), true
+}
+
+func formatEgressClassID(minor uint16) string {
+	return fmt.Sprintf("1:%x", minor)
+}
+
+// egressClassIDCandidate is the deterministic starting point of an account's
+// id probe, so re-allocation lands on the same id as long as it is free.
+func egressClassIDCandidate(account string) uint16 {
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(account))
+	span := uint32(egressClassIDMinorMax-egressClassIDMinorMin) + 1
+	return egressClassIDMinorMin + uint16(hash.Sum32()%span)
+}
+
+// allocateEgressClassID linearly probes from the account's hash candidate to
+// the first unclaimed minor.
+func allocateEgressClassID(account string, used map[uint16]bool) (uint16, error) {
+	span := uint32(egressClassIDMinorMax-egressClassIDMinorMin) + 1
+	candidate := uint32(egressClassIDCandidate(account) - egressClassIDMinorMin)
+	for i := uint32(0); i < span; i++ {
+		minor := egressClassIDMinorMin + uint16((candidate+i)%span)
+		if !used[minor] {
+			return minor, nil
+		}
+	}
+	return 0, fmt.Errorf("egress classid space exhausted for account %s", account)
+}
+
+// reconcileEgressClassID gives a shaped instance its account's stable class
+// id. All instances of an account share one id (the id keys the tenant's
+// class on every node), so allocation looks across the namespace's
+// KuraInstances: adopt the account's existing claim if any, else probe from
+// the account-hash candidate.
+//
+// The decision is first taken from the informer cache, which is what every
+// reconcile of an already-allocated instance ends on and costs no apiserver
+// read. Only a change is decided again, under egressClassMu, from a list read
+// through APIReader: the informer cache updates asynchronously after Update,
+// so a cached List during a back-to-back allocation burst could miss another
+// reconcile's fresh claim and duplicate its minor. A quorum read always sees
+// the completed Update, and the mutex keeps concurrent reconciles from
+// deciding against the same read. The deterministic duplicate rule (smallest
+// account handle keeps a doubly-claimed id, smallest minor wins within an
+// account) still makes any duplicate from outside this loop — say a
+// hand-edited annotation — self-heal instead of flapping.
+func (r *KuraInstanceReconciler) reconcileEgressClassID(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if !instanceNeedsEgressClass(instance) {
+		return nil
+	}
+
+	cached := &kurav1alpha1.KuraInstanceList{}
+	if err := r.List(ctx, cached, client.InNamespace(instance.Namespace)); err != nil {
+		return err
+	}
+	desired, err := desiredEgressClassID(instance.Spec.AccountHandle, cached.Items)
+	if err != nil {
+		return err
+	}
+	if instance.Annotations[egressClassIDAnnotation] == formatEgressClassID(desired) {
+		return nil
+	}
+
+	r.egressClassMu.Lock()
+	defer r.egressClassMu.Unlock()
+	live := &kurav1alpha1.KuraInstanceList{}
+	if err := r.APIReader.List(ctx, live, client.InNamespace(instance.Namespace)); err != nil {
+		return err
+	}
+	desired, err = desiredEgressClassID(instance.Spec.AccountHandle, live.Items)
+	if err != nil {
+		return err
+	}
+	if instance.Annotations[egressClassIDAnnotation] == formatEgressClassID(desired) {
+		return nil
+	}
+	if instance.Annotations == nil {
+		instance.Annotations = map[string]string{}
+	}
+	instance.Annotations[egressClassIDAnnotation] = formatEgressClassID(desired)
+	return r.Update(ctx, instance)
+}
+
+func desiredEgressClassID(account string, instances []kurav1alpha1.KuraInstance) (uint16, error) {
+	used := map[uint16]bool{}
+	owner := map[uint16]string{}
+	for i := range instances {
+		other := &instances[i]
+		minor, ok := parseEgressClassID(other.Annotations[egressClassIDAnnotation])
+		if !ok {
+			continue
+		}
+		used[minor] = true
+		if current, taken := owner[minor]; !taken || other.Spec.AccountHandle < current {
+			owner[minor] = other.Spec.AccountHandle
+		}
+	}
+
+	var desired uint16
+	for minor, owningAccount := range owner {
+		if owningAccount == account && (desired == 0 || minor < desired) {
+			desired = minor
+		}
+	}
+	if desired != 0 {
+		return desired, nil
+	}
+	return allocateEgressClassID(account, used)
+}
+
+// egressClassPodAnnotation renders the agent's pod annotation. Absent until
+// the class id is allocated (the reconcile order guarantees allocation runs
+// first) and on unshaped instances. Burst 0 means "no per-tenant ceiling":
+// the agent then caps the class at the node budget only.
+func egressClassPodAnnotation(instance *kurav1alpha1.KuraInstance) (string, bool) {
+	if !instanceNeedsEgressClass(instance) {
+		return "", false
+	}
+	minor, ok := parseEgressClassID(instance.Annotations[egressClassIDAnnotation])
+	if !ok {
+		return "", false
+	}
+	burst, _ := egressBurstMbpsValue(instance)
+	payload := struct {
+		ClassID   string `json:"classid"`
+		FloorMbps int64  `json:"floor_mbps"`
+		BurstMbps int64  `json:"burst_mbps"`
+	}{
+		ClassID:   formatEgressClassID(minor),
+		FloorMbps: int64(instance.Spec.EgressGuaranteedMbps),
+		BurstMbps: burst,
+	}
+	encoded, _ := json.Marshal(payload)
+	return string(encoded), true
+}
+
 // egressMbpsResource is the integer extended resource a shared bare-metal node
 // advertises as capacity (the CAPI provider patches it from the box's egress
 // budget) and a cache pod reserves as a request==limit. It lets the scheduler
@@ -1899,19 +4465,110 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 // KuraInstanceSpec.EgressGuaranteedMbps.
 const egressMbpsResource corev1.ResourceName = "tuist.dev/egress-mbps"
 
-// The memory request matches the limit because Kura sizes its memory
-// budget from the cgroup limit (soft limit 70%, hard limit 85% of it)
-// and routinely operates above 1Gi, so the full 2Gi must be reserved
-// at scheduling time to avoid node overcommit.
-func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequirements {
+// memoryCeilingResource is the integer extended resource a shared bare-metal
+// node advertises so the scheduler can bin-pack memory *ceilings*, which
+// oversubscribe the box by design and are therefore invisible to the native
+// requests.memory bin-pack. The CAPI provider advertises the matching capacity
+// as a multiple of node allocatable. See KuraInstanceSpec.MemoryCeilingMib.
+const memoryCeilingResource corev1.ResourceName = "tuist.dev/memory-ceiling-mib"
+
+// kuraContainerName is the pod's Kura container. The Downward API's
+// resourceFieldRef names it explicitly, and a name that does not match a
+// container in the pod fails admission, so both sites read this.
+const kuraContainerName = "kura"
+
+// Applied when an instance carries no explicit profile, which keeps a CR
+// written before the memory profile existed on the shape it already had.
+//
+// The ceiling is twice the floor. Below 2x the memory-ceiling bin-pack never
+// binds, because the native requests.memory pack is the tighter of the two, so
+// the extra resource buys nothing. The 60% soft watermark also has to clear a
+// real burst by more than the runtime's 0.9x recovery hysteresis: at a 1.5x
+// ceiling the recovery threshold lands under the largest burst already
+// observed, so a single trip into shedding would last the whole burst.
+const (
+	defaultMemoryFloorMib   int32 = 2048
+	defaultMemoryCeilingMib int32 = 4096
+)
+
+// Memory floor and ceiling are deliberately different. Kura sizes every
+// admission pool from the cgroup limit at startup (soft limit 60%, hard limit
+// 85% of it; the public response-stream pool is half the remaining 15%), and
+// those pools are semaphores, not allocations — a higher ceiling costs nothing
+// until a burst arrives. The floor is the standing reservation, and the shared
+// bare-metal boxes reserve several times the working set the fleet actually
+// peaks at, so raising it in step would exhaust a box's schedulable memory
+// without serving a single extra byte.
+func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) corev1.ResourceRequirements {
+	floorMib := instance.Spec.MemoryFloorMib
+	if floorMib <= 0 {
+		floorMib = defaultMemoryFloorMib
+	}
+	ceilingMib := instance.Spec.MemoryCeilingMib
+	if ceilingMib <= 0 {
+		ceilingMib = defaultMemoryCeilingMib
+	}
+	// The API rejects a limit below its request, so a profile that inverts the
+	// two would make every pod of the instance unadmittable. Clamping keeps the
+	// floor authoritative: a reservation is a promise, a ceiling is headroom.
+	if ceilingMib < floorMib {
+		ceilingMib = floorMib
+	}
+
+	// The request is observed per instance (see cpu_autosize.go); the ceiling
+	// is the plan's, and bounds it because the API rejects a limit under its
+	// request.
+	cpuMilli := cpuRequestMilli(instance)
+	cpuCeilingMilli := instance.Spec.CPUCeilingMilli
+	if cpuCeilingMilli > 0 && cpuCeilingMilli < cpuRequestBands[0] {
+		cpuCeilingMilli = cpuRequestBands[0]
+	}
+	if cpuCeilingMilli > 0 && cpuMilli > cpuCeilingMilli {
+		cpuMilli = cpuCeilingMilli
+	}
+
 	r := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("500m"),
-			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			corev1.ResourceCPU:    *resource.NewMilliQuantity(int64(cpuMilli), resource.DecimalSI),
+			corev1.ResourceMemory: mibQuantity(floorMib),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			corev1.ResourceMemory: mibQuantity(ceilingMib),
 		},
+	}
+	if cpuCeilingMilli > 0 {
+		r.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(int64(cpuCeilingMilli), resource.DecimalSI)
+	}
+	// Ceiling bin-packing is opt-in per region, for the same reason the egress
+	// floor is: a pod that requests an extended resource its node does not
+	// advertise never schedules. The caller resolves this against the live node
+	// budget rather than trusting the spec alone.
+	if binPackCeiling {
+		q := *resource.NewQuantity(int64(ceilingMib), resource.DecimalSI)
+		r.Requests[memoryCeilingResource] = q
+		r.Limits[memoryCeilingResource] = q
+	}
+	// Disk: reserve the instance's declared storage as an ephemeral-storage
+	// request so the scheduler bin-packs cache pods against the node's disk.
+	// The data volume is a local-path PV -- a directory on the node's
+	// ephemeral-storage filesystem -- so the claim's size is a label and
+	// nothing in Kubernetes stops a region filling its box; a full box crosses
+	// kubelet's eviction line and takes down every tenant on it, not just the
+	// one that filled it. A request is what the scheduler admits against, so
+	// this is the admission control that claim never provided.
+	//
+	// Deliberately a request with no limit. A limit is enforced against the
+	// pod's writable layer, logs and emptyDir, none of which is where the cache
+	// lives, so it would evict on the wrong signal while leaving the real
+	// consumption unbounded. Kura bounds its own ring with
+	// KURA_CAS_CAPACITY_BYTES; this reserves the room that ring will need.
+	//
+	// Unlike the two extended resources below, ephemeral-storage is built in
+	// and every node already advertises it, so there is no pool to roll first.
+	// Each replica requests one claim's worth, so co-located replicas reserve
+	// their sum without the controller having to reason about placement.
+	if storage := storageQuantity(instance); !storage.IsZero() {
+		r.Requests[corev1.ResourceEphemeralStorage] = storage
 	}
 	// Egress floor: reserve the region's guaranteed Mbps as the
 	// tuist.dev/egress-mbps extended resource (request == limit; extended
@@ -1926,15 +4583,19 @@ func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequir
 	return r
 }
 
+func mibQuantity(mib int32) resource.Quantity {
+	return *resource.NewQuantity(int64(mib)*1024*1024, resource.BinarySI)
+}
+
 func publicIngressAnnotations() map[string]string {
 	return streamingIngressAnnotations("HTTP")
 }
 
 func grpcIngressAnnotations() map[string]string {
 	annotations := streamingIngressAnnotations("GRPC")
-	// The gRPC service paths are anchored regexes (see grpcREAPIPathPrefixes);
+	// The gRPC service paths are anchored regexes (see grpcPublicPathPrefixes);
 	// use-regex makes ingress-nginx render them as `location ~* ...` so real
-	// REAPI/ByteStream method paths match.
+	// REAPI/ByteStream/BEP method paths match.
 	//
 	// The whole path-split scheme (use-regex + per-location backend-protocol on
 	// a host shared with the public Ingress) is ingress-nginx specific. A
@@ -1946,8 +4607,21 @@ func grpcIngressAnnotations() map[string]string {
 	return annotations
 }
 
+// customerRecordTTLSeconds is how long a resolver may keep pointing a
+// customer at a region.
+//
+// A cache client resolves a name once and then holds the connection, so when a
+// region stops serving a name the client depends on DNS handing it another
+// one. The gateways refuse names they do not serve (ssl-reject-handshake in
+// infra/helm/platform), which turns that into a retry rather than a silent
+// failure, and this bounds how long the retrying lasts. The provider default
+// is 300s; these names are resolved once per connection, so a shorter one
+// costs little and 60s is the floor the DNS provider accepts.
+const customerRecordTTLSeconds = "60"
+
 func streamingIngressAnnotations(backendProtocol string) map[string]string {
 	return map[string]string{
+		"external-dns.alpha.kubernetes.io/ttl":                customerRecordTTLSeconds,
 		"nginx.ingress.kubernetes.io/backend-protocol":        backendProtocol,
 		"nginx.ingress.kubernetes.io/proxy-body-size":         "0",
 		"nginx.ingress.kubernetes.io/proxy-buffering":         "off",
@@ -1995,11 +4669,19 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				// checks. Limit the plaintext cache port (co-hosted
 				// HTTP + gRPC) to in-cluster peers; the JWT layer in
 				// the runtime is the auth boundary.
+				//
+				// This does NOT cover the regional Kura gateway. That
+				// runs host-network, so its traffic carries Cilium's
+				// host / remote-node identity rather than a pod one,
+				// and no namespaceSelector or ipBlock here can select
+				// it. The platform chart grants it separately, in
+				// templates/kura-gateway-network-policy.yaml.
 				From: []networkingv1.NetworkPolicyPeer{
 					{NamespaceSelector: &metav1.LabelSelector{}},
 				},
 				Ports: []networkingv1.NetworkPolicyPort{
 					{Port: ptr(intstr.FromString("http")), Protocol: ptr(corev1.ProtocolTCP)},
+					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			},
 		}
@@ -2071,11 +4753,19 @@ func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
 // from a same-box replica. Different accounts still spread across a region's
 // boxes via the egress (tuist.dev/egress-mbps) + cpu/memory bin-packing.
 //
-// Soft (preferred), not required: a required self-referential podAffinity would
-// deadlock the first replica — no pod matching the selector exists yet, so no
-// node satisfies the term and the pod stays Pending forever. Preferred
-// co-locates in practice while letting the first pod schedule anywhere.
+// Preferred co-location permits placement and evacuation across hosts when a
+// single host cannot fit the whole instance. The gateway routes to the primary
+// Service regardless of the primary pod's host.
 func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
+	if instance.Spec.ReplicaRecovery != nil || fencedServing(instance) {
+		affinity := &corev1.Affinity{
+			PodAntiAffinity: &corev1.PodAntiAffinity{RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{{TopologyKey: corev1.LabelHostname, LabelSelector: &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}}}},
+		}
+		if instance.Spec.ReplicaRecovery != nil {
+			affinity.NodeAffinity = &corev1.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchFields: []corev1.NodeSelectorRequirement{{Key: "metadata.name", Operator: corev1.NodeSelectorOpNotIn, Values: []string{instance.Spec.ReplicaRecovery.HostName}}}}}}}
+		}
+		return affinity
+	}
 	return &corev1.Affinity{
 		PodAffinity: &corev1.PodAffinity{
 			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{{
@@ -2090,12 +4780,11 @@ func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
 }
 
 // baseEnv carries only the values the controller must set: identity,
-// per-pod paths, peer wiring, and the drain timeout that has to stay in
-// sync with the pod's terminationGracePeriodSeconds. Resource-shaped
-// knobs (FD pool, memory soft/hard limits, manifest cache, RocksDB)
-// are derived from the pod's cgroup and rlimit at runtime startup, so
-// the controller deliberately doesn't override them. See
-// kura/src/config.rs::DerivedRuntimeDefaults.
+// per-pod paths, peer wiring, the drain timeout that has to stay in
+// sync with the pod's terminationGracePeriodSeconds, and bounded cache
+// budgets for the managed memory profile (see defaultResources). Other
+// resource-shaped knobs are derived from the pod's cgroup and rlimit
+// at runtime startup. See kura/src/config.rs::DerivedRuntimeDefaults.
 func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string) []corev1.EnvVar {
 	if environment == "" {
 		environment = "production"
@@ -2111,6 +4800,11 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	discoveryDNSName := fmt.Sprintf("%s.$(POD_NAMESPACE).svc.cluster.local", headlessServiceName(instance))
 	if crossRegionRuntimeEnabled(instance) {
 		discoveryDNSName = accountPeerServiceDNSName(instance)
+	}
+	// A node-local pod resolves no cluster name, and outside the mesh it has no
+	// peer to find, so it is given no peer Service to look up.
+	if instance.Spec.NodeLocalNetwork != nil && !instance.Spec.Mesh {
+		discoveryDNSName = ""
 	}
 	env := []corev1.EnvVar{
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
@@ -2130,7 +4824,7 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_REGION", Value: instance.Spec.Region},
 		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},
 		{Name: "KURA_DATA_DIR", Value: "/var/cache/kura"},
-		{Name: "KURA_NODE_URL", Value: fmt.Sprintf("https://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)},
+		{Name: "KURA_NODE_URL", Value: renderPodNodeURL(instance, "$(POD_NAME)", "$(POD_NAMESPACE)")},
 		{Name: "KURA_DISCOVERY_DNS_NAME", Value: discoveryDNSName},
 		{Name: "KURA_INTERNAL_PORT", Value: fmt.Sprintf("%d", peerPort)},
 		{Name: "KURA_INTERNAL_TLS_CA_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCAFile},
@@ -2138,6 +4832,20 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_INTERNAL_TLS_KEY_PATH", Value: peerTLSMountPath + "/" + peerTLSKeyFile},
 		{Name: "KURA_DRAIN_COMPLETION_TIMEOUT_MS", Value: strconv.FormatInt(drainCompletionTimeoutMs, 10)},
 		{Name: "KURA_OTEL_SERVICE_NAME", Value: "$(POD_NAME)"},
+		// Kura reads its ceiling from the cgroup, but requests.memory never
+		// reaches the container, and the two answer different questions. The
+		// ceiling bounds everything; the floor bounds what Kura may hold in
+		// anonymous memory, since anything anonymous above the floor is
+		// unprotected and the kernel's only remedy for it is the OOM killer.
+		// Publishing the floor lets Kura size its admission budget from what it
+		// is guaranteed and leave the floor-to-ceiling gap to page cache and
+		// mmap-served segments, which reclaim instead. Divisor 1 yields bytes;
+		// resourceFieldRef rounds up to it.
+		{Name: "KURA_MEMORY_FLOOR_BYTES", ValueFrom: &corev1.EnvVarSource{ResourceFieldRef: &corev1.ResourceFieldSelector{
+			ContainerName: kuraContainerName,
+			Resource:      "requests.memory",
+			Divisor:       resource.MustParse("1"),
+		}}},
 	}
 	if !hasEnvVar(instance.Spec.ExtraEnv, environmentEnvVar) {
 		env = append(env, corev1.EnvVar{Name: environmentEnvVar, Value: environment})
@@ -2145,11 +4853,10 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if otlpTracesEndpoint != "" && !hasEnvVar(instance.Spec.ExtraEnv, otlpTracesEndpointEnvVar) {
 		env = append(env, corev1.EnvVar{Name: otlpTracesEndpointEnvVar, Value: otlpTracesEndpoint})
 	}
-	if instance.Spec.ExtensionScript != "" {
-		env = append(env,
-			corev1.EnvVar{Name: "KURA_EXTENSION_ENABLED", Value: "true"},
-			corev1.EnvVar{Name: "KURA_EXTENSION_SCRIPT_PATH", Value: "/etc/kura/extensions/hooks.lua"},
-		)
+	for _, defaultEnv := range managedCacheEnvDefaults() {
+		if !hasEnvVar(instance.Spec.ExtraEnv, defaultEnv.Name) {
+			env = append(env, defaultEnv)
+		}
 	}
 	// When the account peer plane is exposed publicly, advertise the public
 	// gateway URL so an off-cluster self-hosted node replicates through the
@@ -2173,6 +4880,22 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	return env
 }
 
+func podEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, gatewayGRPC bool) []corev1.EnvVar {
+	env := baseEnv(instance, otlpTracesEndpoint, environment)
+	if gatewayGRPC {
+		env = append(env, corev1.EnvVar{Name: gatewayGRPCPortEnvVar, Value: fmt.Sprintf("%d", gatewayGRPCPort)})
+	}
+	return append(env, instance.Spec.ExtraEnv...)
+}
+
+func managedCacheEnvDefaults() []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{Name: snapshotCacheMaxBytesEnvVar, Value: "67108864"},
+		{Name: manifestCacheMaxBytesEnvVar, Value: "33554432"},
+		{Name: metadataStoreReadCacheBytesEnvVar, Value: "33554432"},
+	}
+}
+
 func hasEnvVar(env []corev1.EnvVar, name string) bool {
 	for _, envVar := range env {
 		if envVar.Name == name {
@@ -2182,23 +4905,25 @@ func hasEnvVar(env []corev1.EnvVar, name string) bool {
 	return false
 }
 
-// containerPorts exposes only the plain co-hosted cache port (HTTP + h2c
-// gRPC) and the internal mTLS peer port. Customer-facing TLS terminates at
-// the regional Kura ingress, not inside each Kura runtime pod.
-func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort {
-	return []corev1.ContainerPort{
+// containerPorts exposes the plain co-hosted cache port (HTTP + h2c gRPC), the
+// internal mTLS peer port, and the gRPC-only gateway port on templates that
+// carry it. Customer-facing TLS terminates at the regional Kura ingress, not
+// inside each Kura runtime pod.
+func containerPorts(instance *kurav1alpha1.KuraInstance, gatewayGRPC bool) []corev1.ContainerPort {
+	ports := []corev1.ContainerPort{
 		{Name: "http", ContainerPort: httpPort},
 		{Name: "peer", ContainerPort: peerPort},
 	}
+	if gatewayGRPC {
+		ports = append(ports, corev1.ContainerPort{Name: "grpc", ContainerPort: gatewayGRPCPort})
+	}
+	return ports
 }
 
 func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
 	mounts := []corev1.VolumeMount{
 		{Name: "data", MountPath: "/var/cache/kura"},
 		{Name: peerTLSVolumeName, MountPath: peerTLSMountPath, ReadOnly: true},
-	}
-	if instance.Spec.ExtensionScript != "" {
-		mounts = append(mounts, corev1.VolumeMount{Name: "extension-script", MountPath: "/etc/kura/extensions", ReadOnly: true})
 	}
 	return mounts
 }
@@ -2210,14 +4935,6 @@ func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
 			SecretName: peerTLSSecretName(instance),
 		}},
 	}}
-	if instance.Spec.ExtensionScript != "" {
-		volumes = append(volumes, corev1.Volume{
-			Name: "extension-script",
-			VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{Name: extensionConfigMapName(instance)},
-			}},
-		})
-	}
 	return volumes
 }
 
@@ -2254,10 +4971,76 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 	}
 }
 
+// readinessProbe and startupProbe come in two timings with the same budgets.
+// The fast timings notice a started pod within a second of it serving, instead
+// of after a 10s period (and, for readiness, a 5s initial delay), which is most
+// of what a new instance spends between its pods starting and its endpoint
+// answering. The legacy timings stay on pods that are not being
+// replaced: probes are part of the pod template, so switching every instance
+// at once would roll the whole fleet outside the runtime rollout gate. See
+// templateUsesFastProbes.
+//
+// A fast probe times out after its period rather than the legacy 5s. The
+// kubelet runs a pod's probes one at a time, so a probe that hangs fails once
+// per timeout when that is the longer of the two, and a 5s timeout would stretch
+// the startup budget to 25 minutes and the readiness budget to 150 seconds.
+func readinessProbe(fast bool) *corev1.Probe {
+	if !fast {
+		return httpProbe("/ready", 5, legacyProbePeriodSeconds)
+	}
+	probe := httpProbe("/ready", 0, fastProbePeriodSeconds)
+	probe.TimeoutSeconds = fastProbePeriodSeconds
+	probe.FailureThreshold = readinessFailureBudgetSeconds / fastProbePeriodSeconds
+	return probe
+}
+
+func startupProbe(fast bool) *corev1.Probe {
+	period := legacyProbePeriodSeconds
+	if fast {
+		period = fastProbePeriodSeconds
+	}
+	probe := httpProbe("/up", 0, period)
+	if fast {
+		probe.TimeoutSeconds = fastProbePeriodSeconds
+	}
+	probe.FailureThreshold = startupBudgetSeconds / period
+	return probe
+}
+
+// templateUsesFastProbes reports whether the template about to be written takes
+// the fast probe timings. It does when the update lands on pods that are
+// created anyway, so adopting them costs no extra roll: a StatefulSet being
+// created, or one whose image is changing. A template already on the fast
+// timings keeps them.
+func templateUsesFastProbes(sts *appsv1.StatefulSet, instance *kurav1alpha1.KuraInstance) bool {
+	if sts.ResourceVersion == "" {
+		return true
+	}
+	for _, container := range sts.Spec.Template.Spec.Containers {
+		if container.Name != kuraContainerName {
+			continue
+		}
+		if container.Image != instance.Spec.Image {
+			return true
+		}
+		if container.ReadinessProbe != nil && container.ReadinessProbe.PeriodSeconds == fastProbePeriodSeconds {
+			return true
+		}
+	}
+	return false
+}
+
+func livenessProbe() *corev1.Probe {
+	probe := httpProbe("/up", 20, 20)
+	probe.TerminationGracePeriodSeconds = ptr(livenessTerminationGraceSeconds)
+	return probe
+}
+
 func ports() []corev1.ServicePort {
 	return []corev1.ServicePort{
 		{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
 		{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
+		{Name: "grpc", Port: gatewayGRPCPort, TargetPort: intstr.FromString("grpc")},
 	}
 }
 
@@ -2299,8 +5082,19 @@ func labels(instance *kurav1alpha1.KuraInstance) map[string]string {
 	labels["app.kubernetes.io/managed-by"] = "kura-controller"
 	labels["tuist.dev/account"] = instance.Spec.AccountHandle
 	labels["tuist.dev/region"] = instance.Spec.Region
+	if instance.Spec.Private && instance.Spec.PublicHostNetwork && clientHost(instance) != "" {
+		labels["tuist.dev/host-network-gateway"] = "true"
+	}
+	if instance.Spec.NodeLocalNetwork != nil {
+		labels[nodeLocalNetworkLabel] = "true"
+	}
 	return labels
 }
+
+// nodeLocalNetworkLabel marks the pods of an instance on a node-local pod
+// network: the cluster's scrapers cannot reach them and leave them to the
+// collector on their node.
+const nodeLocalNetworkLabel = "tuist.dev/node-local-network"
 
 func accountPeerSelectorLabels(instance *kurav1alpha1.KuraInstance) map[string]string {
 	return map[string]string{
@@ -2320,6 +5114,21 @@ func headlessServiceName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-headless"
 }
 
+// podNodeURL is the KURA_NODE_URL a pod runs with: its per-pod DNS name on
+// the headless Service, on the peer port. It is the identity the runtime
+// registers with the server and status.peerRoles keys roles by it, so the
+// pod template renders through the same function and the two cannot drift.
+func podNodeURL(instance *kurav1alpha1.KuraInstance, podName string) string {
+	return renderPodNodeURL(instance, podName, instance.Namespace)
+}
+
+// renderPodNodeURL takes the namespace separately so the pod template can
+// keep passing the downward-API placeholders: rendering the literal would
+// change every pod template and roll the fleet for nothing.
+func renderPodNodeURL(instance *kurav1alpha1.KuraInstance, podName, namespace string) string {
+	return fmt.Sprintf("https://%s.%s.%s.svc.cluster.local:%d", podName, headlessServiceName(instance), namespace, peerPort)
+}
+
 func accountPeerServiceDNSName(instance *kurav1alpha1.KuraInstance) string {
 	return fmt.Sprintf("%s.%s.svc.cluster.local", accountPeerServiceName(instance), instance.Namespace)
 }
@@ -2336,17 +5145,22 @@ func accountPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
 	return strings.TrimRight(name[:63-len(suffix)], "-") + suffix
 }
 
-func extensionConfigMapName(instance *kurav1alpha1.KuraInstance) string {
-	return instance.Name + "-extension"
-}
-
 func ptr[T any](v T) *T {
 	return &v
 }
 
+// maxConcurrentReconciles bounds how many instances reconcile at once. A
+// reconcile takes roughly 400ms, most of it pod and apiserver round trips, so a
+// single worker cycling every instance on its periodic requeue left a new
+// instance, a spec change or a pod turning Ready queued behind a full pass of
+// the namespace. Reconciles of different instances share no state that is not
+// locked or decided by the apiserver's optimistic concurrency.
+const maxConcurrentReconciles = 8
+
 func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kurav1alpha1.KuraInstance{}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}).
+		For(&kurav1alpha1.KuraInstance{}, builder.WithPredicates(kuraInstanceDesiredStateChangedPredicate())).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.kuraInstancesForSharedSecret),
@@ -2359,6 +5173,14 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.kuraInstanceForPod),
 			builder.WithPredicates(predicate.And(kuraPodPredicate(), podRoutabilityChangedPredicate())),
 		).
+		Watches(
+			&corev1.Node{},
+			handler.EnqueueRequestsFromMapFunc(r.kuraInstancesForNode),
+			builder.WithPredicates(predicate.NewPredicateFuncs(func(object client.Object) bool {
+				_, marked := object.GetAnnotations()[EvacuateNodeAnnotation]
+				return marked
+			})),
+		).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
@@ -2367,6 +5189,28 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&policyv1.PodDisruptionBudget{}).
 		Complete(r)
+}
+
+// kuraInstanceDesiredStateChangedPredicate ignores the status update emitted at
+// the end of every reconcile. The explicit periodic requeue remains the
+// heartbeat, while specification changes and deletion still reconcile
+// immediately. Deletion must be checked separately because setting a deletion
+// timestamp does not increment metadata.generation.
+func kuraInstanceDesiredStateChangedPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc:  func(event.CreateEvent) bool { return true },
+		DeleteFunc:  func(event.DeleteEvent) bool { return true },
+		GenericFunc: func(event.GenericEvent) bool { return false },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldInstance, ok := e.ObjectOld.(*kurav1alpha1.KuraInstance)
+			newInstance, okNew := e.ObjectNew.(*kurav1alpha1.KuraInstance)
+			if !ok || !okNew {
+				return false
+			}
+			return oldInstance.Generation != newInstance.Generation ||
+				oldInstance.DeletionTimestamp.IsZero() != newInstance.DeletionTimestamp.IsZero()
+		},
+	}
 }
 
 // kuraInstanceForPod maps a Kura pod back to its owning KuraInstance so a

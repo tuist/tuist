@@ -1,0 +1,60 @@
+name: mise
+description: |
+  Installs mise and the tools a job needs. Wraps jdx/mise-action so the mise
+  version and the action version are pinned in this file and nowhere else.
+
+  Use this instead of jdx/mise-action directly. An unpinned mise-action
+  resolves "latest" from mise.jdx.dev/VERSION, which has advertised versions
+  that were never published as GitHub releases, and the download 404s.
+
+  The version below is a dependency pin: mise must stay at or above 2026.5.15,
+  the first release where --locked installs download from the lockfile's direct
+  CDN URLs instead of api.github.com, which gets rate-limited under CI
+  concurrency. Renovate bumps it from here.
+
+inputs:
+  install:
+    description: If false, skips `mise install`
+    required: false
+    default: "true"
+  install_args:
+    description: Arguments passed to `mise install`, such as "--locked helm kubectl"
+    required: false
+  cache:
+    description: If false, the action neither reads nor writes its tool cache
+    required: false
+    default: "true"
+  cache_key:
+    description: Overrides the complete cache key
+    required: false
+  working_directory:
+    description: Directory mise runs in, selecting which mise.toml/mise.lock applies
+    required: false
+  github_token:
+    description: GitHub token for mise, falling back to MISE_GITHUB_TOKEN then the job token
+    required: false
+  env:
+    description: If false, mise env vars are not loaded into GITHUB_ENV
+    required: false
+    default: "true"
+
+outputs:
+  cache-hit:
+    description: Whether the tool cache was hit
+    value: ${{ steps.mise.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - id: mise
+      uses: jdx/mise-action@v4.0.1
+      with:
+        # renovate: datasource=github-releases depName=jdx/mise
+        version: "2026.5.15"
+        install: ${{ inputs.install }}
+        install_args: ${{ inputs.install_args }}
+        cache: ${{ inputs.cache }}
+        cache_key: ${{ inputs.cache_key }}
+        working_directory: ${{ inputs.working_directory }}
+        github_token: ${{ inputs.github_token || env.MISE_GITHUB_TOKEN || github.token }}
+        env: ${{ inputs.env }}

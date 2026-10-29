@@ -1,0 +1,14 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: RackATS
+metadata:
+  name: ber1-ats-1
+  labels:
+    tuist.dev/site: ber1
+    tuist.dev/role: power
+spec:
+  site: ber1
+  model: eats16n
+  mac: 00:20:85:a6:29:61
+  address: 192.168.0.14
+  managedBy: controller
+  preferredSource: 1

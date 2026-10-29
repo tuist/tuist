@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -7,6 +6,7 @@ import Testing
 import TSCBasic
 import TuistCore
 import TuistEnvironment
+import TuistProcess
 import TuistSupport
 
 @testable import TuistAutomation
@@ -484,6 +484,46 @@ struct XcodeBuildControllerTests {
             skipTestTargets: [],
             testPlanConfiguration: nil,
             passthroughXcodeBuildArguments: []
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func without_building_with_xctestrun() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcworkspacePath = temporaryDirectory.appending(component: "Project.xcworkspace")
+        let xctestrunPath = temporaryDirectory.appending(component: "Project.xctestrun")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+
+        let command = [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "test-without-building",
+            "-configuration",
+            "Debug",
+            "-xctestrun",
+            xctestrunPath.pathString,
+            "-only-testing",
+            "ProjectTests",
+        ]
+        commandRunner.succeedCommand(command, output: "output")
+
+        // When
+        try await subject.test(
+            target,
+            scheme: "Project",
+            clean: false,
+            destination: nil,
+            action: .testWithoutBuilding,
+            rosetta: false,
+            derivedDataPath: nil,
+            resultBundlePath: nil,
+            arguments: [.configuration("Debug")],
+            retryCount: 0,
+            testTargets: [try TestIdentifier(target: "ProjectTests")],
+            skipTestTargets: [],
+            testPlanConfiguration: nil,
+            passthroughXcodeBuildArguments: ["-xctestrun", xctestrunPath.pathString]
         )
     }
 }

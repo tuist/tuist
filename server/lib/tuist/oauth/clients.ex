@@ -14,11 +14,20 @@ defmodule Tuist.OAuth.Clients do
   alias Boruta.Oauth.Clients
   alias Tuist.Environment
 
+  @authorization_code_ttl 300
+  @supported_grant_types ["authorization_code", "refresh_token", "revoke"]
+
   @impl Clients
   def get_client(client_id) do
     case static_client(client_id) do
-      %Client{} = client -> client
-      nil -> EctoClients.get_client(client_id)
+      %Client{} = client ->
+        client
+
+      nil ->
+        case EctoClients.get_client(client_id) do
+          %Client{} = client -> client |> ensure_authorization_code_ttl() |> restrict_grant_types()
+          nil -> nil
+        end
     end
   end
 
@@ -38,12 +47,18 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Clients
   def get_client_by_did(did) do
-    EctoClients.get_client_by_did(did)
+    case EctoClients.get_client_by_did(did) do
+      %Client{} = client -> restrict_grant_types(client)
+      other -> other
+    end
   end
 
   @impl Boruta.Openid.Clients
   def create_client(registration_params) do
-    EctoClients.create_client(registration_params)
+    registration_params
+    |> Map.put(:authorization_code_ttl, @authorization_code_ttl)
+    |> Map.update(:supported_grant_types, @supported_grant_types, &supported_grant_types/1)
+    |> EctoClients.create_client()
   end
 
   @impl Clients
@@ -100,7 +115,7 @@ defmodule Tuist.OAuth.Clients do
       secret: Environment.oauth_client_secret(),
       name: Environment.oauth_client_name(),
       access_token_ttl: 86_400,
-      authorization_code_ttl: 60,
+      authorization_code_ttl: @authorization_code_ttl,
       refresh_token_ttl: 2_592_000,
       id_token_ttl: 86_400,
       id_token_signature_alg: "RS256",
@@ -111,16 +126,10 @@ defmodule Tuist.OAuth.Clients do
           Environment.app_url(path: "/oauth/callback/android")
         ] ++ android_emulator_redirect_uris(),
       authorize_scope: false,
-      supported_grant_types: [
-        "client_credentials",
-        "password",
-        "authorization_code",
-        "refresh_token",
-        "implicit",
-        "revoke"
-      ],
+      supported_grant_types: @supported_grant_types,
       pkce: true,
-      public_refresh_token: false,
+      # Native apps (PKCE, RFC 8252) can't keep a client secret, so they refresh without one.
+      public_refresh_token: true,
       public_revoke: false,
       confidential: false,
       token_endpoint_auth_methods: [
@@ -158,4 +167,22 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp to_client_jwk(_), do: nil
+
+  defp ensure_authorization_code_ttl(%Client{authorization_code_ttl: ttl} = client) when ttl < @authorization_code_ttl do
+    %{client | authorization_code_ttl: @authorization_code_ttl}
+  end
+
+  defp ensure_authorization_code_ttl(%Client{} = client), do: client
+
+  # Clients registered before registration was restricted still carry Boruta's
+  # default grant list, which includes grants Tuist doesn't support.
+  defp restrict_grant_types(%Client{supported_grant_types: grant_types} = client) do
+    %{client | supported_grant_types: supported_grant_types(grant_types)}
+  end
+
+  defp supported_grant_types(grant_types) when is_list(grant_types) do
+    Enum.filter(grant_types, &(&1 in @supported_grant_types))
+  end
+
+  defp supported_grant_types(_grant_types), do: @supported_grant_types
 end

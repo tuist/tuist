@@ -1,6 +1,6 @@
-import Command
 import FileSystem
 import Foundation
+import os
 import Path
 import Testing
 @testable import XCResultParser
@@ -9,39 +9,29 @@ import Testing
 /// a temp file and reads it back, so the stub writes the canned test-results
 /// JSON to that redirect target — the real decoding and node classification then
 /// run unchanged through the public parsing API.
-private struct XCResultToolStub: CommandRunning {
+private struct XCResultToolStub {
     let testResultsJSON: String
 
-    func run(
-        arguments: [String],
-        environment _: [String: String],
-        workingDirectory _: AbsolutePath?
-    ) -> AsyncThrowingStream<CommandEvent, any Error> {
+    func callAsFunction(_ arguments: [String]) async throws -> XCResultToolOutput {
         let command = arguments.last ?? ""
-        return AsyncThrowingStream { continuation in
-            if let redirect = command.range(of: "> '") {
-                let tail = command[redirect.upperBound...]
-                if let close = tail.firstIndex(of: "'") {
-                    try? testResultsJSON.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
-                }
+        if let redirect = command.range(of: "> '") {
+            let tail = command[redirect.upperBound...]
+            if let close = tail.firstIndex(of: "'") {
+                try? testResultsJSON.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
             }
-            continuation.finish()
         }
+        return XCResultToolOutput(standardOutput: "", standardError: "", succeeded: true)
     }
 }
 
 /// Routes the two xcresulttool reads `parse` performs (`get test-results
 /// tests` and `get log --type action`) to separate canned payloads, so tests
 /// can exercise an empty/absent action log independently of the test results.
-private struct RoutingXCResultToolStub: CommandRunning {
+private struct RoutingXCResultToolStub {
     let testResultsJSON: String
     let actionLogJSON: String
 
-    func run(
-        arguments: [String],
-        environment _: [String: String],
-        workingDirectory _: AbsolutePath?
-    ) -> AsyncThrowingStream<CommandEvent, any Error> {
+    func callAsFunction(_ arguments: [String]) async throws -> XCResultToolOutput {
         let command = arguments.last ?? ""
         let payload =
             if command.contains("get log --type action") {
@@ -52,15 +42,31 @@ private struct RoutingXCResultToolStub: CommandRunning {
                 ""
             }
 
-        return AsyncThrowingStream { continuation in
-            if let redirect = command.range(of: "> '") {
-                let tail = command[redirect.upperBound...]
-                if let close = tail.firstIndex(of: "'") {
-                    try? payload.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
-                }
+        if let redirect = command.range(of: "> '") {
+            let tail = command[redirect.upperBound...]
+            if let close = tail.firstIndex(of: "'") {
+                try? payload.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
             }
-            continuation.finish()
         }
+        return XCResultToolOutput(standardOutput: "", standardError: "", succeeded: true)
+    }
+}
+
+/// Records the shell payload of every command the parser issues.
+private struct RecordingXCResultToolStub {
+    let testResultsJSON: String
+    let commands = OSAllocatedUnfairLock<[String]>(initialState: [])
+
+    func callAsFunction(_ arguments: [String]) async throws -> XCResultToolOutput {
+        let command = arguments.last ?? ""
+        commands.withLock { $0.append(command) }
+        if let redirect = command.range(of: "> '") {
+            let tail = command[redirect.upperBound...]
+            if let close = tail.firstIndex(of: "'") {
+                try? testResultsJSON.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
+            }
+        }
+        return XCResultToolOutput(standardOutput: "", standardError: "", succeeded: true)
     }
 }
 
@@ -126,7 +132,7 @@ struct XCResultParserTests {
         {"devices": [], "testNodes": [], "testPlanConfigurations": []}
         """
         let parser = XCResultParser(
-            commandRunner: RoutingXCResultToolStub(testResultsJSON: emptyTestResults, actionLogJSON: "")
+            execute: RoutingXCResultToolStub(testResultsJSON: emptyTestResults, actionLogJSON: "").callAsFunction
         )
 
         let summary = try await parser.parse(path: try AbsolutePath(validating: "/tmp/empty.xcresult"), rootDirectory: nil)
@@ -190,7 +196,7 @@ struct XCResultParserTests {
           ]
         }
         """
-        let parser = XCResultParser(commandRunner: XCResultToolStub(testResultsJSON: json))
+        let parser = XCResultParser(execute: XCResultToolStub(testResultsJSON: json).callAsFunction)
 
         let statuses = try await parser.parseTestStatuses(path: try AbsolutePath(validating: "/tmp/app.xcresult"))
 
@@ -282,7 +288,7 @@ struct XCResultParserTests {
         }
         """
         let parser = XCResultParser(
-            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
         )
 
         let summary = try #require(
@@ -385,7 +391,7 @@ struct XCResultParserTests {
         }
         """
         let parser = XCResultParser(
-            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
         )
 
         let summary = try #require(
@@ -409,4 +415,337 @@ struct XCResultParserTests {
 
         #expect(summary.status == .failed)
     }
+
+    @Test
+    func parse_liftsUnattributedSwiftTestingIssuesIntoErrorsWithoutFailingTheRun() async throws {
+        // Swift Testing issues recorded when no test is running (a leaked task,
+        // a callback that outlives its test) land in a synthetic
+        // "Issues recorded without an associated test or suite" case. xcodebuild
+        // gates on tests and this belongs to none, so it exits 0; the node must
+        // not become a test case nor drag the run red, or the dashboard shows a
+        // failed run for a green CI job. The issues are kept as target-keyed
+        // errors, deduped across the repetitions that re-record them.
+        let json = """
+        {
+          "testNodes": [
+            {
+              "nodeType": "Test Plan",
+              "name": "UnitTestSuite",
+              "children": [
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "ChatTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "Issues recorded without an associated test or suite",
+                      "result": "Failed",
+                      "children": [
+                        {
+                          "nodeType": "Failure Message",
+                          "name": "ChatTests.swift:107: response.0.contains { $0.numberOfNewMessages == 0 }"
+                        },
+                        {
+                          "nodeType": "Failure Message",
+                          "name": "ChatTests.swift:107: response.0.contains { $0.numberOfNewMessages == 0 }"
+                        },
+                        {
+                          "nodeType": "Failure Message",
+                          "name": "ChatTests.swift:153: response.0.contains { $0.numberOfNewMessages == 1 }"
+                        }
+                      ]
+                    },
+                    {
+                      "nodeType": "Test Case",
+                      "name": "sendsMessage()",
+                      "nodeIdentifier": "ChatTests/sendsMessage()",
+                      "result": "Passed"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let parser = XCResultParser(
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        let lifted = Set(summary.errors.map { "\($0.target ?? "")|\($0.message)" })
+        #expect(lifted == [
+            "ChatTests|Issue recorded without an associated test: ChatTests.swift:107: response.0.contains { $0.numberOfNewMessages == 0 }",
+            "ChatTests|Issue recorded without an associated test: ChatTests.swift:153: response.0.contains { $0.numberOfNewMessages == 1 }",
+        ])
+
+        #expect(summary.testCases.map(\.name) == ["sendsMessage()"])
+
+        // Unlike a runner error, these do not fail the run: xcodebuild exited 0.
+        #expect(summary.status == .passed)
+    }
+
+    @Test
+    func parse_keepsRealTestNamedLikeTheUnattributedIssuesNode() async throws {
+        // A real Swift Testing case can be displayed with that exact name; it
+        // carries a "Suite/method" identifier, so it stays a test case and still
+        // fails the run.
+        let json = """
+        {
+          "testNodes": [
+            {
+              "nodeType": "Test Plan",
+              "name": "UnitTestSuite",
+              "children": [
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "ReporterTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "Issues recorded without an associated test or suite",
+                      "nodeIdentifier": "ReporterTests/issuesRecordedWithoutATest()",
+                      "result": "Failed",
+                      "children": [
+                        { "nodeType": "Failure Message", "name": "Reporter.swift:12: Expectation failed" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let parser = XCResultParser(
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        #expect(summary.errors.isEmpty)
+        #expect(summary.testCases.map(\.name) == ["Issues recorded without an associated test or suite"])
+        #expect(summary.status == .failed)
+    }
+
+    /// The shape Xcode 27 writes for a parameterized Swift Testing test whose arguments failed once
+    /// and passed on retry under `-retry-tests-on-failure`: xcodebuild exits 0, but the argument and
+    /// test case nodes still say "Failed".
+    private func parameterizedTestJSON(
+        firstAttemptName: String,
+        secondAttemptName: String,
+        argumentDetails: String
+    ) -> String {
+        """
+        {
+          "testNodes": [
+            {
+              "nodeType": "Test Plan",
+              "name": "UnitTestSuite",
+              "children": [
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "ListingTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "measurements(asset:)",
+                      "nodeIdentifier": "MeasurementsTests/measurements(asset:)",
+                      "result": "Failed",
+                      "children": [
+                        {
+                          "nodeType": "Arguments",
+                          "name": ".shirts",
+                          "result": "Failed",
+                          "details": "\(argumentDetails)",
+                          "children": [
+                            {
+                              "nodeType": "Repetition",
+                              "name": "\(firstAttemptName)",
+                              "nodeIdentifier": "1",
+                              "result": "Failed",
+                              "children": [
+                                { "nodeType": "Failure Message", "name": "Snapshot does not match reference." }
+                              ]
+                            },
+                            {
+                              "nodeType": "Repetition",
+                              "name": "\(secondAttemptName)",
+                              "nodeIdentifier": "2",
+                              "result": "Passed"
+                            }
+                          ]
+                        },
+                        {
+                          "nodeType": "Arguments",
+                          "name": ".dresses",
+                          "result": "Passed",
+                          "children": [
+                            { "nodeType": "Repetition", "name": "\(firstAttemptName)", "nodeIdentifier": "1", "result": "Passed" }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+    }
+
+    @Test
+    func parse_passesParameterizedTestWhoseFailedArgumentPassedOnRetry() async throws {
+        let json = parameterizedTestJSON(
+            firstAttemptName: "First Run",
+            secondAttemptName: "Retry 1",
+            argumentDetails: "Failed after 2 retry"
+        )
+        let parser = XCResultParser(
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        let testCase = try #require(summary.testCases.first)
+        #expect(testCase.status == .passed)
+        #expect(testCase.arguments.map(\.status) == [.passed, .passed])
+        #expect(testCase.arguments.first?.failures.map(\.message) == ["Snapshot does not match reference."])
+        #expect(testCase.repetitions.map(\.status) == [.failed, .passed])
+        #expect(summary.status == .passed)
+    }
+
+    @Test
+    func parse_failsParameterizedTestWithAFailedIteration() async throws {
+        let json = parameterizedTestJSON(
+            firstAttemptName: "Repetition 1",
+            secondAttemptName: "Repetition 2",
+            argumentDetails: "1/2 (50%) passed, 1/2 (50%) failed"
+        )
+        let parser = XCResultParser(
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        let testCase = try #require(summary.testCases.first)
+        #expect(testCase.status == .failed)
+        #expect(testCase.arguments.map(\.status) == [.failed, .passed])
+        #expect(summary.status == .failed)
+    }
+
+    @Test
+    func parseTestStatuses_passesParameterizedTestWhoseFailedArgumentPassedOnRetry() async throws {
+        let json = parameterizedTestJSON(
+            firstAttemptName: "First Run",
+            secondAttemptName: "Retry 1",
+            argumentDetails: "Failed after 2 retry"
+        )
+        let parser = XCResultParser(execute: XCResultToolStub(testResultsJSON: json).callAsFunction)
+
+        let statuses = try await parser.parseTestStatuses(path: try AbsolutePath(validating: "/tmp/app.xcresult"))
+
+        #expect(statuses.testCases.map(\.status) == [.passed])
+        #expect(statuses.passingModuleNames() == ["ListingTests"])
+    }
+
+    /// The parser shells out through `/bin/sh -c`. Without `exec` the shell
+    /// forks the tool and waits, so `Process.terminate()` on cancellation
+    /// signals the shell only and the tool keeps running, reparented, holding
+    /// its process-limiter permit and writing into a temp directory the caller
+    /// is about to delete.
+    @Test
+    func shellCommandsExecTheToolSoTheyStayCancellable() async throws {
+        let runner = RecordingXCResultToolStub(testResultsJSON: "{}")
+        let parser = XCResultParser(execute: runner.callAsFunction)
+
+        _ = try? await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+
+        let commands = runner.commands.withLock { $0 }
+        #expect(!commands.isEmpty)
+        for command in commands where command.contains("xcresulttool") {
+            #expect(command.hasPrefix("exec "), "not cancellable, shell would fork and wait: \(command)")
+        }
+    }
+
+    /// Guards the mechanism itself rather than the spelling: cancelling the
+    /// task must leave no descendant behind.
+    @Test
+    func cancellingACommandTerminatesItsRealChildProcess() async throws {
+        // Unique enough to identify this test's process in the table.
+        let marker = "774411"
+        defer { _ = runToCompletion("/usr/bin/pkill", ["-f", "sleep \(marker)"]) }
+
+        let task = Task {
+            _ = try await executeXCResultTool(["/bin/sh", "-c", "exec /bin/sleep \(marker)"])
+        }
+
+        try await waitFor("the child to start") { processExists(marker) }
+        task.cancel()
+        try await waitFor("the child to be terminated") { !processExists(marker) }
+    }
+
+    @Test
+    func executeXCResultToolCapturesOutputLargerThanTenMegabytes() async throws {
+        let output = try await executeXCResultTool([
+            "/bin/sh", "-c", "yes x | head -c 10485761",
+        ])
+
+        #expect(output.succeeded)
+        let expectedOutputSize = 10 * 1024 * 1024 + 1
+        #expect(output.standardOutput.utf8.count == expectedOutputSize)
+    }
+
+    @Test
+    func failedXCResultToolOutputThrowsWhenSuccessIsRequired() {
+        let output = XCResultToolOutput(standardOutput: "", standardError: "tool failed", succeeded: false)
+
+        do {
+            try output.requireSuccess(for: ["xcresulttool", "get", "log"])
+            Issue.record("Expected the command to fail.")
+        } catch let error as XCResultToolError {
+            #expect(error.localizedDescription.contains("tool failed"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+}
+
+private func runToCompletion(_ executable: String, _ arguments: [String]) -> Int32 {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: executable)
+    process.arguments = arguments
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    do {
+        try process.run()
+    } catch {
+        return -1
+    }
+    process.waitUntilExit()
+    return process.terminationStatus
+}
+
+private func processExists(_ marker: String) -> Bool {
+    runToCompletion("/usr/bin/pgrep", ["-f", "sleep \(marker)"]) == 0
+}
+
+/// Polls rather than sleeping a fixed interval, so the test is neither slow
+/// when the transition is fast nor flaky when the machine is loaded.
+private func waitFor(_ description: String, _ condition: @Sendable () -> Bool) async throws {
+    for _ in 0 ..< 100 {
+        if condition() { return }
+        try await Task.sleep(for: .milliseconds(100))
+    }
+    Issue.record("Timed out waiting for \(description)")
 }

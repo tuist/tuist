@@ -21,14 +21,14 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorkerTest do
 
       assert scheduler_unique.fields == [:queue, :worker]
       assert scheduler_unique.period == :infinity
-      assert scheduler_unique.states == [:available, :scheduled, :executing, :retryable]
+      assert scheduler_unique.states == Oban.Job.unique_states(:incomplete)
 
       Enum.each(ScheduleExpiredArtifactsWorker.deletion_workers(), fn worker ->
         unique = worker.new(%{}).changes.unique
 
         assert unique.keys == [:account_id]
         assert unique.period == :infinity
-        assert unique.states == [:available, :scheduled, :executing, :retryable]
+        assert unique.states == Oban.Job.unique_states(:incomplete)
       end)
     end
 

@@ -40,11 +40,12 @@ extension Option {
         if let value: T = envKey.envValue() {
             self.init(
                 wrappedValue: value,
+                name: name,
                 parsing: parsingStrategy,
                 help: help?.withEnvKey(envKey),
                 completion: completion
             ) { argument in
-                T(argument: argument)
+                try T.parse(argument)
             }
         } else {
             self.init(
@@ -134,6 +135,26 @@ extension Flag where Value == Bool {
             )
         }
     }
+
+    public init(
+        wrappedValue: Bool,
+        name: NameSpecification = .long,
+        inversion: FlagInversion,
+        exclusivity: FlagExclusivity = .chooseLast,
+        help: ArgumentHelp? = nil,
+        envKey: EnvKey,
+        envValueInverted: Bool = false
+    ) {
+        let envValue: Value? = envKey.envValue()
+        let value = envValue.map { envValueInverted ? !$0 : $0 } ?? wrappedValue
+        self.init(
+            wrappedValue: value,
+            name: name,
+            inversion: inversion,
+            exclusivity: exclusivity,
+            help: help?.withEnvKey(envKey)
+        )
+    }
 }
 
 extension Flag where Value == Bool? {
@@ -216,7 +237,7 @@ extension Argument {
                 help: help?.withEnvKey(envKey),
                 completion: completion
             ) { argument in
-                T(argument: argument)
+                try T.parse(argument)
             }
         } else {
             self.init(
@@ -224,6 +245,18 @@ extension Argument {
                 completion: completion
             )
         }
+    }
+}
+
+extension ExpressibleByArgument {
+    fileprivate static func parse(_ argument: String) throws -> Self {
+        guard let value = Self(argument: argument) else {
+            let allowedValues = allValueStrings.map { "'\($0)'" }.joined(separator: ", ")
+            throw ValidationError(
+                allowedValues.isEmpty ? "The value could not be parsed." : "Please provide one of \(allowedValues)."
+            )
+        }
+        return value
     }
 }
 

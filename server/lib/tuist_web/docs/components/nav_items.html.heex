@@ -2,6 +2,9 @@
   <%= if item.url do %>
     <.link href={item.url} target="_blank" rel="noopener noreferrer" data-part="nav-link">
       <.tab_menu_vertical label={item.label}>
+        <:icon_left :if={item.icon}>
+          <.icon name={item.icon} />
+        </:icon_left>
         <:icon_right>
           <.icon name="external_link" />
         </:icon_right>
@@ -14,6 +17,9 @@
           label={item.label}
           data-selected={Sidebar.item_active?(item, @current_slug)}
         >
+          <:icon_left :if={item.icon}>
+            <.icon name={item.icon} />
+          </:icon_left>
         </.tab_menu_vertical>
       </.link>
     <% else %>
@@ -30,6 +36,9 @@
                   label={item.label}
                   data-selected={Sidebar.item_active?(item, @current_slug)}
                 >
+                  <:icon_left :if={item.icon}>
+                    <.icon name={item.icon} />
+                  </:icon_left>
                 </.tab_menu_vertical>
               </.link>
               <button
@@ -49,6 +58,9 @@
               data-part="trigger"
               data-selected={Sidebar.item_active?(item, @current_slug)}
             >
+              <:icon_left :if={item.icon}>
+                <.icon name={item.icon} />
+              </:icon_left>
               <:icon_right>
                 <div data-part="indicator">
                   <div data-part="indicator-down"><.chevron_down /></div>

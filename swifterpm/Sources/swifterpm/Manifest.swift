@@ -55,46 +55,166 @@ enum ManifestLoader {
     static let cacheFile = "package.json"
 
     static func cacheFilePath(packageDir: URL) -> URL {
-        packageDir
+        if let scratch = ManifestCache.scratchDirectory {
+            let root = scratch.appendingPathComponent("swifterpm/manifests")
+            if packageDir.standardizedFileURL == ManifestCache.rootPackageDirectory {
+                return root.appendingPathComponent(cacheFile)
+            }
+            return root.appendingPathComponent("packages")
+                .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.standardizedFileURL.path.utf8)))
+                .appendingPathComponent(cacheFile)
+        }
+        return legacyCacheFilePath(packageDir: packageDir)
+    }
+
+    static func legacyCacheFilePath(packageDir: URL) -> URL {
+        return packageDir
             .appendingPathComponent(cacheDirectory)
             .appendingPathComponent(cacheFile)
     }
 
-    static func dumpPackage(packageDir: URL, disableSandbox: Bool) async throws -> Any {
-        let data = try await ManifestLoader.dumpPackageJSON(
-            packageDir: packageDir, disableSandbox: disableSandbox
-        )
-        return try JSONSerialization.jsonObject(with: data)
+    static func dumpPackage(packageDir: URL, disableSandbox: Bool, cacheFile: URL? = nil) async throws -> Any {
+        try await requireManifest(packageDir: packageDir)
+        do {
+            let data = try await loadPackageJSON(
+                packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile,
+                inputs: try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
+            )
+            return try JSONSerialization.jsonObject(with: data.data)
+        } catch {
+            throw await dumpFailure(packageDir: packageDir, underlying: error)
+        }
     }
 
-    static func dumpPackageJSON(packageDir: URL, disableSandbox: Bool) async throws -> Data {
-        if let cached = try await readCachedManifest(packageDir: packageDir) {
-            return cached
+    static func dumpPackageJSON(packageDir: URL, disableSandbox: Bool, cacheFile: URL? = nil) async throws -> Data {
+        try await dumpPackageJSON(
+            packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile,
+            inputs: try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
+        ).data
+    }
+
+    static func dumpPackageJSON(
+        packageDir: URL, disableSandbox: Bool, cacheFile: URL?, inputs: String?
+    ) async throws -> (data: Data, inputs: String?) {
+        try await requireManifest(packageDir: packageDir)
+        do {
+            return try await loadPackageJSON(
+                packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: cacheFile, inputs: inputs
+            )
+        } catch {
+            throw await dumpFailure(packageDir: packageDir, underlying: error)
+        }
+    }
+
+    /// `swift package dump-package` resolves the package root by walking up from its working
+    /// directory, and `--package-path` walks up as well, so a directory that holds no manifest
+    /// does not fail the dump: it produces the nearest ancestor package instead, which swifterpm
+    /// would then cache and resolve under the identity of the package the caller asked for. A
+    /// checkout that lives inside another Swift package is enough to turn a broken local
+    /// dependency into a silently wrong graph, so refuse the dump before it starts.
+    ///
+    /// Only the directory-exists-without-a-manifest case is decided here. A directory that is
+    /// absent or unreadable cannot adopt an ancestor either way, and letting the subprocess fail
+    /// keeps the diagnosis of those states in `dumpFailure`, next to the error they produce.
+    private static func requireManifest(packageDir: URL) async throws {
+        if case .absent = await manifestPresence(packageDir: packageDir) {
+            throw ToolError.message("no Package.swift in \(packageDir.path)")
+        }
+    }
+
+    /// The unattributed load. Both entry points wrap it in `dumpFailure`, so the reading of the
+    /// cache, the `dump-package` hop, and (for `dumpPackage`) the JSON parse are all attributed
+    /// once, by whichever entry point the caller used — a toolchain that prints ahead of the
+    /// JSON must not fail as anonymously as the missing manifest this change is about.
+    private static func loadPackageJSON(
+        packageDir: URL, disableSandbox: Bool, cacheFile: URL?, inputs: String?
+    ) async throws -> (data: Data, inputs: String?) {
+        let cache = cacheFile ?? cacheFilePath(packageDir: packageDir)
+        if let inputs, let cached = await ManifestCache.read(at: cache, inputs: inputs) {
+            return (cached, inputs)
         }
 
         var args = ["package"]
+        if let sharedCacheDirectory = ManifestCache.sharedCacheDirectory {
+            args += ["--cache-path", sharedCacheDirectory.path]
+        }
         if disableSandbox {
             args.append("--disable-sandbox")
         }
         args.append("dump-package")
         let result = try await SystemProcess.run(
-            "/usr/bin/swift", args, workingDirectory: packageDir
+            "/usr/bin/swift",
+            args,
+            workingDirectory: packageDir,
+            customEnvironment: Environment.manifestValues
         )
-        try? await fileSystem.atomicWrite(result.stdout, to: cacheFilePath(packageDir: packageDir))
-        return result.stdout
+        if let inputs,
+           (try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)) == inputs
+        {
+            try? await ManifestCache.write(result.stdout, at: cache, inputs: inputs)
+            return (result.stdout, inputs)
+        }
+        return (result.stdout, nil)
     }
 
-    private static func readCachedManifest(packageDir: URL) async throws -> Data? {
-        let cache = cacheFilePath(packageDir: packageDir)
-        let manifest = packageDir.appendingPathComponent("Package.swift")
-        guard try await fileSystem.exists(cache.absolutePath) else { return nil }
-        guard let cacheDate = try await fileSystem.fileMetadata(at: cache.absolutePath)?.lastModificationDate,
-              let manifestDate = try await fileSystem.fileMetadata(at: manifest.absolutePath)?.lastModificationDate,
-              cacheDate >= manifestDate
-        else {
-            return nil
+    /// `swift package dump-package` resolves the package root from its working directory and
+    /// walks up from there, so a directory that holds no manifest fails with SwiftPM's
+    /// "Could not find Package.swift in this directory or any of its parent directories" —
+    /// which names neither the directory swifterpm chose nor the package it stands for. Every
+    /// dump in the graph reaches the user as that same line, so attribute the failure to the
+    /// directory here, and separate a missing manifest (a package that was never materialized,
+    /// or a local dependency pointing at the wrong path) from a manifest that failed to
+    /// evaluate: the two need different fixes.
+    ///
+    /// The classification is a hint layered on the evidence, never a replacement for it: the
+    /// probe can be wrong (a directory the process cannot traverse reads as absent), so the
+    /// underlying error is always appended. The sentence also carries no verb, so it composes
+    /// under callers that add one ("failed to load the manifest for X: no Package.swift in …")
+    /// without saying it twice.
+    static func dumpFailure(packageDir: URL, underlying: any Error) async -> ToolError {
+        let description =
+            switch await manifestPresence(packageDir: packageDir) {
+            case .present, .indeterminate: packageDir.path
+            case .absent: "no Package.swift in \(packageDir.path)"
+            // Deliberately not "does not exist": `exists` reports an unreadable directory as
+            // absent, so that claim would be false for a package under a parent the process
+            // cannot traverse. "Could not read" holds either way, and the underlying error
+            // below already distinguishes ENOENT from EACCES.
+            case .unreadable: "could not read \(packageDir.path)"
+            }
+        return ToolError.message("\(description): \(underlying)")
+    }
+
+    private enum ManifestPresence {
+        case present
+        case absent
+        /// Missing, or present but not readable — `exists` cannot tell the two apart.
+        case unreadable
+        /// The filesystem could not answer, so the failure is reported without a claim about
+        /// what is on disk rather than with a claim that may be false.
+        case indeterminate
+    }
+
+    private static func manifestPresence(packageDir: URL) async -> ManifestPresence {
+        do {
+            let path = try packageDir.absolutePath
+            if try await fileSystem.exists(path.appending(component: "Package.swift")) {
+                return .present
+            }
+            return try await fileSystem.exists(path) ? .absent : .unreadable
+        } catch {
+            return .indeterminate
         }
-        return try await fileSystem.readFile(at: cache.absolutePath)
+    }
+
+    static func localCacheFilePath(rootPackageDir: URL, packageDir: URL) -> URL {
+        if rootPackageDir.standardizedFileURL == ManifestCache.rootPackageDirectory {
+            return cacheFilePath(packageDir: packageDir)
+        }
+        let rootCache = cacheFilePath(packageDir: rootPackageDir).deletingLastPathComponent()
+        return rootCache.appendingPathComponent("local")
+            .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.standardizedFileURL.path.utf8)))
+            .appendingPathComponent(cacheFile)
     }
 }
 
@@ -122,28 +242,65 @@ enum ManifestFileSystemDependencyGraph {
                 parentPackageDir: item.parentPackageDir,
                 dependency: item.dependency
             )
+            // Resolving symlinks identifies the package, so two declared paths reaching the
+            // same directory are visited once and a cycle through a link terminates. It must
+            // not choose where the dump runs: SwiftPM loads a local dependency at the path the
+            // manifest declared, and reports it that way in `dump-package` output and in
+            // `workspace-state.json`, so dumping the resolved directory instead makes
+            // swifterpm disagree with SwiftPM about where a package lives. A declared path
+            // that is a symlink then dumps whatever its target resolves to, which is a package
+            // nobody declared when the link leaves the package's own directory: the dump either
+            // fails against a directory the manifest never named, or succeeds against the wrong
+            // manifest. `chdir` follows the link on its own, so the declared path reaches the
+            // same package without the substitution.
             let canonicalPath = PathCanonicalizer.realpath(packagePath)
             guard seenPackagePaths.insert(canonicalPath.path).inserted else {
                 continue
             }
 
-            let manifest = try await ManifestLoader.dumpPackage(
-                packageDir: canonicalPath,
-                disableSandbox: disableSandbox
-            )
+            let manifest: Any
+            do {
+                manifest = try await ManifestLoader.dumpPackage(
+                    packageDir: packagePath,
+                    disableSandbox: disableSandbox,
+                    cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: rootPackageDir, packageDir: packagePath)
+                )
+            } catch {
+                throw ToolError.message(
+                    """
+                    failed to load the manifest for the local package \
+                    \(item.dependency.identity), declared as "\(item.dependency.path)"\
+                    \(redirect(declared: item.dependency.path, canonical: canonicalPath)) by \
+                    \(item.parentPackageDir.path): \(error)
+                    """
+                )
+            }
             result.append(
                 ManifestFileSystemPackage(
                     dependency: item.dependency,
-                    packagePath: canonicalPath,
+                    packagePath: packagePath,
                     manifest: manifest
                 )
             )
+            // A child's own path is resolved against the parent's real directory, not its
+            // declared one: `packagePathForFileSystemDependency` folds `..` textually, which
+            // only matches the directory `chdir` would reach when no link was crossed on the
+            // way in. SwiftPM emits these paths absolute, so this is the defensive branch.
             for child in try ManifestParser.fileSystemDependencies(manifest) {
                 queue.append((parentPackageDir: canonicalPath, dependency: child))
             }
         }
 
         return result
+    }
+
+    /// The failure above names the declared path, because that is where the dump ran. When a
+    /// link on the way in sends that path somewhere else, the directory it lands in is the
+    /// whole diagnosis and nothing else in the message carries it: a manifest missing from the
+    /// declared path reads as a package that was never generated until you can see that the
+    /// path resolves out of the package's own directory.
+    private static func redirect(declared: String, canonical: URL) -> String {
+        canonical.path == declared ? "" : ", which resolves to \(canonical.path),"
     }
 
     static func packagePathForFileSystemDependency(
@@ -191,7 +348,7 @@ enum ManifestParser {
                             location: location,
                             requirement: requirement(requirementJSON),
                             nameForTargetDependencyResolutionOnly:
-                                dependency["nameForTargetDependencyResolutionOnly"] as? String
+                            dependency["nameForTargetDependencyResolutionOnly"] as? String
                         ))
                 }
             }

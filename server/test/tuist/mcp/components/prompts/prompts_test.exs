@@ -2,6 +2,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.MCP.Components.Prompts.AskTuist
   alias Tuist.MCP.Components.Prompts.CompareBuilds
   alias Tuist.MCP.Components.Prompts.CompareBundles
   alias Tuist.MCP.Components.Prompts.CompareCacheRuns
@@ -9,6 +10,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
   alias Tuist.MCP.Components.Prompts.CompareTestCase
   alias Tuist.MCP.Components.Prompts.CompareTestRuns
   alias Tuist.MCP.Components.Prompts.FixFlakyTest
+  alias Tuist.MCP.Components.Prompts.IntegrateBazelProject
   alias Tuist.MCP.Components.Prompts.IntegrateGradleProject
   alias Tuist.MCP.Components.Prompts.IntegrateXcodeProject
   alias Tuist.Projects
@@ -26,6 +28,36 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
   end
 
   describe "compare_builds" do
+    test "uses each build system's step tools and explains recording limits" do
+      for build_system <- [:gradle, :bazel] do
+        stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" ->
+          %{default_branch: "main", build_system: build_system}
+        end)
+
+        %{messages: [%{content: %{text: text}}]} =
+          CompareBuilds.template(nil, %{
+            "account_handle" => "acme",
+            "project_handle" => "app",
+            "head" => "head-id"
+          })
+
+        assert text =~ "list_#{build_system}_build_steps"
+        assert text =~ "get_#{build_system}_build_step"
+        refute text =~ "list_xcode_build_steps"
+
+        if build_system == :bazel do
+          assert text =~ "invocation_id"
+          assert text =~ "trace_profile"
+          assert text =~ "retained_action_spans"
+          assert text =~ "recorded action log when available"
+          refute text =~ "Per-action outcomes and logs are unavailable"
+          refute text =~ "build_run_id=head-id"
+        else
+          assert text =~ "time_origin"
+        end
+      end
+    end
+
     test "returns prompt messages with default branch" do
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" ->
         %{default_branch: "develop", build_system: :xcode}
@@ -148,6 +180,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "Compare Generations"
       assert text =~ "gen-head-id"
       assert text =~ "list_xcode_module_cache_targets"
+      assert text =~ "additional_hashing_inputs"
       assert text =~ "git_branch=develop"
     end
   end
@@ -172,6 +205,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "Compare Cache Runs"
       assert text =~ "cr-base-id"
       assert text =~ "cr-head-id"
+      assert text =~ "additional_hashing_inputs"
     end
   end
 
@@ -187,13 +221,53 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert %{messages: messages} = result
       assert length(messages) == 1
       text = hd(messages).content.text
-      assert text =~ "Integrate Tuist Gradle Project"
+      assert text =~ "Optimize an existing Gradle project with Tuist"
       assert text =~ "`acme/android`"
       assert text =~ "create_project"
+      assert text =~ "list_accounts"
+      assert text =~ "tuist auth whoami"
+      assert text =~ ~s{id("dev.tuist") version "0.10.0"}
       assert text =~ "org.gradle.caching=true"
-      assert text =~ "running a Gradle build first"
-      assert text =~ "tuistPrepareTestShards"
+      assert text =~ "CI=1 ./gradlew clean TASK"
+      assert text =~ "list_gradle_build_tasks"
       assert text =~ "remote_cache,test_sharding"
+    end
+  end
+
+  describe "integrate_bazel_project" do
+    test "returns prompt messages" do
+      result =
+        IntegrateBazelProject.template(nil, %{
+          "account_handle" => "acme",
+          "project_handle" => "bazel",
+          "server_url" => "https://tuist.dev"
+        })
+
+      assert %{messages: [message]} = result
+      text = message.content.text
+      assert text =~ "Integrate an existing Bazel project with Tuist"
+      assert text =~ "`acme/bazel`"
+      assert text =~ "create_project"
+      assert text =~ "build_system=bazel"
+      assert text =~ "tuist.toml"
+      assert text =~ "tuist bazel setup"
+      assert text =~ "list_bazel_invocations"
+      assert text =~ "sanitized `test.log` artifacts"
+    end
+
+    test "rejects an unsafe server origin before rendering commands" do
+      result =
+        IntegrateBazelProject.template(nil, %{
+          "server_url" => "https://attacker.example;touch"
+        })
+
+      assert %{messages: [message]} = result
+      text = message.content.text
+
+      assert text =~ "could not be generated"
+      assert text =~ "Do not edit files or run authentication commands"
+      refute text =~ "attacker.example"
+      refute text =~ ";touch"
     end
   end
 
@@ -220,6 +294,31 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test"
       assert text =~ "tuist xcodebuild build-for-testing"
       assert text =~ "tuist test --build-only --shard-total 5"
+    end
+  end
+
+  describe "ask_tuist" do
+    test "uses documentation and source evidence to answer the question" do
+      assert AskTuist.description() ==
+               "Answer a Tuist question using documentation and source-of-truth implementation evidence."
+
+      result =
+        AskTuist.template(nil, %{
+          "question" => "Where is cache upload policy selected?"
+        })
+
+      assert %{messages: [message]} = result
+      text = message.content.text
+      assert text =~ "Where is cache upload policy selected?"
+      assert text =~ "source of truth"
+      assert text =~ "The goal is to answer the question, not to produce a codebase tour"
+      assert text =~ "search_tuist"
+      assert text =~ "search_tuist_code"
+      assert text =~ "list_tuist_files"
+      assert text =~ "read_tuist_file"
+      assert text =~ "truncated=true"
+      assert text =~ "Never describe a truncated result as exhaustive"
+      assert text =~ "Answer the question directly"
     end
   end
 end

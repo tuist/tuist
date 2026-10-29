@@ -10,35 +10,44 @@ defmodule TuistWeb.OperatorGrant do
     * `verify/1` — verifies that token OFFLINE with the configured
       Ed25519 public key (no runtime call to ops). EdDSA-strict, with
       `exp`, max-TTL ceiling, and `iss`/`aud` pinning.
+    * `prune_operator_grants/2` — removes expired grants and fields that
+      are not needed for authorization before the session cookie is written.
     * `accept_operator_grant/2` — a plug in `:browser_app` that takes
       the `?operator_grant=` token on the redirect-back, verifies it,
-      pins the resolved `account_id` into the claims, stores them in
+      pins the resolved `account_id` into the claims, stores the minimal
+      authorization fields in
       the session, and immediately redirects to strip the token from
       the URL (so it never lands in a rendered page, Referer, or the
       observability logs).
     * `load_operator_grant/2` + `on_mount(:load, …)` — attach the
       session grant for the current `account_handle` onto
       `current_user.operator_grant` (controller and LiveView paths).
+    * `accept_atlas_identity_header/2` — a plug in `:mcp` that lets an
+      operator calling through Atlas read any account without a grant,
+      once Atlas' ServiceAccount token in `x-tuist-atlas-identity`
+      verifies.
     * `redirect_to_ops_if_operator/2` — a plug that bounces a
       non-member operator with no grant to the reason form instead of
       404ing them.
 
-  The grant claims stored on the user are a normalised, atom-keyed map
-  the authorization checks rely on:
+  The session stores only the normalised, atom-keyed fields that the
+  authorization checks and audit logging rely on:
 
       %{tier: :read | :admin, account_id: integer, account_handle: string,
-        sub: string, reason: string, jti: string, iat: integer, exp: integer}
+        sub: string, jti: string, exp: integer}
 
   Revocation is by short TTL (re-checked on every request) plus signing
   key rotation as the break-glass; there is deliberately no server→ops
   call.
   """
 
-  import Phoenix.Controller, only: [redirect: 2, current_url: 1]
+  import Phoenix.Controller, only: [redirect: 2, current_url: 1, json: 2]
   import Plug.Conn
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.AtlasWorkloadIdentity
   alias Tuist.Environment
   alias Tuist.Projects.Project
 
@@ -46,12 +55,25 @@ defmodule TuistWeb.OperatorGrant do
 
   @issuer "ops.tuist.dev"
   @session_key "operator_grants"
+  @session_grant_keys [:tier, :account_id, :account_handle, :sub, :jti, :exp]
+  @session_payload_warning_bytes 3_000
   # Tolerance for clock drift between the ops signer and this server.
   @clock_skew_seconds 60
   # Account handles are alphanumeric + dashes (mirrors the server's name
-  # validation). Reject anything else so a `%`/`_` in the grant can't be
-  # resolved as a SQL LIKE wildcard by `get_account_by_handle/1`.
+  # validation). Anything else is rejected before the handle is resolved.
   @account_handle_regex ~r/^[a-zA-Z0-9-]+$/
+  @atlas_identity_header "x-tuist-atlas-identity"
+
+  # No longer accepted on `/mcp`, but older clients and the MCP docs of the
+  # time sent a live grant in it, so it stays out of recorded headers.
+  @retired_grant_header "x-tuist-operator-grant"
+
+  @doc """
+  Request headers that carry live credentials: Atlas' ServiceAccount token,
+  which also authenticates the internal Atlas API, and the retired operator
+  grant header. Keep them out of anything that records request headers.
+  """
+  def credential_headers, do: [@atlas_identity_header, @retired_grant_header]
 
   # --- verification ------------------------------------------------------
 
@@ -174,6 +196,33 @@ defmodule TuistWeb.OperatorGrant do
   # --- handoff plug (runs in :browser_app) -------------------------------
 
   @doc """
+  Removes expired grants and compacts active grants before the browser
+  session is written back to the cookie.
+  """
+  def prune_operator_grants(conn, _opts) do
+    case get_session(conn, @session_key) do
+      grants when is_map(grants) ->
+        compacted_grants = compact_active_grants(grants)
+
+        cond do
+          compacted_grants == grants ->
+            conn
+
+          map_size(compacted_grants) == 0 ->
+            delete_session(conn, @session_key)
+
+          true ->
+            conn
+            |> put_session(@session_key, compacted_grants)
+            |> maybe_warn_session_payload_size()
+        end
+
+      _ ->
+        conn
+    end
+  end
+
+  @doc """
   If the request carries `?operator_grant=`, verify it, pin the
   account, store it in the session, and redirect to the same path with
   the token stripped. No-ops otherwise.
@@ -194,11 +243,12 @@ defmodule TuistWeb.OperatorGrant do
       grants =
         conn
         |> get_session(@session_key)
-        |> normalize_grants()
-        |> Map.put(grant_key(claims.account_handle), Map.put(claims, :account_id, account_id))
+        |> compact_active_grants()
+        |> Map.put(grant_key(claims.account_handle), session_grant(claims, account_id))
 
       conn
       |> put_session(@session_key, grants)
+      |> maybe_warn_session_payload_size()
       |> redirect(to: stripped_path(conn))
       |> halt()
     else
@@ -237,8 +287,43 @@ defmodule TuistWeb.OperatorGrant do
 
   defp emails_match?(_, _), do: false
 
-  defp normalize_grants(grants) when is_map(grants), do: grants
-  defp normalize_grants(_), do: %{}
+  defp compact_active_grants(grants) when is_map(grants) do
+    now = System.system_time(:second)
+
+    Enum.reduce(grants, %{}, fn
+      {handle, %{exp: exp} = grant}, compacted when is_binary(handle) and is_integer(exp) and exp > now ->
+        Map.put(compacted, grant_key(handle), Map.take(grant, @session_grant_keys))
+
+      _, compacted ->
+        compacted
+    end)
+  end
+
+  defp compact_active_grants(_), do: %{}
+
+  defp session_grant(claims, account_id) do
+    claims
+    |> Map.take(@session_grant_keys)
+    |> Map.put(:account_id, account_id)
+  end
+
+  defp maybe_warn_session_payload_size(conn) do
+    payload_size =
+      conn
+      |> get_session()
+      |> :erlang.term_to_binary()
+      |> Base.url_encode64(padding: false)
+      |> byte_size()
+
+    if payload_size >= @session_payload_warning_bytes do
+      Logger.warning("operator grant session payload is approaching the cookie size limit",
+        session_payload_bytes: payload_size,
+        warning_threshold_bytes: @session_payload_warning_bytes
+      )
+    end
+
+    conn
+  end
 
   defp stripped_path(conn) do
     query =
@@ -247,6 +332,82 @@ defmodule TuistWeb.OperatorGrant do
       |> URI.encode_query()
 
     if query == "", do: conn.request_path, else: conn.request_path <> "?" <> query
+  end
+
+  # --- Atlas identity (runs in :mcp) ------------------------------------
+
+  @doc """
+  Plug for the MCP pipeline: lets a Tuist operator read any account when the
+  request comes through Atlas.
+
+  Atlas proxies MCP calls with the operator's own OAuth token and adds its
+  projected ServiceAccount token in the `x-tuist-atlas-identity` header. Atlas
+  records every proxied call in its audit log, so a verified header is what
+  makes grant-free reads acceptable; the same operator calling `/mcp` directly
+  only sees their own memberships. Reads only: `Tuist.MCP.Authorization` consults
+  `:atlas_operator` for `:read` actions and nothing else.
+
+  Trust model: the header proves the caller holds Atlas' credential, not that
+  this particular request went through Atlas or produced an audit record there.
+  Atlas is a trusted credential holder, and the token also authenticates the
+  internal Atlas API, so it has to be protected as such. Use outside the proxy
+  is detected by reconciling the `atlas_operator_*` log fields set here and in
+  `Tuist.MCP.Authorization` against Atlas' audit log (`infra/log-review.md`).
+
+  A header that fails verification rejects the request, so an agent can tell a
+  rejected identity from a plain refusal. A verifier that is not configured is
+  not the caller's fault, so the request continues without the elevation.
+  """
+  def accept_atlas_identity_header(conn, _opts) do
+    case get_req_header(conn, @atlas_identity_header) do
+      [token | _] when is_binary(token) and token != "" -> attach_atlas_operator(conn, token)
+      _ -> conn
+    end
+  end
+
+  defp attach_atlas_operator(conn, token) do
+    case AtlasWorkloadIdentity.verify(token) do
+      {:ok, _principal} ->
+        case operator_from_conn(conn) do
+          %User{} = user -> if Accounts.tuist_operator?(user), do: attach_atlas_operator_user(conn, user), else: conn
+          nil -> conn
+        end
+
+      {:error, reason} when reason in [:not_configured, :invalid_jwks] ->
+        Logger.error("atlas identity header ignored: workload identity verifier unavailable",
+          reason: inspect(reason)
+        )
+
+        conn
+
+      {:error, reason} ->
+        Logger.warning("atlas identity header rejected", reason: inspect(reason))
+
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "atlas_identity_rejected"})
+        |> halt()
+    end
+  end
+
+  # Server-side trace of operator access through Atlas, independent of Atlas'
+  # own audit log. `Tuist.MCP.Authorization` adds the account when a read
+  # actually uses it.
+  defp attach_atlas_operator_user(conn, %User{email: email} = user) do
+    Logger.metadata(atlas_operator_email: email)
+    assign(conn, :atlas_operator, user)
+  end
+
+  # An OAuth access token authenticates as the account it was issued for, so the
+  # human is on `current_subject.issued_by`. `current_user` is populated for a
+  # browser session, and on the MCP endpoint for an `mcp`-scoped credential a user
+  # granted or claimed, so both are consulted.
+  defp operator_from_conn(conn) do
+    case conn.assigns do
+      %{current_user: %User{} = user} -> user
+      %{current_subject: %AuthenticatedAccount{issued_by: %User{} = user}} -> user
+      _ -> nil
+    end
   end
 
   # --- grant loading (controller + LiveView) -----------------------------
@@ -288,12 +449,27 @@ defmodule TuistWeb.OperatorGrant do
     socket =
       if match?(%User{}, current_user) and is_binary(account_handle) and is_map(claims) do
         log_grant_context(claims)
+        log_live_grant_view(socket, params)
         Phoenix.Component.assign(socket, :current_user, %{current_user | operator_grant: claims})
       else
         socket
       end
 
     {:cont, socket}
+  end
+
+  # Navigating between dashboard pages happens over the LiveView socket, which
+  # never produces a request line, so without this only the first page an
+  # operator opened under a grant would be recorded. The disconnected mount is
+  # the HTTP request, already logged.
+  defp log_live_grant_view(socket, params) do
+    if Phoenix.LiveView.connected?(socket) do
+      Logger.info("Operator grant page view",
+        live_view: inspect(socket.view),
+        selected_account_handle: params["account_handle"],
+        selected_project_handle: params["project_handle"]
+      )
+    end
   end
 
   @doc """

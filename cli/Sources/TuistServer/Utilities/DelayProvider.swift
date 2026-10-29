@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistHTTP
 
 @Mockable
 public protocol DelayProviding {
@@ -7,12 +8,20 @@ public protocol DelayProviding {
 }
 
 public struct DelayProvider: DelayProviding {
-    public init() {}
+    /// The base delay `RetryProvider` backs off from, shorter than `HTTPRetryPolicy`'s for the same reason as
+    /// `RetryProvider.defaultMaximumRetryCount`.
+    public static let defaultBaseDelayMilliseconds: UInt64 = 100
+
+    private let retryPolicy: HTTPRetryPolicy
+
+    public init(baseDelayMilliseconds: UInt64? = nil) {
+        retryPolicy = HTTPRetryPolicy(
+            baseDelayMilliseconds: baseDelayMilliseconds,
+            defaultBaseDelayMilliseconds: Self.defaultBaseDelayMilliseconds
+        )
+    }
 
     public func delay(for retry: Int) -> UInt64 {
-        // 0.1 seconds
-        let baseInterval = TimeInterval(1_000_000)
-        let randomInterval = Double.random(in: -1_000_000 ... 1_000_000)
-        return UInt64(baseInterval * pow(2, Double(retry)) + randomInterval)
+        retryPolicy.delay(for: retry)
     }
 }

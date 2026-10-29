@@ -60,17 +60,30 @@ public struct ConfigLoader: ConfigLoading {
         return .default
     }
 
+    public func loadCargoConfig(path: AbsolutePath) async throws -> TuistConfig.Tuist {
+        let toml = try await tomlConfigLoader.loadConfig(at: path)
+        let config = toml.map(configFromToml) ?? .default
+        applyRuntimeSettings(from: config)
+        return config
+    }
+
     private func configFromToml(_ tomlConfig: TuistTomlConfig) -> TuistConfig.Tuist {
         return TuistConfig.Tuist(
             project: .defaultGeneratedProject(),
             fullHandle: tomlConfig.project,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: tomlConfig.url ?? Constants.URLs.production,
-            network: .init(proxy: tomlConfig.network?.proxy ?? true)
+            network: .init(
+                proxy: tomlConfig.network?.proxy ?? true,
+                caCertificate: tomlConfig.network?.caCertificate
+            )
         )
     }
 
     private func applyRuntimeSettings(from config: TuistConfig.Tuist) {
-        HTTPSettings.current = .init(useEnvironmentProxy: config.network.proxy)
+        HTTPSettings.current = .init(
+            useEnvironmentProxy: config.network.proxy,
+            caCertificatePath: config.network.caCertificate
+        )
     }
 }

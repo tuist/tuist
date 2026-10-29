@@ -1,4 +1,20 @@
 .layout__content.layout__content--account {
-  padding-inline: var(--noora-spacing-8);
-  padding-block: var(--noora-spacing-9);
+  box-sizing: border-box;
+  padding-block: var(--layout-page-padding-block);
+
+  /* Pages own their gutters: each page root spans min(100%, tier width plus
+     its own inline padding) and centers with real auto margins once the pane
+     out-runs the cap — the space around a page is margin outside its box,
+     not pane padding. */
+  & > * {
+    box-sizing: border-box;
+    margin-inline: auto;
+    padding-inline: var(--layout-page-padding-inline);
+    width: var(--layout-page-max-width-with-margin-current);
+  }
+
+  /* Compact pages (settings-style, e.g. cache) narrow the cap. */
+  &:has(> [data-layout="compact"]) {
+    --layout-page-width-current: var(--layout-page-width-compact);
+  }
 }

@@ -58,6 +58,7 @@ teardown_file() {
     [[ "$output" == *"Tuist: Build insights configured"* ]]
     [[ "$output" == *"Tuist: Test insights configured"* ]]
     [[ "$output" == *"Tuist: Remote build cache configured"* ]]
+    [[ "$output" == *"Tuist: Build insights reported successfully"* ]]
 
     # Check if artifacts were stored
     if [[ "$output" == *"Stored cache entry"* ]]; then
@@ -95,6 +96,7 @@ teardown_file() {
         echo "$output" >&3
     fi
     [[ "$output" == *"Loaded cache entry"* ]]
+    [[ "$output" == *"Tuist: Build insights reported successfully"* ]]
 
     # Count cache hits
     cache_hits=$(echo "$output" | grep -c "FROM-CACHE" || echo "0")

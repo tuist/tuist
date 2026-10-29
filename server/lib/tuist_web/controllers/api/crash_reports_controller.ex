@@ -4,6 +4,7 @@ defmodule TuistWeb.API.CrashReportsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Tests
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -71,6 +72,7 @@ defmodule TuistWeb.API.CrashReportsController do
       ok: {"The crash report was uploaded", "application/json", nil},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"Not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }
@@ -79,10 +81,13 @@ defmodule TuistWeb.API.CrashReportsController do
   def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
     with {:ok, test_case_run} <-
            Tests.get_test_case_run_by_id(body_params.test_case_run_id,
-             project_id: project.id,
-             preload: [:attachments]
+             project_id: project.id
            ),
-         true <- Enum.any?(test_case_run.attachments, &(&1.id == body_params.test_case_run_attachment_id)) do
+         {:ok, _attachment} <-
+           Tests.get_test_case_run_attachment(
+             test_case_run.id,
+             body_params.test_case_run_attachment_id
+           ) do
       crash_report_params = %{
         id: UUIDv7.generate(),
         exception_type: Map.get(body_params, :exception_type),

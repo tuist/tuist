@@ -106,7 +106,10 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                                 }
 
                                 do {
-                                    try await function()
+                                    try await TuistTest.$fixtureServerURL
+                                        .withValue(URL(string: serverURL)) {
+                                            try await function()
+                                        }
                                 } catch {
                                     try await revert()
                                     throw error

@@ -4,7 +4,12 @@ defmodule TuistCommon.Git.Authentication do
   or process arguments.
   """
 
-  @github_rewrite_config ["-c", "url.https://github.com/.insteadOf=git@github.com:"]
+  @github_rewrite_config [
+    "-c",
+    "url.https://github.com/.insteadOf=git@github.com:",
+    "-c",
+    "url.https://github.com/.insteadOf=ssh://git@github.com/"
+  ]
   @no_prompt_env [{"GIT_TERMINAL_PROMPT", "0"}]
 
   def with_github_token(tmp_dir, token, function)

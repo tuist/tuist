@@ -20,6 +20,107 @@ class StaticProductsGraphLinterTests: XCTestCase {
         super.tearDown()
     }
 
+    func test_lint_whenStaticProductHasOneLinkingConsumer() throws {
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(path: path, name: "Project", targets: [app, staticFramework])
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                appDependency: [staticFrameworkDependency],
+                staticFrameworkDependency: [],
+            ]
+        )
+
+        let results = subject.lint(graphTraverser: GraphTraverser(graph: graph), configGeneratedProjectOptions: .test())
+
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func test_lint_whenHostedTestBundleIsTheSecondLinkingConsumer() throws {
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(path: path, name: "Project", targets: [app, appTests, staticFramework])
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appTestsDependency = GraphDependency.target(name: appTests.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                appDependency: [staticFrameworkDependency],
+                appTestsDependency: [appDependency, staticFrameworkDependency],
+                staticFrameworkDependency: [],
+            ]
+        )
+
+        let results = subject.lint(graphTraverser: GraphTraverser(graph: graph), configGeneratedProjectOptions: .test())
+
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func test_lint_whenTwoConsumersRemainAfterHostedTestBundleIsRemoved() throws {
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(path: path, name: "Project", targets: [app, appTests, framework, staticFramework])
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appTestsDependency = GraphDependency.target(name: appTests.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                appDependency: [frameworkDependency, staticFrameworkDependency],
+                appTestsDependency: [appDependency, staticFrameworkDependency],
+                frameworkDependency: [staticFrameworkDependency],
+                staticFrameworkDependency: [],
+            ]
+        )
+
+        let results = subject.lint(graphTraverser: GraphTraverser(graph: graph), configGeneratedProjectOptions: .test())
+
+        XCTAssertEqual(results, [
+            warning(product: "StaticFramework", linkedBy: [appDependency, frameworkDependency]),
+        ])
+    }
+
+    func test_lint_whenStaticProductWithMacroHasTwoLinkingConsumers() throws {
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let framework = Target.test(name: "Framework", product: .framework)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let macro = Target.test(name: "Macro", product: .macro)
+        let project = Project.test(path: path, name: "Project", targets: [app, framework, staticFramework, macro])
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
+        let macroDependency = GraphDependency.target(name: macro.name, path: path)
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                appDependency: [frameworkDependency, staticFrameworkDependency],
+                frameworkDependency: [staticFrameworkDependency],
+                staticFrameworkDependency: [macroDependency],
+                macroDependency: [],
+            ]
+        )
+
+        let results = subject.lint(graphTraverser: GraphTraverser(graph: graph), configGeneratedProjectOptions: .test())
+
+        XCTAssertTrue(results.isEmpty)
+    }
+
     func test_lint_whenPackageDependencyLinkedTwice() throws {
         // Given
         let path: AbsolutePath = "/project"

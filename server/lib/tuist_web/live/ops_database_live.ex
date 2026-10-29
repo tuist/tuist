@@ -106,43 +106,22 @@ defmodule TuistWeb.OpsDatabaseLive do
   # pgweb / DBeaver): no quotes around strings and no decorators around
   # dates. `nil` is rendered as the literal NULL with a `data-null`
   # attribute on the cell container so CSS can mute the color.
+  #
+  # Delegates to `Tuist.Ops.Database.display_value/1` so this UI, the
+  # JSON API, and the CSV / markdown exports share one classification of
+  # a raw `Repo.query/1` value.
   def format_cell(nil), do: "NULL"
-
-  def format_cell(v) when is_binary(v) do
-    cond do
-      # Valid UTF-8 → render as-is.
-      String.valid?(v) ->
-        v
-
-      # 16-byte non-UTF-8 binaries are almost always Postgres UUIDs
-      # (uuidv4 / uuidv7 / etc — Postgrex hands them through as the raw
-      # bytea). Format canonically so the `id` column doesn't render
-      # as binary garbage.
-      byte_size(v) == 16 ->
-        case Ecto.UUID.cast(v) do
-          {:ok, uuid} -> uuid
-          :error -> hex_blob(v)
-        end
-
-      # Any other non-printable bytea (bytes, encrypted blobs, etc.)
-      # gets the psql `\x...` hex form so the operator at least sees
-      # the size + content.
-      true ->
-        hex_blob(v)
-    end
-  end
-
-  def format_cell(v) when is_number(v) or is_boolean(v), do: to_string(v)
   def format_cell(%NaiveDateTime{} = v), do: NaiveDateTime.to_string(v)
   def format_cell(%DateTime{} = v), do: DateTime.to_string(v)
   def format_cell(%Date{} = v), do: Date.to_string(v)
   def format_cell(%Time{} = v), do: Time.to_string(v)
-  # Composite / unknown types still need to render *somewhere*. Use
-  # inspect/1 so jsonb maps and arrays at least serialize legibly
-  # rather than crashing the cell.
-  def format_cell(v), do: inspect(v)
 
-  defp hex_blob(bin), do: "\\x" <> Base.encode16(bin, case: :lower)
+  def format_cell(v) do
+    case Database.display_value(v) do
+      s when is_binary(s) -> s
+      other -> inspect(other)
+    end
+  end
 
   @doc "The current page's slice of the result rows."
   def displayed_rows(nil, _), do: []

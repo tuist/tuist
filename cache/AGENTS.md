@@ -1,15 +1,19 @@
-# Tuist Cache Service (Elixir/Phoenix)
+# Cache service
 
-This service provides caching infrastructure for Tuist. It shares tooling and conventions with the Tuist Server.
+Elixir/Phoenix service with nginx-authenticated file serving. See `cache/README.md`
+for the storage and request paths; `cache/platform/` contains NixOS/nginx config.
+Use `server/AGENTS.md` for shared Elixir and testing conventions.
 
-## Key Boundaries
-- Web/API layer: `cache/lib/cache_web`
-- Cache domain and storage: `cache/lib/cache`
-- Nginx and host-level config: `cache/platform`
+Run from `cache/`: `mise run install`, `mise run test`,
+`mise run format --check`, and `mise run credo`.
 
-## Related Context (Downlinks)
-- Cache web layer: `cache/lib/cache_web/AGENTS.md`
-- Cache domain and storage: `cache/lib/cache/AGENTS.md`
-- Platform/nginx config: `cache/platform/AGENTS.md`
-- Server conventions and tooling: `server/AGENTS.md`
-- Grafana dashboard: [`infra/grafana-dashboards/cache-service.json`](../infra/grafana-dashboards/cache-service.json) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
+- Keep authentication in the Phoenix layer before nginx serves cached files.
+- Repository-monitoring wrappers supply cache-specific labels and telemetry
+  prefixes; shared pool metrics belong in `tuist_common/`. Repo supervision stays
+  in `cache/lib/cache/application.ex`.
+- Swift registry reads and local downloads belong here, but never registry writes.
+  The only writer is the server's `Tuist.Registry.Swift.SyncWorker`/`ReleaseWorker`
+  in `TUIST_MODE=swift_registry_sync`. Do not restore cache-side sync/release jobs,
+  metadata mutation, or registry uploads; queued uploads must remain dropped.
+  An S3 lock cannot make two writers safe: cached metadata is read before the lock
+  and can overwrite newer checksums while leaving newer archive bytes.

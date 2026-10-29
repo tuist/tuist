@@ -4,18 +4,40 @@ defmodule Tuist.RunnersTest do
   import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
+  alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheGrant
+  alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.CacheVolumes.Usage
+  alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
+  alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Sites
+  alias Tuist.Runners.Telemetry
   alias Tuist.Runners.VolumeAffinities
+  alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.VolumeMasterOrphans
+  alias Tuist.Runners.Workers.AbortVolumeMasterUploadWorker
+  alias Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker
+  alias Tuist.Runners.Workers.PruneVolumeMasterWorker
+  alias Tuist.Runners.Workers.SiteSpilloverWorker
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
 
   setup :verify_on_exit!
+
+  @volume "macos-" <> String.duplicate("a", 64)
 
   # The SA name and the Pod name are the same by construction (the
   # runners-controller's podtemplate stamps both with the same name),
@@ -31,12 +53,17 @@ defmodule Tuist.RunnersTest do
   end
 
   defp pod_with_image(pod_name, image, opts \\ []) do
+    labels = %{}
+
     labels =
-      if Keyword.get(opts, :drain_eligible, false) do
-        %{"tuist.dev/drain-eligible" => "true"}
-      else
-        %{}
-      end
+      if Keyword.get(opts, :drain_eligible, false),
+        do: Map.put(labels, "tuist.dev/drain-eligible", "true"),
+        else: labels
+
+    labels =
+      if Keyword.get(opts, :operator_drain, false),
+        do: Map.put(labels, "tuist.dev/runner-operator-drain", "true"),
+        else: labels
 
     spec =
       then(%{"containers" => [%{"name" => "runner", "image" => image}]}, fn spec ->
@@ -60,6 +87,23 @@ defmodule Tuist.RunnersTest do
   end
 
   describe "dispatch_for_sa/2 stale-image drain" do
+    test "returns :drain for an operator-marked Pod before attempting a claim" do
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image, operator_drain: true)}
+      end)
+
+      reject(&K8sClient.get_runner_pool/2)
+      reject(&Claims.attempt/5)
+
+      assert {:error, :drain} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
     test "returns :drain when Pod is stale and the controller marked it drain-eligible" do
       old_image = "ghcr.io/tuist/tuist-runner@sha256:old"
       new_image = "ghcr.io/tuist/tuist-runner@sha256:new"
@@ -177,9 +221,70 @@ defmodule Tuist.RunnersTest do
       expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" -> {:ok, committed_pod} end)
 
       # No claim is attempted; the Pod is refused so the guest halts (410).
-      reject(&Claims.attempt/4)
+      reject(&Claims.attempt/5)
 
       assert {:error, :pod_committed} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+  end
+
+  describe "dispatch_for_sa/2 site exclusivity" do
+    setup do
+      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+      account = organization_fixture(preload: [:account]).account
+
+      Tuist.Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "site-exclusive",
+        platform: :macos,
+        xcode_version: "26.6",
+        vcpus: Catalog.default_shape(:macos).vcpus,
+        memory_gb: Catalog.default_shape(:macos).memory_gb
+      })
+
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{"#{prefix}-ber1-26-6" => %{site: "ber1", platform: :macos}}
+      end)
+
+      stub(FeatureFlags, :runner_site_enabled?, fn %{id: id} -> id == account.id end)
+
+      %{account: account, prefix: prefix}
+    end
+
+    test "a rented runner claims no job routed to a site that is up", %{account: account, prefix: prefix} do
+      stub(Sites, :available?, fn _site_pool -> true end)
+      stub(Sites, :status, fn _site_pool -> :up end)
+
+      assert {:ok, target} = Dispatch.resolve_dispatch_target(account, ["tuist-site-exclusive"])
+      assert target.pool_name == "#{prefix}-ber1-26-6"
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: 940_001,
+          account_id: account.id,
+          fleet_name: target.pool_name,
+          platform: "macos",
+          vcpus: target.vcpus,
+          memory_gb: target.memory_gb,
+          repository: "tuist/tuist",
+          requested_dispatch_label: target.requested_dispatch_label,
+          enqueued_at: DateTime.add(DateTime.utc_now(), -300, :second)
+        })
+
+      assert :ok = perform_job(SiteSpilloverWorker, %{})
+
+      rented_pool = "#{prefix}-26-6"
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      stub(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", rented_pool)}
+      end)
+
+      stub(K8sClient, :get_runner_pool, fn "tuist-runners", ^rented_pool -> {:ok, pool_with_image(image)} end)
+      stub(K8sClient, :get_pod, fn "tuist-runners", "pod-1" -> {:ok, pod_with_image("pod-1", image)} end)
+      reject(&Claims.attempt/5)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert Tuist.Repo.get!(WorkflowJob, 940_001).fleet_name == "#{prefix}-ber1-26-6"
     end
   end
 
@@ -194,13 +299,16 @@ defmodule Tuist.RunnersTest do
         workflow_job_id: workflow_job_id,
         account_id: account.id,
         fleet_name: "fleet-a",
-        repository: "acme/cli",
+        repository: Keyword.get(opts, :repository, "acme/cli"),
         workflow_run_id: workflow_job_id * 10,
         run_attempt: 1,
         workflow_name: "CI",
         job_name: "build",
         head_branch: "main",
         head_sha: "deadbeef",
+        platform: Keyword.get(opts, :platform, "linux"),
+        vcpus: Keyword.get(opts, :vcpus, 4),
+        memory_gb: Keyword.get(opts, :memory_gb, 16),
         requested_dispatch_label: requested_dispatch_label,
         enqueued_at: DateTime.utc_now()
       }
@@ -212,10 +320,18 @@ defmodule Tuist.RunnersTest do
     # for real against the sandboxed repo.
     defp stub_dispatch_path(account, candidate, test_pid, opts \\ []) do
       pod_name = Keyword.get(opts, :pod_name, "pod-1")
-      excluded_workflow_job_ids = Keyword.get(opts, :excluded_workflow_job_ids, [])
       workflow_job_id = candidate.workflow_job_id
+      resources = Keyword.get(opts, :resources, %{platform: :linux, vcpus: 4, memory_gb: 16})
+      runner_name_prefix = Keyword.get(opts, :runner_name_prefix, String.slice(pod_name, 0, 55))
+
+      pool_summary =
+        Keyword.get(opts, :pool_summary, %{
+          dispatch_label: "shape-linux-4vcpu-16gb",
+          runner_labels: ["self-hosted", "Linux", "X64"]
+        })
 
       node_name = Keyword.get(opts, :node_name)
+      site = Keyword.get(opts, :site)
       image = "ghcr.io/tuist/tuist-runner@sha256:current"
 
       # check_not_stale fetches the Pod first (to reject committed Pods), so the
@@ -242,19 +358,18 @@ defmodule Tuist.RunnersTest do
         end)
       end
 
-      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> excluded_workflow_job_ids end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k ->
+        {:ok, [candidate]}
+      end)
 
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], ^excluded_workflow_job_ids, _k -> {:ok, [candidate]} end)
-
-      expect(Claims, :attempt, fn ^workflow_job_id, _account_id, "fleet-a", ^pod_name ->
+      expect(Claims, :attempt, fn ^workflow_job_id, _account_id, "fleet-a", ^pod_name, claimed_resources, ^site ->
+        assert claimed_resources == resources
         {:ok, %{claimed_at: DateTime.utc_now()}}
       end)
 
       expect(Jobs, :record_claimed, fn ^candidate, ^pod_name, _claimed_at -> :ok end)
 
-      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
-        {:ok, %{dispatch_label: "shape-linux-4vcpu-16gb", runner_labels: ["self-hosted", "Linux", "X64"]}}
-      end)
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" -> {:ok, pool_summary} end)
 
       stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
 
@@ -276,16 +391,124 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn ^workflow_job_id, runner_name ->
-        assert String.starts_with?(runner_name, String.slice(pod_name, 0, 55))
+      expect(Claims, :mark_running, fn ^workflow_job_id, runner_name, _claimed_at ->
+        assert String.starts_with?(runner_name, runner_name_prefix)
         assert byte_size(runner_name) <= 64
         :ok
       end)
 
       expect(Jobs, :record_running, fn ^workflow_job_id, runner_name ->
-        assert String.starts_with?(runner_name, String.slice(pod_name, 0, 55))
+        assert String.starts_with?(runner_name, runner_name_prefix)
         assert byte_size(runner_name) <= 64
         :ok
+      end)
+    end
+
+    defp stub_mint_failure_then_success(
+           failed_account,
+           failed_candidate,
+           eligible_account,
+           eligible_candidate,
+           mint_error,
+           exclusion_scope
+         ) do
+      pod_name = "pod-1"
+      first_claimed_at = DateTime.utc_now()
+      second_claimed_at = DateTime.add(first_claimed_at, 1, :microsecond)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
+        {:ok, pod_with_image(pod_name, "ghcr.io/tuist/tuist-runner@sha256:current")}
+      end)
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
+        {:ok, sa_with_pool_label(pod_name, "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:error, :not_found}
+      end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [failed_candidate]} end)
+
+      expect(Claims, :attempt, fn workflow_job_id, account_id, "fleet-a", ^pod_name, _resources, nil ->
+        assert workflow_job_id == failed_candidate.workflow_job_id
+        assert account_id == failed_account.id
+        {:ok, %{claimed_at: first_claimed_at}}
+      end)
+
+      expect(Jobs, :record_claimed, fn candidate, ^pod_name, ^first_claimed_at ->
+        assert candidate == failed_candidate
+        :ok
+      end)
+
+      expect(Dispatch, :pool_summary_by_name, 2, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "shape-linux-4vcpu-16gb", runner_labels: ["self-hosted", "Linux", "X64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _namespace, _pod, _patch -> {:ok, %{}} end)
+
+      stub(VCS, :get_github_app_installation_for_account, fn _account_id ->
+        {:ok, %{installation_id: 42, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :generate_jit_config, fn _installation, _login, attrs ->
+        assert attrs.repository_full_handle == failed_candidate.repository
+        mint_error
+      end)
+
+      expect(Claims, :release, fn workflow_job_id, ^first_claimed_at ->
+        assert workflow_job_id == failed_candidate.workflow_job_id
+        :ok
+      end)
+
+      case exclusion_scope do
+        :account ->
+          expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], [], _k ->
+            assert excluded_account_ids == [failed_account.id]
+            {:ok, [eligible_candidate]}
+          end)
+
+        :repository ->
+          expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], excluded_repositories, [], _k ->
+            assert excluded_repositories == [failed_candidate.repository]
+            {:ok, [eligible_candidate]}
+          end)
+
+        :workflow_job ->
+          expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], excluded_workflow_job_ids, _k ->
+            assert excluded_workflow_job_ids == [failed_candidate.workflow_job_id]
+            {:ok, [eligible_candidate]}
+          end)
+      end
+
+      expect(Claims, :attempt, fn workflow_job_id, account_id, "fleet-a", ^pod_name, _resources, nil ->
+        assert workflow_job_id == eligible_candidate.workflow_job_id
+        assert account_id == eligible_account.id
+        {:ok, %{claimed_at: second_claimed_at}}
+      end)
+
+      expect(Jobs, :record_claimed, fn candidate, ^pod_name, ^second_claimed_at ->
+        assert candidate == eligible_candidate
+        :ok
+      end)
+
+      expect(GitHubClient, :generate_jit_config, fn _installation, _login, attrs ->
+        assert attrs.repository_full_handle == eligible_candidate.repository
+        {:ok, %{encoded_jit_config: "jit-blob", runner_name: attrs.name}}
+      end)
+
+      expect(Claims, :mark_running, fn workflow_job_id, _runner_name, _claimed_at ->
+        assert workflow_job_id == eligible_candidate.workflow_job_id
+        :ok
+      end)
+
+      expect(Jobs, :record_running, fn workflow_job_id, _runner_name ->
+        assert workflow_job_id == eligible_candidate.workflow_job_id
+        :ok
+      end)
+
+      stub(GitHubClient, :get_workflow_run, fn %{repository_full_handle: repository} ->
+        {:ok, %{"head_repository" => %{"full_name" => repository}, "repository" => %{"full_name" => repository}}}
       end)
     end
 
@@ -306,6 +529,27 @@ defmodule Tuist.RunnersTest do
       refute "shape-linux-4vcpu-16gb" in labels
     end
 
+    test "stamps only the account label on a macOS Pod once the dispatch commits" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      test_pid = self()
+      stub_dispatch_path(account, candidate, test_pid)
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+      stub(CacheGrant, :mint, fn _account_id -> "signed-grant-token" end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
+        send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
+        {:ok, %{}}
+      end)
+
+      account_label = Integer.to_string(account.id)
+      assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert result.cache_signing_grant == "signed-grant-token"
+      refute Map.has_key?(result, :volume_head)
+      assert_receive {:patched, %{"tuist.dev/runner-account" => ^account_label} = labels}
+      assert labels == %{"tuist.dev/runner-account" => account_label}
+    end
+
     test "includes the minted cache signing grant in the dispatch result" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
@@ -316,11 +560,13 @@ defmodule Tuist.RunnersTest do
         "signed-grant-token"
       end)
 
-      assert {:ok, %{cache_signing_grant: "signed-grant-token"}} =
+      assert {:ok, %{cache_signing_grant: "signed-grant-token"} = result} =
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      refute Map.has_key?(result, :volume_head)
     end
 
-    test "excludes an untrusted fork job from the cache (no grant, no HEAD, untrusted label)" do
+    test "withholds the cache signing grant from an untrusted fork job" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()
@@ -336,13 +582,13 @@ defmodule Tuist.RunnersTest do
         {:ok, %{}}
       end)
 
-      # An untrusted job must never get a grant nor a volume HEAD.
       reject(&CacheGrant.mint/1)
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
-      assert result.volume_head == nil
-      assert_receive {:patched, %{"tuist.dev/runner-cache-untrusted" => "true"}}
+      refute Map.has_key?(result, :volume_head)
+      assert_receive {:patched, %{"tuist.dev/runner-account" => _} = labels}
+      refute Map.has_key?(labels, "tuist.dev/runner-cache-untrusted")
     end
 
     test "treats a job as untrusted (cold) when the workflow-run lookup fails, fail-closed" do
@@ -355,45 +601,176 @@ defmodule Tuist.RunnersTest do
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
-      assert result.volume_head == nil
+      refute Map.has_key?(result, :volume_head)
     end
 
-    test "records volume affinity for the polling node on a successful claim" do
+    test "threads the polling node's identity into the residency lookup" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
 
-      # Affinity is macOS-only (only the Mac fleet holds cache masters), so the
-      # fleet must resolve to :macos for record/select to run at all.
+      # Residency scoring is macOS-only (only the Mac fleet holds cache
+      # masters), so the fleet must resolve to :macos for it to run at all.
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
 
-      expect(VolumeAffinities, :record, fn "mac-07", account_id ->
-        send(test_pid, {:affinity_recorded, account_id})
-        :ok
+      # The node name is what the residency lookup keys on: without it reaching
+      # the policy, every host would be scored against the same (empty) answer.
+      expect(VolumeAffinities, :select_candidate, fn [^candidate], "mac-07", opts ->
+        send(test_pid, {:select_opts, opts})
+        {candidate, :head_resident}
       end)
 
-      # With a single candidate the affinity scoring returns the head; the
-      # point here is that node identity is threaded through and the claim
-      # records affinity for that node.
-      expect(VolumeAffinities, :select_candidate, fn [^candidate], "mac-07", _tolerance -> candidate end)
-
       assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-      assert_receive {:affinity_recorded, recorded_account_id}
-      assert recorded_account_id == account.id
+
+      assert_receive {:select_opts, opts}
+      assert Keyword.fetch!(opts, :tolerance_seconds) > 0
     end
 
-    test "does not record volume affinity for a non-macOS fleet" do
+    test "serves the head unreordered when the host advertises no cache masters" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      test_pid = self()
+      stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
+
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      # A macOS host with cache volumes off publishes no cache volume labels.
+      # The platform gate alone cannot tell that apart from a host full of
+      # masters, so residency has to:
+      # nothing is resident, nothing is reordered, the head goes out.
+      stub(K8sClient, :get_node, fn "mac-07" ->
+        {:ok, %{"metadata" => %{"labels" => %{"tuist.dev/runtime" => "tart"}}}}
+      end)
+
+      assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "dispatches without a preference when the Node read fails" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
+
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      # Residency is an optimization input read before the claim, so a bad
+      # apiserver must cost warmth, not dispatch: letting this escape would 500
+      # every poll on the fleet for as long as the read keeps failing.
+      stub(K8sClient, :get_node, fn _ -> raise "apiserver unreachable" end)
+
+      assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "emits the affinity outcome once, only after the dispatch commits" do
+      handler_id = make_ref()
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+      test_pid = self()
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Telemetry.event_name_dispatch_affinity(),
+          fn _name, measurements, metadata, _ -> send(test_pid, {:affinity, measurements, metadata}) end,
+          nil
+        )
+
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
+
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+      stub(VolumeAffinities, :select_candidate, fn [c], _node, _opts -> {c, :resident} end)
+
+      assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert_receive {:affinity, %{count: 1}, %{outcome: "resident", fleet: "fleet-a"}}, 500
+      # One served job, one outcome. Scoring runs again on every claim retry
+      # (lost race, account at its cap), so emitting per scoring pass would give
+      # this metric a different denominator than the host's one-materialize-
+      # per-job counter it is meant to be read against.
+      refute_receive {:affinity, _, _}, 50
+    end
+
+    test "reports an untrusted job's placement by its residency" do
+      handler_id = make_ref()
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+      test_pid = self()
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Telemetry.event_name_dispatch_affinity(),
+          fn _name, _measurements, metadata, _ -> send(test_pid, {:affinity, metadata}) end,
+          nil
+        )
+
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
+
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+      stub(VolumeAffinities, :select_candidate, fn [c], _node, _opts -> {c, :resident} end)
+
+      stub(GitHubClient, :get_workflow_run, fn %{repository_full_handle: repo} ->
+        {:ok, %{"head_repository" => %{"full_name" => "attacker/#{repo}"}, "repository" => %{"full_name" => repo}}}
+      end)
+
+      assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert_receive {:affinity, %{outcome: "resident"}}, 500
+    end
+
+    test "emits no affinity outcome for a volumeless fleet" do
+      handler_id = make_ref()
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+      test_pid = self()
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Telemetry.event_name_dispatch_affinity(),
+          fn _name, _measurements, metadata, _ -> send(test_pid, {:affinity, metadata}) end,
+          nil
+        )
+
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "other-01")
+
+      # A fleet of no runner platform holds no cache volume, so it is never
+      # scored and never reads a Node; the plain oldest-queued head is dispatched.
+      stub(Catalog, :fleet_platform, fn _ -> nil end)
+      reject(&VolumeAffinities.select_candidate/3)
+      reject(&K8sClient.get_node/1)
+
+      assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      refute_receive {:affinity, _}, 50
+    end
+
+    test "scores a Linux fleet for the custom volumes its hosts hold" do
+      handler_id = make_ref()
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+      test_pid = self()
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Telemetry.event_name_dispatch_affinity(),
+          fn _name, _measurements, metadata, _ -> send(test_pid, {:affinity, metadata}) end,
+          nil
+        )
+
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       stub_dispatch_path(account, candidate, self(), node_name: "linux-01")
 
-      # Linux runners hold no cache masters, so affinity must not reorder or
-      # record for them — the plain oldest-queued head is dispatched.
       stub(Catalog, :fleet_platform, fn _ -> :linux end)
-      reject(&VolumeAffinities.record/2)
+      stub(VolumeAffinities, :select_candidate, fn [c], "linux-01", _opts -> {c, :resident} end)
 
       assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:affinity, %{outcome: "resident"}}, 500
     end
 
     test "registers the runner under the repo's GitHub org login, not the Tuist account handle" do
@@ -428,6 +805,154 @@ defmodule Tuist.RunnersTest do
       assert runner_name != pod_name
     end
 
+    test "names a catalog macOS runner after the guest's macOS version, the pool's Xcode version and the shape" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+      pod_name = "tuist-tuist-runner-pool-macos-ber1-27-0-runner-aea5f25e"
+
+      stub_dispatch_path(account, candidate, self(),
+        pod_name: pod_name,
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14},
+        runner_name_prefix: "tuist-macos-26.6-xcode-27.0-6vcpu-14gb-",
+        pool_summary: %{
+          dispatch_label: "shape-macos-ber1-27-0",
+          runner_labels: ["self-hosted", "macOS", "ARM64"],
+          xcode_version: "27.0"
+        }
+      )
+
+      assert {:ok, %{runner_name: runner_name}} =
+               Runners.dispatch_for_sa("tuist-runners", pod_name, %{os_version: "26.6"})
+
+      assert_receive {:jit_runner_name, ^runner_name}
+      assert runner_name =~ ~r/\Atuist-macos-26\.6-xcode-27\.0-6vcpu-14gb-[0-9a-f]{12}\z/
+    end
+
+    test "leaves the macOS version out of the name when the guest reports none" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 12, memory_gb: 28)
+
+      stub_dispatch_path(account, candidate, self(),
+        resources: %{platform: :macos, vcpus: 12, memory_gb: 28},
+        runner_name_prefix: "tuist-macos-xcode-27.2-beta-12vcpu-28gb-",
+        pool_summary: %{
+          dispatch_label: "shape-macos-27-2-beta-12vcpu-28gb",
+          runner_labels: ["self-hosted", "macOS", "ARM64"],
+          xcode_version: "27.2-beta"
+        }
+      )
+
+      assert {:ok, %{runner_name: runner_name}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert runner_name =~ ~r/\Atuist-macos-xcode-27\.2-beta-12vcpu-28gb-[0-9a-f]{12}\z/
+    end
+
+    test "keeps the Pod name for a macOS pool that runs no catalog Xcode" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+
+      stub_dispatch_path(account, candidate, self(),
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14},
+        pool_summary: %{
+          dispatch_label: "tuist-ber1-smoke",
+          runner_labels: ["self-hosted", "macOS", "ARM64"],
+          xcode_version: nil
+        }
+      )
+
+      assert {:ok, %{runner_name: runner_name}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1", %{os_version: "26.6"})
+
+      assert runner_name =~ ~r/\Apod-1-[0-9a-f]{8}\z/
+    end
+
+    test "a rack runner claims at its Node's site and hands out that site's runner cache" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+      node_name = "larch-runner-#{System.unique_integer([:positive])}"
+      stub(Tuist.Environment, :runners_site_pools, fn -> %{"fleet-a" => %{site: "ber1", platform: :macos}} end)
+
+      expect(K8sClient, :get_node, fn ^node_name, _opts ->
+        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
+      end)
+
+      stub_dispatch_path(account, candidate, self(),
+        node_name: node_name,
+        site: "larch",
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14}
+      )
+
+      assert {:ok, %{fleet_site: "larch"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "a rack runner on a Node without a site label claims at its pool's site" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+      node_name = "ber1-runner-#{System.unique_integer([:positive])}"
+      stub(Tuist.Environment, :runners_site_pools, fn -> %{"fleet-a" => %{site: "ber1", platform: :macos}} end)
+      expect(K8sClient, :get_node, fn ^node_name, _opts -> {:ok, %{"metadata" => %{"labels" => %{}}}} end)
+
+      stub_dispatch_path(account, candidate, self(),
+        node_name: node_name,
+        site: "ber1",
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14}
+      )
+
+      assert {:ok, %{fleet_site: "ber1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "a rack runner leaves a young job to the site where its account's runner cache is warm" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+      node_name = "larch-runner-#{System.unique_integer([:positive])}"
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+      stub(Tuist.Environment, :runners_site_pools, fn -> %{"fleet-a" => %{site: "ber1", platform: :macos}} end)
+
+      stub(K8sClient, :get_node, fn ^node_name, _opts ->
+        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
+      end)
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image, node_name: node_name)}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:ok, pool_with_image(image)} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
+      expect(Tuist.Kura, :runner_cache_elsewhere, fn [account_id], "larch" -> MapSet.new([account_id]) end)
+      reject(&Claims.attempt/6)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "a rack runner takes a job warm at another site once it has waited out the grace" do
+      account = account_fixture()
+
+      candidate =
+        account
+        |> candidate_with_label("tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+        |> Map.put(:enqueued_at, DateTime.add(DateTime.utc_now(), -61, :second))
+
+      node_name = "larch-runner-#{System.unique_integer([:positive])}"
+      stub(Tuist.Environment, :runners_site_pools, fn -> %{"fleet-a" => %{site: "ber1", platform: :macos}} end)
+
+      stub(K8sClient, :get_node, fn ^node_name, _opts ->
+        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
+      end)
+
+      expect(Tuist.Kura, :runner_cache_elsewhere, fn [account_id], "larch" -> MapSet.new([account_id]) end)
+
+      stub_dispatch_path(account, candidate, self(),
+        node_name: node_name,
+        site: "larch",
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14}
+      )
+
+      assert {:ok, %{fleet_site: "larch"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
     test "falls back to the pool dispatchLabel when the candidate has no requested label (legacy row)" do
       account = account_fixture()
       candidate = candidate_with_label(account, "")
@@ -438,14 +963,6 @@ defmodule Tuist.RunnersTest do
 
       assert_receive {:jit_labels, labels}
       assert "shape-linux-4vcpu-16gb" in labels
-    end
-
-    test "excludes workflow jobs that already have active Postgres claims before picking queued work" do
-      account = account_fixture()
-      candidate = candidate_with_label(account, "tuist-default", workflow_job_id: 90_002)
-      stub_dispatch_path(account, candidate, self(), excluded_workflow_job_ids: [90_001])
-
-      assert {:ok, %{workflow_job_id: 90_002}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
     test "tries the next queued job after losing a claim race" do
@@ -468,17 +985,15 @@ defmodule Tuist.RunnersTest do
         {:error, :not_found}
       end)
 
-      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [stale_candidate]} end)
 
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], _k -> {:ok, [stale_candidate]} end)
-
-      expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", ^pod_name ->
+      expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", ^pod_name, _resources, nil ->
         {:error, :lost_race}
       end)
 
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [90_001], _k -> {:ok, [candidate]} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [90_001], _k -> {:ok, [candidate]} end)
 
-      expect(Claims, :attempt, fn 90_002, _account_id, "fleet-a", ^pod_name ->
+      expect(Claims, :attempt, fn 90_002, _account_id, "fleet-a", ^pod_name, _resources, nil ->
         {:ok, %{claimed_at: DateTime.utc_now()}}
       end)
 
@@ -500,7 +1015,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn 90_002, runner_name ->
+      expect(Claims, :mark_running, fn 90_002, runner_name, _claimed_at ->
         assert String.starts_with?(runner_name, pod_name)
         :ok
       end)
@@ -513,6 +1028,214 @@ defmodule Tuist.RunnersTest do
       assert {:ok, %{workflow_job_id: 90_002}} = Runners.dispatch_for_sa("tuist-runners", pod_name)
       assert_receive {:jit_labels, labels}
       assert "tuist-default" in labels
+    end
+
+    test "skips an account whose GitHub App permission prevents minting and dispatches other work" do
+      failed_account = account_fixture()
+      eligible_account = account_fixture()
+      failed_candidate = candidate_with_label(failed_account, "tuist-default", workflow_job_id: 90_101)
+      eligible_candidate = candidate_with_label(eligible_account, "tuist-default", workflow_job_id: 90_102)
+
+      stub_mint_failure_then_success(
+        failed_account,
+        failed_candidate,
+        eligible_account,
+        eligible_candidate,
+        {:error, {:repository_administration_permission_required, 403, %{"message" => "Forbidden"}}},
+        :account
+      )
+
+      assert {:ok, %{workflow_job_id: 90_102}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "skips only the repository whose runner endpoint returns not found" do
+      account = account_fixture()
+
+      failed_candidate =
+        candidate_with_label(account, "tuist-default",
+          workflow_job_id: 90_151,
+          repository: "acme/unavailable"
+        )
+
+      eligible_candidate =
+        candidate_with_label(account, "tuist-default",
+          workflow_job_id: 90_152,
+          repository: "acme/available"
+        )
+
+      stub_mint_failure_then_success(
+        account,
+        failed_candidate,
+        account,
+        eligible_candidate,
+        {:error, {:repository_jit_config_not_found, 404, %{"message" => "Not Found"}}},
+        :repository
+      )
+
+      assert {:ok, %{workflow_job_id: 90_152}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "skips only the failed workflow job after a transient mint failure" do
+      account = account_fixture()
+      failed_candidate = candidate_with_label(account, "tuist-default", workflow_job_id: 90_201)
+      eligible_candidate = candidate_with_label(account, "tuist-default", workflow_job_id: 90_202)
+
+      stub_mint_failure_then_success(
+        account,
+        failed_candidate,
+        account,
+        eligible_candidate,
+        {:error, {:transport, :timeout}},
+        :workflow_job
+      )
+
+      assert {:ok, %{workflow_job_id: 90_202}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "skips all queued work for an account that reached its platform limit" do
+      capped_account = account_fixture()
+      other_account = account_fixture()
+      capped_candidate = candidate_with_label(capped_account, "tuist-default", workflow_job_id: 91_001)
+      other_candidate = candidate_with_label(other_account, "tuist-default", workflow_job_id: 91_002)
+      pod_name = "pod-1"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
+        {:ok, sa_with_pool_label(pod_name, "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
+        {:ok, pod_with_image(pod_name, "ghcr.io/tuist/tuist-runner@sha256:current")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:error, :not_found}
+      end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [capped_candidate]} end)
+
+      expect(Claims, :attempt, fn 91_001, account_id, "fleet-a", ^pod_name, resources, nil ->
+        assert account_id == capped_account.id
+
+        {:error,
+         {:concurrency_limit_reached,
+          %{
+            platform: :linux,
+            requested: resources,
+            used: %{vcpus: 32, memory_gb: 64},
+            limit: %{vcpus: 32, memory_gb: 64}
+          }}}
+      end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], [], _k ->
+        assert excluded_account_ids == [capped_account.id]
+        assert other_candidate.account_id == other_account.id
+        {:error, :empty}
+      end)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", pod_name)
+    end
+
+    test "skips a busy account without consuming the lost-race retry budget" do
+      busy_account = account_fixture()
+      busy_candidate = candidate_with_label(busy_account, "tuist-default", workflow_job_id: 91_010)
+      pod_name = "pod-1"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
+        {:ok, sa_with_pool_label(pod_name, "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
+        {:ok, pod_with_image(pod_name, "ghcr.io/tuist/tuist-runner@sha256:current")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:error, :not_found}
+      end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [busy_candidate]} end)
+
+      expect(Claims, :attempt, fn 91_010, account_id, "fleet-a", ^pod_name, _resources, nil ->
+        assert account_id == busy_account.id
+        {:error, :account_busy}
+      end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], [], _k ->
+        assert excluded_account_ids == [busy_account.id]
+        {:error, :empty}
+      end)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", pod_name)
+    end
+
+    test "capped accounts do not exhaust the retry budget before eligible work" do
+      capped_candidates =
+        Enum.map(1..16, fn index ->
+          account = account_fixture()
+          candidate_with_label(account, "tuist-default", workflow_job_id: 92_000 + index)
+        end)
+
+      eligible_account = account_fixture()
+      eligible_candidate = candidate_with_label(eligible_account, "tuist-default", workflow_job_id: 92_017)
+      candidates = capped_candidates ++ [eligible_candidate]
+      capped_account_ids = MapSet.new(capped_candidates, & &1.account_id)
+      pod_name = "pod-1"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
+        {:ok, sa_with_pool_label(pod_name, "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
+        {:ok, pod_with_image(pod_name, "ghcr.io/tuist/tuist-runner@sha256:current")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:error, :not_found}
+      end)
+
+      expect(Jobs, :pick_queued_top_k, 17, fn "fleet-a", excluded_account_ids, [], [], _k ->
+        candidate = Enum.find(candidates, &(&1.account_id not in excluded_account_ids))
+        {:ok, [candidate]}
+      end)
+
+      expect(Claims, :attempt, 17, fn workflow_job_id, account_id, "fleet-a", ^pod_name, resources, nil ->
+        if MapSet.member?(capped_account_ids, account_id) do
+          {:error,
+           {:concurrency_limit_reached,
+            %{
+              platform: :linux,
+              requested: resources,
+              used: %{vcpus: 32, memory_gb: 64},
+              limit: %{vcpus: 32, memory_gb: 64}
+            }}}
+        else
+          assert account_id == eligible_account.id
+          assert workflow_job_id == eligible_candidate.workflow_job_id
+          {:ok, %{claimed_at: DateTime.utc_now()}}
+        end
+      end)
+
+      expect(Jobs, :record_claimed, fn ^eligible_candidate, ^pod_name, _claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "shape-linux-4vcpu-16gb", runner_labels: ["self-hosted", "Linux", "X64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      stub(VCS, :get_github_app_installation_for_account, fn account_id ->
+        assert account_id == eligible_account.id
+        {:ok, %{installation_id: 42, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :generate_jit_config, fn _installation, "acme", %{name: runner_name} ->
+        {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
+      end)
+
+      expect(Claims, :mark_running, fn 92_017, _runner_name, _claimed_at -> :ok end)
+      expect(Jobs, :record_running, fn 92_017, _runner_name -> :ok end)
+
+      assert {:ok, %{workflow_job_id: 92_017}} =
+               Runners.dispatch_for_sa("tuist-runners", pod_name)
     end
 
     test "retries the owner-label stamp on a transient patch failure and still dispatches" do
@@ -548,37 +1271,961 @@ defmodule Tuist.RunnersTest do
     end
   end
 
-  describe "account_id_for_sa/2" do
-    test "resolves the account from a trusted pod's runner-account label" do
-      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
-        {:ok, %{"metadata" => %{"labels" => %{"tuist.dev/runner-account" => "42"}}}}
-      end)
+  describe "report_volume_head/6" do
+    test "fast-forwards the HEAD for a valid hex digest built on the current base" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
 
-      assert {:ok, 42} = Runners.account_id_for_sa("tuist-runners", "pod-1")
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", digest, 0)
+      assert %{generation: 1, tree_digest: ^digest} = VolumeHeads.get_head(account.id, @volume)
     end
 
-    test "rejects an untrusted (fork) pod so it cannot advance a shared HEAD" do
-      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+    test "stores the reported content digest on the HEAD and clears it when the next promote reports none" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      content_digest = String.duplicate("d", 64)
+
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", digest, 0, content_digest)
+      assert %{generation: 1, content_digest: ^content_digest} = VolumeHeads.get_head(account.id, @volume)
+
+      # A promote from a runner image that predates the content hash publishes a
+      # NEW object with no digest: the previous digest describes the old object
+      # and must not survive onto the new HEAD, where hosts would verify the new
+      # download against it and decline every convergence.
+      assert {:ok, 2} = Runners.report_volume_head(account.id, @volume, "node-2", String.duplicate("b", 40), 1)
+      assert %{generation: 2, content_digest: nil} = VolumeHeads.get_head(account.id, @volume)
+    end
+
+    test "reads a malformed content digest as unreported rather than rejecting the promote" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+
+      bad_digests = ["", "not-hex", String.duplicate("d", 63), String.upcase(String.duplicate("d", 64)), 42]
+
+      for {bad, base_generation} <- Enum.with_index(bad_digests) do
+        assert {:ok, _generation} =
+                 Runners.report_volume_head(account.id, @volume, "node-1", digest, base_generation, bad)
+
+        assert %{content_digest: nil} = VolumeHeads.get_head(account.id, @volume)
+      end
+    end
+
+    test "rejects a digest with path characters (or non-hex) without bumping the HEAD" do
+      account = account_fixture()
+
+      for bad <- ["../../etc/passwd", "x/../y", "a/b", "", nil, String.duplicate("A", 40)] do
+        assert :error = Runners.report_volume_head(account.id, @volume, "node-1", bad, 0)
+      end
+
+      assert VolumeHeads.get_head(account.id, @volume) == nil
+    end
+
+    test "rejects a promote built on a stale base and leaves the HEAD untouched" do
+      account = account_fixture()
+      first = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, @volume, "node-1", first, 0)
+
+      # A job that built on generation 1 promotes after the HEAD already moved to 2.
+      second = String.duplicate("b", 40)
+      Runners.report_volume_head(account.id, @volume, "node-2", second, 1)
+      stale = String.duplicate("c", 40)
+
+      assert :conflict = Runners.report_volume_head(account.id, @volume, "node-3", stale, 1)
+      assert %{generation: 2, tree_digest: ^second} = VolumeHeads.get_head(account.id, @volume)
+    end
+
+    test "schedules a delayed prune of the superseded master only once a digest changes" do
+      account = account_fixture()
+      old = String.duplicate("a", 40)
+      new = String.duplicate("b", 40)
+
+      # First promote: nothing is superseded, so nothing to prune.
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", old, 0)
+      refute_enqueued(worker: PruneVolumeMasterWorker)
+
+      # A new digest supersedes the old object → schedule its delayed deletion.
+      assert {:ok, 2} = Runners.report_volume_head(account.id, @volume, "node-1", new, 1)
+
+      assert_enqueued(
+        worker: PruneVolumeMasterWorker,
+        args: %{account_id: account.id, master_id: old}
+      )
+    end
+
+    test "records a rejected promote's upload as an orphan and schedules its reclaim" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("a", 40), 0)
+
+      # The guest uploaded its object before the compare-and-swap, so a rejected
+      # promote leaves an orphan with no HEAD pointing at it. Record it and
+      # schedule a delayed reclaim so it does not accumulate indefinitely — but do
+      # NOT touch the superseded-master worker (this digest never superseded one).
+      rejected = String.duplicate("c", 40)
+      assert :conflict = Runners.report_volume_head(account.id, @volume, "node-2", rejected, 0)
+
+      assert VolumeMasterOrphans.exists?(account.id, rejected, @volume)
+
+      assert_enqueued(
+        worker: PruneVolumeMasterOrphanWorker,
+        args: %{account_id: account.id, master_id: rejected}
+      )
+
+      refute_enqueued(worker: PruneVolumeMasterWorker, args: %{master_id: rejected})
+    end
+
+    test "forgets an orphan once the same digest is later accepted as HEAD" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("a", 40), 0)
+
+      # A digest is rejected (recorded as orphan)…
+      digest = String.duplicate("c", 40)
+      assert :conflict = Runners.report_volume_head(account.id, @volume, "node-2", digest, 0)
+      assert VolumeMasterOrphans.exists?(account.id, digest, @volume)
+
+      # …then a later job builds on the current base and commits that same
+      # inventory. It is now the live HEAD, so it is no longer an orphan and the
+      # scheduled reclaim must skip it.
+      assert {:ok, 2} = Runners.report_volume_head(account.id, @volume, "node-3", digest, 1)
+      refute VolumeMasterOrphans.exists?(account.id, digest, @volume)
+    end
+
+    # Two jobs can end with the same entry names and sizes in images whose bytes
+    # differ. Keyed by inventory alone, the losing promote's upload would overwrite
+    # the object the winning HEAD's content digest describes, and every host would
+    # then reject it. Each image gets its own object, so the rejected one is
+    # reclaimed without touching the live master.
+    test "keys each image by its content digest so a rejected same-inventory promote reclaims only its own object" do
+      account = account_fixture()
+      tree = String.duplicate("a", 40)
+      live_content = String.duplicate("1", 64)
+      rejected_content = String.duplicate("2", 64)
+      rejected = "#{tree}-#{rejected_content}"
+
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", tree, 0, live_content)
+      assert :conflict = Runners.report_volume_head(account.id, @volume, "node-2", tree, 0, rejected_content)
+
+      assert VolumeMasterOrphans.exists?(account.id, rejected, @volume)
+      refute VolumeMasterOrphans.exists?(account.id, "#{tree}-#{live_content}", @volume)
+      assert_enqueued(worker: PruneVolumeMasterOrphanWorker, args: %{account_id: account.id, master_id: rejected})
+
+      rejected_key = "runner-volume-masters/#{account.id}/#{@volume}/#{rejected}.image"
+      expect(Tuist.Storage, :delete_object, fn ^rejected_key, _actor -> :ok end)
+
+      assert :ok = Runners.prune_orphan_volume_master(account.id, @volume, rejected)
+    end
+
+    test "prunes the previous image when a same-inventory image with different bytes supersedes it" do
+      account = account_fixture()
+      tree = String.duplicate("a", 40)
+      old_content = String.duplicate("1", 64)
+
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", tree, 0, old_content)
+      refute_enqueued(worker: PruneVolumeMasterWorker)
+
+      assert {:ok, 2} =
+               Runners.report_volume_head(account.id, @volume, "node-2", tree, 1, String.duplicate("2", 64))
+
+      assert_enqueued(
+        worker: PruneVolumeMasterWorker,
+        args: %{account_id: account.id, master_id: "#{tree}-#{old_content}"}
+      )
+    end
+  end
+
+  describe "per-volume HEADs" do
+    @volume_a "macos-" <> String.duplicate("b", 64)
+    @volume_b "linux-" <> String.duplicate("c", 64)
+
+    test "keeps an independent HEAD lineage per volume" do
+      account = account_fixture()
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("a", 40), 0)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("b", 40), 1)
+
+      assert Runners.fast_forward_viable?(account.id, @volume_a, 0)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume_a, "node-2", String.duplicate("c", 40), 0)
+      refute Runners.fast_forward_viable?(account.id, @volume_a, 0)
+
+      assert %{generation: 2} = VolumeHeads.get_head(account.id, @volume)
+      assert %{generation: 1} = VolumeHeads.get_head(account.id, @volume_a)
+    end
+
+    test "schedules the superseded prune and the orphan reclaim in the promote's volume" do
+      account = account_fixture()
+      old = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, @volume_a, "node-1", old, 0)
+      Runners.report_volume_head(account.id, @volume_a, "node-1", String.duplicate("b", 40), 1)
+
+      assert_enqueued(
+        worker: PruneVolumeMasterWorker,
+        args: %{account_id: account.id, volume_name: @volume_a, master_id: old}
+      )
+
+      rejected = String.duplicate("c", 40)
+      assert :conflict = Runners.report_volume_head(account.id, @volume_a, "node-2", rejected, 0)
+      assert VolumeMasterOrphans.exists?(account.id, rejected, @volume_a)
+      refute VolumeMasterOrphans.exists?(account.id, rejected, @volume)
+
+      assert_enqueued(
+        worker: PruneVolumeMasterOrphanWorker,
+        args: %{account_id: account.id, volume_name: @volume_a, master_id: rejected}
+      )
+    end
+
+    test "mints the upload URL under the volume's own prefix" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      expected_key = "runner-volume-masters/#{account.id}/#{@volume_a}/#{digest}.image"
+
+      expect(Tuist.Storage, :generate_upload_url, fn ^expected_key, _actor, _opts ->
+        "https://bucket.fly.storage.tigris.dev/#{expected_key}?X-Amz-Signature=abc"
+      end)
+
+      assert {:ok, _url, nil} = Runners.volume_master_upload_url(account.id, @volume_a, digest)
+    end
+
+    test "rejects a volume that is not a volume name before any storage call" do
+      reject(&Tuist.Storage.generate_upload_url/3)
+
+      for bad <- [
+            "../x",
+            "tuist-cache",
+            "repo-eae044a4c27633ea",
+            "macos-",
+            "macos-" <> String.duplicate("A", 64),
+            "",
+            nil
+          ] do
+        assert :error = Runners.volume_master_upload_url(1, bad, String.duplicate("a", 40))
+      end
+    end
+
+    test "prunes only the superseded volume's object when another volume's HEAD is the same image" do
+      account = account_fixture()
+      shared = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, @volume_a, "node-1", shared, 0)
+      Runners.report_volume_head(account.id, @volume_b, "node-1", shared, 0)
+      Runners.report_volume_head(account.id, @volume_a, "node-1", String.duplicate("b", 40), 1)
+
+      key_a = "runner-volume-masters/#{account.id}/#{@volume_a}/#{shared}.image"
+      expect(Tuist.Storage, :delete_object, fn ^key_a, _actor -> :ok end)
+
+      assert :ok = Runners.prune_superseded_volume_master(account.id, @volume_a, shared)
+      assert :ok = Runners.prune_superseded_volume_master(account.id, @volume_b, shared)
+    end
+
+    test "reclaims a rejected upload from the volume it was uploaded to" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, @volume_a, "node-1", String.duplicate("a", 40), 0)
+      rejected = String.duplicate("c", 40)
+      Runners.report_volume_head(account.id, @volume_a, "node-2", rejected, 0)
+      key = "runner-volume-masters/#{account.id}/#{@volume_a}/#{rejected}.image"
+
+      expect(Tuist.Storage, :delete_object, fn ^key, _actor -> :ok end)
+
+      assert :ok = Runners.prune_orphan_volume_master(account.id, @volume_a, rejected)
+      refute VolumeMasterOrphans.exists?(account.id, rejected, @volume_a)
+    end
+  end
+
+  describe "prune_orphan_volume_master/3" do
+    test "deletes the orphaned object and forgets the row" do
+      account = account_fixture()
+      # HEAD sits elsewhere; `digest` was rejected and recorded as an orphan.
+      Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("a", 40), 0)
+      digest = String.duplicate("c", 40)
+      Runners.report_volume_head(account.id, @volume, "node-2", digest, 0)
+      key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}.image"
+
+      expect(Tuist.Storage, :delete_object, fn ^key, actor ->
+        assert actor.id == account.id
+        :ok
+      end)
+
+      assert :ok = Runners.prune_orphan_volume_master(account.id, @volume, digest)
+      refute VolumeMasterOrphans.exists?(account.id, digest, @volume)
+    end
+
+    test "skips deletion when the digest was accepted as HEAD (no longer an orphan)" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, @volume, "node-1", digest, 0)
+
+      # It is the live HEAD and was never recorded as an orphan, so the reclaim is
+      # a no-op that must never delete the object.
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert :ok = Runners.prune_orphan_volume_master(account.id, @volume, digest)
+    end
+
+    test "keeps the orphan row when the storage delete fails so a retry can reclaim it" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("a", 40), 0)
+      digest = String.duplicate("c", 40)
+      Runners.report_volume_head(account.id, @volume, "node-2", digest, 0)
+
+      expect(Tuist.Storage, :delete_object, fn _key, _actor -> {:error, :timeout} end)
+
+      assert {:error, :timeout} = Runners.prune_orphan_volume_master(account.id, @volume, digest)
+      assert VolumeMasterOrphans.exists?(account.id, digest, @volume)
+    end
+  end
+
+  describe "prune_superseded_volume_master/3" do
+    test "deletes the superseded master object" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      # HEAD sits at a different digest, so `digest` is genuinely superseded.
+      Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("b", 40), 0)
+      key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}.image"
+
+      expect(Tuist.Storage, :delete_object, fn ^key, actor ->
+        assert actor.id == account.id
+        :ok
+      end)
+
+      assert :ok = Runners.prune_superseded_volume_master(account.id, @volume, digest)
+    end
+
+    test "skips deletion when the digest is (again) the current HEAD (re-promoted)" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, @volume, "node-1", digest, 0)
+
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert :ok = Runners.prune_superseded_volume_master(account.id, @volume, digest)
+    end
+
+    test "skips deletion of the live master when it is keyed by its content digest" do
+      account = account_fixture()
+      tree = String.duplicate("a", 40)
+      content = String.duplicate("1", 64)
+      Runners.report_volume_head(account.id, @volume, "node-1", tree, 0, content)
+
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert :ok = Runners.prune_superseded_volume_master(account.id, @volume, "#{tree}-#{content}")
+    end
+  end
+
+  describe "volume_master_upload_url/4" do
+    test "mints a content-addressed presigned PUT URL keyed by the inventory digest" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      expected_key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}.image"
+
+      expect(Tuist.Storage, :generate_upload_url, fn ^expected_key, actor, opts ->
+        assert actor.id == account.id
+        assert Keyword.has_key?(opts, :expires_in)
+        # No content digest reported, so nothing may be signed into the URL.
+        refute Keyword.has_key?(opts, :signed_headers)
+        "https://bucket.fly.storage.tigris.dev/#{expected_key}?X-Amz-Signature=abc"
+      end)
+
+      assert {:ok, url, nil} = Runners.volume_master_upload_url(account.id, @volume, digest)
+      assert url =~ expected_key
+    end
+
+    test "signs the reported content digest into the URL as an x-amz-checksum-sha256 header" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      content_digest = String.duplicate("ab", 32)
+      expected_checksum = content_digest |> Base.decode16!(case: :lower) |> Base.encode64()
+
+      stub(Tuist.Storage, :supports_signed_upload_headers?, fn actor ->
+        assert actor.id == account.id
+        true
+      end)
+
+      expect(Tuist.Storage, :generate_upload_url, fn _key, _actor, opts ->
+        assert opts[:signed_headers] == [{"x-amz-checksum-sha256", expected_checksum}]
+        "https://bucket.fly.storage.tigris.dev/put?X-Amz-Signature=abc"
+      end)
+
+      assert {:ok, _url, ^expected_checksum} =
+               Runners.volume_master_upload_url(account.id, @volume, digest, content_digest)
+    end
+
+    test "keys the object by the content digest as well when one is reported" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      content_digest = String.duplicate("ab", 32)
+      content_key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}-#{content_digest}.image"
+      inventory_key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}.image"
+
+      stub(Tuist.Storage, :generate_upload_url, fn key, _actor, _opts ->
+        send(self(), {:upload_key, key})
+        "https://bucket.fly.storage.tigris.dev/put?X-Amz-Signature=abc"
+      end)
+
+      assert {:ok, _url, _checksum} = Runners.volume_master_upload_url(account.id, @volume, digest, content_digest)
+      assert_received {:upload_key, ^content_key}
+
+      # A malformed digest reads as unreported, so the object keeps the
+      # inventory-only key its HEAD row, carrying no content digest, points at.
+      assert {:ok, _url, nil} = Runners.volume_master_upload_url(account.id, @volume, digest, "not-hex")
+      assert_received {:upload_key, ^inventory_key}
+    end
+
+    test "signs nothing for a malformed content digest or a provider without signed upload headers" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _actor, opts ->
+        refute Keyword.has_key?(opts, :signed_headers)
+        "https://bucket.fly.storage.tigris.dev/put?X-Amz-Signature=abc"
+      end)
+
+      # Malformed digests read as unreported — the PUT goes out bare, the
+      # status quo — rather than failing the mint or signing garbage.
+      for bad <- ["", "not-hex", String.duplicate("a", 63), String.upcase(String.duplicate("a", 64))] do
+        assert {:ok, _url, nil} = Runners.volume_master_upload_url(account.id, @volume, digest, bad)
+      end
+
+      # A well-formed digest against a provider whose presigned URLs cannot
+      # carry signed headers: the guest must NOT be told to send the header.
+      stub(Tuist.Storage, :supports_signed_upload_headers?, fn _actor -> false end)
+
+      assert {:ok, _url, nil} =
+               Runners.volume_master_upload_url(account.id, @volume, digest, String.duplicate("c", 64))
+    end
+
+    test "rejects a non-hex digest before any storage call (no traversal, no clobber)" do
+      reject(&Tuist.Storage.generate_upload_url/3)
+
+      assert :error = Runners.volume_master_upload_url(1, @volume, "../../etc/passwd")
+      assert :error = Runners.volume_master_upload_url(1, @volume, "")
+      assert :error = Runners.volume_master_upload_url(1, @volume, String.duplicate("a", 39))
+      assert :error = Runners.volume_master_upload_url(1, @volume, String.upcase(String.duplicate("a", 40)))
+    end
+
+    test "rejects a presigned URL that targets a non-public host (SSRF guard)" do
+      account = account_fixture()
+      digest = String.duplicate("b", 40)
+
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _actor, _opts ->
+        "http://169.254.169.254/runner-volume-masters/put"
+      end)
+
+      assert :error = Runners.volume_master_upload_url(account.id, @volume, digest)
+    end
+
+    test "errors when the account does not exist" do
+      digest = String.duplicate("c", 40)
+      assert :error = Runners.volume_master_upload_url(-1, @volume, digest)
+    end
+  end
+
+  describe "volume master multipart uploads" do
+    setup do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      content = String.duplicate("b", 64)
+      key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}-#{content}.image"
+      stub(Tuist.Storage, :supports_signed_upload_headers?, fn _actor -> true end)
+      %{account: account, digest: digest, content: content, key: key}
+    end
+
+    test "starts an upload of the content-addressed object, tracks it and schedules its abort", %{
+      account: account,
+      digest: digest,
+      content: content,
+      key: key
+    } do
+      expect(Tuist.Storage, :multipart_start, fn ^key, actor ->
+        assert actor.id == account.id
+        {:ok, "upload-1"}
+      end)
+
+      assert {:ok, "upload-1"} = Runners.start_volume_master_upload(account.id, @volume, digest, content)
+      assert VolumeMasterOrphans.exists?(account.id, "#{digest}-#{content}", @volume)
+
+      assert_enqueued(
+        worker: AbortVolumeMasterUploadWorker,
+        args: %{account_id: account.id, object_key: key, upload_id: "upload-1"}
+      )
+    end
+
+    test "leaves storage without part ETags to single uploads", %{account: account, digest: digest, content: content} do
+      stub(Tuist.Storage, :supports_signed_upload_headers?, fn _actor -> false end)
+      reject(&Tuist.Storage.multipart_start/2)
+
+      assert :unsupported = Runners.start_volume_master_upload(account.id, @volume, digest, content)
+    end
+
+    test "signs a public link per part, bound to the part's MD5", %{
+      account: account,
+      digest: digest,
+      content: content,
+      key: key
+    } do
+      md5 = Base.encode64(:crypto.hash(:md5, "part"))
+
+      stub(Tuist.Storage, :multipart_generate_url, fn ^key, "upload-1", part, _actor, opts ->
+        assert opts[:expires_in] == 3600
+        assert opts[:signed_headers] == [{"content-md5", md5}]
+        "https://bucket.fly.storage.tigris.dev/part-#{part}?X-Amz-Signature=abc"
+      end)
+
+      assert {:ok, [%{part_number: 2, url: "https://bucket.fly.storage.tigris.dev/part-2" <> _}, %{part_number: 3}]} =
+               Runners.volume_master_part_urls(account.id, @volume, digest, content, "upload-1", [{2, md5}, {3, md5}])
+
+      stub(Tuist.Storage, :multipart_generate_url, fn _, _, _, _, _ -> "http://169.254.169.254/part" end)
+      assert :error = Runners.volume_master_part_urls(account.id, @volume, digest, content, "upload-1", [{1, md5}])
+      assert :error = Runners.volume_master_part_urls(account.id, @volume, "../etc", content, "upload-1", [{1, md5}])
+    end
+
+    test "a completion succeeds once the object is readable, also when its answer was lost", %{
+      account: account,
+      digest: digest,
+      content: content,
+      key: key
+    } do
+      parts = [{1, ~s("etag-1")}]
+      expect(Tuist.Storage, :multipart_complete_upload, fn ^key, "upload-1", ^parts, _actor -> :ok end)
+      # Storage answers before the object is readable.
+      expect(Tuist.Storage, :object_exists?, 2, fn ^key, _actor -> false end)
+      expect(Tuist.Storage, :object_exists?, fn ^key, _actor -> true end)
+
+      assert :ok = Runners.complete_volume_master_upload(account.id, @volume, digest, content, "upload-1", parts)
+
+      expect(Tuist.Storage, :multipart_complete_upload, fn _, _, _, _ -> :ok end)
+      expect(Tuist.Storage, :object_exists?, 20, fn ^key, _actor -> false end)
+      assert :error = Runners.complete_volume_master_upload(account.id, @volume, digest, content, "upload-1", parts)
+
+      stub(Tuist.Storage, :multipart_complete_upload, fn _, _, _, _ -> {:error, :multipart_upload_not_found} end)
+      expect(Tuist.Storage, :object_exists?, fn ^key, _actor -> true end)
+      assert :ok = Runners.complete_volume_master_upload(account.id, @volume, digest, content, "upload-1", parts)
+
+      stub(Tuist.Storage, :multipart_complete_upload, fn _, _, _, _ -> {:error, :timeout} end)
+      assert :error = Runners.complete_volume_master_upload(account.id, @volume, digest, content, "upload-1", parts)
+    end
+
+    test "aborts the upload", %{account: account, digest: digest, content: content, key: key} do
+      expect(Tuist.Storage, :multipart_abort, fn ^key, "upload-1", _actor -> :ok end)
+      assert :ok = Runners.abort_volume_master_upload(account.id, @volume, digest, content, "upload-1")
+      assert :error = Runners.abort_volume_master_upload(account.id, @volume, digest, content, "")
+    end
+  end
+
+  describe "scaling_signals_for_fleet/1" do
+    defp queue_job(account, workflow_job_id, fleet_name, resources) do
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: fleet_name,
+          platform: Atom.to_string(resources.platform),
+          vcpus: resources.vcpus,
+          memory_gb: resources.memory_gb,
+          repository: "acme/cli",
+          workflow_run_id: workflow_job_id * 10,
+          run_attempt: 1,
+          workflow_name: "CI",
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef",
+          requested_dispatch_label: ""
+        })
+    end
+
+    test "reports full queue depth while the account has headroom" do
+      account = account_fixture()
+      fleet = "macos-signal-headroom"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_001, fleet, resources)
+
+      assert %{queued: 1} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "keeps post-job session occupancy in real load after the claim is gone" do
+      account = account_fixture()
+      fleet = "macos-signal-session-tail"
+
+      assert {:ok, _session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: 91_050,
+                 account_id: account.id,
+                 fleet_name: fleet,
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14,
+                 pod_name: "pod-session-tail",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert %{claimed: 0, occupied: 1} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # The regression this exists for. An account that queues past its
+    # concurrency limit used to inflate the signal with jobs dispatch
+    # will refuse, so the autoscaler provisioned Pods that could never
+    # serve them and that then idled on hosts other pools needed.
+    test "caps the queue depth at what the account can actually claim" do
+      account = account_fixture()
+      fleet = "macos-signal-capped"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      headroom = Concurrency.headroom_jobs(account.id, resources)
+      queued = headroom + 5
+
+      for i <- 1..queued do
+        queue_job(account, 91_100 + i, fleet, resources)
+      end
+
+      assert Jobs.queued_count_by_fleet(fleet) == queued
+      assert %{queued: ^headroom, withheld: 5} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # The capped depth alone can't distinguish "nothing queued" from
+    # "queued but unservable". Without `withheld` the controller reads
+    # the second as idle and, on a saturated fleet, never grants the
+    # pool the Pod it needs to claim once headroom frees.
+    test "reports work withheld by the cap so a blocked pool is not read as idle" do
+      account = account_fixture()
+      fleet = "macos-signal-blocked"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      headroom = Concurrency.headroom_jobs(account.id, resources)
+
+      for i <- 1..(headroom + 2) do
+        queue_job(account, 91_500 + i, fleet, resources)
+      end
+
+      assert %{queued: ^headroom, withheld: 2} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "reports nothing withheld when every queued job is dispatchable" do
+      account = account_fixture()
+      fleet = "macos-signal-unblocked"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_601, fleet, resources)
+
+      assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "counts each account's headroom independently" do
+      account_a = account_fixture()
+      account_b = account_fixture()
+      fleet = "macos-signal-multi"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      headroom = Concurrency.headroom_jobs(account_a.id, resources)
+
+      # A is parked over its cap; B queues a single claimable job. B's
+      # job must still register, or one capped customer would zero out
+      # the whole fleet's demand signal.
+      for i <- 1..(headroom + 3) do
+        queue_job(account_a, 91_200 + i, fleet, resources)
+      end
+
+      queue_job(account_b, 91_300, fleet, resources)
+
+      assert %{queued: signal} = Runners.scaling_signals_for_fleet(fleet)
+      assert signal == headroom + 1
+    end
+
+    # An unrecognised fleet has no shape to price headroom against.
+    # Reporting 0 there would scale the pool to nothing; fall back to
+    # the raw depth instead.
+    test "falls back to raw queue depth for a fleet with no known shape" do
+      account = account_fixture()
+      fleet = "not-a-known-prefix"
+
+      queue_job(account, 91_401, fleet, %{platform: :linux, vcpus: 4, memory_gb: 16})
+
+      assert {:error, _} = Catalog.resources_for_fleet(fleet)
+      assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # A custom volume an earlier `CI / build` job of acme/cli attached.
+    defp used_volume(account) do
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      volume =
+        Repo.insert!(%Volume{
+          account_id: account.id,
+          repository: "acme/cli",
+          scope_id: "123",
+          key: "lfs-objects",
+          platform: "macos",
+          architecture: "arm64",
+          uid: 501
+        })
+
+      workflow_job_id = System.unique_integer([:positive])
+
+      Repo.insert!(%WorkflowJob{
+        workflow_job_id: workflow_job_id,
+        workflow_run_id: 1,
+        account_id: account.id,
+        fleet_name: "test",
+        status: "completed",
+        repository: "acme/cli",
+        workflow_name: "CI",
+        job_name: "build",
+        enqueued_at: DateTime.utc_now()
+      })
+
+      Repo.insert!(%Usage{
+        volume_id: volume.id,
+        generation: 1,
+        workflow_job_id: workflow_job_id,
+        workflow_run_id: 1,
+        pod_name: "pod",
+        pod_uid: "pod-#{workflow_job_id}",
+        node_name: "mac-01",
+        can_publish: true,
+        inserted_at: DateTime.utc_now(:second)
+      })
+
+      volume
+    end
+
+    test "prefers a Node holding the volumes a queued macOS job is predicted to attach" do
+      account = account_fixture()
+      volume = used_volume(account)
+      fleet = "macos-signal-volumes"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+      label = "tuist.dev/cache-volume-" <> String.slice(CacheVolumes.scope(volume), 0, 48)
+
+      stub(K8sClient, :get_runner_pool, fn _namespace, ^fleet -> {:ok, %{"spec" => %{"fleetSelector" => "rack"}}} end)
+
+      stub(K8sClient, :list_nodes, fn "tuist.dev/fleet=rack" ->
         {:ok,
          %{
-           "metadata" => %{
-             "labels" => %{
-               "tuist.dev/runner-account" => "42",
-               "tuist.dev/runner-cache-untrusted" => "true"
-             }
-           }
+           "items" => [
+             %{"metadata" => %{"name" => "mac-01", "labels" => %{label => "true"}}},
+             %{"metadata" => %{"name" => "mac-02", "labels" => %{}}}
+           ]
          }}
       end)
 
-      assert {:error, :cache_untrusted} = Runners.account_id_for_sa("tuist-runners", "pod-1")
+      queue_job(account, 91_701, fleet, resources)
+
+      assert %{preferred_nodes: ["mac-01"]} = Runners.scaling_signals_for_fleet(fleet)
     end
 
-    test "returns :account_unresolved when the label is absent" do
+    test "prefers no Node for a Linux fleet, whose Pods are placed ahead of demand" do
+      account = account_fixture()
+      used_volume(account)
+      fleet = "linux-signal-volumes"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_702, fleet, resources)
+
+      assert %{preferred_nodes: []} = Runners.scaling_signals_for_fleet(fleet)
+    end
+  end
+
+  describe "dispatch_for_sa/2 provider selection" do
+    # The seam between the two lanes: the candidate's `provider` is what
+    # decides which credential a Pod is handed, and everything after the
+    # mint is shared. A regression here would hand a Buildkite job a
+    # GitHub JIT config, which the VM cannot use for anything.
+    defp buildkite_candidate(account) do
+      %{
+        workflow_job_id: 1_000_000_000_000_777,
+        provider: "buildkite",
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        repository: "ios",
+        workflow_run_id: 42,
+        run_attempt: 1,
+        workflow_name: "ios",
+        job_name: "test",
+        head_branch: "main",
+        head_sha: "",
+        platform: "macos",
+        vcpus: 4,
+        memory_gb: 16,
+        requested_dispatch_label: "tuist-macos",
+        enqueued_at: DateTime.utc_now()
+      }
+    end
+
+    test "mints a Buildkite acquisition token for a Buildkite candidate" do
+      %{account: account} = organization_fixture(preload: [:account])
+      candidate = buildkite_candidate(account)
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
       expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
-        {:ok, %{"metadata" => %{"labels" => %{}}}}
+        {:ok, pod_with_image("pod-1", image)}
       end)
 
-      assert {:error, :account_unresolved} = Runners.account_id_for_sa("tuist-runners", "pod-1")
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
+
+      expect(Claims, :attempt, fn _job_id, _account_id, "fleet-a", "pod-1", resources, nil ->
+        assert resources == %{platform: :macos, vcpus: 4, memory_gb: 16}
+        {:ok, %{claimed_at: DateTime.utc_now()}}
+      end)
+
+      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", _claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "tuist-macos", runner_labels: ["self-hosted", "macOS", "ARM64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      # GitHub is never consulted for a Buildkite job, in either the mint
+      # or the fork check.
+      reject(&GitHubClient.generate_jit_config/3)
+      reject(&GitHubClient.get_workflow_run/1)
+
+      expect(Buildkite, :mint_acquisition, fn account_id, job_id ->
+        assert account_id == account.id
+        assert job_id == candidate.workflow_job_id
+
+        {:ok,
+         %{
+           token: "bkjat_opaque",
+           job_uuid: "job-uuid",
+           organization_slug: "acme",
+           report_token: "report-token"
+         }}
+      end)
+
+      stub(Buildkite, :job_trusted?, fn _account_id, _job_id -> true end)
+      stub(Claims, :mark_running, fn _job_id, _runner_name, _claimed_at -> :ok end)
+      stub(Jobs, :record_running, fn _job_id, _runner_name -> :ok end)
+      stub(Claims, :record_execution, fn _runner_name, _job_id, _account_id -> :matched end)
+
+      assert {:ok, %{credential: credential}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert credential.kind == :buildkite
+      assert credential.token == "bkjat_opaque"
+      assert credential.job_uuid == "job-uuid"
+      # The job needs this to report its own log and outcome; without it
+      # the Linux fleet would have no way to report at all.
+      assert credential.report_token == "report-token"
+    end
+
+    test "dispatches the exact GitLab assignment with an execution binding and no cache grant" do
+      %{account: account} = organization_fixture(preload: [:account])
+      candidate = %{buildkite_candidate(account) | provider: "gitlab"}
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image)}
+      end)
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
+
+      expect(Claims, :attempt, fn _job_id, _account_id, "fleet-a", "pod-1", resources, nil ->
+        assert resources == %{platform: :macos, vcpus: 4, memory_gb: 16}
+        {:ok, %{claimed_at: DateTime.utc_now()}}
+      end)
+
+      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", _claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "tuist-macos", runner_labels: ["self-hosted", "macOS", "ARM64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      # GitHub is never consulted for a GitLab job, in either the mint
+      # or the fork check.
+      reject(&GitHubClient.generate_jit_config/3)
+      reject(&GitHubClient.get_workflow_run/1)
+
+      expect(GitLab, :mint_acquisition, fn account_id, job_id ->
+        assert account_id == account.id
+        assert job_id == candidate.workflow_job_id
+
+        {:ok,
+         %{
+           url: "https://gitlab.com",
+           payload: %{"id" => 42, "token" => "job-token"},
+           report_token: "report-token"
+         }}
+      end)
+
+      stub(Claims, :mark_running, fn _job_id, _runner_name, _claimed_at -> :ok end)
+      stub(Jobs, :record_running, fn _job_id, _runner_name -> :ok end)
+
+      expect(Claims, :record_execution, fn _runner_name, job_id, account_id ->
+        assert job_id == candidate.workflow_job_id
+        assert account_id == account.id
+        :matched
+      end)
+
+      assert {:ok, %{credential: credential, cache_signing_grant: nil}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert credential.kind == :gitlab
+      assert credential.payload == %{"id" => 42, "token" => "job-token"}
+      # The job needs this to report its own log and outcome; without it
+      # the Linux fleet would have no way to report at all.
+      assert credential.report_token == "report-token"
+    end
+
+    test "records the runner-to-job binding at dispatch rather than waiting on a webhook" do
+      %{account: account} = organization_fixture(preload: [:account])
+      candidate = buildkite_candidate(account)
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+      test_pid = self()
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image)}
+      end)
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
+
+      expect(Claims, :attempt, fn _job_id, _account_id, _fleet, _pod, _resources, nil ->
+        {:ok, %{claimed_at: DateTime.utc_now()}}
+      end)
+
+      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", _claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "tuist-macos", runner_labels: ["self-hosted", "macOS", "ARM64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      stub(Buildkite, :mint_acquisition, fn _account_id, _job_id ->
+        {:ok,
+         %{
+           token: "bkjat_opaque",
+           job_uuid: "job-uuid",
+           organization_slug: "acme",
+           report_token: "report-token"
+         }}
+      end)
+
+      stub(Buildkite, :job_trusted?, fn _account_id, _job_id -> true end)
+      stub(Claims, :mark_running, fn _job_id, _runner_name, _claimed_at -> :ok end)
+      stub(Jobs, :record_running, fn _job_id, _runner_name -> :ok end)
+
+      expect(Claims, :record_execution, fn _runner_name, job_id, account_id ->
+        send(test_pid, {:execution_recorded, job_id, account_id})
+        :matched
+      end)
+
+      assert {:ok, _dispatched} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert_received {:execution_recorded, job_id, account_id}
+      assert job_id == candidate.workflow_job_id
+      assert account_id == account.id
     end
   end
 end

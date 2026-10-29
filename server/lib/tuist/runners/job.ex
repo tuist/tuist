@@ -16,6 +16,9 @@ defmodule Tuist.Runners.Job do
     field :account_id, Ch, type: "Int64"
     field :fleet_name, Ch, type: "LowCardinality(String)"
     field :repository, Ch, type: "String"
+    field :platform, Ch, type: "LowCardinality(String)", default: ""
+    field :vcpus, Ch, type: "Int32", default: 0
+    field :memory_gb, Ch, type: "Int32", default: 0
 
     field :workflow_run_id, Ch, type: "Int64", default: 0
     field :workflow_name, Ch, type: "String", default: ""
@@ -42,6 +45,11 @@ defmodule Tuist.Runners.Job do
     # derived from `(account_id, workflow_job_id)` via
     # `ArchiveLogsWorker.archive_key/2` — no column carries it.
     field :log_archived_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
+
+    # When the runner GitHub ran this job on was claimed, which can be a
+    # different claim than `claimed_at` names. `nil` until GitHub names the
+    # runner. Queue time is measured to it.
+    field :executor_claimed_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
 
     # The label the customer wrote in `runs-on:` (e.g.
     # `tuist-default`). Carried from webhook enqueue so JIT-mint

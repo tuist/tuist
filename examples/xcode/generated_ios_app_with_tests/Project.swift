@@ -16,7 +16,7 @@ let project = Project(
             destinations: [.iPhone],
             product: .framework,
             bundleId: "dev.tuist.AppCore",
-            deploymentTargets: .iOS("12.0"),
+            deploymentTargets: .iOS("15.0"),
             infoPlist: .default,
             sources: .paths([.relativeToManifest("AppCore/Sources/**")])
         ),
@@ -25,7 +25,7 @@ let project = Project(
             destinations: [.iPhone],
             product: .unitTests,
             bundleId: "dev.tuist.AppCoreTests",
-            deploymentTargets: .iOS("12.0"),
+            deploymentTargets: .iOS("15.0"),
             infoPlist: "Tests.plist",
             sources: "AppCore/Tests/**",
             dependencies: [
@@ -67,7 +67,7 @@ let project = Project(
             destinations: [.mac],
             product: .framework,
             bundleId: "dev.tuist.MacFramework",
-            deploymentTargets: .macOS("10.15"),
+            deploymentTargets: .macOS("12.0"),
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: .paths([.relativeToManifest("MacFramework/Sources/**")]),
             settings: .settings(base: [
@@ -80,7 +80,7 @@ let project = Project(
             destinations: [.mac],
             product: .unitTests,
             bundleId: "dev.tuist.MacFrameworkTests",
-            deploymentTargets: .macOS("10.15"),
+            deploymentTargets: .macOS("12.0"),
             infoPlist: "Tests.plist",
             sources: "MacFramework/Tests/**",
             dependencies: [

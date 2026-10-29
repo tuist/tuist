@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -14,9 +13,11 @@ import TuistCore
 import TuistGit
 import TuistKit
 import TuistNooraTesting
+import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistTesting
+import TuistTestSupport
 import TuistXcodeBuildProducts
 import XcodeGraph
 
@@ -91,6 +92,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .any,
+                releaseNotes: .any,
                 updateProgress: .any
             )
             .willReturn(.test(url: shareURL))
@@ -180,11 +182,12 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)
@@ -297,11 +300,12 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -401,7 +405,7 @@ struct ShareCommandServiceTests {
         )
 
         // Then
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test func share_xcode_app_when_no_app_specified() async throws {
@@ -569,10 +573,11 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)
@@ -719,11 +724,12 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -788,11 +794,12 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)
@@ -859,7 +866,8 @@ struct ShareCommandServiceTests {
             platforms: [],
             derivedDataPath: nil,
             json: false,
-            track: "beta"
+            track: "beta",
+            releaseNotes: "Verify the sign-in fix"
         )
 
         // Then
@@ -872,11 +880,12 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value("beta"),
+                releaseNotes: .value("Verify the sign-in fix"),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -932,11 +941,12 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value("nightly"),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -990,11 +1000,12 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -1044,11 +1055,12 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 track: .value("beta"),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)
@@ -1143,6 +1155,7 @@ struct ShareCommandServiceTests {
                 gitCommitSHA: .value("abc123def456"),
                 gitRef: .value("refs/heads/feat/android"),
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)

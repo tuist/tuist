@@ -1,0 +1,68 @@
+{
+  "name": "ChartSeries",
+  "tagName": "noora-chart-series",
+  "elementClassName": "NooraChartSeries",
+  "className": "noora-chart-series",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative chart data series.",
+  "usage": "<noora-chart-series type=\"line\"><noora-chart-point value=\"2\"></noora-chart-point><noora-chart-point value=\"5\"></noora-chart-point></noora-chart-series>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "description": "Sets the series name."
+    },
+    {
+      "name": "type",
+      "property": "type",
+      "type": "string",
+      "values": ["bar", "line"],
+      "default": "line",
+      "description": "Chooses the series visualization."
+    },
+    {
+      "name": "symbol",
+      "property": "symbol",
+      "type": "string",
+      "description": "Sets the symbol used for line-series points."
+    },
+    {
+      "name": "bar-width",
+      "property": "barWidth",
+      "type": "number",
+      "description": "Sets the width of bars."
+    },
+    {
+      "name": "bar-gap",
+      "property": "barGap",
+      "type": "string",
+      "description": "Sets the gap between bar series."
+    },
+    {
+      "name": "border-radius",
+      "property": "borderRadius",
+      "type": "number",
+      "description": "Rounds bar corners."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "Declarative noora-chart-point children."
+    }
+  ],
+  "cssParts": [],
+  "notes": ["Use this element inside noora-chart."],
+  "examples": [
+    {
+      "id": "series",
+      "title": "Series",
+      "description": "Describe one line series.",
+      "markup": "<noora-chart-series type=\"line\"><noora-chart-point value=\"2\"></noora-chart-point><noora-chart-point value=\"5\"></noora-chart-point></noora-chart-series>"
+    }
+  ]
+}

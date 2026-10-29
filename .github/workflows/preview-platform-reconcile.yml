@@ -63,8 +63,9 @@ jobs:
     # when the controller image actually published, otherwise the tag we would
     # resolve below does not exist yet.
     if: |
-      github.event_name != 'workflow_run'
-      || github.event.workflow_run.conclusion == 'success'
+      github.repository == 'tuist/tuist'
+      && (github.event_name != 'workflow_run'
+      || github.event.workflow_run.conclusion == 'success')
     runs-on: tuist-linux
     environment:
       name: server-k8s-preview
@@ -75,7 +76,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "helm kubectl jq"
           cache: "false"

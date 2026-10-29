@@ -1,18 +1,18 @@
-# NooraStorybook
+# Noora Storybook
 
-To start your Phoenix server:
+Install Noora's JavaScript dependencies from the parent directory:
 
-  * Run `mix setup` to install and setup dependencies
-  * Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+```sh
+cd noora
+aube install
+```
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+Then set up and start Storybook:
 
-Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
+```sh
+cd storybook
+mix setup
+mix phx.server
+```
 
-## Learn more
-
-  * Official website: https://www.phoenixframework.org/
-  * Guides: https://hexdocs.pm/phoenix/overview.html
-  * Docs: https://hexdocs.pm/phoenix
-  * Forum: https://elixirforum.com/c/phoenix-forum
-  * Source: https://github.com/phoenixframework/phoenix
+Visit [localhost:4000](http://localhost:4000). Client-side custom elements are listed under **Web components**. Open the [Badge](http://localhost:4000/web_components/badge) or [Button](http://localhost:4000/web_components/button) story directly.

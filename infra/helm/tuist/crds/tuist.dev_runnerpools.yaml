@@ -50,6 +50,13 @@ spec:
               type: object
               required: [image, fleetSelector, dispatchLabel, runnerLabels]
               properties:
+                cacheVolumeRoot:
+                  type: string
+                cacheVolumeURL:
+                  type: string
+                dockerCache:
+                  type: boolean
+                  description: Moves each job's dockerd onto its repository's Docker cache volume. Requires cacheVolumeRoot and cacheVolumeURL.
                 labels:
                   type: array
                   items:
@@ -66,6 +73,9 @@ spec:
                 fleetSelector:
                   type: string
                   description: Value of `tuist.dev/fleet=<name>` Pods in this pool pin to via nodeSelector.
+                site:
+                  type: string
+                  description: Rack site whose Nodes (`node.cluster.x-k8s.io/rack-site=<site>`) the pool's Pods pin to within its fleet. Empty places them anywhere in the fleet.
                 dispatchLabel:
                   type: string
                   description: GitHub Actions runner label customers put in `runs-on` to target this fleet. Webhook handler matches against `workflow_job.labels`; dispatch endpoint includes it in the JIT mint.
@@ -99,6 +109,24 @@ spec:
                   type: integer
                   default: 14336
                   description: Pod memory request matching the host's capacity minus substrate overhead.
+                idleTimeoutSeconds:
+                  type: integer
+                  description: |
+                    Bounds how long a runner that registered with GitHub but
+                    has not been handed a job stays alive. The runner image's
+                    watchdog terminates it once this many seconds elapse
+                    without an ACTIONS_RUNNER_HOOK_JOB_STARTED marker; a runner
+                    executing a job has written the marker and is never
+                    terminated. 0 / absent disables the watchdog.
+
+                    The bound is necessary because GitHub assigns a queued job
+                    to any label-eligible runner, so a runner whose job landed
+                    on a sibling otherwise waits indefinitely, holding
+                    warm-pool capacity that reads as busy (the Pod's owner
+                    label is stamped at claim, not at execution). It bounds
+                    only the post-claim window between registering and being
+                    handed work; a Pod still polling for a claim is
+                    unaffected.
                 runtimeClass:
                   type: string
                   description: |
@@ -109,6 +137,51 @@ spec:
                     sidecar to every Linux runner Pod. The microVM keeps
                     the sidecar's privileged surface off the bare-metal
                     host.
+                nestedVirtualization:
+                  type: boolean
+                  description: |
+                    Gives the runner container a usable /dev/kvm (Linux
+                    `kata-qemu` pools only), so jobs can run
+                    hardware-accelerated guests such as x86_64 Android
+                    emulators. Pods boot the KVM-enabled guest kernel,
+                    land only on `tuist.dev/kata-kvm=true` hosts, and
+                    request one `devices.tuist.dev/kvm`.
+                provisioning:
+                  type: object
+                  description: |
+                    Linux Kata sandbox admission controls. Sibling pools that
+                    share `(os, fleetSelector)` also share one provisioning
+                    budget. The controller uses the lowest sibling maximum so
+                    one mismatched pool cannot weaken the fleet safety limit.
+                    Ignored for macOS pools.
+                  properties:
+                    maxConcurrentPerNode:
+                      type: integer
+                      default: 6
+                      minimum: 1
+                      description: |
+                        Maximum Linux runner Pods per healthy fleet node that
+                        may be waiting for their dispatch poller to start.
+                        The controller multiplies it by the fleet's healthy
+                        node count to get the shared ceiling, so adding
+                        machines raises start throughput. Excess replica
+                        demand remains uncreated and is retried as existing
+                        sandboxes become ready.
+
+                        Replaces `maxConcurrentPerFleetSelector`, which was a
+                        single fleet-wide integer and so did not scale with
+                        the fleet. Structural-schema pruning drops the old
+                        field from any CR that still carries it, and the
+                        controller ignores it.
+                    startTimeoutSeconds:
+                      type: integer
+                      default: 300
+                      minimum: 0
+                      description: |
+                        Maximum time a Linux runner Pod that is already bound
+                        to a node may wait for its dispatch poller to start.
+                        Timed-out Pods are reaped. Unscheduled Pods are not
+                        timed out. 0 disables the timeout.
                 autoscaling:
                   type: object
                   description: |
@@ -142,6 +215,16 @@ spec:
                         work. macOS and uncontended pools honor it as a
                         floor; real load (claimed + queued) is always funded
                         above it.
+                    maxLearnedWarmPoolFloor:
+                      type: integer
+                      default: 0
+                      minimum: 0
+                      description: |
+                        Cap on the warm floor the server learns from the
+                        pool's own jobs: the burst its jobs arrive in, kept
+                        idle above the pool's load while the pool has had a
+                        job in the last day. 0 turns the learned floor off,
+                        leaving only minWarmPoolFloor.
                     maxReplicas:
                       type: integer
                       default: 0
@@ -159,17 +242,23 @@ spec:
                         demand before scaling down. Anti-thrash guard so a
                         single brief idle window doesn't deprovision warm
                         capacity that's about to be reused.
+                    holdRecentPeak:
+                      type: boolean
+                      default: true
+                      description: |
+                        Keep the pool sized to the server's 95th percentile
+                        of concurrent runners over the last hour after load
+                        falls. False sizes it to current load plus
+                        minWarmPoolFloor, for pools whose jobs arrive in
+                        one-off bursts the last hour does not predict.
                 rollout:
                   type: object
                   description: |
-                    Optional image-roll throttle. When `spec.image` changes,
-                    each affected node must `tart pull` the new (tens-of-GB)
-                    image before booting a replacement; unthrottled, the whole
-                    fleet pulls at once and the warm pool collapses for
-                    minutes. The controller marks stale Pods drain-eligible up
-                    to a concurrency cap and only marks more as in-flight
-                    rollers report Ready. Absent block = the built-in default
-                    (5%, min 1).
+                    Optional Pod-template rollout throttle. The controller
+                    bounds unavailable serving capacity while replacing Pods
+                    with a stale image or RuntimeClass revision, and retires
+                    more stale Pods only as current-template Pods become warm.
+                    Absent block means the built-in default (5%, minimum 1).
                   properties:
                     maxConcurrentPercent:
                       type: integer
@@ -197,7 +286,18 @@ spec:
                 observedImage:
                   type: string
                   description: spec.image value the controller last recorded an imageRolledAt for. Bumped together on every image change.
+                previousImage:
+                  type: string
+                  description: spec.image value the pool ran before observedImage. tart-kubelet pulls the current image on hosts that hold this one before its garbage collector reaps it, so a release costs those hosts only what changed.
                 imageRolledAt:
                   type: string
                   format: date-time
                   description: Timestamp the controller last observed spec.image change. The server-side dispatch endpoint uses this to stagger HTTP 410 drain responses across a rolling window so the warm pool doesn't drop to zero on every digest-pin bump.
+                lastDemandAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp the autoscaler last saw the pool with real work (occupied, queued or held at an account's limit), stamped at most every ten minutes. tart-kubelet ranks the images it keeps within a host's golden budget by it.
+                unplaceableSince:
+                  type: string
+                  format: date-time
+                  description: Timestamp this pool most recently began holding demand the scheduler could not place, and has held continuously since; absent when the pool is placing everything it wants. The node-reservation state machine reads it to decide when a pool has waited long enough to be worth draining a host for, and which of several starved pools on a fleet goes first. It lives here rather than being derived from Pod ages because the reaper recycles unplaced Pods every startTimeoutSeconds, which would restart a per-Pod clock before a drain could ever converge.

@@ -1,0 +1,171 @@
+defmodule Tuist.MCP.AuthorizationTest do
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
+
+  alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.MCP.Authorization, as: MCPAuthorization
+  alias Tuist.MCP.Components.Tools.GetTestRun
+  alias Tuist.MCP.Components.Tools.UpdateTestCase
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+
+  # A Tuist operator reaching a customer's data over MCP authenticates with an
+  # OAuth access token, which resolves to an `AuthenticatedAccount` in
+  # `current_subject` — the subject MCP authorization consults first. The
+  # operator elevation hangs off the `%User{}` behind that token, so these
+  # exercise the real principal selection rather than authorizing the user
+  # directly.
+
+  setup do
+    project = ProjectsFixtures.project_fixture(preload: [:account])
+    operator = AccountsFixtures.user_fixture(email: "operator@tuist.dev", preload: [:account])
+
+    stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+
+    {:ok, project: project, operator: operator}
+  end
+
+  # The assigns an OAuth-token request actually carries: the token authenticates
+  # as its account in `current_subject`, and an `mcp`-scoped token is associated
+  # with the user who granted it in `current_user`. That the plug really produces
+  # this shape from a real token is covered by `TuistWeb.MCPAtlasIdentityTest` and
+  # `TuistWeb.MCPOAuthSessionTest`.
+  defp oauth_conn(operator, scopes) do
+    subject = %AuthenticatedAccount{
+      account: operator.account,
+      scopes: scopes,
+      all_projects: false,
+      project_ids: [],
+      issued_by: operator
+    }
+
+    assigns = %{current_subject: subject}
+    assigns = if "mcp" in scopes, do: Map.put(assigns, :current_user, operator), else: assigns
+
+    %Plug.Conn{assigns: assigns}
+  end
+
+  defp stub_test_run(project) do
+    stub(Tests, :get_test, fn "run-1" ->
+      {:ok,
+       %{
+         id: "run-1",
+         status: :success,
+         duration: 10_000,
+         is_ci: true,
+         is_flaky: false,
+         scheme: "AppTests",
+         git_branch: "main",
+         git_commit_sha: "abc123",
+         ran_at: ~N[2024-01-01 12:00:00],
+         project_id: project.id
+       }}
+    end)
+
+    stub(Analytics, :get_test_run_metrics, fn %{id: "run-1"} ->
+      %{total_count: 1, failed_count: 0, flaky_count: 0, avg_duration: 1}
+    end)
+
+    stub(Tuist.Storage, :generate_download_url, fn _key, _actor, _opts -> "https://storage.test/signed" end)
+  end
+
+  describe "an OAuth-token MCP session from an operator calling through Atlas" do
+    defp atlas_conn(operator, scopes \\ ["mcp"]) do
+      %{assigns: assigns} = oauth_conn(operator, scopes)
+      %Plug.Conn{assigns: Map.put(assigns, :atlas_operator, operator)}
+    end
+
+    test "reads a customer project without a grant", %{project: project, operator: operator} do
+      stub_test_run(project)
+
+      result = GetTestRun.call(atlas_conn(operator), %{"test_run_id" => "run-1"})
+
+      refute Map.get(result, "isError")
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      assert JSON.decode!(text)["id"] == "run-1"
+    end
+
+    test "reads a customer account", %{project: project, operator: operator} do
+      assert MCPAuthorization.authorize_request(atlas_conn(operator).assigns, :read, project.account, :project)
+    end
+
+    test "logs the customer account a read used operator access for", %{project: project, operator: operator} do
+      assert MCPAuthorization.authorize_request(atlas_conn(operator).assigns, :read, project, :project)
+
+      assert Logger.metadata()[:atlas_operator_read_account_id] == project.account_id
+    end
+
+    test "logs nothing when the operator reads their own account", %{operator: operator} do
+      own_project = ProjectsFixtures.project_fixture(account_id: operator.account.id)
+      %{assigns: assigns} = atlas_conn(operator)
+      assigns = put_in(assigns.current_subject.all_projects, true)
+
+      assert MCPAuthorization.authorize_request(assigns, :read, own_project, :project)
+
+      assert Logger.metadata()[:atlas_operator_read_account_id] == nil
+    end
+
+    test "logs nothing when the read is refused", %{project: project, operator: operator} do
+      refute MCPAuthorization.authorize_request(atlas_conn(operator).assigns, :update, project, :project)
+
+      assert Logger.metadata()[:atlas_operator_read_account_id] == nil
+    end
+
+    test "is refused when the token does not carry the mcp scope", %{project: project, operator: operator} do
+      stub_test_run(project)
+
+      result = GetTestRun.call(atlas_conn(operator, ["project:cache:read"]), %{"test_run_id" => "run-1"})
+
+      assert %{"isError" => true} = result
+    end
+
+    test "cannot write", %{project: project, operator: operator} do
+      result =
+        UpdateTestCase.call(atlas_conn(operator), %{
+          "account_handle" => project.account.name,
+          "project_handle" => project.name,
+          "identifier" => "AppTests/testExample",
+          "state" => "muted"
+        })
+
+      assert %{"isError" => true} = result
+    end
+
+    test "is refused for a non-read action", %{project: project, operator: operator} do
+      refute MCPAuthorization.authorize_request(atlas_conn(operator).assigns, :update, project, :project)
+    end
+  end
+
+  describe "runner reads" do
+    test "accepts the runner scope and the coding-agent scope for the token's own account", %{project: project} do
+      for scopes <- [["account:runners:read"], ["mcp"]] do
+        subject = %AuthenticatedAccount{account: project.account, scopes: scopes}
+
+        assert MCPAuthorization.authorize_request(%{current_subject: subject}, :read, project.account, :runners)
+      end
+    end
+
+    test "refuses an account token without runner read scope", %{project: project} do
+      subject = %AuthenticatedAccount{account: project.account, scopes: ["project:admin:read"]}
+
+      refute MCPAuthorization.authorize_request(%{current_subject: subject}, :read, project.account, :runners)
+    end
+
+    test "refuses an account token with runner read scope for a different private account", %{project: project} do
+      other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      subject = %AuthenticatedAccount{account: project.account, scopes: ["account:runners:read"]}
+
+      refute MCPAuthorization.authorize_request(%{current_subject: subject}, :read, other_account, :runners)
+    end
+
+    test "allows an authenticated caller to read a public account's runner state", %{project: project} do
+      {:ok, public_account} = Tuist.Accounts.update_account_visibility(project.account, :public)
+      other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      subject = %AuthenticatedAccount{account: other_account, scopes: []}
+
+      assert MCPAuthorization.authorize_request(%{current_subject: subject}, :read, public_account, :runners)
+    end
+  end
+end

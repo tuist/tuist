@@ -48,14 +48,10 @@ defmodule Tuist.Repo.Migrations.AddLifecycleStateToRunnerClaims do
              name: :runner_claims_claimed_lifecycle_idx
            )
 
-    # Pod-in-use lookup: the claim transaction rejects a second
-    # attempt from the same pod while one is live. Partial-uniqueness
-    # on (pod_name) for claims that have actually been registered
-    # with GitHub (lifecycle_state='running') would be ideal but
-    # we also want to block double-claims during the brief
-    # `claimed` window. A non-unique index covers the SELECT path
-    # without preventing the legitimate case of a pod's claim
-    # being re-issued after a release / complete cycle.
+    # Pod-in-use lookup for the original application-level guard.
+    # MakeRunnerClaimPodNameUnique later replaces this with a unique
+    # index once admission uses INSERT conflict handling, closing the
+    # cross-account race while allowing reuse after DELETE.
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:runner_claims, [:pod_name])
   end

@@ -10,6 +10,7 @@ protocol OrganizationUpdateSSOServicing {
         organizationName: String,
         provider: SSOProvider,
         organizationId: String,
+        enrollmentPolicy: SSOEnrollmentPolicy?,
         directory: String?
     ) async throws
 }
@@ -33,6 +34,7 @@ struct OrganizationUpdateSSOService: OrganizationUpdateSSOServicing {
         organizationName: String,
         provider: SSOProvider,
         organizationId: String,
+        enrollmentPolicy: SSOEnrollmentPolicy?,
         directory: String?
     ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
@@ -47,15 +49,27 @@ struct OrganizationUpdateSSOService: OrganizationUpdateSSOServicing {
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        let automaticEnrollment = enrollmentPolicy.map { $0 == .automatic }
+
         _ = try await updateOrganizationService.updateOrganization(
             organizationName: organizationName,
             serverURL: serverURL,
-            ssoOrganization: ssoOrganization
+            ssoOrganization: ssoOrganization,
+            ssoAutomaticEnrollment: automaticEnrollment
         )
 
-        Logger.current
-            .info(
-                "\(organizationName) now uses \(provider.rawValue.capitalized) SSO with \(organizationId). Users authenticated with the \(organizationId) SSO organization will automatically have access to the \(organizationName) projects."
+        if automaticEnrollment == true {
+            Logger.current.info(
+                "\(organizationName) now uses \(provider.rawValue.capitalized) SSO with \(organizationId). Authenticated users will automatically have access to the \(organizationName) projects."
             )
+        } else if automaticEnrollment == false {
+            Logger.current.info(
+                "\(organizationName) now uses \(provider.rawValue.capitalized) SSO with \(organizationId). Users need an invitation to access the \(organizationName) projects."
+            )
+        } else {
+            Logger.current.info(
+                "\(organizationName) now uses \(provider.rawValue.capitalized) SSO with \(organizationId). No enrollment policy was specified."
+            )
+        }
     }
 }

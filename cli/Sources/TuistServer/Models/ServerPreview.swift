@@ -14,6 +14,8 @@
         public var displayName: String?
         public let gitCommitSHA: String?
         public let gitBranch: String?
+        public let track: String?
+        public let releaseNotes: String?
         public let appBuilds: [AppBuild]
         public let supportedPlatforms: [DestinationType]
         public let createdFromCI: Bool
@@ -33,6 +35,8 @@
             displayName: String?,
             gitCommitSHA: String?,
             gitBranch: String?,
+            track: String? = nil,
+            releaseNotes: String? = nil,
             appBuilds: [AppBuild],
             supportedPlatforms: [DestinationType],
             createdFromCI: Bool,
@@ -49,6 +53,8 @@
             self.displayName = displayName
             self.gitCommitSHA = gitCommitSHA
             self.gitBranch = gitBranch
+            self.track = track
+            self.releaseNotes = releaseNotes
             self.appBuilds = appBuilds
             self.supportedPlatforms = supportedPlatforms
             self.createdFromCI = createdFromCI
@@ -86,6 +92,8 @@
             displayName = preview.display_name
             gitCommitSHA = preview.git_commit_sha
             gitBranch = preview.git_branch
+            track = preview.track
+            releaseNotes = preview.release_notes
             appBuilds = preview.builds.compactMap(AppBuild.init)
             supportedPlatforms = preview.supported_platforms.compactMap(DestinationType.init)
             createdFromCI = preview.created_from_ci
@@ -111,6 +119,8 @@
                 displayName: String? = "App",
                 gitCommitSHA: String? = nil,
                 gitBranch: String? = nil,
+                track: String? = nil,
+                releaseNotes: String? = nil,
                 appBuilds: [AppBuild] = [
                     .test(),
                 ],
@@ -133,6 +143,8 @@
                     displayName: displayName,
                     gitCommitSHA: gitCommitSHA,
                     gitBranch: gitBranch,
+                    track: track,
+                    releaseNotes: releaseNotes,
                     appBuilds: appBuilds,
                     supportedPlatforms: supportedPlatforms,
                     createdFromCI: createdFromCI,

@@ -1,42 +1,17 @@
 defmodule Tuist.ClickHouseRetry do
   @moduledoc """
-  Retry helper for ClickHouse driver operations that can transiently
-  fail with `Mint.TransportError` or `DBConnection.ConnectionError`.
+  Server-side alias for `TuistCommon.ClickHouseRetry`.
 
-  The xcresult-processor pods on Scaleway Mac minis reach ClickHouse
-  Cloud over public-internet HTTPS, where idle pool sockets get
-  reaped by intermediate NAT and surface on the next checkout as
-  `Mint.TransportError{reason: :closed}`; in-flight queries on a
-  half-dead socket surface as `:timeout`. Both clear within
-  milliseconds and are safe to retry on idempotent reads/writes.
-
-  Used by `Tuist.IngestRepo` (writes: `insert`, `insert_all`, `all`)
-  and `Tuist.ClickHouseRepo` (reads: `all`, `one`, `aggregate`,
-  `exists?`, `preload`, `query`, `query!`) so every wired Repo call
-  inherits the retry without per-call-site wrapping. `stream/1,2` and
-  cursor-based reads are intentionally left out: a retry mid-iteration
-  can't recover the producer's position cleanly.
+  The retry logic used to live here and now lives in `tuist_common`
+  so `cache/`, `registry/`, and any other Elixir service that talks
+  to ClickHouse can share it. This module stays as a thin delegator
+  to keep the ~30 in-tree call sites (`ClickHouseRepo`, `IngestRepo`,
+  `Ingestion.Buffer`, plus tests) working without a churny rename.
   """
 
-  require Logger
-
-  @max_retries 3
-
-  def with_retry(fun, retries_left \\ @max_retries) do
-    fun.()
-  rescue
-    e in [Mint.TransportError, DBConnection.ConnectionError] ->
-      if retries_left > 0 do
-        delay = Integer.pow(2, @max_retries - retries_left) * 100
-
-        Logger.warning(
-          "ClickHouse operation failed (#{Exception.message(e)}), retrying in #{delay}ms (#{retries_left} retries left)"
-        )
-
-        Process.sleep(delay)
-        with_retry(fun, retries_left - 1)
-      else
-        reraise e, __STACKTRACE__
-      end
-  end
+  defdelegate with_retry(fun), to: TuistCommon.ClickHouseRetry
+  defdelegate with_retry(fun, opts), to: TuistCommon.ClickHouseRetry
+  defdelegate with_result_retry(fun), to: TuistCommon.ClickHouseRetry
+  defdelegate with_result_retry(fun, opts), to: TuistCommon.ClickHouseRetry
+  defdelegate memory_limit_error?(error), to: TuistCommon.ClickHouseRetry
 end

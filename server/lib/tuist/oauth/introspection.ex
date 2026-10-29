@@ -6,12 +6,21 @@ defmodule Tuist.OAuth.Introspection do
   alias Tuist.Accounts.User
   alias Tuist.Authentication
   alias Tuist.Cache
+  alias Tuist.CacheGuardian
   alias Tuist.Projects.Project
 
+  @cache_token_type "cache"
+
+  @doc """
+  Unconstrained introspection for the Tuist-operated control-plane client.
+
+  Every managed cache node authenticates as that client, so the response is not
+  narrowed to one tenant: it serves them all.
+  """
   def token_response(token) do
     case Authentication.authenticated_subject(token) do
-      nil -> %{active: false}
-      subject -> active_response(subject, Cache.cache_grants(subject))
+      nil -> cache_token_response(token)
+      subject -> active_response(subject, Cache.cache_grants(subject), nil)
     end
   end
 
@@ -26,26 +35,120 @@ defmodule Tuist.OAuth.Introspection do
   def token_response(token, %Account{} = account) do
     case Authentication.authenticated_subject(token) do
       nil ->
-        %{active: false}
+        cache_token_response(token, account)
 
       subject ->
         grants = scope_grants_to_account(Cache.cache_grants(subject), account)
 
         if grants_present?(grants) do
-          active_response(subject, grants)
+          active_response(subject, grants, account)
         else
           %{active: false}
         end
     end
   end
 
-  defp active_response(subject, grants) do
+  # A cache token cannot resolve to a subject. Guardian refuses it on purpose, so
+  # that a token minted to reach the cache can never act as an API credential.
+  # It carries the grants it was minted with, though, so it can be answered from
+  # itself. Verifying it here keeps that refusal intact: nothing about this makes
+  # a cache token resolvable anywhere else.
+  #
+  # How a node is told what one of these tokens may reach whenever it cannot
+  # read the token itself: it was given no key, or the key it holds is not the
+  # one this was signed with. A node is never given the key that signs API
+  # credentials, only the public half of the dedicated cache-token pair, so
+  # there is always a token shape that arrives here. Without an answer, a node
+  # reports every exchanged token inactive and denies the request.
+  defp cache_token_response(token) do
+    case verified_cache_token(token) do
+      {:ok, claims, grants} -> cache_token_active(claims, grants, nil)
+      :error -> %{active: false}
+    end
+  end
+
+  defp cache_token_response(token, %Account{} = account) do
+    case verified_cache_token(token) do
+      {:ok, claims, grants} ->
+        case scoped_or_empty(grants, account) do
+          :empty -> payment_required_or_inactive(claims, account)
+          scoped -> cache_token_active(claims, scoped, account)
+        end
+
+      :error ->
+        %{active: false}
+    end
+  end
+
+  # A token whose grants went empty because the account exhausted its plan still
+  # has something to say. Reporting it inactive would have the node answer 401,
+  # losing the only thing that tells the caller what to do about it.
+  defp payment_required_or_inactive(claims, %Account{name: name} = account) do
+    handles = Map.get(claims, "cache_payment_required", [])
+    handle = String.downcase(name)
+
+    if Enum.any?(handles, &(String.downcase(&1) == handle)) do
+      cache_token_active(claims, empty_grants(), account)
+    else
+      %{active: false}
+    end
+  end
+
+  defp empty_grants do
+    %{"account" => %{"read" => [], "write" => []}, "project" => %{"read" => [], "write" => []}}
+  end
+
+  defp verified_cache_token(token) do
+    Enum.find_value(cache_token_verifiers(), :error, fn verifier ->
+      case verifier.decode_and_verify(token, %{"typ" => @cache_token_type}) do
+        {:ok, %{"cache_grants" => grants} = claims} -> {:ok, claims, grants}
+        _ -> nil
+      end
+    end)
+  end
+
+  # Both keys answer while a deployment is moving between them. A cache token
+  # outlives the deploy that minted it, so the key it was signed with has to
+  # keep answering for its whole lifetime or every build holding one is cut off
+  # mid-flight.
+  defp cache_token_verifiers do
+    if CacheGuardian.configured?() do
+      [CacheGuardian, Tuist.Guardian]
+    else
+      [Tuist.Guardian]
+    end
+  end
+
+  # `principal_kind` is omitted: the claims do not record what the token was
+  # minted for, and a node treats its absence as an unnamed subject.
+  defp cache_token_active(claims, grants, tenant) do
+    %{
+      active: true,
+      iss: issuer(),
+      sub: claims["sub"],
+      cache_origin: claims["cache_origin"],
+      cache_grants: grants,
+      cache_payment_required: claims |> Map.get("cache_payment_required", []) |> scope_handles(tenant),
+      cache_payment_failed: claims |> Map.get("cache_payment_failed", []) |> scope_handles(tenant)
+    }
+  end
+
+  defp scoped_or_empty(grants, account) do
+    scoped = scope_grants_to_account(grants, account)
+    if grants_present?(scoped), do: scoped, else: :empty
+  end
+
+  defp active_response(subject, grants, tenant) do
+    refusals = Cache.billing_refusals(subject)
+
     %{
       active: true,
       iss: issuer(),
       sub: subject_id(subject),
       principal_kind: principal_kind(subject),
-      cache_grants: grants
+      cache_grants: grants,
+      cache_payment_required: scope_handles(refusals.payment_required, tenant),
+      cache_payment_failed: scope_handles(refusals.payment_failed, tenant)
     }
     |> maybe_put(:scope, scope_string(subject))
     |> maybe_put(:username, username(subject))
@@ -69,6 +172,17 @@ defmodule Tuist.OAuth.Introspection do
 
   defp keep_matching(handles, predicate) when is_list(handles), do: Enum.filter(handles, predicate)
   defp keep_matching(_handles, _predicate), do: []
+
+  # The accounts refused for billing are the subject's across every tenant it
+  # reaches. A tenant's node is told only about its own account, the same as
+  # the grants, or it would learn the billing status of every other tenant the
+  # subject belongs to.
+  defp scope_handles(handles, nil), do: handles
+
+  defp scope_handles(handles, %Account{name: name}) do
+    handle = String.downcase(name)
+    keep_matching(handles, &(String.downcase(&1) == handle))
+  end
 
   defp grants_present?(%{"account" => account_bucket, "project" => project_bucket}) do
     account_bucket["read"] != [] or account_bucket["write"] != [] or

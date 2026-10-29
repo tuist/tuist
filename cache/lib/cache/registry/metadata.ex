@@ -142,93 +142,10 @@ defmodule Cache.Registry.Metadata do
   end
 
   @doc """
-  Writes package metadata to S3 and invalidates the cache.
-
-  Returns `:ok` on success, `{:error, reason}` on failure. Metadata is sanitized
-  before writing so stored release keys always use valid normalized storage versions.
-  """
-  def put_package(scope, name, metadata, opts \\ []) do
-    cache_name = Keyword.get(opts, :cache_name, cache_name())
-    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
-    key = s3_key(scope, name)
-    bucket = bucket()
-    metadata = sanitize_package(metadata)
-    json_body = JSON.encode!(metadata)
-
-    {duration, result} =
-      :timer.tc(fn ->
-        bucket
-        |> ExAws.S3.put_object(key, json_body, content_type: "application/json")
-        |> ExAws.request()
-      end)
-
-    case result do
-      {:ok, _response} ->
-        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :ok})
-        Cachex.del(cache_name, cache_key(scope, name))
-        :ok
-
-      {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :rate_limited})
-
-        Logger.warning("S3 rate limited writing metadata for #{scope}/#{name}")
-        {:error, {:s3_error, :rate_limited}}
-
-      {:error, reason} ->
-        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :error})
-        Logger.error("Failed to write metadata to S3 for #{scope}/#{name}: #{inspect(reason)}")
-        {:error, reason}
-    end
-  end
-
-  @doc """
-  Deletes package metadata from S3 and invalidates the cache.
-
-  Returns `:ok` on success, `{:error, reason}` on failure.
-  """
-  def delete_package(scope, name, opts \\ []) do
-    cache_name = Keyword.get(opts, :cache_name, cache_name())
-    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
-    key = s3_key(scope, name)
-    bucket = bucket()
-
-    {duration, result} =
-      :timer.tc(fn ->
-        bucket
-        |> ExAws.S3.delete_object(key)
-        |> ExAws.request()
-      end)
-
-    case result do
-      {:ok, _response} ->
-        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 1}, %{result: :ok})
-
-        Cachex.del(cache_name, cache_key(scope, name))
-        :ok
-
-      {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{
-          result: :rate_limited
-        })
-
-        Logger.warning("S3 rate limited deleting metadata for #{scope}/#{name}")
-        {:error, {:s3_error, :rate_limited}}
-
-      {:error, reason} ->
-        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{
-          result: :error
-        })
-
-        Logger.error("Failed to delete metadata from S3 for #{scope}/#{name}: #{inspect(reason)}")
-        {:error, reason}
-    end
-  end
-
-  @doc """
   Lists all package metadata keys in S3.
 
   Returns a list of `{scope, name}` tuples for all packages stored in S3.
-  Used for cache registry sync and diagnostics.
+  Used for diagnostics.
   """
   def list_all_packages do
     bucket = bucket()

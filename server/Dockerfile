@@ -11,20 +11,42 @@ ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
 ARG DEBIAN_RUNNER_VERSION=bookworm-slim
 ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
 ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:${DEBIAN_RUNNER_VERSION}"
-ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.2-bookworm"
+# Swift 6.4 includes the FoundationNetworking fix for concurrent registry
+# redirects on Bookworm (swiftlang/swift-corelibs-foundation#5448).
+ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.4.1-bookworm"
 ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
 
+FROM scratch AS certificate-trust
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /
+
+# Keep Aube 1.6.2's esbuild behavior, but rebuild its embedded TLS verifier/roots.
+FROM rust:1.94-bookworm AS aube-builder
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates cmake \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
+WORKDIR /aube
+RUN git init . && git remote add origin https://github.com/endevco/aube.git \
+    && git fetch --depth 1 origin e7b898917c43ba72da002d12f2588f7bfa7e6890 \
+    && git checkout --detach FETCH_HEAD \
+    && cargo update -p rustls-webpki --precise 0.103.16 \
+    && cargo update -p webpki-roots --precise 1.0.10 \
+    && cargo build --release --locked --bin aube
+
 # ========================================
-# Stage: Swift NIF builder
-# Builds the native xcactivitylog parser. The result is linked into the
-# Elixir release via the C bridge in Stage `nif-bridge-builder` below, and
+# Stage: Swift parser builder
+# Builds the native xcactivitylog parser. It ships as a standalone executable
+# under the release's priv dir (see Stage `release-with-parser` below) and is
 # bundled into every runtime image — the same release boots as the web
 # server or as an Oban processor pod depending on TUIST_PROCESSOR_MODE.
 # ========================================
 FROM ${SWIFT_IMAGE} AS swift-builder
 
-RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
+RUN apt-get update -qq && apt-get install -y -qq unzip ca-certificates > /dev/null 2>&1 \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 WORKDIR /nif
 
@@ -34,10 +56,16 @@ COPY server/native/xcactivitylog_nif/Sources/ Sources/
 COPY server/native/xcactivitylog_nif/Tests/ Tests/
 COPY server/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
-RUN swift build -c release --replace-scm-with-registry && \
-    cp .build/release/libXCActivityLogNIF.so /nif/libXCActivityLogNIF.so && \
+RUN swift build -c release --replace-scm-with-registry --product xcactivitylog-parser && \
+    cp .build/release/xcactivitylog-parser /nif/xcactivitylog-parser && \
     mkdir -p /nif/swift-libs && \
     cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
+
+# Isolate the shipped artifacts so downstream COPYs do not materialize the
+# Swift toolchain and .build tree on a fresh BuildKit worker.
+FROM scratch AS swift-artifacts
+COPY --from=swift-builder /nif/xcactivitylog-parser /xcactivitylog-parser
+COPY --from=swift-builder /nif/swift-libs/ /swift-libs/
 
 # ========================================
 # Stage 1: NPM dependencies
@@ -45,18 +73,31 @@ RUN swift build -c release --replace-scm-with-registry && \
 FROM ${NODE_IMAGE} AS npm-deps
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
-RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
+# Replace Node's bundled roots; --use-system-ca would only add the OS roots.
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 COPY server/package.json /app/package.json
 COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
 RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install --frozen-lockfile
 
 # Build noora static assets (JS + CSS) from source
-COPY noora /noora
+COPY noora/package.json noora/aube-lock.yaml /noora/
 WORKDIR /noora
 RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
+COPY noora /noora
 RUN aube run build
 WORKDIR /app
+
+# Empty by default. CI can supply production project builds with
+# --build-context mix-cache=<directory>, without replacing fetched dependencies.
+FROM ${BUILDER_IMAGE} AS mix-cache
+RUN mkdir /_build
 
 # ========================================
 # Stage 2: Base dependencies builder
@@ -64,8 +105,13 @@ WORKDIR /app
 FROM ${BUILDER_IMAGE} AS deps-builder
 
 RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential ca-certificates curl git \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
+ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
+ENV REBAR_OFFLINE=1
 WORKDIR /app
 
 RUN mix local.hex --force && \
@@ -92,18 +138,26 @@ COPY server/mix.exs server/mix.lock ./
 COPY server/mise/tasks/cldr mise/tasks/cldr
 RUN mkdir config
 
-# Copy path dependencies (only mix.exs/mix.lock for dep resolution)
-COPY tuist_common /tuist_common
-COPY noora /noora
+# Resolve and compile fetched dependencies independently of local source edits.
+COPY tuist_common/mix.exs /tuist_common/mix.exs
+COPY tuist_ex/mix.exs /tuist_ex/mix.exs
+COPY noora/mix.exs /noora/mix.exs
 
 # Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty
 # local cache on network flakes, producing "Unknown package in lockfile"
 # errors on packages that clearly exist in mix.lock. Exit non-zero if every
 # attempt fails (the naive `|| sleep && break` form was masking failures).
 # Cache mounts for hex/rebar stores speed up redownloads when mix.lock changes.
-RUN --mount=type=cache,id=mix-hex,target=/root/.hex \
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
+    --mount=type=cache,id=mix-hex,target=/root/.hex \
     --mount=type=cache,id=mix-rebar3,target=/root/.cache/rebar3 \
     set -e; \
+    if [ -n "${GITHUB_TOKEN:-}" ]; then \
+      auth_header="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"; \
+      export GIT_CONFIG_COUNT=1; \
+      export GIT_CONFIG_KEY_0='http.https://github.com/.extraheader'; \
+      export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth_header"; \
+    fi; \
     attempts=0; \
     until mix deps.get --only $MIX_ENV; do \
       attempts=$((attempts + 1)); \
@@ -121,7 +175,7 @@ RUN --mount=type=cache,id=mix-hex,target=/root/.hex \
 COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
-RUN mix deps.compile
+RUN mix deps.compile --skip-local-deps
 # Prefetch CLDR locale JSON before the full-locale compile so ex_cldr does not
 # fall back to rate-limited raw.githubusercontent.com downloads. Authenticate
 # via a BuildKit secret (never baked into a layer) to lift the unauthenticated
@@ -134,56 +188,14 @@ RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
     mise/tasks/cldr/prefetch-locale-data.sh
 
 # ========================================
-# Stage: OG image generator
-# Renders marketing/docs Open Graph images via headless Chromium. Built in
-# parallel with the main builder (both branch from deps-builder) so its long
-# Chromium-driven runtime overlaps with mix compile + release rather than
-# stacking on top of them.
-# ========================================
-FROM deps-builder AS og-images
-
-# Chromium and font packages only this stage needs. Sits before the source
-# COPY so the apt layer stays cached as long as deps-builder is cached, even
-# when server/lib changes.
-RUN apt-get update -y && \
-  apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
-  apt-get clean && rm -rf /var/lib/apt/lists/*
-
-COPY server/priv priv
-COPY skills/skills priv/static/skills
-COPY examples/xcode /examples/xcode
-COPY server/lib lib
-
-RUN mix compile
-
-# Persist generated OG images (and their .cachekey sidecars) across builds in
-# BuildKit caches. The mix tasks skip per-image rendering when the input hash
-# matches the existing sidecar, so when the layer above is invalidated by an
-# unrelated lib change we still get a fast no-op pass for unchanged images.
-RUN --mount=type=cache,id=og-marketing,target=/og-cache/marketing,sharing=locked \
-    --mount=type=cache,id=og-docs,target=/og-cache/docs,sharing=locked \
-    set -e; \
-    OUT_M=/app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated; \
-    OUT_D=/app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated; \
-    mkdir -p "$OUT_M" "$OUT_D"; \
-    if [ -d /og-cache/marketing ] && [ -n "$(ls -A /og-cache/marketing 2>/dev/null)" ]; then \
-      cp -a /og-cache/marketing/. "$OUT_M/"; \
-    fi; \
-    if [ -d /og-cache/docs ] && [ -n "$(ls -A /og-cache/docs 2>/dev/null)" ]; then \
-      cp -a /og-cache/docs/. "$OUT_D/"; \
-    fi; \
-    mix docs.gen.og_images; \
-    mix marketing.gen.og_images; \
-    cp -a "$OUT_M/." /og-cache/marketing/; \
-    cp -a "$OUT_D/." /og-cache/docs/
-
-# ========================================
 # Stage 3: Main application builder
 # ========================================
-FROM deps-builder AS builder
+FROM deps-builder AS compiled
 
+COPY tuist_common /tuist_common
+COPY tuist_ex /tuist_ex
+COPY noora /noora
 COPY server/priv priv
-COPY kura/ops/helm/kura/hooks/tuist.lua priv/kura/hooks/tuist.lua
 COPY skills/skills priv/static/skills
 COPY server/assets assets
 COPY server/native native
@@ -194,45 +206,45 @@ COPY examples/xcode priv/examples/xcode
 
 COPY server/lib lib
 
-RUN mix compile --warnings-as-errors
+RUN --mount=type=bind,from=mix-cache,source=/_build,target=/mix-cache \
+    mkdir -p "_build/${MIX_ENV}/lib" && \
+    cp -a /mix-cache/. "_build/${MIX_ENV}/lib/" && \
+    mix compile --warnings-as-errors
+
+# Keep fetched dependencies layer-cached; retain only the four local projects.
+# Export before assets/release so the snapshot never contains an old release.
+FROM scratch AS mix-cache-export
+ARG MIX_ENV=prod
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist/ /_build/tuist/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_common/ /_build/tuist_common/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_ex/ /_build/tuist_ex/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/noora/ /_build/noora/
+
+FROM compiled AS builder
 
 COPY server/config/runtime.exs config/
 COPY server/rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
 COPY --from=npm-deps /noora/priv/static /noora/priv/static
+COPY --from=npm-deps /noora/node_modules /noora/node_modules
 RUN mix assets.deploy
-
-# Pull pre-generated OG images from the parallel og-images stage. Splitting
-# the Chromium pipeline into its own stage lets it run concurrently with mix
-# compile + assets.deploy + release here instead of stacking on top.
-COPY --from=og-images /app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated /app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated
-COPY --from=og-images /app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated /app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated
 
 RUN mix release
 
 # ========================================
-# Stage: NIF bridge builder
-# Compiles the C NIF bridge linking against the Swift library and places the
-# result under the release's tuist app priv dir so Tuist.Processor.XCActivityLogNIF
-# can load it at runtime.
+# Stage: Release with parser
+# Places the Swift parser executable under the release's tuist app priv dir,
+# where Tuist.Processor.XCActivityLogParser looks it up at runtime.
 # ========================================
-FROM builder AS nif-bridge-builder
+FROM builder AS release-with-parser
 
-COPY server/native/xcactivitylog_nif/nif_bridge.c /tmp/nif/nif_bridge.c
-COPY --from=swift-builder /nif/libXCActivityLogNIF.so /tmp/nif/libXCActivityLogNIF.so
+COPY --from=swift-artifacts /xcactivitylog-parser /tmp/nif/xcactivitylog-parser
 
 RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
     mkdir -p "$TUIST_REL_DIR/priv/native" && \
-    ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell) && \
-    cc -shared -fPIC \
-      -o "$TUIST_REL_DIR/priv/native/xcactivitylog_nif.so" \
-      /tmp/nif/nif_bridge.c \
-      -I"$ERL_INCLUDE" \
-      -L/tmp/nif \
-      -lXCActivityLogNIF \
-      -Wl,-rpath,'$ORIGIN' && \
-    cp /tmp/nif/libXCActivityLogNIF.so "$TUIST_REL_DIR/priv/native/"
+    cp /tmp/nif/xcactivitylog-parser "$TUIST_REL_DIR/priv/native/" && \
+    chmod +x "$TUIST_REL_DIR/priv/native/xcactivitylog-parser"
 
 # ========================================
 # Stage: Common runtime
@@ -246,14 +258,25 @@ ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get upgrade -y && \
-  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
+  apt-get install -y curl build-essential chromium fonts-noto-cjk fonts-noto-core gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
+
+# Runtime Open Graph image rendering launches Chromium as `nobody`, whose home is
+# `/nonexistent`. Route it through a wrapper that exports a writable HOME so
+# `--headless=new` can bind its DevTools port instead of timing out. See
+# server/rel/og-chromium for the full rationale.
+COPY server/rel/og-chromium /usr/local/bin/og-chromium
+RUN chmod +x /usr/local/bin/og-chromium
+ENV TUIST_OG_IMAGE_CHROME_PATH=/usr/local/bin/og-chromium
 
 WORKDIR "/app"
 RUN chown nobody /app
@@ -266,16 +289,16 @@ ENV MIX_ENV=$MIX_ENV
 ENV TUIST_HOSTED=$TUIST_HOSTED
 ENV TUIST_VERSION=$TUIST_VERSION
 
-# Swift runtime libs the NIF links against at load time. Small (~20 MB) but
-# carried by every release image because any pod may run in processor mode
-# (TUIST_PROCESSOR_MODE=true) and execute the xcactivitylog NIF.
-COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
+# Swift runtime libs the parser links against. Small (~20 MB) but carried by
+# every release image because any pod may run in processor mode
+# (TUIST_PROCESSOR_MODE=true) and spawn the xcactivitylog parser.
+COPY --from=swift-artifacts /swift-libs/ /usr/local/lib/
 RUN ldconfig
 
-# Release taken from nif-bridge-builder so the compiled xcactivitylog_nif +
-# libXCActivityLogNIF are already under lib/tuist-<vsn>/priv/native where
-# Tuist.Processor.XCActivityLogNIF.load_nif expects them.
-COPY --from=nif-bridge-builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
+# Release taken from release-with-parser so xcactivitylog-parser is already
+# under lib/tuist-<vsn>/priv/native where Tuist.Processor.XCActivityLogParser
+# expects it.
+COPY --from=release-with-parser --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
 
 # Runtime secrets are read from the environment (1Password via ESO in managed
 # envs), not from a baked-in encrypted blob — there's nothing to copy here.
@@ -301,7 +324,7 @@ RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
 # ========================================
 # Stage: Default runtime
 # Boots as web server by default; set TUIST_PROCESSOR_MODE=true to run as an
-# Oban processor pod (queue consumer, no web endpoint). The Swift NIF ships
+# Oban processor pod (queue consumer, no web endpoint). The Swift parser ships
 # in runner-base, so no extra overlay is required for either role.
 # ========================================
 FROM runner-base AS runner

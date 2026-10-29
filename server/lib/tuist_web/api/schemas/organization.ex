@@ -23,7 +23,7 @@ defmodule TuistWeb.API.Schemas.Organization do
       plan: %Schema{
         type: :string,
         enum: ["air", "pro", "enterprise", "none"],
-        description: "The plan associated with the organization"
+        description: "The effective plan associated with the organization. `none` is deprecated and is no longer emitted."
       },
       members: %Schema{
         type: :array,

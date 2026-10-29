@@ -31,6 +31,14 @@
     var(--noora-yellow-800),
     var(--noora-yellow-100)
   );
+  --noora-avatar-green-background: light-dark(
+    var(--noora-green-100),
+    var(--noora-green-800)
+  );
+  --noora-avatar-green-label: light-dark(
+    var(--noora-green-800),
+    var(--noora-green-100)
+  );
   --noora-avatar-azure-background: light-dark(
     var(--noora-azure-100),
     var(--noora-azure-800)
@@ -102,6 +110,13 @@
     background-color: var(--noora-avatar-yellow-background);
     & [data-part="initials"] {
       color: var(--noora-avatar-yellow-label);
+    }
+  }
+
+  &[data-color="green"] {
+    background-color: var(--noora-avatar-green-background);
+    & [data-part="initials"] {
+      color: var(--noora-avatar-green-label);
     }
   }
 

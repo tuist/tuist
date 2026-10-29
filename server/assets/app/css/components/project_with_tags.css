@@ -1,0 +1,5 @@
+.tuist-project-with-tags {
+  display: flex;
+  align-items: center;
+  gap: var(--noora-spacing-4);
+}

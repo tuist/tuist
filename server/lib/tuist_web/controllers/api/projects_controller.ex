@@ -6,10 +6,11 @@ defmodule TuistWeb.API.ProjectsController do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
-  alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Project
+  alias TuistWeb.API.Schemas.ProjectBuildSystem
   alias TuistWeb.Authentication
+  alias TuistWeb.RemoteIp
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -42,7 +43,7 @@ defmodule TuistWeb.API.ProjectsController do
                "Organization to create the project with. If not specified, the project will be created with the current user's personal account.",
              deprecated: true
            },
-           build_system: BuildSystem.schema()
+           build_system: ProjectBuildSystem.schema()
          }
        }},
     responses: %{
@@ -54,7 +55,6 @@ defmodule TuistWeb.API.ProjectsController do
   )
 
   def create(%{body_params: body_params} = conn, _params) do
-    user = Authentication.current_user(conn)
     organization_handle = Map.get(body_params, :organization, nil)
     project_handle = Map.get(body_params, :name, nil)
     full_handle = Map.get(body_params, :full_handle, nil)
@@ -65,7 +65,8 @@ defmodule TuistWeb.API.ProjectsController do
         Projects.get_project_and_account_handles_from_full_handle(full_handle)
       else
         if is_nil(organization_handle) do
-          {:ok, %{project_handle: project_handle, account_handle: user.account.name}}
+          {:ok,
+           %{project_handle: project_handle, account_handle: Authentication.authenticated_subject_account(conn).name}}
         else
           {:ok, %{project_handle: project_handle, account_handle: organization_handle}}
         end
@@ -89,7 +90,7 @@ defmodule TuistWeb.API.ProjectsController do
          %{project_handle: project_handle, account_handle: account_handle},
          build_system
        ) do
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
     account = Accounts.get_account_by_handle(account_handle)
 
     cond do
@@ -98,7 +99,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%Error{message: "The account #{account_handle} was not found"})
 
-      Authorization.authorize(:project_create, user, account) != :ok ->
+      Authorization.authorize(:project_create, subject, account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{
@@ -121,7 +122,10 @@ defmodule TuistWeb.API.ProjectsController do
             [build_system: String.to_existing_atom(build_system)]
           end
 
-        case Projects.create_project(%{name: project_handle, account: account}, opts) do
+        case Projects.create_project(
+               %{name: project_handle, account: account},
+               Keyword.put(opts, :origin, RemoteIp.origin(conn))
+             ) do
           {:ok, project} ->
             conn
             |> put_status(:ok)
@@ -210,7 +214,7 @@ defmodule TuistWeb.API.ProjectsController do
   )
 
   def show(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn, _params) do
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
     account = Accounts.get_account_by_handle(account_handle)
 
     project =
@@ -229,7 +233,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
 
-      Authorization.authorize(:project_read, user, account) != :ok ->
+      Authorization.authorize(:project_read, subject, project) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{
@@ -237,7 +241,9 @@ defmodule TuistWeb.API.ProjectsController do
         })
 
       true ->
-        Tuist.PubSub.broadcast(%{user: user}, "projects.#{project.id}", :show)
+        if user = Authentication.current_user(conn) do
+          Tuist.PubSub.broadcast(%{user: user}, "projects.#{project.id}", :show)
+        end
 
         conn
         |> put_status(:ok)
@@ -297,11 +303,10 @@ defmodule TuistWeb.API.ProjectsController do
         _params
       ) do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
-    user = Authentication.current_user(conn)
 
     update_project(conn, %{
       project: project,
-      user: user,
+      subject: Authentication.authenticated_subject(conn),
       account_handle: account_handle,
       project_handle: project_handle,
       body_params: body_params
@@ -310,7 +315,7 @@ defmodule TuistWeb.API.ProjectsController do
 
   defp update_project(conn, %{
          project: project,
-         user: user,
+         subject: subject,
          account_handle: account_handle,
          project_handle: project_handle,
          body_params: body_params
@@ -321,7 +326,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%{message: "Project #{account_handle}/#{project_handle} was not found."})
 
-      Authorization.authorize(:project_update, user, project) != :ok ->
+      Authorization.authorize(:project_update, subject, project) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{
@@ -347,9 +352,19 @@ defmodule TuistWeb.API.ProjectsController do
       full_name: full_name,
       token: "",
       default_branch: project.default_branch,
-      visibility: project.visibility,
-      build_system: project.build_system
+      visibility: project.visibility
     }
+
+    # Clients shipped before the Project response schema stopped enumerating
+    # build systems (iOS/macOS app, CLI, Android app) fail to decode the whole
+    # response on any other value, and treat a missing one as xcode. Remove
+    # once those clients have aged out.
+    response =
+      if project.build_system in [:xcode, :gradle, :bazel] do
+        Map.put(response, :build_system, project.build_system)
+      else
+        response
+      end
 
     if Keyword.get(opts, :include_repository_url, false) do
       Map.put(response, :repository_url, Projects.get_repository_url(project))
@@ -378,7 +393,7 @@ defmodule TuistWeb.API.ProjectsController do
   )
 
   def delete(%{path_params: %{"id" => id}} = conn, _params) do
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
     project_account = Projects.get_project_account_by_project_id(id)
 
     cond do
@@ -387,7 +402,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%Error{message: "Project not found."})
 
-      Authorization.authorize(:project_delete, user, project_account.account) != :ok ->
+      Authorization.authorize(:project_delete, subject, project_account.project) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{

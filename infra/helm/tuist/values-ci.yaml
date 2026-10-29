@@ -4,6 +4,10 @@
 # — server-deployment.yml resolves them from the latest `<component>@`
 # git tags and passes them via --set at deploy time. This overlay feeds
 # dummy values so static rendering/validation passes.
+server:
+  image:
+    tag: validation
+
 kuraController:
   image:
     tag: validation
@@ -12,7 +16,19 @@ kuraRuntime:
   image:
     tag: validation
 
+egressTreeAgent:
+  image:
+    tag: validation
+
+codebaseSearch:
+  image:
+    tag: validation
+
 registry:
+  image:
+    tag: validation
+
+runnersController:
   image:
     tag: validation
 
@@ -21,3 +37,7 @@ runnersFleet:
 
 runnersFleetLinux:
   shapeRunnerImage: ghcr.io/tuist/tuist-linux-runner:validation
+
+xcresultProcessor:
+  release:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

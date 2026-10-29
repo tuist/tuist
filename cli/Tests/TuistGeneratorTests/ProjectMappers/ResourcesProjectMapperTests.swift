@@ -118,7 +118,12 @@ struct ResourcesProjectMapperTests {
     func mapWhenExternalObjcStaticFrameworkHasResources() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.m"], resources: .init(resources))
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.m"],
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
+        )
         let project = Project.test(targets: [target], type: .external(hash: nil))
         given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
@@ -128,12 +133,29 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        verifyObjcBundleAccessor(
-            for: target,
-            gotTarget: gotTarget,
-            gotSideEffects: gotSideEffects,
-            project: project
+        verifyObjcResourceAccessorGeneration(for: target, gotTarget: gotTarget, gotSideEffects: gotSideEffects)
+    }
+
+    @Test
+    func mapWhenLocalSwiftPackageObjcStaticFrameworkHasResources() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.m"],
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
         )
+        let project = Project.test(targets: [target], type: .local)
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        verifyObjcResourceAccessorGeneration(for: target, gotTarget: gotTarget, gotSideEffects: gotSideEffects)
     }
 
     @Test
@@ -310,10 +332,8 @@ struct ResourcesProjectMapperTests {
         #expect(gotTarget.name == target.name)
         #expect(gotTarget.product == target.product)
         #expect(gotTarget.resources.resources.count == 0)
-        #expect(gotTarget.sources.count == 2)
-        let xcassetsSources = gotTarget.sources.filter { $0.path.extension == "xcassets" }
-        #expect(xcassetsSources.count == 1)
-        #expect(xcassetsSources.first?.path == buildableFolders[1].resolvedFiles[1].path)
+        #expect(gotTarget.sources.count == 1)
+        #expect(gotTarget.sources.allSatisfy { $0.path.extension == "swift" })
         #expect(gotTarget.dependencies.count == 1)
         #expect(gotTarget.dependencies.first == TargetDependency.target(
             name: "\(project.name)_\(target.name)",
@@ -328,7 +348,19 @@ struct ResourcesProjectMapperTests {
         #expect(resourcesTarget.deploymentTargets == target.deploymentTargets)
         #expect(resourcesTarget.filesGroup == target.filesGroup)
         #expect(resourcesTarget.buildableFolders == [buildableFolders[1]])
-        #expect(gotTarget.buildableFolders == [buildableFolders[0]])
+        let expectedCatalogFolder = BuildableFolder(
+            path: buildableFolders[1].path,
+            exceptions: BuildableFolderExceptions(exceptions: [
+                BuildableFolderException(
+                    excluded: [buildableFolders[1].resolvedFiles[0].path],
+                    compilerFlags: [:],
+                    publicHeaders: [],
+                    privateHeaders: []
+                ),
+            ]),
+            resolvedFiles: [buildableFolders[1].resolvedFiles[1]]
+        )
+        #expect(gotTarget.buildableFolders == [buildableFolders[0], expectedCatalogFolder])
     }
 
     @Test
@@ -445,26 +477,8 @@ struct ResourcesProjectMapperTests {
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
         #expect(gotTarget.buildableFolders.count == 1)
-        let expectedSourcesFolder = BuildableFolder(
-            path: sharedFolderPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [assetsPath],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
-            ]
-        )
-        #expect(gotTarget.buildableFolders.first == expectedSourcesFolder)
-        let xcassetsSources = gotTarget.sources.filter { $0.path.extension == "xcassets" }
-        #expect(xcassetsSources.count == 1)
-        #expect(xcassetsSources.first?.path == assetsPath)
+        #expect(gotTarget.buildableFolders.first == buildableFolder)
+        #expect(gotTarget.sources.allSatisfy { $0.path.extension == "swift" })
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.buildableFolders.count == 1)
@@ -524,7 +538,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetBuildableFolderContainsOnlyXcstringsAddsExplicitResourcesOnOriginalTarget() async throws {
+    func mapWhenStaticTargetBuildableFolderContainsOnlyXcstringsSharesSynchronizedMembership() async throws {
         // Given
         let sourcesFolderPath = try AbsolutePath(validating: "/Sources")
         let resourcesFolderPath = try AbsolutePath(validating: "/Resources")
@@ -563,8 +577,8 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.buildableFolders == [buildableFolders[0]])
-        #expect(gotTarget.resources.resources == [.file(path: xcstringsPath)])
+        #expect(gotTarget.buildableFolders == buildableFolders)
+        #expect(gotTarget.resources.resources.isEmpty)
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.product == .bundle)
@@ -572,7 +586,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetBuildableFolderContainsSourcesAndXcstringsPromotesCatalogToExplicitResource() async throws {
+    func mapWhenStaticTargetBuildableFolderContainsSourcesAndXcstringsKeepsCatalogSynchronized() async throws {
         // Given
         let buildableFolderPath = try AbsolutePath(validating: "/FeatureModule")
         let swiftFilePath = try AbsolutePath(validating: "/FeatureModule/FeatureView.swift")
@@ -602,25 +616,8 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.buildableFolders == [
-            BuildableFolder(
-                path: buildableFolderPath,
-                exceptions: BuildableFolderExceptions(
-                    exceptions: [
-                        BuildableFolderException(
-                            excluded: [xcstringsPath],
-                            compilerFlags: [:],
-                            publicHeaders: [],
-                            privateHeaders: []
-                        ),
-                    ]
-                ),
-                resolvedFiles: [
-                    BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
-                ]
-            ),
-        ])
-        #expect(gotTarget.resources.resources == [.file(path: xcstringsPath)])
+        #expect(gotTarget.buildableFolders == [buildableFolder])
+        #expect(gotTarget.resources.resources.isEmpty)
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.product == .bundle)
@@ -695,46 +692,8 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.buildableFolders.count == 2)
-
-        let expectedRootSources = BuildableFolder(
-            path: rootPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [assetFolder],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: swiftFile, compilerFlags: nil),
-            ]
-        )
-
-        #expect(gotTarget.buildableFolders.contains(expectedRootSources))
-        let expectedSourcesFolderSourcesView = BuildableFolder(
-            path: sourcesPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [assetFolder],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: swiftFile, compilerFlags: nil),
-            ]
-        )
-        #expect(gotTarget.buildableFolders.contains(expectedSourcesFolderSourcesView))
-        let xcassetsSources = gotTarget.sources.filter { $0.path.extension == "xcassets" }
-        #expect(xcassetsSources.count == 1)
-        #expect(xcassetsSources.first?.path == assetFolder)
+        #expect(gotTarget.buildableFolders == buildableFolders)
+        #expect(gotTarget.sources.allSatisfy { $0.path.extension == "swift" })
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.buildableFolders.count == 3)
@@ -1129,11 +1088,16 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenProjectIsExternalTargetHasObjcSourceFiles() async throws {
+    func mapWhenSwiftPackageTargetHasObjcAndCSourceFiles() async throws {
         // Given
-        let sources: [SourceFile] = ["/ViewController.m"]
+        let sources: [SourceFile] = ["/ViewController.m", "/ViewController.c"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
-        let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
+        let target = Target.test(
+            product: .staticLibrary,
+            sources: sources,
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
+        )
         let project = Project.test(
             path: try AbsolutePath(validating: "/AbsolutePath/Project"),
             targets: [target],
@@ -1147,21 +1111,24 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        verifyObjcBundleAccessor(
-            for: target,
-            gotTarget: gotTarget,
-            gotSideEffects: gotSideEffects,
-            project: project
-        )
+        verifyObjcResourceAccessorGeneration(for: target, gotTarget: gotTarget, gotSideEffects: gotSideEffects)
     }
 
     @Test
-    func mapWhenProjectIsNotExternalTargetHasObjcSourceFiles() async throws {
+    func mapWhenRegularProjectHasSwiftPackageDefinitionDoesNotGenerateObjcAccessors() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        let project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
+        let project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            settings: Settings(
+                base: ["GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "SWIFT_PACKAGE=0"]],
+                configurations: [:]
+            ),
+            targets: [target],
+            type: .local
+        )
         given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
@@ -1176,14 +1143,20 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenProjectNameHasDashesInItBundleNameIncludeDashForProjectNameAndUnderscoreForTargetName() async throws {
+    func mapWhenSwiftPackageProjectAndTargetNamesRequireCIdentifierSanitization() async throws {
         // Given
-        let projectName = "sdk-with-dash"
+        let projectName = "3sdk-with.dash"
         let targetName = "target-with-dash"
-        let expectedBundleName = "sdk-with-dash_target_with_dash"
-        let sources: [SourceFile] = ["/ViewController.m", "/ViewController2.swift"]
+        let expectedBundleName = "_sdk_with_dash_target_with_dash"
+        let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
-        let target = Target.test(name: targetName, product: .staticLibrary, sources: sources, resources: .init(resources))
+        let target = Target.test(
+            name: targetName,
+            product: .staticLibrary,
+            sources: sources,
+            resources: .init(resources),
+            metadata: .test(tags: [TargetTags.swiftPackage])
+        )
         let project = Project.test(
             path: try AbsolutePath(validating: "/AbsolutePath/Project"),
             name: projectName,
@@ -1193,13 +1166,70 @@ struct ResourcesProjectMapperTests {
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
-        let (gotProject, _) = try await subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+        let gotTarget = try #require(gotProject.targets.values.first(where: { $0.name == targetName }))
         let bundleTarget = try #require(gotProject.targets.values.sorted().first(where: { $0.product == .bundle }))
 
         // Then
         #expect(bundleTarget.name == expectedBundleName)
         #expect(bundleTarget.productName == expectedBundleName)
+        #expect(gotTarget.settings?.base["PACKAGE_RESOURCE_BUNDLE_NAME"] == .string(expectedBundleName))
+        verifyObjcResourceAccessorGeneration(for: target, gotTarget: gotTarget, gotSideEffects: gotSideEffects)
         #expect(gotProject.targets.count == 2)
+    }
+
+    @Test(arguments: [Product.staticFramework, .staticLibrary, .dynamicLibrary], [false, true])
+    func mapWhenCatalogsOverlapExplicitDeclarations_preservesExplicitEntries(
+        product: Product,
+        assetsInSources: Bool
+    ) async throws {
+        let assets: AbsolutePath = "/Feature/Resources/Assets.xcassets"
+        let strings: AbsolutePath = "/Feature/Resources/Localizable.xcstrings"
+        let swift: AbsolutePath = "/Feature/Feature.swift"
+        let image: AbsolutePath = "/Feature/Resources/image.png"
+        let userException = BuildableFolderException(
+            excluded: ["/Feature/Resources/Excluded.xcassets"],
+            compilerFlags: [swift: "-DKEEP"],
+            publicHeaders: [],
+            privateHeaders: []
+        )
+        let folder = BuildableFolder(
+            path: "/Feature",
+            exceptions: .init(exceptions: [userException]),
+            resolvedFiles: [swift, assets, strings, image].map { BuildableFolderFile(path: $0, compilerFlags: nil) }
+        )
+        let assetResource = ResourceFileElement.file(path: assets, tags: ["images"], inclusionCondition: .when([.ios]))
+        let stringResource = ResourceFileElement.file(path: strings, tags: ["strings"], inclusionCondition: .when([.ios]))
+        let assetSource = SourceFile(path: assets, compilerFlags: "-DASSETS", compilationCondition: .when([.ios]))
+        let resources = assetsInSources ? [stringResource] : [assetResource, stringResource]
+        let target = Target.test(
+            product: product,
+            sources: assetsInSources ? [assetSource] : [],
+            resources: .init(resources),
+            buildableFolders: [folder]
+        )
+        given(buildableFolderChecker).containsResources(.value([folder])).willReturn(true)
+        given(buildableFolderChecker).containsSources(.value([folder])).willReturn(true)
+
+        let (mappedProject, _) = try await subject.map(project: .test(targets: [target]))
+
+        let main = try #require(mappedProject.targets[target.name])
+        let bundle = try #require(mappedProject.targets.values.first { $0.product == .bundle })
+        #expect(main.resources.resources == [stringResource])
+        #expect(bundle.resources.resources == resources)
+        #expect(main.sources.filter { $0.path == assets } == [assetsInSources ? assetSource : SourceFile(path: assets)])
+        let mainFolder = try #require(main.buildableFolders.first)
+        let bundleFolder = try #require(bundle.buildableFolders.first)
+        #expect(mainFolder.resolvedFiles.map(\.path) == [swift])
+        #expect(Set(bundleFolder.resolvedFiles.map(\.path)) == Set(assetsInSources ? [image, assets] : [image]))
+        #expect(mainFolder.exceptions.exceptions.first == userException)
+        #expect(bundleFolder.exceptions.exceptions.first == userException)
+        #expect(Set(mainFolder.exceptions.flatMap(\.excluded)).isSuperset(of: [assets, strings, image]))
+        #expect(Set(bundleFolder.exceptions.flatMap(\.excluded)).isSuperset(of: assetsInSources ? [swift, strings] : [
+            swift,
+            assets,
+            strings,
+        ]))
     }
 
     @Test
@@ -1249,8 +1279,8 @@ struct ResourcesProjectMapperTests {
         let expectedXcstringsPath = try AbsolutePath(validating: "/Resources/Localizable.xcstrings")
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
 
-        // xcstrings is kept on the main target's Resources phase (mirrors the buildable-folders
-        // path) so Xcode runs string extraction in the same target where Swift sources live.
+        // Explicit xcstrings stays in Resources. swift-build moves it to Sources for string
+        // symbol generation when enabled; Swift string extraction is controlled independently.
         #expect(gotTarget.resources.resources == [.file(path: expectedXcstringsPath)])
         // xcstrings is NOT in the main target's Sources phase. The Sources-phase placement only
         // works when STRING_CATALOG_GENERATE_SYMBOLS=YES, which swift-build auto-enables only
@@ -1288,34 +1318,183 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func objcImplementationFileContentSanitizesTargetNameWithHyphens() {
+    func mapWhenStaticTargetHasResourcesSetsModuleResourceBundleAvailableCondition() async throws {
         // Given
-        let targetName = "YoutubePlayer-in-WKWebView"
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
-        let got = BundleAccessorTemplate.objcImplementationContents(
-            targetName: targetName,
-            bundleName: "MyProject_YoutubePlayer-in-WKWebView"
-        )
+        let (gotProject, _) = try await subject.map(project: project)
 
         // Then
-        #expect(!got.contains("YoutubePlayer-in-WKWebViewBundleFinder"))
-        #expect(got.contains("YoutubePlayerInWKWebViewBundleFinder"))
-        #expect(got.contains("YoutubePlayerInWKWebView_SWIFTPM_MODULE_BUNDLE"))
-        #expect(!got.contains("YoutubePlayer-in-WKWebView_SWIFTPM_MODULE_BUNDLE"))
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(
+            gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"])
+        )
     }
 
     @Test
-    func objcHeaderFileContentSanitizesTargetNameWithHyphens() {
+    func mapWhenStaticTargetHasExistingConditionsAppendsModuleResourceBundleAvailable() async throws {
         // Given
-        let targetName = "YoutubePlayer-in-WKWebView"
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "CUSTOM_CONDITION"])],
+                configurations: [:]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
-        let got = BundleAccessorTemplate.objcHeaderContents(targetName: targetName)
+        let (gotProject, _) = try await subject.map(project: project)
 
         // Then
-        #expect(got.contains("YoutubePlayerInWKWebView_SWIFTPM_MODULE_BUNDLE"))
-        #expect(!got.contains("YoutubePlayer-in-WKWebView_SWIFTPM_MODULE_BUNDLE"))
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(
+            gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "CUSTOM_CONDITION", "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"])
+        )
+    }
+
+    @Test
+    func mapWhenConfigurationDefinesConditionsAppendsModuleResourceBundleAvailable() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: [:],
+                configurations: [
+                    .debug: Configuration(settings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("CUSTOM_DEBUG")]),
+                    .release: Configuration(settings: [:]),
+                ]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        let settings = try #require(gotTarget.settings)
+        #expect(
+            settings.configurations[.debug]??.settings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .string("CUSTOM_DEBUG SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE")
+        )
+        #expect(settings.configurations[.release]??.settings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == nil)
+        #expect(
+            settings.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"])
+        )
+    }
+
+    @Test
+    func mapWhenConditionsContainLookalikeTokenStillAppendsModuleResourceBundleAvailable() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("NOT_SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE")],
+                configurations: [:]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(
+            gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .string("NOT_SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE")
+        )
+    }
+
+    @Test
+    func mapWhenConditionAlreadyPresentInStringDoesNotDuplicateIt() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE CUSTOM")],
+                configurations: [:]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(
+            gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .string("SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE CUSTOM")
+        )
+    }
+
+    @Test
+    func mapWhenDynamicFrameworkHasResourcesDoesNotSetModuleResourceBundleAvailableCondition() async throws {
+        // Given
+        let target = Target.test(
+            product: .framework,
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.first(where: { $0.name == target.name }))
+        #expect(gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == nil)
+    }
+
+    @Test
+    func mapWhenObjcOnlyStaticTargetHasResourcesDoesNotSetModuleResourceBundleAvailableCondition() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.m"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.first(where: { $0.name == target.name }))
+        #expect(gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == nil)
     }
 
     // MARK: - Helpers
@@ -1349,48 +1528,14 @@ struct ResourcesProjectMapperTests {
         }
     }
 
-    private func verifyObjcBundleAccessor(
+    private func verifyObjcResourceAccessorGeneration(
         for target: Target,
         gotTarget: Target,
-        gotSideEffects: [SideEffectDescriptor],
-        project: Project
+        gotSideEffects: [SideEffectDescriptor]
     ) {
-        #expect(
-            gotTarget.settings?.base["GCC_PREFIX_HEADER"] ==
-                .string(
-                    "$(SRCROOT)/\(Constants.DerivedDirectory.name)/\(Constants.DerivedDirectory.sources)/TuistBundle+\(target.name).h"
-                )
-        )
-        #expect(gotTarget.sources.count == 2)
-        #expect(gotSideEffects.count == 2)
-        let generatedFiles = gotSideEffects.compactMap {
-            if case let .file(file) = $0 {
-                return file
-            } else {
-                return nil
-            }
-        }
-
-        let expectedBasePath = project.derivedDirectoryPath(for: target)
-            .appending(component: Constants.DerivedDirectory.sources)
-        #expect(
-            generatedFiles == [
-                FileDescriptor(
-                    path: expectedBasePath.appending(component: "TuistBundle+\(target.name).h"),
-                    contents: BundleAccessorTemplate
-                        .objcHeaderContents(targetName: target.name)
-                        .data(using: .utf8)
-                ),
-                FileDescriptor(
-                    path: expectedBasePath.appending(component: "TuistBundle+\(target.name).m"),
-                    contents: BundleAccessorTemplate
-                        .objcImplementationContents(
-                            targetName: target.name,
-                            bundleName: "\(project.name)_\(target.name)"
-                        )
-                        .data(using: .utf8)
-                ),
-            ]
-        )
+        #expect(gotTarget.settings?.base["GENERATE_RESOURCE_ACCESSORS"] == .string("YES"))
+        #expect(gotTarget.settings?.base["GCC_PREFIX_HEADER"] == nil)
+        #expect(gotTarget.sources.count == target.sources.count)
+        #expect(gotSideEffects.isEmpty)
     }
 }

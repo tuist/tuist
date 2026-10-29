@@ -1,0 +1,123 @@
+{
+  "name": "Avatar",
+  "tagName": "noora-avatar",
+  "elementClassName": "NooraAvatar",
+  "className": "noora-avatar",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Displays an image, initials, or a placeholder for an account.",
+  "usage": "<noora-avatar name=\"Ada Lovelace\"></noora-avatar>",
+  "attributes": [
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Provides the account name and accessible label."
+    },
+    {
+      "name": "color",
+      "property": "color",
+      "type": "string",
+      "values": [
+        "gray",
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "azure",
+        "blue",
+        "purple",
+        "pink"
+      ],
+      "default": "pink",
+      "description": "Controls the fallback color."
+    },
+    {
+      "name": "image-href",
+      "property": "imageHref",
+      "type": "string",
+      "description": "Sets the image location."
+    },
+    {
+      "name": "image-decoding",
+      "property": "imageDecoding",
+      "type": "string",
+      "values": ["sync", "async", "auto"],
+      "default": "async",
+      "description": "Controls image decoding."
+    },
+    {
+      "name": "image-loading",
+      "property": "imageLoading",
+      "type": "string",
+      "values": ["eager", "lazy"],
+      "description": "Controls image loading."
+    },
+    {
+      "name": "fallback",
+      "property": "fallback",
+      "type": "string",
+      "values": ["initials", "placeholder"],
+      "default": "initials",
+      "description": "Chooses the fallback when the image is unavailable."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["2xsmall", "small", "medium", "large", "xlarge", "2xlarge"],
+      "default": "medium",
+      "description": "Controls the avatar dimensions."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "avatar",
+      "description": "The avatar container."
+    },
+    {
+      "name": "image",
+      "description": "The image."
+    },
+    {
+      "name": "initials",
+      "description": "The initials fallback."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-status-change",
+      "type": "CustomEvent<{ status: \"loaded\" | \"error\" }>",
+      "description": "Emitted when the avatar image loads or fails."
+    }
+  ],
+  "notes": ["Image loading changes emit a `noora-status-change` event."],
+  "examples": [
+    {
+      "id": "basic",
+      "title": "Basic",
+      "description": "Display initials, a remote image, or a placeholder fallback.",
+      "markup": "<noora-avatar name=\"Asmit Malakannawar\"></noora-avatar>\n<noora-avatar name=\"Marek Fořt\" image-href=\"https://www.gravatar.com/avatar/292c129cf17a552c08b4d9dcf2c6c1f8\"></noora-avatar>\n<noora-avatar name=\"Marek Fořt\" image-href=\"https://www.invalid.url\" fallback=\"placeholder\"></noora-avatar>"
+    },
+    {
+      "id": "sizes",
+      "title": "Sizes",
+      "description": "Avatar sizes range from twice-extra-small to twice-extra-large.",
+      "markup": "<noora-avatar name=\"Asmit Malakannawar\" size=\"2xsmall\" color=\"gray\"></noora-avatar>\n<noora-avatar name=\"Asmit Malakannawar\" size=\"small\" color=\"orange\"></noora-avatar>\n<noora-avatar name=\"Asmit Malakannawar\" size=\"medium\" color=\"yellow\"></noora-avatar>\n<noora-avatar name=\"Asmit Malakannawar\" size=\"large\" color=\"azure\"></noora-avatar>\n<noora-avatar name=\"Asmit Malakannawar\" size=\"xlarge\" color=\"blue\"></noora-avatar>\n<noora-avatar name=\"Asmit Malakannawar\" size=\"2xlarge\" color=\"purple\"></noora-avatar>"
+    },
+    {
+      "id": "colors",
+      "title": "Colors",
+      "description": "Use any of the fallback colors available to LiveView avatars.",
+      "markup": "<noora-avatar name=\"John Doe\" color=\"gray\"></noora-avatar>\n<noora-avatar name=\"Jane Smith\" color=\"red\"></noora-avatar>\n<noora-avatar name=\"Bob Johnson\" color=\"orange\"></noora-avatar>\n<noora-avatar name=\"Alice Brown\" color=\"yellow\"></noora-avatar>\n<noora-avatar name=\"Charlie Davis\" color=\"azure\"></noora-avatar>\n<noora-avatar name=\"Emma Wilson\" color=\"blue\"></noora-avatar>\n<noora-avatar name=\"Frank Miller\" color=\"purple\"></noora-avatar>\n<noora-avatar name=\"Grace Taylor\" color=\"pink\"></noora-avatar>"
+    },
+    {
+      "id": "edge-cases",
+      "title": "Name formats",
+      "description": "Initials handle single names, multiple names, separators, and accented characters.",
+      "markup": "<noora-avatar name=\"Madonna\" color=\"purple\"></noora-avatar>\n<noora-avatar name=\"Mary Jane Watson\" color=\"red\"></noora-avatar>\n<noora-avatar name=\"Anne-Marie Johnson\" color=\"blue\"></noora-avatar>\n<noora-avatar name=\"john_doe_123\" color=\"gray\"></noora-avatar>\n<noora-avatar name=\"José García\" color=\"orange\"></noora-avatar>\n<noora-avatar name=\"Failed Image Test\" image-href=\"\" fallback=\"initials\"></noora-avatar>"
+    }
+  ]
+}

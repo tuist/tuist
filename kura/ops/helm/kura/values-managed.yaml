@@ -68,3 +68,22 @@ config:
   telemetry:
     otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
     deploymentEnvironment: production
+  # Cache-size overrides for the 2 GiB memory profile. The derived
+  # defaults (snapshot 256 MiB, manifest 64 MiB, RocksDB 64+64 MiB)
+  # leave too little headroom for heavy tenants, which hit
+  # MemoryPressure::Critical at ~1.68 GiB working set and start
+  # shedding replication writes. These smaller caches keep steady-state
+  # RSS around ~1.4 GiB, well below the 1.74 GiB hard limit where
+  # Critical fires. These values apply to Helm-chart deployments; the
+  # production custom-resource-provisioned instances receive the same
+  # overrides from the Kura controller. Spec #78 will supersede these
+  # when it ships the 512 MiB standard compute profile.
+  memory:
+    snapshotCacheMaxBytes: 67108864
+    manifestCacheMaxBytes: 33554432
+
+# RocksDB caches don't have dedicated Helm template knobs, so they go
+# through extraEnv. Same rationale as the memory config above.
+extraEnv:
+  - name: KURA_METADATA_STORE_READ_CACHE_BYTES
+    value: "33554432"

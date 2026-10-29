@@ -1,0 +1,77 @@
+{
+  "name": "StatusBadge",
+  "tagName": "noora-status-badge",
+  "elementClassName": "NooraStatusBadge",
+  "className": "noora-status-badge",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Displays a compact workflow status with a semantic icon or dot.",
+  "usage": "<noora-status-badge status=\"success\" label=\"Complete\"></noora-status-badge>",
+  "attributes": [
+    {
+      "name": "type",
+      "property": "type",
+      "type": "string",
+      "values": ["icon", "dot"],
+      "default": "icon",
+      "description": "Chooses a semantic icon or a dot indicator."
+    },
+    {
+      "name": "status",
+      "property": "status",
+      "type": "string",
+      "values": [
+        "success",
+        "error",
+        "warning",
+        "attention",
+        "disabled",
+        "in_progress"
+      ],
+      "default": "success",
+      "description": "Sets the semantic status."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the visible label."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "Custom label content that takes precedence over the label attribute."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "badge",
+      "description": "The status badge container."
+    },
+    {
+      "name": "icon",
+      "description": "The semantic icon or dot."
+    },
+    {
+      "name": "label",
+      "description": "The visible label."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "statuses",
+      "title": "Statuses",
+      "description": "Communicate workflow state with a semantic icon.",
+      "markup": "<noora-status-badge status=\"success\" label=\"Complete\"></noora-status-badge>\n<noora-status-badge status=\"error\" label=\"Failed\"></noora-status-badge>\n<noora-status-badge status=\"warning\" label=\"Warning\"></noora-status-badge>\n<noora-status-badge status=\"attention\" label=\"Needs attention\"></noora-status-badge>\n<noora-status-badge status=\"in_progress\" label=\"Running\"></noora-status-badge>"
+    },
+    {
+      "id": "dots",
+      "title": "Dot indicators",
+      "description": "Use dots when the icon shape is unnecessary.",
+      "markup": "<noora-status-badge type=\"dot\" status=\"success\" label=\"Complete\"></noora-status-badge>\n<noora-status-badge type=\"dot\" status=\"error\" label=\"Failed\"></noora-status-badge>\n<noora-status-badge type=\"dot\" status=\"warning\" label=\"Pending\"></noora-status-badge>\n<noora-status-badge type=\"dot\" status=\"attention\" label=\"Needs attention\"></noora-status-badge>\n<noora-status-badge type=\"dot\" status=\"in_progress\" label=\"Running\"></noora-status-badge>"
+    }
+  ]
+}

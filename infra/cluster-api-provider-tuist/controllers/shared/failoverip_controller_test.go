@@ -36,8 +36,8 @@ func poolNode(name string, ready bool) *corev1.Node {
 		status = corev1.ConditionTrue
 	}
 	return &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"}},
-		Spec:       corev1.NodeSpec{ProviderID: "dedibox://fr-par-1/100"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{"node.cluster.x-k8s.io/pool": "kura-eu-west"}},
+		Spec:       corev1.NodeSpec{ProviderID: "ovh://gra/ns1234.ip-1-2-3.eu"},
 		Status:     corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: status}}},
 	}
 }
@@ -58,14 +58,14 @@ func failoverIPCR(demux bool) *infrav1.FailoverIP {
 	spec := infrav1.FailoverIPSpec{
 		IP:               "203.0.113.10",
 		Vendor:           "fake",
-		Region:           "eu-central",
-		NodePoolSelector: map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"},
+		Region:           "eu-west",
+		NodePoolSelector: map[string]string{"node.cluster.x-k8s.io/pool": "kura-eu-west"},
 	}
 	if demux {
 		spec.DemuxSelector = map[string]string{"app.kubernetes.io/component": "peer-demux"}
 		spec.DemuxNamespace = "kura"
 	}
-	return &infrav1.FailoverIP{ObjectMeta: metav1.ObjectMeta{Name: "eu-central-peer"}, Spec: spec}
+	return &infrav1.FailoverIP{ObjectMeta: metav1.ObjectMeta{Name: "eu-west-peer"}, Spec: spec}
 }
 
 func newFailoverReconciler(t *testing.T, mover FailoverIPMover, objs ...client.Object) (*FailoverIPReconciler, client.Client) {
@@ -87,7 +87,7 @@ func newFailoverReconciler(t *testing.T, mover FailoverIPMover, objs ...client.O
 
 func reconcileFailover(t *testing.T, r *FailoverIPReconciler) {
 	t.Helper()
-	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-central-peer"}}); err != nil {
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-west-peer"}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -136,7 +136,7 @@ func TestFailoverIPNoMoverIsNoop(t *testing.T) {
 	r, c := newFailoverReconciler(t, nil, failoverIPCR(false), poolNode("node-a", true))
 	reconcileFailover(t, r)
 	got := &infrav1.FailoverIP{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "eu-central-peer"}, got); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "eu-west-peer"}, got); err != nil {
 		t.Fatal(err)
 	}
 	if got.Status.Message == "" {
@@ -151,15 +151,5 @@ func TestOVHServiceNameFromProviderID(t *testing.T) {
 	}
 	if _, err := ovhServiceNameFromProviderID("hcloud://5"); err == nil {
 		t.Fatal("expected error for non-OVH providerID")
-	}
-}
-
-func TestParseDediboxTarget(t *testing.T) {
-	zone, id, err := parseDediboxTarget("fr-par-1/75839")
-	if err != nil || zone != "fr-par-1" || id != 75839 {
-		t.Fatalf("got zone=%q id=%d err=%v", zone, id, err)
-	}
-	if _, _, err := parseDediboxTarget("nonsense"); err == nil {
-		t.Fatal("expected error for malformed target")
 	}
 }

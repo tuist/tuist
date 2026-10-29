@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "onNewIntent data: ${intent.data}")
         }
+        if (handleEnvironmentSwitch(intent)) return
         intent.data?.let { uri -> handleDeepLink(uri) }
     }
 

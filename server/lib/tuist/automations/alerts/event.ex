@@ -13,6 +13,7 @@ defmodule Tuist.Automations.Alerts.Event do
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "automation_alert_events" do
     field :alert_id, Ecto.UUID
+    field :baseline_generation, Ch, type: "UInt32", default: 0
     field :test_case_id, Ecto.UUID
     field :status, Ch, type: "LowCardinality(String)"
     field :triggered_at, Ch, type: "DateTime64(6)"
@@ -22,7 +23,16 @@ defmodule Tuist.Automations.Alerts.Event do
 
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:id, :alert_id, :test_case_id, :status, :triggered_at, :recovered_at, :inserted_at])
+    |> cast(attrs, [
+      :id,
+      :alert_id,
+      :baseline_generation,
+      :test_case_id,
+      :status,
+      :triggered_at,
+      :recovered_at,
+      :inserted_at
+    ])
     |> validate_required([:id, :alert_id, :test_case_id, :status, :triggered_at])
   end
 end

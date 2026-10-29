@@ -21,6 +21,8 @@ defmodule Noora.Checkbox do
   attr(:disabled, :boolean, default: false, doc: "Whether the checkbox is disabled.")
   attr(:id, :string, default: nil, doc: "The id of the checkbox.")
   attr(:name, :string, doc: "The name of the checkbox.")
+  attr(:value, :any, doc: "The value used to derive the checked state.")
+  attr(:checked, :boolean, doc: "Whether the checkbox is checked.")
   attr(:field, FormField, default: nil, doc: "A Phoenix form field.")
   attr(:tabindex, :integer, default: nil, doc: "Tabindex to add to the checkbox control")
 
@@ -41,7 +43,9 @@ defmodule Noora.Checkbox do
 
   def checkbox(assigns) do
     assigns =
-      assign_new(assigns, :checked, fn ->
+      assigns
+      |> assign_new(:name, fn -> nil end)
+      |> assign_new(:checked, fn ->
         Phoenix.HTML.Form.normalize_value("checkbox", assigns[:value])
       end)
 

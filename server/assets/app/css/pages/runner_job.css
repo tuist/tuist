@@ -277,9 +277,9 @@
   & [data-part="insights-run-list"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-1);
+    gap: var(--noora-spacing-4);
     margin-top: auto;
-    border-top: 1px solid var(--noora-surface-border-secondary);
+    border-top: 1px solid var(--noora-surface-border-primary);
     padding-top: var(--noora-spacing-4);
   }
 
@@ -504,8 +504,90 @@
           }
 
           & [data-part="step-insight-chip"] > [data-part="step-insight-chip-meta"] > span + span {
-            border-left: 1px solid var(--noora-surface-border-secondary);
+            border-left: 1px solid var(--noora-surface-border-primary);
             padding-left: var(--noora-spacing-2);
+          }
+        }
+
+        & > [data-part="step-timeline"] {
+          display: flex;
+          flex-shrink: 0;
+          align-items: center;
+          width: clamp(160px, 30vw, 400px);
+
+          & > [data-part="step-timeline-cap"] {
+            flex-shrink: 0;
+            background: var(--noora-surface-border-primary);
+            width: 10px;
+            height: 20px;
+          }
+
+          & > [data-part="step-timeline-track"] {
+            display: flex;
+            position: relative;
+            flex: 1;
+            align-items: center;
+            margin: 0 4px;
+            min-width: 0;
+            height: 20px;
+
+            &::before {
+              position: absolute;
+              right: -4px;
+              left: -4px;
+              background: var(--noora-surface-border-primary);
+              height: 1px;
+              content: "";
+            }
+
+            & > [data-part="step-timeline-bar"] {
+              --step-offset: 0%;
+              --step-width: 0%;
+
+              position: absolute;
+              top: 3px;
+              left: min(var(--step-offset), calc(100% - var(--noora-spacing-4)));
+              box-sizing: border-box;
+              border: 1px solid var(--noora-chart-primary);
+              background: var(--noora-chart-legend-primary-translucent);
+              width: var(--step-width);
+              min-width: var(--noora-spacing-4);
+              height: 14px;
+            }
+
+            & > [data-part="step-timeline-bar"][data-kind="failure"] {
+              border-color: var(--noora-chart-destructive);
+              background: var(--noora-icon-destructive-background);
+            }
+
+            & > [data-part="step-timeline-bar"][data-kind="warning"] {
+              border-color: var(--noora-icon-warning-label);
+              background: var(--noora-icon-warning-background);
+            }
+
+            & > [data-part="step-timeline-bar"][data-kind="processing"] {
+              border-color: var(--noora-surface-label-secondary);
+              background: var(--noora-surface-background-secondary);
+            }
+          }
+
+          @media (max-width: 900px) {
+            display: none;
+          }
+        }
+
+        & > [data-part="step-duration"] {
+          flex-shrink: 0;
+          width: 11ch;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+          font-variant-numeric: tabular-nums;
+          text-align: right;
+          white-space: nowrap;
+
+          @media (max-width: 900px) {
+            width: auto;
+            min-width: 48px;
           }
         }
 
@@ -513,6 +595,7 @@
           display: flex;
           flex-shrink: 0;
           flex-direction: row;
+          justify-content: flex-end;
           align-items: center;
           gap: var(--noora-spacing-4);
 
@@ -575,6 +658,7 @@
     padding: var(--noora-spacing-5) var(--noora-spacing-7);
     max-height: 480px;
     overflow: auto;
+    overscroll-behavior-y: contain;
   }
 
   /* Two attribute selectors so this beats the `display: flex` above —
@@ -588,7 +672,14 @@
     flex-direction: column;
   }
 
-  & [data-part="load-older"] {
+  & [data-part="step-logs-loading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="load-older"],
+  & [data-part="step-logs-load-earlier"] {
     align-self: center;
     cursor: pointer;
     margin-bottom: var(--noora-spacing-3);
@@ -637,6 +728,37 @@
       line-height: inherit;
       white-space: pre-wrap;
       word-break: break-word;
+
+      & .log-annotation-label {
+        font-weight: var(--noora-font-weight-bold);
+      }
+    }
+
+    /* `##[error]` / `##[warning]` / `##[notice]` lines: a tinted row
+       with a coloured "Error:" / "Warning:" / "Notice:" label, as in
+       GitHub's log view. */
+    &[data-annotation="error"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-destructive-label);
+      }
+    }
+
+    &[data-annotation="warning"] {
+      background: var(--noora-badge-light-fill-warning-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-warning-label);
+      }
+    }
+
+    &[data-annotation="notice"] {
+      background: var(--noora-badge-light-fill-information-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-information-label);
+      }
     }
   }
 
@@ -644,6 +766,11 @@
     padding: var(--noora-spacing-4);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+    & > [data-part="log-empty-link"] {
+      color: var(--noora-link-button-primary-label);
+      text-decoration: underline;
+    }
   }
 
   & [data-part="log-group"] {
@@ -704,6 +831,52 @@
 
     &[open] > [data-part="log-group-summary"] [data-part="log-group-chevron"] {
       transform: rotate(90deg);
+    }
+
+    /* A composite action's step: status icon, name, and duration, like
+       GitHub's nested step header. A skipped step has no body, so its
+       chevron keeps the column but isn't drawn. */
+    & > [data-part="log-group-summary"] [data-part="log-group-chevron"][data-empty="true"] {
+      visibility: hidden;
+    }
+
+    & > [data-part="log-group-summary"] [data-part="log-action-icon"] {
+      display: inline-flex;
+      flex-shrink: 0;
+      align-items: center;
+      margin-right: var(--noora-spacing-3);
+
+      & svg {
+        width: 1em;
+        height: 1em;
+      }
+
+      &[data-status="success"] {
+        color: var(--noora-icon-success-label);
+      }
+
+      &[data-status="failure"] {
+        color: var(--noora-icon-destructive-label);
+      }
+
+      &[data-status="warning"] {
+        color: var(--noora-icon-warning-label);
+      }
+
+      &[data-status="processing"] {
+        color: var(--noora-surface-label-secondary);
+      }
+    }
+
+    & > [data-part="log-group-summary"] [data-part="log-action-name"] {
+      font-weight: var(--noora-font-weight-medium);
+    }
+
+    & > [data-part="log-group-summary"] [data-part="log-action-duration"] {
+      flex-shrink: 0;
+      margin-left: auto;
+      padding-left: var(--noora-spacing-5);
+      color: var(--noora-surface-label-secondary);
     }
 
     /* Indent only the message text of group children, not their
@@ -780,7 +953,11 @@
   & [data-part="interactive-section"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-6);
+    gap: var(--noora-spacing-5);
+  }
+
+  & #runner-terminal-card > [data-part="interactive-section"] {
+    padding: var(--noora-spacing-3);
   }
 
   & [data-part="interactive-card"] {
@@ -835,7 +1012,12 @@
   & [data-part="interactive-session"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-6);
+    gap: var(--noora-spacing-5);
+    min-width: 0;
+  }
+
+  & #runner-terminal-card [data-part="interactive-session"] {
+    gap: var(--noora-spacing-3);
   }
 
   & [data-fullscreen-toggle] {
@@ -889,13 +1071,102 @@
     }
   }
 
+  & [data-part="interactive-terminal"] {
+    --runner-terminal-background: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1200));
+    --runner-terminal-text: light-dark(var(--noora-neutral-light-1100), var(--noora-neutral-light-300));
+    --runner-terminal-cursor-background: light-dark(var(--noora-neutral-light-1100), var(--noora-neutral-light-300));
+    --runner-terminal-cursor-text: var(--runner-terminal-background);
+
+    display: block;
+    cursor: text;
+    box-sizing: border-box;
+    outline: none;
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-3);
+    background: var(--runner-terminal-background);
+    padding: var(--noora-spacing-5) var(--noora-spacing-6);
+    width: 100%;
+    height: min(56vh, 560px);
+    min-height: 360px;
+    overflow: auto;
+    scrollbar-color: var(--noora-surface-border-primary) transparent;
+    color: var(--runner-terminal-text);
+    font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+
+    &:not([data-shell-path]):not([data-shell-simulation="true"]) {
+      display: none;
+    }
+
+    &:focus {
+      box-shadow: var(--noora-border-light-focus), var(--noora-border-light-default);
+    }
+
+    & > [data-part="interactive-terminal-output"] {
+      margin: 0;
+      min-height: 100%;
+      color: inherit;
+      font: inherit;
+      line-height: 1.5;
+      white-space: pre;
+    }
+
+    & [data-part="terminal-line"] {
+      min-height: 1.5em;
+      white-space: pre;
+    }
+
+    & [data-part="terminal-cursor"] {
+      background: transparent;
+      color: inherit;
+    }
+
+    &:focus [data-part="terminal-cursor"] {
+      animation: runner-terminal-cursor 1s steps(1, end) infinite;
+      background: var(--runner-terminal-cursor-background);
+      color: var(--runner-terminal-cursor-text);
+    }
+  }
+
+  & [data-part="interactive-terminal-frame"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    min-height: 260px;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
   & [data-part="interactive-client"] {
     display: flex;
+    position: relative;
     flex: 1;
+    justify-content: center;
+    align-items: center;
     align-self: stretch;
     background: var(--noora-surface-background-primary);
     min-width: 0;
     min-height: 0;
+  }
+
+  & [data-part="interactive-client-status"] {
+    display: flex;
+    position: absolute;
+    justify-content: center;
+    align-items: center;
+    inset: 0;
+    padding: var(--noora-spacing-6);
+    pointer-events: none;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    text-align: center;
+
+    &[hidden] {
+      display: none;
+    }
   }
 
   & [data-part="interactive-viewport-frame"] {
@@ -914,6 +1185,18 @@
   & [data-part="interactive-viewport-title"] {
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+}
+
+@keyframes runner-terminal-cursor {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
   }
 }
 

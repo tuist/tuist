@@ -19,7 +19,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
 
       {:ok, account} = Accounts.update_account(project.account, %{cache_write_policy: :tokens_only})
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/tuist"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/tuist"}} end)
 
       conn =
         conn
@@ -62,7 +62,8 @@ defmodule TuistWeb.API.OIDCControllerTest do
           preload: [:account, :vcs_connection]
         )
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/monorepo"}} end)
+      unrelated = ProjectsFixtures.project_fixture(account: project1.account)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/monorepo", all_projects: true}} end)
 
       conn =
         conn
@@ -75,10 +76,76 @@ defmodule TuistWeb.API.OIDCControllerTest do
       {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
       assert project1.id in claims["project_ids"]
       assert project2.id in claims["project_ids"]
+      refute claims["all_projects"]
+      refute unrelated.id in claims["project_ids"]
+      future = ProjectsFixtures.project_fixture(account: project1.account)
+      refute future.id in claims["project_ids"]
+    end
+
+    test "returns 403 naming the accounts when the repository is linked from multiple accounts", %{conn: conn} do
+      project1 =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [repository_full_handle: "tuist/shared"],
+          preload: [:account]
+        )
+
+      project2 =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [repository_full_handle: "tuist/shared"],
+          preload: [:account]
+        )
+
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/shared"}} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/auth/oidc/token", %{token: "oidc-token"})
+
+      response = json_response(conn, :forbidden)
+      refute response["access_token"]
+      assert response["message"] =~ "'tuist/shared' is linked to projects in multiple Tuist accounts"
+
+      assert response["message"] =~
+               "(#{Enum.join(Enum.sort([project1.account.name, project2.account.name]), ", ")})"
+    end
+
+    test "returns access token when the repository claim differs in case from the linked repository", %{conn: conn} do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [repository_full_handle: "Tuist/Renamed"],
+          preload: [:account]
+        )
+
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/renamed"}} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/auth/oidc/token", %{token: "oidc-token"})
+
+      response = json_response(conn, :ok)
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
+      assert claims["project_ids"] == [project.id]
+      assert claims["sub"] == to_string(project.account.id)
+    end
+
+    test "returns 403 when the repository is linked from multiple accounts with different casing", %{conn: conn} do
+      ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "Tuist/Cased"])
+      ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "tuist/cased"])
+
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/cased"}} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/auth/oidc/token", %{token: "oidc-token"})
+
+      assert json_response(conn, :forbidden)["message"] =~ "is linked to projects in multiple Tuist accounts"
     end
 
     test "returns 403 when no project is linked to the repository", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "nonexistent/repo"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "nonexistent/repo"}} end)
 
       conn =
         conn
@@ -90,7 +157,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 401 when OIDC token is invalid", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :invalid_token} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :invalid_token} end)
 
       conn =
         conn
@@ -102,7 +169,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 400 when OIDC token is from unsupported CI provider", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :unsupported_provider, "https://gitlab.com"} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :unsupported_provider, "https://gitlab.com"} end)
 
       conn =
         conn
@@ -116,7 +183,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 401 when OIDC token is expired", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :token_expired} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :token_expired} end)
 
       conn =
         conn
@@ -128,7 +195,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 401 when OIDC token audience is invalid", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :invalid_audience} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :invalid_audience} end)
 
       conn =
         conn

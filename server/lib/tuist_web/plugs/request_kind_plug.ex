@@ -7,9 +7,9 @@ defmodule TuistWeb.Plugs.RequestKindPlug do
   assigning `:request_kind` to the conn (see `TuistWeb.Router`'s
   `put_request_kind/2`). When the response is being sent, this plug's
   `before_send` callback copies the kind into `Logger.metadata` and the
-  active OpenTelemetry span — at which point it is in scope for the
-  `Plug.Telemetry` `:stop` callback that emits the `Sent NNN in NNNms`
-  log line, which is what observability dashboards filter on.
+  active OpenTelemetry span. It then remains in scope for
+  `TuistCommon.RequestLoggerPlug` to emit the structured request completion
+  entry used by observability queries.
 
   Routes that don't run through a tagged pipeline (webhooks, most static
   assets) flow through with no kind set; downstream filters can either

@@ -50,7 +50,10 @@
         "test-without-building",
     ]
 
-    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand {
+    // swiftlint:disable:next type_body_length
+    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand,
+        RunReportingCommand, ProjectPathProviding
+    {
         public init() {}
 
         public static var configuration: CommandConfiguration {
@@ -97,7 +100,7 @@
             completion: .directory,
             envKey: .testPath
         )
-        var path: String?
+        public var path: String?
 
         @Option(
             name: .shortAndLong,
@@ -156,6 +159,20 @@
             envKey: .testResultBundlePath
         )
         var resultBundlePath: String?
+
+        @Option(
+            help: "Directory where each run's code coverage will be saved as LCOV (<result bundle name>.lcov), with repository-relative paths. Requires coverage uploads.",
+            completion: .directory,
+            envKey: .testCoverageOutputPath
+        )
+        var coverageOutputPath: String?
+
+        @Option(
+            help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
+            completion: .file(),
+            envKey: .runReportPath
+        )
+        public var runReportPath: String?
 
         @Option(
             help:
@@ -300,6 +317,13 @@
         )
         var shardReference: String?
 
+        @Option(
+            name: .long,
+            help: "Exact shard plan identifier emitted by the build-only job.",
+            envKey: .testShardPlanId
+        )
+        var shardPlanId: String?
+
         @Flag(
             name: .long,
             help: "Skip uploading test products to remote storage. Use when you provide test products to shard runners yourself, for example via shared volumes.",
@@ -321,6 +345,13 @@
             envKey: .testShardIndex
         )
         var shardIndex: Int?
+
+        @Option(
+            name: .long,
+            help: "Rerun the test cases this branch adds, priced by duration, and flag any that prove flaky. 'report' warns; 'enforce' fails the run on a flaky test case. Off when omitted.",
+            envKey: .testStressNewTests
+        )
+        var stressNewTests: StressNewTestsMode?
 
         @Option(
             name: .long,
@@ -390,6 +421,12 @@
                     .test
                 }
 
+            if let coverageOutputPath {
+                await RunMetadataStorage.current.update(
+                    coverageOutputPath: try await Environment.current.pathRelativeToWorkingDirectory(coverageOutputPath)
+                )
+            }
+
             try await TestService(
                 generatorFactory: Extension.generatorFactory,
                 cacheStorageFactory: Extension.cacheStorageFactory
@@ -431,6 +468,7 @@
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardReference: shardReference,
+                shardPlanId: shardPlanId,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,
@@ -444,7 +482,8 @@
                     }
                     return nil
                 }(),
-                mode: inspectMode
+                mode: inspectMode,
+                stressNewTests: stressNewTests
             )
         }
     }

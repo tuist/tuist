@@ -46,10 +46,15 @@ defmodule Tuist.LicenseTest do
 
     test "returns nil when API returns nil data" do
       validation_url = License.get_validation_url()
+      keygen_validation_url = License.get_keygen_validation_url()
       license_key = UUIDv7.generate()
 
-      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
-        {:ok, %{status: 200, body: %{"data" => nil}}}
+      stub(Req, :post, fn
+        ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 200, body: %{"data" => nil}}}
+
+        ^keygen_validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 200, body: %{"data" => nil}}}
       end)
 
       result = License.resolve_license(license_key)
@@ -86,34 +91,124 @@ defmodule Tuist.LicenseTest do
       assert license.id == "1234"
     end
 
-    test "returns error when the server responds with error status" do
+    test "falls back to Keygen when Atlas does not recognize the license" do
       validation_url = License.get_validation_url()
+      keygen_validation_url = License.get_keygen_validation_url()
+      expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
       license_key = UUIDv7.generate()
 
-      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
-        {:ok, %{status: 500}}
+      stub(Req, :post, fn
+        ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 200, body: %{"data" => nil}}}
+
+        ^keygen_validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok,
+           %{
+             status: 200,
+             body: %{
+               "data" => %{
+                 "id" => "1234",
+                 "attributes" => %{"expiry" => expiry}
+               },
+               "meta" => %{"valid" => true}
+             }
+           }}
       end)
 
-      result = License.resolve_license(license_key)
+      {:ok, license} = License.resolve_license(license_key)
 
-      assert {:error, "The server to validate the license responded with a 500 status code."} = result
+      assert license.valid == true
+      assert license.id == "1234"
     end
 
-    test "returns error when the Req errors" do
+    test "falls back to Keygen when Atlas responds with an error status" do
       validation_url = License.get_validation_url()
+      keygen_validation_url = License.get_keygen_validation_url()
+      expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
       license_key = UUIDv7.generate()
 
-      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
-        {:error, "req error."}
+      stub(Req, :post, fn
+        ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 500}}
+
+        ^keygen_validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok,
+           %{
+             status: 200,
+             body: %{
+               "data" => %{
+                 "id" => "1234",
+                 "attributes" => %{"expiry" => expiry}
+               },
+               "meta" => %{"valid" => true}
+             }
+           }}
+      end)
+
+      {:ok, license} = License.resolve_license(license_key)
+
+      assert license.valid == true
+      assert license.id == "1234"
+    end
+
+    test "returns an error when Keygen also responds with an error status" do
+      validation_url = License.get_validation_url()
+      keygen_validation_url = License.get_keygen_validation_url()
+      license_key = UUIDv7.generate()
+
+      stub(Req, :post, fn
+        ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 500}}
+
+        ^keygen_validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok, %{status: 500}}
       end)
 
       result = License.resolve_license(license_key)
 
-      assert {:error, "\"req error.\""} = result
+      assert {:error, "The server to validate the license responded with a 500 status code."} =
+               result
+    end
+
+    test "falls back to Keygen when the Atlas request errors" do
+      validation_url = License.get_validation_url()
+      keygen_validation_url = License.get_keygen_validation_url()
+      expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
+      license_key = UUIDv7.generate()
+
+      stub(Req, :post, fn
+        ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:error, "atlas error"}
+
+        ^keygen_validation_url, [json: %{meta: %{key: ^license_key}}] ->
+          {:ok,
+           %{
+             status: 200,
+             body: %{
+               "data" => %{
+                 "id" => "1234",
+                 "attributes" => %{"expiry" => expiry}
+               },
+               "meta" => %{"valid" => true}
+             }
+           }}
+      end)
+
+      {:ok, license} = License.resolve_license(license_key)
+
+      assert license.valid == true
+      assert license.id == "1234"
     end
   end
 
   describe "resolve_certificate/2" do
+    test "decodes an environment certificate containing whitespace" do
+      encoded = Base.encode64("certificate")
+      wrapped = String.slice(encoded, 0, 4) <> "\n  " <> String.slice(encoded, 4..-1//1)
+
+      assert License.certificate(wrapped) == "certificate"
+    end
+
     test "returns valid license when certificate is valid with real signed data" do
       {public_key, private_key} = :crypto.generate_key(:eddsa, :ed25519)
       verify_key = Base.encode16(public_key, case: :lower)
@@ -151,6 +246,39 @@ defmodule Tuist.LicenseTest do
       assert license.id == "test-license-id"
       assert license.valid == true
       assert license.signing_key == "test-signing-key-base64"
+    end
+
+    test "returns valid license when certificate is signed by one of the trusted verify keys" do
+      {trusted_public_key, _trusted_private_key} = :crypto.generate_key(:eddsa, :ed25519)
+      {atlas_public_key, atlas_private_key} = :crypto.generate_key(:eddsa, :ed25519)
+
+      verify_keys = [
+        Base.encode16(atlas_public_key, case: :lower),
+        Base.encode16(trusted_public_key, case: :lower)
+      ]
+
+      license_payload = %{
+        "data" => %{
+          "id" => "test-license-id",
+          "attributes" => %{
+            "expiry" => DateTime.utc_now() |> DateTime.shift(day: 1) |> DateTime.to_iso8601(),
+            "metadata" => %{"signingKey" => "test-signing-key-base64"}
+          }
+        }
+      }
+
+      encoded_data = license_payload |> JSON.encode!() |> Base.encode64()
+
+      signature =
+        :crypto.sign(:eddsa, :none, "license/" <> encoded_data, [atlas_private_key, :ed25519])
+
+      certificate =
+        %{"enc" => encoded_data, "sig" => Base.encode64(signature), "alg" => "base64+ed25519"}
+        |> JSON.encode!()
+        |> Base.encode64()
+
+      assert {:ok, license} = License.resolve_certificate(verify_keys, certificate)
+      assert license.id == "test-license-id"
     end
 
     test "returns error when signature is invalid" do
@@ -219,6 +347,210 @@ defmodule Tuist.LicenseTest do
       result = License.resolve_certificate(verify_key, certificate)
 
       assert {:error, _} = result
+    end
+  end
+
+  describe "get_license/1 dispatching on TUIST_LICENSE" do
+    setup do
+      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      stub(Tuist.Environment, :license_key, fn -> nil end)
+      stub(Tuist.Environment, :license_certificate_base64, fn -> nil end)
+      stub(Tuist.Environment, :license_verify_key, fn -> nil end)
+
+      :ok
+    end
+
+    test "treats a plain license key value as an online license" do
+      validation_url = License.get_validation_url()
+      expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
+      license_key = UUIDv7.generate()
+
+      stub(Tuist.Environment, :license_key, fn -> license_key end)
+
+      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+        {:ok,
+         %{
+           status: 200,
+           body: %{
+             "data" => %{
+               "id" => "1234",
+               "attributes" => %{
+                 "expiry" => expiry,
+                 "metadata" => %{"signingKey" => "test-key"}
+               }
+             },
+             "meta" => %{"valid" => true}
+           }
+         }}
+      end)
+
+      assert {:ok, license} = License.get_license()
+      assert license.id == "1234"
+      assert license.valid == true
+    end
+
+    test "treats a base64-encoded certificate value as an air-gapped license" do
+      {public_key, private_key} = :crypto.generate_key(:eddsa, :ed25519)
+      verify_key = Base.encode16(public_key, case: :lower)
+      stub(Tuist.Environment, :license_verify_key, fn -> verify_key end)
+
+      license_payload = %{
+        "data" => %{
+          "id" => "air-gapped-id",
+          "attributes" => %{
+            "expiry" => DateTime.utc_now() |> DateTime.shift(day: 30) |> DateTime.to_iso8601(),
+            "metadata" => %{"signingKey" => "signing-key"}
+          }
+        }
+      }
+
+      encoded_data = license_payload |> JSON.encode!() |> Base.encode64()
+
+      signature =
+        :crypto.sign(:eddsa, :none, "license/" <> encoded_data, [private_key, :ed25519])
+
+      certificate =
+        %{"enc" => encoded_data, "sig" => Base.encode64(signature), "alg" => "base64+ed25519"}
+        |> JSON.encode!()
+        |> Base.encode64()
+
+      stub(Tuist.Environment, :license_key, fn -> certificate end)
+
+      assert {:ok, license} = License.get_license()
+      assert license.id == "air-gapped-id"
+      assert license.valid == true
+    end
+
+    test "treats a PEM-wrapped certificate value as an air-gapped license" do
+      {public_key, private_key} = :crypto.generate_key(:eddsa, :ed25519)
+      verify_key = Base.encode16(public_key, case: :lower)
+      stub(Tuist.Environment, :license_verify_key, fn -> verify_key end)
+
+      license_payload = %{
+        "data" => %{
+          "id" => "pem-wrapped-id",
+          "attributes" => %{
+            "expiry" => DateTime.utc_now() |> DateTime.shift(day: 30) |> DateTime.to_iso8601(),
+            "metadata" => %{"signingKey" => "signing-key"}
+          }
+        }
+      }
+
+      encoded_data = license_payload |> JSON.encode!() |> Base.encode64()
+
+      signature =
+        :crypto.sign(:eddsa, :none, "license/" <> encoded_data, [private_key, :ed25519])
+
+      certificate_body =
+        %{"enc" => encoded_data, "sig" => Base.encode64(signature), "alg" => "base64+ed25519"}
+        |> JSON.encode!()
+        |> Base.encode64()
+
+      wrapped =
+        "-----BEGIN LICENSE FILE-----\n" <>
+          certificate_body <> "\n-----END LICENSE FILE-----\n"
+
+      stub(Tuist.Environment, :license_key, fn -> wrapped end)
+
+      assert {:ok, license} = License.get_license()
+      assert license.id == "pem-wrapped-id"
+    end
+  end
+
+  # The deployed `TUIST_LICENSE_CERTIFICATE_BASE64` secret is base64 wrapped
+  # around a PEM-armored certificate whose body is itself base64 JSON, which
+  # is why `certificate/1` decodes once before `resolve_certificate/2`
+  # strips the armor and decodes again. Reading it as a single layer sent
+  # canary, the registry sync and the processor into a boot crash loop.
+  describe "get_license/1 and assert_valid!/1 with the doubly encoded certificate secret" do
+    setup do
+      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      stub(Tuist.Environment, :license_key, fn -> nil end)
+      stub(Tuist.Environment, :license_certificate_base64, fn -> nil end)
+
+      {public_key, private_key} = :crypto.generate_key(:eddsa, :ed25519)
+      verify_key = Base.encode16(public_key, case: :lower)
+      stub(Tuist.Environment, :license_verify_key, fn -> verify_key end)
+
+      %{env_value: doubly_encoded_certificate(private_key)}
+    end
+
+    test "resolves the value of TUIST_LICENSE_CERTIFICATE_BASE64", %{env_value: env_value} do
+      stub(Tuist.Environment, :license_certificate_base64, fn -> env_value end)
+
+      assert {:ok, license} = License.get_license()
+      assert license.id == "doubly-encoded-id"
+      assert license.valid == true
+    end
+
+    test "resolves the same value when it arrives as TUIST_LICENSE", %{env_value: env_value} do
+      stub(Tuist.Environment, :license_key, fn -> env_value end)
+
+      assert {:ok, license} = License.get_license()
+      assert license.id == "doubly-encoded-id"
+      assert license.valid == true
+    end
+
+    test "boots with TUIST_LICENSE_CERTIFICATE_BASE64 set", %{env_value: env_value} do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :license_certificate_base64, fn -> env_value end)
+
+      assert License.assert_valid!() == :ok
+    end
+
+    test "boots with only TUIST_LICENSE set", %{env_value: env_value} do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :license_key, fn -> env_value end)
+
+      assert License.assert_valid!() == :ok
+    end
+  end
+
+  defp doubly_encoded_certificate(private_key) do
+    license_payload = %{
+      "data" => %{
+        "id" => "doubly-encoded-id",
+        "attributes" => %{
+          "expiry" => DateTime.utc_now() |> DateTime.shift(day: 30) |> DateTime.to_iso8601(),
+          "metadata" => %{"signingKey" => "signing-key"}
+        }
+      }
+    }
+
+    encoded_data = license_payload |> JSON.encode!() |> Base.encode64()
+    signature = :crypto.sign(:eddsa, :none, "license/" <> encoded_data, [private_key, :ed25519])
+
+    certificate_body =
+      %{"enc" => encoded_data, "sig" => Base.encode64(signature), "alg" => "base64+ed25519"}
+      |> JSON.encode!()
+      |> Base.encode64()
+
+    Base.encode64("-----BEGIN LICENSE FILE-----\n" <> certificate_body <> "\n-----END LICENSE FILE-----\n")
+  end
+
+  describe "ed25519_verify_keys/0" do
+    test "trusts the Atlas and Keygen verify keys without extra configuration" do
+      stub(Tuist.Environment, :license_verify_key, fn -> nil end)
+
+      assert License.ed25519_verify_keys() == [
+               License.atlas_ed25519_verify_key(),
+               License.ed25519_verify_key()
+             ]
+    end
+
+    test "trusts an additional verify key from the environment" do
+      verify_key = Base.encode16(:crypto.strong_rand_bytes(32), case: :lower)
+      stub(Tuist.Environment, :license_verify_key, fn -> verify_key end)
+
+      assert License.ed25519_verify_keys() == [
+               verify_key,
+               License.atlas_ed25519_verify_key(),
+               License.ed25519_verify_key()
+             ]
     end
   end
 end

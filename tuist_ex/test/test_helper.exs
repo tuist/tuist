@@ -1,0 +1,13 @@
+ExUnit.start()
+
+Mimic.copy(TuistEx.Auth)
+Mimic.copy(TuistEx.HTTP)
+Mimic.copy(TuistEx.CertificateTrust)
+Mimic.copy(TuistEx.Cache.Reapi)
+Mimic.copy(TuistEx.Cache.Compiler)
+Mimic.copy(Mix.Rebar)
+Mimic.copy(Mix.Tasks.Local.Rebar)
+Mimic.copy(TuistEx.Analytics.HTTP)
+Mimic.copy(TuistEx.Analytics.Args)
+Mimic.copy(TuistEx.Analytics.GitHistory)
+Mimic.copy(TuistEx.Analytics.Quarantine)

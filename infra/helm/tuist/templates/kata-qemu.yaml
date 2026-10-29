@@ -53,14 +53,17 @@ scheduling:
   nodeSelector:
     katacontainers.io/kata-runtime: "true"
 overhead:
-  # Per-VM host cost the kube-scheduler adds on top of each Pod's request
-  # (guest RAM). The ~50 MiB figure above is the idle VMM footprint; under
-  # a real CI compile the QEMU process + virtiofsd + kata-shim resident set
-  # runs several hundred MiB and a couple of emulator/vhost threads. The
-  # earlier 100Mi undercounted that, so a fully-packed host overcommitted
-  # and co-located guests were SIGBUS-killed. Size the overhead to the
-  # busy-VMM cost so packing leaves real host memory free.
+  # Per-virtual-machine host cost the kube-scheduler adds on top of each Pod's
+  # container request. Kata 3.30 starts Quick Emulator
+  # (https://www.qemu.org/) sandboxes with 2 GiB of base guest memory,
+  # then adds the container memory limit. Live 8 GiB and 16 GiB runners
+  # consequently expose about 1.9 GiB more guest memory than their
+  # container limit. The remaining 512 MiB covers Quick Emulator,
+  # virtiofsd, kata-shim, and emulator/vhost threads under build load.
+  # The old 512 MiB value covered only that busy virtual-machine cost,
+  # so a fully-packed host still overcommitted and co-located guests
+  # could be killed with a bus-error signal.
   podFixed:
-    cpu: "250m"
-    memory: "512Mi"
+    cpu: {{ .Values.kataContainers.podFixed.cpu | quote }}
+    memory: {{ .Values.kataContainers.podFixed.memory | quote }}
 {{- end }}

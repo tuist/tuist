@@ -51,6 +51,14 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public var projectOptions: [String: Project.Options]
 
+    /// Whether test targets from local path packages declared as external dependencies are included in generated projects.
+    ///
+    /// Packages loaded directly as local projects always include their test targets. Remote package test targets are never
+    /// included. Products used by local package tests must be available through the dependencies declared in
+    /// `Tuist/Package.swift`. Their transitive dependencies are preserved for the tests’ effective platforms when their
+    /// destinations can be inferred from production consumers. The default value is `false`.
+    public var includeLocalPackageTestTargets: Bool
+
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameters:
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
@@ -60,6 +68,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///     - expectedSignatures: Expected signatures keyed by binary target name.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    ///     - includeLocalPackageTestTargets: Whether to include test targets from local path package dependencies.
     public init(
         productTypes: [String: Product] = [:],
         baseProductType: Product = .staticFramework,
@@ -67,7 +76,8 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         baseSettings: Settings = .settings(),
         expectedSignatures: [String: XCFrameworkSignature] = [:],
         targetSettings: [String: Settings] = [:],
-        projectOptions: [String: Project.Options] = [:]
+        projectOptions: [String: Project.Options] = [:],
+        includeLocalPackageTestTargets: Bool = false
     ) {
         self.productTypes = productTypes
         self.baseProductType = baseProductType
@@ -76,6 +86,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         self.expectedSignatures = expectedSignatures
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
+        self.includeLocalPackageTestTargets = includeLocalPackageTestTargets
         dumpIfNeeded(self)
     }
 
@@ -88,6 +99,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///     - expectedSignatures: Expected signatures keyed by binary target name.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    ///     - includeLocalPackageTestTargets: Whether to include test targets from local path package dependencies.
     @available(
         *,
         deprecated,
@@ -103,7 +115,8 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         baseSettings: Settings = .settings(),
         expectedSignatures: [String: XCFrameworkSignature] = [:],
         targetSettings: [String: SettingsDictionary],
-        projectOptions: [String: Project.Options] = [:]
+        projectOptions: [String: Project.Options] = [:],
+        includeLocalPackageTestTargets: Bool = false
     ) {
         self.productTypes = productTypes
         self.baseProductType = baseProductType
@@ -112,6 +125,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         self.expectedSignatures = expectedSignatures
         self.targetSettings = targetSettings.mapValues { .settings(base: $0) }
         self.projectOptions = projectOptions
+        self.includeLocalPackageTestTargets = includeLocalPackageTestTargets
         dumpIfNeeded(self)
     }
 }

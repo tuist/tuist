@@ -1,0 +1,40 @@
+[data-part="provider-modal"]
+  > [data-part="positioner"]
+  > [data-part="content"] {
+  width: min(36rem, calc(100dvw - (var(--noora-spacing-6) * 2)));
+}
+
+[data-part="provider-modal-content"],
+[data-part="provider-setup"],
+[data-part="provider-selector"] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-6);
+  font: var(--noora-font-body-medium);
+
+  & [data-part="description"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+}
+
+[data-part="provider-code"] {
+  align-self: flex-start;
+  padding: var(--noora-spacing-3) var(--noora-spacing-4);
+  border-radius: var(--noora-radius-3);
+  background: var(--noora-surface-background-secondary);
+  overflow-wrap: anywhere;
+}
+
+[data-part="providers-table-section"] {
+  padding: 0;
+}
+
+[data-part="disconnect-provider-description"] {
+  font: var(--noora-font-body-medium);
+}
+
+[data-part="account-settings-page"] [data-part="hidden-trigger"] {
+  display: none;
+}

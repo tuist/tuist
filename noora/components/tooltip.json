@@ -1,0 +1,90 @@
+{
+  "name": "Tooltip",
+  "tagName": "noora-tooltip",
+  "elementClassName": "NooraTooltip",
+  "className": "noora-tooltip",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Explains an element on pointer hover or keyboard focus.",
+  "usage": "<noora-tooltip title=\"Copy\"><button slot=\"trigger\">Copy</button></noora-tooltip>",
+  "attributes": [
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables the tooltip."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["small", "large"],
+      "default": "small",
+      "description": "Controls the content layout."
+    },
+    {
+      "name": "title",
+      "property": "title",
+      "type": "string",
+      "default": "",
+      "description": "Sets the tooltip title."
+    },
+    {
+      "name": "description",
+      "property": "description",
+      "type": "string",
+      "description": "Sets the large-tooltip description."
+    },
+    {
+      "name": "open",
+      "property": "open",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Controls whether the tooltip is open."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "trigger",
+      "description": "The described element."
+    },
+    {
+      "name": "icon",
+      "description": "An icon shown by large tooltips."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "trigger",
+      "description": "The trigger wrapper."
+    },
+    {
+      "name": "content",
+      "description": "The tooltip content."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-open-change",
+      "type": "CustomEvent<{ open: boolean }>",
+      "description": "Emitted when the tooltip opens or closes."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "default",
+      "title": "Default",
+      "description": "Explain an icon or compact action.",
+      "markup": "<noora-tooltip title=\"Tooltip\"><noora-icon slot=\"trigger\" name=\"alert_circle\" label=\"More information\"></noora-icon></noora-tooltip>"
+    },
+    {
+      "id": "large",
+      "title": "Large",
+      "description": "Add an icon and supporting description.",
+      "markup": "<noora-tooltip size=\"large\" title=\"Tooltip\" description=\"Insert tooltip description here. Three lines of text would look better.\"><noora-icon slot=\"trigger\" name=\"alert_circle\" label=\"More information\"></noora-icon><noora-icon slot=\"icon\" name=\"category\"></noora-icon></noora-tooltip>"
+    }
+  ]
+}

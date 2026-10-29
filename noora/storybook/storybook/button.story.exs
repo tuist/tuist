@@ -6,90 +6,57 @@ defmodule TuistWeb.Storybook.Button do
   def imports, do: [{Noora.Icon, chevron_left: 1, chevron_right: 1}]
 
   def variations do
+    variant_variations =
+      Enum.map(Noora.Button.button_variants(), fn variant ->
+        %Variation{
+          id: String.to_atom("variant_#{variant}"),
+          attributes: %{
+            label: String.capitalize(variant),
+            variant: variant
+          }
+        }
+      end)
+
+    size_variations =
+      Noora.Button.button_sizes()
+      |> Enum.reverse()
+      |> Enum.map(fn size ->
+        %Variation{
+          id: String.to_atom("size_#{size}"),
+          attributes: %{
+            label: String.capitalize(size),
+            size: size
+          }
+        }
+      end)
+
+    disabled_variations =
+      Enum.map(Noora.Button.button_variants(), fn variant ->
+        %Variation{
+          id: String.to_atom("disabled_#{variant}"),
+          attributes: %{
+            label: "Disabled",
+            variant: variant,
+            disabled: true
+          }
+        }
+      end)
+
     [
       %VariationGroup{
         id: :variant,
         description: "Variant",
-        variations: [
-          %Variation{
-            id: :variant_primary,
-            attributes: %{
-              label: "Primary",
-              variant: "primary"
-            }
-          },
-          %Variation{
-            id: :variant_secondary,
-            attributes: %{
-              label: "Secondary",
-              variant: "secondary"
-            }
-          },
-          %Variation{
-            id: :variant_destructive,
-            attributes: %{
-              label: "Destructive",
-              variant: "destructive"
-            }
-          }
-        ]
+        variations: variant_variations
       },
       %VariationGroup{
         id: :size,
         description: "Size",
-        variations: [
-          %Variation{
-            id: :size_large,
-            attributes: %{
-              label: "Large",
-              size: "large"
-            }
-          },
-          %Variation{
-            id: :size_medium,
-            attributes: %{
-              label: "Medium",
-              size: "medium"
-            }
-          },
-          %Variation{
-            id: :size_small,
-            attributes: %{
-              label: "Small",
-              size: "small"
-            }
-          }
-        ]
+        variations: size_variations
       },
       %VariationGroup{
         id: :disabled,
         description: "Disabled",
-        variations: [
-          %Variation{
-            id: :disabled_primary,
-            attributes: %{
-              label: "Disabled",
-              variant: "primary",
-              disabled: true
-            }
-          },
-          %Variation{
-            id: :disabled_secondary,
-            attributes: %{
-              label: "Disabled",
-              variant: "secondary",
-              disabled: true
-            }
-          },
-          %Variation{
-            id: :disabled_destructive,
-            attributes: %{
-              label: "Disabled",
-              variant: "destructive",
-              disabled: true
-            }
-          }
-        ]
+        variations: disabled_variations
       },
       %VariationGroup{
         id: :icon,

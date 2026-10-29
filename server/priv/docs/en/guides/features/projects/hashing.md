@@ -29,7 +29,7 @@ We hash the Swift version obtained from running the command `/usr/bin/xcrun swif
 
 #### Configuration {#configuration}
 
-The idea behind the flag `-configuration` was to ensure debug binaries were not used in release builds and viceversa. However, we are still missing a mechanism to remove the other configurations from the projects to prevent them from being used.
+When calculating cache hashes, Tuist scopes each project's and target's settings to the resolved build configuration. That is the one named with `--configuration`, otherwise the project's `defaultConfiguration`, otherwise the first debug configuration. Tuist hashes that configuration's name, variant, build settings, and configuration file contents together with the shared base settings that apply to it. Adding, removing, or changing another configuration does not affect the resolved configuration's cache hashes. Because only the resolved configuration matters, a cache filled with an explicit `--configuration` is readable by a command that resolves to the same configuration without passing the flag.
 
 ## Debugging {#debugging}
 
@@ -46,4 +46,3 @@ If the hashes are still non-deterministic, let us know and we can help with the 
 > **Better Debugging Experience Planned**
 >
 > Improving our debugging experience is in our roadmap. The print-hashes command, which lacks the context to understand the differences, will be replaced by a more user-friendly command that uses a tree-like structure to show the differences between the hashes.
-

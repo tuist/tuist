@@ -38,6 +38,7 @@ defmodule Tuist.Accounts.AgentRegistration do
     field :client_id, :string
     field :assertion_jti, :string
     field :credential_jti, :string
+    field :last_polled_at, :utc_datetime
 
     belongs_to :claimed_by_user, User
     belongs_to :account_token, AccountToken, type: UUIDv7
@@ -151,7 +152,8 @@ defmodule Tuist.Accounts.AgentRegistration do
       :claim_attempt_id,
       :otp_attempt_count,
       :claim_requested_ip,
-      :email
+      :email,
+      :last_polled_at
     ])
     |> validate_required([
       :claim_view_token_hash,
@@ -159,6 +161,74 @@ defmodule Tuist.Accounts.AgentRegistration do
       :otp_expires_at,
       :claim_attempt_id
     ])
+    |> unique_constraint(:claim_view_token_hash)
+  end
+
+  def refresh_provider_step_up_changeset(agent_registration, attrs) do
+    agent_registration
+    |> cast(attrs, [
+      :claim_token_hash,
+      :claim_view_token_hash,
+      :otp_hash,
+      :otp_expires_at,
+      :claim_attempt_id,
+      :otp_attempt_count,
+      :claim_requested_ip,
+      :assertion_jti,
+      :last_polled_at
+    ])
+    |> validate_required([
+      :claim_token_hash,
+      :claim_view_token_hash,
+      :otp_hash,
+      :otp_expires_at,
+      :claim_attempt_id,
+      :assertion_jti
+    ])
+    |> unique_constraint(:claim_token_hash)
+    |> unique_constraint(:claim_view_token_hash)
+  end
+
+  def create_pending_agent_provider_changeset(attrs) do
+    %__MODULE__{}
+    |> cast(attrs, [
+      :registration_type,
+      :status,
+      :requested_credential_type,
+      :email,
+      :claim_token_hash,
+      :claim_view_token_hash,
+      :otp_hash,
+      :claim_token_expires_at,
+      :otp_expires_at,
+      :claim_attempt_id,
+      :registration_ip,
+      :claim_requested_ip,
+      :issuer,
+      :subject,
+      :audience,
+      :client_id,
+      :assertion_jti
+    ])
+    |> update_change(:email, &normalize_email/1)
+    |> validate_required([
+      :registration_type,
+      :status,
+      :requested_credential_type,
+      :email,
+      :claim_token_hash,
+      :claim_view_token_hash,
+      :otp_hash,
+      :claim_token_expires_at,
+      :otp_expires_at,
+      :claim_attempt_id,
+      :issuer,
+      :subject,
+      :audience,
+      :client_id,
+      :assertion_jti
+    ])
+    |> unique_constraint(:claim_token_hash)
     |> unique_constraint(:claim_view_token_hash)
   end
 
@@ -170,6 +240,10 @@ defmodule Tuist.Accounts.AgentRegistration do
     agent_registration
     |> cast(attrs, [:status, :claimed_at, :claim_completed_ip, :claimed_by_user_id, :account_token_id, :credential_jti])
     |> validate_required([:status, :claimed_at, :claimed_by_user_id])
+  end
+
+  def poll_changeset(agent_registration, last_polled_at) do
+    change(agent_registration, last_polled_at: last_polled_at)
   end
 
   def expire_changeset(agent_registration) do

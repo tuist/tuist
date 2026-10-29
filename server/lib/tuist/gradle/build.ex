@@ -5,33 +5,55 @@ defmodule Tuist.Gradle.Build do
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
 
+  alias Tuist.Accounts.Account
+
   @derive {
     Flop.Schema,
     filterable: [
+      :failure_category,
       :project_id,
       :status,
       :is_ci,
       :git_branch,
       :root_project_name,
       :account_id,
+      :verified_actor,
+      :claimed_actor_id,
       :gradle_version,
       :java_version,
+      :custom_tags,
       :inserted_at
     ],
-    sortable: [:inserted_at, :duration_ms, :status],
+    sortable: [:failure_category, :id, :inserted_at, :duration_ms, :status],
     default_order: %{
       order_by: [:inserted_at],
       order_directions: [:desc]
-    }
+    },
+    adapter_opts: [
+      custom_fields: [
+        verified_actor: [
+          filter: {Tuist.ReportActor, :verified_account_filter, []},
+          ecto_type: :integer,
+          operators: [:==, :!=]
+        ]
+      ]
+    ]
   }
 
   @primary_key false
   schema "gradle_builds" do
+    field :failure_category, :string, virtual: true, default: ""
     field :id, Ch, type: "UUID"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
-    belongs_to :built_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+    field :actor_account_id, Ch, type: "Int64", default: 0
+    field :claimed_actor_id, Ch, type: "String", default: ""
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
+    belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
+    belongs_to :built_by_account, Account, foreign_key: :account_id, define_field: false
+    field :tasks_cache_hit_count, Ch, type: "UInt32"
     field :duration_ms, Ch, type: "UInt64"
+    field :started_at, Ch, type: "Nullable(DateTime64(6))"
     field :gradle_version, Ch, type: "String"
     field :java_version, Ch, type: "String"
     field :is_ci, Ch, type: "Bool"
@@ -49,6 +71,12 @@ defmodule Tuist.Gradle.Build do
     field :tasks_no_source_count, Ch, type: "UInt32"
     field :cacheable_tasks_count, Ch, type: "UInt32"
     field :requested_tasks, {:array, Ch}, type: "String", default: []
+    field :custom_tags, {:array, Ch}, type: "String", default: []
+    field :custom_values, Ch, type: "Map(String, String)", default: %{}
+    field :configuration_cache_status, Ch, type: "LowCardinality(String)"
+    field :configuration_cache_entry_size, Ch, type: "Nullable(Int64)"
+    field :configuration_cache_load_duration_ms, Ch, type: "Nullable(UInt64)"
+    field :configuration_cache_invalidation_reasons, {:array, Ch}, type: "String", default: []
     field :inserted_at, Ch, type: "DateTime"
     has_many :machine_metrics, Tuist.Builds.BuildMachineMetric, foreign_key: :gradle_build_id, references: :id
   end

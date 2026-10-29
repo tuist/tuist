@@ -11,6 +11,7 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
       assert timeout_metric.event_name == [:bandit, :request, :stop]
       assert timeout_metric.tags == [:method, :route]
       assert timeout_metric.keep.(%{error: "Body read timeout"})
+      assert timeout_metric.keep.(%{error: "Read timeout"})
       refute timeout_metric.keep.(%{})
 
       assert timeout_metric.tag_values.(%{

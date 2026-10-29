@@ -83,6 +83,20 @@ class CredentialStoreTest {
     }
 
     @Test
+    fun `hostname aliases share the canonical refresh lock even with legacy credentials`() {
+        val dir = File(tempDir, "aliases")
+        dir.mkdirs()
+        File(dir, "TUIST.DEV..json").writeText("""{"accessToken":"legacy"}""")
+        val store = CredentialStore(dir)
+        val lock = store.refreshLockFile(serverURL)
+        assertEquals(lock, store.refreshLockFile(URI.create("https://TUIST.DEV./")))
+        store.write(URI.create("https://TUIST.DEV./"), Credentials("rotated", "refresh"))
+        assertEquals(lock, store.refreshLockFile(serverURL))
+        assertEquals(Credentials("rotated", "refresh"), store.readValidated(serverURL))
+        assertEquals(listOf("TUIST.DEV..json"), dir.list()!!.toList())
+    }
+
+    @Test
     fun `concurrent readers see complete credential pairs during replacement`() {
         val store = CredentialStore(File(tempDir, "concurrent"))
         val old = Credentials("a".repeat(64 * 1024), "old-refresh")

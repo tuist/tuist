@@ -15,10 +15,24 @@ defmodule TuistWeb.RunnerJobMetricsController do
   outside (the macOS Tart fleet's kubelet serves no stats API), so the
   VM is the only vantage point.
 
-  The runner does not know which job it's running — that mapping lives
-  in `runner_claims`. We resolve `pod_name` to its live claim's
-  `workflow_job_id` and `account_id` here. A Pod with no live claim
-  (idle/warm, or its job already finished) is a no-op.
+  The runner does not know which job it's running. We resolve `pod_name`
+  to the job GitHub **proved** is running on it, via the Pod's open
+  `runner_sessions` row (`RunnerSessions.executed_job_for_pod/1`) — the
+  binding learned from the `workflow_job.in_progress` webhook's
+  `runner_name`.
+
+  Resolving through the Pod's *claim* would be wrong: GitHub assigns
+  jobs to any label-eligible runner, so the claim names the job the Pod
+  was minted for, not the one it runs. That would chart an idle
+  runner's samples on a job executing elsewhere, and would drop the
+  real samples of a Pod running a job it didn't claim (which may hold
+  no live claim at all). Samples for a Pod with no proven execution —
+  warm, idle, or not yet assigned — are not recorded and get a 202, so
+  the sampler keeps them and sends them again with its next batch. The
+  binding arrives with the `in_progress` webhook, which GitHub can
+  deliver minutes after the job's first step; a sampler that dropped
+  the 202'd samples would lose the job's start (its free disk before
+  checkout and cache restores).
 
   ## Contract
 
@@ -47,8 +61,9 @@ defmodule TuistWeb.RunnerJobMetricsController do
 
   use TuistWeb, :controller
 
-  alias Tuist.Runners.Claims
   alias Tuist.Runners.JobMetrics
+  alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Telemetry
   alias TuistWeb.RunnerPodAuth
 
   require Logger
@@ -65,8 +80,9 @@ defmodule TuistWeb.RunnerJobMetricsController do
 
   Responses:
 
-    * 204 — samples recorded (or an empty batch / a Pod with no live
-      claim, both treated as a no-op).
+    * 204 — samples recorded (or an empty batch).
+    * 202 — not recorded: no job is proven to run on the Pod yet. The
+      sampler resends them until it gets a 204.
     * 400 — malformed body (samples not a list / sample missing a
       numeric `timestamp`).
     * 401 — missing or invalid SA bearer token / wrong principal.
@@ -75,13 +91,23 @@ defmodule TuistWeb.RunnerJobMetricsController do
   def create(conn, %{"pod_name" => pod_name} = params) when is_binary(pod_name) and pod_name != "" do
     with :ok <- RunnerPodAuth.authenticate(conn, pod_name),
          {:ok, samples} <- parse_samples(params) do
-      case Claims.by_pod_name(pod_name) do
+      case RunnerSessions.executed_job_for_pod(pod_name) do
         {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} ->
           :ok = JobMetrics.record(workflow_job_id, account_id, samples)
           send_resp(conn, :no_content, "")
 
         :error ->
-          send_resp(conn, :no_content, "")
+          # No proven binding yet (or none coming). The samples are not
+          # charted on a guess; the 202 tells the sampler to keep them
+          # and resend them once `in_progress` binds the Pod to its job.
+          # Samplers built before the 202 drop them, so count them.
+          :telemetry.execute(
+            Telemetry.event_name_recovery(),
+            %{count: length(samples)},
+            %{kind: "metrics_dropped_awaiting_attribution"}
+          )
+
+          send_resp(conn, :accepted, "")
       end
     else
       {:error, :missing_bearer} ->

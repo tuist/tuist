@@ -6,10 +6,41 @@ defmodule TuistWeb.TestCasesLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "test cases page" do
+    @tag capture_log: true
+    test "a failed table load keeps filters available and recovers on a patch", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, attempts} = Agent.start_link(fn -> 0 end)
+
+      stub(Tests, :list_test_cases, fn project_id, options, list_opts ->
+        attempt = Agent.get_and_update(attempts, fn count -> {count, count + 1} end)
+        if attempt == 0, do: raise("temporary table failure")
+        call_original(Tests, :list_test_cases, [project_id, options, list_opts])
+      end)
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-cases"
+      {:ok, view, _} = live(conn, path)
+      render_async(view, 2_000)
+
+      assert has_element?(view, "[data-part=test-cases][data-state=failed] [data-error]")
+      assert has_element?(view, "#search-test-cases")
+      assert has_element?(view, "#test-cases-sort-by")
+      assert has_element?(view, "[data-part=test-cases] #filter-dropdown")
+
+      render_patch(view, path <> "?search=retry")
+      render_async(view, 2_000)
+      assert has_element?(view, "[data-part=test-cases][data-state=ready]")
+      refute has_element?(view, "[data-part=test-cases] [data-error]")
+    end
+
     setup do
       copy(Analytics)
 
@@ -90,6 +121,45 @@ defmodule TuistWeb.TestCasesLiveTest do
 
       # Then
       assert has_element?(lv, "[data-part='test-cases-table']")
+    end
+
+    test "lists individual Bazel test cases and their target", %{
+      conn: conn,
+      organization: organization
+    } do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :bazel)
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          build_system: "bazel",
+          scheme: "//app:unit_tests",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60),
+          test_modules: [
+            %{
+              name: "//app:unit_tests",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{
+                  name: "testExample",
+                  test_suite_name: "ExampleTest",
+                  status: "success",
+                  duration: 100
+                }
+              ]
+            }
+          ]
+        )
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+
+      render_async(lv)
+
+      assert has_element?(lv, "[data-part='test-cases-table']", "testExample")
+      assert has_element?(lv, "[data-part='test-cases-table']", "//app:unit_tests")
     end
 
     test "filters test cases whose module does not contain a substring", %{
@@ -227,6 +297,40 @@ defmodule TuistWeb.TestCasesLiveTest do
       # Then
       render_async(lv)
       assert has_element?(lv, "#widget-test-cases-count")
+    end
+  end
+
+  describe "bazel_target_collapse?/1" do
+    test "flags a case that matches Bazel's synthesized target-only report" do
+      assert TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "//:kura_lib_test",
+               suite_name: "kura_lib_test",
+               name: "kura_lib_test"
+             })
+    end
+
+    test "flags a target under a package" do
+      assert TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "//pkg/foo:bar_test",
+               suite_name: "bar_test",
+               name: "bar_test"
+             })
+    end
+
+    test "leaves a real per-case row alone" do
+      refute TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "//:kura_lib_test",
+               suite_name: "kura_lib_test",
+               name: "tests::routes::rejects_missing_auth"
+             })
+    end
+
+    test "leaves non-Bazel cases alone" do
+      refute TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "AppTests",
+               suite_name: "AppTests",
+               name: "AppTests"
+             })
     end
   end
 end

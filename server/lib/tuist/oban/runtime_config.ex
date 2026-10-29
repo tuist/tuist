@@ -14,20 +14,40 @@ defmodule Tuist.Oban.RuntimeConfig do
   has an empty crontab, so the gate stays an allowlist by construction.
   """
 
+  alias Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker
+  alias Tuist.MCP.Events.Workers.PruneExpiredSubscriptionsWorker
+  alias Tuist.MCP.Events.Workers.PruneJobKeysWorker
+  alias Tuist.OpenGraph.Workers.DeleteExpiredImagesWorker
   alias Tuist.Registry.Swift.SyncWorker
+  alias Tuist.Runners.Workers.CacheVolumeCleanupWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
+  alias Tuist.Storage.Workers.DeleteExpiredGitLabCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
   alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
+  alias Tuist.Storage.Workers.SweepExpiredRunArtifactsWorker
 
   @shared_crons [
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
+    {"@hourly", Tuist.OnceEvents.Workers.ExpireStaleRunsWorker},
+    {"*/5 * * * *", Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker},
+    {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
-    {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker}
+    {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
+    {"* * * * *", Tuist.Sandboxes.AmpReconciler},
+    {"0 5 * * *", Tuist.Sandboxes.Workers.RetentionWorker},
+    {"* * * * *", Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker},
+    {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
+    {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
+    {"@daily", CacheVolumeCleanupWorker},
+    {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
+    {"@daily", PruneExpiredSubscriptionsWorker},
+    {"@hourly", PruneJobKeysWorker},
+    {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}
@@ -36,19 +56,31 @@ defmodule Tuist.Oban.RuntimeConfig do
   ]
 
   @hosted_only_crons [
+    {"* * * * *", Tuist.Marketing.Workers.CacheGlobeRefreshWorker},
     {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-    {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+    {"@hourly", Tuist.Ops.HourlySlackReportWorker},
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
+    {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
+    {"10 4 * * *", DeleteExpiredImagesWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},
+    {"*/10 * * * *", Tuist.Kura.Workers.ClaimSizingWorker},
+    {"40 * * * *", Tuist.Kura.Workers.PlacementWorker},
+    {"* * * * *", Tuist.Runners.Workers.BuildkitePollWorker},
+    {"* * * * *", Tuist.Runners.Workers.GitLabPollWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
+    {"* * * * *", Tuist.Runners.Workers.PodReconciliationWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
+    {"* * * * *", Tuist.Runners.Workers.UnstartedExecutionsWorker},
+    {"* * * * *", Tuist.Runners.Workers.SiteSpilloverWorker},
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker}
+    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
+    {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker},
+    {"* * * * *", Tuist.Runners.Workers.ReplicateRunnerSessionsWorker}
   ]
 
   @database_artifact_retention_resource_types [
@@ -61,6 +93,7 @@ defmodule Tuist.Oban.RuntimeConfig do
 
   @schedule_expired_artifacts_cron {"30 2 * * *", ScheduleExpiredArtifactsWorker}
   @legacy_build_artifact_retention_cron {"0 4 * * *", DeleteExpiredLegacyBuildArtifactsWorker}
+  @run_artifact_retention_cron {"30 4 * * *", SweepExpiredRunArtifactsWorker}
 
   @cache_artifact_retention_crons [
     {"0 3 * * *", DeleteExpiredXcodeCacheArtifactsWorker},
@@ -69,9 +102,15 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"45 3 * * *", DeleteExpiredCasCacheArtifactsWorker}
   ]
 
+  # Runners are hosted-only, so their GitLab cache archives never exist on a
+  # self-hosted deployment.
+  @gitlab_cache_artifact_retention_cron {"15 4 * * *", DeleteExpiredGitLabCacheArtifactsWorker}
+
   @hosted_artifact_retention_crons [
                                      @schedule_expired_artifacts_cron,
-                                     @legacy_build_artifact_retention_cron
+                                     @legacy_build_artifact_retention_cron,
+                                     @run_artifact_retention_cron,
+                                     @gitlab_cache_artifact_retention_cron
                                    ] ++ @cache_artifact_retention_crons
 
   # Self-hosted retention workers read their window from the environment on every run.
@@ -95,7 +134,8 @@ defmodule Tuist.Oban.RuntimeConfig do
   project-level crons (alerts, automations, per-project Slack reports,
   sharded-test cleanup) — Tuist-hosted deployments additionally get the
   internal Slack ops reports, account-usage rollup, Stripe metered-billing
-  reconciliation, and plan-based artifact retention. Self-hosted deployments
+  reconciliation, dormant operator account retirement, and plan-based
+  artifact retention. Self-hosted deployments
   add only the artifact-retention jobs explicitly configured by resource type.
   Preview gets only the Swift registry sync cron when registry sync is
   enabled, regardless of hosted flag, so registry previews can exercise the
@@ -118,7 +158,7 @@ defmodule Tuist.Oban.RuntimeConfig do
               @hosted_only_crons
             end
 
-          hosted_crons ++ @hosted_artifact_retention_crons ++ @shared_crons
+          hosted_crons ++ [kura_archival_sweep_cron()] ++ @hosted_artifact_retention_crons ++ @shared_crons
         else
           self_hosted_artifact_retention_crons(artifact_retention_days) ++ @shared_crons
         end
@@ -133,13 +173,27 @@ defmodule Tuist.Oban.RuntimeConfig do
 
   Only `:web` may. Every other mode runs as the least-privilege
   `tuist_processor` Postgres role, which can't satisfy
-  `Oban.Met.Reporter`'s leader-path `CREATE OR REPLACE FUNCTION` query
-  (the role lacks `CREATE` on the schema) — Reporter would crash on
-  every checkpoint. Non-`:web` pods also carry an empty crontab, so a
-  non-web leader silently halts every scheduled job.
+  leader-only plugins. Non-`:web` pods also carry an empty crontab, so
+  a non-web leader silently halts every scheduled job.
   """
   def peer_eligible?(:web), do: true
   def peer_eligible?(_), do: false
+
+  @doc """
+  Whether Oban Met may auto-start for a pod mode.
+
+  Met is useful on the web tier for Oban Web metrics, but processor-style
+  pods do not need it and run with least-privilege database roles.
+  """
+  def met_auto_start?(mode), do: peer_eligible?(mode)
+
+  # The archival sweep's cadence tracks the inactive window rather than being
+  # fixed: a daily sweep against a one-day window would leave an instance
+  # eligible for up to another day before anything looked at it. See
+  # `Tuist.Environment.kura_archival_sweep_cron/0`.
+  defp kura_archival_sweep_cron do
+    {Tuist.Environment.kura_archival_sweep_cron(), Tuist.Kura.Workers.ArchiveInactiveInstancesWorker}
+  end
 
   defp self_hosted_artifact_retention_crons(artifact_retention_days) do
     database_crons =
@@ -156,6 +210,13 @@ defmodule Tuist.Oban.RuntimeConfig do
         []
       end
 
+    run_artifact_crons =
+      if Map.has_key?(artifact_retention_days, :run_artifacts) do
+        [self_hosted_cron(@run_artifact_retention_cron)]
+      else
+        []
+      end
+
     cache_crons =
       if Map.has_key?(artifact_retention_days, :cache_artifacts) do
         Enum.map(@cache_artifact_retention_crons, &self_hosted_cron/1)
@@ -163,7 +224,7 @@ defmodule Tuist.Oban.RuntimeConfig do
         []
       end
 
-    database_crons ++ legacy_build_crons ++ cache_crons
+    database_crons ++ legacy_build_crons ++ run_artifact_crons ++ cache_crons
   end
 
   defp self_hosted_cron({schedule, worker}), do: {schedule, worker, args: @self_hosted_args}

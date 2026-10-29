@@ -15,17 +15,46 @@ global:
     tuist.dev/service: server
     tuist.dev/stack: managed
 
+# Grafana Cloud PDC agent. `cluster` + `hostedGrafanaId` identify our Grafana
+# Cloud stack (stacks-1028740) and are the same for every managed env, so they
+# live here; only the per-env signing token differs and comes from that env's
+# 1Password vault (PDC_AGENT/password) via ESO.
+#
+# Still `enabled: false` everywhere: the agent CrashLoops without a real token,
+# so each env flips this on in its own overlay once PDC_AGENT exists in its vault.
+pdcAgent:
+  image:
+    # No `v` prefix: upstream's GitHub release is tagged `v0.0.61` but the
+    # published Docker Hub tag is `0.0.61`. Check hub.docker.com/r/grafana/
+    # pdc-agent/tags — not the GitHub releases page — when bumping this.
+    tag: "0.0.61"
+  cluster: prod-eu-west-2
+  hostedGrafanaId: "1028740"
+
 kuraController:
   enabled: true
   namespace: kura
   image:
     tag: ""  # Set by CI to the commit SHA on each deploy.
   # Managed app clusters bootstrap this ClusterIssuer via the platform
-  # chart. The controller uses it for the per-Kura public HTTPS and gRPC
-  # certificates consumed by the regional Kura ingress layer.
+  # chart. The controller uses it for the shared wildcard below, and for the
+  # per-instance certificate of any instance that wildcard does not cover.
   tlsClusterIssuer: "letsencrypt-cloudflare"
+  publicWildcardCertificate:
+    enabled: true
+    dnsNames:
+      - "*.kura.tuist.dev"
   telemetry:
-    otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
+    # Trailing dot makes this an absolute domain name, so a resolver with
+    # ndots >= 5 (kubelet's default) does not first try the 4-dot host
+    # against every search domain and pay three NXDOMAIN round trips per
+    # connect. Cross-region Kura pods, where every DNS lookup is a WAN
+    # round trip to CoreDNS, were losing every OTLP span on that budget
+    # (Atlas issue 56d8db50). Same reasoning applied to the analytics
+    # endpoint in #13459.
+    otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local.:4318/v1/traces
+  analytics:
+    enabled: true
   sharedSecrets:
     kuraIntrospection:
       enabled: true
@@ -36,12 +65,20 @@ kuraController:
         introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
         introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
 
+codebaseSearch:
+  enabled: true
+  image:
+    tag: ""  # Set by the deployment workflow to the same commit as the server image.
+  networkPolicy:
+    enabled: true
+
 server:
   serviceAccount:
     create: true
     name: tuist-server
   enabled: true
   hosted: true
+  ssoRequireLoginDomainVerification: true
   skipEmailConfirmation: false
   logLevel: info
   image:
@@ -52,6 +89,28 @@ server:
     type: ClusterIP
     port: 80
     targetPort: 8080
+
+  # Once events ingress. gRPC does not go through the main ingress controller
+  # or through Cloudflare:
+  #
+  # - The main controller runs with upstream keepalive off, which makes
+  #   ingress-nginx send `Connection: close` upstream. HTTP/2 forbids that
+  #   header, and Cowboy, which serves the events listener, resets the stream
+  #   with PROTOCOL_ERROR. The `nginx-grpc` class is the platform's dedicated
+  #   gRPC controller, with keepalive on (see `grpc-ingress-nginx` in
+  #   helm/platform/values.yaml).
+  # - Cloudflare answers gRPC requests to a proxied host with a 403. The cache's
+  #   gRPC hosts are DNS-only for the same reason, so this one is too, and
+  #   cert-manager issues a certificate clients trust, where the Cloudflare
+  #   Origin CA certificate would only be trusted by Cloudflare.
+  #
+  # Each environment sets only `enabled` and `host`.
+  events:
+    className: nginx-grpc
+    tlsSecretName: tuist-events-tls
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 
   # ingress-nginx defaults `proxy-body-size` to 1m, which rejects large
   # `createBundle` requests (the JSON manifest carries one entry per
@@ -67,31 +126,55 @@ server:
   # any POST endpoint with a non-trivial body (cache, runs, webhooks).
   ingress:
     annotations:
+      # Authorization redirects combine a signed session cookie with a long
+      # Location header. Keep enough response-header headroom for both.
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+      # A request moves to another pod only when nginx could not connect to the
+      # first (refused, unreachable, connect timeout), so it never reached Phoenix.
+      # With request buffering off, nginx retries nothing it started sending.
+      nginx.ingress.kubernetes.io/proxy-next-upstream: "error timeout"
+      nginx.ingress.kubernetes.io/proxy-next-upstream-tries: "3"
 
   # Runtime secrets are sourced from 1Password by ESO; the encrypted priv/secrets
   # blob (and MASTER_KEY) are gone. `config.managedSecrets` syncs the
   # consolidated config Secret (Sentry, Stripe API keys, Slack, Apple, the
-  # OAuth/OIDC keys, the Mailgun key, PostHog, Loops, the ClickHouse URL, Plain,
-  # the cache key, and the Phoenix/Cloak/Guardian secret keys) as TUIST_* env
-  # vars via envFrom; GitHub / Google / object storage / Kura / license keep
-  # their own ESO secrets below. `managedSecrets` still gates the chart skipping
+  # OAuth/OIDC keys, the Mailgun key, the ClickHouse URL, the cache key, and
+  # the Phoenix/Cloak/Guardian secret keys) as TUIST_* env vars via envFrom;
+  # GitHub / Google / object storage / Kura / license keep their own ESO
+  # secrets below. `managedSecrets` still gates the chart skipping
   # the env vars it would otherwise emit (DATABASE_URL / ClickHouse / secret-key
   # base / S3), since those now come from ESO + CNPG.
   managedSecrets: true
   config:
     managedSecrets: true
+    opsClickHouse:
+      enabled: true
+    # Grafana Cloud reads each environment's in-cluster ClickHouse as this
+    # identity. The CLICKHOUSE_GRAFANA item must exist in the environment's
+    # vault before a deploy.
+    grafanaClickHouse:
+      enabled: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    # Source the Tuist license from 1Password instead of the blob, so the blob
-    # can be removed. Per-env vault holds the TUIST_LICENSE_KEY item.
+    # All managed envs (staging, canary, production) validate the license
+    # OFFLINE from a signed air-gapped certificate (Ed25519-verified locally),
+    # so the server has zero network dependency on api.keygen.sh at boot. This
+    # is deliberate: a Keygen/egress outage must not crash-loop the server on
+    # startup (see the 2026-07-30 canary incident, where a dead egress gateway
+    # made the online key path time out and CrashLoopBackOff the server). The
+    # three envs share one license, so the same certificate item is valid in
+    # each vault. `item` (the online TUIST_LICENSE_KEY path) is intentionally
+    # left empty; set it only for an env whose vault lacks the certificate.
     license:
-      item: TUIST_LICENSE_KEY
+      item: ""
       field: password
+      certificateItem: TUIST_LICENSE_CERTIFICATE_BASE64
+      certificateField: password
 
   # ESO-synced GitHub App + bot PATs. The PEM file attachment name
   # differs per env (production.pem / staging.pem / canary.pem) and is
@@ -131,6 +214,13 @@ server:
     # env vars will be emitted by the chart.
     enabled: false
     applicationName: tuist
+    # Each environment's onepassword store reads its own tuist-k8s-<env>
+    # vault. Keep the durable cookie outside the disposable workload cluster.
+    cookieExistingSecret: tuist-server-cluster-cookie
+    externalSecret:
+      enabled: true
+      item: SERVER_CLUSTER_COOKIE
+      field: password
 
   strategy:
     type: RollingUpdate
@@ -240,6 +330,7 @@ processor:
   enabled: true
   replicaCount: 2
   queueConcurrency: 5
+  bazelTestQueueConcurrency: 1
   managedSecrets: true
   externalSecrets:
     refreshInterval: "1h"
@@ -293,6 +384,10 @@ swiftRegistrySync:
     databasePassword:
       item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD
       field: password
+  # Conservative default so the pod still schedules on the cramped
+  # staging/canary nodepools. Envs that actually sync a real catalog
+  # override this — see values-managed-production.yaml, where the
+  # measured working set needs considerably more than 1Gi.
   resources:
     requests:
       cpu: "250m"
@@ -309,6 +404,10 @@ swiftRegistrySync:
 # drop `:process_xcresult` and the macOS Pods own the queue.
 xcresultProcessor:
   enabled: true
+  # Installed by server-deployment.yml as the `<release>-xcresult-processor`
+  # release from infra/helm/xcresult-processor, which the deploy does not
+  # roll back on; see that chart.
+  ownRelease: true
   replicaCount: 2
   queueConcurrency: 4
   image:
@@ -390,6 +489,17 @@ postgresql:
     password: ""
   cnpg:
     enabled: true
+    pooler:
+      parameters:
+        # Production's five consumer pools normally use 50 clients. Leave room for
+        # overlapping rollouts while retaining default_pool_size=20 per
+        # database/user on the Postgres side.
+        max_client_conn: "200"
+        # A lost Tart VM can leave the Tailscale proxy's pooler socket
+        # open for hours. Reap clients with no protocol traffic; healthy
+        # Postgrex pools send Sync pings every second. This timeout does
+        # not interrupt a client linked to an active backend transaction.
+        client_idle_timeout: "300"
     backup:
       # Per-env bucket name lives in the env overlay's destinationPath.
       endpointURL: https://t3.storage.dev
@@ -413,9 +523,7 @@ postgresql:
         field: password
 
 clickhouse:
-  mode: external
-  external:
-    url: ""  # https://<clickhouse-cloud>.clickhouse.cloud:8443/tuist_prod
+  mode: managed
 
 objectStorage:
   mode: external
@@ -444,11 +552,20 @@ observability:
   # the platform chart. The chart's embedded observability stack stays off.
   enabled: false
 
-# macOS Profile catalog — shared across every managed env. The
-# catalog (which shapes / Xcode versions exist) doesn't differ per
-# env today; per-env files only declare `xcodeOverrides` keyed by
+# macOS Profile catalog: the baseline shared across every managed
+# env. `xcodeVersions` is an image-matrix fact and is the same
+# everywhere; per-env files declare `xcodeOverrides` keyed by
 # `xcodeVersion`, where they tune `replicas`, pod sizing, and
 # autoscaling for the local fleet.
+#
+# `shapes` is the baseline that EVERY env can run, because a shape is
+# only runnable where a host SKU can fit it and the fleets differ:
+# staging and canary are M2-L only, production also has M4-XL hosts.
+# An env with the bigger SKU overrides this list wholesale (Helm
+# replaces lists rather than merging them). See
+# `values-managed-production.yaml`. Leaving a shape here that an env
+# cannot host would offer it in that env's Profiles dropdown and queue
+# any job picking it forever.
 #
 # - `runner-pool.yaml` iterates `xcodeVersions` here and merges the
 #   matching per-env `xcodeOverrides[<version>]` to render each pool.
@@ -462,15 +579,42 @@ observability:
 # pool that pins to it. This alignment is a deploy concern: editing
 # THIS file does not trigger a runner-image rebuild — only changes
 # under `infra/runner-image/**` do.
+#
+# A beta entry names a channel (`27.0-beta`), not a beta
+# (`27.0-beta-6`). The channel is what customers' Runner Profiles
+# store, so it has to survive Apple replacing the beta behind it;
+# retiring an entry a profile still names strands that profile on a
+# pool that no longer renders, and its jobs then queue forever
+# rather than failing. `infra/runner-image/profiles.json` names the
+# same channel, so a beta bump needs no edit here at all: the
+# macos-xcode-image build moves the channel tag and the next
+# runner-image release rebuilds against it. Runbook: "Promoting an
+# Xcode beta" in `infra/macos-xcode-image/AGENTS.md`.
 runnersFleet:
   shapes:
     - vcpus: 6
       memoryGb: 14
       default: true
   xcodeVersions:
+    - xcodeVersion: "27.2-beta"
+    - xcodeVersion: "27.1"
+    - xcodeVersion: "27.0"
     - xcodeVersion: "26.6"
       default: true
     - xcodeVersion: "26.5"
     - xcodeVersion: "26.4.1"
     - xcodeVersion: "26.3"
+    - xcodeVersion: "26.1.1"
     - xcodeVersion: "26.0.1"
+
+# KVM is a standard managed Linux runner capability. Disable defaultEnabled
+# to roll pools back to the stock kernel while leaving host preparation intact.
+runnersFleetLinux:
+  nestedVirtualization:
+    enabled: true
+    defaultEnabled: true
+
+# Account-owned provider workloads run on the general pool.
+ampOrbProvider:
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general

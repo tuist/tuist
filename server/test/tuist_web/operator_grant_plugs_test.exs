@@ -2,11 +2,13 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import Plug.Conn
 
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.OperatorGrant
+  alias TuistWeb.Router
 
   describe "redirect_to_ops_if_operator/2" do
     setup do
@@ -122,6 +124,10 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       grant = get_session(conn, "operator_grants")[account.name]
       assert grant.tier == :read
       assert grant.account_id == account.id
+
+      assert grant
+             |> Map.keys()
+             |> Enum.sort() == [:account_handle, :account_id, :exp, :jti, :sub, :tier]
     end
 
     test "rejects a grant when the session is not Google-authenticated", %{signer: signer} do
@@ -188,6 +194,102 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
 
       assert conn.halted
       assert get_session(conn, "operator_grants") == nil
+    end
+  end
+
+  describe "prune_operator_grants/2" do
+    test "removes expired grants and fields that are not needed for authorization" do
+      now = System.system_time(:second)
+
+      active_grant = %{
+        tier: :read,
+        account_id: 1,
+        account_handle: "active-account",
+        sub: "operator@tuist.dev",
+        reason: "investigating",
+        jti: "active-grant",
+        iat: now - 60,
+        exp: now + 600
+      }
+
+      expired_grant = %{active_grant | account_handle: "expired-account", jti: "expired-grant", exp: now - 1}
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{
+          "operator_grants" => %{
+            "active-account" => active_grant,
+            "expired-account" => expired_grant
+          }
+        })
+        |> OperatorGrant.prune_operator_grants([])
+
+      assert get_session(conn, "operator_grants") == %{
+               "active-account" => Map.take(active_grant, [:tier, :account_id, :account_handle, :sub, :jti, :exp])
+             }
+    end
+
+    test "deletes the operator grants session entry when every grant is expired" do
+      now = System.system_time(:second)
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{
+          "operator_grants" => %{
+            "expired-account" => %{
+              tier: :read,
+              account_id: 1,
+              account_handle: "expired-account",
+              sub: "operator@tuist.dev",
+              jti: "expired-grant",
+              exp: now - 1
+            }
+          }
+        })
+        |> OperatorGrant.prune_operator_grants([])
+
+      assert get_session(conn, "operator_grants") == nil
+    end
+
+    test "prunes expired grants in the Ueberauth request pipeline" do
+      assert_auth_pipeline_prunes_expired_grants(:ueberauth)
+    end
+
+    test "prunes expired grants in the unprotected authentication callback pipeline" do
+      assert_auth_pipeline_prunes_expired_grants(:unprotected_browser_app)
+    end
+
+    test "warns when the compacted session payload reaches the size guardrail" do
+      now = System.system_time(:second)
+
+      grants =
+        Map.new(1..40, fn index ->
+          handle = "account-#{index}"
+
+          {handle,
+           %{
+             tier: :read,
+             account_id: index,
+             account_handle: handle,
+             sub: "operator@tuist.dev",
+             reason: "removed during compaction",
+             jti: "grant-#{index}",
+             iat: now,
+             exp: now + 600
+           }}
+        end)
+
+      log =
+        capture_log(fn ->
+          conn =
+            Phoenix.ConnTest.build_conn()
+            |> Plug.Test.init_test_session(%{"operator_grants" => grants})
+            |> OperatorGrant.prune_operator_grants([])
+
+          assert map_size(get_session(conn, "operator_grants")) == 40
+        end)
+
+      assert log =~ "operator grant session payload is approaching the cookie size limit"
     end
   end
 
@@ -300,6 +402,93 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
     }
   end
 
+  defp assert_auth_pipeline_prunes_expired_grants(pipeline) do
+    now = System.system_time(:second)
+
+    conn =
+      :get
+      |> Phoenix.ConnTest.build_conn("/")
+      |> Plug.Test.init_test_session(%{
+        "operator_grants" => %{
+          "expired-account" => %{
+            tier: :read,
+            account_id: 1,
+            account_handle: "expired-account",
+            sub: "operator@tuist.dev",
+            jti: "expired-grant",
+            exp: now - 1
+          }
+        }
+      })
+
+    conn = apply(Router, pipeline, [conn, []])
+
+    assert get_session(conn, "operator_grants") == nil
+  end
+
+  describe "on_mount(:load, ...)" do
+    setup do
+      # The test logger level is :warning; the page view is an :info line.
+      Logger.put_module_level(OperatorGrant, :info)
+      on_exit(fn -> Logger.delete_module_level(OperatorGrant) end)
+
+      operator = operator_user()
+
+      grant = %{
+        tier: :read,
+        account_id: 1,
+        account_handle: "acme",
+        sub: operator.email,
+        jti: "grant-9",
+        exp: System.system_time(:second) + 600
+      }
+
+      {:ok, operator: operator, session: %{"operator_grants" => %{"acme" => grant}}}
+    end
+
+    defp live_socket(operator, transport_pid) do
+      %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, current_user: operator},
+        transport_pid: transport_pid,
+        view: TuistWeb.ProjectsLive
+      }
+    end
+
+    test "logs a page view when a connected LiveView mounts under a grant", %{operator: operator, session: session} do
+      log =
+        capture_log([level: :info], fn ->
+          assert {:cont, socket} =
+                   OperatorGrant.on_mount(:load, %{"account_handle" => "acme"}, session, live_socket(operator, self()))
+
+          assert socket.assigns.current_user.operator_grant.jti == "grant-9"
+        end)
+
+      assert log =~ "Operator grant page view"
+      assert log =~ "TuistWeb.ProjectsLive"
+    end
+
+    test "logs nothing on the disconnected mount, which is the logged HTTP request", %{
+      operator: operator,
+      session: session
+    } do
+      log =
+        capture_log([level: :info], fn ->
+          OperatorGrant.on_mount(:load, %{"account_handle" => "acme"}, session, live_socket(operator, nil))
+        end)
+
+      refute log =~ "Operator grant page view"
+    end
+
+    test "logs nothing without a grant for the account", %{operator: operator, session: session} do
+      log =
+        capture_log([level: :info], fn ->
+          OperatorGrant.on_mount(:load, %{"account_handle" => "other"}, session, live_socket(operator, self()))
+        end)
+
+      refute log =~ "Operator grant page view"
+    end
+  end
+
   defp operator_user do
     user =
       AccountsFixtures.user_fixture(
@@ -343,4 +532,8 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
 
   defp unwrap({_kty, pem}), do: pem
   defp unwrap(pem) when is_binary(pem), do: pem
+
+  test "credential_headers lists every header that carries a credential" do
+    assert Enum.sort(OperatorGrant.credential_headers()) == ["x-tuist-atlas-identity", "x-tuist-operator-grant"]
+  end
 end

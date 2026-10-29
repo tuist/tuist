@@ -76,7 +76,7 @@ defmodule Tuist.Docs.CLI do
     url = "https://api.github.com/repos/#{@repo}/releases?per_page=100"
 
     case Req.get(url, headers: @headers) do
-      {:ok, %{status: 200, body: releases}} ->
+      {:ok, %{status: 200, body: releases}} when is_list(releases) ->
         # Pick the highest-semver CLI release rather than the first one GitHub
         # returns: the endpoint is ordered by publish date, so a backport patch
         # published after a newer minor would otherwise win. Bare-semver CLI
@@ -90,6 +90,9 @@ defmodule Tuist.Docs.CLI do
           nil -> {:error, :no_cli_release}
           release -> {:ok, release["tag_name"]}
         end
+
+      {:ok, %{status: 200}} ->
+        {:error, :invalid_release_response}
 
       {:ok, %{status: status}} ->
         {:error, {:http_error, status}}

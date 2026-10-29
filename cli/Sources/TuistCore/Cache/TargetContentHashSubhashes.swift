@@ -32,6 +32,8 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
     public let targetSettings: String?
     /// Hash of the target's buildable folders.
     public let buildableFolders: String?
+    /// Hash of the target's additional hashing inputs.
+    public let additionalHashingInputs: String?
     /// Additional strings included in the hash (e.g., xcodebuild arguments).
     public let additionalStrings: [String]
     /// Hash for external project targets (e.g., Swift packages).
@@ -40,6 +42,14 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
     /// frameworks). This is an emergent property of the dependency closure that isn't captured by the
     /// per-dependency content hashes, so it's tracked separately.
     public let embeddedProductReferences: String?
+
+    /// Sorted raw destinations used by the hasher, absent in historical reports.
+    public let destinations: [String]?
+    /// Hash of the foreign build script and its inputs, when present.
+    public let foreignBuild: String?
+    /// Device name and runtime included when hashing UI tests.
+    public let testDevice: String?
+    public let testRuntime: String?
 
     public init(
         sources: String? = nil,
@@ -56,9 +66,14 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         projectSettings: String,
         targetSettings: String? = nil,
         buildableFolders: String? = nil,
+        additionalHashingInputs: String? = nil,
         additionalStrings: [String] = [],
         external: String? = nil,
-        embeddedProductReferences: String? = nil
+        embeddedProductReferences: String? = nil,
+        destinations: [String]? = nil,
+        foreignBuild: String? = nil,
+        testDevice: String? = nil,
+        testRuntime: String? = nil
     ) {
         self.sources = sources
         self.resources = resources
@@ -74,9 +89,14 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         self.projectSettings = projectSettings
         self.targetSettings = targetSettings
         self.buildableFolders = buildableFolders
+        self.additionalHashingInputs = additionalHashingInputs
         self.additionalStrings = additionalStrings
         self.external = external
         self.embeddedProductReferences = embeddedProductReferences
+        self.destinations = destinations
+        self.foreignBuild = foreignBuild
+        self.testDevice = testDevice
+        self.testRuntime = testRuntime
     }
 
     #if DEBUG
@@ -95,9 +115,14 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
             projectSettings: String = "test-project-settings",
             targetSettings: String? = nil,
             buildableFolders: String? = nil,
+            additionalHashingInputs: String? = nil,
             additionalStrings: [String] = [],
             external: String? = nil,
-            embeddedProductReferences: String? = nil
+            embeddedProductReferences: String? = nil,
+            destinations: [String]? = nil,
+            foreignBuild: String? = nil,
+            testDevice: String? = nil,
+            testRuntime: String? = nil
         ) -> TargetContentHashSubhashes {
             TargetContentHashSubhashes(
                 sources: sources,
@@ -114,9 +139,14 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
                 projectSettings: projectSettings,
                 targetSettings: targetSettings,
                 buildableFolders: buildableFolders,
+                additionalHashingInputs: additionalHashingInputs,
                 additionalStrings: additionalStrings,
                 external: external,
-                embeddedProductReferences: embeddedProductReferences
+                embeddedProductReferences: embeddedProductReferences,
+                destinations: destinations,
+                foreignBuild: foreignBuild,
+                testDevice: testDevice,
+                testRuntime: testRuntime
             )
         }
     #endif

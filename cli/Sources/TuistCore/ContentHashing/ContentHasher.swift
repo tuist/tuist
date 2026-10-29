@@ -58,10 +58,12 @@ public struct ContentHasher: ContentHashing {
             return try await fileSystem.glob(directory: filePath, include: ["*"])
                 .collect()
                 .filter { filesFilter($0) }
-                .concurrentMap { filePath -> String? in
-                    guard try await fileSystem.exists(filePath) else { return nil }
-                    let filePath = try await fileSystem.resolveSymbolicLink(filePath)
-                    return try await hash(path: filePath)
+                .concurrentMap { childPath -> String? in
+                    guard try await fileSystem.exists(childPath) else { return nil }
+                    let resolvedPath = try await fileSystem.resolveSymbolicLink(childPath)
+                    let contentHash = try await hash(path: resolvedPath)
+                    let relativePath = childPath.relative(to: filePath).pathString
+                    return try hash("path-\(relativePath)-content-\(contentHash)")
                 }
                 .compactMap { $0 }
                 .sorted()

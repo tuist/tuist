@@ -1,0 +1,25 @@
+name: Cloudflare Configuration Tests
+
+on:
+  pull_request:
+    paths:
+      - infra/flux/cloudflare-config/**
+      - .github/workflows/cloudflare-config-tests.yml
+  push:
+    branches:
+      - main
+    paths:
+      - infra/flux/cloudflare-config/**
+      - .github/workflows/cloudflare-config-tests.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check crawler exemption scope
+        run: python3 infra/flux/cloudflare-config/test_skip_sbfm.py

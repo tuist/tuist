@@ -5,6 +5,7 @@ alias Ecto.Adapters.SQL.Sandbox
 # shape so tests can stub via `stub(Module, :fun, fn ... -> ... end)`.
 Mimic.copy(TuistOps.Environment)
 Mimic.copy(TuistOps.GitHub.AppToken)
+Mimic.copy(TuistOps.GitHub.OrgMembership)
 Mimic.copy(TuistOps.Previews)
 Mimic.copy(TuistOps.Previews.GitHubActionsClient)
 Mimic.copy(TuistOps.JIT.Approvals)

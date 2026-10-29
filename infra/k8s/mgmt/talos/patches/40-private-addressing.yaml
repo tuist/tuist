@@ -1,0 +1,14 @@
+# Pins etcd and the kubelet to the private network (hetzner.yaml), so peers
+# reach etcd over it and the node IP no longer follows whichever interface
+# Talos sees first (the Tailscale interface comes from a Pod, which starts
+# after etcd). Applies without a reboot: Talos updates the etcd member's
+# peer URL in place.
+machine:
+  kubelet:
+    nodeIP:
+      validSubnets:
+        - 10.0.1.0/24
+cluster:
+  etcd:
+    advertisedSubnets:
+      - 10.0.1.0/24

@@ -12,6 +12,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Installation
   alias Tuist.Slack.Reports
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.SlackOAuthController
 
   @impl true
@@ -30,6 +31,12 @@ defmodule TuistWeb.ProjectNotificationsLive do
       socket
       |> assign(:slack_configured, Environment.slack_configured?())
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Notifications")} · #{selected_project.name} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(selected_project,
+          title: dgettext("dashboard_projects", "Notifications"),
+          subtitle: dgettext("dashboard_projects", "Project settings")
+        )
+      )
       |> assign(
         :slack_channel_selection_url,
         SlackOAuthController.channel_selection_url(selected_project.id, selected_account.id)
@@ -623,6 +630,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
     end
   end
 
+  defp branch_placeholder(:bundle_size), do: dgettext("dashboard_projects", "e.g. main")
+
+  defp branch_placeholder(_category), do: dgettext("dashboard_projects", "e.g. main (optional)")
+
   defp category_label(:build_run_duration), do: dgettext("dashboard_projects", "Build duration")
   defp category_label(:test_run_duration), do: dgettext("dashboard_projects", "Test duration")
   defp category_label(:cache_hit_rate), do: dgettext("dashboard_projects", "Cache hit rate")
@@ -634,11 +645,21 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp metric_label(:average), do: dgettext("dashboard_projects", "Average")
   defp metric_label(nil), do: ""
 
+  # The description sentence carries its own <strong> markup and is handed to
+  # raw/1, and Gettext bindings are plain string substitution. Rule-authored
+  # values have to be escaped before they reach the template.
+  defp escape_binding(value) do
+    value
+    |> to_string()
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+  end
+
   defp alert_rule_description(category, metric, deviation, rolling_window_size, opts) do
     case category do
       :bundle_size ->
-        git_branch = Keyword.get(opts, :git_branch, "")
-        bundle_name = Keyword.get(opts, :bundle_name, "")
+        git_branch = escape_binding(Keyword.get(opts, :git_branch, ""))
+        bundle_name = escape_binding(Keyword.get(opts, :bundle_name, ""))
         size_label = bundle_size_metric_label(metric)
 
         text =
@@ -666,22 +687,37 @@ defmodule TuistWeb.ProjectNotificationsLive do
       _ ->
         metric_category = alert_metric_category_label(category, metric)
         unit = alert_unit_label(category)
-        scheme = Keyword.get(opts, :scheme, "")
+        scheme = escape_binding(Keyword.get(opts, :scheme, ""))
         environment = Keyword.get(opts, :environment, "any")
         current_unit = qualified_unit_label(scheme, environment, unit)
 
         text =
           case category do
             :cache_hit_rate ->
-              dgettext(
-                "dashboard_projects",
-                "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
-                metric_category: metric_category,
-                rolling_window_size: rolling_window_size,
-                current_unit: current_unit,
-                unit: unit,
-                deviation: deviation
-              )
+              git_branch = escape_binding(Keyword.get(opts, :git_branch, ""))
+
+              if git_branch == "" do
+                dgettext(
+                  "dashboard_projects",
+                  "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                  metric_category: metric_category,
+                  rolling_window_size: rolling_window_size,
+                  current_unit: current_unit,
+                  unit: unit,
+                  deviation: deviation
+                )
+              else
+                dgettext(
+                  "dashboard_projects",
+                  "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> on branch <strong>%{git_branch}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                  metric_category: metric_category,
+                  rolling_window_size: rolling_window_size,
+                  current_unit: current_unit,
+                  git_branch: git_branch,
+                  unit: unit,
+                  deviation: deviation
+                )
+              end
 
             _ ->
               dgettext(

@@ -1,0 +1,62 @@
+# The fleet's MDM. One instance owns every Mac we own, whatever cluster
+# that Mac ends up serving: the MDM manages a host before it joins
+# anything, and the cluster is chosen later by the kubeconfig the
+# operator SSH bootstrap installs. There is deliberately no per-cluster
+# MDM, and no separate bench — while the fleet is being validated the
+# only enrolled machine is a disposable prototype, so a second instance
+# would buy nothing and cost a second push certificate, a second ABM
+# server row and a migration.
+#
+# It runs in the production cluster, alongside tuist-ops: this is the
+# plane that provisions the fleet, so it does not belong in the cluster
+# we treat as disposable.
+#
+# The hostname is effectively permanent. The MDM protocol has no way to
+# move an enrollment's ServerURL, so changing it means DFU-reprovisioning
+# every enrolled machine. It is deliberately not in the block below.
+host: mdm.tuist.dev
+
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+
+runtimeSecrets:
+  externalSecret:
+    enabled: true
+    item: MDM
+
+# ---------------------------------------------------------------------
+# Cluster-coupled settings. These follow the cluster the release is
+# hosted in rather than the instance, and both must change together if it
+# ever moves. Each fails differently and neither fails loudly:
+#
+#   tailnet.tags        the Tailscale operator may only mint tags its own
+#                       OAuth client is scoped to. A foreign tag means the
+#                       device is never created and the operator APIs
+#                       quietly have no tailnet address.
+#   backup destination  the Tigris credentials are bucket-scoped. Pointing
+#                       at another cluster's bucket fails every WAL archive
+#                       with AccessDenied, which raises no alert but does
+#                       grow pg_wal until the volume fills.
+# ---------------------------------------------------------------------
+tailnet:
+  enabled: true
+  tags: "tag:tuist-k8s-production"
+
+postgresql:
+  backup:
+    enabled: true
+    destinationPath: s3://tuist-prod-pg-backups/mdm
+
+# Renewal alarms. Neither the APNs certificate nor the ABM token can be
+# renewed by any API, so being told early is the only mitigation. Set
+# renewal ahead of time is the only mitigation. Posts to #notifications;
+# a critical finding also fails the job, so a broken Slack path still
+# surfaces as a failed CronJob rather than as silence.
+expiryCheck:
+  enabled: true
+  slack:
+    # #notifications. The channel ID rather than the name, so a rename
+    # cannot silently stop delivery.
+    channel: "C074MCRL0RE"

@@ -6,6 +6,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRunAttachments do
   use Tuist.MCP.Tool,
     name: "list_test_case_run_attachments",
     title: "List Test Case Run Attachments",
+    read_only_hint: true,
     schema: %{
       "type" => "object",
       "properties" => %{

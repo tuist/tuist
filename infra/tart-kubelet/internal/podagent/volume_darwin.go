@@ -8,18 +8,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
-// darwinVolumeBackend implements volumeBackend with the real macOS mechanics:
-// APFS `clonefile` (via `cp -c -R`) for instant CoW directory branching, and
-// `df`/statfs for admission accounting. Both masters and branches are ordinary
-// directory trees on the runner-cache APFS volume, so there is no disk-image
-// machinery — clone is a metadata-only operation whose cost tracks file count,
-// not bytes (measured ~59 ms syscall / ~579 ms via cp for a 2.4 GB / 6.3k-file
-// tree on staging).
+// darwinVolumeBackend probes the runner-cache APFS volume with `df` and stat.
 type darwinVolumeBackend struct{}
 
 func newVolumeBackend() volumeBackend { return darwinVolumeBackend{} }
@@ -34,31 +30,65 @@ func runCmd(timeout time.Duration, name string, args ...string) (string, error) 
 	return string(out), nil
 }
 
-// cloneTree CoW-clones the directory tree at src to dst. `cp -c` forces
-// clonefile(2) and fails rather than silently falling back to a byte copy, so
-// a cross-volume mistake surfaces instead of quietly costing a full copy. dst
-// must not exist; its parent must.
-func (darwinVolumeBackend) cloneTree(src, dst string) error {
-	if _, err := os.Stat(src); err != nil {
-		return fmt.Errorf("clone source missing: %w", err)
+// isMounted reports whether root is its own mounted volume rather than a bare
+// mountpoint directory on the boot filesystem. A mount point's device id
+// differs from its parent's; an unmounted path either does not exist (the
+// volume never mounted) or, if a stale directory lingers, shares the boot
+// volume's device id. This is the canonical mountpoint(1) check and, unlike
+// `df`, cannot be fooled into reporting the boot volume's free space for an
+// unmounted cache root.
+func (darwinVolumeBackend) isMounted(root string) (bool, error) {
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
 	}
-	if _, err := runCmd(2*time.Minute, "cp", "-c", "-R", src, dst); err != nil {
-		return err
+	parentInfo, err := os.Stat(filepath.Dir(root))
+	if err != nil {
+		return false, err
 	}
-	return nil
+	rootStat, ok := rootInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false, fmt.Errorf("stat %s: unexpected FileInfo backing type", root)
+	}
+	parentStat, ok := parentInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false, fmt.Errorf("stat %s: unexpected FileInfo backing type", filepath.Dir(root))
+	}
+	return rootStat.Dev != parentStat.Dev, nil
 }
 
 // freeBytes reports available bytes on the filesystem holding root via `df`.
 // statfs would avoid the fork, but df is dependency-free and the call is off
-// the per-job hot path (admission + reconcile tick only).
+// the per-job hot path (admission and the reconcile tick only).
 func (darwinVolumeBackend) freeBytes(root string) (uint64, error) {
+	// Column 4 is available 1K blocks.
+	return dfKilobytes(root, 3, "available")
+}
+
+// capacityBytes reports the size of the filesystem holding root via `df`. For
+// the runner-cache APFS volume that is its quota.
+func (darwinVolumeBackend) capacityBytes(root string) (uint64, error) {
+	// Column 2 is the filesystem's size in 1K blocks.
+	return dfKilobytes(root, 1, "size")
+}
+
+// usedBytes reports the space the filesystem holding root uses via `df`. For an
+// APFS volume that is the volume's own usage, not its container's.
+func (darwinVolumeBackend) usedBytes(root string) (uint64, error) {
+	// Column 3 is used 1K blocks.
+	return dfKilobytes(root, 2, "used")
+}
+
+func dfKilobytes(root string, column int, name string) (uint64, error) {
 	out, err := runCmd(30*time.Second, "df", "-P", "-k", root)
 	if err != nil {
 		return 0, err
 	}
-	// POSIX df: header line, then one data line. Column 4 is available 1K
-	// blocks. Filesystems with spaces in the device name still keep the
-	// numeric columns right-aligned, so index from the end is safest.
+	// POSIX df: header line, then one data line: filesystem, size, used,
+	// available, capacity, mount point.
 	sc := bufio.NewScanner(strings.NewReader(out))
 	var last string
 	for sc.Scan() {
@@ -72,12 +102,26 @@ func (darwinVolumeBackend) freeBytes(root string) (uint64, error) {
 		return 0, fmt.Errorf("df returned no data line: %q", out)
 	}
 	fields := strings.Fields(last)
-	if len(fields) < 4 {
+	if len(fields) <= column {
 		return 0, fmt.Errorf("df line has too few columns: %q", last)
 	}
-	availKB, err := strconv.ParseUint(fields[3], 10, 64)
+	kb, err := strconv.ParseUint(fields[column], 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("parse df available column %q: %w", fields[3], err)
+		return 0, fmt.Errorf("parse df %s column %q: %w", name, fields[column], err)
 	}
-	return availKB * 1024, nil
+	return kb * 1024, nil
+}
+
+// allocatedBytes reports the blocks a sparse image actually occupies, not its
+// nominal size.
+func (darwinVolumeBackend) allocatedBytes(path string) (uint64, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return 0, err
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, fmt.Errorf("stat %s: unexpected FileInfo backing type", path)
+	}
+	return uint64(st.Blocks) * 512, nil
 }

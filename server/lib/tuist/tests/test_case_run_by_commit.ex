@@ -16,8 +16,14 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
   schema; the legacy table is dropped in a follow-up migration once the
   rollout is stable.
 
-  Used by `Tuist.Tests.get_existing_ci_runs_for_commit/4` to identify
-  historical CI runs for a given commit and scheme; the main table is then
+  `test_run_destination_id` references the destination that produced the result.
+  `test_run_id` bounds destination reads using their existing sort key. Both are
+  filtered through the same project, commit, scheme and CI scope. Null destination
+  references share an unattributed comparison group for missing, incomplete or
+  multiple destinations, including historical rows without a reference.
+
+  Used by `Tuist.Tests.get_existing_ci_runs_for_commit/5` to identify
+  historical CI runs for a given commit, scheme and destination; the main table is then
   hit by `id` (via the `idx_id` bloom filter) only for the small subset that
   needs full rows.
   """
@@ -28,9 +34,12 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
     field :project_id, Ch, type: "Int64"
     field :git_commit_sha, Ch, type: "String"
     field :scheme, Ch, type: "String"
+    field :test_run_id, Ecto.UUID
+    field :test_run_destination_id, Ch, type: "Nullable(UUID)"
     field :is_ci, :boolean, default: false
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :test_case_id, Ch, type: "Nullable(UUID)"
+    field :is_flaky, :boolean, default: false
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 end

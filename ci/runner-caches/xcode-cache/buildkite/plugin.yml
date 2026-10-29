@@ -1,0 +1,11 @@
+name: Tuist Xcode cache
+description: Keep the Xcode compilation cache across jobs on Tuist macOS runners.
+author: https://github.com/tuist
+requirements: [bash]
+configuration:
+  type: object
+  additionalProperties: false
+  properties:
+    size:
+      type: string
+      pattern: "^[0-9]+[gG][bB]$"

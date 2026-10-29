@@ -9,6 +9,18 @@ defmodule Tuist.Registry.Swift.Metadata do
   alias Tuist.Registry.S3
   alias TuistCommon.Registry.Swift.Metadata, as: MetadataContract
 
+  @skip_classification_version 2
+
+  def verified_skip?(%{"classification_version" => @skip_classification_version}), do: true
+  def verified_skip?(_skip), do: false
+
+  def verified_skip(reason) when is_binary(reason) do
+    %{
+      "classification_version" => @skip_classification_version,
+      "reason" => reason
+    }
+  end
+
   def get_package(scope, name, _opts \\ []) do
     key = MetadataContract.s3_key(scope, name)
 

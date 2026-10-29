@@ -5,3 +5,4 @@ set -eo pipefail
 
 # Lint all components of the project
 mise run cli:lint "$@"
+mise run css:lint-tokens

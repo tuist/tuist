@@ -1,0 +1,214 @@
+{{- $cache := .Values.rackFleet.imageCache | default dict }}
+{{- if and .Values.capi.enabled .Values.rackFleet.enabled $cache.enabled }}
+{{- $fleetName := include "rackNodes.imageCacheName" . }}
+{{- $prewarmTags := include "rackNodes.imageCachePrewarmTags" . | fromJsonArray }}
+{{- $repositories := required "rackFleet.imageCache.repositories names what the cache serves" $cache.repositories }}
+{{- range $node := (required "rackFleet.imageCache.nodes needs a storage node to run on" $cache.nodes) }}
+{{- $name := printf "%s-%s" $fleetName $node.name | trunc 63 | trimSuffix "-" }}
+{{- $sizeSuffix := printf "-%dgi" (int $cache.sizeGi) }}
+{{- $claimName := printf "%s%s" ($name | trunc (int (sub 63 (len $sizeSuffix))) | trimSuffix "-") $sizeSuffix }}
+{{- $address := required (printf "rackFleet.imageCache.nodes[%s].address is required" $node.name) $node.address }}
+{{- /*
+zot fetches an image of the repositories on its first manifest request and
+answers only once all of it is local, with the upstream's digest; concurrent
+requests for it share that one fetch. tart-kubelet waits for that answer
+itself (Tart's own client gives up after 60 idle seconds) and pulls by the
+digest it was given. zot's periodic sync cannot run against ghcr.io, which
+refuses the repository listing it starts from, so the prewarm container
+below asks for each prewarm tag instead, through the same on-demand path.
+*/}}
+{{- $onDemand := list }}
+{{- range $repositories }}
+{{- $onDemand = append $onDemand (dict "prefix" .) }}
+{{- end }}
+{{- $registries := list (dict "urls" (list (printf "https://%s" $cache.upstream)) "onDemand" true "tlsVerify" true "maxRetries" 3 "retryDelay" "1m" "content" $onDemand) }}
+{{- $keepTags := list (dict "pulledWithin" $cache.keepPulledWithin) }}
+{{- if $prewarmTags }}
+{{- $quoted := list }}
+{{- range $prewarmTags }}
+{{- $quoted = append $quoted (regexQuoteMeta .) }}
+{{- end }}
+{{- $keepTags = prepend $keepTags (dict "patterns" (list (printf "^(%s)$" (join "|" $quoted)))) }}
+{{- end }}
+{{- $prewarmURLs := list }}
+{{- range $repository := $repositories }}
+{{- range $tag := $prewarmTags }}
+{{- $prewarmURLs = append $prewarmURLs (printf "http://%s:%d/v2/%s/manifests/%s" $address (int $cache.port) $repository $tag) }}
+{{- end }}
+{{- end }}
+{{- $config := dict
+  "distSpecVersion" "1.1.1"
+  "storage" (dict
+    "rootDirectory" "/var/lib/zot"
+    "dedupe" true
+    "gc" true
+    "gcDelay" "1h"
+    "gcInterval" "1h"
+    "retention" (dict "policies" (list (dict "repositories" (list "**") "deleteReferrers" true "deleteUntagged" true "keepTags" $keepTags))))
+  "http" (dict "address" $address "port" ($cache.port | toString))
+  "log" (dict "level" "info")
+  "extensions" (dict
+    "metrics" (dict "enable" true "prometheus" (dict "path" "/metrics"))
+    "sync" (dict "enable" true "registries" $registries)) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "rackNodes.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-image-cache
+data:
+  config.json: |
+    {{- $config | toPrettyJson | nindent 4 }}
+---
+# The cache's blobs, on the node's XFS /data under a project quota, so a
+# cache that fills cannot take the node's Kura region with it. Bound to the
+# node by the local-path class's WaitForFirstConsumer once the pod lands.
+#
+# Named after its size: a claim cannot shrink, so a new size is a new volume,
+# which the cache fills again from the upstream, and Helm deletes the old one
+# once the Deployment's Recreate has released it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $claimName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "rackNodes.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-image-cache
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ $cache.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ printf "%dGi" (int $cache.sizeGi) }}
+---
+# One cache per storage node, at that node's machines address, where the
+# minis on the same segment pull from it: a rack node's pods reach no
+# Service and nothing outside the node reaches a pod off the host network.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "rackNodes.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-image-cache
+spec:
+  replicas: 1
+  # One writer to the volume and one listener on the address at a time.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: rack-image-cache
+      tuist.dev/rack-image-cache: {{ $node.name | quote }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: rack-image-cache
+        tuist.dev/rack-image-cache: {{ $node.name | quote }}
+      annotations:
+        checksum/config: {{ $config | toJson | sha256sum }}
+    spec:
+      hostNetwork: true
+      # The node's own resolvers: a rack node has no route to the cluster's
+      # DNS Service, and the cache resolves ghcr.io.
+      dnsPolicy: Default
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/hostname: {{ $node.name | quote }}
+      tolerations:
+        - key: tuist.dev/rack-storage
+          operator: Exists
+          effect: NoSchedule
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: zot
+          image: {{ printf "%s:%s" $cache.image.repository $cache.image.tag | quote }}
+          imagePullPolicy: {{ $cache.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            httpGet:
+              host: {{ $address | quote }}
+              port: {{ int $cache.port }}
+              path: /v2/
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              host: {{ $address | quote }}
+              port: {{ int $cache.port }}
+              path: /v2/
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            {{- $resources := deepCopy ($cache.resources | default dict) }}
+            {{- $_ := set $resources "requests" (merge (dict "ephemeral-storage" (printf "%dGi" (int $cache.sizeGi))) ($resources.requests | default dict)) }}
+            {{- toYaml $resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/zot
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/zot
+            - name: tmp
+              mountPath: /tmp
+        {{- if $prewarmURLs }}
+        # Asks the cache for each prewarm image every syncInterval, one at a
+        # time, so a release's images are fetched once, as soon as the deploy
+        # names them, before a mini asks. A manifest the cache already holds
+        # answers at once (after zot checks the tag against the upstream); one
+        # it does not is answered when all of it is local, which the read
+        # timeout outlasts.
+        - name: prewarm
+          image: {{ printf "%s:%s" $cache.prewarmImage.repository $cache.prewarmImage.tag | quote }}
+          imagePullPolicy: {{ $cache.prewarmImage.pullPolicy }}
+          command: [/bin/sh, -c]
+          args:
+            - |
+              while :; do
+                for url in {{ join " " $prewarmURLs }}; do
+                  if wget -q -O /dev/null -T 10800 --header "Accept: application/vnd.oci.image.manifest.v1+json" "$url"; then
+                    echo "prewarmed $url"
+                  else
+                    echo "prewarm of $url failed; the next pass retries it"
+                  fi
+                done
+                sleep {{ $cache.syncInterval | quote }}
+              done
+          securityContext:
+            runAsUser: 65534
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+        {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $name }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ $claimName }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+{{- end }}
+{{- end }}

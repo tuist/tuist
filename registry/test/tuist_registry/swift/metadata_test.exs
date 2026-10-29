@@ -92,7 +92,8 @@ defmodule TuistRegistry.Swift.MetadataTest do
         %S3{bucket: "test-registry-bucket", path: s3_key}
       end)
 
-      expect(ExAws, :request, fn %S3{} ->
+      expect(ExAws, :request, fn %S3{headers: headers} ->
+        assert headers["X-Tigris-Consistent"] == "true"
         {:ok, %{body: json_body, headers: %{"etag" => "\"etag\""}}}
       end)
 

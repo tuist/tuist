@@ -1,26 +1,36 @@
-{{- with .Values.ciliumEgressGateway.server }}
-{{- if .enabled }}
-{{- $egressIP := required "ciliumEgressGateway.server.egressIP is required when ciliumEgressGateway.server.enabled=true" .egressIP }}
+{{- /*
+One policy per entry under `ciliumEgressGateway`. Entries share the gateway
+node and Floating IP that hostConfigurator + failoverController already keep
+in place (both of which stay scoped to the `server` entry), so a second
+workload getting a stable egress source costs one more CR and no new
+infrastructure. Every key under `ciliumEgressGateway` must therefore be a
+policy entry; per-entry sub-config lives inside its own entry, not alongside.
+Range over a map iterates in key order, so the rendered output is stable.
+*/ -}}
+{{- range $key, $entry := .Values.ciliumEgressGateway }}
+{{- if $entry.enabled }}
+{{- $egressIP := required (printf "ciliumEgressGateway.%s.egressIP is required when ciliumEgressGateway.%s.enabled=true" $key $key) $entry.egressIP }}
+---
 apiVersion: cilium.io/v2
 kind: CiliumEgressGatewayPolicy
 metadata:
-  name: {{ .name | quote }}
+  name: {{ $entry.name | quote }}
 spec:
   selectors:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: {{ .namespace | quote }}
+          kubernetes.io/metadata.name: {{ $entry.namespace | quote }}
       podSelector:
         matchLabels:
-          {{- toYaml .podSelector | nindent 10 }}
+          {{- toYaml $entry.podSelector | nindent 10 }}
   destinationCIDRs:
-    {{- toYaml .destinationCIDRs | nindent 4 }}
+    {{- toYaml $entry.destinationCIDRs | nindent 4 }}
   excludedCIDRs:
-    {{- toYaml .excludedCIDRs | nindent 4 }}
+    {{- toYaml $entry.excludedCIDRs | nindent 4 }}
   egressGateway:
     nodeSelector:
       matchLabels:
-        {{- toYaml .gatewayNodeSelector | nindent 8 }}
+        {{- toYaml $entry.gatewayNodeSelector | nindent 8 }}
     egressIP: {{ $egressIP | quote }}
 {{- end }}
 {{- end }}

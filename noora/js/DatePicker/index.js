@@ -21,7 +21,7 @@ import { CalendarNavigation } from "./CalendarNavigation.js";
 import { DateInputHandler } from "./DateInputHandler.js";
 import { WEEKDAYS, MOBILE_BREAKPOINT } from "./constants.js";
 
-class DatePicker extends Component {
+export class DatePicker extends Component {
   constructor(el, props) {
     super(el, props);
     this.presets = props.presets || [];
@@ -49,48 +49,40 @@ class DatePicker extends Component {
   setupNavigationHandlers() {
     const signal = this.abortController.signal;
 
-    // Use event delegation on month elements
-    const months = this.el.querySelectorAll(
-      "[data-part='months'] > [data-part='month']",
-    );
+    // Delegate from the hook root so navigation survives LiveView DOM patches.
+    this.el.addEventListener(
+      "click",
+      (e) => {
+        const navigationTrigger = e.target.closest(
+          "[data-part='prev-trigger'], [data-part='next-trigger']",
+        );
+        if (navigationTrigger) {
+          if (navigationTrigger.disabled) return;
 
-    months.forEach((monthEl, monthIndex) => {
-      const prevTrigger = monthEl.querySelector("[data-part='prev-trigger']");
-      const nextTrigger = monthEl.querySelector("[data-part='next-trigger']");
+          const months = Array.from(
+            this.el.querySelectorAll(
+              "[data-part='months'] > [data-part='month']",
+            ),
+          );
+          const monthIndex = months.indexOf(
+            navigationTrigger.closest("[data-part='month']"),
+          );
+          if (monthIndex < 0) return;
 
-      if (prevTrigger) {
-        prevTrigger.addEventListener(
-          "click",
-          () => {
+          if (navigationTrigger.dataset.part === "prev-trigger") {
             if (monthIndex === 0) {
               this.calendarNav.navigatePrevStart();
             } else {
               this.calendarNav.navigatePrevEnd();
             }
-          },
-          { signal },
-        );
-      }
+          } else if (monthIndex === 0) {
+            this.calendarNav.navigateNextStart();
+          } else {
+            this.calendarNav.navigateNextEnd();
+          }
+          return;
+        }
 
-      if (nextTrigger) {
-        nextTrigger.addEventListener(
-          "click",
-          () => {
-            if (monthIndex === 0) {
-              this.calendarNav.navigateNextStart();
-            } else {
-              this.calendarNav.navigateNextEnd();
-            }
-          },
-          { signal },
-        );
-      }
-    });
-
-    // Event delegation for preset buttons
-    this.el.addEventListener(
-      "click",
-      (e) => {
         const presetItem = e.target.closest("[data-part='preset-item']");
         if (presetItem) {
           const presetId = presetItem.dataset.presetId;
@@ -183,13 +175,7 @@ class DatePicker extends Component {
     }
 
     const preset = presets.find((p) => p.id === selectedPreset);
-    if (!preset || !preset.period) return null;
-
-    const range = calculateRangeFromDuration(preset.period);
-    return [
-      datePicker.parse(toISODateString(range.start)),
-      datePicker.parse(toISODateString(range.end)),
-    ];
+    return this.getPresetValue(preset);
   }
 
   initApi() {
@@ -224,25 +210,46 @@ class DatePicker extends Component {
     this.selectedPreset = presetId;
     this.updatePresetSelection(presetId);
 
+    const value = this.getPresetValue(preset);
+    if (value && this.api.setValue) {
+      const [startDate, endDate] = value;
+      this.isSettingPreset = true;
+      this.api.setValue(value);
+      this.calendarNav.updateForSelection(startDate, endDate);
+
+      this.api = this.initApi();
+      this.render();
+
+      // Defer flag reset to ensure onValueChange callbacks have fired
+      queueMicrotask(() => {
+        this.isSettingPreset = false;
+      });
+    }
+  }
+
+  getPresetValue(preset) {
+    if (!preset) return null;
+
     if (preset.period) {
       const range = calculateRangeFromDuration(preset.period);
-      const startDate = datePicker.parse(toISODateString(range.start));
-      const endDate = datePicker.parse(toISODateString(range.end));
-
-      if (startDate && endDate && this.api.setValue) {
-        this.isSettingPreset = true;
-        this.api.setValue([startDate, endDate]);
-        this.calendarNav.updateForSelection(startDate, endDate);
-
-        this.api = this.initApi();
-        this.render();
-
-        // Defer flag reset to ensure onValueChange callbacks have fired
-        queueMicrotask(() => {
-          this.isSettingPreset = false;
-        });
-      }
+      return [
+        datePicker.parse(toISODateString(range.start)),
+        datePicker.parse(toISODateString(range.end)),
+      ];
     }
+
+    const start = parseISODate(preset.start);
+    const end = parseISODate(preset.end);
+    if (!start || !end) return null;
+
+    return [
+      datePicker.parse(
+        `${start.year}-${String(start.month).padStart(2, "0")}-${String(start.day).padStart(2, "0")}`,
+      ),
+      datePicker.parse(
+        `${end.year}-${String(end.month).padStart(2, "0")}-${String(end.day).padStart(2, "0")}`,
+      ),
+    ];
   }
 
   handleCancel() {

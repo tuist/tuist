@@ -4,14 +4,14 @@ use axum::response::Response;
 use http_body_util::BodyExt;
 use reqwest::Client;
 use tempfile::TempDir;
-use tokio::sync::{Notify, Semaphore};
 use tokio::time::Instant;
 
 use crate::{
     analytics::Analytics,
+    auth::SharedAuth,
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
-    extension::SharedExtension,
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
@@ -31,18 +31,19 @@ pub(crate) async fn test_context<F>(override_config: F) -> TestContext
 where
     F: FnOnce(&mut Config),
 {
-    test_context_with_extension(override_config, None).await
+    test_context_with_auth(override_config, None).await
 }
 
-pub(crate) async fn test_context_with_extension<F>(
+pub(crate) async fn test_context_with_auth<F>(
     override_config: F,
-    extension: Option<SharedExtension>,
+    auth: Option<SharedAuth>,
 ) -> TestContext
 where
     F: FnOnce(&mut Config),
 {
     let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
     let mut config = Config {
+        serving_authority: None,
         port: 0,
         internal_port: 7443,
         tenant_id: "test-tenant".into(),
@@ -53,24 +54,31 @@ where
         cas_capacity_bytes: None,
         node_url: "http://127.0.0.1:7443".into(),
         peer_gateway_url: None,
+        peer_topology: None,
         peers: vec!["http://127.0.0.1:7443".into()],
         discovery_dns_name: None,
         global_discovery_dns_name: None,
         peer_tls: None,
         public_tls: None,
         https_port: 0,
+        gateway_grpc_port: None,
         accelerated_file_serving: AcceleratedFileServingConfig {
             enabled: true,
             mode: AcceleratedFileServingMode::Splice,
             max_concurrent: 32,
             chunk_bytes: 1024 * 1024,
         },
+        action_cache_eviction_cascade_enabled: true,
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,
         segment_handle_cache_size: 8,
+        memory_limit_bytes: 512 * 1024 * 1024,
         memory_soft_limit_bytes: 128 * 1024 * 1024,
         memory_hard_limit_bytes: 256 * 1024 * 1024,
+        memory_floor_bytes: None,
+        anon_cache_fit: None,
+        snapshot_cache_max_bytes: 32 * 1024 * 1024,
         manifest_cache_max_bytes: 8 * 1024 * 1024,
         max_keyvalue_bytes: 512 * 1024,
         rocksdb_max_open_files: 256,
@@ -79,26 +87,45 @@ where
         rocksdb_write_buffer_manager_bytes: 32 * 1024 * 1024,
         rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
         rocksdb_max_write_buffer_number: 4,
-        outbox_max_depth: 100_000,
         replication_bandwidth_limit_bytes_per_second: 0,
         replication_public_latency_target_ms: 100,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
-        bootstrap_timeout_ms: 30 * 60 * 1000,
-        bootstrap_max_concurrent_peers: 8,
+        multipart_max_active_uploads: None,
+        multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
+        backfill_margin_percent: 40,
+        backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
+        backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
+        sync_feed_max_rows: crate::constants::DEFAULT_SYNC_FEED_MAX_ROWS,
+        sync_long_poll_secs: crate::constants::DEFAULT_SYNC_LONG_POLL_SECS,
+        sync_pass_start_buffer_ms: crate::constants::DEFAULT_SYNC_PASS_START_BUFFER_MS,
+        sync_region_settle_ms: crate::constants::DEFAULT_SYNC_REGION_SETTLE_MS,
+        sync_feed_stale_peer_secs: crate::constants::DEFAULT_SYNC_FEED_STALE_PEER_SECS,
+        sync_drain_margin_ms: crate::constants::DEFAULT_SYNC_DRAIN_MARGIN_MS,
+        sync_peer_bodies_slots_per_peer: crate::constants::DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
+        sync_peer_serving_max_inflight: None,
         analytics: None,
         usage: None,
         otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
         otel_service_name: "kura-test".into(),
         otel_deployment_environment: "test".into(),
         sentry_dsn: None,
-        geoip_refresh_interval_secs: 0,
+        request_log_sample_rate: 0.0,
+        slow_request_threshold_ms: 30_000,
+        warning_log_interval_ms: 60_000,
         node_country_override: None,
         node_subdivision_override: None,
     };
     override_config(&mut config);
     config
-        .ensure_directories()
+        .ensure_data_dir_for_lock()
+        .await
+        .expect("failed to create test data directory");
+
+    let data_dir_lock =
+        DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
+    config
+        .ensure_directories(&data_dir_lock)
         .await
         .expect("failed to create test directories");
 
@@ -110,20 +137,38 @@ where
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )
     .expect("failed to create test io controller");
-    let memory = MemoryController::new(
+    let memory = MemoryController::with_anon_budget(
         metrics.clone(),
+        config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
+        config.anon_admission_budget_bytes(),
     );
-    let data_dir_lock =
-        DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
-    let store =
-        Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
-    let analytics =
-        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
-            .expect("failed to build test analytics");
+    let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
+        config.snapshot_cache_max_bytes,
+    ));
+    let store = Arc::new(
+        Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store"),
+    );
+    let tmp_staging_budget = store.tmp_staging_budget();
+    let analytics = Analytics::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        metrics.clone(),
+        Some(Arc::clone(&store)),
+    )
+    .expect("failed to build test analytics");
+    let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        store.clone(),
+        memory.clone(),
+        metrics.clone(),
+    )
+    .expect("failed to build Bazel test artifact delivery");
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .expect("failed to build test usage");
+    let peer_client_factory = PeerClientFactory::plain();
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -135,33 +180,44 @@ where
         runtime.clone(),
     )
     .map(Arc::new);
-    let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
-    let bootstrap_staging_budget = crate::utils::TmpBudget::new(config.tmp_dir_max_bytes);
+    let peer_staging_budget = crate::utils::TmpBudget::new(
+        config
+            .tmp_dir_max_bytes
+            .min(memory.peer_staging_budget_bytes()),
+    );
+    let backfill_bodies_peer_slots = Arc::new(crate::state::BackfillBodiesPeerSlots::new(
+        config.sync_peer_bodies_slots_per_peer,
+        config.sync_peer_serving_max_inflight,
+    ));
     let state = Arc::new(AppState {
+        account_identity: arc_swap::ArcSwap::from_pointee(crate::state::AccountIdentity::new(
+            config.tenant_id.clone(),
+        )),
         config,
         _data_dir_lock: data_dir_lock,
         store,
         io,
         memory,
+        snapshot_cache,
         metrics,
         runtime,
-        extension,
+        auth,
         analytics,
+        bazel_test_artifacts,
         usage,
-        geoip: None,
         client: arc_swap::ArcSwap::from_pointee(client),
-        peer_client_factory: PeerClientFactory::plain(),
+        peer_client_factory,
         internal_tls: None,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
         replication_bandwidth_limiter,
-        notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
-        bootstrap_semaphore,
-        bootstrap_staging_budget,
-        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
-            .map(|_| tokio::sync::Mutex::new(()))
-            .collect(),
-        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        tmp_staging_budget,
+        peer_staging_budget,
+        backfill_bodies_peer_slots,
+        backfill_claims: crate::backfill::claims::ClaimSet::new(),
+        peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });
     state.sync_runtime_metrics().await;
 

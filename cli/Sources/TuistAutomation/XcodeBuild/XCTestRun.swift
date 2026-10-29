@@ -14,15 +14,29 @@ public struct XCTestRun: Decodable, Equatable {
     public struct TestTarget: Decodable, Equatable {
         public let blueprintName: String
         public let onlyTestIdentifiers: [String]?
+        public let skipTestIdentifiers: [String]?
+        /// Whether xcodebuild runs this target's tests across multiple runner processes. Absent in
+        /// the legacy format and in bundles produced before Xcode wrote the key, which is why it is
+        /// optional rather than defaulted: a missing value means "not stated", not "disabled".
+        public let parallelizationEnabled: Bool?
 
-        public init(blueprintName: String, onlyTestIdentifiers: [String]?) {
+        public init(
+            blueprintName: String,
+            onlyTestIdentifiers: [String]?,
+            skipTestIdentifiers: [String]? = nil,
+            parallelizationEnabled: Bool? = nil
+        ) {
             self.blueprintName = blueprintName
             self.onlyTestIdentifiers = onlyTestIdentifiers
+            self.skipTestIdentifiers = skipTestIdentifiers
+            self.parallelizationEnabled = parallelizationEnabled
         }
 
         enum CodingKeys: String, CodingKey {
             case blueprintName = "BlueprintName"
             case onlyTestIdentifiers = "OnlyTestIdentifiers"
+            case skipTestIdentifiers = "SkipTestIdentifiers"
+            case parallelizationEnabled = "ParallelizationEnabled"
         }
     }
 
@@ -30,6 +44,65 @@ public struct XCTestRun: Decodable, Equatable {
         testConfigurations
             .flatMap { $0.testTargets ?? [] }
             .map(\.blueprintName)
+    }
+
+    /// The suites the built products limit a module to, as `Module/Suite`. A test plan that selects
+    /// specific tests bakes the selection into the bundle, so what will run is known exactly and
+    /// doesn't have to be inferred from what previous runs happened to execute. A module that is
+    /// limited to nothing contributes no entries and is left to be resolved from history.
+    ///
+    /// Identifiers naming a single test are collapsed to the suite that holds it, since a plan
+    /// distributes suites.
+    ///
+    /// Suites the products also skip stay in: this is what tells a consumer which modules the
+    /// products restrict at all, and it has to be read before the skips are applied. Narrowing it
+    /// here would leave a module whose every selected suite is skipped looking unrestricted, which
+    /// is the one state that invites resolving it from history and planning suites the selection
+    /// already ruled out.
+    public func selectedTestSuiteIdentifiers() -> [String] {
+        let identifiers = testConfigurations
+            .flatMap { $0.testTargets ?? [] }
+            .flatMap { target in
+                (target.onlyTestIdentifiers ?? []).map { identifier in
+                    let suite = identifier.split(separator: "/").first.map(String.init) ?? identifier
+                    return "\(target.blueprintName)/\(suite)"
+                }
+            }
+        return Set(identifiers).sorted()
+    }
+
+    /// The suites the built products take out of a module's run, as `Module/Suite`.
+    ///
+    /// A skip identifier names the innermost thing it disables, and a nested suite is named by its
+    /// whole path, so the suite is the last component rather than the first: skipping
+    /// `ParentSuite/NestedSuite` takes out `NestedSuite`, which is also the name a run reports it
+    /// under. An identifier ending in a function only reduces the suite holding it, which may still
+    /// have tests left to run, and the xctestrun carries no inventory to check that against, so
+    /// those are left out. A trailing `()` and a lowercase first character each mark a function
+    /// rather than a type.
+    public func skippedTestSuiteIdentifiers() -> [String] {
+        let identifiers = testConfigurations
+            .flatMap { $0.testTargets ?? [] }
+            .flatMap { target in
+                (target.skipTestIdentifiers ?? []).compactMap { identifier -> String? in
+                    guard let suite = identifier.split(separator: "/").last.map(String.init),
+                          !suite.hasSuffix("()"),
+                          suite.first?.isLowercase != true
+                    else { return nil }
+                    return "\(target.blueprintName)/\(suite)"
+                }
+            }
+        return Set(identifiers).sorted()
+    }
+
+    /// Modules xcodebuild will run with test parallelization on. A module enabled in any
+    /// configuration counts, since that is enough for its suites to overlap in the run.
+    public var parallelizableTestModules: [String] {
+        let names = testConfigurations
+            .flatMap { $0.testTargets ?? [] }
+            .filter { $0.parallelizationEnabled == true }
+            .map(\.blueprintName)
+        return Array(Set(names)).sorted()
     }
 
     private struct NewFormat: Decodable {
@@ -42,9 +115,11 @@ public struct XCTestRun: Decodable, Equatable {
 
     private struct LegacyEntry: Decodable {
         let blueprintName: String
+        let parallelizationEnabled: Bool?
 
         enum CodingKeys: String, CodingKey {
             case blueprintName = "BlueprintName"
+            case parallelizationEnabled = "ParallelizationEnabled"
         }
     }
 
@@ -61,7 +136,13 @@ public struct XCTestRun: Decodable, Equatable {
         for key in container.allKeys {
             if key.stringValue.hasPrefix("__") { continue }
             guard let entry = try? container.decode(LegacyEntry.self, forKey: key) else { continue }
-            targets.append(TestTarget(blueprintName: entry.blueprintName, onlyTestIdentifiers: nil))
+            targets.append(
+                TestTarget(
+                    blueprintName: entry.blueprintName,
+                    onlyTestIdentifiers: nil,
+                    parallelizationEnabled: entry.parallelizationEnabled
+                )
+            )
         }
         testConfigurations = [TestConfiguration(testTargets: targets)]
     }

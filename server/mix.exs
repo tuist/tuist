@@ -12,8 +12,10 @@ defmodule Tuist.MixProject do
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       releases: releases(),
       aliases: aliases(),
+      tuist: [project: "tuist/server", cache: true],
       deps: deps(),
       compilers: compilers(Mix.env()),
+      phoenix_live_view: [colocated_assets: [node_modules_path: "node_modules"]],
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -34,8 +36,8 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   # Boundary verifies a large module graph and makes content edits slow in dev.
-  defp compilers(:dev), do: Mix.compilers()
-  defp compilers(_env), do: [:boundary] ++ Mix.compilers()
+  defp compilers(:dev), do: [:phoenix_live_view] ++ Mix.compilers()
+  defp compilers(_env), do: [:phoenix_live_view, :boundary] ++ Mix.compilers()
 
   # Specifies your project dependencies.
   #
@@ -49,7 +51,7 @@ defmodule Tuist.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.6.1", only: :dev},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
       {:html2markdown, "~> 0.3.1"},
@@ -63,7 +65,7 @@ defmodule Tuist.MixProject do
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
-      {:bandit, "~> 1.11.1", override: true},
+      {:bandit, "~> 1.12.0", override: true},
       # The WebSocket upgrade crash that originally held this at 1.19.2
       # (ArgumentError ":upgrade not a binary") came from the header validation
       # 1.19.3 added to `Plug.Conn.inform/3`, which rejected atom header keys.
@@ -78,7 +80,8 @@ defmodule Tuist.MixProject do
       {:tower_opentelemetry, "~> 0.2.0"},
       {:hackney, "~> 4.5", override: true},
       {:httpoison, "~> 3.0", override: true},
-      {:castore, "~> 1.0.12"},
+      {:castore, "~> 1.0.22"},
+      {:certifi, "~> 2.18", override: true},
       {:uniq, "~> 0.6"},
       {:ex_aws, "~> 2.6"},
       {:ex_aws_s3,
@@ -89,20 +92,24 @@ defmodule Tuist.MixProject do
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
       {:open_api_spex, "~> 3.22"},
-      {:oban, "~> 2.19"},
-      {:oban_web, "~> 2.11"},
+      {:oban, "~> 2.21.0"},
+      {:oban_web, "~> 2.12"},
       {:bcrypt_elixir, "~> 3.0"},
       {:stripity_stripe, "~> 3.1"},
       {:ueberauth, "~> 0.10.8"},
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_google, "~> 0.12"},
-      {:ueberauth_apple, "~> 0.6"},
+      {:ueberauth_apple, "~> 0.6.2"},
       {:req, "~> 0.6.2"},
       {:telemetry_test, "~> 0.1.2"},
+      {:saxy, "~> 1.6"},
       {:sweet_xml, "~> 0.7.4"},
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
+      # PromEx's standalone metrics server still runs on Cowboy even though
+      # the Phoenix endpoint runs on Bandit.
+      {:plug_cowboy, "~> 2.7"},
       {:ranch, "~> 2.2.0", override: true},
       {:hammer, "~> 7.0"},
       {:guardian, "~> 2.3"},
@@ -133,6 +140,7 @@ defmodule Tuist.MixProject do
       {:boundary, "~> 0.10", runtime: false},
       {:makeup, "~> 1.2", override: true},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:solid, "~> 1.3"},
       {:plug_minify_html, "~> 0.1.0"},
       {:briefly, "~> 0.5.0"},
@@ -154,18 +162,25 @@ defmodule Tuist.MixProject do
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:x509, "~> 0.9"},
-      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
+      # Upstream has no Hex release carrying the commits we depend on, so this
+      # tracks git. Pinned to an explicit ref rather than `branch: "master"`:
+      # master is 180+ commits ahead and includes a resource-indicator
+      # (RFC 8707) rewrite of the token schema and refresh grant, so moving
+      # forward has to be a deliberate, reviewed step with the matching
+      # migration, not a side effect of `mix deps.update`.
+      {:boruta, git: "https://github.com/malach-it/boruta_auth", ref: "f72db0b1a85b3ed1bc4e2b1f5ea77421fa92c7d4"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:tuist_common, path: "../tuist_common"},
+      {:tuist_ex, path: "../tuist_ex", runtime: false},
       {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:peep, "4.2.1", override: true},
       {:langchain, "~> 0.4"},
       {:mdex, "~> 0.13.3"},
+      {:mdex_katex, "~> 0.2.1"},
       {:lumis, "~> 0.1.2"},
       {:mdex_mermaid, "~> 0.3"},
       {:html_sanitize_ex, "~> 1.4"},
-      {:posthog, "~> 1.0", runtime: false},
       {:opentelemetry_api, "~> 1.4"},
       {:opentelemetry, "~> 1.5"},
       {:opentelemetry_exporter, "~> 1.8"},
@@ -175,6 +190,13 @@ defmodule Tuist.MixProject do
       # `mix release` refuses to assemble a release with duplicated modules.
       # grpcbox 0.18 requires chatterbox 0.16, which prefixes them chatterbox_h2_*.
       {:grpcbox, "~> 0.18.0", override: true},
+      # gRPC listener for events.tuist.dev. Serves the `once.events.v1`
+      # protocol on its own port so the interactive HTTP endpoint is
+      # untouched; grpc-elixir carries its own cowboy2 HTTP/2 server, so
+      # there is no need to teach Bandit gRPC.
+      {:grpc, "~> 0.9"},
+      {:protobuf, "~> 0.14"},
+      {:protobuf_generate, "~> 0.1", only: [:dev]},
       {:opentelemetry_phoenix, "~> 2.0"},
       {:opentelemetry_ecto,
        github: "open-telemetry/opentelemetry-erlang-contrib", sparse: "instrumentation/opentelemetry_ecto"},
@@ -218,7 +240,8 @@ defmodule Tuist.MixProject do
         "run priv/repo/timezone.exs",
         "ecto.migrate"
       ],
-      test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
+      compile: &compile/1,
+      test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "tuist.test"],
       "assets.setup": [
         "cmd --cd ../noora aube install",
         "esbuild.install --if-missing"
@@ -238,6 +261,18 @@ defmodule Tuist.MixProject do
         "phx.digest"
       ]
     ]
+  end
+
+  # Mix forwards alias arguments only to the last task in a list. Keep the
+  # bootstrap in this project module so --no-compile also skips deps.compile,
+  # without requiring an SDK module before a cold worker has loaded it.
+  defp compile(args) do
+    if "--no-compile" not in args do
+      Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
+    end
+
+    Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
+    Mix.Task.run("tuist.compile", args)
   end
 
   defp releases do

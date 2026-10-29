@@ -213,6 +213,11 @@ private class SelfSignedXCFrameworkMockFileSystem: FileSysteming {
         directory _: Path.AbsolutePath,
         include _: [String]
     ) throws -> AnyThrowingAsyncSequenceable<AbsolutePath> { throw unexpectedCallError() }
+    func glob(
+        directory _: Path.AbsolutePath,
+        include _: [String],
+        exclude _: [String]
+    ) throws -> AnyThrowingAsyncSequenceable<AbsolutePath> { throw unexpectedCallError() }
     func currentWorkingDirectory() async throws -> Path.AbsolutePath { throw unexpectedCallError() }
     func writeText(
         _: String,

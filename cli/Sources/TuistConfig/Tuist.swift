@@ -15,25 +15,47 @@ public enum TuistConfigError: LocalizedError, Equatable {
 public struct Tuist: Equatable, Hashable, Sendable {
     public struct Network: Equatable, Hashable, Sendable {
         public let proxy: Bool
+        public let caCertificate: String?
 
-        public init(proxy: Bool = true) {
+        public init(proxy: Bool = true, caCertificate: String? = nil) {
             self.proxy = proxy
+            self.caCertificate = caCertificate
         }
     }
 
     public struct XcodeCache: Equatable, Hashable, Sendable {
         public let upload: Bool
+        /// In bytes. `nil` leaves the project's compilation cache stores unpruned.
+        public let storeSizeLimit: Int?
 
-        public init(upload: Bool = true) {
+        public init(upload: Bool = true, storeSizeLimit: Int? = nil) {
             self.upload = upload
+            self.storeSizeLimit = storeSizeLimit
         }
     }
 
-    public let project: TuistProject
+    public struct TestInsights: Equatable, Hashable, Sendable {
+        public struct Coverage: Equatable, Hashable, Sendable {
+            public let upload: Bool
+
+            public init(upload: Bool = true) {
+                self.upload = upload
+            }
+        }
+
+        public let coverage: Coverage
+
+        public init(coverage: Coverage = Coverage()) {
+            self.coverage = coverage
+        }
+    }
+
+    public var project: TuistProject
     public let fullHandle: String?
     public let inspectOptions: InspectOptions
     public let network: Network
     public let xcodeCache: XcodeCache
+    public let testInsights: TestInsights
     public let url: URL
 
     public static var `default`: Tuist {
@@ -52,6 +74,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
         fullHandle: String?,
         inspectOptions: InspectOptions,
         xcodeCache: XcodeCache = XcodeCache(),
+        testInsights: TestInsights = TestInsights(),
         url: URL,
         network: Network = Network()
     ) {
@@ -60,6 +83,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
         self.inspectOptions = inspectOptions
         self.network = network
         self.xcodeCache = xcodeCache
+        self.testInsights = testInsights
         self.url = url
     }
 
@@ -83,6 +107,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
             fullHandle: String? = nil,
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             xcodeCache: XcodeCache = XcodeCache(),
+            testInsights: TestInsights = TestInsights(),
             url: URL = Constants.URLs.production,
             network: Network = Network()
         ) -> Self {
@@ -91,6 +116,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
                 xcodeCache: xcodeCache,
+                testInsights: testInsights,
                 url: url,
                 network: network
             )

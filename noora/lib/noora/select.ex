@@ -26,7 +26,7 @@ defmodule Noora.Select do
   attr(:field, FormField, doc: "A Phoenix form field")
 
   attr(:name, :string, doc: "The name attribute for the select input")
-  attr(:value, :string, doc: "The currently selected value")
+  attr(:value, :string, default: nil, doc: "The currently selected value")
   attr(:hint, :string, default: nil, doc: "Hint text for the dropdown")
 
   attr(:disabled, :boolean, default: nil, doc: "Whether the dropdown is disabled")
@@ -45,10 +45,15 @@ defmodule Noora.Select do
   end
 
   def select(%{field: %FormField{} = field} = assigns) do
+    # `value` is a declared attribute with a default, so it is always present in
+    # assigns and `assign_new/3` would never reach the field. Without this the
+    # control takes its name from the field but not its value, so it renders the
+    # placeholder and submits nothing until the user picks an option by hand.
+    # An explicitly passed value still wins over the field's.
     assigns
     |> assign(field: nil, id: Map.get(assigns, :id, field.id))
     |> assign_new(:name, fn -> field.name end)
-    |> assign_new(:value, fn -> field.value end)
+    |> assign(:value, assigns[:value] || field.value)
     |> select()
   end
 
@@ -59,6 +64,7 @@ defmodule Noora.Select do
       class="noora-dropdown"
       phx-hook="NooraSelect"
       data-name={@name}
+      data-value={@value}
       data-on-value-change={@on_value_change}
     >
       <select :if={@name} data-part="hidden-select" name={@name} tabindex="-1" aria-hidden="true">

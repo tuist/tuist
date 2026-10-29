@@ -223,6 +223,264 @@ describe("fetchStatusFromGrafana", () => {
     expect(snapshot.recentIncidents.map((i) => i.id)).toEqual(["fresh"]);
   });
 
+  it("preserves each key update's historical status after the incident is resolved", async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+      if (url.endsWith("FieldsService.GetFields")) {
+        return Response.json({ fields: [] });
+      }
+      if (url.endsWith("StatusService.QueryOrgStatuses")) {
+        return Response.json({
+          configurations: [
+            {
+              statuses: [
+                { statusID: "active-id", name: "Active", category: "active" },
+                { statusID: "resolved-id", slug: "completed", category: "resolved" },
+                { statusID: "identified-id", slug: "identified", category: "active" },
+                { statusID: "monitoring-id", name: "Monitoring", category: "active" },
+              ],
+            },
+          ],
+        });
+      }
+      if (url.endsWith("IncidentsService.QueryIncidents")) {
+        return Response.json({
+          incidents: body.query.queryString.includes("status:active")
+            ? []
+            : [
+                {
+                  incidentID: "resolved-incident",
+                  title: "Server errors",
+                  status: "resolved",
+                  closedTime: "2026-05-05T11:00:00.000Z",
+                },
+              ],
+        });
+      }
+      if (url.endsWith("KeyUpdatesService.QueryKeyUpdates")) {
+        return Response.json({
+          keyUpdates: [
+            { statusID: "resolved-id", content: "Service has recovered." },
+            { statusID: "monitoring-id", title: "Resolved", content: "Still monitoring." },
+            { statusID: "identified-id", title: "Pool exhausted", content: "Cause identified." },
+            { statusID: "active-id", content: "We are investigating." },
+            { statusID: "unknown-id", content: "Historical status is unavailable." },
+            { content: "No historical status was recorded." },
+            { title: "Monitoring", content: "Legacy update with a status title." },
+          ],
+        });
+      }
+      throw new Error(`unmocked URL: ${url}`);
+    }) as typeof fetch;
+
+    const snapshot = await fetchStatusFromGrafana(ENV);
+
+    expect(snapshot.recentIncidents[0]?.status).toBe("resolved");
+    expect(snapshot.recentIncidents[0]?.updates.map((update) => update.status)).toEqual([
+      "resolved",
+      "monitoring",
+      "identified",
+      "investigating",
+      "investigating",
+      "investigating",
+      "monitoring",
+    ]);
+    expect(snapshot.recentIncidents[0]?.updates[2]?.title).toBe("Pool exhausted");
+  });
+
+  it("loads every key update for an incident and uses its summary as a fallback", async () => {
+    const keyUpdateBodies: Array<Record<string, unknown>> = [];
+    let keyUpdatePage = 0;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+      if (url.endsWith("FieldsService.GetFields")) {
+        return new Response(JSON.stringify({ fields: [] }));
+      }
+      if (url.endsWith("StatusService.QueryOrgStatuses")) {
+        return Response.json({ configurations: [] });
+      }
+      if (url.endsWith("IncidentsService.QueryIncidents")) {
+        const isActive = JSON.stringify(body).includes("status:active");
+        return new Response(
+          JSON.stringify({
+            incidents: isActive
+              ? [
+                  {
+                    incidentID: "with-updates",
+                    title: "Cache unavailable",
+                    status: "active",
+                    summary: "This is replaced by the key updates.",
+                    createdTime: "2026-05-05T10:00:00.000Z",
+                  },
+                  {
+                    incidentID: "with-summary",
+                    title: "Cache slow",
+                    status: "active",
+                    summary: "We are investigating elevated latency.",
+                    createdTime: "2026-05-05T11:00:00.000Z",
+                  },
+                ]
+              : [],
+          }),
+        );
+      }
+      if (url.endsWith("KeyUpdatesService.QueryKeyUpdates")) {
+        const incidentID = body.query.incidentID;
+        if (incidentID === "with-summary") {
+          return new Response(JSON.stringify({ keyUpdates: [] }));
+        }
+        keyUpdateBodies.push(body);
+        keyUpdatePage++;
+        if (keyUpdatePage === 1) {
+          return new Response(
+            JSON.stringify({
+              keyUpdates: [
+                {
+                  id: "update-2",
+                  title: "Monitoring",
+                  content: "Authentication has recovered and we are monitoring cache traffic.",
+                  createdTime: "2026-05-05T11:30:00.000Z",
+                },
+              ],
+              cursor: { hasMore: true, nextValue: "next-update" },
+            }),
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            keyUpdates: [
+              {
+                id: "update-1",
+                title: "Investigating",
+                content: "We are investigating cache authentication failures.",
+                createdTime: "2026-05-05T10:00:00.000Z",
+              },
+            ],
+            cursor: { hasMore: false, nextValue: "" },
+          }),
+        );
+      }
+      throw new Error(`unmocked URL: ${url}`);
+    }) as typeof fetch;
+
+    const snapshot = await fetchStatusFromGrafana(ENV);
+
+    expect(snapshot.activeIncidents[0]?.updates).toEqual([
+      {
+        at: "2026-05-05T11:30:00.000Z",
+        status: "monitoring",
+        title: "Monitoring",
+        body: "Authentication has recovered and we are monitoring cache traffic.",
+      },
+      {
+        at: "2026-05-05T10:00:00.000Z",
+        status: "investigating",
+        title: "Investigating",
+        body: "We are investigating cache authentication failures.",
+      },
+    ]);
+    expect(snapshot.activeIncidents[1]?.updates).toEqual([
+      {
+        at: "2026-05-05T11:00:00.000Z",
+        status: "investigating",
+        body: "We are investigating elevated latency.",
+      },
+    ]);
+    expect(keyUpdateBodies).toEqual([
+      {
+        query: {
+          incidentID: "with-updates",
+          limit: 100,
+          orderDirection: "DESC",
+          orderField: "createdTime",
+          contentType: "text/plain",
+        },
+      },
+      {
+        query: {
+          incidentID: "with-updates",
+          limit: 100,
+          orderDirection: "DESC",
+          orderField: "createdTime",
+          contentType: "text/plain",
+        },
+        cursor: "next-update",
+      },
+    ]);
+  });
+
+  it("limits concurrent key-update queries across active and recent incidents", async () => {
+    const active = Array.from({ length: 4 }, (_, index) => ({
+      incidentID: `active-${index}`,
+      title: `Active ${index}`,
+      status: "active",
+      createdTime: "2026-05-05T10:00:00.000Z",
+    }));
+    const recent = Array.from({ length: 3 }, (_, index) => ({
+      incidentID: `recent-${index}`,
+      title: `Recent ${index}`,
+      status: "resolved",
+      closedTime: "2026-05-04T10:00:00.000Z",
+    }));
+    const blockedRequests: Array<() => void> = [];
+    let releaseImmediately = false;
+    let startedRequests = 0;
+    let inFlightRequests = 0;
+    let maximumInFlightRequests = 0;
+
+    globalThis.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+      if (url.endsWith("FieldsService.GetFields")) {
+        return Promise.resolve(new Response(JSON.stringify({ fields: [] })));
+      }
+      if (url.endsWith("StatusService.QueryOrgStatuses")) {
+        return Promise.resolve(Response.json({ configurations: [] }));
+      }
+      if (url.endsWith("IncidentsService.QueryIncidents")) {
+        const incidents = JSON.stringify(body).includes("status:active") ? active : recent;
+        return Promise.resolve(new Response(JSON.stringify({ incidents })));
+      }
+      if (url.endsWith("KeyUpdatesService.QueryKeyUpdates")) {
+        startedRequests++;
+        inFlightRequests++;
+        maximumInFlightRequests = Math.max(maximumInFlightRequests, inFlightRequests);
+        const response = () => new Response(JSON.stringify({ keyUpdates: [] }));
+        if (releaseImmediately) {
+          inFlightRequests--;
+          return Promise.resolve(response());
+        }
+        return new Promise<Response>((resolve) => {
+          blockedRequests.push(() => {
+            inFlightRequests--;
+            resolve(response());
+          });
+        });
+      }
+      return Promise.reject(new Error(`unmocked URL: ${url}`));
+    }) as typeof fetch;
+
+    const snapshotPromise = fetchStatusFromGrafana(ENV);
+    for (let attempt = 0; attempt < 20 && blockedRequests.length < 5; attempt++) {
+      await Promise.resolve();
+    }
+
+    expect(startedRequests).toBe(5);
+    expect(inFlightRequests).toBe(5);
+    expect(maximumInFlightRequests).toBe(5);
+
+    releaseImmediately = true;
+    blockedRequests.splice(0).forEach((release) => release());
+    const snapshot = await snapshotPromise;
+
+    expect(startedRequests).toBe(7);
+    expect(maximumInFlightRequests).toBe(5);
+    expect(snapshot.activeIncidents).toHaveLength(4);
+    expect(snapshot.recentIncidents).toHaveLength(3);
+  });
+
   it("matches affectedComponents from real Grafana labels of shape {key, label}", async () => {
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();

@@ -80,13 +80,45 @@ extension XcodeGraph.TargetDependency {
         case let .package(product, type, condition):
             switch type {
             case .macro:
-                return [.package(product: product, type: .macro, condition: condition?.asGraphCondition)]
+                return [
+                    .package(
+                        product: product,
+                        type: .macro,
+                        condition: condition?.asGraphCondition
+                    ),
+                ]
             case .runtime:
-                return [.package(product: product, type: .runtime, condition: condition?.asGraphCondition)]
+                return [
+                    .package(
+                        product: product,
+                        type: .runtime,
+                        condition: condition?.asGraphCondition
+                    ),
+                ]
             case .runtimeEmbedded:
-                return [.package(product: product, type: .runtimeEmbedded, condition: condition?.asGraphCondition)]
+                return [
+                    .package(
+                        product: product,
+                        type: .runtimeEmbedded,
+                        condition: condition?.asGraphCondition
+                    ),
+                ]
+            case .runtimeDynamic:
+                return [
+                    .package(product: product, type: .runtimeDynamic, condition: condition?.asGraphCondition),
+                ]
+            case .runtimeDynamicEmbedded:
+                return [
+                    .package(product: product, type: .runtimeDynamicEmbedded, condition: condition?.asGraphCondition),
+                ]
             case .plugin:
-                return [.package(product: product, type: .plugin, condition: condition?.asGraphCondition)]
+                return [
+                    .package(
+                        product: product,
+                        type: .plugin,
+                        condition: condition?.asGraphCondition
+                    ),
+                ]
             }
         case let .sdk(name, type, status, condition):
             return [
@@ -133,7 +165,8 @@ extension XcodeGraph.ForeignBuild.Input {
         case let .glob(path):
             let resolvedPath = try generatorPaths.resolve(path: path)
             let pattern = String(resolvedPath.pathString.dropFirst())
-            let matchedPaths = try await fileSystem.glob(directory: AbsolutePath.root, include: [pattern]).collect().sorted()
+            let matchedPaths = try await fileSystem.manifestGlob(directory: AbsolutePath.root, include: [pattern]).collect()
+                .sorted()
             if matchedPaths.isEmpty {
                 AlertController.current.warning(.alert(
                     "Foreign build glob input '\(resolvedPath.pathString)' matched no files. Verify the path is correct, otherwise Xcode will not detect changes to the matched files and the foreign build script may not re-run."

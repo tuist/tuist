@@ -2,7 +2,9 @@ defmodule Tuist.CommandEventsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Event
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -78,7 +80,7 @@ defmodule Tuist.CommandEventsTest do
         :telemetry_test.attach_event_handlers(self(), [Tuist.Telemetry.event_name_cache()])
 
       # When
-      command_event =
+      {:ok, command_event} =
         CommandEvents.create_command_event(%{
           name: "generate",
           subcommand: "",
@@ -122,6 +124,42 @@ defmodule Tuist.CommandEventsTest do
 
       assert_received {^event_name_cache, ^cache_event_ref, %{count: 1}, %{event_type: :miss}}
     end
+
+    test "returns not found without storing the event when the project no longer exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      Repo.delete!(project)
+
+      # When
+      got =
+        with_flushed_ingestion_buffers(fn ->
+          CommandEvents.create_command_event(%{
+            name: "generate",
+            subcommand: "",
+            command_arguments: [],
+            duration: 100,
+            tuist_version: "4.1.0",
+            swift_version: "5.2",
+            macos_version: "10.15",
+            project_id: project.id,
+            cacheable_targets: [],
+            local_cache_target_hits: [],
+            remote_cache_target_hits: [],
+            test_targets: [],
+            local_test_target_hits: [],
+            remote_test_target_hits: [],
+            is_ci: false,
+            client_id: "client-id",
+            status: :success,
+            ran_at: ~U[2024-03-04 01:00:00Z]
+          })
+        end)
+
+      # Then
+      assert got == {:error, :not_found}
+
+      assert ClickHouseRepo.aggregate(from(e in Event, where: e.project_id == ^project.id), :count) == 0
+    end
   end
 
   describe "get_command_event_by_id/1" do
@@ -140,6 +178,25 @@ defmodule Tuist.CommandEventsTest do
       assert event.id == command_event.id
       assert event.name == command_event.name
       assert event.user_id == command_event.user_id
+    end
+
+    test "preloads the verified actor independently of legacy publisher attribution" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          actor_account_id: user.account.id,
+          claimed_actor_id: "workstation",
+          submission_auth: "token"
+        )
+
+      assert {:ok, reloaded} = CommandEvents.get_command_event_by_id(event.id)
+      assert reloaded.actor_account.id == user.account.id
+
+      assert %{source: :verified, verified_account_handle: name, claimed_actor_id: "workstation"} =
+               Tuist.ReportActor.actor(reloaded)
+
+      assert name == user.account.name
     end
 
     test "returns {:error, :not_found} for valid UUID that doesn't exist in database" do
@@ -352,7 +409,13 @@ defmodule Tuist.CommandEventsTest do
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           name: "cache",
-          ran_at: ~U[2024-03-04 01:00:00Z]
+          ran_at: ~U[2024-03-04 01:00:00Z],
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"],
+          remote_cache_target_hits: ["Framework"],
+          test_targets: ["AppTests"],
+          local_test_target_hits: ["AppTests"],
+          remote_test_target_hits: ["AppTests"]
         )
 
       # A non-matching command interleaved in time must be excluded even though
@@ -384,6 +447,142 @@ defmodule Tuist.CommandEventsTest do
 
       # Then
       assert Enum.map(events, & &1.id) == [cache_event_new.id, cache_event_old.id]
+
+      hydrated_old = List.last(events)
+      assert hydrated_old.cacheable_targets == ["App", "Framework"]
+      assert hydrated_old.local_cache_target_hits == ["App"]
+      assert hydrated_old.remote_cache_target_hits == ["Framework"]
+      assert hydrated_old.test_targets == ["AppTests"]
+      assert hydrated_old.local_test_target_hits == ["AppTests"]
+      assert hydrated_old.remote_test_target_hits == ["AppTests"]
+    end
+
+    test "returns fully hydrated events ordered by duration" do
+      project = ProjectsFixtures.project_fixture()
+
+      slow_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 3000,
+          cacheable_targets: ["SlowApp"]
+        )
+
+      fast_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_targets: ["FastApp"]
+        )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:duration],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert Enum.map(events, & &1.id) == [slow_event.id, fast_event.id]
+      assert Enum.map(events, & &1.cacheable_targets) == [["SlowApp"], ["FastApp"]]
+    end
+
+    test "returns fully hydrated events ordered by hit rate" do
+      project = ProjectsFixtures.project_fixture()
+
+      half_hit_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"]
+        )
+
+      full_hit_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"],
+          remote_cache_target_hits: ["Framework"]
+        )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:hit_rate],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert Enum.map(events, & &1.id) == [full_hit_event.id, half_hit_event.id]
+
+      assert Enum.map(events, &{&1.cacheable_targets, &1.local_cache_target_hits, &1.remote_cache_target_hits}) ==
+               [
+                 {["App", "Framework"], ["App"], ["Framework"]},
+                 {["App", "Framework"], ["App"], []}
+               ]
+    end
+
+    test "hydrates optimized rows within the selected project when identifiers collide" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      shared_id = UUIDv7.generate()
+
+      selected_event =
+        CommandEventsFixtures.command_event_fixture(
+          id: shared_id,
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: ["SelectedApp"]
+        )
+
+      CommandEventsFixtures.command_event_fixture(
+        id: shared_id,
+        project_id: other_project.id,
+        name: "cache",
+        cacheable_targets: ["OtherApp"]
+      )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :name, op: :==, value: "cache"}
+          ],
+          order_by: [:ran_at],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert [%{project_id: project_id, cacheable_targets: ["SelectedApp"]}] = events
+      assert project_id == project.id
+      assert hd(events).id == selected_event.id
+    end
+
+    test "uses a sequentially consistent read when hydrating optimized rows" do
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate"
+      )
+
+      parent = self()
+
+      stub(ClickHouseRepo, :all, fn query, opts ->
+        send(parent, {:clickhouse_read_options, opts})
+        Mimic.call_original(ClickHouseRepo, :all, [query, opts])
+      end)
+
+      CommandEvents.list_command_events(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :name, op: :==, value: "generate"}
+        ],
+        order_by: [:ran_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      assert_received {:clickhouse_read_options, [settings: [select_sequential_consistency: 1]]}
     end
   end
 
@@ -902,64 +1101,6 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_yesterdays_remote_cache_hits_count_for_customer/1" do
-    test "counts only yesterday's events for the customer's projects" do
-      # Given
-      %{account: %{id: account_id}, id: user_id} =
-        AccountsFixtures.user_fixture(customer_id: "cust_" <> UUIDv7.generate())
-
-      %{account: %{id: other_account_id}, id: other_user_id} =
-        AccountsFixtures.user_fixture(customer_id: "cust_" <> UUIDv7.generate())
-
-      project = ProjectsFixtures.project_fixture(account_id: account_id)
-      other_project = ProjectsFixtures.project_fixture(account_id: other_account_id)
-
-      today = ~U[2025-01-02 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> today end)
-
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: project.id,
-        user_id: user_id,
-        remote_cache_target_hits: ["A"],
-        ran_at: ~U[2025-01-01 10:00:00Z]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        name: "test",
-        project_id: project.id,
-        user_id: user_id,
-        remote_test_target_hits: ["B"],
-        ran_at: ~U[2025-01-01 18:00:00Z]
-      )
-
-      # One event for another customer yesterday
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: other_project.id,
-        user_id: other_user_id,
-        remote_cache_target_hits: ["C"],
-        ran_at: ~U[2025-01-01 09:00:00Z]
-      )
-
-      # Event outside of yesterday window for our project
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: project.id,
-        user_id: user_id,
-        remote_cache_target_hits: ["D"],
-        ran_at: ~U[2024-12-31 23:59:59Z]
-      )
-
-      # When
-      customer_id = Repo.get!(Tuist.Accounts.Account, account_id).customer_id
-      count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
-
-      # Then
-      assert count == 2
-    end
-  end
-
   describe "cache_hit_rate_percentiles/6" do
     test "returns percentile hit rates grouped by date" do
       # Given
@@ -1336,19 +1477,22 @@ defmodule Tuist.CommandEventsTest do
       assert got == {:error, :not_found}
     end
 
-    test "returns the most recent event when multiple events share the same build_run_id" do
+    test "prefers the build event when a later test event shares its build run id" do
       # Given
       build_run_id = UUIDv7.generate()
 
-      _older =
+      build_event =
         CommandEventsFixtures.command_event_fixture(
           build_run_id: build_run_id,
+          command_arguments: ["test", "--build-only"],
           ran_at: ~U[2024-01-01 10:00:00Z]
         )
 
-      newer =
+      _test_event =
         CommandEventsFixtures.command_event_fixture(
           build_run_id: build_run_id,
+          command_arguments: ["test", "--without-building", "--shard-index", "0"],
+          test_run_id: UUIDv7.generate(),
           ran_at: ~U[2024-01-02 10:00:00Z]
         )
 
@@ -1357,7 +1501,39 @@ defmodule Tuist.CommandEventsTest do
 
       # Then
       assert {:ok, event} = got
-      assert event.id == newer.id
+      assert event.id == build_event.id
+    end
+
+    test "prefers the build event when the sharded test events carry no test run id" do
+      # Given
+      build_run_id = UUIDv7.generate()
+
+      build_event =
+        CommandEventsFixtures.command_event_fixture(
+          build_run_id: build_run_id,
+          command_arguments: ["test", "--build-only", "--shard-granularity", "suite"],
+          ran_at: ~U[2024-01-01 10:00:00Z]
+        )
+
+      for shard_index <- 0..3 do
+        CommandEventsFixtures.command_event_fixture(
+          build_run_id: build_run_id,
+          command_arguments: [
+            "test",
+            "--without-building",
+            "--shard-index",
+            to_string(shard_index)
+          ],
+          ran_at: ~U[2024-01-01 10:05:00Z]
+        )
+      end
+
+      # When
+      got = CommandEvents.get_command_event_by_build_run_id(build_run_id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event.id == build_event.id
     end
   end
 
@@ -1723,6 +1899,114 @@ defmodule Tuist.CommandEventsTest do
       # Then - Should only include the 50% hit rate event
       assert got == 0.5
     end
+
+    test "only includes events on the given branch when git_branch is set" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # main: 50% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        git_branch: "main",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # feature branch: 0% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        git_branch: "feature",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 10, git_branch: "main")
+
+      # Then
+      assert got == 0.5
+    end
+
+    test "only includes CI events when is_ci is true" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        is_ci: true,
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        is_ci: false,
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: ["C"],
+        remote_cache_target_hits: ["D"],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 10, is_ci: true)
+
+      # Then
+      assert got == 0.5
+    end
+
+    test "returns nil when the window holds fewer events than min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for hour <- 10..11 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.new!(~D[2024-04-30], Time.new!(hour, 0, 0))
+        )
+      end
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert got == nil
+    end
+
+    test "returns the metric when the window fills min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for hour <- 10..12 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          remote_cache_target_hits: [],
+          ran_at: DateTime.new!(~D[2024-04-30], Time.new!(hour, 0, 0))
+        )
+      end
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert got == 0.5
+    end
   end
 
   describe "get_project_last_interaction_data/1" do
@@ -1788,6 +2072,25 @@ defmodule Tuist.CommandEventsTest do
       result = CommandEvents.get_project_last_interaction_data([project.id])
 
       assert result == %{}
+    end
+
+    test "looks up more projects than fit in one ClickHouse HTTP request" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(DateTime.utc_now(), -1, :day)
+        )
+
+      project_ids = Enum.to_list(-20_000..-1//1) ++ [project.id]
+
+      # When
+      result = CommandEvents.get_project_last_interaction_data(project_ids)
+
+      # Then
+      assert result == %{project.id => event.ran_at}
     end
   end
 

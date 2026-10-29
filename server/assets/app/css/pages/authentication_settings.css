@@ -21,7 +21,6 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-2);
-      box-shadow: inset 0 -1px 0 0 var(--noora-surface-border-primary);
       padding: var(--noora-spacing-7) var(--noora-spacing-8);
 
       & > [data-part="title"] {
@@ -40,15 +39,13 @@
       flex-direction: column;
     }
 
+    /* Following sections own dividers; adjacent bottom/top shadows paint them twice. */
     & [data-part="section"] {
       display: flex;
       flex-direction: row;
       align-items: flex-start;
+      box-shadow: inset 0 1px 0 0 var(--noora-surface-border-primary);
       padding: var(--noora-spacing-8);
-
-      &:not(:last-child) {
-        box-shadow: inset 0 -1px 0 0 var(--noora-surface-border-primary);
-      }
 
       & > [data-part="label"] {
         display: flex;
@@ -75,6 +72,18 @@
         flex-direction: column;
         gap: var(--noora-spacing-4);
         min-width: 0;
+
+        /* Controls sit at one width on the trailing edge rather than stretching
+           the column. The values here are domains, identifiers, and endpoint
+           URLs, so the width is set by what reads comfortably rather than by
+           the widest value: a long URL scrolls inside its field at any width
+           this column could offer. */
+        & > .noora-dropdown,
+        & > .noora-text-input {
+          align-self: flex-end;
+          width: 320px;
+          max-width: 100%;
+        }
       }
 
       & > [data-part="toggle-label"] {
@@ -277,6 +286,99 @@
         color: var(--noora-surface-label-primary);
         font-size: 0.85em;
         font-family: "Geist Mono", monospace;
+      }
+    }
+  }
+
+  & [data-part="sso-card"] [data-part="section"][data-section="login-domain"] {
+    flex-wrap: wrap;
+    align-items: center;
+
+    @media (max-width: 768px) {
+      flex-wrap: nowrap;
+      align-items: stretch;
+    }
+
+    & > [data-part="label"] > [data-part="title-row"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="field"] > .noora-button {
+      align-self: flex-end;
+      white-space: nowrap;
+
+      &.phx-click-loading {
+        opacity: 0.6;
+        cursor: progress;
+      }
+    }
+  }
+
+  & [data-part="domain-verification-status"] {
+    border-radius: var(--noora-radius-4);
+    padding: var(--noora-spacing-1) var(--noora-spacing-3);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    &[data-status="verified"],
+    &[data-status="instance"] {
+      background: var(--noora-badge-light-fill-success-background);
+      color: var(--noora-badge-light-fill-success-label);
+    }
+
+    &[data-status="pending"] {
+      background: var(--noora-badge-light-fill-warning-background);
+      color: var(--noora-badge-light-fill-warning-label);
+    }
+
+    &[data-status="expiring"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+      color: var(--noora-badge-light-fill-destructive-label);
+    }
+  }
+
+  & [data-part="domain-verification"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    margin-left: auto;
+    padding-top: var(--noora-spacing-7);
+    width: calc(60% - var(--noora-spacing-8));
+
+    @media (max-width: 768px) {
+      width: 100%;
+    }
+
+    & > [data-part="domain-verification-error"].phx-click-loading {
+      display: none;
+    }
+
+    & > [data-part="domain-records"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+
+      & > [data-part="domain-record"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+      }
+
+      & [data-part="domain-record-label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+
+      & [data-part="read-only-value"] > code {
+        white-space: normal;
+        overflow-wrap: anywhere;
       }
     }
   }

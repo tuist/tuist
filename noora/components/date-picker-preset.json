@@ -1,0 +1,58 @@
+{
+  "name": "DatePickerPreset",
+  "tagName": "noora-date-picker-preset",
+  "elementClassName": "NooraDatePickerPreset",
+  "className": "noora-date-picker-preset",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative date-range preset.",
+  "usage": "<noora-date-picker-preset value=\"7d\" start=\"2026-07-21\" end=\"2026-07-27\">Last 7 days</noora-date-picker-preset>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "default": "",
+      "description": "Sets the preset identifier."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the preset label instead of using text content."
+    },
+    {
+      "name": "start",
+      "property": "start",
+      "type": "string",
+      "default": "",
+      "description": "Sets the start date in year-month-day format."
+    },
+    {
+      "name": "end",
+      "property": "end",
+      "type": "string",
+      "default": "",
+      "description": "Sets the end date in year-month-day format."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The preset label."
+    }
+  ],
+  "cssParts": [],
+  "notes": [],
+  "examples": [
+    {
+      "id": "preset",
+      "title": "Preset",
+      "description": "Describe a quick date range.",
+      "markup": "<noora-date-picker-preset value=\"7d\" start=\"2026-07-21\" end=\"2026-07-27\">Last 7 days</noora-date-picker-preset>"
+    }
+  ]
+}

@@ -267,14 +267,22 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorkerTest do
     end
 
     test "emits recovery telemetry with kind=redelivered" do
+      # Same VM-global handler caveat as OrphanedRunnersWorkerTest: without
+      # the emitting-process check this forwards every other recovery
+      # worker's event into whichever `async: true` test emitted it.
+      handler_id = make_ref()
+      test_pid = self()
+
       :telemetry.attach(
-        "webhook-redelivery-test",
+        handler_id,
         Tuist.Runners.Telemetry.event_name_recovery(),
-        fn _e, m, meta, _ -> send(self(), {:recovery, m, meta}) end,
+        fn _e, m, meta, _ ->
+          if self() == test_pid, do: send(test_pid, {:recovery, handler_id, m, meta})
+        end,
         nil
       )
 
-      on_exit(fn -> :telemetry.detach("webhook-redelivery-test") end)
+      on_exit(fn -> :telemetry.detach(handler_id) end)
 
       failed = delivery(id: 8_001)
 
@@ -284,7 +292,7 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorkerTest do
 
       assert :ok = WebhookRedeliveryWorker.perform(%Oban.Job{})
 
-      assert_received {:recovery, %{count: 1}, %{kind: "redelivered"}}
+      assert_received {:recovery, ^handler_id, %{count: 1}, %{kind: "redelivered"}}
     end
   end
 

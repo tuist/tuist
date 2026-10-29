@@ -1,0 +1,206 @@
+name: macOS Cache Volumes Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Cache-enabled macOS runner profile
+        type: string
+        default: tuist-macos-27-0
+      cache_key:
+        description: Key prefix; reuse for verify with the same runner and dependency files
+        type: string
+        required: true
+        default: cli-dependencies-v1
+      phase:
+        description: Seed, verify, reject failed writes, or synchronize two warm writers
+        type: choice
+        options: [seed, verify, fail, concurrent]
+        default: seed
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    name: smoke (${{ matrix.writer }})
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: ${{ inputs.phase == 'concurrent' && 40 || 30 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        writer: ${{ fromJSON(inputs.phase == 'concurrent' && '[1, 2]' || '[1]') }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/cache-volume@v1
+        id: volume
+        with:
+          key: ${{ inputs.cache_key }}-${{ inputs.runner_label }}-${{ hashFiles('.xcode-version', 'Package.swift', 'Package.resolved') }}
+          path: .build
+      - uses: tuist/cache-volume@v1
+        id: swifterpm-volume
+        with:
+          key: ${{ inputs.cache_key }}-swifterpm-${{ inputs.runner_label }}-${{ hashFiles('.xcode-version', 'Package.swift', 'Package.resolved') }}
+          path: ~/.cache/swifterpm
+      - name: Verify SwifterPM cache volume
+        shell: bash
+        env:
+          PHASE: ${{ inputs.phase }}
+          CACHE_HIT: ${{ steps.swifterpm-volume.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          target="$HOME/.cache/swifterpm"
+          test -L "$target"
+          device=$(df -P "$target" | awk 'NR == 2 { print $1 }')
+          [[ "$device" == /dev/disk* ]]
+          test "$(diskutil info -plist "$device" | plutil -extract FilesystemType raw -)" = apfs
+          if [ "$PHASE" = seed ]; then
+            test "$CACHE_HIT" = false
+            test ! -e "$target/sources"
+          else
+            test "$CACHE_HIT" = true
+            cd "$target"
+            test -s .tuist-volume-smoke.sha256
+            shasum -a 256 -c .tuist-volume-smoke.sha256
+          fi
+      - name: Verify mounted APFS and retained metadata
+        shell: bash
+        env:
+          PHASE: ${{ inputs.phase }}
+          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          target=.build
+          test -L "$target"
+          device=$(df -P "$target" | awk 'NR == 2 { print $1 }')
+          [[ "$device" == /dev/disk* ]]
+          filesystem=$(diskutil info -plist "$device" | plutil -extract FilesystemType raw -)
+          test "$filesystem" = apfs
+          df -h "$target"
+          proof="$target/.tuist-volume-smoke"
+          case "$PHASE" in
+            seed)
+              test "$CACHE_HIT" = false
+              test ! -e "$proof"
+              mkdir -p "$proof/nested"
+              printf 'retained' > "$proof/sentinel"
+              printf 'payload' > "$proof/nested/file"
+              ln -s nested/file "$proof/link"
+              xattr -w dev.tuist.volume-smoke retained "$proof/nested/file"
+              ;;
+            verify|fail|concurrent)
+              test "$CACHE_HIT" = true
+              test "$(cat "$proof/sentinel")" = retained
+              test -L "$proof/link"
+              test "$(cat "$proof/link")" = payload
+              test "$(xattr -p dev.tuist.volume-smoke "$proof/nested/file")" = retained
+              test -s "$target/workspace-state.json"
+              test -s "$proof/dependencies.sha256"
+              shasum -a 256 -c "$proof/dependencies.sha256"
+              ;;
+          esac
+          if [ "$PHASE" = fail ]; then
+            printf 'must-not-publish' > "$proof/sentinel"
+            sync
+            exit 1
+          fi
+          sync
+      - name: Synchronize attached writers
+        if: inputs.phase == 'concurrent'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WRITER_ID: ${{ matrix.writer }}
+        run: |
+          set -euo pipefail
+          writer="${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:${WRITER_ID}"
+          printf '%s\n' "$writer" > .build/.tuist-volume-smoke/concurrent-writer
+          deadline=$((SECONDS + 1500))
+          state=waiting
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq '
+              if any(.jobs[]; .conclusion != null and .conclusion != "success") then "failed"
+              elif ([.jobs[] | select(any(.steps[]?;
+                .name == "Synchronize attached writers" and
+                (.status == "in_progress" or .conclusion == "success")
+              ))] | length) == 2 then "ready"
+              else "waiting" end')
+            if [ "$state" = failed ]; then
+              echo "The other writer failed before synchronization" >&2
+              exit 1
+            fi
+            if [ "$state" = ready ]; then
+              break
+            fi
+            sleep 10
+          done
+          if [ "$state" != ready ]; then
+            echo "Timed out waiting for both writers to attach" >&2
+            exit 1
+          fi
+          test "$(cat .build/.tuist-volume-smoke/concurrent-writer)" = "$writer"
+          echo "Both writers attached; this branch retained writer $writer"
+      - uses: ./.github/actions/mise-install
+        with:
+          install: tuist
+          cache: "false"
+      - name: Authenticate and configure Tuist
+        run: |
+          tuist auth login
+          tuist setup
+      - name: Install real CLI dependencies on the volume
+        shell: bash
+        env:
+          PHASE: ${{ inputs.phase }}
+          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+          WRITER_ID: ${{ matrix.writer }}
+          SWIFTERPM_CACHE_HIT: ${{ steps.swifterpm-volume.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          swifterpm_cache="$HOME/.cache/swifterpm"
+          before=$(du -sk .build/ | awk '{print $1}')
+          swifterpm_before=$(du -sk "$swifterpm_cache/" | awk '{print $1}')
+          started=$SECONDS
+          env -u PHASE -u CACHE_HIT -u SWIFTERPM_CACHE_HIT -u WRITER_ID \
+            tuist install --force-resolved-versions --cache-path "$swifterpm_cache"
+          elapsed=$((SECONDS - started))
+          test -L .build
+          test -L "$swifterpm_cache"
+          test -s .build/workspace-state.json
+          proof=.build/.tuist-volume-smoke
+          if [ "$PHASE" = concurrent ]; then
+            test "$(cat "$proof/concurrent-writer")" = "${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:${WRITER_ID}"
+          fi
+          find -H .build -type f -name Package.swift -print0 > "$RUNNER_TEMP/volume-dependency-manifests"
+          test -s "$RUNNER_TEMP/volume-dependency-manifests"
+          xargs -0 shasum -a 256 < "$RUNNER_TEMP/volume-dependency-manifests" > "$proof/dependencies.sha256"
+          packages=$(wc -l < "$proof/dependencies.sha256" | tr -d ' ')
+          (
+            cd "$swifterpm_cache"
+            find sources -type f \( -name 'Package*.swift' -o -name .swifterpm-registry-checksum \) -print0 > "$RUNNER_TEMP/swifterpm-cache-files"
+            test -s "$RUNNER_TEMP/swifterpm-cache-files"
+            xargs -0 shasum -a 256 < "$RUNNER_TEMP/swifterpm-cache-files" > .tuist-volume-smoke.sha256
+          )
+          swifterpm_files=$(wc -l < "$swifterpm_cache/.tuist-volume-smoke.sha256" | tr -d ' ')
+          after=$(du -sk .build/ | awk '{print $1}')
+          swifterpm_after=$(du -sk "$swifterpm_cache/" | awk '{print $1}')
+          {
+            echo "### CLI dependency volume: $PHASE"
+            echo "- Snapshot hit: $CACHE_HIT"
+            echo "- SwifterPM snapshot hit: $SWIFTERPM_CACHE_HIT"
+            echo "- Install duration: ${elapsed}s"
+            echo "- Retained dependency manifests: $packages"
+            echo "- Logical size before/after install: ${before}/${after} KiB"
+            echo "- Retained SwifterPM manifest/checksum files: $swifterpm_files"
+            echo "- SwifterPM directory usage before/after install: ${swifterpm_before}/${swifterpm_after} KiB"
+            echo "- Commit: $GITHUB_SHA"
+            if [ -f "$proof/concurrent-writer" ]; then
+              echo "- Retained writer: $(cat "$proof/concurrent-writer")"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          sync

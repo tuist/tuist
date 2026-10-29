@@ -79,16 +79,38 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
         stateDirectory.appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
     }
 
-    public func cacheSocketPathString(for fullHandle: String) -> String {
-        "$HOME/\(fullHandle).sock"
-    }
-
     public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
         "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
     }
 
+    public func casProxySocketPath() -> AbsolutePath {
+        stateDirectory.appending(component: "cas-proxy.sock")
+    }
+
+    public func casProxySocketPathString() -> String {
+        homeRelativePathString(casProxySocketPath())
+    }
+
+    public func casPluginInstallPath() -> AbsolutePath {
+        homeDirectory.appending(components: [".local", "state", "tuist", "libtuist_cas_plugin.dylib"])
+    }
+
+    public func casLogPath() -> AbsolutePath {
+        stateDirectory.appending(component: "cas.log")
+    }
+
+    public func homeRelativePathString(_ path: AbsolutePath) -> String {
+        guard path.isDescendantOfOrEqual(to: homeDirectory) else { return path.pathString }
+        let relativePath = path.relative(to: homeDirectory).pathString
+        return relativePath == "." ? "$HOME" : "$HOME/\(relativePath)"
+    }
+
     public func casProxyLaunchAgentLabel() -> String {
         "tuist.cas-proxy"
+    }
+
+    public func metricsSamplerLaunchAgentLabel() -> String {
+        "tuist.metrics-sampler"
     }
 }
 

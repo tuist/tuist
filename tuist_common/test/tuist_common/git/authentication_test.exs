@@ -3,6 +3,22 @@ defmodule TuistCommon.Git.AuthenticationTest do
 
   alias TuistCommon.Git.Authentication
 
+  test "rewrites GitHub secure shell URLs to https" do
+    for url <- [
+          "git@github.com:happn-app/AsyncOperationResult.git",
+          "ssh://git@github.com/happn-app/AsyncOperationResult.git"
+        ] do
+      {rewritten_url, 0} =
+        System.cmd(
+          "git",
+          Authentication.config_args(nil) ++ ["ls-remote", "--get-url", url]
+        )
+
+      assert String.trim(rewritten_url) ==
+               "https://github.com/happn-app/AsyncOperationResult.git"
+    end
+  end
+
   test "does not expose the token in Git command arguments or environment" do
     token = "secret-token"
     tmp_dir = Path.join(System.tmp_dir!(), "tuist-git-auth-#{System.unique_integer([:positive])}")

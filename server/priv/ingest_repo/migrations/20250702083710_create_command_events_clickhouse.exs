@@ -2,12 +2,15 @@ defmodule Tuist.ClickHouseRepo.Migrations.CreateCommandEventsClickhouse do
   use Ecto.Migration
 
   def up do
-    # In production, these are created by Clickhouse Pipes.
-    if Tuist.Environment.dev?() || Tuist.Environment.test?() ||
-         not Tuist.Environment.tuist_hosted?() do
-      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-      execute """
-       CREATE TABLE command_events
+    # The managed production instance already has this table: ClickHouse Pipes
+    # created it when command_events was replicated over from Postgres. Every
+    # other database starts empty and needs it created here — including hosted
+    # ones, since each preview environment migrates a brand-new ClickHouse.
+    # `IF NOT EXISTS` states that directly, instead of inferring it from whether
+    # the deployment happens to be hosted.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute """
+     CREATE TABLE IF NOT EXISTS command_events
        (
            `id` UUID,
            `legacy_id` UInt64 DEFAULT abs(rand64()),
@@ -48,10 +51,7 @@ defmodule Tuist.ClickHouseRepo.Migrations.CreateCommandEventsClickhouse do
       PRIMARY KEY (created_at, id)
       ORDER BY (created_at, id)
       SETTINGS index_granularity = 8192
-      """
-    else
-      :ok
-    end
+    """
   end
 
   def down do

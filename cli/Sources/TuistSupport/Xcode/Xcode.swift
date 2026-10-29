@@ -5,17 +5,20 @@ import TuistLogging
 
 public enum XcodeError: FatalError, Equatable {
     case infoPlistNotFound(AbsolutePath)
+    case versionPlistNotFound(AbsolutePath)
 
     public var description: String {
         switch self {
         case let .infoPlistNotFound(path):
             return "Couldn't find Xcode's Info.plist at \(path.pathString). Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
+        case let .versionPlistNotFound(path):
+            return "Couldn't find Xcode's version.plist at \(path.pathString). Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
         }
     }
 
     public var type: ErrorType {
         switch self {
-        case .infoPlistNotFound:
+        case .infoPlistNotFound, .versionPlistNotFound:
             return .abort
         }
     }

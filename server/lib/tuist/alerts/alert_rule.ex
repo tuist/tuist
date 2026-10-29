@@ -58,6 +58,9 @@ defmodule Tuist.Alerts.AlertRule do
       :bundle_name,
       :environment
     ])
+    |> update_change(:git_branch, &trim/1)
+    |> update_change(:scheme, &trim/1)
+    |> update_change(:bundle_name, &trim/1)
     |> validate_required([
       :project_id,
       :name,
@@ -71,6 +74,9 @@ defmodule Tuist.Alerts.AlertRule do
     |> validate_category_fields()
     |> foreign_key_constraint(:project_id)
   end
+
+  defp trim(value) when is_binary(value), do: String.trim(value)
+  defp trim(value), do: value
 
   defp validate_category_fields(changeset) do
     category = get_field(changeset, :category)

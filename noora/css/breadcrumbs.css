@@ -4,7 +4,7 @@
     var(--noora-neutral-dark-200)
   );
   --noora-breadcrumb-label: light-dark(
-    var(--nora-neutral-light-1100),
+    var(--noora-neutral-light-1100),
     var(--noora-neutral-dark-50)
   );
   --noora-breadcrumb-background: light-dark(
@@ -136,8 +136,8 @@
     box-shadow:
       0 0 0 1px
         light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(54.9% 0 0 / 0.25)),
-      0 8px 24px rgb(0 0 0 / 0.16),
-      0 4px 8px rgb(0 0 0 / 0.08);
+      0 8px 24px oklch(0% 0 0 / 0.16),
+      0 4px 8px oklch(0% 0 0 / 0.08);
     border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-primary);
     overflow: hidden;
@@ -186,6 +186,10 @@
 
   & [data-part="item"]:not([data-selected]) [data-part="check"] {
     visibility: hidden;
+  }
+
+  & [data-part="item"][data-selected] {
+    background: var(--noora-dropdown-hover-background);
   }
 
   /* Keyboard roving focus (see Dropdown.js handleBreadcrumbKeydown) moves real

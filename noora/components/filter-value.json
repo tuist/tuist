@@ -1,0 +1,65 @@
+{
+  "name": "FilterValue",
+  "tagName": "noora-filter-value",
+  "elementClassName": "NooraFilterValue",
+  "className": "noora-filter-value",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one initially active filter.",
+  "usage": "<noora-filter-value name=\"status\" operator=\"==\" value=\"active\"></noora-filter-value>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Sets the filter identifier."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "description": "Sets the filter label."
+    },
+    {
+      "name": "type",
+      "property": "type",
+      "type": "string",
+      "values": ["option", "text", "number", "percentage", "list"],
+      "description": "Overrides the matching definition's value type."
+    },
+    {
+      "name": "operator",
+      "property": "operator",
+      "type": "string",
+      "values": ["==", "!=", "=~", "!=~", "<", ">", "<=", ">="],
+      "description": "Sets the active comparison operator."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "default": "",
+      "description": "Sets the active value."
+    },
+    {
+      "name": "display-value",
+      "property": "displayValue",
+      "type": "string",
+      "description": "Sets a human-readable value."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [],
+  "notes": [],
+  "examples": [
+    {
+      "id": "value",
+      "title": "Value",
+      "description": "Describe an initially active filter.",
+      "markup": "<noora-filter-value name=\"status\" operator=\"==\" value=\"active\"></noora-filter-value>"
+    }
+  ]
+}

@@ -2,12 +2,12 @@
 {
   "title": "Install Tuist",
   "titleTemplate": ":title · Guides · Tuist",
-  "description": "Learn how to install Tuist in your environment."
+  "description": "Install the Tuist command-line interface on macOS or Linux with mise or Homebrew, and pin a version for teams and continuous integration."
 }
 ---
 # Install Tuist {#install-tuist}
 
-Tuist runs on **macOS** and **Linux**. Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
+The Tuist command-line interface runs on **macOS** and **Linux** and connects your Xcode, generated, Gradle, and Bazel projects to Tuist's cache, insights, and runner infrastructure. Although you can build Tuist from [source](https://github.com/tuist/tuist), we recommend one of the installation methods below to ensure a valid, verifiable installation.
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 

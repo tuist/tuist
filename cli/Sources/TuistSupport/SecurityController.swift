@@ -1,5 +1,5 @@
-import Command
 import Mockable
+import TuistProcess
 
 @Mockable
 public protocol SecurityControlling {

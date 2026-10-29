@@ -13,6 +13,29 @@ defmodule TuistCommon.FinchPools do
 
   @default_size 500
   @default_protocols [:http1]
+  @download_request_concurrency 8
+  @download_pool_headroom 2
+  @minimum_download_pool_size 10
+
+  @doc """
+  Sizes a fallback Finch pool for concurrent object-storage downloads.
+
+  `ExAws.S3.download_file/3` opens up to eight concurrent range requests for
+  each download. The pool must cover every concurrent download and leave room
+  for a second batch while timed-out requests release their connections. Pass
+  a list when more than one download queue is active in the same process.
+  """
+  def download_pool_size(queue_concurrency)
+      when is_integer(queue_concurrency) and queue_concurrency > 0 do
+    queue_concurrency * @download_request_concurrency * @download_pool_headroom
+  end
+
+  def download_pool_size(queue_concurrencies) when is_list(queue_concurrencies) do
+    case Enum.sum(queue_concurrencies) do
+      0 -> @minimum_download_pool_size
+      queue_concurrency -> download_pool_size(queue_concurrency)
+    end
+  end
 
   @doc """
   Builds a `{endpoint, pool_opts}` entry for Finch's `:pools` option.

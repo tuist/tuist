@@ -1,7 +1,9 @@
 defmodule TuistWeb.WellKnownController do
   use TuistWeb, :controller
 
+  alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.MCP.Server
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.AgentSkillsDiscovery
   alias TuistWeb.RequestOrigin
@@ -12,9 +14,11 @@ defmodule TuistWeb.WellKnownController do
   @oauth_authorize_path "/oauth2/authorize"
   @oauth_introspect_path "/oauth2/introspect"
   @oauth_registration_path "/oauth2/register"
-  @agent_auth_register_path "/agent/auth"
-  @agent_auth_claim_path "/agent/auth/claim"
-  @agent_auth_revocation_path "/agent/auth/revoke"
+  @oauth_revocation_path "/oauth2/revoke"
+  @agent_auth_identity_path "/agent/identity"
+  @agent_auth_claim_path "/agent/identity/claim"
+  @agent_auth_events_path "/agent/event/notify"
+  @mcp_protocol_version "2026-07-28"
 
   def api_catalog(conn, _params) do
     origin = RequestOrigin.from_conn(conn)
@@ -26,16 +30,24 @@ defmodule TuistWeb.WellKnownController do
     |> send_resp(:ok, JSON.encode!(catalog))
   end
 
+  def tuist_discovery(conn, _params) do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> json(%{
+      network_trusted_report_publishing: Environment.network_trusted_report_publishing_enabled?(),
+      network_trusted_cache_access: Environment.network_trusted_cache_access_enabled?()
+    })
+  end
+
   def agent_skills_index(conn, _params) do
     json(conn, AgentSkillsDiscovery.index())
   end
 
   @doc """
-  Advertises the package registry for this deployment so the CLI can
-  configure clients against `registry.tuist.dev` instead of hardcoding a
-  `<server>/api/registry/swift` path. Keyed by ecosystem so future ones
-  (e.g. Gradle) are additive rather than a breaking reshape. 404s when the
-  deployment exposes no registry (self-hosted).
+  Advertises the package registry for this deployment so the command-line
+  interface can configure clients without hardcoding a registry path. Keyed
+  by ecosystem so future additions do not require a breaking response change.
+  Returns 404 when the deployment exposes no registry.
   """
   def registry_discovery(conn, _params) do
     case Tuist.Registry.url() do
@@ -53,6 +65,59 @@ defmodule TuistWeb.WellKnownController do
     end
   end
 
+  @doc """
+  Discovery document for Once clients talking to this deployment.
+
+  The convention is Once's: any server that speaks the Once event protocol
+  advertises where each protocol lives at `/.well-known/once`, and clients
+  read it before they pick a URL. Owning the topology on the server side
+  means the fleet can move to a dedicated ingest tier, shard per region, or
+  decommission a node without a client release.
+
+  Fields are optional. A client that does not find a protocol here should
+  fall back to whatever it used before discovery existed, and treat a missing
+  field as "not offered." Endpoints are always returned as a list so the
+  client picks one per its own policy (latency probe, region hint,
+  first-listed). Empty list means "not offered."
+
+  The run's browser link is not advertised here. The protocol reserved the
+  templated form in favour of `BatchAck.dashboard_url`, so the server hands
+  the client a finished URL once the run is durable rather than a shape the
+  client has to fill in.
+  """
+  def once_discovery(conn, _params) do
+    origin = RequestOrigin.from_conn(conn)
+
+    json(conn, %{events: events_endpoints(origin)})
+  end
+
+  # The Once event protocol speaks gRPC over HTTP/2. This deployment fronts it
+  # on `events.<host>` so a client that discovered a request origin of
+  # `https://tuist.dev` learns to open a gRPC channel against
+  # `grpcs://events.tuist.dev`. The subdomain is `events.` rather than
+  # `build.` because the stream carries build, test, cache, and exec
+  # invocations alike. `TUIST_ONCE_EVENTS_ENDPOINTS` overrides the default
+  # for split topologies (regional ingest, dedicated tier).
+  defp events_endpoints(origin) do
+    case System.get_env("TUIST_ONCE_EVENTS_ENDPOINTS") do
+      value when is_binary(value) and value != "" ->
+        value
+        |> String.split(",", trim: true)
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+
+      _ ->
+        [default_events_endpoint(origin)]
+    end
+  end
+
+  defp default_events_endpoint(origin) do
+    uri = URI.parse(origin)
+    scheme = if uri.scheme == "https", do: "grpcs", else: "grpc"
+    host = uri.host || "localhost"
+    "#{scheme}://events.#{host}"
+  end
+
   def openai_apps_challenge(conn, _params) do
     if Environment.tuist_hosted?() do
       conn
@@ -67,30 +132,48 @@ defmodule TuistWeb.WellKnownController do
   Returns the MCP Server Card for agent discovery (SEP-1649).
   """
   def mcp_server_card(conn, _params) do
-    server = Tuist.MCP.Server.server()
+    server = Server.server()
+    origin = RequestOrigin.from_conn(conn)
 
     capabilities =
       [
-        {map_size(server.tools) > 0, "tools"},
-        {map_size(server.resources) > 0, "resources"},
-        {map_size(server.prompts) > 0, "prompts"}
+        {map_size(server.tools) > 0, :tools},
+        {map_size(server.resources) > 0, :resources},
+        {map_size(server.prompts) > 0, :prompts}
       ]
       |> Enum.filter(fn {present, _} -> present end)
-      |> Enum.map(fn {_, name} -> name end)
+      |> Map.new(fn {_, name} -> {name, %{}} end)
 
     card = %{
+      version: "1.0",
+      protocolVersion: @mcp_protocol_version,
       serverInfo: %{
         name: server.name,
+        title: server.title,
         version: server.version
       },
+      description: server.description,
+      documentationUrl: "#{origin}/en/docs/guides/features/agentic-coding/mcp",
       transport: %{
+        type: "streamable-http",
         endpoint: @mcp_path
       },
-      capabilities: capabilities
+      capabilities: capabilities,
+      authentication: %{
+        required: true,
+        schemes: ["bearer", "oauth2"]
+      },
+      instructions: server.instructions,
+      tools: ["dynamic"],
+      prompts: ["dynamic"]
     }
 
     conn
     |> put_resp_content_type("application/json")
+    |> put_resp_header("access-control-allow-origin", "*")
+    |> put_resp_header("access-control-allow-methods", "GET")
+    |> put_resp_header("access-control-allow-headers", "Content-Type")
+    |> put_resp_header("cache-control", "public, max-age=3600")
     |> json(card)
   end
 
@@ -98,18 +181,28 @@ defmodule TuistWeb.WellKnownController do
   Returns OAuth Authorization Server metadata.
   """
   def oauth_authorization_server(conn, _params) do
-    issuer = RequestOrigin.from_conn(conn)
+    issuer = Environment.app_url(route_type: :app)
 
     configuration = %{
+      resource: "#{issuer}#{@mcp_path}",
+      authorization_servers: [issuer],
       issuer: issuer,
       authorization_endpoint: "#{issuer}#{@oauth_authorize_path}",
       token_endpoint: "#{issuer}#{@oauth_token_path}",
+      revocation_endpoint: "#{issuer}#{@oauth_revocation_path}",
       introspection_endpoint: "#{issuer}#{@oauth_introspect_path}",
       registration_endpoint: "#{issuer}#{@oauth_registration_path}",
-      grant_types_supported: ["authorization_code", "refresh_token"],
+      jwks_uri: "#{issuer}/.well-known/jwks.json",
+      grant_types_supported: [
+        "authorization_code",
+        "refresh_token",
+        "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "urn:workos:agent-auth:grant-type:claim"
+      ],
       response_types_supported: ["code"],
       code_challenge_methods_supported: ["S256"],
       scopes_supported: ["mcp"],
+      bearer_methods_supported: ["header"],
       introspection_endpoint_auth_methods_supported: [
         "client_secret_basic",
         "client_secret_post",
@@ -131,11 +224,18 @@ defmodule TuistWeb.WellKnownController do
     |> json(configuration)
   end
 
+  def jwks(conn, _params) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> put_resp_header("cache-control", "public, max-age=3600")
+    |> json(Accounts.agent_auth_service_jwks())
+  end
+
   @doc """
   Returns OAuth Protected Resource metadata.
   """
   def oauth_protected_resource(conn, params) do
-    app_url = RequestOrigin.from_conn(conn)
+    app_url = Environment.app_url(route_type: :app)
 
     case Map.get(params, "resource_path", []) do
       [] ->
@@ -220,6 +320,8 @@ defmodule TuistWeb.WellKnownController do
     %{
       resource: "#{resource_identifier}#{resource_path}",
       resource_name: resource_name,
+      resource_logo_uri: "#{resource_identifier}/images/tuist_logo_32x32@2x.png",
+      resource_documentation: "#{resource_identifier}/en/docs/guides/features/agentic-coding/mcp",
       authorization_servers: [resource_identifier],
       bearer_methods_supported: ["header"],
       scopes_supported: ["mcp"],
@@ -229,19 +331,19 @@ defmodule TuistWeb.WellKnownController do
 
   defp agent_auth_metadata(issuer) do
     %{
-      skill: "https://workos.com/auth.md",
-      register_uri: "#{issuer}#{@agent_auth_register_path}",
-      claim_uri: "#{issuer}#{@agent_auth_claim_path}",
-      revocation_uri: "#{issuer}#{@agent_auth_revocation_path}",
-      identity_types_supported: ["anonymous", "identity_assertion"],
-      anonymous: %{
-        credential_types_supported: ["api_key"]
-      },
+      skill: "#{issuer}/auth.md",
+      identity_endpoint: "#{issuer}#{@agent_auth_identity_path}",
+      claim_endpoint: "#{issuer}#{@agent_auth_claim_path}",
+      events_endpoint: "#{issuer}#{@agent_auth_events_path}",
+      identity_types_supported: ["anonymous", "identity_assertion", "service_auth"],
       identity_assertion: %{
-        assertion_types_supported: ["verified_email", "urn:ietf:params:oauth:token-type:id-jag"],
-        credential_types_supported: ["access_token", "api_key"]
+        assertion_types_supported: ["urn:ietf:params:oauth:token-type:id-jag"]
       },
-      events_supported: ["https://schemas.workos.com/events/agent/auth/identity/assertion/revoked"]
+      events_supported: ["https://schemas.workos.com/events/agent/auth/identity/assertion/revoked"],
+      compatibility: %{
+        legacy_registration_endpoint: "#{issuer}/agent/auth",
+        legacy_claim_endpoint: "#{issuer}/agent/auth/claim"
+      }
     }
   end
 end

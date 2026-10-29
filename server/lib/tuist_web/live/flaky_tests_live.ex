@@ -21,7 +21,12 @@ defmodule TuistWeb.FlakyTestsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Flaky Tests")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("flaky-tests"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Flaky Tests"),
+          fallback: "flaky-tests"
+        )
+      )
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -167,7 +172,7 @@ defmodule TuistWeb.FlakyTestsLive do
     {:noreply, socket}
   end
 
-  @allowed_sort_fields ~w(name flaky_runs_count last_flaky_at)
+  @allowed_sort_fields ~w(name flaky_runs_count last_flaky_at marked_flaky_at)
   @default_sort_field "flaky_runs_count"
 
   defp assign_flaky_tests(%{assigns: %{selected_project: project}} = socket, params) do

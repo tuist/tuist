@@ -28,11 +28,25 @@ permissions:
   contents: read
 
 env:
-  MISE_VERSION: "2026.5.15"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
+  # Skip mise's SLSA provenance verification for github-backend tools only.
+  # The verification resolves the release through
+  # api.github.com/repos/<owner>/<repo>/releases/tags/<tag>, which mise.lock
+  # cannot replace: the lockfile only supplies the download URL, and mise
+  # already prefers that CDN URL over url_api. So this API call is the last
+  # one standing on the install path, and it 403s once the token's hourly
+  # budget is spent across concurrent runs - failing the install of
+  # `github:endevco/aube` and `github:pomerium/cli`. The jobs here install the
+  # full merged root toolset (the Xcode build phases and scheme post-actions
+  # need it, so the install cannot be scoped), so they always pull both.
+  # Aqua-backend SLSA stays ON: mise.lock records slsa provenance for aqua
+  # tools (e.g. getsops/sops) and this setting does not touch them. Same
+  # setting as server.yml, server-deployment.yml and
+  # server-production-deployment.yml.
+  MISE_GITHUB_SLSA: 0
 
 concurrency:
   group: app-${{ github.head_ref || github.run_id }}
@@ -82,7 +96,7 @@ jobs:
             }
   app-build:
     name: Build
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
@@ -90,24 +104,20 @@ jobs:
       id-token: write
     if: |
       always() &&
+      github.repository == 'tuist/tuist' &&
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
+      - uses: ./.github/actions/mise
         with:
-          path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
@@ -116,7 +126,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: app-macos-workspace-${{ github.job }}
       - name: Update CFBundleVersion
         run: |
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
@@ -130,62 +142,10 @@ jobs:
           github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
         run: mise x -- tuist share TuistApp
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-
-  app-test:
-    name: Test
-    runs-on: tuist-macos
-    timeout-minutes: 30
-    needs: [check-team-membership]
-    permissions:
-      contents: read
-      id-token: write
-    if: |
-      always() &&
-      !cancelled() &&
-      !contains(needs.*.result, 'failure') &&
-      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    steps:
-      - uses: actions/checkout@v4
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
-      - name: Setup Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup
-      - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
-      - name: Test TuistApp
-        run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   app-device-build:
     name: Device Build
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
@@ -193,6 +153,7 @@ jobs:
       id-token: write
     if: |
       always() &&
+      github.repository == 'tuist/tuist' &&
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
@@ -200,19 +161,14 @@ jobs:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
+      - uses: ./.github/actions/mise
         with:
-          path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
@@ -221,17 +177,21 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: app-macos-workspace-${{ github.job }}
       - name: Update CFBundleVersion
         run: |
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
       - name: Generate TuistApp
-        run: mise x -- tuist generate TuistApp
+        run: mise x -- tuist generate TuistApp --configuration Release
       - name: Bundle iOS app
         if: |
           github.event_name == 'push' ||
           github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
+        env:
+          EXPORT_METHOD: release-testing
         run: mise run app:bundle-ios
       - name: Inspect TuistApp
         if: |
@@ -245,9 +205,3 @@ jobs:
           github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
         run: mise x -- tuist share build/Tuist.ipa
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}

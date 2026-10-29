@@ -17,6 +17,7 @@ defmodule TuistCommon.PromExPhoenixPluginTest do
     use Phoenix.Router
 
     get("/articles", TuistCommon.PromExPhoenixPluginTest.ArticleController, :index)
+    get("/es/articles", TuistCommon.PromExPhoenixPluginTest.ArticleController, :index)
   end
 
   describe "event_metrics/1" do
@@ -59,11 +60,13 @@ defmodule TuistCommon.PromExPhoenixPluginTest do
           http_status_tag: :status_class
         )
 
-      assert Enum.all?(http_event.metrics, fn metric ->
-               :status_class in metric.tags and :status not in metric.tags
-             end)
+      [request_duration, response_size, requests_total] = http_event.metrics
 
-      [request_duration | _] = http_event.metrics
+      for metric <- [response_size, requests_total] do
+        assert :status_class in metric.tags and :status not in metric.tags
+      end
+
+      assert :status_class not in request_duration.tags
 
       conn =
         Plug.Test.conn(:get, "/articles")
@@ -73,6 +76,18 @@ defmodule TuistCommon.PromExPhoenixPluginTest do
 
       assert tag_values.status_class == "4xx"
       refute Map.has_key?(tag_values, :status)
+    end
+
+    test "keeps the status tag off the request duration histogram" do
+      http_event = phoenix_http_event(router: Router, endpoint: Endpoint)
+
+      [request_duration, _response_size, requests_total] = http_event.metrics
+
+      assert :status not in request_duration.tags
+      assert :path in request_duration.tags
+      assert :method in request_duration.tags
+
+      assert :status in requests_total.tags
     end
 
     test "can drop controller and action labels while keeping path" do
@@ -99,6 +114,44 @@ defmodule TuistCommon.PromExPhoenixPluginTest do
       assert tag_values.path == "/articles"
       refute Map.has_key?(tag_values, :controller)
       refute Map.has_key?(tag_values, :action)
+    end
+
+    test "can normalize the resolved route path" do
+      http_event =
+        phoenix_http_event(
+          router: Router,
+          endpoint: Endpoint,
+          normalize_path: &String.replace_prefix(&1, "/es", "/:locale")
+        )
+
+      [request_duration, response_size, requests_total] = http_event.metrics
+
+      conn =
+        :get
+        |> Plug.Test.conn("/es/articles")
+        |> Map.put(:status, 200)
+
+      for metric <- [request_duration, response_size, requests_total] do
+        assert metric.tag_values.(%{conn: conn}).path == "/:locale/articles"
+      end
+    end
+
+    test "leaves unresolved routes alone when normalizing paths" do
+      http_event =
+        phoenix_http_event(
+          router: Router,
+          endpoint: Endpoint,
+          normalize_path: &String.replace_prefix(&1, "/es", "/:locale")
+        )
+
+      [request_duration | _] = http_event.metrics
+
+      conn =
+        :get
+        |> Plug.Test.conn("/not-a-route")
+        |> Map.put(:status, 404)
+
+      assert request_duration.tag_values.(%{conn: conn}).path == "Unknown"
     end
   end
 

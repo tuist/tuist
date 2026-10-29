@@ -4,20 +4,23 @@ defmodule Tuist.Runners.Catalog do
   the runner fleets expose. Read from application config:
 
     * `:runner_linux_shapes` — Linux shape catalog.
-    * `:runner_macos_shapes` — macOS shape catalog (M2-L only today).
+    * `:runner_linux_pools` — operator-defined Linux pools.
+    * `:runner_macos_shapes` — macOS shape catalog.
     * `:runner_macos_xcode_versions` — Xcode versions runnable on the
       macOS fleet.
 
   **Single source of truth: the Helm `runnersFleetLinux.shapes`,
-  `runnersFleet.shapes`, and `runnersFleet.xcodeVersions` lists.**
-  Helm both renders the corresponding `RunnerPool` CRs *and* injects
-  the same lists into the server as `TUIST_RUNNER_LINUX_SHAPES`,
-  `TUIST_RUNNER_MACOS_SHAPES`, and `TUIST_RUNNER_MACOS_XCODE_VERSIONS`
-  (JSON), which `config/runtime.exs` parses into the matching config
-  keys. So in a managed deploy the pools and the server's view of
-  them can't drift — they come from one place. `config/config.exs`
-  carries defaults for local dev, tests, and CI, where there's no
-  cluster and the env vars are unset.
+  `runnersFleetLinux.pools`, `runnersFleet.shapes`, and
+  `runnersFleet.xcodeVersions` lists.** Helm both renders the
+  corresponding `RunnerPool` CRs *and* injects the same lists into the
+  server as `TUIST_RUNNER_LINUX_SHAPES`, `TUIST_RUNNER_LINUX_POOLS`,
+  `TUIST_RUNNER_MACOS_SHAPES`, and
+  `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (JSON), which
+  `config/runtime.exs` parses into the matching config keys. So in a
+  managed deploy the pools and the server's view of them can't drift —
+  they come from one place. `config/config.exs` carries defaults for
+  local dev, tests, and CI, where there's no cluster and the env vars
+  are unset.
 
   Config rather than a live K8s LIST: dispatch stays a pure, fast hot
   path (no apiserver dependency to decide where a job goes), the
@@ -29,6 +32,73 @@ defmodule Tuist.Runners.Catalog do
   """
 
   @platforms [:linux, :macos]
+
+  @doc """
+  True when `platform` is a known runner platform and `vcpus`/`memory_gb`
+  are positive integers. Shared by the billing and session-tracking paths
+  so a machine spec accepted when a session opens is exactly the spec that
+  billing later meters.
+  """
+  defguard valid_machine_resources(platform, vcpus, memory_gb)
+           when platform in @platforms and is_integer(vcpus) and vcpus > 0 and
+                  is_integer(memory_gb) and memory_gb > 0
+
+  # Each platform is metered against its own baseline machine, and one
+  # compute unit is one minute on that baseline:
+  #
+  #   Linux  2 vCPU /  8 GB = one Linux compute unit
+  #   macOS  6 vCPU / 14 GB = one macOS compute unit
+  #
+  # Within a platform, shapes are weighted by resources. On a cloud bill
+  # roughly two thirds of a machine's cost is CPU and one third memory, so
+  #
+  #   resource units = 2/3 * (vcpus / baseline_vcpus)
+  #                  + 1/3 * (memory_gb / baseline_memory_gb)
+  #
+  # which reduces to `(8 * vcpus + memory_gb) / baseline_units`, exact at
+  # each platform's baseline and integral in basis points for shapes that
+  # double from it.
+  #
+  # Metering per platform rather than against one global unit keeps the
+  # platform premium in the Stripe Price, where the rest of the rate card
+  # already lives. A single global unit would force one Price to fix both
+  # platforms' rates at a hardcoded ratio, and would prevent scoping a
+  # credit grant, discount, or contract to one platform.
+  @compute_unit_bp 10_000
+  @vcpu_weight 8
+  @platform_baseline_units %{linux: 8 * 2 + 8, macos: 8 * 6 + 14}
+
+  @doc """
+  Billing multiplier for a machine, in basis points, relative to its own
+  platform's baseline (10_000 = one compute unit per elapsed millisecond).
+
+  Usage is metered as normalized compute units, one Stripe meter per
+  platform, rather than one meter per exact `(platform, vcpus, memory_gb)`
+  shape. A meter per shape would make every shape a permanent subscription
+  item against Stripe's 20-item classic limit, and adding a shape would
+  mean a new Meter, Price, config key, and a backfill across existing
+  subscriptions. Weighting elapsed time by an immutable machine factor is
+  still metering: Stripe keeps ownership of the currency amount, tiers,
+  discounts, taxes, and credits.
+
+  Because each platform is normalized to its own baseline, its Stripe
+  Price is quoted directly per baseline machine-minute, and the two
+  platforms' rates move independently. Adding a shape to an existing
+  platform still needs no Stripe work.
+
+  The value is persisted on the runner session when it opens (see
+  `Tuist.Runners.RunnerSessions.open/1`), so changing this function cannot
+  reprice usage that already happened.
+  """
+  def billing_multiplier(platform, vcpus, memory_gb) when valid_machine_resources(platform, vcpus, memory_gb) do
+    div(@compute_unit_bp * (@vcpu_weight * vcpus + memory_gb), Map.fetch!(@platform_baseline_units, platform))
+  end
+
+  @doc """
+  Basis points that make up one compute unit. Callers convert weighted
+  milliseconds into compute-unit milliseconds by dividing by this.
+  """
+  def compute_unit_basis_points, do: @compute_unit_bp
 
   @doc """
   All shapes for `platform`, deduped and sorted by
@@ -71,14 +141,62 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
+  Operator-defined Linux pools. CPU and memory are stored in the same
+  units used by the RunnerPool pod specification.
+  """
+  def linux_pools do
+    raw =
+      case Application.get_env(:tuist, :runner_linux_pools, []) do
+        list when is_list(list) -> list
+        _ -> []
+      end
+
+    raw
+    |> Enum.map(&normalize_linux_pool/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  @doc """
+  Exact Linux fleet names and their configured whole-vCPU and GiB
+  resources. Partial units round up so admission never understates a
+  runner's reservation.
+  """
+  def linux_fleet_resources do
+    shape_resources =
+      Enum.map(shapes(:linux), fn shape ->
+        %{
+          fleet_name: pool_name(%{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb}),
+          platform: :linux,
+          vcpus: shape.vcpus,
+          memory_gb: shape.memory_gb
+        }
+      end)
+
+    pool_resources =
+      Enum.map(linux_pools(), fn pool ->
+        %{
+          fleet_name: "#{Tuist.Environment.runners_linux_pool_name_prefix()}-#{pool.name}",
+          platform: :linux,
+          vcpus: div(pool.cpu_milli + 999, 1000),
+          memory_gb: div(pool.memory_mb + 1023, 1024)
+        }
+      end)
+
+    shape_resources ++ pool_resources
+  end
+
+  @doc """
   All Xcode versions supported on the macOS fleet, deduped and
   sorted descending (newest first — the default preselect renders
-  at the top of the form dropdown). Xcode is macOS-only, so this
+  at the top of the form dropdown). Versions compare numerically
+  (`26.10` above `26.9`), a stable release lists ahead of its
+  prerelease channels (`27.0` above `27.0-beta`), and entries that
+  don't parse as a version sort last. Xcode is macOS-only, so this
   function takes no platform argument.
   """
   def xcode_versions do
     raw =
-      case Application.get_env(:tuist, :runner_macos_xcode_versions, []) do
+      case Tuist.Environment.runner_macos_xcode_versions() do
         list when is_list(list) -> list
         _ -> []
       end
@@ -87,7 +205,7 @@ defmodule Tuist.Runners.Catalog do
     |> Enum.map(&normalize_xcode_version/1)
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq_by(& &1.xcode_version)
-    |> Enum.sort_by(& &1.xcode_version, :desc)
+    |> Enum.sort_by(&xcode_version_sort_key(&1.xcode_version), :desc)
   end
 
   @doc """
@@ -112,9 +230,10 @@ defmodule Tuist.Runners.Catalog do
     * `:linux` — `<linux-prefix>-<vcpus>vcpu-<memory_gb>gb` (e.g.
       `tuist-runner-pool-linux-4vcpu-16gb`). Prefix injected via
       `TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX`.
-    * `:macos` — `<macos-prefix>-<xcode-version-dashes>` (e.g.
-      `tuist-runner-pool-macos-26-5`). M2-L is implicit today;
-      when additional shapes ship, the shape suffix joins. Prefix
+    * `:macos` — `<macos-prefix>-<xcode-version-dashes>` for the
+      catalog's default shape (e.g. `tuist-runner-pool-macos-26-5`),
+      with `-<vcpus>vcpu-<memory_gb>gb` appended for any other shape
+      (e.g. `tuist-runner-pool-macos-26-5-12vcpu-28gb`). Prefix
       injected via `TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX`.
 
   Accepts any map with the relevant fields — `%Profile{}` works, as
@@ -125,10 +244,87 @@ defmodule Tuist.Runners.Catalog do
     "#{Tuist.Environment.runners_linux_pool_name_prefix()}-#{vcpus}vcpu-#{memory_gb}gb"
   end
 
-  def pool_name(%{platform: :macos, xcode_version: xcode_version})
+  def pool_name(%{platform: :macos, xcode_version: xcode_version} = profile)
       when is_binary(xcode_version) and xcode_version != "" do
-    "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{xcode_version_tag(xcode_version)}"
+    base = "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{xcode_version_tag(xcode_version)}"
+
+    case macos_shape_suffix(profile) do
+      nil -> base
+      suffix -> "#{base}-#{suffix}"
+    end
   end
+
+  # The default shape's pools carry no shape suffix, so every name that
+  # existed before the catalog gained a second macOS shape still resolves
+  # to the same pool. Renaming them would strand `queued` rows whose
+  # `fleet_name` points at the old pool (a runner only claims work for
+  # its own pool) and split the fleet's analytics history at the deploy.
+  #
+  # Non-default shapes therefore carry `-<vcpus>vcpu-<memory_gb>gb`.
+  # `templates/runner-pool.yaml` renders pool names by the same rule, so
+  # the two stay in step.
+  defp macos_shape_suffix(%{vcpus: vcpus, memory_gb: memory_gb}) when is_integer(vcpus) and is_integer(memory_gb) do
+    case default_shape(:macos) do
+      nil -> nil
+      %{vcpus: ^vcpus, memory_gb: ^memory_gb} -> nil
+      _ -> "#{vcpus}vcpu-#{memory_gb}gb"
+    end
+  end
+
+  defp macos_shape_suffix(_), do: nil
+
+  @doc """
+  Name of the rack `RunnerPool` that runs a macOS profile: the pool
+  `pool_name/1` names, racked on the rack, which `templates/runner-pool.yaml`
+  renders as `<macos-prefix>-<site>-<xcode-version-dashes>[-<shape>]` (e.g.
+  `tuist-runner-pool-macos-ber1-26-6`), named after the rack's home site. The
+  site comes before the Xcode so the shape suffix stays last, which
+  `resources_for_fleet/1` matches on. The pool spans every site whose runners
+  are on, so a job queued on it is bound to its Xcode and shape, and the Node of
+  the runner that claims it decides the site (`Tuist.Runners.Sites`).
+
+  Only pools the environment declares on the rack (`TUIST_RUNNERS_SITE_POOLS`)
+  count, so a profile whose Xcode or shape the rack does not run answers `nil`,
+  and so does a Linux profile. With several listed, the first by name wins.
+  """
+  def site_pool_name(%{platform: :macos} = profile) do
+    site_pools = Tuist.Environment.runners_site_pools()
+    prefix = Tuist.Environment.runners_macos_pool_name_prefix() <> "-"
+    name = pool_name(profile)
+
+    if String.starts_with?(name, prefix) do
+      rest = String.replace_prefix(name, prefix, "")
+
+      site_pools
+      |> Map.values()
+      |> Enum.map(& &1.site)
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.map(&"#{prefix}#{&1}-#{rest}")
+      |> Enum.find(&match?(%{platform: :macos}, Map.get(site_pools, &1)))
+    end
+  end
+
+  def site_pool_name(_profile), do: nil
+
+  @doc """
+  The rented pool a site's catalog pool backs onto: the same Xcode and shape
+  without the site (`tuist-runner-pool-macos-ber1-26-6` →
+  `tuist-runner-pool-macos-26-6`). `nil` for a fleet that is not a site's
+  catalog pool, such as an explicit pool racked at a site.
+  """
+  def rented_pool_name(fleet_name) when is_binary(fleet_name) do
+    prefix = Tuist.Environment.runners_macos_pool_name_prefix() <> "-"
+
+    with %{site: site, platform: :macos} <- Map.get(Tuist.Environment.runners_site_pools(), fleet_name),
+         true <- String.starts_with?(fleet_name, "#{prefix}#{site}-") do
+      String.replace_prefix(fleet_name, "#{prefix}#{site}-", prefix)
+    else
+      _ -> nil
+    end
+  end
+
+  def rented_pool_name(_fleet_name), do: nil
 
   @doc """
   `fleet_name` prefixes that identify `platform` jobs in
@@ -158,16 +354,89 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
-  Platform a fleet name belongs to, by the same prefixes
-  `fleet_name_prefixes/1` documents. `nil` for unrecognized names.
+  Platform a fleet name belongs to: a site pool's declared platform
+  (`fleet_site/1`), else by the same prefixes `fleet_name_prefixes/1`
+  documents. `nil` for unrecognized names.
   """
   def fleet_platform(fleet_name) when is_binary(fleet_name) do
-    Enum.find(@platforms, fn platform ->
-      Enum.any?(fleet_name_prefixes(platform), &String.starts_with?(fleet_name, &1))
-    end)
+    case Map.fetch(Tuist.Environment.runners_site_pools(), fleet_name) do
+      {:ok, %{platform: platform}} ->
+        platform
+
+      :error ->
+        Enum.find(@platforms, fn platform ->
+          Enum.any?(fleet_name_prefixes(platform), &String.starts_with?(fleet_name, &1))
+        end)
+    end
   end
 
   def fleet_platform(_), do: nil
+
+  @doc """
+  The site a fleet is racked at (`TUIST_RUNNERS_SITE_POOLS`), or `nil` for a
+  fleet that is not on the rack. A rack pool spans every site whose runners are
+  on and is named after this one, so it is the site a claim falls back to for a
+  Node without a site label (`Tuist.Runners.Sites.claim_site/2`).
+  """
+  def fleet_site(fleet_name) when is_binary(fleet_name) do
+    case Map.fetch(Tuist.Environment.runners_site_pools(), fleet_name) do
+      {:ok, %{site: site}} -> site
+      :error -> nil
+    end
+  end
+
+  def fleet_site(_), do: nil
+
+  @doc """
+  Resolves the resources represented by a fleet name.
+
+  New lifecycle rows persist resources at webhook enqueue time, so
+  this is primarily a rollout fallback for queued rows created before
+  resource columns existed. Linux profile and operator-defined pools
+  are matched against their configured resources; macOS pools are
+  matched on the shape suffix `pool_name/1` appends, falling back to
+  the catalog default shape, which is what the unsuffixed pools run.
+  Legacy `linux-…` names use the Linux default, while an unconfigured
+  catalog pool is rejected.
+  """
+  def resources_for_fleet(fleet_name) when is_binary(fleet_name) do
+    case fleet_platform(fleet_name) do
+      :linux -> linux_resources_for_fleet(fleet_name)
+      :macos -> macos_resources_for_fleet(fleet_name)
+      nil -> {:error, :invalid_resources}
+    end
+  end
+
+  defp macos_resources_for_fleet(fleet_name) do
+    shape =
+      Enum.find(shapes(:macos), fn shape ->
+        not shape.default? and String.ends_with?(fleet_name, "-" <> shape.key)
+      end)
+
+    case shape do
+      nil -> default_resources(:macos)
+      shape -> {:ok, %{platform: :macos, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+    end
+  end
+
+  defp linux_resources_for_fleet(fleet_name) do
+    resources = Enum.find(__MODULE__.linux_fleet_resources(), &(&1.fleet_name == fleet_name))
+
+    case resources do
+      nil -> legacy_linux_resources(fleet_name)
+      resources -> {:ok, Map.take(resources, [:platform, :vcpus, :memory_gb])}
+    end
+  end
+
+  defp legacy_linux_resources("linux-" <> _fleet_name), do: default_resources(:linux)
+  defp legacy_linux_resources(_fleet_name), do: {:error, :invalid_resources}
+
+  defp default_resources(platform) do
+    case default_shape(platform) do
+      nil -> {:error, :invalid_resources}
+      shape -> {:ok, %{platform: platform, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+    end
+  end
 
   @doc """
   Whether jobs on this fleet can reach the private (in-cluster) Kura
@@ -228,6 +497,41 @@ defmodule Tuist.Runners.Catalog do
   def parse_shapes_json(_), do: :error
 
   @doc """
+  Decode the operator-defined Linux pool resources Helm injects.
+  Pool names are suffixes; `linux_fleet_resources/0` combines them
+  with the deployment's component prefix.
+  """
+  def parse_linux_pools_json(json) when is_binary(json) do
+    case JSON.decode(json) do
+      {:ok, pools} when is_list(pools) ->
+        pools
+        |> Enum.reduce_while([], fn pool, parsed ->
+          case parse_linux_pool(pool) do
+            {:ok, pool} -> {:cont, [pool | parsed]}
+            :error -> {:halt, :error}
+          end
+        end)
+        |> case do
+          :error -> :error
+          parsed -> Enum.reverse(parsed)
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  def parse_linux_pools_json(_), do: :error
+
+  defp parse_linux_pool(%{"name" => name, "cpuMilli" => cpu_milli, "memoryMB" => memory_mb})
+       when is_binary(name) and name != "" and is_integer(cpu_milli) and cpu_milli > 0 and is_integer(memory_mb) and
+              memory_mb > 0 do
+    {:ok, %{name: name, cpu_milli: cpu_milli, memory_mb: memory_mb}}
+  end
+
+  defp parse_linux_pool(_), do: :error
+
+  @doc """
   Decode the JSON wire form of the macOS Xcode catalog into the
   `:runner_macos_xcode_versions` config shape (atom keys,
   `xcodeVersion` → `:xcode_version`). Mirrors `parse_shapes_json/1`
@@ -262,6 +566,14 @@ defmodule Tuist.Runners.Catalog do
 
   defp normalize_shape(_), do: nil
 
+  defp normalize_linux_pool(%{name: name, cpu_milli: cpu_milli, memory_mb: memory_mb})
+       when is_binary(name) and name != "" and is_integer(cpu_milli) and cpu_milli > 0 and is_integer(memory_mb) and
+              memory_mb > 0 do
+    %{name: name, cpu_milli: cpu_milli, memory_mb: memory_mb}
+  end
+
+  defp normalize_linux_pool(_), do: nil
+
   defp normalize_xcode_version(%{xcode_version: version} = entry) when is_binary(version) and version != "" do
     %{
       xcode_version: version,
@@ -277,5 +589,32 @@ defmodule Tuist.Runners.Catalog do
   # runner-image release publishes.
   defp xcode_version_tag(version) when is_binary(version) do
     String.replace(version, ".", "-")
+  end
+
+  # `{parseable, [major, minor, patch], stable, prerelease segments}`,
+  # compared descending: `26.10` above `26.9`, `27.0` above `27.0-beta`,
+  # `27.0-beta-10` above `27.0-beta-6`, and unparseable versions last.
+  defp xcode_version_sort_key(version) do
+    case Regex.run(~r/^(\d+(?:\.\d+)*)(?:-(.+))?$/, version) do
+      [_, release] -> {1, release_segments(release), 1, []}
+      [_, release, prerelease] -> {1, release_segments(release), 0, prerelease_segments(prerelease)}
+      nil -> {0, [], 0, [version]}
+    end
+  end
+
+  defp release_segments(release) do
+    segments = release |> String.split(".") |> Enum.map(&String.to_integer/1)
+    segments ++ List.duplicate(0, max(3 - length(segments), 0))
+  end
+
+  defp prerelease_segments(prerelease) do
+    prerelease
+    |> String.split([".", "-"])
+    |> Enum.map(fn segment ->
+      case Integer.parse(segment) do
+        {integer, ""} -> integer
+        _ -> segment
+      end
+    end)
   end
 end

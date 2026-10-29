@@ -15,12 +15,15 @@ defmodule TuistOps.JIT.Request do
 
   import Ecto.Changeset
 
+  alias TuistOps.JIT.Policy
+
   @statuses ~w(pending approved denied expired failed cancelled)
 
   schema "tailscale_jit_requests" do
     field :requester_email, :string
     field :requester_slack_id, :string
     field :target_group, :string
+    field :github_login, :string
     field :intent, :string
     field :ttl_seconds, :integer
     field :status, :string, default: "pending"
@@ -48,6 +51,7 @@ defmodule TuistOps.JIT.Request do
       :requester_email,
       :requester_slack_id,
       :target_group,
+      :github_login,
       :intent,
       :ttl_seconds,
       :slack_channel_id,
@@ -65,6 +69,25 @@ defmodule TuistOps.JIT.Request do
     |> validate_inclusion(:status, @statuses)
     |> validate_number(:ttl_seconds, greater_than: 0, less_than_or_equal_to: 3600)
     |> validate_length(:intent, min: 5, max: 500)
+    |> validate_github_login()
+  end
+
+  # GitHub logins: alphanumerics and single inner hyphens, max 39 chars.
+  # Logins are case-insensitive, so they're stored downcased to keep the
+  # one-active-elevation-per-login check exact.
+  @github_login_format ~r/^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/
+
+  def github_login_format, do: @github_login_format
+
+  defp validate_github_login(changeset) do
+    if Policy.github_admin_group?(get_field(changeset, :target_group)) do
+      changeset
+      |> update_change(:github_login, &String.downcase/1)
+      |> validate_required([:github_login])
+      |> validate_format(:github_login, @github_login_format)
+    else
+      changeset
+    end
   end
 
   @doc """

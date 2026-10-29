@@ -40,11 +40,23 @@ defmodule Noora.Sidebar do
   import Noora.TabMenu
 
   attr(:id, :string, default: "sidebar")
+
+  attr(:persist_scroll, :boolean,
+    default: true,
+    doc: "Remember the scroll position per sidebar ID within this browser tab."
+  )
+
   slot(:inner_block, required: true)
 
   def sidebar(assigns) do
     ~H"""
-    <div class="noora-sidebar" data-part="sidebar" id={@id} phx-hook="NooraScrollArea">
+    <div
+      class="noora-sidebar"
+      data-part="sidebar"
+      id={@id}
+      phx-hook="NooraScrollArea"
+      data-scroll-persist-key={@persist_scroll && @id}
+    >
       <div data-part="viewport">
         {render_slot(@inner_block)}
       </div>
@@ -144,7 +156,7 @@ defmodule Noora.Sidebar do
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
   attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
   attr(:external, :boolean, default: false, doc: "Whether the item points to an external resource.")
-  attr(:rest, :global)
+  attr(:rest, :global, include: ~w(target rel))
 
   def sidebar_item(assigns) do
     ~H"""

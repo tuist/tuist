@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - tuist-ops/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - infra/helm/tuist-ops/**
       - .github/workflows/tuist-ops-deployment.yml
   workflow_dispatch:
@@ -37,7 +39,7 @@ env:
 jobs:
   build:
     name: Build and push tuist-ops image
-    if: inputs.image_tag == ''
+    if: github.repository == 'tuist/tuist' && inputs.image_tag == ''
     runs-on: tuist-linux
     timeout-minutes: 30
     outputs:
@@ -71,7 +73,7 @@ jobs:
   deploy:
     name: Deploy to production
     needs: build
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: always() && github.repository == 'tuist/tuist' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -89,7 +91,7 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"

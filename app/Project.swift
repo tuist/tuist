@@ -14,8 +14,8 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .project(target: "TuistXcodeBuildProducts", path: "../"),
         .project(target: "TuistAndroid", path: "../"),
         .project(target: "TuistLogging", path: "../"),
+        .project(target: "TuistProcess", path: "../"),
         .project(target: "XcodeGraph", path: "../"),
-        .external(name: "Command"),
         .external(name: "Sparkle"),
         .external(name: "FileSystem"),
         .external(name: "Mockable"),
@@ -130,6 +130,7 @@ let project = Project(
             ],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistLogging", path: "../"),
                 .target(name: "TuistAuthentication"),
                 .target(name: "TuistNoora", condition: .when([.ios])),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
@@ -139,7 +140,11 @@ let project = Project(
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
-                .external(name: "ArgumentParser", condition: .when([.ios])),
+                // Imported directly only by the iOS sources, but reached on
+                // every platform through TuistSupport -> SwifterPMCore. An
+                // iOS condition here overrides that transitive requirement
+                // and leaves the macOS build unable to resolve the module.
+                .external(name: "ArgumentParser"),
                 .external(name: "TuistSDK"),
             ],
             settings: .settings(
@@ -176,6 +181,22 @@ let project = Project(
                 .target(name: "TuistAuthentication"),
                 .project(target: "XcodeGraph", path: "../"),
                 .external(name: "NukeUI"),
+            ]
+        ),
+        .target(
+            name: "TuistPreviewsTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.previews-tests",
+            deploymentTargets: .iOS("18.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistPreviewsTests/**"],
+            dependencies: [
+                .target(name: "TuistPreviews"),
+                .target(name: "TuistAppStorage"),
+                .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistSimulator", path: "../"),
+                .external(name: "Mockable"),
             ]
         ),
         .target(
@@ -226,6 +247,7 @@ let project = Project(
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistErrorHandling/**"],
             dependencies: [
+                .target(name: "TuistAuthentication"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
@@ -285,6 +307,11 @@ let project = Project(
         ),
     ],
     schemes: [
+        .scheme(
+            name: "TuistPreviews",
+            buildAction: .buildAction(targets: [.target("TuistPreviews")]),
+            testAction: .targets([.testableTarget(target: "TuistPreviewsTests")])
+        ),
         .scheme(
             name: "TuistApp",
             buildAction: .buildAction(

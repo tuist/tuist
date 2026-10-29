@@ -11,7 +11,12 @@
 
   <% status_props = TuistWeb.RunnerJobLive.status_badge_props(@job) %>
   <% status_kind = TuistWeb.RunnerJobLive.header_status(@job) %>
-  <% github_url = TuistWeb.RunnerJobLive.github_job_url(@job) %>
+  <%!-- `repository` holds a pipeline slug on the Buildkite lane, so the
+        GitHub deep link it builds would point at a repository that does
+        not exist. --%>
+  <% github_url =
+    if @buildkite_job || @gitlab_job, do: nil, else: TuistWeb.RunnerJobLive.github_job_url(@job) %>
+  <% buildkite_url = TuistWeb.RunnerJobLive.buildkite_build_url(@buildkite_job) %>
   <% platform_label = TuistWeb.RunnerJobLive.platform_label(@job.fleet_name) %>
 
   <div data-part="header">
@@ -44,6 +49,28 @@
       >
         <:icon_left><.brand_github /></:icon_left>
       </.button>
+      <.button
+        :if={@gitlab_job}
+        href={Tuist.Runners.GitLab.Job.job_url(@gitlab_job)}
+        target="_blank"
+        rel="noopener noreferrer"
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_runners", "GitLab")}
+      >
+        <:icon_left><.brand_gitlab /></:icon_left>
+      </.button>
+      <.button
+        :if={buildkite_url}
+        href={buildkite_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_runners", "Buildkite")}
+      >
+        <:icon_right><.external_link /></:icon_right>
+      </.button>
     </div>
   </div>
 
@@ -64,10 +91,16 @@
       patch={"?#{Query.put(@uri.query, "tab", "metrics")}"}
     />
     <.tab_menu_horizontal_item
-      :if={TuistWeb.RunnerJobLive.interactive_tab_visible?(@interactive)}
-      label={dgettext("dashboard_runners", "Interactive")}
-      selected={@selected_tab == "interactive"}
-      patch={"?#{Query.put(@uri.query, "tab", "interactive")}"}
+      :if={TuistWeb.RunnerJobLive.terminal_tab_visible?(@interactive, @terminal_simulation?)}
+      label={dgettext("dashboard_runners", "Terminal")}
+      selected={@selected_tab == "terminal"}
+      patch={"?#{Query.put(@uri.query, "tab", "terminal")}"}
+    />
+    <.tab_menu_horizontal_item
+      :if={TuistWeb.RunnerJobLive.vnc_tab_visible?(@interactive)}
+      label={dgettext("dashboard_runners", "VNC")}
+      selected={@selected_tab == "vnc"}
+      patch={"?#{Query.put(@uri.query, "tab", "vnc")}"}
     />
   </.tab_menu_horizontal>
 
@@ -99,7 +132,7 @@
               <span data-part="label">
                 <.history />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  TuistWeb.RunnerJobLive.run_duration_ms(@job),
+                  TuistWeb.Helpers.RunnerJobDurations.run_ms(@job),
                   fractional_seconds: false
                 )}
               </span>
@@ -109,7 +142,7 @@
               <span data-part="label">
                 <.history />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  TuistWeb.RunnerJobLive.queued_duration_ms(@job),
+                  TuistWeb.Helpers.RunnerJobDurations.queued_ms(@job),
                   fractional_seconds: false
                 )}
               </span>
@@ -163,11 +196,24 @@
               </span>
             </div>
           </div>
+          <div :if={@job.runner_name not in [nil, ""]} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Runner")}</div>
+              <span data-part="command-label">{@job.runner_name}</span>
+            </div>
+          </div>
         </div>
       </.card_section>
     </.card>
 
+    <.job_volumes
+      volumes={@volumes}
+      account_name={@selected_account.name}
+      failed={@job.conclusion == "failure"}
+    />
+
     <.card
+      :if={@linked_build_runs != [] or @linked_test_runs != []}
       title={dgettext("dashboard_runners", "Insights")}
       icon="chart_arcs"
       data-part="insights-card"
@@ -180,12 +226,6 @@
             </span>
           </div>
           <div data-part="insights-section">
-            <div :if={is_nil(@insights_project)} data-part="insights-empty">
-              {dgettext(
-                "dashboard_runners",
-                "No matching project was found for this runner repository."
-              )}
-            </div>
             <div :if={@insights_project && @linked_build_runs == []} data-part="insights-empty">
               {dgettext(
                 "dashboard_runners",
@@ -231,7 +271,12 @@
                   <% build_project = Map.get(@insights_projects_by_id, build.project_id) %>
                   <% row_status_props = TuistWeb.RunnerJobLive.build_status_badge_props(build) %>
                   <% build_step_window =
-                    TuistWeb.RunnerJobLive.insight_step_window(@steps, [build], :build) %>
+                    TuistWeb.RunnerJobLive.insight_step_window(
+                      @steps,
+                      [build],
+                      :build,
+                      @linked_build_run_windows
+                    ) %>
                   <.link
                     :if={build_project}
                     navigate={
@@ -276,12 +321,6 @@
             </span>
           </div>
           <div data-part="insights-section">
-            <div :if={is_nil(@insights_project)} data-part="insights-empty">
-              {dgettext(
-                "dashboard_runners",
-                "No matching project was found for this runner repository."
-              )}
-            </div>
             <div :if={@insights_project && @linked_test_runs == []} data-part="insights-empty">
               {dgettext(
                 "dashboard_runners",
@@ -368,6 +407,7 @@
     </.card>
 
     <.card
+      :if={is_nil(@buildkite_job) and is_nil(@gitlab_job)}
       title={dgettext("dashboard_runners", "Steps")}
       icon="apps"
       data-part="steps-card"
@@ -391,6 +431,7 @@
         <div :if={@steps == []} data-part="steps-empty">
           {dgettext("dashboard_runners", "Steps will appear here once the job finishes.")}
         </div>
+        <% job_step_window = TuistWeb.RunnerJobLive.step_window(@steps) %>
         <div
           :for={step <- @steps}
           id={"runner-step-#{step.number}"}
@@ -402,7 +443,12 @@
           <% step_duration = TuistWeb.RunnerJobLive.step_duration_ms(step) %>
           <% expanded = TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step) %>
           <% step_insights =
-            TuistWeb.RunnerJobLive.step_insights(step, @linked_build_runs, @linked_test_runs) %>
+            TuistWeb.RunnerJobLive.step_insights(
+              step,
+              @linked_build_runs,
+              @linked_test_runs,
+              @linked_build_run_windows
+            ) %>
           <% latest_step_build = List.first(step_insights.build_runs) %>
           <% latest_step_test = List.first(step_insights.test_runs) %>
           <div
@@ -489,18 +535,30 @@
                 </div>
               </div>
             </div>
+            <% step_bar_offset =
+              TuistWeb.RunnerJobLive.step_bar_offset_percent(step, job_step_window) %>
+            <% step_bar_width =
+              TuistWeb.RunnerJobLive.step_bar_width_percent(step, job_step_window) %>
+            <div data-part="step-timeline" aria-hidden="true">
+              <span data-part="step-timeline-cap"></span>
+              <span data-part="step-timeline-track">
+                <span
+                  :if={step_bar_offset && step_bar_width}
+                  data-part="step-timeline-bar"
+                  data-kind={to_string(step_kind)}
+                  style={"--step-offset: #{step_bar_offset}; --step-width: #{step_bar_width};"}
+                ></span>
+              </span>
+              <span data-part="step-timeline-cap"></span>
+            </div>
+            <span data-part="step-duration">
+              <%= if step_duration do %>
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration,
+                  fractional_seconds: false
+                )}
+              <% end %>
+            </span>
             <div data-part="step-meta">
-              <.badge
-                :if={step_duration}
-                label={
-                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration,
-                    fractional_seconds: false
-                  )
-                }
-                color="neutral"
-                style="light-fill"
-                size="large"
-              />
               <span data-part="step-chevron">
                 <.chevron_up :if={expanded} />
                 <.chevron_down :if={!expanded} />
@@ -508,15 +566,65 @@
             </div>
           </div>
           <div :if={expanded} data-part="step-expanded">
-            <div data-part="step-logs">
-              <% step_lines = Map.get(@step_logs, step.number, []) %>
-              <div :if={step_lines == []} data-part="log-empty">
+            <% step_page = Map.get(@step_logs, step.number, :loading) %>
+            <div
+              id={"runner-step-logs-#{step.number}"}
+              phx-hook="ScrollToTail"
+              data-part="step-logs"
+              data-scroll-to-tail-active={
+                to_string(TuistWeb.RunnerJobLive.step_logs_start_at_end?(step, step_page))
+              }
+              data-scroll-to-tail-item-selector="[data-part='log-line']"
+            >
+              <div
+                :if={step_page == :loading}
+                data-part="step-logs-loading"
+                aria-busy="true"
+                aria-label={dgettext("dashboard_runners", "Loading logs")}
+              >
+                <.skeleton_box width="40%" height="14px" />
+                <.skeleton_box width="70%" height="14px" />
+                <.skeleton_box width="55%" height="14px" />
+              </div>
+              <div :if={step_page == :failed} data-part="log-empty">
+                {dgettext(
+                  "dashboard_runners",
+                  "This step's logs couldn't be loaded. Collapse and expand the step to retry."
+                )}
+              </div>
+              <div :if={step_page == :unattributed} data-part="log-empty">
+                {dgettext(
+                  "dashboard_runners",
+                  "This step's output couldn't be separated from the rest of the job's log."
+                )}
+                <.link
+                  patch={"?#{Query.put(@uri.query, "tab", "logs")}"}
+                  data-part="log-empty-link"
+                >
+                  {dgettext("dashboard_runners", "View the full log")}
+                </.link>
+              </div>
+              <div :if={match?(%{lines: []}, step_page)} data-part="log-empty">
                 {dgettext("dashboard_runners", "No logs were captured for this step.")}
               </div>
-              <TuistWeb.RunnerJobLive.log_tree
-                :if={step_lines != []}
-                tree={Tuist.Runners.LogFormatter.group_lines(step_lines)}
-              />
+              <%= if match?(%{lines: [_ | _]}, step_page) do %>
+                <button
+                  :if={step_page.from > step_page.first}
+                  type="button"
+                  phx-click="load_earlier_step_lines"
+                  phx-value-number={step.number}
+                  disabled={step_page.loading_earlier?}
+                  data-part="step-logs-load-earlier"
+                >
+                  {if step_page.loading_earlier?,
+                    do: dgettext("dashboard_runners", "Loading..."),
+                    else: dgettext("dashboard_runners", "Load earlier lines")}
+                </button>
+                <TuistWeb.RunnerJobLive.log_tree
+                  id_prefix={"runner-step-#{step.number}-line"}
+                  tree={Tuist.Runners.LogFormatter.group_lines(step_page.lines)}
+                />
+              <% end %>
             </div>
           </div>
         </div>
@@ -583,7 +691,11 @@
           <div :if={@search_results == []} data-part="log-empty">
             {dgettext("dashboard_runners", "No log lines match your search.")}
           </div>
-          <div :for={line <- @search_results} data-part="log-line">
+          <div
+            :for={line <- @search_results}
+            data-part="log-line"
+            data-annotation={Tuist.Runners.LogFormatter.annotation(line.message)}
+          >
             <% message_html = Tuist.Runners.LogFormatter.render_message(line.message) %>
             <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
             <span data-part="log-message">{message_html}</span>
@@ -608,7 +720,12 @@
             {dgettext("dashboard_runners", "Load older logs")}
           </button>
           <div id="runner-logs" data-part="log-stream" phx-update="stream">
-            <div :for={{dom_id, line} <- @streams.log_lines} id={dom_id} data-part="log-line">
+            <div
+              :for={{dom_id, line} <- @streams.log_lines}
+              id={dom_id}
+              data-part="log-line"
+              data-annotation={Tuist.Runners.LogFormatter.annotation(line.message)}
+            >
               <% message_html = Tuist.Runners.LogFormatter.render_message(line.message) %>
               <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
               <span data-part="log-message">{message_html}</span>
@@ -640,18 +757,94 @@
     </.card>
   </div>
 
-  <div :if={@selected_tab == "interactive"} data-part="tab-panel">
+  <div :if={@selected_tab == "terminal"} data-part="tab-panel">
+    <.card
+      id="runner-terminal-card"
+      title={dgettext("dashboard_runners", "Terminal")}
+      icon="devices_code"
+      data-part="interactive-card"
+    >
+      <:actions>
+        <.button
+          :if={!@terminal_simulation? and is_nil(@interactive.shell_session)}
+          id="request-shell-session-button"
+          phx-click="request_shell_session"
+          variant="secondary"
+          size="medium"
+          label={dgettext("dashboard_runners", "Start terminal")}
+          disabled={!@interactive.shell_requestable?}
+        >
+          <:icon_left><.terminal_square_icon /></:icon_left>
+        </.button>
+      </:actions>
+      <div data-part="interactive-section">
+        <div id="runner-shell-session" data-part="interactive-session">
+          <div
+            :if={@terminal_simulation? or not is_nil(@interactive.shell_websocket_path)}
+            id="runner-shell-terminal"
+            phx-hook="RunnerShellTerminal"
+            phx-update="ignore"
+            data-part="interactive-terminal"
+            data-shell-path={@interactive.shell_websocket_path}
+            data-shell-token={@interactive.shell_websocket_token}
+            data-shell-simulation={to_string(@terminal_simulation?)}
+            data-state={
+              cond do
+                @terminal_simulation? ->
+                  "active"
+
+                @interactive.shell_session ->
+                  Atom.to_string(@interactive.shell_session.state)
+
+                true ->
+                  "idle"
+              end
+            }
+            tabindex="0"
+          >
+            <div data-part="interactive-terminal-output"></div>
+          </div>
+          <div
+            :if={!@terminal_simulation? and is_nil(@interactive.shell_websocket_path)}
+            data-part="interactive-terminal-frame"
+          >
+            <div data-part="interactive-viewport-icon"><.terminal_square_icon /></div>
+            <div data-part="interactive-viewport-title">
+              {case @interactive.shell_session do
+                nil ->
+                  dgettext("dashboard_runners", "Terminal session idle")
+
+                %{state: :requested} ->
+                  dgettext("dashboard_runners", "Waiting for runner shell")
+
+                %{state: :ready} ->
+                  dgettext("dashboard_runners", "Terminal session ready")
+
+                %{state: :active} ->
+                  dgettext("dashboard_runners", "Terminal session active")
+
+                _ ->
+                  dgettext("dashboard_runners", "Terminal session unavailable")
+              end}
+            </div>
+          </div>
+        </div>
+      </div>
+    </.card>
+  </div>
+
+  <div :if={@selected_tab == "vnc"} data-part="tab-panel">
     <% unavailable_reason =
       TuistWeb.RunnerJobLive.interactive_vnc_unavailable_reason(@interactive) %>
     <.card
       id="runner-vnc-card"
-      title={dgettext("dashboard_runners", "Interactive access")}
+      title={dgettext("dashboard_runners", "VNC")}
       icon="screen_share"
       data-part="interactive-card"
     >
       <:actions>
         <.button
-          :if={@interactive.vnc_session_ready?}
+          :if={@interactive.macos? and @interactive.vnc_session_ready?}
           id="runner-vnc-fullscreen-button"
           phx-hook="RunnerVNCFullscreen"
           variant="secondary"
@@ -666,7 +859,10 @@
           <:icon_left><.icon name="device_desktop_share" /></:icon_left>
         </.button>
         <.button
-          :if={is_nil(@interactive.vnc_session) and !@interactive.vnc_dev_placeholder?}
+          :if={
+            @interactive.macos? and is_nil(@interactive.vnc_session) and
+              !@interactive.vnc_dev_placeholder?
+          }
           id="request-vnc-session-button"
           phx-click="request_vnc_session"
           variant="secondary"
@@ -678,7 +874,7 @@
         </.button>
       </:actions>
       <.card_section data-part="interactive-section">
-        <div id="runner-vnc-session" data-part="interactive-session">
+        <div :if={@interactive.macos?} id="runner-vnc-session" data-part="interactive-session">
           <div :if={unavailable_reason} data-part="interactive-notice">
             {unavailable_reason}
           </div>

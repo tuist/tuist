@@ -1,6 +1,8 @@
 import Foundation
 import Path
+import Testing
 import TSCUtility
+import TuistConfig
 import TuistLoader
 import XcodeGraph
 import XCTest
@@ -112,6 +114,32 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
 
         // Then
         XCTAssertContainsElementOfType(got, LastUpgradeVersionWorkspaceMapper.self)
+    }
+}
+
+struct WorkspaceMapperFactoryXcodeCacheTests {
+    @Test func default_containsTheXcodeCachePrefixMappingMapper() {
+        // Given
+        let subject = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: []))
+
+        // When
+        let got = subject.default(tuist: .default)
+
+        // Then
+        #expect(got.contains { $0 is XcodeCachePrefixMappingWorkspaceMapper })
+    }
+
+    @Test(arguments: [false, true])
+    func default_turnsOnInheritedSchemeCoverage_whenTheConfigCarriesIt(enabled: Bool) async throws {
+        let subject = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: []))
+        let config = Tuist.test(project: .generated(.test(generationOptions: .test(coverage: .init(enabled: enabled)))))
+        let scheme = Scheme.test(name: "Inherits", testAction: .test(coverage: false, inheritsCoverage: true))
+        let workspace = WorkspaceWithProjects(workspace: .test(schemes: [scheme]), projects: [])
+        let mapper = try #require(subject.default(tuist: config).first { $0 is InheritedCoverageSchemesWorkspaceMapper })
+
+        let (got, _) = try await mapper.map(workspace: workspace)
+
+        #expect(got.workspace.schemes.first?.testAction?.coverage == enabled)
     }
 }
 

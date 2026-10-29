@@ -1,0 +1,78 @@
+{
+  "name": "Label",
+  "tagName": "noora-label",
+  "elementClassName": "NooraLabel",
+  "className": "noora-label",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Labels a form control with optional supporting text.",
+  "previewLayout": "stack",
+  "usage": "<noora-label label=\"Email\" for=\"email\" required></noora-label>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the main label."
+    },
+    {
+      "name": "sublabel",
+      "property": "sublabel",
+      "type": "string",
+      "description": "Sets secondary label text."
+    },
+    {
+      "name": "required",
+      "property": "required",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows the required indicator."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows the disabled state."
+    },
+    {
+      "name": "for",
+      "property": "htmlFor",
+      "type": "string",
+      "description": "Associates the label with a control identifier."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "label",
+      "description": "The native label."
+    },
+    {
+      "name": "sublabel",
+      "description": "The secondary label."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "basic",
+      "title": "Basic labels",
+      "description": "Show the same simple, required, and supporting-label variations as the LiveView component.",
+      "markup": "<noora-label label=\"Email Address\" for=\"email-address\"></noora-label>\n<noora-label label=\"Password\" for=\"password\" required></noora-label>\n<noora-label label=\"Full Name\" for=\"full-name\" sublabel=\"(First and last name)\"></noora-label>\n<noora-label label=\"Company Email\" for=\"company-email\" sublabel=\"(Must be a work email address)\" required></noora-label>"
+    },
+    {
+      "id": "disabled",
+      "title": "Disabled labels",
+      "description": "Use disabled label colors when the associated control is unavailable.",
+      "markup": "<noora-label label=\"Organization\" for=\"organization\" disabled></noora-label>\n<noora-label label=\"Deployment environment\" for=\"deployment-environment\" sublabel=\"Only organization administrators can change this setting\" disabled></noora-label>"
+    },
+    {
+      "id": "edge-cases",
+      "title": "Edge cases",
+      "description": "Match the LiveView component's long and short label cases.",
+      "markup": "<noora-label label=\"Very Long Label That Might Wrap to Multiple Lines in Narrow Containers\" required></noora-label>\n<noora-label label=\"API Key\" sublabel=\"(This is a very long sublabel that provides detailed information about what this field should contain and how it will be used in the application)\"></noora-label>\n<noora-label label=\"ID\" required></noora-label>"
+    }
+  ]
+}

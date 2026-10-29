@@ -31,7 +31,7 @@ type Client struct {
 	// Binary is the path to the `tart` CLI on this Mac mini.
 	// Defaults to /usr/local/bin/tart, the wrapper script the
 	// CAPI provider's bootstrap step writes around the pinned
-	// tart.app bundle at /usr/local/lib/tart.app.
+	// tart.app bundle at /usr/local/lib/tart/<version>.
 	Binary string
 
 	// UserDataDir is the host directory where per-VM env files live.
@@ -50,6 +50,12 @@ type Client struct {
 	// to EnsureRealGUISession; tests construct Client directly and
 	// leave it nil to skip the check.
 	EnsureGUISession func(ctx context.Context) error
+
+	// BackgroundPull is the command a background pull (InBackground) runs
+	// under, ahead of `tart`. New() sets macOS's `taskpolicy -b`, which runs
+	// the pull at background QoS, so the host schedules running VMs' CPU and
+	// disk I/O first. Empty runs it like any other pull.
+	BackgroundPull []string
 }
 
 // New returns a Client with sensible defaults.
@@ -59,6 +65,7 @@ func New() *Client {
 		UserDataDir:      "/var/lib/tart-userdata",
 		LogDir:           "/var/log/tart-vms",
 		EnsureGUISession: EnsureRealGUISession,
+		BackgroundPull:   []string{"/usr/sbin/taskpolicy", "-b"},
 	}
 }
 
@@ -122,18 +129,80 @@ var (
 // Pull invokes `tart pull <image>`. Idempotent — Tart skips re-download
 // when the image is already cached.
 func (c *Client) Pull(ctx context.Context, image string) error {
+	return c.PullFrom(ctx, image, false)
+}
+
+// PullFrom is Pull with `--insecure` when insecure is set, which makes Tart
+// speak plain HTTP to the registry the reference names. Tart has no other
+// notion of a mirror: a rack's image cache is reached by naming it in the
+// reference.
+func (c *Client) PullFrom(ctx context.Context, image string, insecure bool) error {
+	name, args := c.Binary, withInsecure([]string{"pull"}, insecure, image)
+	if IsInBackground(ctx) {
+		args = append(args, "--concurrency", strconv.Itoa(backgroundPullConcurrency))
+		if len(c.BackgroundPull) > 0 {
+			args = append(append(append([]string{}, c.BackgroundPull[1:]...), c.Binary), args...)
+			name = c.BackgroundPull[0]
+		}
+	}
 	ctx, cancel := context.WithTimeout(ctx, pullTimeout)
 	defer cancel()
-	_, err := c.run(ctx, c.Binary, "pull", image)
+	_, err := c.run(ctx, name, args...)
 	return err
+}
+
+// backgroundPullConcurrency is the network concurrency of a background pull,
+// half of Tart's default of 4, so it leaves running VMs most of the host's
+// link.
+const backgroundPullConcurrency = 2
+
+type backgroundPullKey struct{}
+
+// InBackground marks the pulls made with ctx as background work: an image
+// pulled ahead of the Pods that will clone it, which must not slow the jobs
+// the host is running. They run under BackgroundPull with
+// backgroundPullConcurrency.
+func InBackground(ctx context.Context) context.Context {
+	return context.WithValue(ctx, backgroundPullKey{}, true)
+}
+
+// IsInBackground reports whether ctx was marked with InBackground.
+func IsInBackground(ctx context.Context) bool {
+	background, _ := ctx.Value(backgroundPullKey{}).(bool)
+	return background
 }
 
 // Clone invokes `tart clone <source> <name>`.
 func (c *Client) Clone(ctx context.Context, source, name string) error {
+	return c.CloneFrom(ctx, source, name, false)
+}
+
+// CloneFrom is Clone with `--insecure` when insecure is set, for a source
+// pulled over plain HTTP: should the local copy be gone, Tart pulls it again
+// from the registry the reference names.
+//
+// Callers clone only once they have found no usable VM under name, so a
+// directory still there is a leftover and is replaced, as every Tart before
+// 2.40.1 did. From 2.40.1 Tart refuses to clone over any existing directory
+// without `--overwrite`, including one too incomplete for `tart delete` to
+// recognize, which would wedge that name for good. The flag is passed only
+// after that refusal because older Tart rejects it. Tart still refuses to
+// replace a running VM, with or without it.
+func (c *Client) CloneFrom(ctx context.Context, source, name string, insecure bool) error {
 	ctx, cancel := context.WithTimeout(ctx, cloneTimeout)
 	defer cancel()
-	_, err := c.run(ctx, c.Binary, "clone", source, name)
+	_, err := c.run(ctx, c.Binary, withInsecure([]string{"clone"}, insecure, source, name)...)
+	if isAlreadyExists(err) {
+		_, err = c.run(ctx, c.Binary, withInsecure([]string{"clone", "--overwrite"}, insecure, source, name)...)
+	}
 	return err
+}
+
+func withInsecure(command []string, insecure bool, args ...string) []string {
+	if insecure {
+		command = append(command, "--insecure")
+	}
+	return append(command, args...)
 }
 
 // Set configures cpu/memory for a cloned VM. Pass 0 to leave a
@@ -155,6 +224,23 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 	return err
 }
 
+// RegenerateIdentity gives a freshly-cloned macOS VM its own device identity.
+// `tart clone` copies the source VM's ECID (VZMacMachineIdentifier) verbatim,
+// so every clone off one golden base presents the SAME serial + IOPlatformUUID
+// to Apple. Concurrent clones then collide at Apple's MobileAsset
+// personalization: the signed asset catalog fails to verify on a fraction of
+// them (mobileassetd CSSMERR_CSP_VERIFY_FAILED), which surfaces as the
+// intermittent `xcodebuild -downloadComponent MetalToolchain` exit-70 failure.
+// `tart set --random-serial` mints a fresh VZMacMachineIdentifier (arm64 only);
+// the serial and IOPlatformUUID derive from it, so each clone becomes a distinct
+// device. Must run while the VM is stopped — i.e. right after clone, before run.
+func (c *Client) RegenerateIdentity(ctx context.Context, name string) error {
+	ctx, cancel := context.WithTimeout(ctx, setTimeout)
+	defer cancel()
+	_, err := c.run(ctx, c.Binary, "set", name, "--random-serial")
+	return err
+}
+
 // RunHandle exposes the lifecycle of a backgrounded `tart run`
 // process. The reconciler stashes one in its Store entry alongside
 // the VM name so subsequent reconciles can detect a process that
@@ -170,6 +256,7 @@ type RunHandle struct {
 
 	done         chan struct{}
 	exitErr      error
+	exitedAt     time.Time
 	vncReady     chan struct{}
 	vncReadyOnce sync.Once
 	vncMu        sync.RWMutex
@@ -193,6 +280,18 @@ func (h *RunHandle) Exited() (err error, ok bool) {
 		return h.exitErr, true
 	default:
 		return nil, false
+	}
+}
+
+// ExitedAt returns when the `tart run` process actually terminated, and
+// whether it has. Zero time with ok=false while the VM is still up.
+// Safe for concurrent use on the same happens-before as Exited.
+func (h *RunHandle) ExitedAt() (at time.Time, ok bool) {
+	select {
+	case <-h.done:
+		return h.exitedAt, true
+	default:
+		return time.Time{}, false
 	}
 }
 
@@ -258,8 +357,7 @@ type RunOptions struct {
 	SharedDirs []string
 
 	// Disks are additional block devices attached via `tart run --disk
-	// <path>`, on top of the VM's root disk. The per-account cache volume
-	// attaches its per-VM branch image here. The list is plural
+	// <path>`, on top of the VM's root disk. The list is plural
 	// from day one so generic user-declared volumes (spec #69) compose
 	// without a wrapper change; v1 passes at most one.
 	Disks []string
@@ -287,7 +385,7 @@ type RunOptions struct {
 // process that drops, say, 30s in surfaces as a Pod failure rather
 // than stranding helm on an IP poll that will never succeed.
 //
-// Tart 2.32 quirks accommodated here:
+// Tart quirks accommodated here:
 //   - `tart run` is foreground-only. We start it directly from Go with
 //     `Setsid: true` so it gets its own session and process group.
 //     Earlier we wrapped it in `sh -c 'tart … &'` — that left tart
@@ -328,15 +426,20 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// runner Mac mini measured ~1.8x faster warm reads with caching=cached
 	// (7.7 vs 4.2 GB/s) and no durability tradeoff — these VMs are ephemeral
 	// (cloned per Pod, discarded on exit), so host caching is pure upside.
-	args := []string{"run", name, "--no-graphics"}
+	args := []string{"run", name}
 	if opts.VNC {
-		args = append(args, "--vnc-experimental")
+		// Keep Tart's generated-password VNC server, but attach the VM view so
+		// Virtualization.framework has a real display surface to mirror after
+		// the macOS guest auto-login session starts.
+		args = append(args, "--vnc-experimental", "--graphics")
+	} else {
+		args = append(args, "--no-graphics")
 	}
 	args = append(args, "--root-disk-opts", "caching=cached")
 	for _, dir := range opts.SharedDirs {
 		args = append(args, "--dir", dir)
 	}
-	// Additional block devices (the per-account cache volume branch).
+	// Additional block devices.
 	// Attached plainly: unlike the root disk (whose caching is set via the
 	// dedicated --root-disk-opts flag), tart 2.32's `--disk` takes a bare
 	// path (with only `:ro`-style flags), so a `:caching=cached` suffix here
@@ -357,6 +460,12 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// SIGKILL the VM. Setsid + cmd.Start (no Wait) leaves tart
 	// running independently.
 	cmd := exec.Command(c.Binary, args...)
+	if opts.VNC {
+		// Tart otherwise opens the VNC URL via NSWorkspace when --graphics is
+		// present. CI=1 keeps the URL on stdout where copyTartOutput can parse
+		// and redact the generated password.
+		cmd.Env = append(os.Environ(), "CI=1")
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	stdout, err := cmd.StdoutPipe()
@@ -394,6 +503,14 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// extra mutex needed.
 	go func() {
 		handle.exitErr = cmd.Wait()
+		// Stamped here, next to Wait, because this is the only moment
+		// the real exit time is observable. The reconciler notices the
+		// stop on its next poll, up to a poll interval plus teardown
+		// later, so a timestamp taken there would date the billing
+		// session from when we looked rather than from when the process
+		// ended. Same happens-before as exitErr: written before
+		// close(done), read only after a receive on it.
+		handle.exitedAt = time.Now()
 		outputWG.Wait()
 		_ = logFile.Close()
 		handle.closeVNCInfo()
@@ -517,6 +634,17 @@ func (c *Client) Delete(ctx context.Context, name string) error {
 	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
 	defer cancel()
 	_, err := c.run(ctx, c.Binary, "delete", name)
+	return err
+}
+
+// CollectContent removes the files in Tart's content store that no VM or
+// cached image references any more: the read-only bases and overlays stacked
+// images share. Deleting a cached image collects them, deleting a local VM
+// does not, so a reaped stacked golden frees its base only after this.
+func (c *Client) CollectContent(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+	_, err := c.run(ctx, c.Binary, "prune", "--gc")
 	return err
 }
 
@@ -722,15 +850,38 @@ func (c *Client) run(ctx context.Context, name string, args ...string) ([]byte, 
 	return stdout.Bytes(), nil
 }
 
-// isNotFound recognizes Tart's "not found" error string. Tart returns
-// non-zero exit + a stderr line matching "VM not found" when `tart get`
-// is called for a VM Tart doesn't know about.
+// isNotFound recognizes Tart's absent-VM error strings. `tart get` on a VM
+// Tart doesn't know about exits non-zero with a stderr line reading
+// `the specified VM "x" does not exist`; older builds phrase it
+// "VM not found". Both are matched case-insensitively against the stderr
+// that run() wraps into the error.
+//
+// Callers treat a miss here as a genuine probe failure, which costs a
+// multi-GB re-pull on the golden path, so a phrasing this misses is
+// expensive rather than merely noisy.
 func isNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := err.Error()
-	return strings.Contains(msg, "VM not found") || strings.Contains(msg, "not found")
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "does not exist") || strings.Contains(msg, "not found")
+}
+
+// isAlreadyExists recognizes Tart's refusal to clone over an existing
+// directory: `VM "x" already exists, use --overwrite to replace it`.
+func isAlreadyExists(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "already exists, use --overwrite")
+}
+
+// Version returns the version `tart --version` prints.
+func (c *Client) Version(ctx context.Context) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	out, err := c.run(ctx, c.Binary, "--version")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func shellJoin(parts []string) string {

@@ -7,7 +7,8 @@ public protocol UpdateOrganizationServicing {
     func updateOrganization(
         organizationName: String,
         serverURL: URL,
-        ssoOrganization: SSOOrganization?
+        ssoOrganization: SSOOrganization?,
+        ssoAutomaticEnrollment: Bool?
     ) async throws -> ServerOrganization
 }
 
@@ -34,7 +35,8 @@ public struct UpdateOrganizationService: UpdateOrganizationServicing {
     public func updateOrganization(
         organizationName: String,
         serverURL: URL,
-        ssoOrganization: SSOOrganization?
+        ssoOrganization: SSOOrganization?,
+        ssoAutomaticEnrollment: Bool?
     ) async throws -> ServerOrganization {
         let client = Client.authenticated(serverURL: serverURL)
         let ssoProvider: Operations.updateOrganization
@@ -62,6 +64,7 @@ public struct UpdateOrganizationService: UpdateOrganizationServicing {
                 ),
                 body: .json(
                     .init(
+                        sso_automatic_enrollment: ssoAutomaticEnrollment,
                         sso_organization_id: ssoOrganizationId,
                         sso_provider: ssoProvider
                     )

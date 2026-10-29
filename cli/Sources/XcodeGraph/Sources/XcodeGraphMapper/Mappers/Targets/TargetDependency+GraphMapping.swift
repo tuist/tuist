@@ -153,6 +153,10 @@ extension TargetDependency.PackageType {
             return .runtime
         case .runtimeEmbedded:
             return .runtimeEmbedded
+        case .runtimeDynamic:
+            return .runtimeDynamic
+        case .runtimeDynamicEmbedded:
+            return .runtimeDynamicEmbedded
         case .plugin:
             return .plugin
         case .macro:
@@ -187,6 +191,8 @@ extension PBXProductType {
             return .extensionKitExtension
         case .commandLineTool:
             return .commandLineTool
+        case .hostBuildTool:
+            return .macro
         case .messagesExtension:
             return .messagesExtension
         case .stickerPack:

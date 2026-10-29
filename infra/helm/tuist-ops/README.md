@@ -18,8 +18,10 @@ cross-call this deployment via the tailnet for the policy lookup.
   `/webhooks/slack/*`**. The Pomerium impersonation policy endpoint
   (`/api/v1/policy`) and any future LiveView paths (`/db`, etc.) are
   reachable only on the tailnet, never publicly.
-- **CNPG Cluster** — single-instance Postgres, 5Gi storage, daily
+- **CNPG Cluster**: two-instance Postgres, 20Gi storage, daily
   backups to Tigris under `s3://tuist-prod-pg-backups/tuist-ops`.
+  The second instance exists so a CAPI node drain can evict the
+  primary; see the comment on `postgresql.instances` in `values.yaml`.
 - **ExternalSecrets** — three of them:
   - `tuist-ops-runtime` — Slack, Tailscale, and GitHub credentials from `TUIST_OPS_BOT`
   - `tuist-ops-app`     — `SECRET_KEY_BASE` from the same 1P item
@@ -32,8 +34,10 @@ cross-call this deployment via the tailnet for the policy lookup.
    - `slack_signing_secret`, `slack_bot_token`, `slack_approvals_channel_id`
    - `github_app_id`, `github_app_installation_id`, `github_app_private_key` —
      GitHub App credentials for dispatching and reading the `preview-deploy.yml`
-     workflow in `tuist/tuist`. The App installation needs read and write access
-     to Actions for `tuist/tuist`; metadata access is always included by GitHub.
+     workflow in `tuist/tuist`, and for `/elevate-github` organization admin
+     elevations. The App installation needs read and write access to Actions for
+     `tuist/tuist` and read and write access to the organization "Members"
+     permission; metadata access is always included by GitHub.
    - `secret_key_base` — generate via `mix phx.gen.secret`
 2. **Update the Slack app**'s slash command URL to
    `https://ops.tuist.dev/webhooks/slack/slash` and the interactivity

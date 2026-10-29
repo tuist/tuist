@@ -28,10 +28,33 @@ public class GraphTraverser: GraphTraversing {
     private let conditionCache = ConditionCache()
     private let conditionalTargets: Set<GraphDependency>
     private let precompiledSwiftMacroExecutablesCache = GraphCache<GraphDependency, Set<String>>()
+    private let precompiledDynamicLibrariesAndFrameworksCache = GraphCache<GraphDependency, [GraphDependency]>()
+    private let linkableDependenciesCache = GraphCache<LinkableDependenciesKey, Set<GraphDependencyReference>>()
+    private let searchablePathDependenciesCache = GraphCache<GraphDependency, Set<GraphDependencyReference>>()
+    private let transitiveStaticDependenciesCache = GraphCache<GraphDependency, Set<GraphDependency>>()
+    private let staticSwiftXCFrameworksBehindDynamicXCFrameworksCache = GraphCache<GraphDependency, Set<GraphDependency>>()
+    private let embeddableFrameworksCache = GraphCache<GraphDependency, Set<GraphDependencyReference>>()
+    private let staticXCFrameworksBehindXCFrameworkCache = GraphCache<GraphDependency, Set<GraphDependency>>()
+    private let staticObjcXCFrameworksBehindXCFrameworkCache = GraphCache<GraphDependency, Set<GraphDependency>>()
+    private let staticObjcXCFrameworksReachableViaCachedTargetsCache =
+        GraphCache<GraphDependency, Set<GraphDependency>>()
+    private let staticSwiftXCFrameworksReachableViaCachedTargetsCache =
+        GraphCache<GraphDependency, Set<GraphDependency>>()
+    private let packageProductsToBuildCache =
+        GraphCache<GraphDependency, [GraphDependency: PlatformCondition.CombinationResult]>()
+    private let packageProductsToLinkCache =
+        GraphCache<GraphDependency, [GraphDependency: PlatformCondition.CombinationResult]>()
+
+    struct LinkableDependenciesKey: Hashable {
+        let target: GraphDependency
+        let shouldExcludeHostAppDependencies: Bool
+    }
+
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
         SystemFrameworkMetadataProvider()
     private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> =
         ThreadSafe([:])
+    private let dependentsByDependencyCache = ThreadSafe<[GraphDependency: [GraphDependency]]?>(nil)
 
     public required init(graph: Graph) {
         self.graph = graph
@@ -318,6 +341,24 @@ public class GraphTraverser: GraphTraversing {
     public func resourceBundleDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphDependencyReference
     > {
+        let rootDependency = GraphDependency.target(name: name, path: path)
+        return Set(
+            resourceBundleGraphDependencies(path: path, name: name)
+                .compactMap { dependencyReference(to: $0, from: rootDependency) }
+        )
+    }
+
+    public func resourceBundleTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+        let rootDependency = GraphDependency.target(name: name, path: path)
+        return Set(resourceBundleGraphDependencies(path: path, name: name).compactMap { dependency in
+            guard let graphTarget = target(from: dependency),
+                  case let .condition(condition) = combinedCondition(to: dependency, from: rootDependency)
+            else { return nil }
+            return GraphTargetReference(target: graphTarget, condition: condition)
+        })
+    }
+
+    private func resourceBundleGraphDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphDependency> {
         guard let target = graph.projects[path]?.targets[name] else { return [] }
 
         func canHostResources(target: Target) -> Bool {
@@ -354,10 +395,7 @@ public class GraphTraverser: GraphTraversing {
             skip: canDependencyEmbedBundles
         )
 
-        return Set(
-            bundles.union(externalBundles)
-                .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
-        )
+        return bundles.union(externalBundles)
     }
 
     public func target(from dependency: GraphDependency) -> GraphTarget? {
@@ -437,6 +475,10 @@ public class GraphTraverser: GraphTraversing {
     public func embeddableFrameworks(path: Path.AbsolutePath, name: String) -> Set<
         GraphDependencyReference
     > {
+        let cacheKey = GraphDependency.target(name: name, path: path)
+        if let cached = embeddableFrameworksCache[cacheKey] {
+            return cached
+        }
         guard let target = target(path: path, name: name), canEmbedFrameworks(target: target.target)
         else { return Set() }
 
@@ -509,12 +551,18 @@ public class GraphTraverser: GraphTraversing {
             }
         }
 
+        embeddableFrameworksCache[cacheKey] = references
         return references
     }
 
     public func searchablePathDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
         GraphDependencyReference
     > {
+        let cacheKey = GraphDependency.target(name: name, path: path)
+        if let cached = searchablePathDependenciesCache[cacheKey] {
+            return cached
+        }
+
         let staticXCFrameworksBehindDynamic = staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
             path: path,
             name: name
@@ -523,16 +571,25 @@ public class GraphTraverser: GraphTraversing {
             dependencyReference(to: $0, from: .target(name: name, path: path))
         }
 
-        return try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
+        let references = try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
             .union(staticPrecompiledFrameworksDependencies(path: path, name: name))
             .union(transitiveStaticDependenciesOfDynamicFrameworkDependencies(path: path, name: name))
             .union(staticReferences)
+        searchablePathDependenciesCache[cacheKey] = references
+        return references
     }
 
     public func linkableDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
         GraphDependencyReference
     > {
         try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: true)
+    }
+
+    public func packageProductsLinkedThroughStaticTargets(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependencyReference> {
+        packageProducts(reachableFrom: .target(name: name, path: path), for: .build)
     }
 
     // swiftlint:disable:next function_body_length
@@ -543,8 +600,16 @@ public class GraphTraverser: GraphTraversing {
     ) throws -> Set<GraphDependencyReference> {
         guard let target = target(path: path, name: name) else { return Set() }
 
-        var references = Set<GraphDependencyReference>()
         let targetGraphDependency = GraphDependency.target(name: name, path: path)
+        let cacheKey = LinkableDependenciesKey(
+            target: targetGraphDependency,
+            shouldExcludeHostAppDependencies: shouldExcludeHostAppDependencies
+        )
+        if let cached = linkableDependenciesCache[cacheKey] {
+            return cached
+        }
+
+        var references = Set<GraphDependencyReference>()
 
         // System libraries and frameworks
         if target.target.canLinkStaticProducts() {
@@ -633,13 +698,16 @@ public class GraphTraverser: GraphTraversing {
 
             // Exclude any static products linked in a host application
             // however, for search paths it's fine to keep them included
+            let hostApplication: GraphTarget? = if target.target.product == .unitTests, shouldExcludeHostAppDependencies {
+                unitTestHost(path: path, name: name)
+            } else {
+                nil
+            }
             let hostApplicationStaticTargets: Set<GraphDependency>
-            if target.target.product == .unitTests, shouldExcludeHostAppDependencies,
-               let hostApp = unitTestHost(path: path, name: name)
-            {
+            if let hostApplication {
                 hostApplicationStaticTargets =
                     transitiveStaticDependencies(
-                        from: .target(name: hostApp.target.name, path: hostApp.project.path)
+                        from: .target(name: hostApplication.target.name, path: hostApplication.project.path)
                     )
             } else {
                 hostApplicationStaticTargets = Set()
@@ -675,6 +743,26 @@ public class GraphTraverser: GraphTraversing {
                 hostApplicationStaticTargets
                     .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
             )
+
+            var linkedPackageProducts = packageProducts(reachableFrom: targetGraphDependency, for: .link)
+            if let hostApplication {
+                let hostDependency = GraphDependency.target(name: hostApplication.target.name, path: hostApplication.project.path)
+                let dynamicProductPlatforms = dynamicPackageProductPlatforms(
+                    reachableFrom: targetGraphDependency,
+                    defaultPlatformFilters: target.target.dependencyPlatformFilters
+                ).merging(dynamicPackageProductPlatforms(
+                    reachableFrom: hostDependency,
+                    defaultPlatformFilters: hostApplication.target.dependencyPlatformFilters
+                )) { $0.union($1) }
+                linkedPackageProducts = packageProductsExcludingProductsLinkedByHost(
+                    linkedPackageProducts,
+                    hostPackageProducts: packageProducts(reachableFrom: hostDependency, for: .link),
+                    dynamicProductPlatforms: dynamicProductPlatforms,
+                    targetPlatformFilters: target.target.dependencyPlatformFilters,
+                    hostPlatformFilters: hostApplication.target.dependencyPlatformFilters
+                )
+            }
+            references.formUnion(linkedPackageProducts)
         }
 
         // Link dynamic libraries and frameworks
@@ -686,62 +774,404 @@ public class GraphTraverser: GraphTraversing {
 
         references.formUnion(dynamicLibrariesAndFrameworks)
 
+        linkableDependenciesCache[cacheKey] = references
         return references
+    }
+
+    /// What a package product walk collects the package products for.
+    private enum PackageProductsPurpose {
+        /// The package products a static target needs built to compile. The walk goes through every xcframework:
+        /// a cached binary still imports the package products of the target it replaced, and unlike a dynamic
+        /// target, nothing builds them for it.
+        case build
+        /// The package products a target links. The walk goes through static xcframeworks only, the same way their
+        /// archives are linked. A dynamic xcframework already contains its package products.
+        case link
+    }
+
+    private func packageProducts(
+        reachableFrom rootDependency: GraphDependency,
+        for purpose: PackageProductsPurpose
+    ) -> Set<GraphDependencyReference> {
+        Set(packageProductConditions(reachableFrom: rootDependency, for: purpose).compactMap { dependency, condition in
+            guard case let .packageProduct(_, product, _) = dependency,
+                  case let .condition(platformCondition) = condition
+            else {
+                return nil
+            }
+            return GraphDependencyReference.packageProduct(
+                product: product,
+                condition: platformCondition
+            )
+        })
+    }
+
+    /// The platforms each package product is reachable on from the dependency, memoised per dependency because the
+    /// targets built from source commonly share one closure of cached xcframeworks. Dependencies are computed in
+    /// post-order, so every dependency the walk goes through is computed before the dependencies that reach it.
+    private func packageProductConditions(
+        reachableFrom rootDependency: GraphDependency,
+        for purpose: PackageProductsPurpose
+    ) -> [GraphDependency: PlatformCondition.CombinationResult] {
+        let cache = switch purpose {
+        case .build: packageProductsToBuildCache
+        case .link: packageProductsToLinkCache
+        }
+        if let cached = cache[rootDependency] {
+            return cached
+        }
+
+        var stack: [(dependency: GraphDependency, isExpanded: Bool)] = [(rootDependency, false)]
+        var expanded = Set<GraphDependency>()
+        while let (dependency, isExpanded) = stack.popLast() {
+            guard cache[dependency] == nil else { continue }
+            let children = graph.dependencies[dependency, default: []]
+
+            if !isExpanded {
+                guard expanded.insert(dependency).inserted else { continue }
+                stack.append((dependency, true))
+                for child in children where cache[child] == nil && packageProductWalk(for: purpose, entersInto: child) {
+                    stack.append((child, false))
+                }
+                continue
+            }
+
+            var conditions: [GraphDependency: PlatformCondition.CombinationResult] = [:]
+            for child in children {
+                let edgeCondition = graph.dependencyConditions[(dependency, child)]
+                switch child {
+                case .packageProduct(_, _, .runtime), .packageProduct(_, _, .runtimeEmbedded),
+                     .packageProduct(_, _, .runtimeDynamic), .packageProduct(_, _, .runtimeDynamicEmbedded):
+                    conditions[child] = conditions[child, default: .incompatible].combineWith(.condition(edgeCondition))
+                default:
+                    guard packageProductWalk(for: purpose, entersInto: child),
+                          let childConditions = cache[child]
+                    else { continue }
+                    for (packageProduct, childCondition) in childConditions {
+                        let condition = intersection(childCondition, with: edgeCondition)
+                        guard condition != .incompatible else { continue }
+                        conditions[packageProduct] = conditions[packageProduct, default: .incompatible]
+                            .combineWith(condition)
+                    }
+                }
+            }
+            cache[dependency] = conditions
+        }
+        return cache[rootDependency] ?? [:]
+    }
+
+    private func packageProductWalk(for purpose: PackageProductsPurpose, entersInto dependency: GraphDependency) -> Bool {
+        switch dependency {
+        case .target:
+            return !isPackageProductLinkingBoundary(dependency)
+        case .xcframework:
+            return purpose == .build || !isPackageProductLinkingBoundary(dependency)
+        case .bundle, .framework, .foreignBuildOutput, .library, .macro, .packageProduct, .sdk:
+            return false
+        }
+    }
+
+    private func isPackageProductLinkingBoundary(_ dependency: GraphDependency) -> Bool {
+        canDependencyLinkStaticProducts(dependency: dependency)
+            || testTarget(dependency: dependency) { $0.product.isDynamic }
+    }
+
+    /// A host links dynamic products but does not contain their symbols. Hints on either consumer
+    /// therefore prevent host subtraction, only on the platforms where the hinted product is reachable.
+    private func dynamicPackageProductPlatforms(
+        reachableFrom rootDependency: GraphDependency,
+        defaultPlatformFilters: PlatformFilters
+    ) -> [String: PlatformFilters] {
+        var platformsByProduct: [String: PlatformFilters] = [:]
+        for (dependency, condition) in packageProductConditions(reachableFrom: rootDependency, for: .link) {
+            guard case let .packageProduct(_, product, type) = dependency,
+                  type == .runtimeDynamic || type == .runtimeDynamicEmbedded,
+                  case let .condition(platformCondition) = condition
+            else { continue }
+            platformsByProduct[product, default: []].formUnion(
+                resolvedPlatformFilters(platformCondition, default: defaultPlatformFilters)
+            )
+        }
+        return platformsByProduct
+    }
+
+    private func packageProductsExcludingProductsLinkedByHost(
+        _ packageProducts: Set<GraphDependencyReference>,
+        hostPackageProducts: Set<GraphDependencyReference>,
+        dynamicProductPlatforms: [String: PlatformFilters],
+        targetPlatformFilters: PlatformFilters,
+        hostPlatformFilters: PlatformFilters
+    ) -> Set<GraphDependencyReference> {
+        var hostProductConditions: [String: PlatformCondition.CombinationResult] = [:]
+        for case let .packageProduct(product, condition) in hostPackageProducts {
+            hostProductConditions[product] = hostProductConditions[
+                product,
+                default: .incompatible
+            ].combineWith(.condition(condition))
+        }
+
+        return Set(packageProducts.compactMap { packageProduct in
+            guard case let .packageProduct(product, condition) = packageProduct,
+                  case let .condition(hostCondition) = hostProductConditions[product]
+            else {
+                return packageProduct
+            }
+
+            let requiredPlatformFilters = resolvedPlatformFilters(
+                condition,
+                default: targetPlatformFilters
+            )
+            let providedPlatformFilters = resolvedPlatformFilters(
+                hostCondition,
+                default: hostPlatformFilters
+            ).subtracting(dynamicProductPlatforms[product, default: []])
+            let remainingPlatformFilters = requiredPlatformFilters.subtracting(providedPlatformFilters)
+            guard !remainingPlatformFilters.isEmpty else { return nil }
+
+            return .packageProduct(
+                product: product,
+                condition: remainingPlatformFilters == requiredPlatformFilters
+                    ? condition
+                    : .when(remainingPlatformFilters)
+            )
+        })
+    }
+
+    private func resolvedPlatformFilters(
+        _ condition: PlatformCondition?,
+        default platformFilters: PlatformFilters
+    ) -> PlatformFilters {
+        condition?.platformFilters
+            ?? (platformFilters.isEmpty ? Set(PlatformFilter.allCases) : platformFilters)
+    }
+
+    private func intersection(
+        _ accumulatedCondition: PlatformCondition.CombinationResult,
+        with edgeCondition: PlatformCondition?
+    ) -> PlatformCondition.CombinationResult {
+        switch accumulatedCondition {
+        case .incompatible:
+            return .incompatible
+        case let .condition(.some(condition)):
+            return condition.intersection(edgeCondition)
+        case .condition(nil):
+            return .condition(edgeCondition)
+        }
     }
 
     private func precompiledDynamicLibrariesAndFrameworks(
         path: Path.AbsolutePath,
         name: String
     ) -> [GraphDependency] {
+        let cacheKey = GraphDependency.target(name: name, path: path)
+        if let cached = precompiledDynamicLibrariesAndFrameworksCache[cacheKey] {
+            return cached
+        }
+
         // Precompiled libraries and frameworks
-        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
-            .lazy
-            .filter(\.isPrecompiled)
+        let precompiled = Set(
+            graph.dependencies[.target(name: name, path: path), default: []]
+                .lazy
+                .filter(\.isPrecompiled)
+        )
 
-        let precompiledDependencies = precompiled
-            .flatMap { filterDependencies(from: $0) }
+        // Traversed from all roots at once so the closure below them is walked a single time rather than once per
+        // root. On a binary-cache-substituted graph every replaced dependency is precompiled and they largely share
+        // the same closure, which made the per-root walk quadratic.
+        let precompiledDependencies = filterDependencies(from: precompiled)
 
-        return Set(precompiled + precompiledDependencies)
+        let result: [GraphDependency] = precompiled.union(precompiledDependencies)
             .filter(\.isPrecompiledDynamicAndLinkable)
+        precompiledDynamicLibrariesAndFrameworksCache[cacheKey] = result
+        return result
     }
 
     public func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
         path: Path.AbsolutePath,
         name: String
     ) -> Set<GraphDependency> {
-        filterDependencies(
-            from: Set(
-                precompiledDynamicLibrariesAndFrameworks(
-                    path: path,
-                    name: name
-                )
-            ).filter { $0.xcframeworkDependency != nil },
+        staticXCFrameworks(
+            behindDynamicXCFrameworksOf: path,
+            name: name,
+            cache: staticObjcXCFrameworksBehindXCFrameworkCache,
             test: {
                 $0.xcframeworkDependency?.linking == .static &&
                     $0.xcframeworkDependency?.swiftModules.isEmpty == true &&
                     $0.xcframeworkDependency?.moduleMaps.isEmpty == false
-            },
-            skip: { $0.xcframeworkDependency == nil }
+            }
         )
+    }
+
+    /// The static xcframeworks that `test` selects from behind the target's dynamic xcframework dependencies.
+    ///
+    /// The walk is cached per root xcframework rather than per target. Unioning the per-root walks matches what a
+    /// single walk over all the roots returns: the walk only ever reaches xcframeworks, and a root cannot satisfy
+    /// `test` because the roots are the dynamic xcframeworks while `test` selects static ones. Caching per root is
+    /// what makes this cheap on a binary-cache-substituted graph, where hundreds of targets link the same artifacts.
+    private func staticXCFrameworks(
+        behindDynamicXCFrameworksOf path: Path.AbsolutePath,
+        name: String,
+        cache: GraphCache<GraphDependency, Set<GraphDependency>>,
+        test: (GraphDependency) -> Bool
+    ) -> Set<GraphDependency> {
+        var references: Set<GraphDependency> = []
+        for root in precompiledDynamicLibrariesAndFrameworks(path: path, name: name)
+            where root.xcframeworkDependency != nil
+        {
+            if let cached = cache[root] {
+                references.formUnion(cached)
+                continue
+            }
+            let reachable = filterDependencies(
+                from: root,
+                test: test,
+                skip: { $0.xcframeworkDependency == nil }
+            )
+            cache[root] = reachable
+            references.formUnion(reachable)
+        }
+        return references
     }
 
     public func staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
         path: Path.AbsolutePath,
         name: String
     ) -> Set<GraphDependency> {
-        filterDependencies(
-            from: Set(
-                precompiledDynamicLibrariesAndFrameworks(
-                    path: path,
-                    name: name
-                )
-            ).filter { $0.xcframeworkDependency != nil },
+        let cacheKey = GraphDependency.target(name: name, path: path)
+        if let cached = staticSwiftXCFrameworksBehindDynamicXCFrameworksCache[cacheKey] {
+            return cached
+        }
+        let result = staticXCFrameworks(
+            behindDynamicXCFrameworksOf: path,
+            name: name,
+            cache: staticXCFrameworksBehindXCFrameworkCache,
             test: {
                 $0.xcframeworkDependency?.linking == .static &&
                     $0.xcframeworkDependency?.swiftModules.isEmpty == false
-            },
-            skip: { $0.xcframeworkDependency == nil }
+            }
         )
+        staticSwiftXCFrameworksBehindDynamicXCFrameworksCache[cacheKey] = result
+        return result
+    }
+
+    /// Static Objective-C xcframeworks (that ship their own module map) reachable in *this* graph
+    /// from the target through targets that no longer exist in `currentGraph`. Those targets
+    /// were replaced by cached xcframeworks; their `.swiftmodule` still imports the static
+    /// xcframework's module, but the cache substitution can drop the graph edge that pointed
+    /// at the static xcframework, so `staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies`
+    /// on the substituted graph misses it. Walking from the source graph recovers it.
+    public func staticObjcXCFrameworksReachableViaCachedTargets(
+        path: Path.AbsolutePath,
+        name: String,
+        currentGraph: Graph
+    ) -> Set<GraphDependency> {
+        reachableStaticXCFrameworksViaCachedTargets(
+            path: path,
+            name: name,
+            currentGraph: currentGraph,
+            cache: staticObjcXCFrameworksReachableViaCachedTargetsCache,
+            includes: { xcframework in
+                xcframework.linking == .static
+                    && xcframework.swiftModules.isEmpty
+                    && !xcframework.moduleMaps.isEmpty
+            }
+        )
+    }
+
+    /// Static Swift xcframeworks reachable in *this* graph from the target through targets
+    /// that no longer exist in `currentGraph`. Sister to `staticObjcXCFrameworksReachableViaCachedTargets`
+    /// for the Swift-module flavour: the mapper wires `FRAMEWORK_SEARCH_PATHS` for consumers of a
+    /// cached dynamic xcframework whose `.swiftmodule` interface still `import`s a static Swift
+    /// xcframework, and the same substitution edge-drop can happen on that route too.
+    public func staticSwiftXCFrameworksReachableViaCachedTargets(
+        path: Path.AbsolutePath,
+        name: String,
+        currentGraph: Graph
+    ) -> Set<GraphDependency> {
+        reachableStaticXCFrameworksViaCachedTargets(
+            path: path,
+            name: name,
+            currentGraph: currentGraph,
+            cache: staticSwiftXCFrameworksReachableViaCachedTargetsCache,
+            includes: { xcframework in
+                xcframework.linking == .static && !xcframework.swiftModules.isEmpty
+            }
+        )
+    }
+
+    /// Iterative, per-node memoised walk from a source-graph target. Traversal stops at static
+    /// xcframeworks (terminal) and at descendant targets that survive in `currentGraph` (they
+    /// contribute their own settings through the current-graph walkers; walking through them
+    /// here would double-count). The starting target is the surviving root, and the walk starts
+    /// only from its children that were replaced by cached binaries. A static xcframework the
+    /// root links itself is not behind a cached target: Xcode processes it for the root.
+    ///
+    /// The cache stores the standard per-node reachable set (with the terminal check applied),
+    /// so a node cached during one target's walk can be reused as a descendant of another
+    /// target's walk. Every visited node is visited once across all sibling targets, so the
+    /// mapper's cost stays linear in the graph, not in (targets × graph).
+    private func reachableStaticXCFrameworksViaCachedTargets(
+        path: Path.AbsolutePath,
+        name: String,
+        currentGraph: Graph,
+        cache: GraphCache<GraphDependency, Set<GraphDependency>>,
+        includes: (GraphDependency.XCFramework) -> Bool
+    ) -> Set<GraphDependency> {
+        let root: GraphDependency = .target(name: name, path: path)
+        guard let rootChildren = graph.dependencies[root]?.filter({ child in
+            guard case let .target(childName, childPath, _) = child else { return false }
+            return currentGraph.projects[childPath]?.targets[childName] == nil
+        }) else { return [] }
+
+        func terminal(_ node: GraphDependency) -> Bool {
+            if case let .xcframework(xcframework) = node, xcframework.linking == .static {
+                return true
+            }
+            if case let .target(dependencyName, dependencyPath, _) = node {
+                return currentGraph.projects[dependencyPath]?.targets[dependencyName] != nil
+            }
+            return false
+        }
+
+        // Iterative post-order DFS from each root child. A node is pushed back as expanded below
+        // its uncached children, so its set is computed only after every child it unions is
+        // cached. Traversal stops at terminals and at nodes already cached. The root itself is
+        // not enqueued, so the cache always holds the "descendant" semantics.
+        var visited = Set<GraphDependency>()
+        var stack: [(node: GraphDependency, expanded: Bool)] = rootChildren.map { ($0, false) }
+        while let (node, expanded) = stack.popLast() {
+            if expanded {
+                var result: Set<GraphDependency> = []
+                if case let .xcframework(xcframework) = node, includes(xcframework) {
+                    result.insert(node)
+                }
+                if !terminal(node) {
+                    for child in graph.dependencies[node, default: []] {
+                        if let childResult = cache[child] {
+                            result.formUnion(childResult)
+                        }
+                    }
+                }
+                cache[node] = result
+                continue
+            }
+            guard cache[node] == nil, visited.insert(node).inserted else { continue }
+            stack.append((node, true))
+            guard !terminal(node) else { continue }
+            for child in graph.dependencies[node, default: []] where cache[child] == nil {
+                stack.append((child, false))
+            }
+        }
+
+        // Combine the root's children's cached sets. The root itself never matches `includes`
+        // (roots are targets, not xcframeworks) and it's never terminal for its own traversal.
+        var result: Set<GraphDependency> = []
+        for child in rootChildren {
+            if let childResult = cache[child] {
+                result.formUnion(childResult)
+            }
+        }
+        return result
     }
 
     public func schemeRunnableTarget(scheme: Scheme) -> GraphTarget? {
@@ -770,6 +1200,84 @@ public class GraphTraverser: GraphTraversing {
         dependencies.formUnion(resourceBundleDependencies(path: path, name: name))
 
         return Set(dependencies)
+    }
+
+    /// The targets whose `linkableDependencies` (without excluding the host app's dependencies) or
+    /// `copyProductDependencies` contain the static xcframework at `path`, each with the condition of that reference.
+    ///
+    /// Filtering those two calls for every target walks the graph forwards once per target, which is quadratic on
+    /// deep graphs. This walks backwards from the xcframework instead, through the same intermediate dependencies the
+    /// forward walks go through: the ones that do not link static products for `linkableDependencies`, and static
+    /// precompiled ones for `copyProductDependencies`.
+    public func targetsProcessingStaticXCFramework(at path: Path.AbsolutePath) -> Set<GraphTargetReference> {
+        let dependents = dependentsByDependency()
+        var references = Set<GraphTargetReference>()
+        let xcframeworks = dependents.keys.filter {
+            guard case let .xcframework(xcframework) = $0 else { return false }
+            return xcframework.path == path && xcframework.linking == .static
+        }
+        for xcframework in xcframeworks {
+            let linkingTargets = targets(
+                dependingOn: xcframework,
+                in: dependents,
+                isTarget: { $0.canLinkStaticProducts() },
+                throughDependency: isWalkedThroughByStaticLinking
+            )
+            let copyingTargets = targets(
+                dependingOn: xcframework,
+                in: dependents,
+                isTarget: { $0.product.isStatic },
+                throughDependency: isWalkedThroughByStaticXCFrameworkCopying
+            )
+            for graphTarget in linkingTargets.union(copyingTargets) {
+                guard case let .condition(condition) = combinedCondition(
+                    to: xcframework,
+                    from: .target(name: graphTarget.target.name, path: graphTarget.path)
+                ) else { continue }
+                references.insert(GraphTargetReference(target: graphTarget, condition: condition))
+            }
+        }
+        return references
+    }
+
+    /// The targets `isTarget` selects among the dependents of `dependency`, walking up through the dependents
+    /// `throughDependency` selects.
+    private func targets(
+        dependingOn dependency: GraphDependency,
+        in dependents: [GraphDependency: [GraphDependency]],
+        isTarget: (Target) -> Bool,
+        throughDependency: (GraphDependency) -> Bool
+    ) -> Set<GraphTarget> {
+        var targets = Set<GraphTarget>()
+        var visited: Set<GraphDependency> = [dependency]
+        var stack = [dependency]
+        while let node = stack.popLast() {
+            for dependent in dependents[node, default: []] {
+                if let graphTarget = target(from: dependent), isTarget(graphTarget.target) {
+                    targets.insert(graphTarget)
+                }
+                if throughDependency(dependent), visited.insert(dependent).inserted {
+                    stack.append(dependent)
+                }
+            }
+        }
+        return targets
+    }
+
+    private func dependentsByDependency() -> [GraphDependency: [GraphDependency]] {
+        dependentsByDependencyCache.mutate { cache in
+            if let cache {
+                return cache
+            }
+            var dependents: [GraphDependency: [GraphDependency]] = [:]
+            for (dependency, dependencies) in graph.dependencies {
+                for child in dependencies {
+                    dependents[child, default: []].append(dependency)
+                }
+            }
+            cache = dependents
+            return dependents
+        }
     }
 
     public func executableDependencies(
@@ -902,38 +1410,44 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
-    public func librariesSwiftIncludePaths(path: Path.AbsolutePath, name: String) -> Set<
-        Path.AbsolutePath
-    > {
+    public func librariesSwiftIncludePaths(path: Path.AbsolutePath, name: String) -> Set<SwiftIncludePath> {
         let targetDependency = GraphDependency.target(name: name, path: path)
         let dependencies = graph.dependencies[targetDependency, default: []]
             .union(filterDependencies(from: targetDependency))
         let librarySwiftModuleMapPaths = dependencies.compactMap {
-            dependency -> Path.AbsolutePath? in
-            guard case let GraphDependency.library(_, _, _, _, swiftModuleMapPath) = dependency
+            dependency -> SwiftIncludePath? in
+            guard case let GraphDependency.library(_, _, _, _, swiftModuleMapPath) = dependency,
+                  let swiftModuleMapPath
             else { return nil }
-            return swiftModuleMapPath
+            return SwiftIncludePath(path: swiftModuleMapPath.removingLastComponent())
         }
+        let targetPlatformFilters = target(path: path, name: name).map { Set($0.target.destinations.map(\.platformFilter)) }
+        // Every slice ships a `.swiftmodule` with the same name, so each one is only exposed to its own SDK.
         let xcframeworkLibrarySwiftModulePaths = dependencies.flatMap {
-            dependency -> [Path.AbsolutePath] in
+            dependency -> [SwiftIncludePath] in
             guard case let GraphDependency.xcframework(xcframework) = dependency,
                   xcframework.infoPlist.libraries.contains(where: {
                       ["a", "dylib"].contains($0.path.extension)
                   })
             else { return [] }
 
-            return xcframework.swiftModules.map { swiftModulePath in
-                if swiftModulePath.parentDirectory.extension == "swiftmodule" {
-                    return swiftModulePath.parentDirectory.parentDirectory
+            return xcframework.swiftModules.compactMap { swiftModulePath in
+                let includePath = if swiftModulePath.parentDirectory.extension == "swiftmodule" {
+                    swiftModulePath.parentDirectory.parentDirectory
                 } else {
-                    return swiftModulePath.parentDirectory
+                    swiftModulePath.parentDirectory
                 }
+                let libraryIdentifier = includePath.relative(to: xcframework.path).components.first
+                guard let library = xcframework.infoPlist.libraries.first(where: { $0.identifier == libraryIdentifier })
+                else { return SwiftIncludePath(path: includePath) }
+                // Mac Catalyst and macOS slices share `sdk=macosx*`, so only the one the target builds for is kept.
+                if let targetPlatformFilters, !targetPlatformFilters.contains(library.platformFilter) {
+                    return nil
+                }
+                return SwiftIncludePath(path: includePath, sdkCondition: library.sdkCondition)
             }
         }
-        return Set(
-            librarySwiftModuleMapPaths.map { $0.removingLastComponent() }
-                + xcframeworkLibrarySwiftModulePaths
-        )
+        return Set(librarySwiftModuleMapPaths + xcframeworkLibrarySwiftModulePaths)
     }
 
     public func runPathSearchPaths(path: Path.AbsolutePath, name: String) -> Set<Path.AbsolutePath> {
@@ -956,9 +1470,12 @@ public class GraphTraverser: GraphTraversing {
         .lazy
         .compactMap { (dependency: GraphDependency) -> Path.AbsolutePath? in
             switch dependency {
-            case let .xcframework(xcframework): return xcframework.path
+            // The directory containing an .xcframework can't resolve `@rpath/<Name>.framework/<Name>`; the test
+            // runner loads the processed slice from BUILT_PRODUCTS_DIR instead. Each binary-cached xcframework lives
+            // in its own directory, so one run path per xcframework exceeds dyld's 256 LC_RPATH limit on large graphs.
+            case .xcframework: return nil
             case let .framework(path, _, _, _, _, _, _): return path
-            case let .foreignBuildOutput(output): return output.path
+            case let .foreignBuildOutput(output): return output.path.extension == "xcframework" ? nil : output.path
             case .macro: return nil
             case .library: return nil
             case .bundle: return nil
@@ -1315,16 +1832,32 @@ public class GraphTraverser: GraphTraversing {
         guard let dependencies = graph.dependencies[rootDependency] else { return .incompatible }
 
         let result: PlatformCondition.CombinationResult
+        let xcframework = transitiveDependency.xcframeworkDependency
+        let hasDirectDependency = dependencies.contains(transitiveDependency)
 
-        // We've reached our destination, return a condition for the leaf relationship (`nil` or a `PlatformFilters` set)
-        if dependencies.contains(transitiveDependency) {
+        // Signature normalization can coalesce direct and transitive XCFramework references.
+        // Preserve direct-edge precedence for other dependency kinds.
+        if hasDirectDependency,
+           xcframework == nil || graph.dependencyConditions[(rootDependency, transitiveDependency)] == nil
+        {
             result = .condition(graph.dependencyConditions[(rootDependency, transitiveDependency)])
         } else {
             // Capture the filters that could be applied to intermediate dependencies
             // A --> (.ios) B --> C : C should have the .ios filter applied due to B
             let filters = dependencies.map { node -> PlatformCondition.CombinationResult in
-                let transitive = combinedCondition(to: transitiveDependency, from: node)
                 let currentCondition = graph.dependencyConditions[(rootDependency, node)]
+                if node == transitiveDependency {
+                    return .condition(currentCondition)
+                }
+                // Dynamic linkers absorb static dependencies; source dynamic targets also link their own frameworks.
+                // Precompiled dynamic frameworks still propagate their dynamic dependencies to the consumer.
+                if hasDirectDependency,
+                   canDependencyLinkStaticProducts(dependency: node),
+                   node.isTarget || xcframework?.linking == .static
+                {
+                    return .incompatible
+                }
+                let transitive = combinedCondition(to: transitiveDependency, from: node)
                 switch transitive {
                 case .incompatible:
                     return .incompatible
@@ -1416,7 +1949,13 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func externalTargetSupportedDestinations() -> [GraphTarget: Set<Destination>] {
-        let targetsWithExternalDependencies = targetsWithExternalDependencies()
+        externalTargetSupportedDestinations(including: [])
+    }
+
+    public func externalTargetSupportedDestinations(including additionalRoots: Set<GraphTarget>)
+        -> [GraphTarget: Set<Destination>]
+    {
+        let targetsWithExternalDependencies = targetsWithExternalDependencies().union(additionalRoots)
         var destinations: [GraphTarget: Set<Destination>] = [:]
 
         func traverse(target: GraphTarget, parentDestinations: Set<Destination>) {
@@ -1495,12 +2034,20 @@ public class GraphTraverser: GraphTraversing {
         return allSatisfy
     }
 
+    /// Memoized because it is walked once per target by `linkableDependencies` and once per direct dynamic
+    /// dependency by `transitiveStaticDependenciesOfDynamicFrameworkDependencies`. Those roots repeat heavily
+    /// across a large graph, so without the cache the same subtree is re-walked thousands of times.
     func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
-        filterDependencies(
+        if let cached = transitiveStaticDependenciesCache[dependency] {
+            return cached
+        }
+        let result = filterDependencies(
             from: dependency,
             test: isDependencyStatic,
-            skip: or(canDependencyLinkStaticProducts, isDependencyPrecompiledMacro)
+            skip: { !self.isWalkedThroughByStaticLinking($0) }
         )
+        transitiveStaticDependenciesCache[dependency] = result
+        return result
     }
 
     func isDependencyExternal(_ dependency: GraphDependency) -> Bool {
@@ -1513,6 +2060,19 @@ public class GraphTraverser: GraphTraversing {
         case .local:
             return false
         }
+    }
+
+    /// Whether a target's static linking reaches past `dependency`: `transitiveStaticDependencies` walks through it,
+    /// and `targetsProcessingStaticXCFramework(at:)` walks back through it.
+    private func isWalkedThroughByStaticLinking(_ dependency: GraphDependency) -> Bool {
+        !(canDependencyLinkStaticProducts(dependency: dependency) || isDependencyPrecompiledMacro(dependency))
+    }
+
+    /// Whether a static target's "Static XCFramework Dependencies" phase reaches past `dependency`:
+    /// `staticPrecompiledXCFrameworksDependencies` walks through it, and `targetsProcessingStaticXCFramework(at:)`
+    /// walks back through it.
+    private func isWalkedThroughByStaticXCFrameworkCopying(_ dependency: GraphDependency) -> Bool {
+        dependency.isPrecompiled && !dependency.isDynamicPrecompiled && !isDependencyPrecompiledMacro(dependency)
     }
 
     private func isDependencyPrecompiledMacro(_ dependency: GraphDependency) -> Bool {
@@ -1731,7 +2291,7 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .bundle(path):
             return .bundle(path: path, condition: condition)
-        case let .packageProduct(_, product, .runtimeEmbedded):
+        case let .packageProduct(_, product, .runtimeEmbedded), let .packageProduct(_, product, .runtimeDynamicEmbedded):
             return .packageProduct(product: product, condition: condition)
         case .packageProduct:
             return nil
@@ -1798,11 +2358,9 @@ public class GraphTraverser: GraphTraversing {
                 }
             }
 
-        let precompiledDependencies =
-            precompiledStatic
-                .flatMap { filterDependencies(from: $0) }
+        let precompiledDependencies = filterDependencies(from: precompiledStatic)
 
-        return Set(precompiledStatic + precompiledDependencies)
+        return precompiledStatic.union(precompiledDependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
     }
 
@@ -1838,7 +2396,7 @@ public class GraphTraverser: GraphTraversing {
                     return false
                 }
             },
-            skip: { $0.isDynamicPrecompiled || !$0.isPrecompiled || $0.isPrecompiledMacro }
+            skip: { !self.isWalkedThroughByStaticXCFrameworkCopying($0) }
         )
         return Set(dependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
@@ -1899,5 +2457,134 @@ extension GraphDependencyReference {
         default:
             return false
         }
+    }
+}
+
+/// The framework search path inputs a target needs, without materializing a `GraphDependencyReference` for
+/// every dependency reachable from it.
+public struct PrecompiledSearchPathDependencies: Equatable, Sendable {
+    /// Paths of the precompiled artifacts the target can see: xcframeworks, frameworks, libraries and
+    /// foreign build outputs.
+    public let precompiledPaths: Set<AbsolutePath>
+    /// The `FRAMEWORK_SEARCH_PATHS` entries contributed by SDK dependencies.
+    public let sdkSearchPaths: Set<String>
+
+    public init(precompiledPaths: Set<AbsolutePath>, sdkSearchPaths: Set<String>) {
+        self.precompiledPaths = precompiledPaths
+        self.sdkSearchPaths = sdkSearchPaths
+    }
+}
+
+extension GraphTraverser {
+    /// The same search path inputs `searchablePathDependencies` carries, derived directly rather than by
+    /// projecting a set of `GraphDependencyReference`.
+    ///
+    /// `searchablePathDependencies` builds one reference per reachable dependency per target, and its only
+    /// consumers — the framework search paths mapper and the cached-modules debugger — immediately reduce
+    /// those to artifact paths and SDK search paths. On a binary-cache-substituted graph that is hundreds of
+    /// references per target that exist to be thrown away.
+    ///
+    /// This is an independent derivation of the same answer, so it is verified against the reference
+    /// implementation by `PrecompiledSearchPathsDifferentialTests` rather than by construction.
+    public func precompiledSearchPathDependencies(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> PrecompiledSearchPathDependencies {
+        guard let target = target(path: path, name: name) else {
+            return PrecompiledSearchPathDependencies(precompiledPaths: [], sdkSearchPaths: [])
+        }
+        let from = GraphDependency.target(name: name, path: path)
+
+        var precompiledPaths: Set<AbsolutePath> = []
+        var sdkSearchPaths: Set<String> = []
+
+        // Mirrors `dependencyReference(to:from:)`'s condition filtering, which drops dependencies whose
+        // combined platform condition is incompatible. For the kinds that carry a path that guard is the
+        // only thing between the dependency and a reference, so checking it here is equivalent.
+        func admit(_ dependency: GraphDependency) {
+            guard case .condition = combinedCondition(to: dependency, from: from) else { return }
+            switch dependency {
+            case let .xcframework(xcframework):
+                precompiledPaths.insert(xcframework.path)
+            case let .framework(path, _, _, _, _, _, _):
+                precompiledPaths.insert(path)
+            case let .library(path, _, _, _, _):
+                precompiledPaths.insert(path)
+            case let .foreignBuildOutput(output):
+                precompiledPaths.insert(output.path)
+            case let .sdk(_, _, _, source):
+                if let searchPath = source.frameworkSearchPath { sdkSearchPaths.insert(searchPath) }
+            case .bundle, .macro, .packageProduct, .target:
+                break
+            }
+        }
+
+        let directDependencies = graph.dependencies[from, default: []]
+
+        // Precompiled dynamic libraries and frameworks reachable through the target's precompiled dependencies.
+        for dependency in precompiledDynamicLibrariesAndFrameworks(path: path, name: name) {
+            admit(dependency)
+        }
+
+        // Directly declared SDKs, and only those: a directly declared precompiled artifact reaches the search
+        // paths through the rules below, not by being declared. The App Clip SDK that `linkableDependencies`
+        // synthesizes is deliberately not reproduced: it is a `.system` SDK, and only `.developer` SDKs carry
+        // a framework search path.
+        for dependency in directDependencies {
+            if case .sdk = dependency { admit(dependency) }
+        }
+
+        if target.target.canLinkStaticProducts() {
+            let transitiveStatics = transitiveStaticDependencies(from: from)
+            for dependency in transitiveStatics {
+                admit(dependency)
+                // The SDKs and linkable precompiled artifacts hanging off each transitive static dependency.
+                for child in graph.dependencies[dependency, default: []] {
+                    switch child {
+                    case .sdk:
+                        admit(child)
+                    default:
+                        if child.isPrecompiled, child.isLinkable { admit(child) }
+                    }
+                }
+            }
+        }
+
+        // Static precompiled frameworks declared directly, and everything reachable below them.
+        let directStaticFrameworks = Set(
+            directDependencies.filter { dependency in
+                if case let .framework(_, _, _, _, linking, _, _) = dependency { linking == .static } else { false }
+            }
+        )
+        if !directStaticFrameworks.isEmpty {
+            for dependency in directStaticFrameworks {
+                admit(dependency)
+            }
+            for dependency in filterDependencies(from: directStaticFrameworks) {
+                admit(dependency)
+            }
+        }
+
+        // The statics behind the target's directly declared dynamic library and framework targets.
+        for dependency in directDependencies
+            where isDependencyDynamicLibrary(dependency: dependency) || isDependencyFramework(dependency: dependency)
+        {
+            for transitive in transitiveStaticDependencies(from: dependency) {
+                admit(transitive)
+            }
+        }
+
+        // The static xcframeworks a dynamic xcframework absorbed, plus the SDKs they link.
+        for dependency in staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(path: path, name: name) {
+            admit(dependency)
+            for child in graph.dependencies[dependency, default: []] {
+                if case .sdk = child { admit(child) }
+            }
+        }
+
+        return PrecompiledSearchPathDependencies(
+            precompiledPaths: precompiledPaths,
+            sdkSearchPaths: sdkSearchPaths
+        )
     }
 }

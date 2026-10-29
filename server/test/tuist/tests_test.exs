@@ -4,16 +4,31 @@ defmodule Tuist.TestsTest do
 
   import Ecto.Query
 
+  alias Ecto.Association.NotLoaded
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
+  alias Tuist.GitHistory
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Subscription
+  alias Tuist.MCP.Events.Workers.FanoutWorker
+  alias Tuist.Repo
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests
+  alias Tuist.Tests.Analytics
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
+  alias Tuist.Tests.TestCaseCurrentState
   alias Tuist.Tests.TestCaseEvent
+  alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunByCommit
+  alias Tuist.Tests.TestCaseRunByTestRun
+  alias Tuist.Tests.TestCaseRunFlakyCorrection
+  alias Tuist.Tests.TestCaseRunRepetition
+  alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestRunDestination
+  alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -33,7 +48,57 @@ defmodule Tuist.TestsTest do
       assert run.id == test_case_run.id
     end
 
+    test "same-month UUIDv7 lookups keep the partition-pruned single query" do
+      row = RunsFixtures.test_case_run_fixture()
+
+      expect(ClickHouseRepo, :one, fn query ->
+        assert Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
+      assert {:ok, %{id: id}} = Tests.get_test_case_run_by_id(row.id, project_id: row.project_id)
+      assert id == row.id
+    end
+
+    test "a stable UUIDv7 from another month falls back without losing the project scope" do
+      timestamp = NaiveDateTime.add(NaiveDateTime.utc_now(), -40, :day)
+      id = Tuist.UUIDv7.deterministic(timestamp, Ecto.UUID.generate())
+      row = RunsFixtures.test_case_run_fixture(id: id)
+      assert {:error, :not_found} = Tests.get_test_case_run_by_id(id, project_id: row.project_id + 1)
+
+      expect(ClickHouseRepo, :one, fn query ->
+        assert Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        assert is_nil(Mimic.call_original(ClickHouseRepo, :one, [query]))
+        nil
+      end)
+
+      expect(ClickHouseRepo, :one, fn query ->
+        refute Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        assert Enum.any?(query.wheres, &(inspect(&1.expr) =~ "project_id"))
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
+      assert {:ok, %{id: ^id}} = Tests.get_test_case_run_by_id(id, project_id: row.project_id)
+    end
+
+    test "historical UUIDv8 facts retain their unpruned lookup" do
+      <<prefix::binary-size(14), _::binary-size(1), rest::binary>> = Ecto.UUID.generate()
+      row = RunsFixtures.test_case_run_fixture(id: prefix <> "8" <> rest)
+
+      expect(ClickHouseRepo, :one, fn query ->
+        refute Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
+      assert {:ok, %{id: id}} = Tests.get_test_case_run_by_id(row.id, project_id: row.project_id)
+      assert id == row.id
+    end
+
     test "returns error when test case run does not exist" do
+      expect(ClickHouseRepo, :one, 2, fn query ->
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
       # When
       result = Tests.get_test_case_run_by_id(UUIDv7.generate())
 
@@ -289,7 +354,7 @@ defmodule Tuist.TestsTest do
       {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id)
 
       # Then
-      assert %Ecto.Association.NotLoaded{} = run.failures
+      assert %NotLoaded{} = run.failures
     end
   end
 
@@ -367,7 +432,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "get_latest_test_by_build_run_id/1" do
+  describe "get_latest_test_by_build_run_id/2" do
     test "returns test when it exists for build" do
       # Given
       {:ok, build} = RunsFixtures.build_fixture()
@@ -379,7 +444,7 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      result = Tests.get_latest_test_by_build_run_id(build.id)
+      result = Tests.get_latest_test_by_build_run_id(build.id, test.project_id)
 
       # Then
       assert {:ok, found_test} = result
@@ -404,7 +469,7 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      result = Tests.get_latest_test_by_build_run_id(build.id)
+      result = Tests.get_latest_test_by_build_run_id(build.id, latest_test.project_id)
 
       # Then
       assert {:ok, found_test} = result
@@ -416,14 +481,14 @@ defmodule Tuist.TestsTest do
       {:ok, build} = RunsFixtures.build_fixture()
 
       # When
-      result = Tests.get_latest_test_by_build_run_id(build.id)
+      result = Tests.get_latest_test_by_build_run_id(build.id, build.project_id)
 
       # Then
       assert result == {:error, :not_found}
     end
   end
 
-  describe "get_latest_test_by_gradle_build_id/1" do
+  describe "get_latest_test_by_gradle_build_id/2" do
     test "returns test when it exists for gradle build" do
       # Given
       gradle_build_id = UUIDv7.generate()
@@ -436,7 +501,7 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id)
+      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id, test.project_id)
 
       # Then
       assert {:ok, found_test} = result
@@ -463,7 +528,7 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id)
+      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id, latest_test.project_id)
 
       # Then
       assert {:ok, found_test} = result
@@ -472,7 +537,7 @@ defmodule Tuist.TestsTest do
 
     test "returns error when no test exists for gradle build" do
       # When
-      result = Tests.get_latest_test_by_gradle_build_id(UUIDv7.generate())
+      result = Tests.get_latest_test_by_gradle_build_id(UUIDv7.generate(), -1)
 
       # Then
       assert result == {:error, :not_found}
@@ -843,6 +908,93 @@ defmodule Tuist.TestsTest do
       assert meta.total_count == 3
       names = runs |> Enum.map(& &1.name) |> Enum.sort()
       assert names == ["testAlpha", "testBeta", "testGamma"]
+    end
+
+    test "hydrates the replacement version selected by the test-run materialized view" do
+      project = ProjectsFixtures.project_fixture()
+      inserted_at = ~N[2026-07-21 10:00:00.000000]
+
+      attrs = [
+        id: UUIDv7.generate(),
+        test_run_id: UUIDv7.generate(),
+        test_module_run_id: UUIDv7.generate(),
+        test_case_id: UUIDv7.generate(),
+        project_id: project.id,
+        ran_at: ~N[2026-07-21 09:00:00.000000]
+      ]
+
+      RunsFixtures.test_case_run_fixture(
+        Keyword.merge(attrs, status: 0, inserted_at: NaiveDateTime.add(inserted_at, -60))
+      )
+
+      latest =
+        RunsFixtures.test_case_run_fixture(Keyword.merge(attrs, status: 1, inserted_at: inserted_at))
+
+      {[run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: latest.test_run_id}]
+        })
+
+      assert run.status == "failure"
+      assert run.inserted_at == inserted_at
+    end
+
+    test "retries without the version filter when a materialized-view version is not visible in the main table" do
+      inserted_at = ~N[2026-07-21 10:00:00.000000]
+
+      main_row =
+        RunsFixtures.test_case_run_fixture(
+          status: 0,
+          ran_at: ~N[2026-07-21 09:00:00.000000],
+          inserted_at: inserted_at
+        )
+
+      latest_main_row =
+        RunsFixtures.test_case_run_fixture(
+          id: main_row.id,
+          test_run_id: main_row.test_run_id,
+          test_module_run_id: main_row.test_module_run_id,
+          test_case_id: main_row.test_case_id,
+          project_id: main_row.project_id,
+          status: 0,
+          ran_at: main_row.ran_at,
+          inserted_at: NaiveDateTime.add(inserted_at, 30)
+        )
+
+      other_row =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: main_row.test_run_id,
+          ran_at: main_row.ran_at,
+          inserted_at: inserted_at
+        )
+
+      IngestRepo.insert_all(TestCaseRunByTestRun, [
+        %{
+          id: main_row.id,
+          test_run_id: main_row.test_run_id,
+          status: 1,
+          is_flaky: false,
+          is_new: false,
+          duration: main_row.duration,
+          inserted_at: NaiveDateTime.add(inserted_at, 60),
+          ran_at: main_row.ran_at,
+          name: main_row.name,
+          project_id: main_row.project_id,
+          test_case_id: main_row.test_case_id
+        }
+      ])
+
+      {runs, _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: main_row.test_run_id}]
+        })
+
+      run = Enum.find(runs, &(&1.id == main_row.id))
+      other_run = Enum.find(runs, &(&1.id == other_row.id))
+
+      assert run.status == "success"
+      assert run.inserted_at == latest_main_row.inserted_at
+      assert other_run.inserted_at == inserted_at
     end
   end
 
@@ -1227,6 +1379,23 @@ defmodule Tuist.TestsTest do
   end
 
   describe "create_test/1" do
+    test "sets the version a created run is kept by instead of leaving it to the server" do
+      # `inserted_at` is the version test_runs keeps the latest row by. Left to
+      # the column default, each ClickHouse server stamps its own clock, so two
+      # servers holding the same writes can keep different versions of a run.
+
+      # When
+      {:ok, test_run} = RunsFixtures.test_fixture()
+
+      # Then
+      assert %NaiveDateTime{} = test_run.inserted_at
+
+      %{rows: [[stored]]} =
+        IngestRepo.query!("SELECT inserted_at FROM test_runs FINAL WHERE id = {id:UUID}", %{"id" => test_run.id})
+
+      assert NaiveDateTime.compare(stored, test_run.inserted_at) == :eq
+    end
+
     test "persists test case runs and their arguments without relying on the asynchronous batch" do
       # Given
       # The client uploads attachments and crash reports as soon as it gets these
@@ -1303,6 +1472,35 @@ defmodule Tuist.TestsTest do
       assert test.git_branch == "main"
       assert test.git_commit_sha == "abc123def456"
       assert test.is_ci == true
+    end
+
+    test "does not fail when the project is deleted before broadcasting test creation" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      parent = self()
+
+      stub(Tuist.Tasks, :run_async, fn fun ->
+        send(parent, {:task, fun})
+        {:ok, self()}
+      end)
+
+      # When
+      assert {:ok, _test} =
+               Tests.create_test(%{
+                 id: UUIDv7.generate(),
+                 project_id: project.id,
+                 account_id: project.account_id,
+                 duration: 1500,
+                 status: "success",
+                 ran_at: NaiveDateTime.utc_now(),
+                 is_ci: false
+               })
+
+      assert_receive {:task, task}
+      assert {:ok, _} = Tuist.Projects.delete_project(project)
+
+      # Then
+      task.()
     end
 
     test "looks up existing test cases by binding the IDs as a single array parameter" do
@@ -1582,7 +1780,7 @@ defmodule Tuist.TestsTest do
       assert {:ok, _test} = Tests.create_test(test_attrs)
 
       # Then — one Oban job per (subscribed endpoint, new test case).
-      jobs = Tuist.Repo.all(Oban.Job)
+      jobs = Repo.all(Oban.Job)
       assert length(jobs) == 2
       assert Enum.all?(jobs, &(&1.args["webhook_endpoint_id"] == subscribed.id))
       assert Enum.all?(jobs, &(&1.args["event_type"] == "test_case.created"))
@@ -1967,6 +2165,356 @@ defmodule Tuist.TestsTest do
       assert updated_test.duration == 800
     end
 
+    test "keeps run errors reported by a shard other than the first" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_attrs = fn shard_index, extra ->
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 500,
+            status: "success",
+            model_identifier: "Mac15,6",
+            macos_version: "14.0",
+            xcode_version: "15.0",
+            git_branch: "main",
+            git_commit_sha: "abc123",
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            shard_plan_id: plan.id,
+            shard_index: shard_index
+          },
+          extra
+        )
+      end
+
+      {:ok, first_test} = Tests.create_test(shard_attrs.(0, %{}))
+
+      {:ok, updated_test} =
+        Tests.create_test(
+          shard_attrs.(1, %{
+            run_errors: [
+              %{target: "ChatTests", message: "Issue recorded without an associated test: ChatTests.swift:107: failed"}
+            ]
+          })
+        )
+
+      assert updated_test.id == first_test.id
+
+      # Unattributed issues leave the shard's status alone, so this is the only
+      # surviving trace of them.
+      assert updated_test.status == "success"
+
+      assert [error] = Tests.list_run_errors(first_test.id)
+      assert error.module_name == "ChatTests"
+      assert error.message =~ "ChatTests.swift:107"
+    end
+
+    test "collapses a run error reported by every shard into one" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      run_errors = [%{target: "AboutUserTests", message: "Failed to create a bundle instance."}]
+
+      shard_attrs = fn shard_index ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "failure",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: shard_index,
+          run_errors: run_errors
+        }
+      end
+
+      {:ok, first_test} = Tests.create_test(shard_attrs.(0))
+      {:ok, _} = Tests.create_test(shard_attrs.(1))
+
+      assert [error] = Tests.list_run_errors(first_test.id)
+      assert error.module_name == "AboutUserTests"
+    end
+
+    test "persists run destinations reported by a shard that merges into an existing run" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_attrs = fn shard_index, extra ->
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 500,
+            status: "success",
+            model_identifier: "Mac15,6",
+            macos_version: "14.0",
+            xcode_version: "15.0",
+            git_branch: "main",
+            git_commit_sha: "abc123",
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            shard_plan_id: plan.id,
+            shard_index: shard_index
+          },
+          extra
+        )
+      end
+
+      # The placeholder row the CLI uploads lands before the xcresult worker
+      # parses anything, so the merge branch is the one every sharded run takes
+      # by the time destinations are known.
+      {:ok, first_test} = Tests.create_test(shard_attrs.(0, %{status: "processing"}))
+
+      {:ok, _} =
+        Tests.create_test(
+          shard_attrs.(1, %{
+            run_destinations: [%{name: "iPhone SE Test", platform: "ios_simulator", os_version: "26.1"}]
+          })
+        )
+
+      assert [destination] =
+               ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^first_test.id))
+
+      assert destination.name == "iPhone SE Test"
+      assert destination.platform == "ios_simulator"
+      assert destination.os_version == "26.1"
+    end
+
+    test "collapses a run destination reported by every shard into one" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      run_destinations = [%{name: "iPhone SE Test", platform: "ios_simulator", os_version: "26.1"}]
+
+      shard_attrs = fn shard_index ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: shard_index,
+          run_destinations: run_destinations
+        }
+      end
+
+      {:ok, first_test} = Tests.create_test(shard_attrs.(0))
+      {:ok, _} = Tests.create_test(shard_attrs.(1))
+
+      {:ok, run} = Tests.get_test(first_test.id, preload: [:run_destinations])
+
+      assert [%TestRunDestination{name: "iPhone SE Test", platform: "ios_simulator", os_version: "26.1"}] =
+               run.run_destinations
+    end
+
+    test "uses the shard-run mapping instead of scanning test runs for later shards" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      conflicting_test_id = UUIDv7.generate()
+
+      conflicting_test =
+        first_test
+        |> Map.from_struct()
+        |> Map.drop([
+          :__meta__,
+          :actor_account,
+          :ran_by_account,
+          :build_run,
+          :gradle_build,
+          :test_case_runs,
+          :shard_plan,
+          :run_destinations
+        ])
+        |> Map.merge(%{
+          id: conflicting_test_id,
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), 1, :second)
+        })
+
+      IngestRepo.insert_all(Test, [conflicting_test])
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert updated_test.id == first_test.id
+      refute updated_test.id == conflicting_test_id
+    end
+
+    test "rebuilds the merged run under the mapped id when its run row is missing" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      mapped_id = UUIDv7.generate()
+
+      # A report that claimed the mapping and then died before its run row
+      # landed. The mapping is what later shards converge on, so the run has to
+      # be rebuilt under it rather than started again under a fresh id.
+      IngestRepo.insert_all(ShardRun, [
+        %{
+          shard_plan_id: plan.id,
+          project_id: project.id,
+          test_run_id: mapped_id,
+          shard_index: 0,
+          status: "processing",
+          duration: 0,
+          ran_at: NaiveDateTime.utc_now(),
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      ])
+
+      {:ok, rebuilt_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert rebuilt_test.id == mapped_id
+    end
+
+    test "claims the shard mapping before writing the run row" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      queries =
+        capture_clickhouse_queries(fn ->
+          {:ok, _test} =
+            Tests.create_test(%{
+              id: UUIDv7.generate(),
+              project_id: project.id,
+              account_id: account.id,
+              duration: 500,
+              status: "success",
+              model_identifier: "Mac15,6",
+              macos_version: "14.0",
+              xcode_version: "15.0",
+              git_branch: "main",
+              git_commit_sha: "abc123",
+              ran_at: NaiveDateTime.utc_now(),
+              is_ci: true,
+              shard_plan_id: plan.id,
+              shard_index: 0
+            })
+        end)
+
+      # Anything written between the run row and its mapping is unrecoverable:
+      # later shards resolve the run through the mapping alone, so a run row
+      # without one splits the report in two.
+      mapping_insert = Enum.find_index(queries, &(&1 =~ ~s(INSERT INTO "shard_runs")))
+      run_insert = Enum.find_index(queries, &(&1 =~ ~s(INSERT INTO "test_runs")))
+
+      assert mapping_insert
+      assert run_insert
+      assert mapping_insert < run_insert
+    end
+
+    test "never resolves a merged run by scanning test runs for a shard plan" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard = fn index ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: index
+        }
+      end
+
+      queries =
+        capture_clickhouse_queries(fn ->
+          {:ok, _} = Tests.create_test(shard.(0))
+          {:ok, _} = Tests.create_test(shard.(1))
+        end)
+
+      # `shard_plan_id` is not in `test_runs`' sorting key, so this lookup reads
+      # every granule the project prefix leaves, and the read buffer it
+      # allocates per column stream is what blew the shard report's memory cap.
+      # The mapping in `shard_runs` is keyed for exactly this question.
+      refute Enum.any?(queries, &(&1 =~ ~s(FROM "test_runs") and &1 =~ ~s|"shard_plan_id" = |))
+    end
+
     test "single shard plan sets status directly (not in_progress)" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -2130,6 +2678,397 @@ defmodule Tuist.TestsTest do
         })
 
       assert updated_test.status == "failure"
+    end
+
+    test "processing failure in the final shard propagates to final status" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "failed_processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert updated_test.status == "failed_processing"
+    end
+
+    test "processing failure in an earlier shard propagates to final status" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "failed_processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert updated_test.status == "failed_processing"
+    end
+
+    test "a successful retry replaces an earlier processing failure for the same shard" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_0_id = UUIDv7.generate()
+
+      {:ok, _failed_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "failed_processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, retried_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert retried_test.status == "in_progress"
+
+      {:ok, completed_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert completed_test.status == "success"
+    end
+
+    test "a retried shard remains incomplete while its latest status is processing" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_0_id = UUIDv7.generate()
+
+      {:ok, _failed_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "failed_processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, _processing_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, merged_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert merged_test.status == "in_progress"
+    end
+
+    test "the last shard completes the run even with uppercase client UUIDs and without reading its own row" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      client_id = String.upcase(UUIDv7.generate())
+
+      {:ok, first_test} =
+        Tests.create_test(%{
+          id: client_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 300,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert first_test.status == "in_progress"
+
+      assert first_test.id == String.downcase(client_id)
+
+      # The row a shard writes for itself is not reliably observable by the
+      # read that immediately follows it, so the last shard to report has to
+      # count itself from memory rather than from `shard_runs`.
+      stub(IngestRepo, :insert_all, fn _schema, _rows -> {0, nil} end)
+
+      {:ok, merged_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert merged_test.status == "success"
+    end
+
+    test "completes runs whose historical shard rows contain uppercase UUID strings" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      stub(IngestRepo, :insert_all, fn schema, rows ->
+        rows =
+          if schema == ShardRun do
+            Enum.map(rows, &Map.update!(&1, :test_run_id, fn id -> String.upcase(id) end))
+          else
+            rows
+          end
+
+        Mimic.call_original(IngestRepo, :insert_all, [schema, rows])
+      end)
+
+      attrs = %{
+        project_id: project.id,
+        account_id: account.id,
+        duration: 100,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        shard_plan_id: plan.id
+      }
+
+      {:ok, first} = Tests.create_test(Map.merge(attrs, %{id: UUIDv7.generate(), shard_index: 0}))
+      assert first.status == "in_progress"
+      {:ok, last} = Tests.create_test(Map.merge(attrs, %{id: UUIDv7.generate(), shard_index: 1}))
+      assert last.id == first.id
+      assert last.status == "success"
+    end
+
+    test "a failing shard fails the run before the remaining shards report" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_1_id = UUIDv7.generate()
+
+      {:ok, processing_test} =
+        Tests.create_test(%{
+          id: shard_1_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert processing_test.status == "in_progress"
+
+      {:ok, failed_test} =
+        Tests.create_test(%{
+          id: shard_1_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert failed_test.status == "failure"
+    end
+
+    test "a shard that failed processing fails the run before the remaining shards report" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 3)
+
+      shard_0_id = UUIDv7.generate()
+
+      {:ok, _processing_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, merged_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "failed_processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert merged_test.status == "failed_processing"
+    end
+
+    test "a shard succeeding after a failing shard leaves the run failed" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_0_id = UUIDv7.generate()
+
+      {:ok, _processing_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, failed_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 300,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert failed_test.status == "failure"
+
+      {:ok, merged_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert merged_test.status == "failure"
+    end
+
+    test "the first shard to report a failure creates the run as failed" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 300,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert test.status == "failure"
     end
 
     test "three shards all success" do
@@ -2455,6 +3394,58 @@ defmodule Tuist.TestsTest do
 
       assert updated_test.id == first_test.id
       assert updated_test.scheme == "TuistAcceptanceTests"
+    end
+
+    test "stamps the merged scheme on the test case runs of the shard that supplies it" do
+      # The first shard's controller upload creates the run with
+      # status=processing and no scheme; the scheme only appears once a
+      # worker has parsed an xcresult. The shard whose worker finishes
+      # first both supplies the scheme and writes test case runs, so those
+      # runs must carry it rather than the placeholder row's empty value.
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _processing_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          scheme: nil,
+          git_branch: "main",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, parsed_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          scheme: "TuistAcceptanceTests",
+          git_branch: "main",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1,
+          test_modules: [
+            %{
+              name: "ModuleA",
+              status: "success",
+              duration: 800,
+              test_cases: [%{name: "testA", status: "success", duration: 400}]
+            }
+          ]
+        })
+
+      assert parsed_test.scheme == "TuistAcceptanceTests"
+      assert Enum.map(parsed_test.test_case_runs, & &1.scheme) == ["TuistAcceptanceTests"]
     end
 
     test "preserves scheme when a later shard reports without one" do
@@ -2814,7 +3805,7 @@ defmodule Tuist.TestsTest do
       url = Tests.test_ci_run_url(test)
 
       # Then
-      assert url == "https://app.circleci.com/pipelines/github/owner/project/42"
+      assert url == "https://app.circleci.com/jobs/github/owner/project/42"
     end
 
     test "returns Buildkite URL for Buildkite provider" do
@@ -2863,6 +3854,231 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert url == nil
+    end
+  end
+
+  describe "list_test_cases/2 durations" do
+    test "reports a median a single outlier cannot move, beside the mean it moves" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testOutlier", [100, 100, 100, 100, 100, 100, 100, 1_000_000])
+
+      # When
+      {[test_case], _meta} =
+        Tests.list_test_cases(project.id, %{}, preload: [:duration_p50_ms, :duration_avg_ms])
+
+      # Then
+      assert test_case.duration_p50_ms == 100.0
+      assert test_case.duration_avg_ms == 125_088.0
+      assert test_case.duration_sample_count == 8
+    end
+
+    test "reports the distribution of a test case with a heavy tail" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testHeavyTail", [500, 500, 500, 500, 500, 500, 500, 500, 9000, 9000])
+
+      # When
+      {[test_case], _meta} =
+        Tests.list_test_cases(project.id, %{}, preload: [:duration_p50_ms, :duration_p90_ms, :duration_p99_ms])
+
+      # Then - the tail is what the percentiles are for
+      assert test_case.duration_p50_ms == 500.0
+      assert test_case.duration_p99_ms > test_case.duration_p50_ms
+      assert test_case.duration_p99_ms >= test_case.duration_p90_ms
+    end
+
+    test "counts a run once when its flaky state was corrected" do
+      # Given - four runs, one of which is re-inserted by a flaky-state
+      # correction. `test_case_runs` is a ReplacingMergeTree and the correction
+      # writes a whole new version of the row, so the aggregate sees five
+      # inserts for four runs.
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testCorrected", [100, 100, 100, 100])
+
+      [%{id: run_id} | _] =
+        ClickHouseRepo.all(
+          from(run in TestCaseRun,
+            where: run.project_id == ^project.id,
+            select: %{id: run.id},
+            limit: 1
+          )
+        )
+
+      IngestRepo.query!("""
+      INSERT INTO test_case_duration_daily_stats_per_case
+        (project_id, date, test_case_id, is_ci, run_count, avg_duration,
+         p50_duration, p90_duration, p99_duration)
+      SELECT
+        project_id,
+        toDate(ran_at) AS date,
+        assumeNotNull(test_case_id) AS test_case_id,
+        is_ci,
+        uniqExactState(id) AS run_count,
+        avgState(duration) AS avg_duration,
+        quantileState(0.5)(duration) AS p50_duration,
+        quantileState(0.9)(duration) AS p90_duration,
+        quantileState(0.99)(duration) AS p99_duration
+      FROM test_case_runs
+      WHERE id = '#{run_id}'
+      GROUP BY project_id, date, test_case_id, is_ci
+      """)
+
+      # When
+      {[test_case], _meta} =
+        Tests.list_test_cases(project.id, %{}, preload: [:duration_p50_ms])
+
+      # Then - the duplicate version does not inflate the count past the floor
+      assert test_case.duration_sample_count == 4
+      assert is_nil(test_case.duration_p50_ms)
+    end
+
+    test "reports no durations for a test case below the sample floor" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testRare", [100, 200, 300])
+
+      # When
+      {[test_case], _meta} =
+        Tests.list_test_cases(project.id, %{},
+          preload: [:duration_p50_ms, :duration_p90_ms, :duration_p99_ms, :duration_avg_ms]
+        )
+
+      # Then
+      assert is_nil(test_case.duration_p50_ms)
+      assert is_nil(test_case.duration_p90_ms)
+      assert is_nil(test_case.duration_p99_ms)
+      assert is_nil(test_case.duration_avg_ms)
+      assert test_case.duration_sample_count == 3
+    end
+
+    test "scopes the durations to the selected environment" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testBoth", [1000, 1000, 1000, 1000, 1000], is_ci: true)
+      run_test_case(project, "testBoth", [50, 50, 50, 50, 50], is_ci: false)
+
+      # When
+      {[on_ci], _meta} =
+        Tests.list_test_cases(project.id, %{}, is_ci: true, preload: [:duration_p50_ms])
+
+      {[locally], _meta} =
+        Tests.list_test_cases(project.id, %{}, is_ci: false, preload: [:duration_p50_ms])
+
+      # Then
+      assert on_ci.duration_p50_ms == 1000.0
+      assert on_ci.duration_sample_count == 5
+      assert locally.duration_p50_ms == 50.0
+      assert locally.duration_sample_count == 5
+    end
+
+    test "computes only the statistics the caller preloads" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testOne", [100, 100, 100, 100, 100, 100, 100, 1_000_000])
+
+      # When
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{}, preload: [:duration_p99_ms])
+
+      # Then
+      assert test_case.duration_p99_ms > 0
+      assert test_case.duration_sample_count == 8
+      assert is_nil(test_case.duration_p50_ms)
+      assert is_nil(test_case.duration_p90_ms)
+      assert is_nil(test_case.duration_avg_ms)
+    end
+
+    test "computes no durations for callers that ask for none" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testPlain", [100, 100, 100, 100, 100])
+
+      # When
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      # Then
+      assert is_nil(test_case.duration_p50_ms)
+      assert is_nil(test_case.duration_sample_count)
+    end
+
+    test "computes durations for a caller that only orders by one" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testOutlier", [100, 100, 100, 100, 100, 100, 100, 1_000_000])
+
+      # When
+      {[test_case], _meta} =
+        Tests.list_test_cases(project.id, %{
+          order_by: [:duration_p50, :id],
+          order_directions: [:desc_nulls_last, :asc]
+        })
+
+      # Then
+      assert test_case.duration_p50_ms == 100.0
+    end
+
+    test "sorts unranked test cases last whichever way a column is sorted" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testFast", [100, 100, 100, 100, 100])
+      run_test_case(project, "testSlow", [5000, 5000, 5000, 5000, 5000])
+      run_test_case(project, "testUnranked", [9_999_999, 9_999_999])
+
+      # When
+      {slowest_first, _meta} =
+        Tests.list_test_cases(project.id, %{
+          order_by: [:duration_p50, :id],
+          order_directions: [:desc_nulls_last, :asc]
+        })
+
+      {fastest_first, _meta} =
+        Tests.list_test_cases(project.id, %{
+          order_by: [:duration_p50, :id],
+          order_directions: [:asc_nulls_last, :asc]
+        })
+
+      # Then
+      assert Enum.map(slowest_first, & &1.name) == ["testSlow", "testFast", "testUnranked"]
+      assert Enum.map(fastest_first, & &1.name) == ["testFast", "testSlow", "testUnranked"]
+    end
+
+    test "each duration column sorts on its own statistic" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      run_test_case(project, "testSteady", [900, 900, 900, 900, 900, 900, 900, 900])
+      run_test_case(project, "testSpiky", [10, 10, 10, 10, 10, 10, 10, 100_000])
+
+      order = fn field ->
+        %{order_by: [field, :id], order_directions: [:desc_nulls_last, :asc]}
+      end
+
+      # When
+      {by_median, _meta} = Tests.list_test_cases(project.id, order.(:duration_p50))
+      {by_avg, _meta} = Tests.list_test_cases(project.id, order.(:duration_avg))
+      {by_p99, _meta} = Tests.list_test_cases(project.id, order.(:duration_p99))
+
+      # Then - the steady test is slower by median, the spiky one by mean and tail
+      assert Enum.map(by_median, & &1.name) == ["testSteady", "testSpiky"]
+      assert Enum.map(by_avg, & &1.name) == ["testSpiky", "testSteady"]
+      assert Enum.map(by_p99, & &1.name) == ["testSpiky", "testSteady"]
+    end
+
+    defp run_test_case(project, name, durations, opts \\ []) do
+      for duration <- durations do
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          is_ci: Keyword.get(opts, :is_ci, false),
+          test_modules: [
+            %{
+              name: "DurationModule",
+              status: "success",
+              duration: duration,
+              test_cases: [%{name: name, status: "success", duration: duration}]
+            }
+          ]
+        )
+      end
     end
   end
 
@@ -2929,7 +4145,7 @@ defmodule Tuist.TestsTest do
 
       IngestRepo.insert_all(
         TestCase,
-        Enum.map(test_cases, &(&1 |> Map.from_struct() |> Map.delete(:__meta__)))
+        Enum.map(test_cases, &TuistTestSupport.Utilities.insertable_attrs(&1))
       )
 
       attrs = %{
@@ -3012,7 +4228,7 @@ defmodule Tuist.TestsTest do
 
       IngestRepo.insert_all(
         TestCase,
-        Enum.map(test_cases, &(&1 |> Map.from_struct() |> Map.delete(:__meta__)))
+        Enum.map(test_cases, &TuistTestSupport.Utilities.insertable_attrs(&1))
       )
 
       attrs_base = %{
@@ -3079,6 +4295,312 @@ defmodule Tuist.TestsTest do
       # Then - the test case should still be muted
       {[updated_test_case], _meta} = Tests.list_test_cases(project.id, %{})
       assert updated_test_case.state == "muted"
+    end
+
+    test "matches nothing rather than raising on an unsupported state filter operator" do
+      # Noora's option filter decodes its operator from the query string against
+      # a whitelist that isn't narrowed to the filter's type, so a hand-edited
+      # URL can put a comparison operator on the trait filter, which the
+      # LiveView then rewrites to a `:state` filter keeping that operator. The
+      # listing runs inside `assign_async`, so raising there would surface as an
+      # empty table with a crashed task behind it.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: "mutedTest", state: "muted")
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # When / Then
+      for op <- [:<, :>, :<=, :>=, :=~, :not_ilike, :empty, :not_empty] do
+        {rows, meta} =
+          Tests.list_test_cases(project.id, %{filters: [%{field: :state, op: op, value: "muted"}]})
+
+        assert rows == []
+        assert meta.total_count == 0
+      end
+    end
+
+    test "honours negated state and is_flaky filters" do
+      # The dashboard's option filter offers "is not" as well as "is", so these
+      # reach `list_test_cases/3` as `:!=`. Resolving them as equality would
+      # invert what the user asked for.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      muted = RunsFixtures.test_case_fixture(project_id: project.id, name: "mutedTest", state: "muted")
+      flaky = RunsFixtures.test_case_fixture(project_id: project.id, name: "flakyTest", is_flaky: true)
+      plain = RunsFixtures.test_case_fixture(project_id: project.id, name: "plainTest")
+
+      IngestRepo.insert_all(
+        TestCase,
+        Enum.map([muted, flaky, plain], &TuistTestSupport.Utilities.insertable_attrs(&1))
+      )
+
+      # When
+      {not_muted, _meta} =
+        Tests.list_test_cases(project.id, %{filters: [%{field: :state, op: :!=, value: "muted"}]})
+
+      {not_flaky, _meta} =
+        Tests.list_test_cases(project.id, %{filters: [%{field: :is_flaky, op: :!=, value: true}]})
+
+      # Then
+      assert not_muted |> Enum.map(& &1.name) |> Enum.sort() == ["flakyTest", "plainTest"]
+      assert not_flaky |> Enum.map(& &1.name) |> Enum.sort() == ["mutedTest", "plainTest"]
+    end
+
+    test "preserves default state semantics for every supported control-plane filter" do
+      project = ProjectsFixtures.project_fixture()
+
+      plain = RunsFixtures.test_case_fixture(project_id: project.id, name: "plain")
+      enabled = RunsFixtures.test_case_fixture(project_id: project.id, name: "enabled", state: "enabled")
+      muted = RunsFixtures.test_case_fixture(project_id: project.id, name: "muted", state: "muted")
+      skipped = RunsFixtures.test_case_fixture(project_id: project.id, name: "skipped", state: "skipped")
+      flaky = RunsFixtures.test_case_fixture(project_id: project.id, name: "flaky", is_flaky: true)
+
+      muted_flaky =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "muted_flaky",
+          state: "muted",
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(
+        TestCase,
+        Enum.map(
+          [plain, enabled, muted, skipped, flaky, muted_flaky],
+          &TuistTestSupport.Utilities.insertable_attrs(&1)
+        )
+      )
+
+      assert listed_test_case_names(project.id, [%{field: :state, op: :==, value: "enabled"}]) ==
+               ~w(enabled flaky plain)
+
+      assert listed_test_case_names(project.id, [%{field: :state, op: :!=, value: "enabled"}]) ==
+               ~w(muted muted_flaky skipped)
+
+      assert listed_test_case_names(project.id, [
+               %{field: :state, op: :in, value: ["enabled", "muted"]}
+             ]) ==
+               ~w(enabled flaky muted muted_flaky plain)
+
+      assert listed_test_case_names(project.id, [
+               %{field: :state, op: :not_in, value: ["enabled", "muted"]}
+             ]) == ["skipped"]
+
+      assert listed_test_case_names(project.id, [%{field: :is_flaky, op: :==, value: true}]) ==
+               ~w(flaky muted_flaky)
+
+      assert listed_test_case_names(project.id, [%{field: :is_flaky, op: :==, value: false}]) ==
+               ~w(enabled muted plain skipped)
+
+      assert listed_test_case_names(project.id, [
+               %{field: :state, op: :==, value: "muted"},
+               %{field: :is_flaky, op: :==, value: true}
+             ]) == ["muted_flaky"]
+    end
+
+    test "bounds the state preload probe before using the joined filter path" do
+      project = ProjectsFixtures.project_fixture()
+      inserted_at = NaiveDateTime.utc_now()
+
+      state_rows =
+        Enum.map(1..10_001, fn _index ->
+          %{
+            project_id: project.id,
+            test_case_id: UUIDv7.generate(),
+            state: "enabled",
+            is_flaky: false,
+            inserted_at: inserted_at
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseState, state_rows)
+
+      muted =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "muted",
+          state: "muted",
+          inserted_at: NaiveDateTime.add(inserted_at, 1, :microsecond)
+        )
+
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(muted)])
+
+      assert listed_test_case_names(project.id, [%{field: :state, op: :==, value: "muted"}]) == ["muted"]
+    end
+
+    test "filters by the preloaded states of more test cases than ClickHouse accepts as separate HTTP fields" do
+      project = ProjectsFixtures.project_fixture()
+      inserted_at = NaiveDateTime.utc_now()
+
+      state_rows =
+        Enum.map(1..4_500, fn _index ->
+          %{
+            project_id: project.id,
+            test_case_id: UUIDv7.generate(),
+            state: "muted",
+            is_flaky: false,
+            inserted_at: inserted_at
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseState, state_rows)
+
+      muted =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "muted",
+          state: "muted",
+          inserted_at: NaiveDateTime.add(inserted_at, 1, :microsecond)
+        )
+
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(muted)])
+
+      assert listed_test_case_names(project.id, [%{field: :state, op: :==, value: "muted"}]) == ["muted"]
+      assert listed_test_case_names(project.id, [%{field: :state, op: :!=, value: "muted"}]) == []
+    end
+
+    test "plain Cargo outcomes preserve measured timing history, including real zero durations" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {scheme, duration, status} <- [
+            {"test", 100, "success"},
+            {"cargo test", 0, "failure"},
+            {"cargo test · local", 0, "success"},
+            {"test", 0, "success"},
+            {"cargo nextest run · cargo test", 20, "success"}
+          ] do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            build_system: "cargo",
+            scheme: scheme,
+            status: status,
+            test_modules: [
+              %{
+                name: "app::api",
+                status: status,
+                duration: 100,
+                test_cases: [%{name: "integration", suite_name: "tests", status: status, duration: duration}]
+              }
+            ]
+          )
+      end
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      assert test_case.recent_durations == [20, 0, 100]
+      assert test_case.avg_duration == 40
+
+      summary = Analytics.test_case_analytics_by_id(project.id, test_case.id)
+      assert summary.total_count == 5
+      assert summary.failed_count == 1
+      assert summary.avg_duration == 40
+      assert summary.p50_duration == 20
+
+      duration = Analytics.test_case_run_duration_analytics(project.id)
+      assert duration.total_average_duration == 40
+    end
+
+    test "Cargo duration migration keeps unsigned reports out of authoritative case history" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {scheme, duration, submission_auth} <- [
+            {"nextest", 100, "token"},
+            {"nextest", 0, "token"},
+            {"cargo test", 0, "token"},
+            {"cargo test · local", 0, "token"},
+            {"nextest", 999_999, "network_trusted"}
+          ] do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            build_system: "cargo",
+            scheme: scheme,
+            submission_auth: submission_auth,
+            test_modules: [
+              %{
+                name: "app::api",
+                status: "success",
+                duration: duration,
+                test_cases: [%{name: "integration", suite_name: "tests", status: "success", duration: duration}]
+              }
+            ]
+          )
+      end
+
+      assert %{rows: [[2, 50.0]]} =
+               IngestRepo.query!(
+                 """
+                 SELECT uniqExactMerge(run_count), avgMerge(avg_duration)
+                 FROM test_case_duration_daily_stats_per_case
+                 WHERE project_id = {project_id:Int64}
+                 """,
+                 %{project_id: project.id}
+               )
+    end
+
+    test "preserves state when an in-flight ingestion read the row before the mute" do
+      # Ingestion snapshots the existing test case rows once per report and only
+      # stamps `inserted_at` later, per module. A mute landing inside that window
+      # used to be written with a lower version than the ingestion row carrying
+      # the pre-mute value forward, so ReplacingMergeTree silently reverted it.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "testOne", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      TestCase.Buffer.flush()
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      stale_snapshot = %{
+        test_case.id => %{
+          id: test_case.id,
+          recent_durations: test_case.recent_durations,
+          is_flaky: test_case.is_flaky,
+          last_ran_at_ci: test_case.last_ran_at_ci,
+          last_ran_at_local: test_case.last_ran_at_local,
+          inserted_at: test_case.inserted_at
+        }
+      }
+
+      # When - an automation mutes the test case, and only then does the
+      # in-flight report write the rows it built from the older snapshot
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+
+      Tests.create_test_cases(
+        project.id,
+        [
+          %{
+            name: "testOne",
+            module_name: "TestModule",
+            suite_name: "",
+            status: "success",
+            duration: 200,
+            ran_at: NaiveDateTime.utc_now(),
+            is_flaky: false
+          }
+        ],
+        stale_snapshot,
+        is_ci: true
+      )
+
+      TestCase.Buffer.flush()
+
+      # Then
+      {[after_ingestion], _meta} = Tests.list_test_cases(project.id, %{})
+      assert after_ingestion.state == "muted"
     end
 
     test "skipped/muted state filters bypass the 14-day active window" do
@@ -3254,6 +4776,37 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert result == {:error, :not_found}
+    end
+  end
+
+  describe "list_test_case_run_arguments/1" do
+    test "preloads the arguments of more test case runs than fit in one ClickHouse parameter" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+      argument_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(Tuist.Tests.TestCaseRunArgument, [
+        %{
+          id: argument_id,
+          test_case_run_id: test_case_run.id,
+          name: "iPhone",
+          status: "success",
+          duration: 100,
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      ])
+
+      test_case_runs = [
+        %TestCaseRun{id: test_case_run.id} | Enum.map(1..4_000, fn _ -> %TestCaseRun{id: UUIDv7.generate()} end)
+      ]
+
+      # When
+      [preloaded | others] =
+        ClickHouseRepo.preload(test_case_runs, arguments: &Tests.list_test_case_run_arguments/1)
+
+      # Then
+      assert [%{id: ^argument_id, name: "iPhone"}] = preloaded.arguments
+      assert Enum.all?(others, &(&1.arguments == []))
     end
   end
 
@@ -3557,6 +5110,61 @@ defmodule Tuist.TestsTest do
       assert flaky_case.name == "testFlakyExample"
       assert flaky_case.status == "success"
       assert flaky_case.is_flaky == true
+    end
+
+    test "ingests a flaky run for a muted test case" do
+      # A muted test case has only state rows in the projection, so `is_flaky`
+      # is null on every one of them. Ingestion reads that flag back to decide
+      # whether this run is the one that newly flags the test, and a null there
+      # used to reach `not existing_is_flaky` and raise, failing the whole
+      # report. Muting a flaky test and having it run flaky again is the most
+      # ordinary sequence there is, so this has to survive it.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      report = fn ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 2000,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      end
+
+      {:ok, _} = Tests.create_test(report.())
+
+      {[test_case], _meta} =
+        Tests.list_test_cases(project.id, %{filters: [%{field: :name, op: :==, value: "testFlakyExample"}]})
+
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+
+      # When / Then
+      assert {:ok, _} = Tests.create_test(report.())
+
+      {:ok, reloaded} = Tests.get_test_case_by_id(test_case.id)
+      assert reloaded.state == "muted"
     end
 
     test "marks test_case_run as flaky but not test_case for non-CI runs with repetitions" do
@@ -3951,7 +5559,472 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "default branch classification" do
+    test "records whether each run happened on the project's default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      {:ok, on_default} = run_on_branch(project, project.default_branch)
+      {:ok, on_feature} = run_on_branch(project, "omarb/fix-collisions")
+
+      # Then
+      assert classification_for(on_default) == true
+      assert classification_for(on_feature) == false
+    end
+
+    test "follows the project's own default branch rather than assuming main" do
+      # Given
+      {:ok, project} = Tuist.Projects.update_project(ProjectsFixtures.project_fixture(), %{default_branch: "master"})
+
+      # When
+      {:ok, on_master} = run_on_branch(project, "master")
+      {:ok, on_main} = run_on_branch(project, "main")
+
+      # Then
+      assert classification_for(on_master) == true
+      assert classification_for(on_main) == false
+    end
+
+    test "keeps the classification when a run is corrected as flaky" do
+      # Given - the correction reinserts the whole row, so a column it forgot to
+      # carry would come back as the `false` default and move the run off the
+      # default branch after the fact.
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "flaky_default_branch_#{System.unique_integer([:positive])}"
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "testSomething", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, failed_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          git_branch: project.default_branch,
+          actor_account_id: project.account_id,
+          claimed_actor_id: "developer-123",
+          submission_auth: "token",
+          scheme: "App",
+          is_ci: true,
+          status: "failure",
+          test_modules: test_modules.("failure")
+        )
+
+      assert classification_for(failed_test) == true
+
+      {:ok, _successful_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          git_branch: project.default_branch,
+          scheme: "App",
+          is_ci: true,
+          status: "success",
+          test_modules: test_modules.("success")
+        )
+
+      assert [correction_job] = all_enqueued(worker: CorrectTestCaseRunFlakyStateWorker)
+
+      # When
+      assert :ok = perform_job(CorrectTestCaseRunFlakyStateWorker, correction_job.args)
+      RunsFixtures.optimize_test_case_runs()
+
+      # Then
+      {[corrected_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: failed_test.id}]
+        })
+
+      assert corrected_run.is_flaky
+      assert corrected_run.is_default_branch == true
+      assert corrected_run.actor_account_id == project.account_id
+      assert corrected_run.claimed_actor_id == "developer-123"
+      assert corrected_run.submission_auth == "token"
+    end
+
+    test "a correction reclassifies a run the column predates instead of copying its stale value" do
+      # A run written before `is_default_branch` existed carries the column's
+      # `false` default even though its branch is the default one. The aggregates
+      # seeded such rows by comparing `git_branch`, so if a correction copied the
+      # stale column forward the branch-filtered views would discard it and the
+      # run would never be seen to become flaky.
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "#{System.unique_integer([:positive])}"
+      test_case_id = UUIDv7.generate()
+      run_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "legacy")
+
+      RunsFixtures.test_case_run_fixture(
+        id: run_id,
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: project.default_branch,
+        git_commit_sha: commit_sha,
+        is_ci: true,
+        status: "failure",
+        is_flaky: false,
+        is_default_branch: false
+      )
+
+      Repo.insert!(%TestCaseRunFlakyCorrection{
+        test_case_run_id: run_id,
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_commit_sha: commit_sha,
+        state: "pending",
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      # When
+      assert :ok = Tests.apply_test_case_run_flaky_corrections([run_id])
+      RunsFixtures.optimize_test_case_runs()
+
+      # Then
+      # The correction is a second physical row for the same logical run, which is
+      # what `report_test_case_run_multiplicity/3` bounds at two; the later one is
+      # the correction.
+      {runs, _meta} =
+        Tests.list_test_case_runs(%{filters: [%{field: :test_case_id, op: :==, value: test_case_id}]})
+
+      corrected_run = Enum.max_by(runs, & &1.inserted_at, NaiveDateTime)
+
+      assert corrected_run.is_flaky
+      assert corrected_run.is_default_branch == true
+
+      # The row being reclassified is only half of it: the point is that the
+      # branch-filtered aggregate now sees the correction rather than sitting on
+      # its pre-correction state.
+      %{rows: [[flaky_run_count]]} =
+        IngestRepo.query!(
+          """
+          SELECT sumMerge(flaky_run_count)
+          FROM test_case_run_daily_stats_per_case_default_branch
+          WHERE project_id = {project_id:Int64} AND test_case_id = {test_case_id:UUID}
+          """,
+          %{project_id: project.id, test_case_id: test_case_id}
+        )
+
+      assert flaky_run_count >= 1
+    end
+
+    defp run_on_branch(project, git_branch) do
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: project.account_id,
+        git_branch: git_branch,
+        test_modules: [
+          %{
+            name: "TestModule",
+            status: "success",
+            duration: 500,
+            test_cases: [%{name: "testSomething", status: "success", duration: 250}]
+          }
+        ]
+      )
+    end
+
+    defp classification_for(test_run) do
+      {[run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test_run.id}]
+        })
+
+      run.is_default_branch
+    end
+  end
+
   describe "cross-run flaky detection" do
+    test "does not mark a failure as flaky when the test only failed before on the commit" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "repeated_failure_#{System.unique_integer([:positive])}"
+
+      failing_run = fn ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: "failure",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [%{name: "testBroken", status: "failure", duration: 250}]
+            }
+          ]
+        )
+      end
+
+      {:ok, _first_test} = failing_run.()
+      {:ok, second_test} = failing_run.()
+
+      {[second_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      refute second_run.is_flaky
+      refute second_test.is_flaky
+    end
+
+    test "flags every failure of a run with more failures than fit in one lookup" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "many_failures_#{System.unique_integer([:positive])}"
+      test_case_count = 5_000
+
+      run_with_status = fn status ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: status,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: for(i <- 1..test_case_count, do: %{name: "test#{i}", status: status, duration: 1})
+            }
+          ]
+        )
+      end
+
+      {:ok, _passing_test} = run_with_status.("success")
+      {:ok, failing_test} = run_with_status.("failure")
+
+      assert {:ok, %{is_flaky: true}} = Tests.get_test(failing_test.id)
+
+      assert ClickHouseRepo.aggregate(
+               from(tcr in TestCaseRun,
+                 where: tcr.test_run_id == ^failing_test.id and tcr.is_flaky == true
+               ),
+               :count
+             ) == test_case_count
+    end
+
+    test "corrects every matching case when a passing cohort exceeds one historical lookup" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "many_passing_cases_#{System.unique_integer([:positive])}"
+
+      run_with_status = fn status, count ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: status,
+          test_modules: [
+            %{
+              name: "Tests",
+              status: status,
+              duration: 500,
+              test_cases: for(index <- 1..count, do: %{name: "test#{index}", status: status, duration: 1})
+            }
+          ]
+        )
+      end
+
+      {:ok, failed_test} = run_with_status.("failure", 5_002)
+      {:ok, _successful_test} = run_with_status.("success", 5_001)
+
+      expected_ids =
+        ClickHouseRepo.all(
+          from(tcr in TestCaseRun, where: tcr.test_run_id == ^failed_test.id and tcr.name != "test5002", select: tcr.id)
+        )
+
+      corrections = Repo.all(TestCaseRunFlakyCorrection)
+      assert length(corrections) == 5_001
+      assert MapSet.new(corrections, & &1.test_case_run_id) == MapSet.new(expected_ids)
+
+      jobs = all_enqueued(worker: CorrectTestCaseRunFlakyStateWorker)
+      enqueued_ids = Enum.flat_map(jobs, & &1.args["test_case_run_ids"])
+      assert length(enqueued_ids) == 5_001
+      assert MapSet.new(enqueued_ids) == MapSet.new(expected_ids)
+    end
+
+    test "enqueues every historical failure when corrections exceed PostgreSQL's parameter limit" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "many_corrections_#{System.unique_integer([:positive])}"
+
+      run_with_status = fn status ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: status,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: [%{name: "testSomething", status: status, duration: 250}]
+            }
+          ]
+        )
+      end
+
+      {:ok, failed_test} = run_with_status.("failure")
+
+      failed_run =
+        ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^failed_test.id))
+
+      historical_runs =
+        for _ <- 1..11_489 do
+          failed_run
+          |> Map.take(TestCaseRun.__schema__(:fields))
+          |> Map.merge(%{id: UUIDv7.generate(), test_run_id: UUIDv7.generate(), test_module_run_id: UUIDv7.generate()})
+        end
+
+      TestCaseRun.Buffer.insert_all(historical_runs)
+      expected_run_ids = MapSet.new([failed_run.id | Enum.map(historical_runs, & &1.id)])
+
+      assert {:ok, _successful_test} = run_with_status.("success")
+
+      corrections = Repo.all(TestCaseRunFlakyCorrection)
+      assert MapSet.new(corrections, & &1.test_case_run_id) == expected_run_ids
+
+      assert Enum.all?(corrections, fn correction ->
+               correction.project_id == project.id and correction.test_case_id == failed_run.test_case_id and
+                 correction.git_commit_sha == commit_sha and correction.state == "pending"
+             end)
+
+      jobs = all_enqueued(worker: CorrectTestCaseRunFlakyStateWorker)
+      enqueued_run_ids = Enum.flat_map(jobs, & &1.args["test_case_run_ids"])
+      assert length(enqueued_run_ids) == MapSet.size(expected_run_ids)
+      assert MapSet.new(enqueued_run_ids) == expected_run_ids
+
+      assert {:ok, _another_successful_test} = run_with_status.("success")
+      assert Repo.aggregate(TestCaseRunFlakyCorrection, :count) == MapSet.size(expected_run_ids)
+      assert all_enqueued(worker: CorrectTestCaseRunFlakyStateWorker) == jobs
+    end
+
+    test "does not compare unrelated Bazel runs without commit metadata" do
+      project = ProjectsFixtures.project_fixture(build_system: :bazel)
+
+      for status <- ["success", "failure"] do
+        {:ok, run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "",
+            scheme: "//...",
+            is_ci: true,
+            status: status,
+            test_modules: [
+              %{
+                name: "//app:tests",
+                status: status,
+                duration: 10,
+                test_cases: [%{name: "test", status: status, duration: 10}]
+              }
+            ]
+          )
+
+        {[test_case_run], _} =
+          Tests.list_test_case_runs(%{
+            filters: [%{field: :test_run_id, op: :==, value: run.id}]
+          })
+
+        refute test_case_run.is_flaky
+      end
+    end
+
+    test "durably corrects an earlier failure only once after a later success" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "historical_flaky_#{System.unique_integer([:positive])}"
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "testSomething", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, failed_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: "failure",
+          test_modules: test_modules.("failure")
+        )
+
+      {[failed_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: failed_test.id}]
+        })
+
+      {:ok, _successful_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: "success",
+          test_modules: test_modules.("success")
+        )
+
+      assert [correction_job] =
+               all_enqueued(worker: CorrectTestCaseRunFlakyStateWorker)
+
+      assert correction_job.args["test_case_run_ids"] == [failed_run.id]
+
+      assert :ok = perform_job(CorrectTestCaseRunFlakyStateWorker, correction_job.args)
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[corrected_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: failed_test.id}]
+        })
+
+      assert corrected_run.is_flaky
+
+      Repo.delete!(correction_job)
+
+      {:ok, _another_successful_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: "success",
+          test_modules: test_modules.("success")
+        )
+
+      refute_enqueued(
+        worker: CorrectTestCaseRunFlakyStateWorker,
+        args: %{test_case_run_ids: [failed_run.id]}
+      )
+    end
+
     test "marks only the failing run as flaky when same test case on same commit has different results" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -4057,6 +6130,145 @@ defmodule Tuist.TestsTest do
       updated_first_run = hd(updated_first_runs)
       assert updated_first_run.is_flaky == false
       assert updated_first_run.status == "success"
+    end
+
+    test "uses an already-flaky success as proof when a later run fails" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "existing_flaky_success_#{System.unique_integer([:positive])}"
+      test_case_id = Ecto.UUID.generate()
+
+      {:ok, successful_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: "success",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "success",
+                  duration: 250,
+                  test_case_id: test_case_id,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      {[successful_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: successful_test.id}]
+        })
+
+      assert successful_run.is_flaky
+
+      {:ok, failed_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: "failure",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "failure",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        )
+
+      {[failed_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: failed_test.id}]
+        })
+
+      assert failed_run.is_flaky
+    end
+
+    test "uses only the latest status when the same logical run has replacement rows" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "replacement-status-#{System.unique_integer([:positive])}"
+      test_case_id = Ecto.UUID.generate()
+      logical_run_id = UUIDv7.generate()
+      inserted_at = NaiveDateTime.utc_now()
+
+      IngestRepo.insert_all(TestCaseRunByCommit, [
+        %{
+          id: logical_run_id,
+          project_id: project.id,
+          test_case_id: test_case_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: 0,
+          is_flaky: false,
+          inserted_at: NaiveDateTime.add(inserted_at, -1, :second)
+        },
+        %{
+          id: logical_run_id,
+          project_id: project.id,
+          test_case_id: test_case_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: 1,
+          is_flaky: false,
+          inserted_at: inserted_at
+        }
+      ])
+
+      {:ok, failed_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: "failure",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "failure",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        )
+
+      {[failed_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: failed_test.id}]
+        })
+
+      refute failed_run.is_flaky
     end
 
     test "marks only the failing run as flaky when multiple passing runs precede it" do
@@ -4700,6 +6912,41 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "create_test/1 with Git history" do
+    test "stores the run's place in history" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          git_branch: "feature",
+          git_commit_sha: "head",
+          base_branch: "main",
+          merge_base_sha: "base",
+          is_pull_request: true,
+          pull_request_number: 42,
+          git_object_format: "sha1",
+          history_source: "client"
+        )
+
+      {:ok, stored} = Tests.get_test(test_run.id)
+
+      assert {stored.base_branch, stored.merge_base_sha, stored.is_pull_request, stored.pull_request_number} ==
+               {"main", "base", true, 42}
+
+      assert {stored.git_object_format, stored.history_source, stored.history_fallback_reason} == {"sha1", "client", ""}
+    end
+
+    test "defaults to no history when the client sent none" do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      {:ok, stored} = Tests.get_test(test_run.id)
+
+      assert {stored.base_branch, stored.merge_base_sha, stored.is_pull_request, stored.history_source} ==
+               {"", "", false, ""}
+    end
+  end
+
   describe "update_test_case/3 quarantine" do
     test "mutes a test case" do
       project = ProjectsFixtures.project_fixture()
@@ -4832,6 +7079,54 @@ defmodule Tuist.TestsTest do
   end
 
   describe "list_flaky_test_cases/2" do
+    test "combines identity filters and search before paginating and counting" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, suite_name, module_name} <- [
+            {"selectedFirst", "CoordinatorTests", "AppTests"},
+            {"selectedSecond", "CoordinatorTests", "AppTests"},
+            {"selectedOtherSuite", "OtherTests", "AppTests"},
+            {"selectedOtherModule", "CoordinatorTests", "OtherModule"},
+            {"excludedBySearch", "CoordinatorTests", "AppTests"}
+          ] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            suite_name: suite_name,
+            module_name: module_name
+          )
+
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+        RunsFixtures.test_case_event_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          event_type: "marked_flaky",
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+        )
+      end
+
+      for {name, page} <- [{"selectedFirst", 1}, {"selectedSecond", 2}] do
+        {results, meta} =
+          Tests.list_flaky_test_cases(project.id, %{
+            filters: [
+              %{field: "suite_name", op: :==, value: "CoordinatorTests"},
+              %{field: "module_name", op: :==, value: "AppTests"},
+              %{field: :name, op: :ilike_and, value: "selected"}
+            ],
+            order_by: [:name],
+            order_directions: [:asc],
+            page_size: 1,
+            page: page
+          })
+
+        assert Enum.map(results, & &1.name) == [name]
+        assert meta.total_count == 2
+        assert meta.total_pages == 2
+      end
+    end
+
     test "returns empty list when no flaky test cases exist" do
       project = ProjectsFixtures.project_fixture()
 
@@ -4867,7 +7162,7 @@ defmodule Tuist.TestsTest do
           test_modules: test_modules.("success")
         )
 
-      {:ok, _second_test} =
+      {:ok, second_test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
@@ -4897,6 +7192,83 @@ defmodule Tuist.TestsTest do
       assert flaky_test.module_name == "TestModule"
       # Only the failing run is flaky; the passing run on the same commit stays clean
       assert flaky_test.flaky_runs_count == 1
+      assert flaky_test.last_flaky_run_id == second_test.id
+    end
+
+    test "supports ordering by marked_flaky_at" do
+      project = ProjectsFixtures.project_fixture()
+      now = NaiveDateTime.utc_now()
+
+      for {name, offset} <- [{"oldestFlaky", -3600}, {"middleFlaky", -1800}, {"newestFlaky", -60}] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            is_flaky: true
+          )
+
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: "marked_flaky",
+          inserted_at: NaiveDateTime.add(now, offset)
+        )
+      end
+
+      {asc_results, _} =
+        Tests.list_flaky_test_cases(project.id, %{
+          order_by: [:marked_flaky_at],
+          order_directions: [:asc]
+        })
+
+      assert Enum.map(asc_results, & &1.name) == ["oldestFlaky", "middleFlaky", "newestFlaky"]
+
+      {desc_results, _} =
+        Tests.list_flaky_test_cases(project.id, %{
+          order_by: [:marked_flaky_at],
+          order_directions: [:desc]
+        })
+
+      assert Enum.map(desc_results, & &1.name) == ["newestFlaky", "middleFlaky", "oldestFlaky"]
+      assert Enum.all?(desc_results, & &1.marked_flaky_at)
+    end
+
+    test "marked_flaky_at reflects the current flaky period after a re-mark" do
+      project = ProjectsFixtures.project_fixture()
+      now = NaiveDateTime.utc_now()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "remarkedFlakyTest",
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      second_marked_at = NaiveDateTime.add(now, -1200)
+
+      for {event_type, inserted_at} <- [
+            {"marked_flaky", NaiveDateTime.add(now, -3600)},
+            {"unmarked_flaky", NaiveDateTime.add(now, -2400)},
+            {"marked_flaky", second_marked_at}
+          ] do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: event_type,
+          inserted_at: inserted_at
+        )
+      end
+
+      {[flaky_test], _} = Tests.list_flaky_test_cases(project.id, %{})
+
+      assert NaiveDateTime.compare(
+               NaiveDateTime.truncate(flaky_test.marked_flaky_at, :second),
+               NaiveDateTime.truncate(second_marked_at, :second)
+             ) == :eq
     end
 
     test "supports pagination" do
@@ -5247,6 +7619,7 @@ defmodule Tuist.TestsTest do
 
       assert old.flaky_runs_count == 0
       refute old.last_flaky_at
+      refute old.last_flaky_run_id
 
       {all_results, all_meta} = Tests.list_flaky_test_cases(project.id, %{})
 
@@ -5316,6 +7689,7 @@ defmodule Tuist.TestsTest do
       assert no_ci_only.name == "ciFlaky"
       assert no_ci_only.flaky_runs_count == 0
       refute no_ci_only.last_flaky_at
+      refute no_ci_only.last_flaky_run_id
     end
 
     test "scopes flaky-run stats by combined time range and environment filters" do
@@ -5444,7 +7818,7 @@ defmodule Tuist.TestsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        stale_test_case |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(stale_test_case)
       ])
 
       {:ok, _} = Tests.update_test_case(stale_test_case.id, %{is_flaky: true})
@@ -5456,7 +7830,7 @@ defmodule Tuist.TestsTest do
       opts = [start_datetime: thirty_days_ago, end_datetime: now]
 
       {_results, meta} = Tests.list_flaky_test_cases(project.id, %{}, opts)
-      analytics = Tuist.Tests.Analytics.flaky_tests_analytics(project.id, opts)
+      analytics = Analytics.flaky_tests_analytics(project.id, opts)
 
       assert meta.total_count == analytics.count
       assert meta.total_count == 2
@@ -6560,6 +8934,264 @@ defmodule Tuist.TestsTest do
       assert [%{name: "testBarFlaky"} = group] = group_b
       assert length(group.runs) == 1
     end
+
+    test "resolves failures and repetitions for thousands of cross-run matches" do
+      # More run IDs than ClickHouse's `http_max_fields` (1,000) allows as
+      # individual query parameters.
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "regression-large-cross-run-set"
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ],
+                  failures: [
+                    %{
+                      message: "Assertion failed",
+                      path: "/path/to/test.swift",
+                      line_number: 42,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      [%{id: current_run_id, test_case_id: test_case_id}] =
+        ClickHouseRepo.all(
+          from(tcr in TestCaseRun,
+            where: tcr.test_run_id == ^test_run.id,
+            select: %{id: tcr.id, test_case_id: tcr.test_case_id}
+          )
+        )
+
+      cross_run_count = 2_500
+      base_time = NaiveDateTime.utc_now()
+      newest_run_id = UUIDv7.generate()
+      oldest_run_id = UUIDv7.generate()
+
+      cross_runs =
+        for i <- 1..cross_run_count do
+          id =
+            case i do
+              1 -> newest_run_id
+              ^cross_run_count -> oldest_run_id
+              _ -> UUIDv7.generate()
+            end
+
+          %{
+            id: id,
+            name: "testFlakyExample",
+            test_run_id: UUIDv7.generate(),
+            test_module_run_id: UUIDv7.generate(),
+            test_suite_run_id: nil,
+            test_case_id: test_case_id,
+            project_id: project.id,
+            is_ci: true,
+            scheme: "",
+            account_id: project.account_id,
+            actor_account_id: 0,
+            claimed_actor_id: "",
+            submission_auth: "",
+            ran_at: NaiveDateTime.add(base_time, -i, :second),
+            git_branch: "main",
+            is_default_branch: false,
+            git_commit_sha: commit_sha,
+            status: if(rem(i, 2) == 0, do: "success", else: "failure"),
+            is_flaky: true,
+            is_flakiness_excluded: false,
+            test_run_destination_id: nil,
+            is_new: false,
+            is_quarantined: false,
+            coverage_evidence: "none",
+            duration: 100,
+            inserted_at: NaiveDateTime.utc_now(),
+            module_name: "FlakyTestModule",
+            suite_name: "",
+            shard_id: nil,
+            shard_index: nil
+          }
+        end
+
+      TestCaseRun.Buffer.insert_all(cross_runs)
+
+      detailed_runs = [{newest_run_id, "Newest"}, {oldest_run_id, "Oldest"}]
+
+      TestCaseFailure.Buffer.insert_all(
+        for {run_id, label} <- detailed_runs do
+          %{
+            id: UUIDv7.generate(),
+            test_case_run_id: run_id,
+            test_case_run_argument_id: nil,
+            message: "#{label} failure",
+            path: "/path/to/other_test.swift",
+            line_number: 7,
+            issue_type: "assertion_failure",
+            inserted_at: NaiveDateTime.utc_now()
+          }
+        end
+      )
+
+      TestCaseRunRepetition.Buffer.insert_all(
+        for {run_id, label} <- detailed_runs do
+          %{
+            id: UUIDv7.generate(),
+            test_case_run_id: run_id,
+            test_case_run_argument_id: nil,
+            repetition_number: 1,
+            name: "#{label} run",
+            status: "failure",
+            duration: 250,
+            source: "run",
+            inserted_at: NaiveDateTime.utc_now()
+          }
+        end
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      assert [group] = Tests.get_flaky_runs_for_test_run(test_run.id)
+      assert group.name == "testFlakyExample"
+      assert length(group.runs) == cross_run_count + 1
+
+      runs_by_id = Map.new(group.runs, &{&1.id, &1})
+
+      assert [%{message: "Assertion failed"}] = runs_by_id[current_run_id].failures
+      assert ["First Run", "Retry 1"] = Enum.map(runs_by_id[current_run_id].repetitions, & &1.name)
+
+      for {run_id, label} <- detailed_runs do
+        failure_message = "#{label} failure"
+        repetition_name = "#{label} run"
+        assert [%{message: ^failure_message}] = runs_by_id[run_id].failures
+        assert [%{name: ^repetition_name}] = runs_by_id[run_id].repetitions
+      end
+    end
+
+    test "returns every group when a test run has more flaky test cases than ClickHouse's form field limit" do
+      project = ProjectsFixtures.project_fixture()
+      flaky_test_case_count = 1_100
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "many-flaky-test-cases",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases:
+                for i <- 1..flaky_test_case_count do
+                  %{
+                    name: "testFlaky#{i}",
+                    status: "success",
+                    duration: 10,
+                    repetitions: [
+                      %{repetition_number: 1, name: "First Run", status: "failure", duration: 4},
+                      %{repetition_number: 2, name: "Retry 1", status: "success", duration: 6}
+                    ]
+                  }
+                end
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Tests.get_flaky_runs_for_test_run(test_run.id)
+
+      assert length(result) == flaky_test_case_count
+      assert Enum.all?(result, fn group -> match?([%{repetitions: [_, _]}], group.runs) end)
+    end
+
+    test "loads failures and repetitions only through put_flaky_run_details/1 when details are skipped" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "deferred-flaky-details",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ],
+                  failures: [
+                    %{
+                      message: "Assertion failed",
+                      path: "/path/to/test.swift",
+                      line_number: 42,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      assert [group] = Tests.get_flaky_runs_for_test_run(test_run.id, details: false)
+      assert [%{failures: %NotLoaded{}, repetitions: %NotLoaded{}}] = group.runs
+      refute Map.has_key?(group, :passed_count)
+
+      assert Tests.put_flaky_run_details([group]) == Tests.get_flaky_runs_for_test_run(test_run.id)
+    end
   end
 
   describe "get_flaky_run_group_for_test_case_run/1" do
@@ -7115,6 +9747,57 @@ defmodule Tuist.TestsTest do
       assert test_case_run.is_new == false
     end
 
+    test "marks test_case_run as not new once the default branch reaches the commit a merge queue ran it on" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      repository = GitHistory.repository_id(project.account_id, "git@github.com:acme/app.git")
+
+      GitHistory.record_commits(repository, "sha1", [
+        %{sha: "main1", parents: [], committed_at: ~U[2026-09-01 00:00:00Z]},
+        %{sha: "queued", parents: ["main1"], committed_at: ~U[2026-09-01 00:01:00Z]},
+        %{sha: "dropped", parents: ["main1"], committed_at: ~U[2026-09-01 00:02:00Z]}
+      ])
+
+      GitHistory.record_branch_head(repository, "main", "queued", "main")
+
+      run = fn git_branch, git_commit_sha, name ->
+        {:ok, test} =
+          Tests.create_test(%{
+            id: UUIDv7.generate(),
+            project_id: project.id,
+            account_id: account.id,
+            duration: 1000,
+            status: "success",
+            model_identifier: "Mac15,6",
+            macos_version: "14.0",
+            xcode_version: "15.0",
+            git_branch: git_branch,
+            git_commit_sha: git_commit_sha,
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            test_modules: [
+              %{
+                name: "QueueModule",
+                status: "success",
+                duration: 1000,
+                test_cases: [%{name: name, status: "success", duration: 500}]
+              }
+            ]
+          })
+
+        {[test_case_run], _meta} =
+          Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
+
+        test_case_run
+      end
+
+      run.("gh-readonly-queue/main/pr-1-queued", "queued", "testMerged")
+      run.("gh-readonly-queue/main/pr-2-dropped", "dropped", "testDropped")
+
+      assert run.("feature", "feature1", "testMerged").is_new == false
+      assert run.("feature", "feature1", "testDropped").is_new == true
+    end
+
     test "non-CI runs on default branch do not affect is_new detection" do
       # Given - a project with a non-CI test run on main
       project = ProjectsFixtures.project_fixture()
@@ -7441,13 +10124,206 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "test_case_states materialized view" do
+    test "projects control-plane events into test_case_states" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+
+      # Then
+      assert %{state: "muted"} = projected_test_case_state(project.id, test_case.id)
+    end
+
+    test "a flaky event does not clobber the state set by an earlier mute" do
+      # This is the bug the whole move exists to fix, in its final form. Both
+      # columns used to share a row, so writing one carried the other along and
+      # a concurrent change to it was lost. Each event now sets only the column
+      # it is about and leaves the other NULL, so resolving them independently
+      # is the thing that has to hold.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+
+      # Then
+      assert %{state: "muted", is_flaky: true} = projected_test_case_state(project.id, test_case.id)
+    end
+
+    test "an unmute after a mute resolves back to enabled" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "enabled"})
+
+      # Then
+      assert %{state: "enabled"} = projected_test_case_state(project.id, test_case.id)
+    end
+  end
+
+  # Resolves the projection the same way `Tuist.Tests` does: each column from
+  # its own event stream, ignoring the rows that left it NULL.
+  defp projected_test_case_state(project_id, test_case_id) do
+    ClickHouseRepo.one(
+      from(s in TestCaseState,
+        where: s.project_id == ^project_id and s.test_case_id == ^test_case_id,
+        group_by: s.test_case_id,
+        select: %{
+          state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
+          is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+        }
+      )
+    )
+  end
+
+  describe "test_case_current_states materialized view" do
+    # `test_case_current_states` is the pre-aggregated read counterpart of the
+    # `test_case_states` ledger: the ledger MV cascades into it, and readers
+    # finalize with `argMaxIfMerge`. These mirror the ledger-MV tests above so
+    # the aggregate is proven to resolve state the same way, since PR2 points the
+    # `Tuist.Tests` readers at this table.
+
+    test "cascades control-plane events into the aggregate current state" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+
+      # Then
+      assert %{state: "muted"} = current_test_case_state(project.id, test_case.id)
+    end
+
+    test "a flaky event does not clobber the state set by an earlier mute" do
+      # The core invariant, carried through the aggregate: each column is folded
+      # from its own non-null event stream via `argMaxIf`, so a later
+      # `marked_flaky` (state NULL) cannot revert the mute.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+
+      # Then
+      assert %{state: "muted", is_flaky: true} = current_test_case_state(project.id, test_case.id)
+    end
+
+    test "an unmute after a mute resolves back to enabled" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "enabled"})
+
+      # Then
+      assert %{state: "enabled"} = current_test_case_state(project.id, test_case.id)
+    end
+
+    test "a never-touched test case has no aggregate row" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # Then — no control-plane event ever fired, so nothing projects here and
+      # the reader falls back to defaults on its own.
+      assert current_test_case_state(project.id, test_case.id) == nil
+    end
+
+    test "is_flaky resolves back to a real false (not 0) after unmark" do
+      # Guards the Nullable(Bool)-inside-AggregateFunction round-trip: the merge
+      # must yield a boolean `false`, not the integer `0`, and unmarking flaky
+      # must not disturb the mute set on its own column.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: false})
+
+      # Then
+      assert %{state: "muted", is_flaky: false} = current_test_case_state(project.id, test_case.id)
+    end
+
+    test "a flaky-only test case resolves to the enabled default through the reader" do
+      # The aggregate stores a null state for a test case that only ever had a
+      # flaky event; the reader's normalization must turn that null into the
+      # `enabled` default while keeping is_flaky true. Exercised end-to-end via
+      # `get_test_case_by_id/1`, which reads `resolve_test_case_state/2`.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+
+      # Then
+      assert {:ok, %{state: "enabled", is_flaky: true}} = Tests.get_test_case_by_id(test_case.id)
+    end
+  end
+
+  # Resolves the current state from the aggregate table the way the PR2 readers
+  # will: finalize each column's `argMaxIf` state with `argMaxIfMerge`, grouped
+  # by the key (partial states are not merged synchronously).
+  defp current_test_case_state(project_id, test_case_id) do
+    ClickHouseRepo.one(
+      from(s in TestCaseCurrentState,
+        where: s.project_id == ^project_id and s.test_case_id == ^test_case_id,
+        group_by: [s.project_id, s.test_case_id],
+        select: %{
+          state: fragment("argMaxIfMerge(state)"),
+          is_flaky: fragment("argMaxIfMerge(is_flaky)")
+        }
+      )
+    )
+  end
+
   describe "update_test_case/3 with event creation" do
     test "creates marked_flaky event when is_flaky changes from false to true" do
       # Given
-      project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account: user.account)
+      token = AccountsFixtures.account_token_fixture(account: user.account, scopes: ["mcp"])
+
+      %Subscription{}
+      |> Subscription.changeset(%{
+        id: "sub_marked_flaky_#{Ecto.UUID.generate()}",
+        user_id: user.id,
+        account_token_id: token.id,
+        account_id: user.account.id,
+        project_id: project.id,
+        event_name: "test_case.marked_flaky",
+        callback_url: "https://example.com/events",
+        signing_secret: "whsec_" <> Base.encode64(:crypto.strong_rand_bytes(32)),
+        refresh_before: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.truncate(:second)
+      })
+      |> Repo.insert!()
+
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # When
       {:ok, _updated} =
@@ -7462,6 +10338,7 @@ defmodule Tuist.TestsTest do
       assert length(events) == 1
       assert hd(events).event_type == "marked_flaky"
       assert hd(events).actor_id == user.account.id
+      assert_enqueued(worker: FanoutWorker, args: %{"project_id" => project.id, "test_case_id" => test_case.id})
     end
 
     test "creates unmarked_flaky event when is_flaky changes from true to false" do
@@ -7469,7 +10346,7 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # When
       {:ok, _updated} =
@@ -7489,7 +10366,7 @@ defmodule Tuist.TestsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_quarantined: false)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # When
       {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "muted"})
@@ -7504,7 +10381,7 @@ defmodule Tuist.TestsTest do
     test "creates skipped event when state transitions from enabled to skipped" do
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "skipped"})
 
@@ -7516,7 +10393,7 @@ defmodule Tuist.TestsTest do
     test "creates unskipped event when a skipped test case goes back to enabled" do
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "skipped")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "enabled"})
 
@@ -7528,7 +10405,7 @@ defmodule Tuist.TestsTest do
     test "creates skipped event when transitioning from muted to skipped" do
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "muted")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "skipped"})
 
@@ -7542,7 +10419,7 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # When
       {:ok, _updated} =
@@ -7565,7 +10442,7 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       expected_test_case_id = test_case.id
       expected_project_id = project.id
@@ -7585,7 +10462,7 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       expected_test_case_id = test_case.id
 
@@ -7605,7 +10482,7 @@ defmodule Tuist.TestsTest do
       # downstream `test_updated` alert subscribed to `marked_flaky`.
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       expected_test_case_id = test_case.id
 
@@ -7621,7 +10498,7 @@ defmodule Tuist.TestsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
       test_case_id = test_case.id
@@ -7647,7 +10524,7 @@ defmodule Tuist.TestsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       alert =
         AutomationsFixtures.automation_alert_fixture(
@@ -7681,7 +10558,7 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       AutomationsFixtures.automation_alert_fixture(
         project: project,
@@ -7704,7 +10581,7 @@ defmodule Tuist.TestsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
 
@@ -7738,7 +10615,7 @@ defmodule Tuist.TestsTest do
       test_case =
         RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled", is_flaky: false)
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       assert :ok =
                ActionExecutor.execute_actions(
@@ -7760,7 +10637,7 @@ defmodule Tuist.TestsTest do
       test_case =
         RunsFixtures.test_case_fixture(project_id: project.id, state: "muted", is_flaky: true)
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       assert :ok =
                ActionExecutor.execute_actions(
@@ -7787,7 +10664,7 @@ defmodule Tuist.TestsTest do
       test_case =
         RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled", is_flaky: false)
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       expect(Tests, :update_test_case, 1, fn id, attrs, opts ->
         Mimic.call_original(Tests, :update_test_case, [id, attrs, opts])
@@ -7848,7 +10725,7 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -7883,8 +10760,8 @@ defmodule Tuist.TestsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        muted_test_case |> Map.from_struct() |> Map.delete(:__meta__),
-        skipped_test_case |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(muted_test_case),
+        TuistTestSupport.Utilities.insertable_attrs(skipped_test_case)
       ])
 
       {results, meta} = Tests.list_quarantined_test_cases(project.id, %{})
@@ -7917,8 +10794,8 @@ defmodule Tuist.TestsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        muted_test_case |> Map.from_struct() |> Map.delete(:__meta__),
-        skipped_test_case |> Map.from_struct() |> Map.delete(:__meta__)
+        TuistTestSupport.Utilities.insertable_attrs(muted_test_case),
+        TuistTestSupport.Utilities.insertable_attrs(skipped_test_case)
       ])
 
       {results, meta} =
@@ -7944,19 +10821,21 @@ defmodule Tuist.TestsTest do
           is_flaky: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       # Create both events with the same timestamp (as update_test_case does)
       now = NaiveDateTime.utc_now()
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
+        project_id: project.id,
         event_type: "muted",
         inserted_at: now
       )
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
+        project_id: project.id,
         event_type: "marked_flaky",
         inserted_at: now
       )
@@ -7985,7 +10864,7 @@ defmodule Tuist.TestsTest do
             is_quarantined: true
           )
 
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
@@ -8015,7 +10894,7 @@ defmodule Tuist.TestsTest do
             is_quarantined: true
           )
 
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
@@ -8046,7 +10925,7 @@ defmodule Tuist.TestsTest do
             is_quarantined: true
           )
 
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
@@ -8065,6 +10944,194 @@ defmodule Tuist.TestsTest do
       assert Enum.map(desc_results, & &1.name) == ["zebra", "beta", "alpha"]
     end
 
+    test "supports ordering by quarantined_at" do
+      project = ProjectsFixtures.project_fixture()
+      now = NaiveDateTime.utc_now()
+
+      for {name, offset} <- [{"oldest", -3600}, {"middle", -1800}, {"newest", -60}] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            is_quarantined: true
+          )
+
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: "muted",
+          inserted_at: NaiveDateTime.add(now, offset)
+        )
+      end
+
+      {asc_results, _} =
+        Tests.list_quarantined_test_cases(project.id, %{
+          order_by: [:quarantined_at],
+          order_directions: [:asc]
+        })
+
+      assert Enum.map(asc_results, & &1.name) == ["oldest", "middle", "newest"]
+
+      {desc_results, _} =
+        Tests.list_quarantined_test_cases(project.id, %{
+          order_by: [:quarantined_at],
+          order_directions: [:desc]
+        })
+
+      assert Enum.map(desc_results, & &1.name) == ["newest", "middle", "oldest"]
+      assert Enum.all?(desc_results, & &1.quarantined_at)
+    end
+
+    test "quarantined_at reflects the current quarantine period after a re-quarantine" do
+      project = ProjectsFixtures.project_fixture()
+      now = NaiveDateTime.utc_now()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "requarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      second_muted_at = NaiveDateTime.add(now, -1200)
+
+      for {event_type, inserted_at} <- [
+            {"muted", NaiveDateTime.add(now, -3600)},
+            {"unmuted", NaiveDateTime.add(now, -2400)},
+            {"muted", second_muted_at}
+          ] do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: event_type,
+          inserted_at: inserted_at
+        )
+      end
+
+      {[quarantined_test], _} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert NaiveDateTime.compare(
+               NaiveDateTime.truncate(quarantined_test.quarantined_at, :second),
+               NaiveDateTime.truncate(second_muted_at, :second)
+             ) == :eq
+    end
+
+    test "an automation re-quarantine is not attributed to an earlier manual actor" do
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      now = NaiveDateTime.utc_now()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "automationRequarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      automation_muted_at = NaiveDateTime.add(now, -1200)
+
+      # A manual quarantine episode, reverted, then an automation (nil actor)
+      # re-quarantines. ClickHouse aggregates skip NULLs, so a bare argMax
+      # would resurrect the manual actor here.
+      for {event_type, actor_id, inserted_at} <- [
+            {"skipped", user.account.id, NaiveDateTime.add(now, -3600)},
+            {"unskipped", user.account.id, NaiveDateTime.add(now, -2400)},
+            {"muted", nil, automation_muted_at}
+          ] do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: event_type,
+          actor_id: actor_id,
+          inserted_at: inserted_at
+        )
+      end
+
+      {[quarantined_test], _} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert quarantined_test.quarantined_by_account_id == nil
+      assert quarantined_test.quarantined_by_account_name == nil
+
+      # A nil actor is also what an unmatched left join yields, so the
+      # timestamp is what pins the aggregate to the automation event — and
+      # proves attribution and `quarantined_at` describe the same one.
+      assert NaiveDateTime.compare(
+               NaiveDateTime.truncate(quarantined_test.quarantined_at, :second),
+               NaiveDateTime.truncate(automation_muted_at, :second)
+             ) == :eq
+    end
+
+    test "quarantined_at resets when the quarantine mode changes" do
+      project = ProjectsFixtures.project_fixture()
+      now = NaiveDateTime.utc_now()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "modeChangedTest",
+          state: "skipped"
+        )
+
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      skipped_at = NaiveDateTime.add(now, -600)
+
+      for {event_type, inserted_at} <- [
+            {"muted", NaiveDateTime.add(now, -7200)},
+            {"skipped", skipped_at}
+          ] do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: event_type,
+          inserted_at: inserted_at
+        )
+      end
+
+      {[quarantined_test], _} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert quarantined_test.state == "skipped"
+
+      assert NaiveDateTime.compare(
+               NaiveDateTime.truncate(quarantined_test.quarantined_at, :second),
+               NaiveDateTime.truncate(skipped_at, :second)
+             ) == :eq
+    end
+
+    test "exposes when the latest quarantine event happened" do
+      project = ProjectsFixtures.project_fixture()
+      quarantined_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -900)
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "quarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        event_type: "muted",
+        inserted_at: quarantined_at
+      )
+
+      {[quarantined_test], _} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert NaiveDateTime.compare(
+               NaiveDateTime.truncate(quarantined_test.quarantined_at, :second),
+               NaiveDateTime.truncate(quarantined_at, :second)
+             ) == :eq
+    end
+
     test "does not return test cases from other projects" do
       project1 = ProjectsFixtures.project_fixture()
       project2 = ProjectsFixtures.project_fixture()
@@ -8076,7 +11143,7 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -8102,10 +11169,11 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [tuist_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(tuist_test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: tuist_test_case.id,
+        project_id: project.id,
         event_type: "muted",
         actor_id: nil
       )
@@ -8118,10 +11186,11 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [user_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(user_test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user_test_case.id,
+        project_id: project.id,
         event_type: "muted",
         actor_id: user.account.id
       )
@@ -8149,10 +11218,11 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [user1_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(user1_test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user1_test_case.id,
+        project_id: project.id,
         event_type: "muted",
         actor_id: user1.account.id
       )
@@ -8165,10 +11235,11 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [user2_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(user2_test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user2_test_case.id,
+        project_id: project.id,
         event_type: "muted",
         actor_id: user2.account.id
       )
@@ -8199,7 +11270,7 @@ defmodule Tuist.TestsTest do
             is_quarantined: true
           )
 
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
@@ -8236,7 +11307,7 @@ defmodule Tuist.TestsTest do
             is_quarantined: true
           )
 
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
@@ -8271,7 +11342,7 @@ defmodule Tuist.TestsTest do
           inserted_at: ~N[2024-01-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [old_version |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(old_version)])
 
       # Newer version: no longer quarantined (e.g. after unquarantine or re-ingestion)
       new_version =
@@ -8283,7 +11354,7 @@ defmodule Tuist.TestsTest do
           inserted_at: ~N[2024-01-02 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [new_version |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(new_version)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_id,
@@ -8323,7 +11394,7 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -8334,6 +11405,41 @@ defmodule Tuist.TestsTest do
       actors = Tests.get_quarantine_actors(project.id)
 
       assert actors == []
+    end
+
+    test "excludes an actor whose manual quarantine an automation has superseded" do
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      now = NaiveDateTime.utc_now()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "automationRequarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
+
+      # The dropdown must not offer a user whose only attribution is a manual
+      # episode they reverted themselves before an automation re-quarantined.
+      # Every other test here has a single event per test case, which resolves
+      # the same way with or without the NULL-aware aggregate.
+      for {event_type, actor_id, inserted_at} <- [
+            {"skipped", user.account.id, NaiveDateTime.add(now, -3600)},
+            {"unskipped", user.account.id, NaiveDateTime.add(now, -2400)},
+            {"muted", nil, NaiveDateTime.add(now, -1200)}
+          ] do
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          project_id: project.id,
+          event_type: event_type,
+          actor_id: actor_id,
+          inserted_at: inserted_at
+        )
+      end
+
+      assert Tests.get_quarantine_actors(project.id) == []
     end
 
     test "returns accounts that have quarantined test cases" do
@@ -8347,7 +11453,7 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -8373,7 +11479,7 @@ defmodule Tuist.TestsTest do
             is_quarantined: true
           )
 
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+        IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
@@ -8401,7 +11507,7 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case1 |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case1)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case1.id,
@@ -8417,7 +11523,7 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case2 |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case2)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case2.id,
@@ -8445,7 +11551,7 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -8523,6 +11629,41 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert {:error, :not_found} = result
+    end
+  end
+
+  describe "get_test_case_run_attachment/2" do
+    test "returns the attachment for the given test case run" do
+      test_case_run_id = UUIDv7.generate()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(test_case_run_id: test_case_run_id)
+
+      assert {:ok, result} =
+               Tests.get_test_case_run_attachment(test_case_run_id, attachment.id)
+
+      assert result.id == attachment.id
+    end
+
+    test "uses a sequentially consistent read" do
+      test_case_run_id = UUIDv7.generate()
+      attachment_id = UUIDv7.generate()
+
+      expect(ClickHouseRepo, :one, fn _query, opts ->
+        assert opts == [settings: [select_sequential_consistency: 1]]
+        nil
+      end)
+
+      assert {:error, :not_found} =
+               Tests.get_test_case_run_attachment(test_case_run_id, attachment_id)
+    end
+
+    test "returns an error when the attachment belongs to another test case run" do
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(test_case_run_id: UUIDv7.generate())
+
+      assert {:error, :not_found} =
+               Tests.get_test_case_run_attachment(UUIDv7.generate(), attachment.id)
     end
   end
 
@@ -8761,7 +11902,7 @@ defmodule Tuist.TestsTest do
 
       stale_id = UUIDv7.generate()
 
-      IngestRepo.insert_all(Tests.Test, [
+      IngestRepo.insert_all(Test, [
         %{
           id: stale_id,
           project_id: project.id,
@@ -8785,7 +11926,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id))
+        ClickHouseRepo.all(from(t in Test, hints: ["FINAL"], where: t.id == ^stale_id))
 
       assert run.status == "failure"
     end
@@ -8796,7 +11937,7 @@ defmodule Tuist.TestsTest do
 
       recent_id = UUIDv7.generate()
 
-      IngestRepo.insert_all(Tests.Test, [
+      IngestRepo.insert_all(Test, [
         %{
           id: recent_id,
           project_id: project.id,
@@ -8820,7 +11961,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^recent_id))
+        ClickHouseRepo.all(from(t in Test, hints: ["FINAL"], where: t.id == ^recent_id))
 
       assert run.status == "in_progress"
     end
@@ -8831,7 +11972,7 @@ defmodule Tuist.TestsTest do
 
       completed_id = UUIDv7.generate()
 
-      IngestRepo.insert_all(Tests.Test, [
+      IngestRepo.insert_all(Test, [
         %{
           id: completed_id,
           project_id: project.id,
@@ -8854,10 +11995,58 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^completed_id))
+        ClickHouseRepo.all(from(t in Test, hints: ["FINAL"], where: t.id == ^completed_id))
 
       assert run.status == "success"
     end
+
+    test "does not expire a run whose latest version completed" do
+      project = ProjectsFixtures.project_fixture()
+      seven_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -7, :hour)
+      one_hour_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :hour)
+      completed_id = UUIDv7.generate()
+
+      common_attrs = %{
+        id: completed_id,
+        project_id: project.id,
+        account_id: project.account.id,
+        duration: 0,
+        model_identifier: "",
+        macos_version: "",
+        xcode_version: "",
+        git_branch: "main",
+        git_commit_sha: "",
+        git_ref: "",
+        ran_at: seven_hours_ago,
+        is_ci: true,
+        is_flaky: false
+      }
+
+      IngestRepo.insert_all(Test, [
+        Map.merge(common_attrs, %{status: "in_progress", inserted_at: seven_hours_ago}),
+        Map.merge(common_attrs, %{status: "success", duration: 5000, inserted_at: one_hour_ago})
+      ])
+
+      :ok = Tests.expire_stale_in_progress_test_runs()
+
+      latest =
+        Test
+        |> where([test], test.id == ^completed_id)
+        |> order_by([test], desc: test.inserted_at)
+        |> limit(1)
+        |> ClickHouseRepo.one()
+
+      assert latest.status == "success"
+      assert latest.inserted_at == one_hour_ago
+    end
+  end
+
+  defp listed_test_case_names(project_id, filters) do
+    {test_cases, _meta} = Tests.list_test_cases(project_id, %{filters: filters})
+
+    test_cases
+    |> Enum.map(& &1.name)
+    |> Enum.sort()
   end
 
   defp test_report(project, test_cases) do
@@ -8937,6 +12126,107 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture(default_branch: "main")
 
       assert Tests.test_case_ids_with_successful_default_branch_run(project.id, [], "main") == []
+    end
+  end
+
+  defp capture_clickhouse_queries(fun) do
+    test_pid = self()
+    handler_id = "clickhouse-queries-#{System.unique_integer([:positive])}"
+
+    # `:telemetry` handlers are global, so an async test running alongside this
+    # one would otherwise land its queries in the captured list and shift the
+    # positions the ordering assertions read.
+    :telemetry.attach_many(
+      handler_id,
+      [[:tuist, :click_house_repo, :query], [:tuist, :ingest_repo, :query]],
+      fn _event, _measurements, %{query: query}, _config ->
+        if test_pid == self() or test_pid in Process.get(:"$callers", []) do
+          send(test_pid, {:clickhouse_query, query})
+        end
+      end,
+      nil
+    )
+
+    try do
+      fun.()
+    after
+      :telemetry.detach(handler_id)
+    end
+
+    drain_clickhouse_queries([])
+  end
+
+  defp drain_clickhouse_queries(acc) do
+    receive do
+      {:clickhouse_query, query} -> drain_clickhouse_queries([query | acc])
+    after
+      0 -> Enum.reverse(acc)
+    end
+  end
+
+  describe "create_test/1 with the repository, dirty checkouts and execution mode" do
+    test "records the run's repository from its remote, whether the checkout was dirty, and how the tests executed" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {:ok, run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          scheme: "App",
+          git_branch: "main",
+          git_commit_sha: "abc",
+          git_remote_url_origin: "git@github.com:Acme/App.git",
+          git_dirty: true,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          execution_mode: "parallel",
+          test_modules: [
+            %{name: "AppTests", status: "success", duration: 100, execution_mode: "serial", test_cases: []},
+            %{name: "CoreTests", status: "success", duration: 100, test_cases: []}
+          ]
+        })
+
+      {:ok, stored} = Tests.get_test(run.id)
+      assert {stored.execution_mode, stored.git_dirty} == {"parallel", true}
+      assert stored.git_repository_id == GitHistory.repository_id(project.account_id, "https://github.com/acme/app")
+
+      modes =
+        ClickHouseRepo.all(
+          from(m in Tuist.Tests.TestModuleRun,
+            where: m.test_run_id == ^run.id,
+            select: {m.name, m.execution_mode},
+            order_by: m.name
+          )
+        )
+
+      assert modes == [{"AppTests", "serial"}, {"CoreTests", ""}]
+    end
+
+    test "leaves a run without them at the defaults" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {:ok, run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          scheme: "App",
+          git_branch: "main",
+          git_commit_sha: "abc",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: []
+        })
+
+      {:ok, stored} = Tests.get_test(run.id)
+      assert {stored.execution_mode, stored.git_dirty, stored.git_repository_id} == {"", false, 0}
     end
   end
 end

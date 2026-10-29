@@ -9,6 +9,205 @@ import XcodeProj
 struct CrossProjectTargetDependencyGeneratorTests {
     private let subject = CrossProjectTargetDependencyGenerator()
 
+    // swiftlint:disable:next function_body_length
+    @Test func generate_linksCrossProjectResourceBundleToProducerProduct() async throws {
+        let consumerPath = try AbsolutePath(validating: "/Workspace/Consumer")
+        let resourcePath = try AbsolutePath(validating: "/Workspace/Resources")
+        let resourceTarget = Target.test(name: "FeatureResourceBundle", product: .bundle)
+        let consumerTarget = Target.test(
+            name: "App",
+            dependencies: [.project(target: resourceTarget.name, path: resourcePath)]
+        )
+        let resourceProject = Project.test(path: resourcePath, targets: [resourceTarget])
+        let consumerProject = Project.test(path: consumerPath, targets: [consumerTarget])
+        let graph = Graph.test(
+            projects: [
+                resourcePath: resourceProject,
+                consumerPath: consumerProject,
+            ],
+            dependencies: [
+                .target(name: consumerTarget.name, path: consumerPath): Set([
+                    .target(name: resourceTarget.name, path: resourcePath),
+                ]),
+            ]
+        )
+
+        let resourceDescriptor = makeDescriptor(path: resourcePath, bundleTargets: [resourceTarget.name])
+        let consumerDescriptor = makeDescriptor(path: consumerPath, nativeTargets: [consumerTarget.name])
+        let consumerPbxproj = consumerDescriptor.xcodeProj.pbxproj
+        let generatedConsumer = try #require(
+            consumerPbxproj.nativeTargets.first(where: { $0.name == consumerTarget.name })
+        )
+        let standaloneReference = PBXFileReference(
+            sourceTree: .buildProductsDir,
+            explicitFileType: "wrapper.cfbundle",
+            path: "FeatureResourceBundle.bundle",
+            includeInIndex: false
+        )
+        let resourcesBuildFile = PBXBuildFile(file: standaloneReference)
+        let dependenciesBuildFile = PBXBuildFile(file: standaloneReference)
+        let resourcesBuildPhase = PBXResourcesBuildPhase(files: [resourcesBuildFile])
+        let dependenciesBuildPhase = PBXCopyFilesBuildPhase(
+            dstSubfolderSpec: .productsDirectory,
+            name: "Dependencies",
+            buildActionMask: 8,
+            files: [dependenciesBuildFile],
+            runOnlyForDeploymentPostprocessing: true
+        )
+        for object in [
+            standaloneReference,
+            resourcesBuildFile,
+            dependenciesBuildFile,
+            resourcesBuildPhase,
+            dependenciesBuildPhase,
+        ] {
+            consumerPbxproj.add(object: object)
+        }
+        consumerPbxproj.projects.first?.mainGroup.children.append(standaloneReference)
+        generatedConsumer.buildPhases.append(contentsOf: [resourcesBuildPhase, dependenciesBuildPhase])
+
+        try subject.generate(
+            graphTraverser: GraphTraverser(graph: graph),
+            projectDescriptors: [resourceDescriptor, consumerDescriptor]
+        )
+        try subject.generate(
+            graphTraverser: GraphTraverser(graph: graph),
+            projectDescriptors: [resourceDescriptor, consumerDescriptor]
+        )
+
+        let resourcesProxy = try #require(resourcesBuildFile.file as? PBXReferenceProxy)
+        let dependenciesProxy = try #require(dependenciesBuildFile.file as? PBXReferenceProxy)
+        #expect(resourcesProxy === dependenciesProxy)
+        #expect(resourcesProxy.fileType == "wrapper.cfbundle")
+        #expect(resourcesProxy.path == "FeatureResourceBundle.bundle")
+        #expect(resourcesProxy.sourceTree == .buildProductsDir)
+
+        let generatedResource = try #require(
+            resourceDescriptor.xcodeProj.pbxproj.nativeTargets.first(where: { $0.name == resourceTarget.name })
+        )
+        let generatedProduct = try #require(generatedResource.product)
+        let productContainerProxy = try #require(resourcesProxy.remote)
+        #expect(productContainerProxy.proxyType == .reference)
+        guard case let .object(remoteProduct) = productContainerProxy.remoteGlobalID else {
+            Issue.record("Expected the reference proxy to point at the producer product")
+            return
+        }
+        #expect(remoteProduct.uuid == generatedProduct.uuid)
+        #expect(generatedConsumer.dependencies.first?.name == resourceTarget.name)
+        #expect(generatedConsumer.dependencies.count == 1)
+        #expect(consumerPbxproj.referenceProxies.count == 1)
+        #expect(!consumerPbxproj.fileReferences.contains(where: { $0 === standaloneReference }))
+    }
+
+    @Test func generate_linksResourceBundleReachedTransitivelyThroughAnotherProject() async throws {
+        let consumerPath = try AbsolutePath(validating: "/Workspace/Consumer")
+        let featurePath = try AbsolutePath(validating: "/Workspace/Feature")
+        let resourcePath = try AbsolutePath(validating: "/Workspace/Resources")
+        let resourceTarget = Target.test(name: "FeatureResourceBundle", product: .bundle)
+        let featureTarget = Target.test(
+            name: "Feature",
+            product: .staticFramework,
+            dependencies: [.project(target: resourceTarget.name, path: resourcePath)]
+        )
+        let consumerTarget = Target.test(
+            name: "App",
+            dependencies: [.project(target: featureTarget.name, path: featurePath)]
+        )
+        let graph = Graph.test(
+            projects: [
+                resourcePath: Project.test(path: resourcePath, targets: [resourceTarget]),
+                featurePath: Project.test(path: featurePath, targets: [featureTarget]),
+                consumerPath: Project.test(path: consumerPath, targets: [consumerTarget]),
+            ],
+            dependencies: [
+                .target(name: consumerTarget.name, path: consumerPath): Set([
+                    .target(name: featureTarget.name, path: featurePath),
+                ]),
+                .target(name: featureTarget.name, path: featurePath): Set([
+                    .target(name: resourceTarget.name, path: resourcePath),
+                ]),
+            ]
+        )
+
+        let resourceDescriptor = makeDescriptor(path: resourcePath, bundleTargets: [resourceTarget.name])
+        let featureDescriptor = makeDescriptor(path: featurePath, nativeTargets: [featureTarget.name])
+        let consumerDescriptor = makeDescriptor(path: consumerPath, nativeTargets: [consumerTarget.name])
+        let consumerPbxproj = consumerDescriptor.xcodeProj.pbxproj
+        let generatedConsumer = try #require(
+            consumerPbxproj.nativeTargets.first(where: { $0.name == consumerTarget.name })
+        )
+        let standaloneReference = addStandaloneResourceBuildFile(
+            named: "FeatureResourceBundle.bundle",
+            to: generatedConsumer,
+            in: consumerPbxproj
+        )
+
+        try subject.generate(
+            graphTraverser: GraphTraverser(graph: graph),
+            projectDescriptors: [resourceDescriptor, featureDescriptor, consumerDescriptor]
+        )
+
+        let buildFile = try #require(generatedConsumer.buildPhases.first?.files?.first)
+        let proxy = try #require(buildFile.file as? PBXReferenceProxy)
+        let generatedResource = try #require(
+            resourceDescriptor.xcodeProj.pbxproj.nativeTargets.first(where: { $0.name == resourceTarget.name })
+        )
+        let generatedProduct = try #require(generatedResource.product)
+        guard case let .object(remoteProduct) = try #require(proxy.remote).remoteGlobalID else {
+            Issue.record("Expected the reference proxy to point at the producer product")
+            return
+        }
+        #expect(remoteProduct.uuid == generatedProduct.uuid)
+        #expect(generatedConsumer.dependencies.map(\.name) == [resourceTarget.name])
+        #expect(!consumerPbxproj.fileReferences.contains(where: { $0 === standaloneReference }))
+    }
+
+    @Test func generate_leavesSameProjectResourceBundlesUntouched() async throws {
+        let consumerPath = try AbsolutePath(validating: "/Workspace/Consumer")
+        let resourceTarget = Target.test(name: "LocalResourceBundle", product: .bundle)
+        let consumerTarget = Target.test(
+            name: "App",
+            dependencies: [.target(name: resourceTarget.name)]
+        )
+        let graph = Graph.test(
+            projects: [
+                consumerPath: Project.test(path: consumerPath, targets: [consumerTarget, resourceTarget]),
+            ],
+            dependencies: [
+                .target(name: consumerTarget.name, path: consumerPath): Set([
+                    .target(name: resourceTarget.name, path: consumerPath),
+                ]),
+            ]
+        )
+
+        let consumerDescriptor = makeDescriptor(
+            path: consumerPath,
+            nativeTargets: [consumerTarget.name],
+            bundleTargets: [resourceTarget.name]
+        )
+        let consumerPbxproj = consumerDescriptor.xcodeProj.pbxproj
+        let generatedConsumer = try #require(
+            consumerPbxproj.nativeTargets.first(where: { $0.name == consumerTarget.name })
+        )
+        let localProduct = try #require(
+            consumerPbxproj.nativeTargets.first(where: { $0.name == resourceTarget.name })?.product
+        )
+        let buildFile = PBXBuildFile(file: localProduct)
+        let buildPhase = PBXResourcesBuildPhase(files: [buildFile])
+        consumerPbxproj.add(object: buildFile)
+        consumerPbxproj.add(object: buildPhase)
+        generatedConsumer.buildPhases.append(buildPhase)
+
+        try subject.generate(
+            graphTraverser: GraphTraverser(graph: graph),
+            projectDescriptors: [consumerDescriptor]
+        )
+
+        #expect(buildFile.file === localProduct)
+        #expect(consumerPbxproj.referenceProxies.isEmpty)
+        #expect(generatedConsumer.dependencies.isEmpty)
+    }
+
     @Test func generate_wiresCrossProjectDependencyOnConsumer() async throws {
         let consumerPath = try AbsolutePath(validating: "/Workspace/Consumer")
         let aggregatePath = try AbsolutePath(validating: "/Workspace/Foreign")
@@ -455,9 +654,32 @@ struct CrossProjectTargetDependencyGeneratorTests {
 
     // MARK: - Helpers
 
+    @discardableResult
+    private func addStandaloneResourceBuildFile(
+        named productName: String,
+        to target: PBXNativeTarget,
+        in pbxproj: PBXProj
+    ) -> PBXFileReference {
+        let reference = PBXFileReference(
+            sourceTree: .buildProductsDir,
+            explicitFileType: "wrapper.cfbundle",
+            path: productName,
+            includeInIndex: false
+        )
+        let buildFile = PBXBuildFile(file: reference)
+        let buildPhase = PBXResourcesBuildPhase(files: [buildFile])
+        for object in [reference, buildFile, buildPhase] as [PBXObject] {
+            pbxproj.add(object: object)
+        }
+        pbxproj.projects.first?.mainGroup.children.append(reference)
+        target.buildPhases.append(buildPhase)
+        return reference
+    }
+
     private func makeDescriptor(
         path: AbsolutePath,
         nativeTargets: [String] = [],
+        bundleTargets: [String] = [],
         aggregateTargets: [String] = []
     ) -> ProjectDescriptor {
         let mainGroup = PBXGroup()
@@ -495,6 +717,28 @@ struct CrossProjectTargetDependencyGeneratorTests {
                 productName: name,
                 product: productRef,
                 productType: .framework
+            )
+            pbxproj.add(object: target)
+            pbxProject.targets.append(target)
+        }
+        for name in bundleTargets {
+            let productRef = PBXFileReference(
+                sourceTree: .buildProductsDir,
+                explicitFileType: "wrapper.cfbundle",
+                path: "\(name).bundle",
+                includeInIndex: false
+            )
+            pbxproj.add(object: productRef)
+            let target = PBXNativeTarget(
+                name: name,
+                buildConfigurationList: nil,
+                buildPhases: [],
+                buildRules: [],
+                dependencies: [],
+                productInstallPath: nil,
+                productName: name,
+                product: productRef,
+                productType: .bundle
             )
             pbxproj.add(object: target)
             pbxProject.targets.append(target)

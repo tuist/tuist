@@ -7,12 +7,6 @@
 ---
 # Xcode test insights {#xcode-test-insights}
 
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-
-
 Tuist Test Insights gives you Xcode test analytics to monitor your test suite's health by identifying slow tests or quickly understanding failed CI runs. As your test suite grows, it becomes increasingly difficult to spot trends like gradually slowing tests or intermittent failures. Tuist Test Insights provides you with the visibility you need to maintain a fast and reliable test suite.
 
 With Test Insights, you can answer questions such as:
@@ -39,7 +33,6 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 > Your environment's `PATH` environment variable is not inherited by the scheme post action, and therefore you have to use Mise's absolute path,
 > which will depend on how you installed Mise. Moreover, don't forget to inherit the build settings from a target in your project such that you
 > can run Mise from the directory pointed to by $SRCROOT.
-
 
 Your test runs are now tracked as long as you are logged in to your Tuist account. You can access your test insights in the Tuist dashboard and see how they evolve over time:
 
@@ -112,3 +105,12 @@ Additionally, you will either need to:
 - Add `-resultBundlePath` to your `xcodebuild` invocation.
 
 When `xcodebuild` tests your project without `-resultBundlePath`, the required result bundle files are not generated. The `tuist inspect test` post-action requires these files to analyze your tests.
+
+### Git history {#git-history}
+
+On CI, Tuist also uploads the commit history of the checkout: commit SHAs, their parents, commit dates, and the branch the run and its pull request's base branch were on. No file contents, commit messages, or authors are uploaded. It's what tells Tuist which commits landed on your default branch, for example the ones a merge queue tested. Tuist reads the history the checkout already has, and when the checkout doesn't have the base branch, asks the remote for its latest commit (`git ls-remote`). Outside code coverage, it doesn't fetch history.
+
+| Variable | Effect |
+| --- | --- |
+| `TUIST_GIT_UPLOAD_ENABLED=false` | Doesn't read or upload any Git history. |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | Reads only the checkout, without contacting the remote. |

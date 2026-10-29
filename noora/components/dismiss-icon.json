@@ -1,0 +1,69 @@
+{
+  "name": "DismissIcon",
+  "tagName": "noora-dismiss-icon",
+  "elementClassName": "NooraDismissIcon",
+  "className": "noora-dismiss-icon",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Provides a compact, accessible dismiss button.",
+  "usage": "<noora-dismiss-icon></noora-dismiss-icon>",
+  "attributes": [
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["small", "large"],
+      "default": "large",
+      "description": "Controls the icon dimensions."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables the button."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "Dismiss",
+      "description": "Sets the accessible label."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "button",
+      "description": "The native button."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-dismiss",
+      "type": "CustomEvent<Record<string, never>>",
+      "description": "Emitted when the dismiss control is activated."
+    }
+  ],
+  "notes": ["Activation emits a `noora-dismiss` event."],
+  "examples": [
+    {
+      "id": "sizes",
+      "title": "Sizes",
+      "description": "Use the size that matches the surrounding surface.",
+      "markup": "<noora-dismiss-icon size=\"small\"></noora-dismiss-icon>\n<noora-dismiss-icon size=\"large\"></noora-dismiss-icon>"
+    },
+    {
+      "id": "states",
+      "title": "States",
+      "description": "Compare enabled and disabled controls.",
+      "markup": "<noora-dismiss-icon label=\"Dismiss notification\"></noora-dismiss-icon>\n<noora-dismiss-icon label=\"Dismiss notification\" disabled></noora-dismiss-icon>"
+    },
+    {
+      "id": "events",
+      "title": "Dismiss events",
+      "description": "Listen for the noora-dismiss event when the control is activated.",
+      "markup": "<noora-dismiss-icon size=\"small\" label=\"Remove item\"></noora-dismiss-icon>\n<noora-dismiss-icon size=\"large\" label=\"Close panel\"></noora-dismiss-icon>"
+    }
+  ]
+}

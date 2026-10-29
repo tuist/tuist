@@ -17,6 +17,19 @@ struct XcodeBuildCommandReorderer: AsyncParsableCommand {
     var arguments: [String] = []
 
     func run() async throws {
+        var command = try reorderedCommand()
+        let commandName = XcodeBuildCommand.configuration.commandName ?? "xcodebuild"
+        await RunMetadataStorage.current.update(
+            resolvedCommandMetadata: AnalyticsCommandMetadata(
+                name: commandName,
+                subcommand: type(of: command).configuration.commandName,
+                commandArguments: [commandName] + arguments
+            )
+        )
+        try await command.run()
+    }
+
+    func reorderedCommand() throws -> any XcodeBuildPassthroughCommand {
         guard !arguments.isEmpty else {
             throw ValidationError("No arguments provided. Use 'tuist xcodebuild --help' for usage information.")
         }
@@ -35,23 +48,18 @@ struct XcodeBuildCommandReorderer: AsyncParsableCommand {
         let postActionArgs = actionIndex + 1 < arguments.count ? Array(arguments[(actionIndex + 1)...]) : []
 
         let reorderedArgs = [action] + preActionArgs + postActionArgs
-        let commandName = XcodeBuildCommand.configuration.commandName ?? "xcodebuild"
-        await RunMetadataStorage.current.update(
-            resolvedCommandMetadata: AnalyticsCommandMetadata(
-                name: commandName,
-                subcommand: action,
-                commandArguments: [commandName] + reorderedArgs
-            )
-        )
-
         guard reorderedArgs != arguments else {
             throw ValidationError("Unable to reorder arguments to match subcommand format.")
         }
 
-        guard var parsedCommand = try XcodeBuildCommand.parseAsRoot(reorderedArgs) as? AsyncParsableCommand else {
+        guard var parsedCommand = try XcodeBuildCommand.parseAsRoot(reorderedArgs) as? any XcodeBuildPassthroughCommand else {
             throw ValidationError("Command parsing failed.")
         }
 
-        try await parsedCommand.run()
+        // Reordering is only for Tuist's subcommand parser. Restore the action's position in the
+        // passthrough arguments, accounting for any Tuist options consumed by the parser.
+        let consumedArgumentCount = arguments.count - 1 - parsedCommand.passthroughXcodebuildArguments.count
+        parsedCommand.xcodebuildActionIndex = max(0, actionIndex - consumedArgumentCount)
+        return parsedCommand
     }
 }

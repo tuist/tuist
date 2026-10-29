@@ -37,7 +37,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwifterPMCoreTests",
-            dependencies: ["SwifterPMCore"],
+            dependencies: ["SwifterPMCore", .product(name: "FileSystemTesting", package: "FileSystem")],
             path: "Tests/swifterpmTests",
             exclude: ["main.swift"],
             resources: [

@@ -52,7 +52,7 @@ func TestPublicDNSEndpointPublishesBoxIP(t *testing.T) {
 	ctx := context.Background()
 	scheme, mapper := dnsEndpointScheme(t)
 
-	instance := hostNetworkPublicInstance("kura-acme", "eu-central", "acme-eu-central.kura.tuist.dev")
+	instance := hostNetworkPublicInstance("kura-acme", "eu-west", "acme-eu-west.kura.tuist.dev")
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -70,7 +70,7 @@ func TestPublicDNSEndpointPublishesBoxIP(t *testing.T) {
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, pod, node).Build()
 	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
 
-	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, "kura-acme-0"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -84,7 +84,7 @@ func TestPublicDNSEndpointPublishesBoxIP(t *testing.T) {
 		t.Fatalf("expected one DNS endpoint, got %v", endpoints)
 	}
 	record := endpoints[0].(map[string]interface{})
-	if record["dnsName"] != "acme-eu-central.kura.tuist.dev" {
+	if record["dnsName"] != "acme-eu-west.kura.tuist.dev" {
 		t.Fatalf("expected the account's customer host as dnsName, got %v", record["dnsName"])
 	}
 	targets := record["targets"].([]interface{})
@@ -122,7 +122,7 @@ func TestPublicDNSEndpointSkippedOnLoadBalancerRegion(t *testing.T) {
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, pod, node).Build()
 	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
 
-	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, "kura-acme-0"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -133,31 +133,240 @@ func TestPublicDNSEndpointSkippedOnLoadBalancerRegion(t *testing.T) {
 	}
 }
 
-// Until a pod is scheduled there is no box to point at; a stale DNSEndpoint from
-// a prior placement must be torn down so external-dns stops publishing a dead
-// record.
-func TestPublicDNSEndpointDeletedWhenNoBox(t *testing.T) {
+func publicDNSEndpoint(name, host, target string) *unstructured.Unstructured {
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	endpoint.SetNamespace("kura")
+	endpoint.SetName(name)
+	_ = unstructured.SetNestedSlice(endpoint.Object, []interface{}{
+		map[string]interface{}{"dnsName": host, "recordType": "A", "targets": []interface{}{target}},
+	}, "spec", "endpoints")
+	return endpoint
+}
+
+func recordTargets(t *testing.T, endpoint *unstructured.Unstructured) []interface{} {
+	t.Helper()
+	endpoints, _, _ := unstructured.NestedSlice(endpoint.Object, "spec", "endpoints")
+	if len(endpoints) != 1 {
+		t.Fatalf("expected one DNS endpoint, got %v", endpoints)
+	}
+	return endpoints[0].(map[string]interface{})["targets"].([]interface{})
+}
+
+// While no pod is scheduled there is no box to point at, as when every pod of a
+// serving instance is being replaced. The record keeps its last target
+// meanwhile: deleting it would have external-dns unpublish a host clients are
+// using, and resolvers would cache the NXDOMAIN well past the pods coming back.
+func TestPublicDNSEndpointKeptWhenNoBox(t *testing.T) {
 	ctx := context.Background()
 	scheme, mapper := dnsEndpointScheme(t)
 
-	existing := &unstructured.Unstructured{}
-	existing.SetGroupVersionKind(dnsEndpointGVK)
-	existing.SetNamespace("kura")
-	existing.SetName("kura-acme-public-dns")
+	existing := publicDNSEndpoint("kura-acme-public-dns", "acme-eu-west.kura.tuist.dev", "203.0.113.50")
+	instance := hostNetworkPublicInstance("kura-acme", "eu-west", "acme-eu-west.kura.tuist.dev")
+	instance.Spec.NodeSelector = map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"}
+	otherBox := regionBox("box-2", "kura-dedibox", "203.0.113.60", true)
 
-	instance := hostNetworkPublicInstance("kura-acme", "eu-central", "acme-eu-central.kura.tuist.dev")
-	// No pods in the fake client, so instanceNodeIP finds no box -> teardown.
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, existing, otherBox).Build()
+	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
+
+	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, "kura-acme-0"); err != nil {
+		t.Fatal(err)
+	}
+
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(dnsEndpointGVK)
+	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-public-dns", Namespace: "kura"}, got); err != nil {
+		t.Fatalf("expected the public DNSEndpoint to be kept while no pod is scheduled, got %v", err)
+	}
+	if targets := recordTargets(t, got); len(targets) != 1 || targets[0] != "203.0.113.50" {
+		t.Fatalf("expected the record to keep its last target, got %v", targets)
+	}
+}
+
+func regionBox(name, pool, address string, ready bool) *corev1.Node {
+	status := corev1.ConditionTrue
+	if !ready {
+		status = corev1.ConditionFalse
+	}
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{"node.cluster.x-k8s.io/pool": pool}},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: status}},
+			Addresses:  []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: address}},
+		},
+	}
+}
+
+// A new instance's record is published before its pods are scheduled, at a box
+// of the region, so that DNS propagates while volumes are provisioned and pods
+// start rather than after. Every box of a host-network region runs the gateway,
+// which forwards to the pods wherever they land. Unready boxes, boxes being
+// evacuated and boxes outside the instance's pool are not chosen, and the choice
+// is stable by name.
+func TestPublicDNSEndpointPublishedAtARegionBoxBeforeAPodIsScheduled(t *testing.T) {
+	ctx := context.Background()
+	scheme, mapper := dnsEndpointScheme(t)
+
+	instance := hostNetworkPublicInstance("kura-acme", "eu-west", "acme-eu-west.kura.tuist.dev")
+	instance.Spec.NodeSelector = map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"}
+	evacuating := regionBox("box-1", "kura-dedibox", "203.0.113.51", true)
+	evacuating.Annotations = map[string]string{EvacuateNodeAnnotation: "true"}
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(
+		instance,
+		regionBox("box-0", "kura-dedibox", "203.0.113.50", false),
+		evacuating,
+		regionBox("box-3", "kura-dedibox", "203.0.113.53", true),
+		regionBox("box-2", "kura-dedibox", "203.0.113.52", true),
+		regionBox("box-a", "kura-ca-east", "198.51.100.10", true),
+	).Build()
+	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
+
+	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, "kura-acme-0"); err != nil {
+		t.Fatal(err)
+	}
+
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(dnsEndpointGVK)
+	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-public-dns", Namespace: "kura"}, got); err != nil {
+		t.Fatalf("expected the record to be published before a pod is scheduled, got %v", err)
+	}
+	if targets := recordTargets(t, got); len(targets) != 1 || targets[0] != "203.0.113.52" {
+		t.Fatalf("expected the first ready box of the region by name, got %v", targets)
+	}
+}
+
+// With no box to name, or no pool to find one in, nothing is published yet.
+func TestPublicDNSEndpointNotPublishedWithoutARegionBox(t *testing.T) {
+	ctx := context.Background()
+	scheme, mapper := dnsEndpointScheme(t)
+
+	withoutPool := hostNetworkPublicInstance("kura-acme", "eu-west", "acme-eu-west.kura.tuist.dev")
+	withoutReadyBox := hostNetworkPublicInstance("kura-globex", "eu-west", "globex-eu-west.kura.tuist.dev")
+	withoutReadyBox.Spec.NodeSelector = map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"}
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(
+		withoutPool,
+		withoutReadyBox,
+		regionBox("box-0", "kura-dedibox", "203.0.113.50", false),
+	).Build()
+	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
+
+	for _, instance := range []*kurav1alpha1.KuraInstance{withoutPool, withoutReadyBox} {
+		if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, instance.Name+"-0"); err != nil {
+			t.Fatal(err)
+		}
+		got := &unstructured.Unstructured{}
+		got.SetGroupVersionKind(dnsEndpointGVK)
+		if err := client.Get(ctx, types.NamespacedName{Name: instance.Name + "-public-dns", Namespace: "kura"}, got); !apierrors.IsNotFound(err) {
+			t.Fatalf("expected no record for %s, got %v", instance.Name, err)
+		}
+	}
+}
+
+// An instance that no longer has a customer host publishes no record.
+func TestPublicDNSEndpointDeletedWhenHostCleared(t *testing.T) {
+	ctx := context.Background()
+	scheme, mapper := dnsEndpointScheme(t)
+
+	existing := publicDNSEndpoint("kura-acme-public-dns", "acme-eu-west.kura.tuist.dev", "203.0.113.50")
+	instance := hostNetworkPublicInstance("kura-acme", "eu-west", "")
 
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, existing).Build()
 	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
 
-	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, "kura-acme-0"); err != nil {
 		t.Fatal(err)
 	}
 
 	got := &unstructured.Unstructured{}
 	got.SetGroupVersionKind(dnsEndpointGVK)
 	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-public-dns", Namespace: "kura"}, got); !apierrors.IsNotFound(err) {
-		t.Fatalf("expected the stale public DNSEndpoint to be deleted, got %v", err)
+		t.Fatalf("expected the public DNSEndpoint to be deleted once the host is cleared, got %v", err)
+	}
+}
+
+// An account's replicas are only preferentially co-located, so they can straddle
+// two boxes of a multi-box region. The public Service pins the primary, so the
+// customer record has to name the primary's box: naming the other one sends
+// every request across boxes, where the per-instance NetworkPolicy drops it and
+// the gateway answers 504. Regression for a split account whose record named the
+// box holding the non-primary replica.
+func TestPublicDNSEndpointFollowsPrimaryWhenReplicasSplitBoxes(t *testing.T) {
+	ctx := context.Background()
+	scheme, mapper := dnsEndpointScheme(t)
+
+	instance := hostNetworkPublicInstance("kura-acme", "us-east", "acme-us-east.kura.tuist.dev")
+
+	labels := map[string]string{"app.kubernetes.io/name": "kura", "app.kubernetes.io/instance": "kura-acme"}
+	podOn := func(name, node string) *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura", Labels: labels},
+			Spec:       corev1.PodSpec{NodeName: node},
+		}
+	}
+	nodeWith := func(name, ip string) *corev1.Node {
+		return &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Status:     corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: ip}}},
+		}
+	}
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(
+		instance,
+		podOn("kura-acme-0", "box-1"),
+		podOn("kura-acme-1", "box-2"),
+		nodeWith("box-1", "203.0.113.50"),
+		nodeWith("box-2", "203.0.113.51"),
+	).Build()
+	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
+
+	// The primary is the replica on box-2, not the first pod by name.
+	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, "kura-acme-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-public-dns", Namespace: "kura"}, endpoint); err != nil {
+		t.Fatal(err)
+	}
+	endpoints, _, _ := unstructured.NestedSlice(endpoint.Object, "spec", "endpoints")
+	if len(endpoints) != 1 {
+		t.Fatalf("expected one DNS endpoint, got %v", endpoints)
+	}
+	targets := endpoints[0].(map[string]interface{})["targets"].([]interface{})
+	if len(targets) != 1 || targets[0] != "203.0.113.51" {
+		t.Fatalf("expected the primary's box IP (203.0.113.51) as the DNS target, got %v", targets)
+	}
+}
+
+// Without a primary to follow the target still has to be stable: returning
+// whichever pod the API server listed first let a split account's record flip
+// between boxes on every reconcile, which is churn external-dns republishes.
+func TestInstanceNodeIPIsStableWithoutAPreferredPod(t *testing.T) {
+	ctx := context.Background()
+	scheme, mapper := dnsEndpointScheme(t)
+
+	instance := hostNetworkPublicInstance("kura-acme", "us-east", "acme-us-east.kura.tuist.dev")
+	labels := map[string]string{"app.kubernetes.io/name": "kura", "app.kubernetes.io/instance": "kura-acme"}
+	// Listed out of name order on purpose: the answer must not depend on it.
+	c := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(
+		instance,
+		&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "kura-acme-1", Namespace: "kura", Labels: labels}, Spec: corev1.PodSpec{NodeName: "box-2"}},
+		&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "kura-acme-0", Namespace: "kura", Labels: labels}, Spec: corev1.PodSpec{NodeName: "box-1"}},
+		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "box-1"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "203.0.113.50"}}}},
+		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "box-2"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "203.0.113.51"}}}},
+	).Build()
+	reconciler := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+	for i := 0; i < 3; i++ {
+		ip, err := reconciler.instanceNodeIP(ctx, instance, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ip != "203.0.113.50" {
+			t.Fatalf("expected the lowest-named pod's box (203.0.113.50) every time, got %v on pass %d", ip, i)
+		}
 	}
 }

@@ -5,8 +5,6 @@ defmodule TuistRegistry.Application do
 
   alias TuistCommon.HTTP.TransportLogger
 
-  require Logger
-
   @impl true
   def start(_type, _args) do
     TransportLogger.attach(:tuist_registry)
@@ -14,16 +12,18 @@ defmodule TuistRegistry.Application do
     start_loki_logger()
     start_opentelemetry()
 
+    # Supervisors terminate children in reverse start order, so the endpoint
+    # goes last: it stops accepting before Finch and the S3-backed caches it
+    # needs to finish in-flight requests are torn down.
     base_children = [
       {Phoenix.PubSub, name: TuistRegistry.PubSub},
-      TuistRegistry.S3,
-      TuistRegistry.Swift.Metadata,
-      TuistRegistry.Swift.AlternateManifests,
-      TuistRegistryWeb.Endpoint,
       # Cannot alias TuistRegistry.Finch to Finch or it'll conflict with the top-level library
       # credo:disable-for-next-line Credo.Check.Design.AliasUsage
       {Finch, name: TuistRegistry.Finch, pools: TuistRegistry.Finch.Pools.config()},
-      TuistRegistry.PromEx
+      TuistRegistry.Swift.Metadata,
+      TuistRegistry.Swift.AlternateManifests,
+      TuistRegistry.PromEx,
+      TuistRegistryWeb.Endpoint
     ]
 
     opts = [strategy: :one_for_one, name: TuistRegistry.Supervisor]

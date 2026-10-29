@@ -21,6 +21,16 @@ defmodule Tuist.Docs.Paths do
     end
   end
 
+  def markdown_root_path(locale) when is_binary(locale), do: "/#{locale}/docs-markdown"
+
+  def markdown_path_from_slug("/" <> _ = slug) do
+    case String.split(slug, "/", trim: true) do
+      [] -> markdown_root_path("en")
+      [locale] -> markdown_root_path(locale)
+      [locale | path_segments] -> Path.join(markdown_root_path(locale), Enum.join(path_segments, "/"))
+    end
+  end
+
   def slug(locale, path_segments \\ []) when is_list(path_segments) do
     case path_segments do
       [] -> "/#{locale}"

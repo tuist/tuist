@@ -47,7 +47,7 @@ export function fakeStatus(): StatusSnapshot {
   const activeIncidents: Incident[] = [
     {
       id: "inc-2026-05-04-001",
-      title: "Elevated cache hit latency in eu-central-1",
+      title: "Elevated cache hit latency in eu-west-1",
       severity: "minor",
       status: "monitoring",
       affectedComponents: ["cache"],
@@ -57,6 +57,7 @@ export function fakeStatus(): StatusSnapshot {
         {
           at: minutesAgo(8),
           status: "monitoring",
+          title: "Mitigation applied, monitoring impact",
           body: "Latency is back to baseline. We're keeping an eye on it for the next 30 minutes before resolving.",
         },
         {
@@ -86,7 +87,7 @@ export function fakeStatus(): StatusSnapshot {
         {
           at: hoursAgo(47),
           status: "resolved",
-          body: "Sign-in is fully restored. Postmortem to follow.",
+          body: "Sign-in is fully restored. Follow the [incident review](https://github.com/tuist/tuist/pulls) for more details.",
         },
         {
           at: hoursAgo(48),

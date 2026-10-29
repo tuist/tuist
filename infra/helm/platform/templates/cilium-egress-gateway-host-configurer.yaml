@@ -1,6 +1,10 @@
 {{- with .Values.ciliumEgressGateway.server }}
 {{- if and .enabled .hostConfigurator.enabled }}
 {{- $egressIP := required "ciliumEgressGateway.server.egressIP is required when ciliumEgressGateway.server.hostConfigurator.enabled=true" .egressIP }}
+{{- if empty .hostConfigurator.nodeSelector }}
+{{- fail "ciliumEgressGateway.server.hostConfigurator.nodeSelector must select the candidate pool when the host-configurer is enabled" }}
+{{- end }}
+{{- $nodeSelector := .hostConfigurator.nodeSelector }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -19,10 +23,11 @@ spec:
       labels:
         app.kubernetes.io/name: {{ printf "%s-host-configurer" .name | quote }}
         app.kubernetes.io/component: stable-egress
+        tuist.dev/stable-egress-host-configurer: "true"
     spec:
       hostNetwork: true
       nodeSelector:
-        {{- toYaml .gatewayNodeSelector | nindent 8 }}
+        {{- toYaml $nodeSelector | nindent 8 }}
       tolerations:
         - operator: Exists
       containers:
@@ -60,5 +65,17 @@ spec:
 
                 sleep "${RECONCILE_INTERVAL_SECONDS}"
               done
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -euc
+                - |
+                  ip -4 address show dev "${INTERFACE}" | grep -Fq "${EGRESS_IP}/32"
+                  ip rule show priority "${RULE_PRIORITY}" | grep -Fq "from ${EGRESS_IP}"
+                  ip route show table "${ROUTE_TABLE}" | grep -Fq "${GATEWAY} dev ${INTERFACE} scope link"
+                  ip route show table "${ROUTE_TABLE}" | grep -F "default via ${GATEWAY} dev ${INTERFACE}" | grep -Fq "src ${EGRESS_IP}"
+            periodSeconds: 2
+            failureThreshold: 3
 {{- end }}
 {{- end }}

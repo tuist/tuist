@@ -3,10 +3,12 @@ name: Mgmt Cluster Apply
 # Auto-applies CAPI manifests (ClusterClass + per-env Cluster CRs) and
 # mgmt-cluster workloads (etcd-snapshot CronJob, Tailscale daemon) to
 # our self-hosted CAPI mgmt cluster on push to main when the relevant
-# paths change.
+# paths change. The `hetzner` and `talos` jobs also reconcile the mgmt
+# control-plane nodes: their Hetzner servers and resources, joining new
+# nodes, and Talos machine config patches (infra/k8s/mgmt/talos/README.md).
 #
 # Why a workflow instead of Argo CD / Flux: the mgmt cluster has a tiny
-# manifest surface (one ClusterClass, four Cluster CRs, two mgmt-side
+# manifest surface (one ClusterClass, four Cluster CRs, and a few mgmt-side
 # workloads) — drift detection / continuous reconciliation provided by
 # a long-running GitOps controller is overkill at this scale. A
 # push-driven CI apply gets us GitOps-style "the repo is the source of
@@ -30,7 +32,19 @@ name: Mgmt Cluster Apply
 # Required secrets (on the mgmt-cluster-apply GitHub Environment):
 #   OP_SERVICE_ACCOUNT_TOKEN - 1Password SA scoped read-only to the
 #     tuist-k8s-mgmt vault, where the mgmt cluster's kubeconfig is
-#     stored as `kubeconfig: tuist-mgmt`.
+#     stored as `kubeconfig: tuist-mgmt` and the Grafana Cloud metrics
+#     token is stored as `PROMETHEUS_TOKEN`.
+#
+# Required secrets (on the mgmt-hetzner GitHub Environment, used by the
+# `hetzner` job only):
+#   OP_SERVICE_ACCOUNT_TOKEN - 1Password SA scoped read-only to the
+#     tuist-k8s-mgmt-hetzner vault, which holds `hetzner-tuist-mgmt`, the
+#     Hetzner Cloud API token for project tuist-mgmt. Nothing else reads
+#     that vault, including External Secrets on the mgmt cluster.
+#
+# Both environments should allow only the main branch; the jobs also
+# check `github.ref`, so a workflow_dispatch from another branch applies
+# nothing.
 
 on:
   push:
@@ -41,13 +55,26 @@ on:
       - 'infra/k8s/clusters/**'
       - 'infra/k8s/mgmt/cluster-autoscaler.yaml'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
+      - 'infra/k8s/mgmt/capi-webhook-cert-reloader.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
+      - 'infra/k8s/mgmt/observability-namespace.yaml'
+      - 'infra/k8s/mgmt/controller-replicas.yaml'
+      - 'infra/k8s/mgmt/controller-pdbs.yaml'
+      - 'infra/k8s/mgmt/external-secrets-values.yaml'
+      - 'infra/k8s/mgmt/talos/hetzner.yaml'
+      - 'infra/k8s/mgmt/talos/patches/**'
+      - 'infra/k8s/mgmt/talos-patcher.yaml'
+      - 'infra/mise/tasks/mgmt/**'
+      - 'infra/helm/k8s-monitoring/**'
       - '.github/workflows/mgmt-cluster-apply.yml'
-  # Manual re-runs of the apply path, e.g. to force a re-deploy
-  # without a code change. No inputs — incident-recovery actions
-  # run from an operator's laptop (see `infra/k8s/onboarding.md`).
+  # Access-path replacements require a qualified manual run.
   workflow_dispatch:
+    inputs:
+      management_access_qualified:
+        description: Independent access, per-node Tailscale identity/KubePrism and patched rollback were qualified
+        type: boolean
+        default: false
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -57,25 +84,60 @@ concurrency:
 permissions: {}
 
 jobs:
-  apply:
-    name: kubectl apply
-    # The self-hosted tuist-linux runners are customer runner Pods
-    # governed by a NetworkPolicy that only allows public egress on
-    # ports 80/443. The mgmt apiserver is reached on 6443, so this
-    # deploy job needs a GitHub-hosted runner outside that policy.
+  hetzner:
+    name: Hetzner resources
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # A separate environment and vault from the kubectl job: the Hetzner
+    # token can snapshot, rescue or rebuild the mgmt server outside
+    # Kubernetes, so only this job may read it. `op run` hands it to the
+    # one command that needs it instead of exporting it to the job.
+    environment:
+      name: mgmt-hetzner
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked hcloud jq yq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Planned changes
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          HCLOUD_TOKEN: op://tuist-k8s-mgmt-hetzner/hetzner-tuist-mgmt/credential
+        run: op run -- infra/mise/tasks/mgmt/reconcile-hetzner.sh
+      - name: Apply
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          HCLOUD_TOKEN: op://tuist-k8s-mgmt-hetzner/hetzner-tuist-mgmt/credential
+        run: op run -- infra/mise/tasks/mgmt/reconcile-hetzner.sh --apply
+
+  talos:
+    name: Talos patches
+    # Joining needs the servers the Hetzner job creates, and patches can
+    # depend on Hetzner resources (a node's private network interface), so
+    # this job runs only after that one succeeded.
+    needs: hetzner
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    # Joins the control-plane nodes in infra/k8s/mgmt/talos/hetzner.yaml
+    # that are not in the cluster yet, then applies
+    # infra/k8s/mgmt/talos/patches/ to every control-plane node, through
+    # Jobs inside the mgmt cluster that call the Talos API with a credential
+    # Talos mints for namespace mgmt-talos. The Talos API itself stays
+    # tailnet-only. A patch that changes the API server restarts it, so the
+    # kubectl job waits for this one.
     runs-on: ubuntu-latest
     environment:
       name: mgmt-cluster-apply
-    # `kubectl diff` can be slow against the Cluster API CRDs when many
-    # Machines are changing, so leave enough room for the visibility step.
-    timeout-minutes: 15
+    timeout-minutes: 90
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
-          install_args: "--locked kubectl"
+          install_args: "--locked kubectl jq yq"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load mgmt kubeconfig from 1Password
@@ -85,6 +147,129 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Planned changes
+        run: infra/mise/tasks/mgmt/reconcile-talos.sh
+      - name: Apply
+        run: infra/mise/tasks/mgmt/reconcile-talos.sh --apply
+
+  apply:
+    name: kubectl apply
+    needs: talos
+    # Runs after the Talos job whatever its result, never alongside it.
+    if: ${{ !cancelled() && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' }}
+    # The self-hosted tuist-linux runners are customer runner Pods
+    # governed by a NetworkPolicy that only allows public egress on
+    # ports 80/443. The mgmt apiserver is reached on 6443, so this
+    # deploy job needs a GitHub-hosted runner outside that policy.
+    runs-on: ubuntu-latest
+    environment:
+      name: mgmt-cluster-apply
+    # `kubectl diff` can be slow against the Cluster API CRDs when many
+    # Machines are changing, so leave enough room for the visibility step.
+    # Backup verification can wait up to ten minutes per control-plane node.
+    timeout-minutes: 65
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl jq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load mgmt kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Guard management Tailscale DaemonSet replacement
+        id: tailscale
+        env:
+          ACCESS_QUALIFIED: ${{ github.event_name == 'workflow_dispatch' && inputs.management_access_qualified }}
+        run: |
+          flags=()
+          if [[ "$ACCESS_QUALIFIED" == true ]]; then
+            flags+=(--acknowledged)
+          fi
+          status=0
+          bash infra/certificate-trust/guard.sh management-tailscale "${flags[@]}" || status=$?
+          case "$status" in
+            0) echo "apply=true" >> "$GITHUB_OUTPUT" ;;
+            3)
+              echo "apply=false" >> "$GITHUB_OUTPUT"
+              message="Management Tailscale replacement deferred pending qualification; unrelated management resources will still reconcile. See infra/certificate-trust/management-replacements.md."
+              echo "::warning::$message"
+              printf '### Management Tailscale replacement deferred\n\n%s\n' "$message" >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *) exit "$status" ;;
+          esac
+      - name: Validate management monitoring credential
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          existing_monitoring_credential_is_complete() {
+            local actual_username
+            local expected_username
+            expected_username="$(printf '%s' '1774467' | base64 | tr -d '\n')"
+            actual_username="$(
+              kubectl -n observability get secret k8s-monitoring-grafana-cloud \
+                -o jsonpath='{.data.prometheus-username}' 2>/dev/null
+            )"
+            [ "$actual_username" = "$expected_username" ] &&
+              kubectl -n observability get secret k8s-monitoring-grafana-cloud \
+                -o jsonpath='{.data.prometheus-password}' 2>/dev/null | grep -q .
+          }
+
+          monitoring_credential_source=""
+          monitoring_password=""
+          if monitoring_token="$(op read 'op://tuist-k8s-mgmt/PROMETHEUS_TOKEN/password' 2>/dev/null)" &&
+            [ -n "$monitoring_token" ]; then
+            monitoring_credential_source="1Password"
+            monitoring_password="$monitoring_token"
+            unset monitoring_token
+          elif existing_monitoring_credential_is_complete; then
+            monitoring_credential_source="existing in-cluster Secret"
+            monitoring_password="$(
+              kubectl -n observability get secret k8s-monitoring-grafana-cloud \
+                -o jsonpath='{.data.prometheus-password}' | base64 --decode
+            )"
+            unset monitoring_token
+          else
+            unset monitoring_token
+            echo "::error::PROMETHEUS_TOKEN is unavailable and the management cluster has no existing monitoring credential"
+            exit 1
+          fi
+
+          echo "::add-mask::$monitoring_password"
+          remote_write_status="$(
+            curl -sS -o /dev/null -w '%{http_code}' \
+              --connect-timeout 5 \
+              --max-time 15 \
+              --user "1774467:$monitoring_password" \
+              --request POST \
+              --header 'Content-Encoding: snappy' \
+              --header 'Content-Type: application/x-protobuf' \
+              --header 'X-Prometheus-Remote-Write-Version: 0.1.0' \
+              --data-binary '' \
+              'https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push'
+          )"
+          unset monitoring_password
+
+          # An authenticated request reaches payload validation and returns
+          # 400 for the deliberately empty protobuf. Invalid credentials
+          # return 401 before payload validation.
+          if [ "$remote_write_status" != "400" ] &&
+            [ "$remote_write_status" != "204" ]; then
+            echo "::error::The $monitoring_credential_source monitoring credential failed the Grafana remote-write authentication probe (HTTP $remote_write_status)"
+            exit 1
+          fi
+
+          if [ "$monitoring_credential_source" = "existing in-cluster Secret" ]; then
+            echo "::warning::PROMETHEUS_TOKEN is unavailable in the management vault; a live Grafana check passed, so the existing in-cluster monitoring credential will be preserved"
+          fi
       - name: Diff (visibility into what's about to change)
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
@@ -118,7 +303,21 @@ jobs:
           echo "::group::cluster-autoscaler.yaml diff"
           kubectl diff -f infra/k8s/mgmt/cluster-autoscaler.yaml || true
           echo "::endgroup::"
-      - name: Apply ClusterClass first (Cluster CRs reference it)
+          echo "::group::observability-namespace.yaml diff"
+          kubectl diff -f infra/k8s/mgmt/observability-namespace.yaml || true
+          echo "::endgroup::"
+          echo "::group::machinedrainrules.yaml diff"
+          kubectl diff -f infra/k8s/clusters/machinedrainrules.yaml || true
+          echo "::endgroup::"
+      - name: Apply runner drain rules before anything can roll Machines
+        # Ordered ahead of the ClusterClass on purpose. The ClusterClass
+        # carries the bare-metal rollout strategy, and applying it can
+        # start a Machine replacement; without the drain rule already in
+        # place that replacement evicts runner Pods and kills in-flight
+        # CI jobs.
+        run: |
+          kubectl apply -f infra/k8s/clusters/machinedrainrules.yaml
+      - name: Apply ClusterClass (Cluster CRs reference it)
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply bare-metal substrate
@@ -167,7 +366,192 @@ jobs:
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
+          kubectl apply -f infra/k8s/mgmt/observability-namespace.yaml
           kubectl apply -f infra/k8s/mgmt/hetzner-robot-controller.yaml
           kubectl apply -f infra/k8s/mgmt/cluster-autoscaler.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
+          kubectl apply -f infra/k8s/mgmt/capi-webhook-cert-reloader.yaml
+          # Owns only replicas and pod anti-affinity on Deployments that
+          # clusterctl installed; see the file header.
+          kubectl apply --server-side --field-manager=mgmt-cluster-apply \
+            --force-conflicts -f infra/k8s/mgmt/controller-replicas.yaml
+
+          # Retired autoscalers: the regional clusters are gone and staging has
+          # no autoscaled node group. kubectl apply does not remove resources
+          # that disappear from a manifest.
+          kubectl -n org-tuist delete deployment \
+            cluster-autoscaler-tuist-kura-us-east \
+            cluster-autoscaler-tuist-kura-us-west \
+            cluster-autoscaler-tuist-staging \
+            --ignore-not-found
+      - name: Apply management Tailscale workload
+        if: steps.tailscale.outputs.apply == 'true'
+        run: |
+          # The legacy migration also replaces access, so defer both operations.
+          infra/mise/tasks/mgmt/migrate-tailscale.sh
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml
+      - name: Install External Secrets
+        run: |
+          set -euo pipefail
+          helm upgrade --install external-secrets external-secrets \
+            --repo https://charts.external-secrets.io --version 2.3.0 \
+            --namespace external-secrets \
+            -f infra/k8s/mgmt/external-secrets-values.yaml \
+            --atomic --cleanup-on-fail --wait --timeout 10m
+      - name: Protect admission webhooks during node maintenance
+        run: |
+          kubectl apply -f infra/k8s/mgmt/controller-pdbs.yaml
+      - name: Verify etcd snapshots from every control-plane node
+        run: infra/mise/tasks/mgmt/verify-etcd-snapshot.sh
+      - name: Install management-cluster monitoring
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          existing_monitoring_credential_is_complete() {
+            local actual_username
+            local expected_username
+            expected_username="$(printf '%s' '1774467' | base64 | tr -d '\n')"
+            actual_username="$(
+              kubectl -n observability get secret k8s-monitoring-grafana-cloud \
+                -o jsonpath='{.data.prometheus-username}' 2>/dev/null
+            )"
+            [ "$actual_username" = "$expected_username" ] &&
+              kubectl -n observability get secret k8s-monitoring-grafana-cloud \
+                -o jsonpath='{.data.prometheus-password}' 2>/dev/null | grep -q .
+          }
+
+          monitoring_token=""
+          if monitoring_token="$(op read 'op://tuist-k8s-mgmt/PROMETHEUS_TOKEN/password' 2>/dev/null)" &&
+            [ -n "$monitoring_token" ]; then
+            echo "::add-mask::$monitoring_token"
+            kubectl -n observability create secret generic k8s-monitoring-grafana-cloud \
+              --from-literal=prometheus-username=1774467 \
+              --from-literal=prometheus-password="$monitoring_token" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            unset monitoring_token
+          elif existing_monitoring_credential_is_complete; then
+            unset monitoring_token
+            echo "::warning::PROMETHEUS_TOKEN is unavailable in the management vault; preserving the existing in-cluster monitoring credential"
+          else
+            unset monitoring_token
+            echo "::error::PROMETHEUS_TOKEN is unavailable and the management cluster has no existing monitoring credential"
+            exit 1
+          fi
+
+          helm repo add grafana https://grafana.github.io/helm-charts --force-update
+          helm dependency build infra/helm/k8s-monitoring
+          helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
+            --namespace observability \
+            -f infra/helm/k8s-monitoring/values-management.yaml \
+            --atomic --cleanup-on-fail --wait --timeout 10m
+      - name: Verify converged management state
+        env:
+          APPLY_TAILSCALE: ${{ steps.tailscale.outputs.apply }}
+        run: |
+          set -euo pipefail
+
+          release_status="$(helm -n observability status k8s-monitoring -o json | jq -r '.info.status')"
+          if [ "$release_status" != "deployed" ]; then
+            echo "::error::The management monitoring release is $release_status"
+            exit 1
+          fi
+
+          kubectl -n observability rollout status deployment/k8s-monitoring-alloy-operator --timeout=2m
+          kubectl -n observability rollout status deployment/k8s-monitoring-kube-state-metrics --timeout=2m
+          kubectl -n observability wait --for=create daemonset/k8s-monitoring-alloy-control-plane --timeout=2m
+          kubectl -n observability wait --for=create daemonset/k8s-monitoring-alloy-metrics --timeout=2m
+          kubectl -n observability rollout status daemonset/k8s-monitoring-alloy-control-plane --timeout=2m
+          kubectl -n observability rollout status daemonset/k8s-monitoring-alloy-metrics --timeout=2m
+          kubectl -n observability rollout status daemonset/k8s-monitoring-node-exporter --timeout=2m
+
+          port_forward_log="$(mktemp)"
+          kubectl -n observability port-forward \
+            daemonset/k8s-monitoring-alloy-metrics 12345:12345 \
+            >"$port_forward_log" 2>&1 &
+          port_forward_pid=$!
+          cleanup_port_forward() {
+            kill "$port_forward_pid" >/dev/null 2>&1 || true
+            wait "$port_forward_pid" 2>/dev/null || true
+            rm -f "$port_forward_log"
+          }
+          trap cleanup_port_forward EXIT
+
+          remote_write_ready=false
+          for _ in $(seq 1 30); do
+            latest_sent_timestamp="$(
+              curl -fsS http://127.0.0.1:12345/metrics 2>/dev/null |
+                awk '/^prometheus_remote_storage_queue_highest_sent_timestamp_seconds/ {print $2; exit}' ||
+                true
+            )"
+            if [ -n "$latest_sent_timestamp" ] &&
+              awk -v sent="$latest_sent_timestamp" -v now="$(date +%s)" \
+                'BEGIN { exit !(sent >= now - 120) }'; then
+              remote_write_ready=true
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "$remote_write_ready" != "true" ]; then
+            echo "::error::Management metrics have not been delivered to Grafana Cloud in the last two minutes"
+            cat "$port_forward_log"
+            exit 1
+          fi
+          cleanup_port_forward
+          trap - EXIT
+
+          for deployment in \
+            cluster-autoscaler-tuist-kura-us-east \
+            cluster-autoscaler-tuist-kura-us-west \
+            cluster-autoscaler-tuist-staging; do
+            if kubectl -n org-tuist get deployment "$deployment" >/dev/null 2>&1; then
+              echo "::error::Retired cluster autoscaler $deployment still exists"
+              exit 1
+            fi
+          done
+
+          assert_no_drift() {
+            local diff_output
+            local diff_status
+            local manifest="$1"
+
+            set +e
+            diff_output="$(kubectl diff -f "$manifest" 2>&1)"
+            diff_status=$?
+            set -e
+
+            case "$diff_status" in
+              0)
+                return 0
+                ;;
+              1)
+                printf '%s\n' "$diff_output"
+                echo "::error::Declarative drift remains for $manifest"
+                return 1
+                ;;
+              *)
+                printf '%s\n' "$diff_output"
+                echo "::error::Unable to compare live state with $manifest (kubectl exit $diff_status)"
+                return "$diff_status"
+                ;;
+            esac
+          }
+
+          assert_no_drift infra/k8s/clusters/machinedrainrules.yaml
+          assert_no_drift infra/k8s/clusters/clusterclass-tuist.yaml
+          for f in infra/k8s/clusters/bare-metal*.yaml; do
+            [ -e "$f" ] || continue
+            assert_no_drift "$f"
+          done
+          for f in infra/k8s/clusters/cluster-*.yaml; do
+            [ -e "$f" ] || continue
+            assert_no_drift "$f"
+          done
+          assert_no_drift infra/k8s/mgmt/hetzner-robot-controller.yaml
+          assert_no_drift infra/k8s/mgmt/cluster-autoscaler.yaml
+          assert_no_drift infra/k8s/mgmt/etcd-snapshot.yaml
+          if [[ "$APPLY_TAILSCALE" == true ]]; then
+            assert_no_drift infra/k8s/mgmt/tailscale.yaml
+          fi
+          assert_no_drift infra/k8s/mgmt/observability-namespace.yaml

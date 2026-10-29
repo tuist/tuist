@@ -26,3 +26,18 @@ k8s-monitoring:
             - action: insert
               key: deployment.environment
               value: staging
+
+  # Put the receiver on the tailnet. See values-production.yaml for the full
+  # rationale. Staging needs it for the Mac mini fleet's host logs: tart-kubelet
+  # writes to /var/log/tart-kubelet.log on the mini, nothing in the cluster can
+  # tail a macOS host (a "Pod" there is a Tart VM), so the host pushes to the
+  # receiver's `loki.source.api` on 3100 over the tailnet instead. Staging is
+  # where that path is proven before canary and production turn it on —
+  # infra/helm/tuist macosFleet.hostLogs points here.
+  collectors:
+    alloy-receiver:
+      service:
+        annotations:
+          tailscale.com/expose: "true"
+          tailscale.com/hostname: tuist-alloy-receiver-staging
+          tailscale.com/tags: tag:tuist-k8s-staging
