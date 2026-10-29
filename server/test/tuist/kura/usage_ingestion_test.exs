@@ -3,7 +3,6 @@ defmodule Tuist.Kura.UsageIngestionTest do
   use Mimic
 
   alias Tuist.IngestRepo
-  alias Tuist.KeyValueStore.LoadLimiter
   alias Tuist.Kura.Identity
   alias Tuist.Kura.StorageSnapshot
   alias Tuist.Kura.Usage
@@ -15,10 +14,8 @@ defmodule Tuist.Kura.UsageIngestionTest do
   setup context do
     name = Module.concat(__MODULE__, "Pool#{System.unique_integer([:positive])}")
 
-    start_supervised!(
-      {LoadLimiter,
-       name: name, max_concurrency: 1, max_pending_loads: 1, load_timeout: Map.get(context, :load_timeout, 3_000)}
-    )
+    timeouts = context |> Map.take([:load_timeout, :queue_timeout]) |> Keyword.new()
+    start_supervised!({Usage, [name: name] ++ timeouts})
 
     stub(Identity, :account_ids, fn _ -> %{} end)
     stub(Projects, :project_ids_by_account_and_handle, fn _ -> %{} end)
@@ -34,7 +31,7 @@ defmodule Tuist.Kura.UsageIngestionTest do
     assert {:error, :invalid_payload} = Usage.ingest_batch([event()], [42], [], nil, limiter: limiter)
   end
 
-  @tag load_timeout: 30
+  @tag load_timeout: 30, queue_timeout: 30
   test "retains whole-batch admission after the response times out", %{limiter: limiter} do
     parent = self()
 
@@ -52,6 +49,50 @@ defmodule Tuist.Kura.UsageIngestionTest do
     monitor = Process.monitor(worker)
     send(worker, :finish)
     assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}
+  end
+
+  test "an overlapping batch waits for the insert slot instead of being rejected", %{limiter: limiter} do
+    parent = self()
+
+    stub(IngestRepo, :insert_all, fn UsageEvent, [_row], opts ->
+      send(parent, {:inserting, self(), opts[:deadline] - System.monotonic_time(:millisecond)})
+      receive do: (:finish -> {1, nil})
+    end)
+
+    first = Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
+    assert_receive {:inserting, first_worker, _remaining}
+    second = Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
+    refute_receive {:inserting, _, _}, 100
+
+    send(first_worker, :finish)
+    assert Task.await(first) == {:ok, 1}
+    assert_receive {:inserting, second_worker, remaining}
+    # Time spent waiting comes out of the batch budget rather than extending it.
+    assert remaining <= 2_900
+    send(second_worker, :finish)
+    assert Task.await(second) == {:ok, 1}
+  end
+
+  @tag queue_timeout: 200
+  test "sheds batches once both waiting slots are taken or the wait expires", %{limiter: limiter} do
+    parent = self()
+
+    stub(IngestRepo, :insert_all, fn UsageEvent, [_row], _opts ->
+      send(parent, {:inserting, self()})
+      receive do: (:finish -> {1, nil})
+    end)
+
+    running = Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
+    assert_receive {:inserting, worker}
+    waiting = for _ <- 1..2, do: Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
+    :ok = wait_for_pending_loads(limiter, 3)
+
+    assert Usage.ingest_batch([event()], [], [], nil, limiter: limiter) == {:error, :overloaded}
+    assert Enum.map(waiting, &Task.await/1) == [{:error, :overloaded}, {:error, :overloaded}]
+    refute_received {:inserting, _}
+
+    send(worker, :finish)
+    assert Task.await(running) == {:ok, 1}
   end
 
   test "mixed inserts share one deadline and do not acknowledge a partial commit", %{limiter: limiter} do
@@ -117,6 +158,15 @@ defmodule Tuist.Kura.UsageIngestionTest do
     assert query["async_insert"] == "0"
     assert body =~ "kura_usage_events"
     refute_received {:insert_attempt, _, _}
+  end
+
+  defp wait_for_pending_loads(limiter, count) do
+    if map_size(:sys.get_state(limiter).loads) == count do
+      :ok
+    else
+      Process.sleep(5)
+      wait_for_pending_loads(limiter, count)
+    end
   end
 
   defp accept_clickhouse(listener, parent) do
