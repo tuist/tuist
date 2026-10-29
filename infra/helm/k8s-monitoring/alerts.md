@@ -3095,6 +3095,94 @@ kube_deployment_spec_replicas{
 - Pending period: 2 minutes
 - Summary: `Tuist server has unavailable replicas in {{ $labels.namespace }}`
 
+### Tuist server fatal VM allocator failures
+
+`server-vm-alert-rules.json` records two enabled Grafana-managed rules in
+**Production availability**, evaluated every **60 seconds**. These are
+provisioned separately from Helm; merging the JSON does not install them.
+
+| Rule UID | Condition over five minutes | Notification |
+| --- | --- | --- |
+| `tuist-production-vm-allocator-failure` | At least one fatal allocator message | Warning through the existing Slack notification policy |
+| `tuist-production-vm-allocator-burst` | At least two distinct affected web pods | `Incidents`, automatic Critical incident declaration, and Engineering on-call |
+
+Both match only `{cluster="tuist-production",namespace="tuist",container="server"}`
+and the line `literal_alloc: Cannot allocate`, with no log-level filter. The
+observed native-runtime messages had `detected_level=unknown`; filtering on
+`error` would miss them. These rules cover this fatal allocator signature,
+not every possible VM exit. They do not depend on an Atlas exception event,
+an `OOMKilled` termination reason, or the global HTTP error ratio.
+
+The incident query sums by the structured-metadata `pod` before counting,
+so repeated lines, restarts and stream-label changes from one pod count once.
+Empty pod metadata is excluded from the distinct-pod count but still raises
+the single-failure warning. Both queries use `or vector(0)` and fixed
+production rule labels: a healthy window returns one zero-valued series,
+not a disappearing alert instance. No Data is OK; evaluation errors remain
+Error and notify Slack rather than on-call. This is not a log-ingestion heartbeat.
+
+There is no pending period. The warning keeps firing for five minutes after
+its condition clears; the incident alert keeps firing for fifteen minutes.
+Notification grouping includes the alert name and cluster, with zero group
+wait for the incident rule. Recovery of the alert is not proof that the
+service recovered, and does not replace human incident assessment and closure.
+
+**Automatic escalation needs two separate routing layers.** The Grafana
+notification policy in `server-vm-notification-route.json` selects `Incidents`
+only for this critical production alert in the Alerts folder. Neither rule
+pins a receiver: Grafana forwards `DatasourceError` to a rule's pinned contact
+point too, which would page through IRM's default route despite no pod failure.
+With exact alert-name matching, query errors retain Slack visibility without
+paging. Merge this policy into the current tree, preserving existing staging
+exceptions and other rules; do not replace the tree with this single route.
+The additional IRM route
+`R9CC1Q6J55GXZ`, represented by `server-vm-incident-route.json`, matches only
+this alert's exact name, `cluster=tuist-production` and `severity=critical`
+in the **Alerts** integration (`CJNAYAYZBPKHL`). It selects the existing
+**Production HTTP availability** escalation chain (`F7SJQ2LZ2T845`): its first
+step declares a Critical incident, then notifies the **Engineering** on-call
+schedule (`SDEYPLVSQLAXY`), with the existing five-minute wait and repeat steps.
+The route also posts to `#incidents`. The default Engineering route pages
+without this incident-declaration step, so the contact point alone is not
+enough. Existing HTTP, Atlas and default routes are unchanged. The warning
+has no `affected_service` label and cannot select this incident route.
+
+**Historical validation, 2026-10-22 through 2026-10-29 09:30 UTC:** Loki
+contained twelve matching failures across five episodes. At one-minute
+resolution, only the October 27 burst met the distinct-pod incident threshold:
+three pods at 21:16–21:20 UTC and two at 21:21 UTC. A ten-second replay crossed
+from one to two distinct pods at 21:15:30 UTC. The four isolated episodes
+remain warnings. This replay validates the query and threshold, not historical
+notification delivery. Normal deployments without this fatal line stay zero.
+
+Read-back confirmed the enabled rules, 60-second evaluation group, scoped
+IRM route, declaration step and populated on-call schedule. IRM's side-effect-free
+template preview accepted the production critical payload and rejected
+single-pod warnings, staging, unrelated alerts and missing cluster labels.
+No synthetic alert, page, or public incident was created for validation.
+
+Run the offline routing regression tests with:
+
+```sh
+CI=1 mise exec aqua:prometheus/alertmanager@0.28.1 uv@0.11.19 -- uv run infra/helm/k8s-monitoring/test-server-vm-alerts.py
+```
+
+These use Alertmanager's actual routing engine with the Slack fallback and
+staging exceptions, as well as IRM's Jinja predicate. They check that query errors
+reach Slack, not merely that IRM rejects them, and send no notifications.
+The threshold and recovery-hold checks guard the rule configuration; the
+historical replay exercises Loki's actual distinct-pod query.
+For an end-to-end drill,
+get explicit approval before sending a synthetic firing notification: this
+chain declares a real incident and pages the on-call engineer.
+
+To reprovision, create the two rules paused, merge the exact-match Grafana
+notification policy and add only the scoped IRM route (do not replace the
+integration's route list), verify the chain and receivers, then enable the rules.
+Reuse the existing rule UIDs and matching routes rather than creating duplicates.
+To roll back, pause these two rules and remove only their Grafana notification
+policy and IRM route; do not change the shared escalation chain or HTTP rule.
+
 ### Remote processing queue has no consumer
 
 `:process_xcresult` and `:process_build` are the two Oban queues whose
