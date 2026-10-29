@@ -137,12 +137,13 @@ jobs:
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Build TuistApp
-        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace
+        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Share TuistApp
         if: |
-          github.event_name == 'push' ||
-          github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
+          !startsWith(github.base_ref, 'releases/app-') &&
+          (github.event_name == 'push' ||
+           github.event_name == 'workflow_dispatch' ||
+           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
         run: mise x -- tuist share TuistApp
       - name: Save cache
         id: cache-save
@@ -220,6 +221,7 @@ jobs:
       github.repository == 'tuist/tuist' &&
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
+      !startsWith(github.base_ref, 'releases/app-') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     env:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
