@@ -90,7 +90,7 @@ func TestAppleRuntimeAcceptance(t *testing.T) {
 	}
 	// The nonce exists only in a detached process's heap. A disk-only cold boot
 	// cannot satisfy the proof, even if every workspace file survived.
-	exec(`node -e 'const code="const value=require(\"crypto\").randomBytes(32).toString(\"hex\");require(\"http\").createServer((q,r)=>r.end(value)).listen(18765,\"127.0.0.1\")";require("child_process").spawn(process.execPath,["-e",code],{detached:true,stdio:"ignore"}).unref()'; for i in 1 2 3 4 5; do curl -fsS http://127.0.0.1:18765 && exit 0; sleep 1; done; exit 1`)
+	exec(`node -e 'require("child_process").spawn(process.execPath,["-e","("+function(){const value=require("crypto").randomBytes(32).toString("hex");require("http").createServer((q,r)=>r.end(value)).listen(18765,"127.0.0.1")}.toString()+")()"],{detached:true,stdio:"ignore"}).unref()'; for i in 1 2 3 4 5; do curl -fsS http://127.0.0.1:18765 && exit 0; sleep 1; done; exit 1`)
 	proof := exec("curl -fsS http://127.0.0.1:18765")
 	if len(proof) != 64 {
 		t.Fatal("invalid memory proof")

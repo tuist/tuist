@@ -25,6 +25,12 @@ Deploy all of the following before enabling an account:
    appear in sandbox node presence with the `macos` template, and a fresh
    `tuist.dev/macos-sandbox-grant` Node annotation. Preparation compiles the
    isolated runtime once and downloads the base image at background priority.
+   Cold template preparation has a one-hour deadline: staging's first Xcode
+   image pull exceeded the normal twenty-minute CI deadline. Removal or
+   replacement of the control Pod cancels preparation within one polling
+   interval plus the bounded API probe. Ownership recovery and eviction keep
+   running independently. Prewarm the image before enabling an account;
+   this one-time transfer is not part of resident resume latency.
 5. Run the acceptance checks below on staging, then enable `macos_sandboxes`
    for the intended account through the existing feature-flag administration.
    Create with `{"platform":"darwin"}`, execute a command, pause, resume and delete.
