@@ -589,7 +589,8 @@ release check. Partial inputs fail closed. The stable lane requires the latest
 stable tag, its descendant release-branch tip, exactly the next patch version,
 an unused tag, and changes limited to `tuist_ex/` and its validation workflow.
 Validation, package assembly and the GitHub tag all use the same immutable source;
-the workflow rechecks boundaries immediately before publication. A partial Hex
+the workflow pins the resolved base commit during planning and rejects a moved
+base tag when rechecking boundaries immediately before publication. A partial Hex
 publication can resume only while the target Git tag is absent and the rebuilt
 package checksum matches. Never replace an existing tag or package.
 

@@ -68,6 +68,7 @@ class StableReleaseTest(unittest.TestCase):
             "tuist-ex-next-version-number=0.10.10",
             f"source-sha={self.source}",
             "base-tag=tuist-ex@0.10.9",
+            f"base-sha={self.base}",
         ])
 
     def test_rejects_missing_mutable_and_injected_inputs(self):
@@ -113,6 +114,18 @@ class StableReleaseTest(unittest.TestCase):
         self.git("tag", "-d", "tuist-ex@0.11.0")
         self.git("tag", "tuist-ex@0.10.10", self.base)
         self.reject()
+
+    def test_recheck_rejects_replaced_base_even_when_new_base_is_a_source_ancestor(self):
+        source = self.commit("tuist_ex/lib/client.ex", "second patch")
+        self.git("update-ref", self.branch, source)
+        self.assertEqual(self.run_guard(source=source).returncode, 0)
+        approved = {"APPROVED_BASE_SHA": self.base}
+        self.assertEqual(self.run_guard(source=source, env=approved).returncode, 0)
+        self.reject(source=source, env={"APPROVED_BASE_SHA": ""})
+        self.git("tag", "--force", "tuist-ex@0.10.9", self.source)
+        # The name, latest-version, ancestry and SDK-only checks still pass.
+        self.assertEqual(self.run_guard(source=source).returncode, 0)
+        self.reject(source=source, env=approved)
 
     def test_rejects_other_product_or_automation_changes(self):
         for path in ["server/lib/app.ex", "mise/tasks/release/components.json",

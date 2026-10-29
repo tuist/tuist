@@ -45,6 +45,7 @@ jobs:
       next-version-number: ${{ steps.check.outputs.tuist-ex-next-version-number }}
       source-sha: ${{ steps.check.outputs.source-sha }}
       base-tag: ${{ steps.check.outputs.base-tag }}
+      base-sha: ${{ steps.check.outputs.base-sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -130,6 +131,7 @@ jobs:
           SOURCE_SHA: ${{ needs.check.outputs.source-sha }}
           BASE_TAG: ${{ needs.check.outputs.base-tag }}
           PATCH_VERSION: ${{ needs.check.outputs.next-version-number }}
+          APPROVED_BASE_SHA: ${{ needs.check.outputs.base-sha }}
         run: |
           set -euo pipefail
           git fetch --prune --force origin '+refs/heads/releases/tuist-ex-*:refs/remotes/origin/releases/tuist-ex-*' '+refs/tags/*:refs/tags/*'

@@ -40,6 +40,10 @@ def main():
     require(git("rev-parse", f"{branch}^{{commit}}") == source,
             "Source must be the current stable release branch tip, not a PR or main SHA")
     base_sha = git("rev-parse", f"refs/tags/{base}^{{commit}}")
+    approved_base_sha = os.environ.get("APPROVED_BASE_SHA")
+    if approved_base_sha is not None:
+        require(re.fullmatch(r"[0-9a-f]{40}", approved_base_sha) and base_sha == approved_base_sha,
+                "Stable base tag changed since planning; refusing publication")
     require(source != base_sha, "Source must contain a patch after the stable tag")
     subprocess.run(["git", "merge-base", "--is-ancestor", base_sha, source], check=True)
     changed = git("diff", "--name-only", "-z", base_sha, source).removesuffix("\0").split("\0")
@@ -52,6 +56,7 @@ def main():
         "tuist-ex-next-version-number": version,
         "source-sha": source,
         "base-tag": base,
+        "base-sha": base_sha,
     }
     with open(os.environ["GITHUB_OUTPUT"], "a") as output:
         for key, value in outputs.items():
