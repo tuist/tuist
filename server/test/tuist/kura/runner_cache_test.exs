@@ -289,6 +289,40 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(account) == ["ber1-runners"]
   end
 
+  test "a site's region holds nodes for pinned site accounts without site traffic" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
+    pinned = account_with_profiles([:macos], rented_job: false)
+    pinned_off_site = account_with_profiles([:macos], rented_job: false)
+    unpinned = account_with_profiles([:macos], rented_job: false)
+    set_runner_availability([pinned.id, pinned_off_site.id, unpinned.id])
+    stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :runner_site_enabled?, fn account -> account.id != pinned_off_site.id end)
+    stub(FeatureFlags, :runner_site_cache_pinned?, fn account -> account.id in [pinned.id, pinned_off_site.id] end)
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(pinned) == ["ber1-runners"]
+    assert server_regions(pinned_off_site) == []
+    assert server_regions(unpinned) == []
+  end
+
+  test "tears down an excluded account's site node and keeps its other regions' nodes" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["scw-fr-par-runners", "ber1-runners"] end)
+    account = account_with_profiles([:macos])
+    build_in_job(account, @site_macos_pool)
+    set_runner_availability([account.id])
+    stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(account) == ["ber1-runners", "scw-fr-par-runners"]
+
+    stub(FeatureFlags, :runner_site_cache_excluded?, fn _ -> true end)
+    stub(FeatureFlags, :runner_site_cache_pinned?, fn _ -> true end)
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(account) == ["scw-fr-par-runners"]
+  end
+
   test "the rented fleet's region holds nodes only for accounts with recent jobs there" do
     rented = account_with_profiles([:macos], rented_job: false)
     claimed_job(rented, @rented_macos_pool, days_ago: 6)

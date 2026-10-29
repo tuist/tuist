@@ -1,0 +1,165 @@
+[
+  {
+    "uid": "tuist-production-vm-allocator-failure",
+    "title": "Tuist production VM allocator failure",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "Production availability",
+    "condition": "C",
+    "for": "0s",
+    "keep_firing_for": "5m",
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "isPaused": false,
+    "labels": {
+      "cluster": "tuist-production",
+      "severity": "warning"
+    },
+    "annotations": {
+      "summary": "Production Tuist VM allocator failed {{ printf \"%.0f\" $values.A.Value }} times in five minutes",
+      "description": "BEAM reported a fatal literal allocator failure. The VM can exit before Atlas receives an application exception, and Kubernetes can report Error rather than OOMKilled. Inspect production server logs for literal_alloc: Cannot allocate and correlate pod terminations and ingress 502 responses. A single failed pod notifies Slack; two distinct failed pods within five minutes trigger the separate automatic incident rule. Healthy deployments do not emit this fatal allocator message.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#tuist-server-fatal-vm-allocator-failures"
+    },
+    "data": [
+      {
+        "refId": "A",
+        "datasourceUid": "grafanacloud-logs",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "from": 300,
+          "to": 0
+        },
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({cluster=\"tuist-production\",namespace=\"tuist\",container=\"server\"} |= \"literal_alloc: Cannot allocate\" [5m])) or vector(0)",
+          "queryType": "instant",
+          "refId": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "C",
+        "datasourceUid": "__expr__",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "uid": "tuist-production-vm-allocator-burst",
+    "title": "Tuist production VM allocator failures across pods",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "Production availability",
+    "condition": "C",
+    "for": "0s",
+    "keep_firing_for": "15m",
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "isPaused": false,
+    "labels": {
+      "cluster": "tuist-production",
+      "severity": "critical",
+      "affected_service": "API"
+    },
+    "annotations": {
+      "summary": "Production Tuist VMs failed in {{ printf \"%.0f\" $values.A.Value }} distinct pods within five minutes",
+      "description": "At least two distinct production web pods reported fatal literal allocator failures within five minutes. Repeated lines or restarts from one pod count once. This is independent of Atlas ingestion and the global HTTP error ratio. The scoped Alerts integration route selects Production HTTP availability, which declares a Critical incident and notifies the Engineering on-call schedule. Check the fatal logs, current pod availability, recent releases, and ingress failures. Do not delete data or restart unrelated services. The 15-minute recovery hold prevents the short log window from immediately resolving the alert; the incident still needs human assessment and closure.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#tuist-server-fatal-vm-allocator-failures"
+    },
+    "data": [
+      {
+        "refId": "A",
+        "datasourceUid": "grafanacloud-logs",
+        "queryType": "instant",
+        "relativeTimeRange": {
+          "from": 300,
+          "to": 0
+        },
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "count(sum by (pod) (count_over_time({cluster=\"tuist-production\",namespace=\"tuist\",container=\"server\"} |= \"literal_alloc: Cannot allocate\" | pod != \"\" [5m]))) or vector(0)",
+          "queryType": "instant",
+          "refId": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200
+        }
+      },
+      {
+        "refId": "C",
+        "datasourceUid": "__expr__",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  1
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

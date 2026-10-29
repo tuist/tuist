@@ -166,11 +166,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
 	}
 
-	knobs := scaling.PolicyKnobs{
-		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
-		MaxReplicas:      pool.Spec.Autoscaling.MaxReplicas,
-		IgnoreRecentPeak: !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
-	}
+	knobs := policyKnobs(pool)
 	desired, fleet := r.desiredForPool(ctx, pool, *signals, knobs, logger)
 	if err := r.publishSandboxAllocations(ctx, pool, fleet); err != nil {
 		// CI scaling continues. A failed publication cannot renew the server's
@@ -180,6 +176,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	current := pool.Spec.Replicas
 	now := r.now()
+	r.stampDemand(ctx, pool, *signals, now, logger)
 
 	// A sandbox carve-out's growth waiting for room on a node outranks the
 	// idle warm runners there, whatever the cooldown.
@@ -251,6 +248,16 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
 }
 
+// policyKnobs reads a pool's autoscaling knobs from its spec.
+func policyKnobs(pool *tuistv1.RunnerPool) scaling.PolicyKnobs {
+	return scaling.PolicyKnobs{
+		MinWarmPoolFloor:        pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
+		MaxLearnedWarmPoolFloor: pool.Spec.Autoscaling.MaxLearnedWarmPoolFloor,
+		MaxReplicas:             pool.Spec.Autoscaling.MaxReplicas,
+		IgnoreRecentPeak:        !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
+	}
+}
+
 // desiredForPool computes the target replica count for `pool`.
 //
 // Pools with autoscaling-disabled `maxReplicas` keep the simple
@@ -288,7 +295,8 @@ func (r *AutoscalerReconciler) desiredForPool(
 	// Publish the allocation outcome so the warm-pool squeeze (target
 	// reaped down to `allocated` under fleet contention) is observable
 	// on its own series, not inferred from alive-vs-desired.
-	metrics.RecordAllocation(pool.Name, signals.Load(), knobs.MinWarmPoolFloor, perPool, allocated)
+	metrics.RecordAllocation(pool.Name, signals.Load(), knobs.MinWarmPoolFloor, max(knobs.MinWarmPoolFloor, scaling.LearnedSpare(signals, knobs)), perPool, allocated)
+	metrics.RecordLearnedWarmFloor(pool.Name, signals.LearnedWarmFloor, scaling.LearnedSpare(signals, knobs))
 
 	// Publish the demand signals unsummed as well. The allocator only
 	// needs occupied+queued, but the split shows both dispatch progress
@@ -633,11 +641,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 				return nil, nil, nil, fmt.Errorf("signals for sibling %q: %w", p.Name, err)
 			}
 			sig = *fetched
-			k = scaling.PolicyKnobs{
-				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
-				MaxReplicas:      p.Spec.Autoscaling.MaxReplicas,
-				IgnoreRecentPeak: !p.Spec.Autoscaling.HoldRecentPeakOrDefault(),
-			}
+			k = policyKnobs(p)
 		}
 
 		cost, err := r.perPodCost(ctx, p)
@@ -681,7 +685,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 		demands = append(demands, scaling.PoolDemand{
 			Name:       p.Name,
 			PerPodCost: cost,
-			Floor:      k.MinWarmPoolFloor,
+			Floor:      scaling.WarmFloor(sig, k),
 			Load:       sig.Load(),
 			Target:     scaling.DesiredReplicas(sig, k),
 			ShapeKey:   shape.key(),
@@ -782,6 +786,28 @@ func (r *AutoscalerReconciler) applyReplicas(ctx context.Context, pool *tuistv1.
 	original := pool.DeepCopy()
 	pool.Spec.Replicas = desired
 	return r.Patch(ctx, pool, client.MergeFrom(original))
+}
+
+// demandStampInterval bounds how often a pool's status.lastDemandAt is
+// written. tart-kubelet ranks images by it over hours and days, so a write
+// every five-second tick would only churn the object.
+const demandStampInterval = 10 * time.Minute
+
+// stampDemand records on the pool's status that it has real work now, for
+// tart-kubelet's golden budget. A failed write is retried on a later tick.
+func (r *AutoscalerReconciler) stampDemand(ctx context.Context, pool *tuistv1.RunnerPool, signals scaling.Signals, now time.Time, logger logr.Logger) {
+	if signals.Load() <= 0 {
+		return
+	}
+	if last := pool.Status.LastDemandAt; last != nil && now.Sub(last.Time) < demandStampInterval {
+		return
+	}
+	original := pool.DeepCopy()
+	ts := metav1.NewTime(now)
+	pool.Status.LastDemandAt = &ts
+	if err := r.Status().Patch(ctx, pool, client.MergeFrom(original)); err != nil && !apierrors.IsNotFound(err) {
+		logger.Error(err, "stamp lastDemandAt; will retry")
+	}
 }
 
 func (r *AutoscalerReconciler) pollInterval() time.Duration {

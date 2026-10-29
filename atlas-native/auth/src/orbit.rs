@@ -22,6 +22,10 @@ pub(crate) enum Action {
         kind: Option<String>,
         #[serde(default)]
         status: Option<String>,
+        #[serde(default)]
+        query: Option<String>,
+        #[serde(default)]
+        domain: Option<String>,
     },
     Private,
     CreatePrivate {
@@ -177,6 +181,43 @@ pub(super) struct Assistant {
     pub configured: bool,
     #[serde(default)]
     pub can_create_private: bool,
+    #[serde(default)]
+    pub searchable: bool,
+    #[serde(default, deserialize_with = "deserialize_domains")]
+    pub domains: Vec<Domain>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub(super) struct Domain {
+    pub id: String,
+    pub name: String,
+}
+
+fn deserialize_domains<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Vec<Domain>, D::Error> {
+    let values = Vec::<Domain>::deserialize(deserializer)?;
+    let mut domains = Vec::<Domain>::new();
+    for value in values.into_iter().take(16) {
+        if valid_domain(&value.id)
+            && !value.id.is_empty()
+            && !value.name.trim().is_empty()
+            && value.name.len() <= 80
+            && !value.name.chars().any(char::is_control)
+            && !domains.iter().any(|known| known.id == value.id)
+        {
+            domains.push(value);
+        }
+    }
+    Ok(domains)
+}
+
+pub(super) fn valid_domain(value: &str) -> bool {
+    value.len() <= 32 && value.bytes().all(|byte| byte.is_ascii_lowercase())
+}
+
+pub(super) fn valid_search(value: &str) -> bool {
+    value.len() <= 200 && !value.chars().any(char::is_control)
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -225,6 +266,8 @@ pub(super) struct Thread {
     pub summary: String,
     #[serde(default)]
     pub origin: String,
+    #[serde(default, deserialize_with = "deserialize_priority")]
+    pub priority: Option<Priority>,
     pub owner_id: Option<String>,
     #[serde(default)]
     pub participants: Vec<Person>,
@@ -233,6 +276,8 @@ pub(super) struct Thread {
     pub agent_status: Option<AgentStatus>,
     #[serde(default)]
     pub model: Option<String>,
+    #[serde(default)]
+    pub domain: Option<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -263,6 +308,21 @@ pub(super) fn validate_model(model: Option<&str>) -> Result<()> {
         return Err(invalid());
     }
     Ok(())
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum Priority {
+    Now,
+    Today,
+    Later,
+}
+
+fn deserialize_priority<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Priority>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).ok())
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -298,6 +358,8 @@ pub(super) struct Message {
     pub seq: u64,
     pub kind: String,
     pub body: String,
+    #[serde(default, deserialize_with = "deserialize_suggestions")]
+    pub suggestions: Vec<String>,
     pub author_id: Option<String>,
     pub author_name: String,
     pub inserted_at: String,
@@ -319,13 +381,36 @@ pub(super) struct Message {
     pub mentioned_user_ids: Vec<String>,
 }
 
+fn deserialize_suggestions<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Vec<String>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let mut suggestions = Vec::new();
+    if let Some(values) = value.as_array() {
+        for text in values.iter().filter_map(serde_json::Value::as_str) {
+            let text = text.trim();
+            if !text.is_empty()
+                && text.len() <= 480
+                && text.chars().count() <= 120
+                && !suggestions.iter().any(|known| known == text)
+            {
+                suggestions.push(text.to_owned());
+                if suggestions.len() == 3 {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(suggestions)
+}
+
 fn deserialize_notice<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> std::result::Result<Option<String>, D::Error> {
     let value = serde_json::Value::deserialize(deserializer)?;
     Ok(value
         .as_str()
-        .filter(|kind| *kind == "handoff")
+        .filter(|kind| matches!(*kind, "handoff" | "private_handoff" | "joined"))
         .map(str::to_owned))
 }
 
@@ -402,7 +487,13 @@ pub(super) fn request_using<T: DeserializeOwned>(
                 .extend([id.as_str(), "model"]);
             (Method::PATCH, Some(json!({"model":model})))
         }
-        Action::List { page, kind, status } => {
+        Action::List {
+            page,
+            kind,
+            status,
+            query,
+            domain,
+        } => {
             validate_page(*page)?;
             url.query_pairs_mut().append_pair("page", &page.to_string());
             if let Some(kind) = kind {
@@ -416,6 +507,18 @@ pub(super) fn request_using<T: DeserializeOwned>(
                     return Err(invalid());
                 }
                 url.query_pairs_mut().append_pair("status", status);
+            }
+            if let Some(query) = query.as_deref().filter(|query| !query.is_empty()) {
+                if !valid_search(query) {
+                    return Err(invalid());
+                }
+                url.query_pairs_mut().append_pair("query", query);
+            }
+            if let Some(domain) = domain.as_deref().filter(|domain| !domain.is_empty()) {
+                if !valid_domain(domain) {
+                    return Err(invalid());
+                }
+                url.query_pairs_mut().append_pair("domain", domain);
             }
             (Method::GET, None)
         }

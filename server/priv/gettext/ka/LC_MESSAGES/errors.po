@@ -23,9 +23,9 @@ msgstr "გვერდი ვერ მოიძებნა"
 #: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:25
 #, elixir-autogen, elixir-format
 msgid "Build not found"
-msgstr "Build-ი ვერ მოიძებნა"
+msgstr "ბილდი ვერ მოიძებნა"
 
 #: lib/tuist_web/controllers/build_controller.ex:67
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "თქვენ არ გაქვთ ამ Build-ზე წვდომის უფლება"
+msgstr "ამ ბილდზე წვდომა არ გაქვთ"

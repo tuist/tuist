@@ -1,5 +1,7 @@
 package dev.tuist.atlas
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
@@ -8,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.Editable
 import android.text.InputType
@@ -20,6 +23,7 @@ import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
 import android.widget.Button
@@ -27,6 +31,7 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.SearchView
 import android.widget.TextView
 import android.widget.Toolbar
 import org.json.JSONObject
@@ -72,11 +77,6 @@ class AtlasOrbitScreen(
             isSaveEnabled = false
             importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
         }
-    private val askAssistant =
-        CheckBox(activity).apply {
-            minHeight = dp(48)
-            isSaveEnabled = false
-        }
     private val sendButton =
         Button(activity).apply {
             text = "Send"
@@ -98,7 +98,6 @@ class AtlasOrbitScreen(
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(4), dp(16), dp(8))
             addView(attachmentRows, LinearLayout.LayoutParams(-1, -2))
-            addView(askAssistant, LinearLayout.LayoutParams(-2, -2))
             addView(
                 LinearLayout(activity).apply {
                     gravity = Gravity.BOTTOM
@@ -137,12 +136,44 @@ class AtlasOrbitScreen(
     private var promptAdapter: BaseAdapter? = null
     private val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(ZoneId.systemDefault())
     private var renderedContent: Any? = null
+    private var listMenuReady = false
+    private var searchItem: MenuItem? = null
+    private var domainItem: MenuItem? = null
+    private var statusItem: MenuItem? = null
+    private var composeItem: MenuItem? = null
+    private var searchTask: Runnable? = null
+    private var syncingSearch = false
+    private val search =
+        SearchView(activity).apply {
+            queryHint = "Search titles and summaries"
+            isSaveEnabled = false
+            isSaveFromParentEnabled = false
+            minimumHeight = dp(48)
+        }
     private val listener: () -> Unit = { render() }
     private val presenceListener: () -> Unit = { if (model.createDraft != null) render() }
 
     init {
         model.listener = listener
         presence?.listener = presenceListener
+        search.setOnQueryTextListener(
+            object : SearchView.OnQueryTextListener {
+                override fun onQueryTextChange(value: String?): Boolean {
+                    if (syncingSearch) return true
+                    searchTask?.let(search::removeCallbacks)
+                    searchTask = Runnable { if (!closed && model.selectionId == null) model.filter(query = value.orEmpty()) }
+                    search.postDelayed(searchTask, 300)
+                    return true
+                }
+
+                override fun onQueryTextSubmit(value: String?): Boolean {
+                    searchTask?.let(search::removeCallbacks)
+                    model.filter(query = value.orEmpty())
+                    hideKeyboard()
+                    return true
+                }
+            },
+        )
         composerField.addTextChangedListener(
             object : TextWatcher {
                 override fun beforeTextChanged(
@@ -168,8 +199,12 @@ class AtlasOrbitScreen(
                 }
             },
         )
-        askAssistant.setOnCheckedChangeListener { _, checked -> if (!syncing) composerFor?.let { model.setAskAssistant(it, checked) } }
-        sendButton.setOnClickListener { composerFor?.let { model.send(it, composerField.text.toString()) } }
+        sendButton.setOnClickListener {
+            composerFor?.let {
+                scroll.scrollTo(0, content.height)
+                model.send(it, composerField.text.toString())
+            }
+        }
         render()
     }
 
@@ -179,6 +214,7 @@ class AtlasOrbitScreen(
 
     fun close() {
         closed = true
+        searchTask?.let(search::removeCallbacks)
         promptDialog?.dismiss()
         messageViews.clear()
         AtlasOrbitAttachments.clear()
@@ -188,6 +224,10 @@ class AtlasOrbitScreen(
     }
 
     fun back(): Boolean {
+        if (model.selectionId == null && searchItem?.isActionViewExpanded == true) {
+            searchItem?.collapseActionView()
+            return true
+        }
         val draft = model.createDraft
         if (draft != null && !model.snapshot.saving && !model.snapshot.loading &&
             (draft.title.isNotBlank() || draft.participants.isNotEmpty())
@@ -210,7 +250,11 @@ class AtlasOrbitScreen(
         if (closed) return
         if (promptThread != protectedThreadId()) promptDialog?.dismiss()
         updatePromptIndex()
-        toolbar.menu.clear()
+        if (model.createDraft != null || model.selecting || model.selectionId != null || !listMenuReady) {
+            listMenuReady = false
+            searchTask?.let(search::removeCallbacks)
+            toolbar.menu.clear()
+        }
         when {
             model.createDraft != null -> renderCreate()
             model.selecting -> renderSelection()
@@ -248,8 +292,21 @@ class AtlasOrbitScreen(
         composer.visibility = View.GONE
         liveStatus.visibility = View.GONE
         toolbar.title = title
-        toolbar.subtitle = null
-        refreshAction { model.refresh() }
+        val domainTitle =
+            if (snapshot.domainFilter == "unclassified") {
+                "Unclassified"
+            } else {
+                snapshot.assistant
+                    ?.domains
+                    ?.firstOrNull { it.id == snapshot.domainFilter }
+                    ?.name ?: "All domains"
+            }
+        toolbar.subtitle = "${snapshot.statusFilter.replaceFirstChar(Char::uppercase)} · $domainTitle"
+        if (!listMenuReady) configureListMenu()
+        searchItem?.isEnabled = snapshot.assistant?.searchable == true && !snapshot.cached
+        domainItem?.isEnabled = snapshot.assistant?.searchable == true && !snapshot.cached
+        statusItem?.title = if (snapshot.statusFilter == "active") "Show archived" else "Show active"
+        composeItem?.isEnabled = snapshot.assistant != null && !snapshot.cached && !snapshot.loading
         val key =
             listOf(
                 "list",
@@ -258,6 +315,9 @@ class AtlasOrbitScreen(
                 snapshot.loading,
                 snapshot.hasMore,
                 snapshot.cached,
+                snapshot.statusFilter,
+                snapshot.query,
+                snapshot.domainFilter,
                 snapshot.error,
                 model.failure,
             )
@@ -292,37 +352,30 @@ class AtlasOrbitScreen(
         } else {
             errors()
         }
-        val assistant = snapshot.assistant
-        if (assistant != null) {
-            val pinned = snapshot.privateThread
-            val subtitle =
-                buildString {
-                    append("Private thread")
-                    if (!assistant.configured) append("\nNot set up on this server yet")
-                    pinned?.summary?.takeIf { it.isNotEmpty() }?.let { append("\n$it") }
-                }
-            row(
-                assistant.name,
-                subtitle,
-                (!snapshot.loading || snapshot.cached) && (!snapshot.cached || pinned != null),
-                "${assistant.name}, pinned private thread",
-            ) {
-                if (snapshot.cached && pinned != null) model.select(pinned.id) else model.openPrivate()
+        for (priority in listOf("now", "today", "later")) {
+            val threads = snapshot.threads.filter { it.priority == priority }
+            for (thread in threads) {
+                conversationRow(thread)
             }
         }
-        button("New shared thread", assistant != null && !snapshot.cached) { model.startCreate() }
-        heading("Shared")
-        val shared = snapshot.shared
-        if (shared.isEmpty() && !snapshot.loading && snapshot.error == null) text("No shared threads yet.")
-        for (thread in shared) {
-            val subtitle =
-                listOf(
-                    thread.participants.joinToString(", ") { it.name },
-                    thread.summary,
-                    if (thread.archived) "Archived" else "",
-                    time(thread.updatedAt),
-                ).filter { it.isNotEmpty() }.joinToString("\n")
-            row(thread.title, subtitle, !snapshot.loading || snapshot.cached) { model.select(thread.id) }
+        if (snapshot.threads.any { it.priority != null } && snapshot.threads.any { it.priority == null }) heading("Conversations")
+        for (thread in snapshot.threads.filter { it.priority == null }) {
+            conversationRow(thread)
+        }
+        if (snapshot.threads.isEmpty() && !snapshot.loading && snapshot.error == null) {
+            text(
+                if (snapshot.query.isNotEmpty() ||
+                    snapshot.domainFilter.isNotEmpty()
+                ) {
+                    "No matching conversations. Try another search or choose All domains."
+                } else if (snapshot.statusFilter ==
+                    "archived"
+                ) {
+                    "No archived conversations."
+                } else {
+                    "No conversations yet. Start one using New conversation."
+                },
+            )
         }
         if (snapshot.loading && snapshot.threads.isEmpty()) text("Loading threads…")
         if (!snapshot.loading && snapshot.hasMore) button("Load more threads") { model.loadMore() }
@@ -332,14 +385,107 @@ class AtlasOrbitScreen(
         listOfNotNull(model.failure, model.snapshot.error).distinct().forEach { text(it) }
     }
 
+    private fun configureListMenu() {
+        listMenuReady = true
+        refreshAction { model.refresh() }
+        searchItem =
+            toolbar.menu.add("Search conversations").apply {
+                setIcon(android.R.drawable.ic_menu_search)
+                actionView = search
+                setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS or MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW)
+                setOnActionExpandListener(
+                    object : MenuItem.OnActionExpandListener {
+                        override fun onMenuItemActionExpand(item: MenuItem) = true
+
+                        override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                            if (!listMenuReady) return true
+                            searchTask?.let(search::removeCallbacks)
+                            syncingSearch = true
+                            search.setQuery("", false)
+                            syncingSearch = false
+                            model.filter(query = "")
+                            return true
+                        }
+                    },
+                )
+            }
+        syncingSearch = true
+        search.setQuery(model.snapshot.query, false)
+        syncingSearch = false
+        if (model.snapshot.query.isNotEmpty()) searchItem?.expandActionView()
+        domainItem =
+            toolbar.menu.add("Filter by domain").apply {
+                setIcon(android.R.drawable.ic_menu_sort_by_size)
+                setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+                setOnMenuItemClickListener {
+                    showDomainFilter()
+                    true
+                }
+            }
+        composeItem =
+            toolbar.menu.add("New conversation").apply {
+                setIcon(android.R.drawable.ic_menu_edit)
+                setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+                setOnMenuItemClickListener {
+                    model.newPrivate()
+                    true
+                }
+            }
+        statusItem =
+            toolbar.menu.add("Show archived").setOnMenuItemClickListener {
+                model.filterStatus(if (model.snapshot.statusFilter == "active") "archived" else "active")
+                true
+            }
+        menuAction("New shared thread") { model.startCreate() }
+    }
+
+    private fun showDomainFilter() {
+        val domains =
+            listOf(AtlasOrbitModel.Domain("", "All domains")) +
+                model.snapshot.assistant
+                    ?.domains
+                    .orEmpty() +
+                AtlasOrbitModel.Domain("unclassified", "Unclassified")
+        AlertDialog
+            .Builder(activity)
+            .setTitle("Filter by domain")
+            .setSingleChoiceItems(
+                domains
+                    .map {
+                        it.name
+                    }.toTypedArray(),
+                domains.indexOfFirst { it.id == model.snapshot.domainFilter },
+            ) { dialog, index ->
+                model.filter(domain = domains[index].id)
+                dialog.dismiss()
+            }.setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun renderThread() {
         val snapshot = model.snapshot
         val thread = snapshot.selected ?: return
         val id = thread.id
         val assistant = snapshot.assistant
         toolbar.title = if (thread.isPrivate) assistant?.name ?: thread.title else thread.title
-        toolbar.subtitle = if (thread.isPrivate) "Private" else thread.participants.joinToString(", ") { it.name }
+        toolbar.subtitle =
+            if (thread.isPrivate) "Private" else (listOf(assistant?.name ?: "Pip") + thread.participants.map { it.name }).joinToString(", ")
         refreshAction { model.refresh() }
+        if (presence?.selfId != null && thread.ownerId == presence.selfId) {
+            menuAction(if (thread.archived) "Restore conversation" else "Archive conversation") {
+                if (!thread.isPrivate && !thread.archived) {
+                    AlertDialog
+                        .Builder(activity)
+                        .setTitle("Archive this shared conversation?")
+                        .setMessage("It will become read-only for everyone. You can restore it from Archived.")
+                        .setNegativeButton("Cancel", null)
+                        .setPositiveButton("Archive") { _, _ -> model.archive(thread) }
+                        .show()
+                } else {
+                    model.archive(thread)
+                }
+            }
+        }
         toolbar.menu.add("Prompts").apply {
             setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             actionView =
@@ -407,9 +553,9 @@ class AtlasOrbitScreen(
         scroll.post {
             if (closed || protectedThreadId() != id || revision != scrollRevision || jumping) return@post
             when {
-                switched -> scroll.fullScroll(View.FOCUS_DOWN)
+                switched -> scroll.scrollTo(0, content.height)
                 prepended -> scroll.scrollTo(0, content.height - fromBottom)
-                atBottom && appended -> scroll.fullScroll(View.FOCUS_DOWN)
+                atBottom && appended -> scroll.scrollTo(0, content.height)
             }
         }
     }
@@ -544,7 +690,6 @@ class AtlasOrbitScreen(
         val snapshot = model.snapshot
         composer.visibility = if (thread.archived) View.GONE else View.VISIBLE
         if (thread.archived) return
-        val assistant = snapshot.assistant
         syncing = true
         // Rust owns the draft: entering a thread restores it, and sending clears it. Echoes of writes still
         // in flight are older than what is on screen, so they never replace the person's typing.
@@ -553,15 +698,10 @@ class AtlasOrbitScreen(
             composerField.setText(snapshot.draft)
             composerField.setSelection(composerField.text.length)
         }
-        askAssistant.visibility = if (!thread.isPrivate && assistant?.configured == true) View.VISIBLE else View.GONE
-        askAssistant.text = "Ask ${assistant?.name.orEmpty()}"
-        askAssistant.isChecked = model.askAssistant(id)
-        composerField.hint = if (thread.isPrivate) "Message ${assistant?.name.orEmpty()}" else "Message"
         syncing = false
         sendButton.text = if (model.sending) "Sending…" else "Send"
         val enabled = !model.sending && !model.attachmentBusy && !snapshot.needsSession
         composerField.isEnabled = !snapshot.needsSession
-        askAssistant.isEnabled = enabled
         sendButton.isEnabled =
             enabled && !snapshot.uploadPending && (composerField.text.isNotBlank() || snapshot.draftAttachments.isNotEmpty())
         attachButton.isEnabled = enabled && !snapshot.uploadPending && snapshot.draftAttachments.size < 4 && pickAttachment != null
@@ -727,6 +867,37 @@ class AtlasOrbitScreen(
                 setPadding(if (host === content) 0 else dp(12), dp(8), 0, dp(8))
             }
         messageViews[value.id] = card
+        if (value.kind == "system") {
+            if (value.noticeKind == "private_handoff" || value.noticeKind == "handoff") {
+                card.setPadding(dp(16), dp(16), dp(16), dp(16))
+                val recapTitle = if (value.noticeKind == "private_handoff") "Your catch-up · Only visible to you" else "Conversation recap"
+                card.addView(
+                    body(recapTitle).apply {
+                        setTypeface(typeface, Typeface.BOLD)
+                        if (Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
+                        setCompoundDrawablesRelativeWithIntrinsicBounds(android.R.drawable.ic_lock_lock, 0, 0, 0)
+                        compoundDrawablePadding = dp(8)
+                    },
+                )
+                card.background =
+                    android.graphics.drawable.GradientDrawable().apply {
+                        val color = android.util.TypedValue()
+                        activity.theme.resolveAttribute(android.R.attr.colorBackground, color, true)
+                        setColor(appearance?.palette?.optString("surface")?.let(android.graphics.Color::parseColor) ?: color.data)
+                        cornerRadius = dp(12).toFloat()
+                    }
+            }
+            card.addView(
+                body(value.body).apply {
+                    if (value.noticeKind == "joined") {
+                        gravity = Gravity.CENTER
+                        textSize = 14f
+                    }
+                },
+            )
+            host.addView(card, LinearLayout.LayoutParams(-1, -2))
+            return
+        }
         if (value.isTool) {
             val children = model.childTools(value.id)
             val expanded = value.id in model.expandedTools
@@ -947,11 +1118,209 @@ class AtlasOrbitScreen(
         )
     }
 
+    private fun conversationRow(thread: AtlasOrbitModel.Thread) {
+        val background =
+            activity.obtainStyledAttributes(
+                intArrayOf(android.R.attr.selectableItemBackground, android.R.attr.textColorSecondary),
+            )
+        val ripple = background.getResourceId(0, 0)
+        val secondaryColor = background.getColor(1, 0)
+        background.recycle()
+        val largeText = activity.resources.configuration.fontScale >= 1.5f
+        val row =
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                minimumHeight = dp(64)
+                setPadding(dp(4), dp(8), dp(4), dp(8))
+                isEnabled = !model.snapshot.loading || model.snapshot.cached
+                isFocusable = true
+                contentDescription =
+                    listOfNotNull(
+                        thread.priorityTitle,
+                        model.snapshot.assistant
+                            ?.domains
+                            ?.firstOrNull { it.id == thread.domain }
+                            ?.name,
+                        thread.title,
+                        thread.summary,
+                        time(thread.updatedAt),
+                        if (thread.isPrivate) "Private conversation" else "Shared conversation",
+                        thread.activityLabel,
+                    ).filter { it.isNotEmpty() }.joinToString(". ")
+                setBackgroundResource(ripple)
+                accessibilityDelegate =
+                    object : View.AccessibilityDelegate() {
+                        override fun onInitializeAccessibilityNodeInfo(
+                            host: View,
+                            info: AccessibilityNodeInfo,
+                        ) {
+                            super.onInitializeAccessibilityNodeInfo(host, info)
+                            info.className = Button::class.java.name
+                        }
+                    }
+                setOnClickListener {
+                    hideKeyboard()
+                    model.select(thread.id)
+                }
+            }
+        row.addView(
+            TextView(activity).apply {
+                text = thread.title
+                textSize = 17f
+                maxLines = if (largeText) 3 else 1
+                ellipsize = TextUtils.TruncateAt.END
+                setTypeface(null, Typeface.BOLD)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            },
+            LinearLayout.LayoutParams(-1, -2),
+        )
+        if (thread.summary.isNotEmpty()) {
+            row.addView(
+                TextView(activity).apply {
+                    id = android.R.id.text2
+                    text = thread.summary
+                    textSize = 15f
+                    maxLines = if (largeText) 3 else 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                },
+                LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) },
+            )
+        }
+        val domain =
+            model.snapshot.assistant
+                ?.domains
+                ?.firstOrNull { it.id == thread.domain }
+                ?.name
+        row.addView(
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                thread.priorityTitle?.let { priority ->
+                    addView(
+                        TextView(activity).apply {
+                            id = android.R.id.text2
+                            text = priority
+                            textSize = 12f
+                            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                        },
+                        LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) },
+                    )
+                }
+                if (domain != null) {
+                    addView(
+                        TextView(activity).apply {
+                            id = android.R.id.text2
+                            text = domain
+                            textSize = 12f
+                            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                            setPadding(dp(6), dp(2), dp(6), dp(2))
+                            this.background =
+                                GradientDrawable().apply {
+                                    cornerRadius = dp(5).toFloat()
+                                    setStroke(dp(1), (secondaryColor and 0x00FFFFFF) or 0x33000000)
+                                }
+                        },
+                    )
+                }
+                addView(View(activity), LinearLayout.LayoutParams(0, 0, 1f))
+                if (!largeText) {
+                    addView(
+                        TextView(activity).apply {
+                            id = android.R.id.text2
+                            text = time(thread.updatedAt)
+                            textSize = 12f
+                            setPadding(dp(8), 0, 0, 0)
+                        },
+                    )
+                }
+                addView(
+                    AtlasOrbitRunningIndicator(activity).apply {
+                        visibility = if (thread.activityLabel != null) View.VISIBLE else View.INVISIBLE
+                    },
+                    LinearLayout.LayoutParams(dp(8), dp(8)).apply { marginStart = dp(8) },
+                )
+            },
+            LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) },
+        )
+        if (largeText) {
+            row.addView(
+                TextView(activity).apply {
+                    id = android.R.id.text2
+                    text = time(thread.updatedAt)
+                    textSize = 12f
+                    setPadding(0, dp(4), 0, 0)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                },
+            )
+        }
+        content.addView(row, ViewGroup.LayoutParams(-1, -2))
+    }
+
     private fun hideKeyboard() {
         val focus = view.findFocus() ?: return
         focus.clearFocus()
         view.requestFocus()
         (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(focus.windowToken, 0)
+    }
+}
+
+private class AtlasOrbitRunningIndicator(
+    context: Context,
+) : View(context) {
+    private var pulse: ObjectAnimator? = null
+
+    init {
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+        val colors = context.obtainStyledAttributes(intArrayOf(android.R.attr.colorAccent))
+        background =
+            GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(colors.getColor(0, 0))
+            }
+        colors.recycle()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        updatePulse()
+    }
+
+    override fun onVisibilityChanged(
+        changedView: View,
+        visibility: Int,
+    ) {
+        super.onVisibilityChanged(changedView, visibility)
+        updatePulse()
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        updatePulse()
+    }
+
+    override fun onDetachedFromWindow() {
+        pulse?.cancel()
+        pulse = null
+        super.onDetachedFromWindow()
+    }
+
+    private fun updatePulse() {
+        if (isAttachedToWindow && isShown && windowVisibility == VISIBLE && ValueAnimator.areAnimatorsEnabled()) {
+            if (pulse != null) return
+            pulse =
+                ObjectAnimator.ofFloat(this, ALPHA, 1f, 0.4f).apply {
+                    duration = 800
+                    repeatCount = ValueAnimator.INFINITE
+                    repeatMode = ValueAnimator.REVERSE
+                    start()
+                }
+        } else {
+            pulse?.cancel()
+            pulse = null
+            alpha = 1f
+        }
     }
 }
 

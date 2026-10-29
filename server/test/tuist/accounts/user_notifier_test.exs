@@ -62,7 +62,8 @@ defmodule Tuist.Accounts.UserNotifierTest do
   end
 
   test "deliver_reset_password_instructions/1", %{user: user} do
-    email = UserNotifier.deliver_reset_password_instructions(%{user: user, reset_password_url: "https://tuist.dev/reset"})
+    {:ok, email} =
+      UserNotifier.deliver_reset_password_instructions(%{user: user, reset_password_url: "https://tuist.dev/reset"})
 
     assert email.subject == "Reset password instructions"
     assert email.html_body =~ "Hola ada, you can reset your password"

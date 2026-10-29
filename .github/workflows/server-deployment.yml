@@ -1148,15 +1148,17 @@ jobs:
           fi
           echo "RUNNER_IMAGE_DIGESTS=$(jq -c .digests <<< "$gated")" >> "$GITHUB_ENV"
           echo "RUNNER_IMAGE_STACKED_DIGESTS=$(jq -c .stacked <<< "$gated")" >> "$GITHUB_ENV"
-      - name: Pre-pull the server image
+      - name: Render the server image pre-pull
         # The migration Job and every server Pod the rollout replaces one at a
         # time otherwise start by pulling the new image on their node (22-40s
         # each). A throwaway DaemonSet on the nodes server Pods schedule to
-        # pulls it now, while the steps before the Helm upgrade run, and
-        # "Remove the server image pre-pull" deletes it afterwards. Nothing
-        # waits on it: a node that has not finished pulling just pulls for
-        # the Pod as before. Only the server Deployment's node placement is
-        # copied; its pod anti-affinity would keep these Pods off its nodes.
+        # pulls it while the waits before the Helm upgrade run, and "Remove
+        # the server image pre-pull" deletes it afterwards. Nothing waits on
+        # it: a node that has not finished pulling just pulls for the Pod as
+        # before. Only the server Deployment's node placement is copied; its
+        # pod anti-affinity would keep these Pods off its nodes. The Helm step
+        # applies it after the CAPI provider rollout, because the kubelet
+        # pulls one image at a time and the provider shares these nodes.
         run: |
           set -euo pipefail
           if ! scheduling="$(
@@ -1171,6 +1173,7 @@ jobs:
             exit 0
           fi
           image="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+          manifest="$RUNNER_TEMP/server-image-prepull.json"
           jq -n --arg namespace "$NAMESPACE" --arg image "$image" --argjson scheduling "$scheduling" '{
             apiVersion: "apps/v1",
             kind: "DaemonSet",
@@ -1201,8 +1204,9 @@ jobs:
                 })
               }
             }
-          }' | kubectl apply -f -
-          echo "Pre-pulling ${image} on the nodes server Pods schedule to: ${scheduling}"
+          }' > "$manifest"
+          echo "SERVER_IMAGE_PREPULL_MANIFEST=$manifest" >> "$GITHUB_ENV"
+          echo "Will pre-pull ${image} on the nodes server Pods schedule to: ${scheduling}"
       - name: Resolve Kura controller image tag
         run: |
           set -euo pipefail
@@ -1866,6 +1870,13 @@ jobs:
             echo "::endgroup::"
           fi
 
+          start_server_image_prepull() {
+            if [ -f "${SERVER_IMAGE_PREPULL_MANIFEST:-}" ]; then
+              kubectl apply -f "$SERVER_IMAGE_PREPULL_MANIFEST"
+              rm -f "$SERVER_IMAGE_PREPULL_MANIFEST"
+            fi
+          }
+
           # Prepare KVM without switching existing pools until every available
           # Linux host has the kernel and enough device allocations. Uses the
           # same resolved images and values as the final release below.
@@ -1882,6 +1893,9 @@ jobs:
             if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
               bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
             fi
+            # Queued ahead of the provider image, the server image held its
+            # rollout above for the whole pull.
+            start_server_image_prepull
             # Canary must qualify the candidate in this deployment, so wait for
             # preparation and fail closed. Other environments retain background
             # staging with per-pool holds and the existing warning-only fallback.
@@ -1903,6 +1917,7 @@ jobs:
             fi
             rm -f "$kvm_render"
           fi
+          start_server_image_prepull
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \

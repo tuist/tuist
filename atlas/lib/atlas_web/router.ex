@@ -166,6 +166,7 @@ defmodule AtlasWeb.Router do
     post "/slack/interactions", SlackEventsController, :interactions
     post "/github/events", GitHubEventsController, :handle
     post "/automation/hooks/:id", AutomationWebhookController, :create
+    post "/signals/:id/mcp-events", SignalEventController, :create, log: false
     post "/inbox/emails", InboxEmailsController, :create
     post "/postal/events", PostalEventsController, :handle
     post "/email/subscriptions", GTMSubscriptionController, :create
@@ -201,7 +202,7 @@ defmodule AtlasWeb.Router do
     pipe_through :native
 
     get "/orbit/models", NativeOrbitController, :models
-    get "/orbit/threads", NativeOrbitController, :index
+    get "/orbit/threads", NativeOrbitController, :index, log: false
     post "/orbit/threads", NativeOrbitController, :create
     post "/orbit/threads/private", NativeOrbitController, :private
     get "/orbit/threads/:thread_id/environment-commands", NativeEnvironmentCommandsController, :index
@@ -240,6 +241,8 @@ defmodule AtlasWeb.Router do
     pipe_through :native
 
     get "/connections", ConnectionController, :index, log: false
+    get "/business-profile", BusinessProfileController, :show, log: false
+    put "/business-profile", BusinessProfileController, :update, log: false
     delete "/connections/:provider", ConnectionController, :delete, log: false
     post "/connections/:provider/authorize", ConnectionController, :prepare, log: false
 
@@ -261,7 +264,8 @@ defmodule AtlasWeb.Router do
 
     for route <- Interfaces.routes() do
       match route.method, route.path, AutomationController, route.operation,
-        private: %{automation_parameters: route.parameters}
+        private: %{automation_parameters: route.parameters},
+        log: false
     end
 
     match :*, "/automation/*path", AutomationController, :unsupported

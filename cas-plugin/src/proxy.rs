@@ -9965,13 +9965,33 @@ mod tests {
         prune_store(&dir.path(), directory_size(&dir.0.join("v1.1").to_string_lossy())).unwrap();
         let rotated = generations(&dir);
         let state = path_state_for(&dir.path());
+        // An empty primary can occupy zero blocks, so total - 1 would put the
+        // upstream itself over budget. Include allocated non-generation metadata
+        // to exercise a store whose excess cannot be reclaimed by pruning.
+        std::fs::write(dir.0.join("fixture-metadata"), [0u8; 4096]).unwrap();
+        let probe = store_probe_object(state, b"small-active-primary");
         let counter = state.gen_counter.load(Ordering::SeqCst);
         let proxy = test_proxy();
 
         let limit = directory_size(&dir.path()) - 1;
+        assert!(directory_size(&dir.path()) > limit);
+        assert_eq!(spool_records(&dir.path()), 0);
+        assert!(proxy.store_bound_checked.lock().unwrap().is_empty());
+        let sizes = indexed_generation_sizes(&generation_sizes(&dir.path()));
+        assert_eq!(
+            plan_generations(&sizes, generation_limit(limit), true),
+            GenerationPlan::default(),
+            "fixture must have a small primary and an upstream within its allowance: {sizes:?}"
+        );
         assert!(proxy.bound_store(&dir.path(), state, limit).is_none());
+        assert!(proxy
+            .store_bound_checked
+            .lock()
+            .unwrap()
+            .contains_key(&dir.path()));
         assert_eq!(state.gen_counter.load(Ordering::SeqCst), counter);
         assert_eq!(generations(&dir), rotated);
+        assert!(state.load_present(&probe));
     }
 
     // An automatic prune runs beside builds that start once the machine looks

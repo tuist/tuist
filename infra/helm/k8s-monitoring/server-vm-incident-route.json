@@ -1,0 +1,8 @@
+{
+  "alert_receive_channel": "CJNAYAYZBPKHL",
+  "escalation_chain": "F7SJQ2LZ2T845",
+  "filtering_term": "{{ payload.get(\"commonLabels\", {}).get(\"alertname\") == \"Tuist production VM allocator failures across pods\" and payload.get(\"commonLabels\", {}).get(\"cluster\") == \"tuist-production\" and payload.get(\"commonLabels\", {}).get(\"severity\") == \"critical\" }}",
+  "filtering_term_type": 1,
+  "notify_in_slack": true,
+  "slack_channel": "C070C51R7PX"
+}

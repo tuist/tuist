@@ -1,6 +1,6 @@
 import Foundation
 
-struct AtlasThreadPerson: Decodable, Identifiable {
+struct AtlasThreadPerson: Decodable, Identifiable, Equatable {
     let id: String
     let name: String
 }
@@ -17,13 +17,33 @@ struct AtlasThread: Decodable, Identifiable, Hashable {
     let updatedAt: String
     let agentStatus: String?
     var model: String?
+    var priority: String?
+    var domain: String?
+
+    var activityLabel: String? {
+        guard status == "active" else { return nil }
+        switch agentStatus {
+        case "queued": return "Pip is queued"
+        case "running": return "Pip is running"
+        case "compacting": return "Pip is compacting"
+        default: return nil
+        }
+    }
+
+    var priorityTitle: String? {
+        switch priority {
+        case "now": "Now"
+        case "today": "Today"
+        case "later": "Later"
+        default: nil
+        }
+    }
 
     var updatedDate: Date? {
         (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(updatedAt))
             ?? (try? Date.ISO8601FormatStyle().parse(updatedAt))
     }
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
@@ -67,10 +87,29 @@ struct AtlasThreadMessage: Decodable, Identifiable, Equatable {
     let attachments: [AtlasThreadAttachment]?
     let noticeKind: String?
     let mentionedUserIds: [String]?
+    var suggestions: [String]?
 
     var insertedDate: Date? {
         (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(insertedAt))
             ?? (try? Date.ISO8601FormatStyle().parse(insertedAt))
+    }
+}
+
+struct AtlasThreadSuggestion: Equatable {
+    let text: String
+    let icon: String
+
+    static func prompts(messages: [AtlasThreadMessage], welcome: Bool, agentStatus: String?) -> [Self] {
+        guard !["queued", "running", "compacting"].contains(agentStatus ?? "") else { return [] }
+        if welcome {
+            return [Self(text: "What needs my attention?", icon: "sparkles"),
+                    Self(text: "Summarize my open tasks", icon: "checklist"),
+                    Self(text: "Find an account", icon: "magnifyingglass")]
+        }
+        // A newer human turn invalidates the previous reply's follow-ups, even before a run starts.
+        guard let latest = messages.last(where: { $0.kind == "human" || $0.kind == "agent" }),
+              latest.kind == "agent" else { return [] }
+        return (latest.suggestions ?? []).map { Self(text: $0, icon: "arrow.turn.up.right") }
     }
 }
 
@@ -117,6 +156,13 @@ struct AtlasThreadTimelineData {
 struct AtlasOrbitAssistant: Decodable {
     let name: String
     let configured: Bool
+    let searchable: Bool?
+    let domains: [AtlasOrbitDomain]?
+}
+
+struct AtlasOrbitDomain: Decodable, Identifiable {
+    let id: String
+    let name: String
 }
 
 struct AtlasModelChoice: Decodable, Identifiable {
@@ -162,6 +208,8 @@ extension AtlasOrbit {
         let hasMore: Bool
         let hasOlder: Bool
         let statusFilter: String?
+        let query: String?
+        let domainFilter: String?
         let error: String?
         let liveMessage: String?
         let needsSession: Bool

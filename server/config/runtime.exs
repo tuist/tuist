@@ -32,6 +32,13 @@ alias Tuist.Oban.RuntimeConfig
 # A boot failure here is caught in the canary stage before production.
 alias Tuist.Runners.Catalog
 
+# Configure OTP before dependencies can create clients. Its macOS keychain
+# exporter ignores Apple trust-settings deny records; use the image's filtered
+# PEM, which must also retain the operator's enterprise/private trust anchors.
+if System.get_env("TUIST_MODE") == "xcresult_processor" and :os.type() == {:unix, :darwin} do
+  config :public_key, cacerts_path: "/etc/ssl/cert.pem"
+end
+
 if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
   case Tuist.Accounts.SSOLoginDomainTrust.parse_config(value) do
     {:ok, enabled} -> config :tuist, :sso_require_login_domain_verification, enabled

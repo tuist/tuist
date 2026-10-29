@@ -22,7 +22,7 @@ msgstr "%{hit_rate}%"
 #: lib/tuist_web/live/mix_build_live.ex:488
 #, elixir-autogen, elixir-format
 msgid "%{message} in %{link}"
-msgstr "%{link} 中的 %{message}"
+msgstr "%{link}中的%{message}"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:233
 #, elixir-autogen, elixir-format
@@ -38,7 +38,7 @@ msgstr "%{run_duration}秒"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:475
 #, elixir-autogen, elixir-format
 msgid "Additional strings"
-msgstr "附加字符串"
+msgstr "额外字符串"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:90
 #: lib/tuist_web/live/cargo_builds_live.ex:245
@@ -226,7 +226,7 @@ msgstr "CAS 输出"
 #: lib/tuist_web/live/build_run_live.html.heex:1507
 #, elixir-autogen, elixir-format
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "使用 Tuist cache 时，CAS 输出将显示在此处"
+msgstr "使用 Tuist 缓存时，CAS 输出将显示在此处"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:79
 #: lib/tuist_web/components/reapi_cache_outputs.ex:90
@@ -277,7 +277,7 @@ msgstr "缓存命中率"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:41
 #, elixir-autogen, elixir-format
 msgid "Cache hits"
-msgstr "缓存命中"
+msgstr "缓存命中次数"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:237
 #: lib/tuist_web/live/build_run_live.html.heex:1130
@@ -289,7 +289,7 @@ msgstr "缓存键"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:55
 #, elixir-autogen, elixir-format
 msgid "Cache misses"
-msgstr "缓存未命中"
+msgstr "缓存未命中次数"
 
 #: lib/tuist_web/live/build_run_live.html.heex:895
 #: lib/tuist_web/live/cargo_build_live.html.heex:165
@@ -328,7 +328,7 @@ msgstr "未在缓存中找到的可缓存任务。"
 #: lib/tuist_web/live/build_run_live.html.heex:844
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "从缓存（本地 + 远程）中检索到的可缓存任务。"
+msgstr "从缓存（本地 + 远程）中检索的可缓存任务。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1206
 #, elixir-autogen, elixir-format
@@ -641,7 +641,7 @@ msgstr "编译资源目录 %{path} 失败"
 #: lib/tuist_web/live/build_run_live.ex:1003
 #, elixir-autogen, elixir-format
 msgid "Failed compiling storyboard %{path}"
-msgstr "编译 storyboard %{path} 失败"
+msgstr "编译故事板 %{path} 失败"
 
 #: lib/tuist_web/live/build_run_live.ex:997
 #, elixir-autogen, elixir-format
@@ -671,7 +671,7 @@ msgstr "链接 %{path} 失败"
 #: lib/tuist_web/live/build_run_live.ex:1009
 #, elixir-autogen, elixir-format
 msgid "Failed linking storyboards %{path}"
-msgstr "链接 storyboards %{path} 失败"
+msgstr "链接故事板 %{path} 失败"
 
 #: lib/tuist_web/live/build_run_live.ex:1015
 #, elixir-autogen, elixir-format
@@ -741,17 +741,17 @@ msgstr "筛选"
 #: lib/tuist_web/live/run_detail_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Generate Runs"
-msgstr "生成运行次数"
+msgstr "生成运行"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:264
 #, elixir-autogen, elixir-format
 msgid "Hash"
-msgstr "哈希值"
+msgstr "哈希"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:400
 #, elixir-autogen, elixir-format
 msgid "Headers"
-msgstr "请求头"
+msgstr "标头"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:242
 #: lib/tuist_web/helpers/build_entity_labels.ex:97
@@ -780,7 +780,7 @@ msgstr "命中率"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Incremental"
-msgstr "增量式"
+msgstr "增量"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:411
 #, elixir-autogen, elixir-format
@@ -798,7 +798,7 @@ msgstr "Info.plist"
 #: lib/tuist_web/live/build_run_live.html.heex:1434
 #, elixir-autogen, elixir-format
 msgid "Key"
-msgstr "键"
+msgstr "密钥"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:252
 #: lib/tuist_web/components/runs/module_cache_tab.ex:547
@@ -1012,7 +1012,7 @@ msgstr "通过"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:68
 #, elixir-autogen, elixir-format
 msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "成功从缓存中检索的模块百分比。"
+msgstr "从缓存成功检索的模块百分比。"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:306
 #, elixir-autogen, elixir-format
@@ -1168,7 +1168,7 @@ msgstr "大小"
 #: lib/tuist_web/live/build_run_live.ex:1423
 #, elixir-autogen, elixir-format
 msgid "Size (MB)"
-msgstr "大小 (MB)"
+msgstr "大小（MB）"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:171
 #: lib/tuist_web/components/reapi_cache_outputs.ex:152
@@ -1233,7 +1233,7 @@ msgstr "状态"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:827
 #, elixir-autogen, elixir-format
 msgid "Successful builds"
-msgstr "成功构建数"
+msgstr "成功构建"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:35
 #, elixir-autogen, elixir-format
@@ -1307,7 +1307,7 @@ msgstr "测试：%{scheme}"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "包含各百分位区间的平均构建时长。"
+msgstr "平均构建时长，包含各个百分位区间。"
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:120
 #: lib/tuist_web/live/xcode_builds_live.html.heex:250
@@ -1345,12 +1345,12 @@ msgstr "将唯一标识可缓存任务的缓存键写入缓存所需的时间。
 #: lib/tuist_web/live/build_run_live.html.heex:1336
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput in megabits per second."
-msgstr "按时间加权的平均下载吞吐量（单位：兆比特/秒）。"
+msgstr "按时间加权的平均下载吞吐量（兆比特/秒）。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1353
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average upload throughput in megabits per second."
-msgstr "按时间加权的平均上传吞吐量（单位：兆比特/秒）。"
+msgstr "按时间加权的平均上传吞吐量（兆比特/秒）。"
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:86
 #: lib/tuist_web/live/xcode_builds_live.html.heex:213
@@ -1366,17 +1366,17 @@ msgstr "从本地或远程缓存中获取的模块总数。"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:57
 #, elixir-autogen, elixir-format
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
-msgstr "如果缓存完全填充，可能从缓存中获取的模块总数。"
+msgstr "如果缓存完全填充，本可以从缓存中获取的模块总数。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:889
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded."
-msgstr "已下载的缓存构件总大小。"
+msgstr "已下载的缓存制品总大小。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:897
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded."
-msgstr "已上传的缓存构件总大小。"
+msgstr "已上传的缓存制品总大小。"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:276
 #, elixir-autogen, elixir-format
@@ -1501,42 +1501,42 @@ msgstr "编译 XIB 文件 %{path} 时出现警告"
 #: lib/tuist_web/live/build_run_live.ex:1058
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling assets catalog %{path}"
-msgstr "编译资产目录 %{path} 时发出警告"
+msgstr "编译资产目录 %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:1061
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling storyboard %{path}"
-msgstr "编译故事板 %{path} 时发出警告"
+msgstr "编译故事板 %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:1055
 #, elixir-autogen, elixir-format
 msgid "Warning when copying Swift libraries %{path}"
-msgstr "复制 Swift 库 %{path} 时发出警告"
+msgstr "复制 Swift 库 %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:1070
 #, elixir-autogen, elixir-format
 msgid "Warning when copying resource file %{path}"
-msgstr "复制资源文件 %{path} 时发出警告"
+msgstr "复制资源文件 %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:1049
 #, elixir-autogen, elixir-format
 msgid "Warning when creating static library %{path}"
-msgstr "创建静态库 %{path} 时发出警告"
+msgstr "创建静态库 %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Warning when executing script %{script_name}"
-msgstr "执行脚本 %{script_name} 时发出警告"
+msgstr "执行脚本 %{script_name} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:1052
 #, elixir-autogen, elixir-format
 msgid "Warning when linking %{path}"
-msgstr "链接 %{path} 时发出警告"
+msgstr "链接 %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Warning when linking storyboards %{path}"
-msgstr "链接故事板 %{path} 时发出警告"
+msgstr "链接故事板 %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:1073
 #, elixir-autogen, elixir-format
@@ -1618,7 +1618,7 @@ msgstr "p50"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "p50 build duration"
-msgstr "p50 构建耗时"
+msgstr "p50 构建时长"
 
 #: lib/tuist_web/live/build_run_live.html.heex:954
 #, elixir-autogen, elixir-format
@@ -1639,7 +1639,7 @@ msgstr "p90"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "p90 build duration"
-msgstr "p90 构建耗时"
+msgstr "p90 构建时长"
 
 #: lib/tuist_web/live/build_run_live.html.heex:953
 #, elixir-autogen, elixir-format
@@ -1660,7 +1660,7 @@ msgstr "p99"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:266
 #, elixir-autogen, elixir-format
 msgid "p99 build duration"
-msgstr "p99 构建持续时间"
+msgstr "p99 构建时长"
 
 #: lib/tuist_web/live/build_run_live.html.heex:952
 #, elixir-autogen, elixir-format
@@ -1676,7 +1676,7 @@ msgstr "p99 延迟写入缓存键"
 #: lib/tuist_web/live/xcode_builds_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "自上个月以来"
+msgstr "自上月以来"
 
 #: lib/tuist_web/live/build_entity_live.ex:636
 #: lib/tuist_web/live/xcode_builds_live.ex:382
@@ -1848,7 +1848,7 @@ msgstr "下载会话"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:517
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset."
-msgstr "已达到 10,000 条记录的限制，仅包含截至 %{date} 的数据。请尝试按方案、配置或其他属性进行筛选，以缩小数据集范围。"
+msgstr "已达到 10,000 条记录的限制，仅包含截至 %{date} 的数据。尝试按方案、配置或其他属性进行过滤以缩小数据集范围。"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:78
 #, elixir-autogen, elixir-format
@@ -1858,12 +1858,12 @@ msgstr "已下载"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:168
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput from the remote cache during this run."
-msgstr "本次运行期间从远程缓存下载的时间加权平均吞吐量。"
+msgstr "此次运行期间从远程缓存下载的时间加权平均吞吐量。"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:184
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average upload throughput to the remote cache during this run."
-msgstr "本次运行期间上传到远程缓存的时间加权平均吞吐量。"
+msgstr "此次运行期间上传到远程缓存的时间加权平均吞吐量。"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:91
 #, elixir-autogen, elixir-format
@@ -1873,7 +1873,7 @@ msgstr "已上传"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:80
 #, elixir-autogen, elixir-format
 msgid "Total data downloaded from the remote cache during this run (%{count} artifacts)."
-msgstr "本次运行期间从远程缓存下载的总数据量（%{count} 个构件）。"
+msgstr "此次运行期间从远程缓存下载的总数据量（%{count} 个构件）。"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:93
 #, elixir-autogen, elixir-format
@@ -1888,7 +1888,7 @@ msgstr "额外的哈希输入"
 #: lib/tuist_web/components/build_timeline.ex:182
 #, elixir-autogen, elixir-format
 msgid "Build steps. Drag across a time range to focus. Press Escape to cancel a drag. Use the left and right arrow keys to inspect steps. Use plus and minus to zoom, and Home to reset."
-msgstr "构建步骤。拖动以选择时间范围进行聚焦。按 Escape 键取消拖动。使用左右箭头键检查步骤。使用加号和减号进行缩放，按 Home 键重置。"
+msgstr "构建步骤。拖动以选择时间范围进行聚焦。按 Esc 键取消拖动。使用左右方向键检查步骤。使用加号和减号进行缩放，按 Home 键重置。"
 
 #: lib/tuist_web/components/build_timeline.ex:292
 #: lib/tuist_web/components/build_timeline.ex:303
@@ -1956,7 +1956,7 @@ msgstr "时间线"
 #: lib/tuist_web/components/build_timeline.ex:80
 #, elixir-autogen, elixir-format
 msgid "elapsed"
-msgstr "已用时间"
+msgstr "耗时"
 
 #: lib/tuist_web/components/build_timeline.ex:75
 #: lib/tuist_web/components/build_timeline.ex:81
@@ -1979,7 +1979,7 @@ msgstr "构建时间线"
 #: lib/tuist_web/components/build_timeline.ex:272
 #, elixir-autogen, elixir-format
 msgid "No steps in this time range match your filters."
-msgstr "在此时间范围内没有与您的筛选条件匹配的步骤。"
+msgstr "此时间范围内没有符合筛选条件的步骤。"
 
 #: lib/tuist_web/components/build_timeline.ex:70
 #, elixir-autogen, elixir-format
@@ -2095,7 +2095,7 @@ msgstr "依赖项哈希"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:425
 #, elixir-autogen, elixir-format
 msgid "No direct target dependencies recorded"
-msgstr "未记录直接目标依赖"
+msgstr "未记录直接目标依赖项"
 
 #: lib/tuist_web/components/build_timeline.ex:314
 #, elixir-autogen, elixir-format
@@ -2131,7 +2131,7 @@ msgstr "本地缓存命中"
 #: lib/tuist_web/helpers/build_entity_labels.ex:102
 #, elixir-autogen, elixir-format
 msgid "No source"
-msgstr "无源"
+msgstr "无源代码"
 
 #: lib/tuist_web/components/build_timeline.ex:321
 #, elixir-autogen, elixir-format
@@ -2298,7 +2298,7 @@ msgstr "mix compile"
 #: lib/tuist_web/components/build_health.ex:222
 #, elixir-autogen, elixir-format
 msgid "Infrastructure / tooling"
-msgstr "基础设施 / 工具链"
+msgstr "基础设施 / 工具"
 
 #: lib/tuist_web/components/build_health.ex:223
 #, elixir-autogen, elixir-format
@@ -2327,7 +2327,7 @@ msgstr "失败类别"
 #: lib/tuist_web/components/build_health.ex:202
 #, elixir-autogen, elixir-format
 msgid "The recorded build data does not contain enough evidence for Tuist to classify this failure as verification or infrastructure and tooling."
-msgstr "记录的构建数据没有提供足够的证据，让 Tuist 将此失败归类为验证或基础设施与工具问题。"
+msgstr "记录的构建数据不包含足够的证据，无法让 Tuist 将此失败归类为验证或基础设施与工具类。"
 
 #: lib/tuist_web/components/build_health.ex:175
 #, elixir-autogen, elixir-format
@@ -2337,22 +2337,22 @@ msgstr "关于失败类别"
 #: lib/tuist_web/components/build_health.ex:195
 #, elixir-autogen, elixir-format
 msgid "Inferred from recorded build data. Infrastructure and tooling covers configuration, dependency resolution, and execution infrastructure failures."
-msgstr "根据记录的构建数据推断得出。基础设施与工具包括配置、依赖解析和执行基础设施的故障。"
+msgstr "根据记录的构建数据推断。基础设施与工具类涵盖配置、依赖解析和执行基础设施故障。"
 
 #: lib/tuist_web/components/build_health.ex:188
 #, elixir-autogen, elixir-format
 msgid "Inferred from recorded build data. Verification covers compilation, test, lint, and check failures."
-msgstr "根据记录的构建数据推断得出。验证涵盖编译、测试、代码检查和校验的故障。"
+msgstr "根据记录的构建数据推断。验证类涵盖编译、测试、代码检查和校验失败。"
 
 #: lib/tuist_web/live/mix_build_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache artifacts"
-msgstr "缓存构件的平均延迟读取"
+msgstr "读取缓存构件的平均延迟"
 
 #: lib/tuist_web/live/mix_build_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache artifacts"
-msgstr "写入缓存工件的平均延迟"
+msgstr "写入缓存构件的平均延迟"
 
 #: lib/tuist_web/live/mix_build_live.html.heex:260
 #, elixir-autogen, elixir-format
@@ -2364,32 +2364,32 @@ msgstr "依赖编译"
 #: lib/tuist_web/live/mix_build_live.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Mix cache"
-msgstr "混合缓存"
+msgstr "Mix 缓存"
 
 #: lib/tuist_web/live/mix_build_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "p50 latency reading cache artifacts"
-msgstr "读取缓存工件的 p50 延迟"
+msgstr "读取缓存构件的 p50 延迟"
 
 #: lib/tuist_web/live/mix_build_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "p50 latency writing cache artifacts"
-msgstr "写入缓存工件的 p50 延迟"
+msgstr "写入缓存构件的 p50 延迟"
 
 #: lib/tuist_web/live/mix_build_live.ex:327
 #, elixir-autogen, elixir-format
 msgid "p90 latency reading cache artifacts"
-msgstr "读取缓存工件的 p90 延迟"
+msgstr "读取缓存构件的 p90 延迟"
 
 #: lib/tuist_web/live/mix_build_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "p90 latency writing cache artifacts"
-msgstr "写入缓存工件的 p90 延迟"
+msgstr "写入缓存构件的 p90 延迟"
 
 #: lib/tuist_web/live/mix_build_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "p99 latency reading cache artifacts"
-msgstr "读取缓存工件的 p99 延迟"
+msgstr "读取缓存构件的 p99 延迟"
 
 #: lib/tuist_web/live/mix_build_live.ex:330
 #, elixir-autogen, elixir-format
@@ -2405,12 +2405,12 @@ msgstr "依赖包"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:237
 #, elixir-autogen, elixir-format
 msgid "Only actual CAS transfers reported by Kura appear here. Local snapshot copies are not remote CAS outputs; compressed sizes are unavailable."
-msgstr "此处仅显示 Kura 报告的实际 CAS 传输。本地快照副本不属于远程 CAS 输出，因此无法提供压缩后的大小。"
+msgstr "此处仅显示 Kura 报告的实际 CAS 传输。本地快照副本不属于远程 CAS 输出，因此无法提供压缩大小。"
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:113
 #, elixir-autogen, elixir-format
 msgid "Time-weighted CAS transfer throughput reported by Kura through the shared REAPI analytics pipeline, excluding action-cache metadata and local copies."
-msgstr "Kura 通过共享 REAPI 分析管道报告的时间加权 CAS 传输吞吐量，不包括操作缓存元数据和本地副本。"
+msgstr "通过共享 REAPI 分析管道由 Kura 报告的时间加权 CAS 传输吞吐量，不包括操作缓存元数据和本地副本。"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:15
 #: lib/tuist_web/helpers/build_entity_labels.ex:16
@@ -2477,7 +2477,7 @@ msgstr "执行次数"
 #: lib/tuist_web/helpers/build_entity_labels.ex:84
 #, elixir-autogen, elixir-format
 msgid "File compilation duration"
-msgstr "文件编译时长"
+msgstr "文件编译耗时"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:10
 #, elixir-autogen, elixir-format
@@ -2497,7 +2497,7 @@ msgstr "本地命中"
 #: lib/tuist_web/live/build_entity_live.ex:1100
 #, elixir-autogen, elixir-format
 msgid "Measured durations"
-msgstr "测量时长"
+msgstr "测量耗时"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #, elixir-autogen, elixir-format
@@ -2514,24 +2514,24 @@ msgstr "模块"
 #: lib/tuist_web/live/build_entity_live.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "Next"
-msgstr "下一步"
+msgstr "下一页"
 
 #: lib/tuist_web/live/build_entity_live.ex:1042
 #: lib/tuist_web/live/build_entity_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "No data in this period"
-msgstr "此期间无数据"
+msgstr "此时间段内无数据"
 
 #: lib/tuist_web/live/build_entity_live.ex:958
 #: lib/tuist_web/live/build_entity_live.ex:1044
 #, elixir-autogen, elixir-format
 msgid "No recorded durations"
-msgstr "无记录时长"
+msgstr "无记录的持续时间"
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "No recorded lookups"
-msgstr "无记录查找"
+msgstr "无记录的查找"
 
 #: lib/tuist_web/live/build_entity_live.ex:40
 #: lib/tuist_web/live/build_entity_live.ex:210
@@ -2602,7 +2602,7 @@ msgstr "根项目"
 #: lib/tuist_web/live/build_entity_live.ex:949
 #, elixir-autogen, elixir-format
 msgid "Showing the latest 10,000 measured durations since %{date}. Narrow the period or environment to see other observations."
-msgstr "显示自 %{date} 以来最近测量的 10,000 个持续时间。缩小时间段或环境范围以查看其他观测结果。"
+msgstr "显示自 %{date} 以来最近 10,000 次测量的持续时间。缩小时间段或环境范围以查看其他观测结果。"
 
 #: lib/tuist_web/live/build_entity_live.ex:600
 #, elixir-autogen, elixir-format
@@ -2637,18 +2637,18 @@ msgstr "报告的名称"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:329
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency reading cache keys"
-msgstr "读取缓存键的 %{percentile} 延迟"
+msgstr "%{percentile} 延迟读取缓存键"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:332
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency writing cache keys"
-msgstr "写入缓存键的 %{percentile} 延迟"
+msgstr "%{percentile} 延迟写入缓存键"
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:235
 #: lib/tuist_web/live/cargo_build_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "About compiler jobs"
-msgstr "关于编译器任务"
+msgstr "关于编译器作业"
 
 #: lib/tuist_web/helpers/cargo_cache.ex:67
 #, elixir-autogen, elixir-format
@@ -2703,7 +2703,7 @@ msgstr "缓存验证检测到输出不一致"
 #: lib/tuist_web/live/cargo_build_live.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that compiled instead of reusing cached outputs, including cold builds and verification rebuilds."
-msgstr "可缓存的任务，这些任务进行了编译而不是复用缓存的输出，包括冷构建和验证性重新构建。"
+msgstr "可缓存任务编译而非复用缓存输出，包括冷构建和验证性重新构建。"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:41
 #, elixir-autogen, elixir-format
@@ -2713,7 +2713,7 @@ msgstr "Cargo 缓存"
 #: lib/tuist_web/helpers/cargo_cache.ex:72
 #, elixir-autogen, elixir-format
 msgid "Checked the cache but could not reuse cached outputs."
-msgstr "检查了缓存但无法复用缓存的输出。"
+msgstr "已检查缓存但无法复用缓存输出。"
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:123
 #, elixir-autogen, elixir-format
@@ -2723,7 +2723,7 @@ msgstr "从本地或远程缓存恢复了编译操作。"
 #: lib/tuist_web/helpers/cargo_cache.ex:75
 #, elixir-autogen, elixir-format
 msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "已编译以学习任务输入，以便将来复用缓存。"
+msgstr "为学习任务的输入以便将来复用缓存而进行编译。"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
@@ -2745,17 +2745,17 @@ msgstr "下方的编译器作业和诊断仅涵盖这些显示的调用。"
 #: lib/tuist_web/live/cargo_build_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Compiler jobs could not be loaded."
-msgstr "无法加载编译器任务。"
+msgstr "无法加载编译器作业。"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:127
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed operation durations, including connection, retry and verification time. Operations can overlap; this is not whole-build network throughput."
-msgstr "已完成的远程 CAS 字节数除以其总操作持续时间（包括连接、重试和验证时间）。操作可能会重叠；这不是整个构建的网络吞吐量。"
+msgstr "已完成的远程 CAS 字节数除以其累计操作持续时间，包括连接、重试和验证时间。操作可以重叠；这不代表整个构建的网络吞吐量。"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:140
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed upload-attempt durations, including presence checks. Already-present blobs and failed attempts are excluded. Operations can overlap."
-msgstr "已完成的远程 CAS 字节数除以其总上传尝试持续时间（包括存在性检查）。已存在的 blob 和失败的尝试不包括在内。操作可能会重叠。"
+msgstr "已完成的远程 CAS 字节数除以其累计上传尝试持续时间，包括存在性检查。已存在的 blob 和失败的尝试不包括在内。操作可以重叠。"
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:289
 #, elixir-autogen, elixir-format
@@ -2775,32 +2775,32 @@ msgstr "未收集详细的缓存记录"
 #: lib/tuist_web/live/cargo_build_live.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "Each row is one rustc invocation for a crate, which can contain many source files. The path is its crate root. A crate can have multiple jobs for different targets or configurations. Durations can overlap. Started after is relative to the Cargo command."
-msgstr "每一行代表对一个 Crate 的一次 rustc 调用，该 Crate 可能包含许多源文件。路径是其 Crate 根目录。一个 Crate 可能针对不同目标或配置有多个任务。持续时间可能会重叠。“Started after”是相对于 Cargo 命令的时间。"
+msgstr "每一行代表一个 crate 的 rustc 调用，该 crate 可能包含多个源文件。路径为其 crate 根目录。一个 crate 可能因不同的目标或配置而有多个作业。持续时间可能重叠。“Started after”是相对于 Cargo 命令的时间。"
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:327
 #, elixir-autogen, elixir-format
 msgid "Fresh Cargo artifacts do not invoke rustc. No compiler work is inferred for them."
-msgstr "新的 Cargo 产物不会调用 rustc。因此不会为它们推断任何编译器工作。"
+msgstr "新鲜的 Cargo 构件不会调用 rustc。因此不会推断出它们的编译器工作。"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:52
 #, elixir-autogen, elixir-format
 msgid "Fresh compiler outputs were retained instead of the divergent cached outputs."
-msgstr "保留了最新的编译器输出，而非存在差异的缓存输出。"
+msgstr "保留了最新的编译器输出，而非不一致的缓存输出。"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:65
 #, elixir-autogen, elixir-format
 msgid "Inspection records are bounded and best-effort. The tables, charts and measurements below cover only captured records; the summary above retains the aggregate totals."
-msgstr "检查记录的数量有限，且为尽力而为。下方的表格、图表和测量数据仅涵盖已捕获的记录；上方的摘要保留了聚合总数。"
+msgstr "检查记录的数量有限且尽力而为。下方的表格、图表和测量数据仅涵盖已捕获的记录；上方的摘要保留了聚合总数。"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:92
 #, elixir-autogen, elixir-format
 msgid "Measured per-key cache-agent lookup latency for recorded tasks, including local and remote resolution. Repeated reads of a key are averaged; cumulative build timings are not used as latency samples."
-msgstr "针对已记录的任务，测量每个键的缓存代理查找延迟，包括本地和远程解析。对同一键的重复读取取平均值；不使用累计构建时间作为延迟样本。"
+msgstr "针对已记录的任务，测量了每个键的缓存代理查找延迟，包括本地和远程解析。对同一键的重复读取会取平均值；累计构建时间不用作延迟样本。"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:108
 #, elixir-autogen, elixir-format
 msgid "Measured per-key cache-agent store latency for recorded tasks. This includes local storage and queueing, not completion of background remote publication. Repeated writes of a key are averaged."
-msgstr "针对已记录的任务，测量每个键的缓存代理存储延迟。这包括本地存储和排队，不包括后台远程发布的完成时间。对同一键的重复写入取平均值。"
+msgstr "针对已记录的任务，测量了每个键的缓存代理存储延迟。这包括本地存储和排队，不包括后台远程发布的完成。对同一键的重复写入会取平均值。"
 
 #: lib/tuist_web/live/cargo_build_live.html.heex:323
 #, elixir-autogen, elixir-format
@@ -2815,7 +2815,7 @@ msgstr "仅显示最近的 10,000 次构建。缩小日期范围或筛选条件�
 #: lib/tuist_web/live/cargo_build_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Percentage of cacheable tasks that reused cached outputs instead of compiling."
-msgstr "可缓存任务中复用缓存输出而非重新编译的百分比。"
+msgstr "可缓存任务中重用缓存输出而非重新编译的百分比。"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:80
 #, elixir-autogen, elixir-format
@@ -2871,12 +2871,12 @@ msgstr "%{percentile} 编译时长"
 #: lib/tuist_web/live/build_entity_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "%{percentile} execution duration"
-msgstr "%{percentile} 执行时长"
+msgstr "%{percentile} 执行耗时"
 
 #: lib/tuist_web/live/build_entity_live.ex:884
 #, elixir-autogen, elixir-format
 msgid "%{percentile} file compilation duration"
-msgstr "%{percentile} 文件编译时长"
+msgstr "%{percentile} 文件编译耗时"
 
 #: lib/tuist_web/live/build_entity_live.ex:762
 #, elixir-autogen, elixir-format
@@ -2886,7 +2886,7 @@ msgstr "操作执行次数"
 #: lib/tuist_web/live/build_entity_live.ex:906
 #, elixir-autogen, elixir-format
 msgid "Each module contributes its containing file's measured compilation duration. Sibling modules share that measurement; their durations are not additive."
-msgstr "每个模块贡献其包含文件的实测编译时长。同级模块共享该测量值；它们的时长不叠加。"
+msgstr "每个模块贡献其所在文件的实测编译耗时。同级模块共享该测量值；它们的耗时不累加。"
 
 #: lib/tuist_web/live/build_entity_live.ex:772
 #, elixir-autogen, elixir-format
@@ -2936,17 +2936,17 @@ msgstr "报告的文件编译，包括未测量耗时的编译。"
 #: lib/tuist_web/live/build_entity_live.ex:793
 #, elixir-autogen, elixir-format
 msgid "Task executions with a recorded success or failure. Cache hits, skipped, up-to-date and no-source tasks are excluded, regardless of timing availability."
-msgstr "记录了成功或失败的任务执行。无论是否有时序数据，缓存命中、跳过、最新和无源任务均被排除。"
+msgstr "记录了成功或失败的任务执行。无论是否有可用耗时数据，缓存命中、跳过、最新和无源码的任务均被排除。"
 
 #: lib/tuist_web/live/build_entity_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "Uncached action executions with a recorded success or failure. Cached, skipped, cancelled and unknown outcomes are excluded, regardless of timing availability."
-msgstr "记录了成功或失败的未缓存操作执行。无论是否有时序数据，缓存命中、跳过、取消和未知结果均被排除。"
+msgstr "记录了成功或失败的未缓存操作执行。无论是否有可用耗时数据，已缓存、跳过、取消和结果未知的操作均被排除。"
 
 #: lib/tuist_web/live/build_entity_live.ex:786
 #, elixir-autogen, elixir-format
 msgid "BEP-reported action executions, not cache lookups. Reporting must publish all actions for complete execution coverage; missing timing remains unavailable."
-msgstr "BEP 报告的操作执行，不包括缓存查找。必须发布所有操作以实现完整的执行覆盖；缺失的时序数据仍然不可用。"
+msgstr "BEP 报告的操作执行，不包括缓存查找。报告必须发布所有操作以实现完整的执行覆盖；缺失的耗时数据仍然不可用。"
 
 #: lib/tuist_web/live/build_entity_live.ex:597
 #, elixir-autogen, elixir-format
@@ -2962,27 +2962,27 @@ msgstr "上次运行时间"
 #: lib/tuist_web/live/build_entity_live.html.heex:430
 #, elixir-autogen, elixir-format
 msgid "Last status"
-msgstr "上次状态"
+msgstr "最后状态"
 
 #: lib/tuist_web/live/build_entity_live.ex:859
 #, elixir-autogen, elixir-format
 msgid "Distinct actions with recorded activity during the selected period. The chart shows distinct actions per day, not a cumulative total."
-msgstr "在所选期间内有记录活动的不同操作数量。图表显示的是每天的不同操作数量，而非累计总数。"
+msgstr "在所选期间内有记录活动的不同操作。图表显示每天的不同操作数量，而非累计总数。"
 
 #: lib/tuist_web/live/build_entity_live.ex:865
 #, elixir-autogen, elixir-format
 msgid "Distinct files with recorded activity during the selected period. The chart shows distinct files per day, not a cumulative total."
-msgstr "在所选期间内有记录活动的不同文件数量。图表显示的是每天的不同文件数量，而非累计总数。"
+msgstr "在所选期间内有记录活动的不同文件。图表显示每天的不同文件数量，而非累计总数。"
 
 #: lib/tuist_web/live/build_entity_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "Distinct modules with recorded activity during the selected period. The chart shows distinct modules per day, not a cumulative total."
-msgstr "在所选期间内有记录活动的不同模块数量。图表显示的是每天的不同模块数量，而非累计总数。"
+msgstr "在所选期间内有记录活动的不同模块。图表显示每天的不同模块数量，而非累计总数。"
 
 #: lib/tuist_web/live/build_entity_live.ex:853
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks with recorded activity during the selected period. The chart shows distinct tasks per day, not a cumulative total."
-msgstr "在所选期间内有记录活动的不同任务数量。图表显示的是每天的不同任务数量，而非累计总数。"
+msgstr "在所选期间内有记录活动的不同任务。图表显示每天的不同任务数量，而非累计总数。"
 
 #: lib/tuist_web/live/build_entity_live.ex:927
 #, elixir-autogen, elixir-format
@@ -3012,12 +3012,12 @@ msgstr "在所选期间记录的任务执行失败。未知结果不计入成功
 #: lib/tuist_web/live/build_entity_live.ex:920
 #, elixir-autogen, elixir-format
 msgid "Measured action durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "在所选期间测量的操作持续时间。缺失的测量值被排除；实际测量到的零值包含在内。"
+msgstr "在所选期间测量的操作持续时间。缺失的测量值被排除；实际测量为零的值包含在内。"
 
 #: lib/tuist_web/live/build_entity_live.ex:913
 #, elixir-autogen, elixir-format
 msgid "Measured task durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "在所选期间测量的任务持续时间。缺失的测量值被排除；实际测量到的零值包含在内。"
+msgstr "在所选期间测量的任务持续时间。缺失的测量值被排除；实际测量为零的值包含在内。"
 
 #: lib/tuist_web/live/build_entity_live.ex:887
 #, elixir-autogen, elixir-format
@@ -3032,7 +3032,7 @@ msgstr "失败的模块构建"
 #: lib/tuist_web/live/build_entity_live.ex:899
 #, elixir-autogen, elixir-format
 msgid "Measured compilation time for module builds, not total build time. Cache resolutions and modules without compilation work do not contribute timing samples."
-msgstr "衡量的是模块构建的编译时间，而非总构建时间。缓存解析和无需编译的模块不会提供计时样本。"
+msgstr "测量的是模块构建的编译时间，而非总构建时间。缓存解析和无需编译的模块不会贡献时间样本。"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:83
 #, elixir-autogen, elixir-format
@@ -3048,7 +3048,7 @@ msgstr "模块构建"
 #: lib/tuist_web/live/build_entity_live.ex:779
 #, elixir-autogen, elixir-format
 msgid "Module builds with recorded compilation work during the selected period. Module-cache resolutions and modules without compilation work are excluded."
-msgstr "在所选期间内记录了编译工作的模块构建。不包括模块缓存解析和无需编译的模块。"
+msgstr "在所选期间内有记录编译工作的模块构建。不包括模块缓存解析和无需编译的模块。"
 
 #: lib/tuist_web/live/build_entity_live.ex:817
 #, elixir-autogen, elixir-format
@@ -3123,7 +3123,7 @@ msgstr "最近执行"
 #: lib/tuist_web/live/build_entity_live.ex:657
 #, elixir-autogen, elixir-format
 msgid "Latest recorded module count from a generated-project graph on the default branch (%{branch}) before the end of the selected period, independent of environment. The chart carries that reported count forward until another scoped snapshot arrives. Historical graphs without scoped count metadata remain unavailable."
-msgstr "所选周期结束前，默认分支（%{branch}）上生成的项目图中最新记录的模块数量，与环境无关。图表会保留该报告的数量，直到收到另一个作用域快照。没有作用域计数元数据的历史图表仍然不可用。"
+msgstr "在所选周期结束前，默认分支（%{branch}）上生成的项目图中记录的最新模块数量，与环境无关。图表会保留该报告的数量，直到收到另一个作用域快照为止。没有作用域计数元数据的历史图表仍然不可用。"
 
 #: lib/tuist_web/components/build_metadata.ex:120
 #, elixir-autogen, elixir-format
@@ -3224,9 +3224,9 @@ msgstr "报告的操作系统内存"
 #: lib/tuist_web/components/build_metadata.ex:133
 #, elixir-autogen, elixir-format
 msgid "Runner environment"
-msgstr "运行器环境"
+msgstr "Runner 环境"
 
 #: lib/tuist_web/components/build_metadata.ex:134
 #, elixir-autogen, elixir-format
 msgid "Runner name"
-msgstr "运行器名称"
+msgstr "Runner 名称"

@@ -60,7 +60,9 @@ extension TestPlanDescriptor {
             path: testPlan.path,
             testTargets: testTargets,
             coverage: testPlan.coverage,
-            codeCoverageTargets: codeCoverageTargets
+            codeCoverageTargets: codeCoverageTargets,
+            language: testPlan.language,
+            region: testPlan.region
         )
     }
 }
