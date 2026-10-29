@@ -22,7 +22,7 @@ semver = "1.0"
 libc = "0.2"
 bazel-remote-apis = "0.27.0"
 tonic = { version = "0.14.6", features = ["tls-ring", "tls-native-roots"] }
-rustls = { version = "=0.23.45", default-features = false, features = ["ring", "std", "tls12"] }
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 webpki = { package = "rustls-webpki", version = "=0.103.16", features = ["ring"] }
 rustls-native-certs = "0.8"
 
