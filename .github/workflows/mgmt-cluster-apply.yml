@@ -185,6 +185,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Guard management Tailscale DaemonSet replacement
+        id: tailscale
         env:
           ACCESS_QUALIFIED: ${{ github.event_name == 'workflow_dispatch' && inputs.management_access_qualified }}
         run: |
@@ -192,7 +193,18 @@ jobs:
           if [[ "$ACCESS_QUALIFIED" == true ]]; then
             flags+=(--acknowledged)
           fi
-          bash infra/certificate-trust/guard.sh management-tailscale "${flags[@]}"
+          status=0
+          bash infra/certificate-trust/guard.sh management-tailscale "${flags[@]}" || status=$?
+          case "$status" in
+            0) echo "apply=true" >> "$GITHUB_OUTPUT" ;;
+            3)
+              echo "apply=false" >> "$GITHUB_OUTPUT"
+              message="Management Tailscale replacement deferred pending qualification; unrelated management resources will still reconcile. See infra/certificate-trust/management-replacements.md."
+              echo "::warning::$message"
+              printf '### Management Tailscale replacement deferred\n\n%s\n' "$message" >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *) exit "$status" ;;
+          esac
       - name: Validate management monitoring credential
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -359,11 +371,6 @@ jobs:
           kubectl apply -f infra/k8s/mgmt/cluster-autoscaler.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/capi-webhook-cert-reloader.yaml
-          # Moves tailscaled from the old single-node Deployment to the
-          # per-node DaemonSet, keeping tuist-mgmt's tailnet identity.
-          # A no-op once done.
-          infra/mise/tasks/mgmt/migrate-tailscale.sh
-          kubectl apply -f infra/k8s/mgmt/tailscale.yaml
           # Owns only replicas and pod anti-affinity on Deployments that
           # clusterctl installed; see the file header.
           kubectl apply --server-side --field-manager=mgmt-cluster-apply \
@@ -377,6 +384,12 @@ jobs:
             cluster-autoscaler-tuist-kura-us-west \
             cluster-autoscaler-tuist-staging \
             --ignore-not-found
+      - name: Apply management Tailscale workload
+        if: steps.tailscale.outputs.apply == 'true'
+        run: |
+          # The legacy migration also replaces access, so defer both operations.
+          infra/mise/tasks/mgmt/migrate-tailscale.sh
+          kubectl apply -f infra/k8s/mgmt/tailscale.yaml
       - name: Install External Secrets
         run: |
           set -euo pipefail
@@ -433,6 +446,8 @@ jobs:
             -f infra/helm/k8s-monitoring/values-management.yaml \
             --atomic --cleanup-on-fail --wait --timeout 10m
       - name: Verify converged management state
+        env:
+          APPLY_TAILSCALE: ${{ steps.tailscale.outputs.apply }}
         run: |
           set -euo pipefail
 
@@ -536,5 +551,7 @@ jobs:
           assert_no_drift infra/k8s/mgmt/hetzner-robot-controller.yaml
           assert_no_drift infra/k8s/mgmt/cluster-autoscaler.yaml
           assert_no_drift infra/k8s/mgmt/etcd-snapshot.yaml
-          assert_no_drift infra/k8s/mgmt/tailscale.yaml
+          if [[ "$APPLY_TAILSCALE" == true ]]; then
+            assert_no_drift infra/k8s/mgmt/tailscale.yaml
+          fi
           assert_no_drift infra/k8s/mgmt/observability-namespace.yaml
