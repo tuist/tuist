@@ -7,9 +7,7 @@ defmodule Tuist.Tests.Selections do
   a selection run (`Tuist.Tests.TestSelectionRun`) that applies the impact to
   the tests it requested: a test runs when its evidence executed a changed
   file, its target changed, it failed at the baseline or it has no evidence;
-  otherwise it is skipped. Evidence only narrows what was requested. In dry
-  run nothing is skipped, and the tests that would have been skipped but
-  failed are the misses.
+  otherwise it is skipped. Evidence only narrows what was requested.
 
   The reads here back the Test Selection page and the selection tabs of a
   test run and a test case run; nothing selects yet, so the rows come from
@@ -46,8 +44,8 @@ defmodule Tuist.Tests.Selections do
   @doc """
   The project's selection runs over a period: totals, their trend against
   the period before, and per-bucket series (hours for a period of two days
-  or less, days otherwise) of runs, selected, skipped and missed tests, and
-  skip rate. The end is carried to the close of its second, as the date
+  or less, days otherwise) of runs, selected and skipped tests, and skip
+  rate. The end is carried to the close of its second, as the date
   picker's periods are in whole seconds.
   """
   def analytics(project_id, {start_datetime, end_datetime}) do
@@ -64,8 +62,7 @@ defmodule Tuist.Tests.Selections do
           date: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
           runs: count(),
           selected: sum(r.selected_count),
-          skipped: sum(r.skipped_count),
-          missed: sum(r.missed_count)
+          skipped: sum(r.skipped_count)
         }
       )
       |> ClickHouseRepo.all()
@@ -75,14 +72,13 @@ defmodule Tuist.Tests.Selections do
       start_datetime
       |> buckets(end_datetime, bucket)
       |> Enum.map(fn {date, key} ->
-        row = Map.get(rows, key, %{runs: 0, selected: 0, skipped: 0, missed: 0})
+        row = Map.get(rows, key, %{runs: 0, selected: 0, skipped: 0})
 
         %{
           date: date,
           runs: to_integer(row.runs),
           selected: to_integer(row.selected),
           skipped: to_integer(row.skipped),
-          missed: to_integer(row.missed),
           skip_rate: skip_rate(to_integer(row.selected), to_integer(row.skipped))
         }
       end)
@@ -93,13 +89,11 @@ defmodule Tuist.Tests.Selections do
 
     %{
       totals: current,
-      trends:
-        Map.new(~w(runs selected skipped skip_rate missed)a, &{&1, trend(Map.get(previous, &1), Map.get(current, &1))}),
+      trends: Map.new(~w(runs selected skipped skip_rate)a, &{&1, trend(Map.get(previous, &1), Map.get(current, &1))}),
       dates: Enum.map(points, & &1.date),
       runs: Enum.map(points, & &1.runs),
       selected: Enum.map(points, & &1.selected),
       skipped: Enum.map(points, & &1.skipped),
-      missed: Enum.map(points, & &1.missed),
       skip_rates: Enum.map(points, & &1.skip_rate)
     }
   end
@@ -112,12 +106,9 @@ defmodule Tuist.Tests.Selections do
           where: r.inserted_at >= ^start_datetime and r.inserted_at < ^until,
           select: %{
             runs: count(),
-            dry_runs: fragment("countIf(? = 'dry_run')", r.mode),
             fallbacks: fragment("countIf(? != '')", r.fallback_reason),
             selected: sum(r.selected_count),
             skipped: sum(r.skipped_count),
-            dry_run_skipped: fragment("sumIf(?, ? = 'dry_run')", r.skipped_count, r.mode),
-            missed: sum(r.missed_count),
             skipped_duration: sum(r.skipped_duration)
           }
         )
@@ -128,12 +119,9 @@ defmodule Tuist.Tests.Selections do
 
     %{
       runs: to_integer(row[:runs]),
-      dry_runs: to_integer(row[:dry_runs]),
       fallbacks: to_integer(row[:fallbacks]),
       selected: selected,
       skipped: skipped,
-      dry_run_skipped: to_integer(row[:dry_run_skipped]),
-      missed: to_integer(row[:missed]),
       skipped_duration: to_integer(row[:skipped_duration]),
       skip_rate: skip_rate(selected, skipped)
     }
@@ -146,10 +134,6 @@ defmodule Tuist.Tests.Selections do
       total -> Float.round(skipped / total * 100, 1)
     end
   end
-
-  @doc "The share of would-skip tests that failed, as a percentage with two decimals."
-  def miss_rate(_missed, 0), do: 0.0
-  def miss_rate(missed, skipped), do: Float.round(missed / skipped * 100, 2)
 
   defp trend(previous, current) when previous in [0, +0.0] or current in [0, +0.0], do: 0.0
   defp trend(previous, current), do: Float.round((current - previous) / previous * 100, 1)
@@ -181,15 +165,13 @@ defmodule Tuist.Tests.Selections do
   @doc """
   A page of the project's selection runs, newest first. Options: `:search`
   (a commit SHA prefix, or part of a branch, scheme or test plan name),
-  `:mode` (`dry_run` or `enabled`), `:fallback` (`true` for the runs that
-  ran everything), `:page` and `:page_size`. Returns `{rows,
-  %{current_page, total_pages, total_count}}`.
+  `:fallback` (`true` for the runs that ran everything), `:page` and
+  `:page_size`. Returns `{rows, %{current_page, total_pages, total_count}}`.
   """
   def list_runs(project_id, opts \\ []) do
     runs()
     |> where([r], r.project_id == ^project_id)
     |> filter_run_search(Keyword.get(opts, :search))
-    |> filter_field(:mode, Keyword.get(opts, :mode))
     |> filter_fallback(Keyword.get(opts, :fallback))
     |> order_by([r], desc: r.inserted_at, desc: r.id)
     |> paginate(opts)
@@ -278,9 +260,8 @@ defmodule Tuist.Tests.Selections do
 
   @doc """
   What a selection run's tests add up to: requested, selected and skipped
-  tests, the misses (skipped tests that failed, in dry run), the selected
-  tests that never reported a result, and the number of tests per decision
-  and reason.
+  tests, the selected tests that failed or never reported a result, and the
+  number of tests per decision and reason.
   """
   def run_summary(%TestSelectionRun{} = run) do
     rows =
@@ -293,7 +274,7 @@ defmodule Tuist.Tests.Selections do
 
     outcomes =
       if is_nil(run.test_run_id) do
-        %{missed: 0, not_run: 0, failed: 0, reported: false}
+        %{not_run: 0, failed: 0, reported: false}
       else
         row =
           ClickHouseRepo.one(
@@ -301,7 +282,6 @@ defmodule Tuist.Tests.Selections do
               left_join: o in subquery(outcomes_query(run)),
               on: o.test_case_id == t.test_case_id,
               select: %{
-                missed: fragment("countIf(? = 'skipped' AND ? = 'failure')", t.decision, o.status),
                 not_run: fragment("countIf(? = 'selected' AND ifNull(?, '') = '')", t.decision, o.status),
                 failed: fragment("countIf(? = 'failure')", o.status)
               }
@@ -309,7 +289,6 @@ defmodule Tuist.Tests.Selections do
           )
 
         %{
-          missed: to_integer(row.missed),
           not_run: to_integer(row.not_run),
           failed: to_integer(row.failed),
           reported: true
@@ -334,7 +313,7 @@ defmodule Tuist.Tests.Selections do
   A page of a selection run's tests with their outcome in the test run that
   reported its results (`nil` when the run reported none for the test).
   Options: `:search` (part of the module, suite or test name), `:decision`
-  (`selected` or `skipped`), `:flag` (`missed` or `not_run`), `:shard`,
+  (`selected` or `skipped`), `:flag` (`not_run`), `:shard`,
   `:sort_by` (`decision`, `name`, `shard` or `duration`), `:sort_order`,
   `:page` and `:page_size`.
   """
@@ -414,9 +393,6 @@ defmodule Tuist.Tests.Selections do
       test_case_run_id: if(status, do: test_case_run_id)
     })
   end
-
-  defp filter_flag(query, "missed", %TestSelectionRun{test_run_id: test_run_id}) when not is_nil(test_run_id),
-    do: where(query, [t, o], t.decision == "skipped" and o.status == "failure")
 
   defp filter_flag(query, "not_run", %TestSelectionRun{test_run_id: test_run_id}) when not is_nil(test_run_id),
     do: where(query, [t, o], t.decision == "selected" and fragment("ifNull(?, '') = ''", o.status))

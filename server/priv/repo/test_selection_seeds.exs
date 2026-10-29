@@ -21,9 +21,7 @@
 #     the baseline's tests of the same targets (so tests removed since show
 #     up as planned but not run), selects what the impact reaches and what
 #     has no evidence, and skips the rest; a few fall back to running
-#     everything; some are sharded, packed by duration;
-#   - mostly dry runs, so the would-skip tests that failed in the run are the
-#     misses.
+#     everything; some are sharded, packed by duration.
 #
 # Starts from a clean slate on every run. Runnable on its own after the main
 # seed: `mix run priv/repo/test_selection_seeds.exs`.
@@ -442,7 +440,6 @@ seeded =
 
         {selected, skipped} = Enum.split_with(tests, &(&1.decision == "selected"))
         tests = TestSelectionSeed.pack(selected, shard_count) ++ skipped
-        mode = if TestSelectionSeed.h({commit.sha, :mode}, 5) == 0, do: "enabled", else: "dry_run"
 
         ci_run_id =
           if test_run.ci_run_id in [nil, ""],
@@ -450,25 +447,6 @@ seeded =
             else: test_run.ci_run_id
 
         job = "test (#{test_run.scheme})"
-
-        # Now and then a dry run's would-skip tests fail: the misses the
-        # dry run exists to measure. The seed marks them failed in the run.
-        failing =
-          if mode == "dry_run" and fallback == "" and TestSelectionSeed.h({test_run.id, :miss}, 5) == 0 do
-            skipped
-            |> Enum.reject(&is_nil(&1.status))
-            |> Enum.sort_by(&{TestSelectionSeed.h({&1.test_case_id, :miss}, 1000), &1.test_case_id})
-            |> Enum.take(1 + TestSelectionSeed.h(test_run.id, 2))
-          else
-            []
-          end
-
-        failing_ids = MapSet.new(failing, & &1.test_case_id)
-
-        missed =
-          if mode == "dry_run",
-            do: Enum.count(skipped, &(&1.status == "failure" or MapSet.member?(failing_ids, &1.test_case_id))),
-            else: 0
 
         run = %{
           id: run_id,
@@ -481,7 +459,6 @@ seeded =
           test_plan: if(TestSelectionSeed.h({test_run.id, :plan}, 4) == 0, do: "#{test_run.scheme}.xctestplan", else: ""),
           destination: Enum.at(destinations, TestSelectionSeed.h({commit.branch, test_run.scheme}, length(destinations))),
           requested_targets: targets,
-          mode: mode,
           shard_count: shard_count,
           shard_plan_id: UUIDv7.generate(),
           test_run_id: test_run.id,
@@ -491,30 +468,16 @@ seeded =
           requested_count: length(tests),
           selected_count: length(selected),
           skipped_count: length(skipped),
-          missed_count: missed,
           skipped_duration: skipped |> Enum.map(& &1.estimated_duration_ms) |> Enum.sum(),
           fallback_reason: fallback,
           inserted_at: selected_at,
           updated_at: NaiveDateTime.add(test_run.ran_at, max(div(test_run.duration, 1000), 1), :second)
         }
 
-        [{run, Enum.map(tests, &Map.delete(&1, :status)), impact, Enum.map(failing, &{test_run.id, &1.test_case_id})}]
+        [{run, Enum.map(tests, &Map.delete(&1, :status)), impact}]
       end
     end)
   end)
-
-failures = Enum.flat_map(seeded, &elem(&1, 3))
-
-if failures != [] do
-  pairs = Enum.map_join(failures, ", ", fn {run_id, case_id} -> "(toUUID('#{run_id}'), toUUID('#{case_id}'))" end)
-  runs = failures |> Enum.map(&elem(&1, 0)) |> Enum.uniq() |> Enum.map_join(", ", &"toUUID('#{&1}')")
-
-  IngestRepo.query!(
-    "ALTER TABLE test_case_runs UPDATE status = 'failure' WHERE (test_run_id, assumeNotNull(test_case_id)) IN (#{pairs}) SETTINGS mutations_sync = 2"
-  )
-
-  IngestRepo.query!("ALTER TABLE test_runs UPDATE status = 'failure' WHERE id IN (#{runs}) SETTINGS mutations_sync = 2")
-end
 
 impacts =
   seeded

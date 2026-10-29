@@ -1,10 +1,8 @@
 defmodule TuistWeb.TestSelection.TestCaseRunTab do
   @moduledoc """
   One test's part in the coverage selection of the test run it ran in, in
-  the test case run's Selective Testing tab: whether the selection kept it or
-  would have skipped it and why (the reason and the changed path that
-  matched), whether that skip would have hidden this failure, the shard it
-  was planned on, and the repository files the baseline's per-test evidence
+  the test case run's Selective Testing tab: why the selection kept it (the
+  reason and the changed path that matched), the shard it was planned on, and the repository files the baseline's per-test evidence
   says it executed, the changed ones first, each with how it changed since
   the baseline. Its query parameters are prefixed with `selection-`.
   """
@@ -19,7 +17,6 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
   alias Tuist.Tests.Selections
   alias Tuist.Tests.TestImpact
   alias Tuist.Utilities.DateFormatter
-  alias TuistWeb.TestSelection.RunTab
   alias TuistWeb.Utilities.Query
 
   @page_size 20
@@ -33,7 +30,7 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
     with true <- Project.xcode_project?(project) and FeatureFlags.xcode_coverage_enabled?(account),
          %{} = run <- Selections.run_for_test_run(project.id, test_run_id),
          {:ok, test} <- Selections.get_run_test(run, test_case_id) do
-      %{run: run, test: test, missed?: test.decision == "skipped" and test.outcome == "failure"}
+      %{run: run, test: test}
     else
       _ -> nil
     end
@@ -122,7 +119,7 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
     ~H"""
     <div class="tuist-coverage-selection" data-part="test-selection">
       <.card
-        title={reason_title(@test.decision, @run.mode)}
+        title={dgettext("dashboard_tests", "Why it was selected")}
         icon="filter_question"
         data-part="selection-reason-card"
       >
@@ -132,46 +129,22 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
             variant="secondary"
             size="small"
             navigate={
-              "/#{@account.name}/#{@project.name}/tests/test-runs/#{@test_run_id}?tab=#{RunTab.page_tab(@run)}"
+              "/#{@account.name}/#{@project.name}/tests/test-runs/#{@test_run_id}?tab=test-optimizations"
             }
           />
         </:actions>
         <.card_section data-part="selection-verdict-section">
           <.alert
-            :if={@selection.missed?}
-            id="test-selection-test-miss"
-            type="secondary"
-            status="error"
-            size="large"
-            title={
-              dgettext("dashboard_tests", "Missed: the selection would have skipped this failure")
-            }
-            description={
-              dgettext(
-                "dashboard_tests",
-                "It passed in the baseline and the files it executed there didn't change, but it failed here. Enforced, the selection wouldn't have run it and this failure would have gone unnoticed."
-              )
-            }
-          />
-          <.alert
             id="test-selection-test-reason"
             type="secondary"
-            status={
-              if @test.decision == "selected" or @selection.missed?,
-                do: "information",
-                else: "success"
-            }
+            status={if @test.decision == "selected", do: "information", else: "success"}
             size="large"
-            title={"#{decision_label(@test.decision, @run.mode)}: #{reason_label(@test.reason)}"}
+            title={"#{decision_label(@test.decision)}: #{reason_label(@test.reason)}"}
             description={reason_description(@test.reason, @test.matched_path)}
           />
         </.card_section>
         <.card_section data-part="selection-details-section">
           <dl data-part="details">
-            <div>
-              <dt>{dgettext("dashboard_tests", "Mode")}</dt>
-              <dd>{mode_label(@run.mode)}</dd>
-            </div>
             <div>
               <dt>{dgettext("dashboard_tests", "Baseline")}</dt>
               <dd>
@@ -287,10 +260,6 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
     </div>
     """
   end
-
-  defp reason_title("selected", "dry_run"), do: dgettext("dashboard_tests", "Why it would have run")
-  defp reason_title("skipped", "dry_run"), do: dgettext("dashboard_tests", "Why it would have been skipped")
-  defp reason_title(_decision, _mode), do: dgettext("dashboard_tests", "Why it was selected")
 
   defp parse_page(page) do
     case Integer.parse(page || "") do

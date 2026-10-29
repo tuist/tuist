@@ -1,22 +1,17 @@
 defmodule TuistWeb.TestSelection.RunTab do
   @moduledoc """
-  The coverage selection a test run's tests came from: the mode, the
-  baseline, the counts and, in dry run, whether the skips would have hidden
-  a failure; then four tabs:
+  The coverage selection a test run's tests came from, in the test run's
+  Selective Testing tab: the baseline, the counts and the invocation; then
+  four tabs:
 
   - Tests: every requested test with its decision, reason, shard, estimated
-    duration and outcome, the dry-run misses and the selected tests that
-    never reported flagged; each opens its test case run's Selective Testing
+    duration and outcome, the selected tests that never reported flagged; each opens its test case run's Selective Testing
     tab (`TuistWeb.TestSelection.TestCaseRunTab`).
   - Modules: the requested tests per test module. The test run page fills
     it with its module-level selective testing table instead when it has one.
   - Changed files: what changed since the baseline and how many tests each
     file reaches.
   - Shards: per shard, what was planned and what ran.
-
-  An enforced selection is shown in the test run's Selective Testing tab; a
-  dry run, whose skips weren't applied, in a Selective Testing - Dry Run tab
-  of its own, next to the module-level selection that did apply.
 
   Its query parameters are prefixed with `selection-` so they don't clash
   with the test run page's own.
@@ -35,10 +30,6 @@ defmodule TuistWeb.TestSelection.RunTab do
   @tabs ~w(tests modules files shards)
   @sort_fields ~w(decision name shard duration)
   @kinds ~w(source test resource tracked ignored)
-
-  @doc "The test run tab that shows `selection_run`."
-  def page_tab(%{mode: "dry_run"}), do: "selective-testing-dry-run"
-  def page_tab(_selection_run), do: "test-optimizations"
 
   @doc "What the tab shows before its data is loaded."
   def assign_defaults(socket) do
@@ -90,7 +81,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   defp assign_tab(socket, "tests", run, params) do
     search = params["selection-search"] || ""
     decision = if params["selection-decision"] in ~w(selected skipped), do: params["selection-decision"], else: "any"
-    flag = if params["selection-flag"] in ~w(missed not_run), do: params["selection-flag"], else: "any"
+    flag = if params["selection-flag"] in ~w(not_run), do: params["selection-flag"], else: "any"
     shard = parse_shard(params["selection-shard"], run.shard_count)
     sort_by = if params["selection-sort-by"] in @sort_fields, do: params["selection-sort-by"], else: "decision"
     sort_order = if params["selection-sort-order"] == "desc", do: "desc", else: "asc"
@@ -184,20 +175,11 @@ defmodule TuistWeb.TestSelection.RunTab do
         icon="filter"
         data-part="selection-summary-card"
       >
-        <:actions>
-          <.badge
-            label={mode_label(@selection_run.mode)}
-            color={mode_color(@selection_run.mode)}
-            style="light-fill"
-            size="large"
-          />
-        </:actions>
         <.card_section
-          :if={@selection_run.fallback_reason != "" or @selection_run.mode == "dry_run"}
+          :if={@selection_run.fallback_reason != ""}
           data-part="selection-verdict-section"
         >
           <.alert
-            :if={@selection_run.fallback_reason != ""}
             id="test-selection-fallback"
             type="secondary"
             status="warning"
@@ -209,22 +191,12 @@ defmodule TuistWeb.TestSelection.RunTab do
             }
             description={fallback_description(@selection_run.fallback_reason)}
           />
-          <.dry_run_verdict
-            :if={@selection_run.fallback_reason == "" and @selection_run.mode == "dry_run"}
-            selection_run={@selection_run}
-            summary={@summary}
-            uri={@uri}
-          />
         </.card_section>
         <.card_section data-part="selection-widgets-section">
           <div data-part="widgets">
             <.widget
               id="widget-selection-selected"
-              title={
-                if @selection_run.mode == "dry_run",
-                  do: dgettext("dashboard_tests", "Would run"),
-                  else: dgettext("dashboard_tests", "Ran")
-              }
+              title={dgettext("dashboard_tests", "Ran")}
               description={
                 dgettext(
                   "dashboard_tests",
@@ -236,20 +208,8 @@ defmodule TuistWeb.TestSelection.RunTab do
             />
             <.widget
               id="widget-selection-skipped"
-              title={
-                if @selection_run.mode == "dry_run",
-                  do: dgettext("dashboard_tests", "Would skip"),
-                  else: dgettext("dashboard_tests", "Skipped")
-              }
-              description={
-                if @selection_run.mode == "dry_run",
-                  do:
-                    dgettext(
-                      "dashboard_tests",
-                      "Requested tests the selection would have skipped. In dry run they ran anyway."
-                    ),
-                  else: dgettext("dashboard_tests", "Requested tests the selection skipped.")
-              }
+              title={dgettext("dashboard_tests", "Skipped")}
+              description={dgettext("dashboard_tests", "Requested tests the selection skipped.")}
               value={format_number(@summary.skipped)}
               legend_color="secondary"
             />
@@ -274,20 +234,6 @@ defmodule TuistWeb.TestSelection.RunTab do
               value={format_duration(@selection_run.skipped_duration)}
             />
             <.widget
-              :if={@selection_run.mode == "dry_run"}
-              id="widget-selection-missed"
-              title={dgettext("dashboard_tests", "Misses")}
-              description={
-                dgettext(
-                  "dashboard_tests",
-                  "Tests the selection would have skipped that failed when they ran anyway."
-                )
-              }
-              value={if @summary.reported, do: format_number(@summary.missed), else: "–"}
-              legend_color="destructive"
-            />
-            <.widget
-              :if={@selection_run.mode != "dry_run"}
               id="widget-selection-not-run"
               title={dgettext("dashboard_tests", "Planned, not run")}
               description={
@@ -377,92 +323,6 @@ defmodule TuistWeb.TestSelection.RunTab do
     """
   end
 
-  attr :selection_run, :map, required: true
-  attr :summary, :map, required: true
-  attr :uri, :any, required: true
-
-  # In dry run nothing was skipped, so the question the tab answers first is
-  # whether enforcing the selection would have been safe on this run.
-  defp dry_run_verdict(assigns) do
-    ~H"""
-    <.alert
-      :if={!@summary.reported}
-      id="test-selection-dry-run"
-      type="secondary"
-      status="information"
-      size="large"
-      title={dgettext("dashboard_tests", "Dry run: nothing was skipped")}
-      description={
-        dgettext(
-          "dashboard_tests",
-          "The selection would skip %{skipped} of %{requested} tests (%{rate}%). Misses are counted once the run's results are processed.",
-          skipped: format_number(@summary.skipped),
-          requested: format_number(@summary.requested),
-          rate: @summary.skip_rate
-        )
-      }
-    />
-    <.alert
-      :if={@summary.reported and @summary.missed == 0}
-      id="test-selection-dry-run"
-      type="secondary"
-      status="success"
-      size="large"
-      title={dgettext("dashboard_tests", "Dry run: no misses")}
-      description={
-        dgettext(
-          "dashboard_tests",
-          "The selection would have skipped %{skipped} of %{requested} tests (%{rate}%), saving about %{saved}. None of them failed, so enforcing it would have caught every failure this run found.",
-          skipped: format_number(@summary.skipped),
-          requested: format_number(@summary.requested),
-          rate: @summary.skip_rate,
-          saved: format_duration(@selection_run.skipped_duration)
-        )
-      }
-    />
-    <.alert
-      :if={@summary.reported and @summary.missed > 0}
-      id="test-selection-dry-run"
-      type="secondary"
-      status="error"
-      size="large"
-      title={
-        dngettext(
-          "dashboard_tests",
-          "Dry run: %{count} miss",
-          "Dry run: %{count} misses",
-          @summary.missed,
-          count: format_number(@summary.missed)
-        )
-      }
-      description={
-        dngettext(
-          "dashboard_tests",
-          "The selection would have skipped %{skipped} of %{requested} tests (%{rate}%), but %{count} of them failed when it ran anyway. Enforced, the selection would have hidden that failure.",
-          "The selection would have skipped %{skipped} of %{requested} tests (%{rate}%), but %{count} of them failed when they ran anyway. Enforced, the selection would have hidden those failures.",
-          @summary.missed,
-          skipped: format_number(@summary.skipped),
-          requested: format_number(@summary.requested),
-          rate: @summary.skip_rate,
-          count: format_number(@summary.missed)
-        )
-      }
-    >
-      <:action>
-        <.button
-          label={dgettext("dashboard_tests", "Show misses")}
-          variant="secondary"
-          size="small"
-          patch={
-            "?#{@uri.query |> Query.put("selection-tab", "tests") |> drop_tab_params() |> Query.put("selection-flag", "missed")}"
-          }
-          data-part="show-misses"
-        />
-      </:action>
-    </.alert>
-    """
-  end
-
   defp tab_card(%{tab: "tests"} = assigns), do: tests_card(assigns)
   defp tab_card(%{tab: "files"} = assigns), do: files_card(assigns)
   defp tab_card(%{tab: "modules", modules: [_ | _]} = assigns), do: ~H"{render_slot(@modules)}"
@@ -496,13 +356,13 @@ defmodule TuistWeb.TestSelection.RunTab do
           </.form>
           <.dropdown
             id="selection-decision-dropdown"
-            label={decision_filter_label(@filters.decision, @selection_run.mode)}
+            label={decision_filter_label(@filters.decision)}
             secondary_text={dgettext("dashboard_tests", "Decision:")}
           >
             <.dropdown_item
               :for={decision <- ~w(any selected skipped)}
               value={decision}
-              label={decision_filter_label(decision, @selection_run.mode)}
+              label={decision_filter_label(decision)}
               patch={filter_patch(@uri, "selection-decision", decision)}
               data-selected={@filters.decision == decision}
             >
@@ -516,13 +376,7 @@ defmodule TuistWeb.TestSelection.RunTab do
             secondary_text={dgettext("dashboard_tests", "Flag:")}
           >
             <.dropdown_item
-              :for={
-                flag <-
-                  if(@selection_run.mode == "dry_run",
-                    do: ~w(any missed not_run),
-                    else: ~w(any not_run)
-                  )
-              }
+              :for={flag <- ~w(any not_run)}
               value={flag}
               label={flag_filter_label(flag)}
               patch={filter_patch(@uri, "selection-flag", flag)}
@@ -578,7 +432,7 @@ defmodule TuistWeb.TestSelection.RunTab do
               patch={column_sort_patch(@uri, @filters, "decision")}
               sort_order={@filters.sort_by == "decision" && @filters.sort_order}
             >
-              <.decision_cell decision={test.decision} mode={@selection_run.mode} />
+              <.decision_cell decision={test.decision} />
             </:col>
             <:col :let={test} label={dgettext("dashboard_tests", "Reason")}>
               <.text_and_description_cell
@@ -607,9 +461,8 @@ defmodule TuistWeb.TestSelection.RunTab do
             </:col>
             <:col :let={test} label={dgettext("dashboard_tests", "Outcome")}>
               <.outcome_cell
-                outcome={visible_outcome(test, @selection_run.mode)}
+                outcome={test.outcome}
                 decision={test.decision}
-                mode={@selection_run.mode}
                 reported={not is_nil(@selection_run.test_run_id)}
               />
             </:col>
@@ -745,14 +598,7 @@ defmodule TuistWeb.TestSelection.RunTab do
             <:col :let={target} label={dgettext("dashboard_tests", "Module")}>
               <.text_cell label={target.module_name} />
             </:col>
-            <:col
-              :let={target}
-              label={
-                if @selection_run.mode == "dry_run",
-                  do: dgettext("dashboard_tests", "Would run"),
-                  else: dgettext("dashboard_tests", "Selected")
-              }
-            >
+            <:col :let={target} label={dgettext("dashboard_tests", "Selected")}>
               <.text_cell label={"#{format_number(target.selected)} / #{format_number(target.requested)}"} />
             </:col>
             <:col :let={target} label={dgettext("dashboard_tests", "Skip rate")}>
@@ -888,10 +734,9 @@ defmodule TuistWeb.TestSelection.RunTab do
 
   defp kinds, do: @kinds
 
-  defp decision_filter_label("any", _mode), do: dgettext("dashboard_tests", "Any")
-  defp decision_filter_label(decision, mode), do: decision_label(decision, mode)
+  defp decision_filter_label("any"), do: dgettext("dashboard_tests", "Any")
+  defp decision_filter_label(decision), do: decision_label(decision)
 
-  defp flag_filter_label("missed"), do: dgettext("dashboard_tests", "Misses")
   defp flag_filter_label("not_run"), do: dgettext("dashboard_tests", "Planned, not run")
   defp flag_filter_label(_flag), do: dgettext("dashboard_tests", "Any")
 
