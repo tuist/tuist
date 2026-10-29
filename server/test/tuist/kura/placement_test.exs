@@ -595,7 +595,7 @@ defmodule Tuist.Kura.PlacementTest do
           served: %{
             "us-central" => served_daily(14, 30_000),
             "us-east" => served_daily(14, 2_000),
-            "eu-west" => served_daily(14, 300)
+            "eu-west" => served_every(14, 7, 300)
           },
           reported: reported(["eu-west", "us-central", "us-east"], 28),
           reserved_gib: %{"eu-west" => 60, "us-central" => 60, "us-east" => 60}
@@ -615,6 +615,23 @@ defmodule Tuist.Kura.PlacementTest do
           primary: "eu-west",
           serving: ["eu-west", "us-central"],
           served: %{"us-central" => served_daily(14, 30_000), "eu-west" => served_daily(14, 5_000)},
+          reported: reported(["eu-west", "us-central"], 28),
+          reserved_gib: %{"eu-west" => 60, "us-central" => 60}
+        )
+
+      assert {:relocate, "eu-west", "us-central", evidence} = Placement.evaluate(context)
+      assert evidence["retire_source"] == false
+    end
+
+    test "keeps the region it leaves when the account's people use it most working days" do
+      # Under 1% of the hits on a 60 GiB claim, but every weekday: the
+      # developers the primary was placed for, outweighed by CI elsewhere.
+      context =
+        context(
+          plan: :enterprise,
+          primary: "eu-west",
+          serving: ["eu-west", "us-central"],
+          served: %{"us-central" => served_daily(28, 30_000), "eu-west" => served_weekdays(28, 250)},
           reported: reported(["eu-west", "us-central"], 28),
           reserved_gib: %{"eu-west" => 60, "us-central" => 60}
         )
@@ -646,7 +663,7 @@ defmodule Tuist.Kura.PlacementTest do
           plan: :enterprise,
           primary: "us-west",
           serving: ["us-west", "eu-east"],
-          served: %{"us-west" => served_daily(28, 100_000), "eu-east" => served_daily(28, 300)},
+          served: %{"us-west" => served_daily(28, 100_000), "eu-east" => served_every(28, 7, 300)},
           reported: reported(["us-west", "eu-east"], 28),
           reserved_gib: %{"us-west" => 256, "eu-east" => 256}
         )
@@ -655,6 +672,40 @@ defmodule Tuist.Kura.PlacementTest do
       assert evidence["signal"] == "hits_below_floor"
       assert evidence["reserved_gib"] == 256
       assert evidence["reported_days"] == 28
+      assert evidence["weekday_presence"] == 0.2
+    end
+
+    test "keeps a secondary the account's people use most working days, however little it serves" do
+      # A tenth of the floor and a sliver of the account's hits, on every
+      # weekday: an office's developers against CI that runs around the clock
+      # somewhere else.
+      context =
+        context(
+          plan: :enterprise,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          served: %{"us-east" => served_daily(28, 200_000), "eu-west" => served_weekdays(28, 300)},
+          reported: reported(["us-east", "eu-west"], 28),
+          reserved_gib: %{"us-east" => 128, "eu-west" => 128}
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "still retires a secondary that serves on a minority of working days" do
+      # Four weekdays in four weeks of a busy account: a laptop now and then,
+      # not a team.
+      context =
+        context(
+          plan: :enterprise,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          served: %{"us-east" => served_daily(28, 200_000), "eu-west" => served_every(28, 7, 2_000)},
+          reported: reported(["us-east", "eu-west"], 28),
+          reserved_gib: %{"us-east" => 128, "eu-west" => 128}
+        )
+
+      assert {:retire, "eu-west", _evidence} = Placement.evaluate(context)
     end
 
     test "retires a secondary that served nothing at all" do
@@ -1057,6 +1108,14 @@ defmodule Tuist.Kura.PlacementTest do
 
   defp served_daily(days, hits) do
     for offset <- 0..(days - 1), do: {Date.add(@today, -offset), hits}
+  end
+
+  defp served_every(days, step, hits) do
+    for offset <- 0..(days - 1)//step, do: {Date.add(@today, -offset), hits}
+  end
+
+  defp served_weekdays(days, hits) do
+    for offset <- 0..(days - 1), date = Date.add(@today, -offset), Date.day_of_week(date) <= 5, do: {date, hits}
   end
 
   defp reported(regions, days), do: Map.new(regions, &{&1, reported_dates(days)})
