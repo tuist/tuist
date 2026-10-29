@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -185,6 +186,14 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 }
 
 func (m *Maintainer) refresh(ctx context.Context) error {
+	// Capacity grants and node-lifecycle status share the Node resource version.
+	// A concurrent write is normal, including during startup, not a fatal error.
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		return m.refreshOnce(ctx)
+	})
+}
+
+func (m *Maintainer) refreshOnce(ctx context.Context) error {
 	node := &corev1.Node{}
 	if err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node); err != nil {
 		return err
@@ -202,6 +211,16 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	base := node.DeepCopy()
 	m.readRuntimeVersion(ctx)
 	m.configureNode(node, m.evalDynamicLabels(ctx))
+	// Host/guest pressure probes can take seconds. Run them before the metadata
+	// patch returns a fresh resource version, keeping the status write's conflict
+	// window short even while capacity grants are being refreshed continuously.
+	m.applyDiskPressure(ctx, node)
+	m.applyHostPressure(ctx, node)
+	for i, c := range node.Status.Conditions {
+		if c.Type == corev1.NodeReady {
+			node.Status.Conditions[i].LastHeartbeatTime = metav1.Now()
+		}
+	}
 
 	// configureNode just set this Node's desired status (Ready=True,
 	// capacity, node info). client.Patch below replaces the in-memory node
@@ -220,14 +239,6 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 		return err
 	}
 	node.Status = *desiredStatus
-
-	m.applyDiskPressure(ctx, node)
-	m.applyHostPressure(ctx, node)
-	for i, c := range node.Status.Conditions {
-		if c.Type == corev1.NodeReady {
-			node.Status.Conditions[i].LastHeartbeatTime = metav1.Now()
-		}
-	}
 	return m.Client.Status().Update(ctx, node)
 }
 

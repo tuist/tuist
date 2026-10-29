@@ -13,9 +13,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
-func newNodeFakeClient(objs ...client.Object) client.Client {
+func newNodeFakeClient(objs ...client.Object) client.WithWatch {
 	scheme := runtime.NewScheme()
 	_ = corev1.AddToScheme(scheme)
 	return fake.NewClientBuilder().
@@ -69,6 +70,58 @@ func TestEnsureNodeDoesNotOverwriteExistingProviderID(t *testing.T) {
 	}
 	if got := nodeProviderID(t, c, "mac-1"); got != "scw-applesilicon://fr-par-1/original" {
 		t.Fatalf("providerID = %q, want the original left untouched (immutable)", got)
+	}
+}
+
+func TestEnsureNodeSurvivesConcurrentCapacityGrants(t *testing.T) {
+	for _, lateWrite := range []bool{false, true} {
+		t.Run(map[bool]string{false: "during pressure probe", true: "during status write"}[lateWrite], func(t *testing.T) {
+			ctx := context.Background()
+			c := newNodeFakeClient(&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "mac-1"}})
+			const grantKey = "tuist.dev/macos-sandbox-grant"
+			writeGrant := func(value string) {
+				t.Helper()
+				node := &corev1.Node{}
+				if err := c.Get(ctx, types.NamespacedName{Name: "mac-1"}, node); err != nil {
+					t.Fatal(err)
+				}
+				node.Annotations = map[string]string{grantKey: value}
+				if err := c.Update(ctx, node); err != nil {
+					t.Fatal(err)
+				}
+			}
+			injected := false
+			wrapped := interceptor.NewClient(c, interceptor.Funcs{
+				SubResourceUpdate: func(ctx context.Context, inner client.Client, name string, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+					if lateWrite && name == "status" && !injected {
+						injected = true
+						writeGrant("latest grant")
+					}
+					return inner.SubResource(name).Update(ctx, obj, opts...)
+				},
+			})
+			m := &Maintainer{Client: wrapped, NodeName: "mac-1", Heartbeat: time.Second,
+				MemoryPressure: func(context.Context) (bool, string, error) {
+					if !lateWrite {
+						writeGrant("latest grant")
+					}
+					return false, "healthy", nil
+				},
+			}
+			if err := m.ensureNode(ctx); err != nil {
+				t.Fatalf("startup failed under concurrent grant updates: %v", err)
+			}
+			node := &corev1.Node{}
+			if err := c.Get(ctx, types.NamespacedName{Name: "mac-1"}, node); err != nil {
+				t.Fatal(err)
+			}
+			if node.Annotations[grantKey] != "latest grant" {
+				t.Fatalf("startup overwrote the concurrent capacity grant: %v", node.Annotations)
+			}
+			if ready, ok := conditionByType(node.Status.Conditions, corev1.NodeReady); !ok || ready.Status != corev1.ConditionTrue {
+				t.Fatalf("startup did not report Ready: %v", node.Status.Conditions)
+			}
+		})
 	}
 }
 
