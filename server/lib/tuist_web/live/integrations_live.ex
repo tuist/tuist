@@ -9,8 +9,11 @@ defmodule TuistWeb.IntegrationsLive do
   alias Tuist.Origin
   alias Tuist.Origin.Client, as: OriginClient
   alias Tuist.Projects
+  alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.GitLab
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
   alias Tuist.VCS.GitHubAppInstallation
@@ -75,6 +78,8 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(buildkite_has_changes: false)
       |> assign_buildkite_installation()
       |> assign(gitlab_connections: GitLab.list_connections(selected_account.id), gitlab_error: nil)
+      |> assign(bitrise_error: nil)
+      |> assign_bitrise()
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -218,6 +223,79 @@ defmodule TuistWeb.IntegrationsLive do
   @impl true
   def handle_event("close-connect-gitlab-modal", _params, socket) do
     {:noreply, push_event(socket, "close-modal", %{id: "connect-gitlab-modal"})}
+  end
+
+  @impl true
+  def handle_event("save-bitrise", params, %{assigns: %{selected_account: account}} = socket) do
+    if FeatureFlags.runners_enabled?(account) do
+      # A blank token keeps the stored one, which is never shown again.
+      attrs =
+        params
+        |> Map.take(["workspace_slug", "api_token"])
+        |> Map.new(fn {key, value} -> {String.to_existing_atom(key), String.trim(value)} end)
+        |> Map.reject(fn {key, value} -> key == :api_token and value == "" end)
+
+      case Bitrise.upsert_connection(account.id, attrs) do
+        {:ok, _connection} ->
+          {:noreply,
+           socket
+           |> assign(bitrise_error: nil)
+           |> assign_bitrise()
+           |> push_event("close-modal", %{id: "connect-bitrise-modal"})}
+
+        {:error, _changeset} ->
+          {:noreply,
+           assign(socket, :bitrise_error, dgettext("dashboard_integrations", "Check the workspace slug and API token."))}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("disconnect-bitrise", _params, %{assigns: %{selected_account: account}} = socket) do
+    :ok = Bitrise.delete_connection(account.id)
+    {:noreply, socket |> assign(bitrise_error: nil) |> assign_bitrise()}
+  end
+
+  @impl true
+  def handle_event("add-bitrise-pool", params, %{assigns: %{selected_account: account}} = socket) do
+    if FeatureFlags.runners_enabled?(account) do
+      attrs =
+        params
+        |> Map.take(["stack_identifier", "profile_label", "intro_secret"])
+        |> Map.new(fn {key, value} -> {String.to_existing_atom(key), String.trim(value)} end)
+
+      case Bitrise.save_pool(account.id, attrs) do
+        {:ok, _pool} ->
+          {:noreply, socket |> assign(bitrise_error: nil) |> assign_bitrise()}
+
+        {:error, _reason} ->
+          {:noreply,
+           assign(
+             socket,
+             :bitrise_error,
+             dgettext("dashboard_integrations", "Check the stack ID, profile and pool token.")
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("remove-bitrise-pool", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
+    case Integer.parse(id) do
+      {pool_id, ""} -> :ok = Bitrise.delete_pool(account.id, pool_id)
+      _ -> :ok
+    end
+
+    {:noreply, assign_bitrise(socket)}
+  end
+
+  @impl true
+  def handle_event("close-connect-bitrise-modal", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "connect-bitrise-modal"})}
   end
 
   @impl true
@@ -840,6 +918,21 @@ defmodule TuistWeb.IntegrationsLive do
       </span>
     </div>
     """
+  end
+
+  defp assign_bitrise(%{assigns: %{runner_integrations_visible?: false}} = socket) do
+    assign(socket, bitrise_connection: nil, bitrise_pools: [], bitrise_profile_labels: [])
+  end
+
+  defp assign_bitrise(%{assigns: %{selected_account: account}} = socket) do
+    connection = Bitrise.get_connection(account.id)
+
+    assign(socket,
+      bitrise_connection: connection,
+      bitrise_pools: if(connection, do: Bitrise.list_pools(account.id), else: []),
+      bitrise_profile_labels:
+        if(connection, do: Enum.map(Profiles.list_for_account(account), &Profile.dispatch_label/1), else: [])
+    )
   end
 
   defp assign_buildkite_installation(%{assigns: %{selected_account: account}} = socket) do

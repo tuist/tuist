@@ -9,8 +9,11 @@ defmodule TuistWeb.IntegrationsLiveTest do
   alias Tuist.Origin.Installation, as: OriginInstallation
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.GitLab
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -1121,6 +1124,71 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     assert [%{id: project_id}] = Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
     assert project_id == project.id
+  end
+
+  describe "Bitrise" do
+    setup do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> true end)
+      :ok
+    end
+
+    test "connects a workspace, keeps the token secret, adds and removes a pool, and disconnects", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert html =~ "connect-bitrise-form"
+      refute has_element?(lv, "#bitrise-pools")
+
+      html =
+        lv
+        |> form("#connect-bitrise-form", %{workspace_slug: "n26-workspace", api_token: "bitrise-private-token"})
+        |> render_submit()
+
+      assert %{workspace_slug: "n26-workspace", api_token: "bitrise-private-token"} = Bitrise.get_connection(account.id)
+      refute html =~ "bitrise-private-token"
+      assert has_element?(lv, "#bitrise-connection-form")
+
+      lv |> form("#bitrise-connection-form", %{api_token: ""}) |> render_submit()
+      assert Bitrise.get_connection(account.id).api_token == "bitrise-private-token"
+
+      label = account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1) |> List.first()
+
+      html =
+        lv
+        |> form("#add-bitrise-pool-form", %{
+          stack_identifier: "agent-pool-ios",
+          profile_label: label,
+          intro_secret: "bitrise-private-intro"
+        })
+        |> render_submit()
+
+      assert [%{id: pool_id, stack_identifier: "agent-pool-ios", intro_secret: "bitrise-private-intro"}] =
+               Bitrise.list_pools(account.id)
+
+      refute html =~ "bitrise-private-intro"
+      assert has_element?(lv, "#bitrise-pool-#{pool_id}", "agent-pool-ios")
+
+      lv |> element("#bitrise-pool-#{pool_id} button[phx-click=remove-bitrise-pool]") |> render_click()
+      assert Bitrise.list_pools(account.id) == []
+
+      lv |> element("button[phx-click=disconnect-bitrise]") |> render_click()
+      assert Bitrise.get_connection(account.id) == nil
+      assert has_element?(lv, "#connect-bitrise-form")
+    end
+
+    test "explains a pool that cannot be saved", %{conn: conn, account: account} do
+      {:ok, _connection} = Bitrise.upsert_connection(account.id, %{workspace_slug: "n26", api_token: "secret"})
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html =
+        lv
+        |> form("#add-bitrise-pool-form", %{stack_identifier: "agent-pool-ios", intro_secret: ""})
+        |> render_submit()
+
+      assert html =~ "Check the stack ID, profile and pool token."
+      assert Bitrise.list_pools(account.id) == []
+    end
   end
 
   describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do

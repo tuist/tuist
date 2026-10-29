@@ -69,6 +69,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/10 * * * *", Tuist.Kura.Workers.ClaimSizingWorker},
     {"40 * * * *", Tuist.Kura.Workers.PlacementWorker},
     {"* * * * *", Tuist.Runners.Workers.BuildkitePollWorker},
+    {"* * * * *", Tuist.Runners.Workers.BitrisePollWorker},
     {"* * * * *", Tuist.Runners.Workers.GitLabPollWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},

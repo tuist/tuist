@@ -151,11 +151,17 @@
 
   /* Title and subtitle on the left, the actions on the same line to the
      right; when connected, the fields run the full width underneath. */
-  & > :is([data-part="buildkite-card-section"], [data-part="gitlab-card-section"], [data-part="amp-card-section"]) {
+  &
+    > :is(
+      [data-part="buildkite-card-section"],
+      [data-part="gitlab-card-section"],
+      [data-part="bitrise-card-section"],
+      [data-part="amp-card-section"]
+    ) {
     display: flex;
     flex-direction: column;
 
-    & > :is(#buildkite-form, [id^="gitlab-connection-"], [id^="amp-settings-form-"]) {
+    & > :is(#buildkite-form, [id^="gitlab-connection-"], #bitrise-connection-form, [id^="amp-settings-form-"]) {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-6);
@@ -214,18 +220,68 @@
     }
   }
 
-  & #connect-gitlab-modal > [data-part="positioner"] > [data-part="content"] {
+  & #bitrise-pools {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="pool"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="stack"] {
+        flex-grow: 1;
+        min-width: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        overflow-wrap: anywhere;
+      }
+
+      & > [data-part="profile"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & > #add-bitrise-pool-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+
+      & > [data-part="fields"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+      }
+
+      & > [data-part="actions"] {
+        display: flex;
+        justify-content: flex-end;
+      }
+    }
+  }
+
+  & :is(#connect-gitlab-modal, #connect-bitrise-modal) > [data-part="positioner"] > [data-part="content"] {
     width: min(520px, 90vw);
   }
 
-  & #connect-gitlab-modal [data-part="connect-gitlab"] > [data-part="actions"] {
+  &
+    :is(#connect-gitlab-modal [data-part="connect-gitlab"], #connect-bitrise-modal [data-part="connect-bitrise"])
+    > [data-part="actions"] {
     display: flex;
     justify-content: flex-end;
   }
 
   &
-    :is(#connect-buildkite-modal, #connect-gitlab-modal)
-    :is([data-part="connect-buildkite"], [data-part="connect-gitlab"]) {
+    :is(#connect-buildkite-modal, #connect-gitlab-modal, #connect-bitrise-modal)
+    :is([data-part="connect-buildkite"], [data-part="connect-gitlab"], [data-part="connect-bitrise"]) {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);

@@ -205,6 +205,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   alias Tuist.Environment
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Claims
   alias Tuist.Runners.GitLab
@@ -411,6 +412,25 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
       handle_gh_status(status, conclusion, orphan, account, evidence, :confirmation)
     else
       _ -> false
+    end
+  end
+
+  defp recover_one(
+         %{provider: "bitrise", workflow_job_id: workflow_job_id, account_id: account_id} = orphan,
+         evidence,
+         _stage
+       ) do
+    with {:ok, account} <- Accounts.get_account_by_id(account_id),
+         {:ok, {status, conclusion}} <- Bitrise.orphan_status(orphan) do
+      handle_gh_status(status, conclusion, orphan, account, evidence, :confirmation)
+    else
+      {:error, reason} ->
+        Logger.warning("runners: orphan worker bitrise lookup failed; will retry next tick",
+          workflow_job_id: workflow_job_id,
+          reason: inspect(reason)
+        )
+
+        false
     end
   end
 

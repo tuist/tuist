@@ -354,6 +354,41 @@ RUN set -eux; \
     rm -rf /tmp/buildkite-agent.tar.gz /tmp/buildkite-agent-dist; \
     buildkite-agent --version
 
+# The Bitrise den agent and the CLI it runs builds with, for the same
+# reason. Started without `--fetch-latest-cli`, so neither updates itself.
+# The agent checksums are the ones bitrise-io/homebrew-den-agent pins; the
+# CLI's come from the release's checksums.txt.
+# renovate: datasource=github-releases depName=bitrise-io/bitrise-den-agent
+ARG BITRISE_DEN_AGENT_VERSION=2.69.0
+ARG BITRISE_DEN_AGENT_SHA256_AMD64=926b332d0f0fb5cd423396658bf0236607eadcb52f2bb8f4ec7d7c74951b6909
+ARG BITRISE_DEN_AGENT_SHA256_ARM64=a3ffa2413e829b1e9045195550cbae8d4967f1d17a40ad8ad72dd5680d85b0f5
+# renovate: datasource=github-releases depName=bitrise-io/bitrise
+ARG BITRISE_CLI_VERSION=3.2.1
+ARG BITRISE_CLI_SHA256_AMD64=509952cfde023199f569928aedecf8a6550931df2db2ece6517c6c28492ec3c6
+ARG BITRISE_CLI_SHA256_ARM64=8b4e4a9dbb0b01984ce70580c53f07b30fb8aa24961506005f7ea4b6d6d30606
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) agent_arch=amd64; agent_sha="${BITRISE_DEN_AGENT_SHA256_AMD64}"; cli_arch=x86_64; cli_sha="${BITRISE_CLI_SHA256_AMD64}" ;; \
+      arm64) agent_arch=arm64; agent_sha="${BITRISE_DEN_AGENT_SHA256_ARM64}"; cli_arch=arm64; cli_sha="${BITRISE_CLI_SHA256_ARM64}" ;; \
+      *) echo "unsupported architecture" >&2; exit 1 ;; \
+    esac; \
+    curl -fSL "https://github.com/bitrise-io/bitrise-den-agent/releases/download/v${BITRISE_DEN_AGENT_VERSION}/bitrise-den-agent-linux-${agent_arch}.zip" \
+        -o /tmp/bitrise-den-agent.zip; \
+    echo "${agent_sha}  /tmp/bitrise-den-agent.zip" | sha256sum -c -; \
+    mkdir -p /tmp/bitrise-den-agent-dist; \
+    unzip -q /tmp/bitrise-den-agent.zip -d /tmp/bitrise-den-agent-dist; \
+    install -m 0755 /tmp/bitrise-den-agent-dist/bitrise-den-agent /usr/local/bin/bitrise-den-agent; \
+    curl -fSL "https://github.com/bitrise-io/bitrise/releases/download/v${BITRISE_CLI_VERSION}/bitrise-Linux-${cli_arch}" \
+        -o /tmp/bitrise; \
+    echo "${cli_sha}  /tmp/bitrise" | sha256sum -c -; \
+    install -m 0755 /tmp/bitrise /usr/local/bin/bitrise; \
+    mkdir -p /opt/bitrise/var/log /opt/bitrise/releases /opt/bitrise/bin; \
+    touch /opt/bitrise/.env_all.yaml; \
+    chown -R runner:runner /opt/bitrise; \
+    rm -rf /tmp/bitrise-den-agent.zip /tmp/bitrise-den-agent-dist /tmp/bitrise; \
+    bitrise-den-agent --version; \
+    bitrise --version
+
 USER runner
 WORKDIR /home/runner/actions-runner
 
@@ -384,6 +419,7 @@ COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /home/runner/acti
 # Set permissions during COPY: a later chmod would copy unchanged binaries
 # into another layer whenever a script changes.
 COPY --chmod=0755 buildkite-hooks/ /usr/local/share/tuist/buildkite-hooks/
+COPY --chmod=0755 bitrise-hooks/ /usr/local/share/tuist/bitrise-hooks/
 COPY --chmod=0755 dispatch-poll.sh run-job.sh vitals.sh metrics-sampler.sh /usr/local/bin/
 
 USER runner

@@ -660,6 +660,192 @@
     </form>
   </.card_section>
 
+  <.card_section :if={@runner_integrations_visible?} data-part="bitrise-card-section">
+    <div data-part="header-row">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard_integrations", "Bitrise")}</span>
+        <span data-part="subtitle">{dgettext(
+          "dashboard_integrations",
+          "Run builds of your self-hosted Bitrise runner pools on Tuist runners. Each pool runs on one Tuist profile."
+        )}</span>
+      </div>
+      <div :if={@bitrise_connection} data-part="actions">
+        <.button
+          type="button"
+          label={dgettext("dashboard_integrations", "Disconnect")}
+          variant="secondary"
+          phx-click="disconnect-bitrise"
+        />
+      </div>
+      <form :if={is_nil(@bitrise_connection)} id="connect-bitrise-form" phx-submit="save-bitrise">
+        <.modal
+          id="connect-bitrise-modal"
+          title={dgettext("dashboard_integrations", "Connect Bitrise")}
+          description={
+            dgettext(
+              "dashboard_integrations",
+              "Paste your workspace slug and an API token that can list the workspace's builds. Then add a runner pool for each Tuist profile."
+            )
+          }
+          header_size="large"
+          on_dismiss="close-connect-bitrise-modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_integrations", "Connect")}
+              variant="primary"
+              {attrs}
+            />
+          </:trigger>
+          <.line_divider />
+          <div data-part="connect-bitrise">
+            <.alert
+              :if={@bitrise_error}
+              status="error"
+              type="secondary"
+              size="small"
+              title={@bitrise_error}
+            />
+            <.text_input
+              id="bitrise-workspace"
+              name="workspace_slug"
+              type="basic"
+              label={dgettext("dashboard_integrations", "Workspace slug")}
+              value=""
+              required
+              show_required
+            />
+            <.text_input
+              id="bitrise-api-token"
+              name="api_token"
+              type="password"
+              input_type="password"
+              label={dgettext("dashboard_integrations", "API token")}
+              value=""
+              required
+              show_required
+            />
+            <div data-part="actions">
+              <.button
+                type="submit"
+                label={dgettext("dashboard_integrations", "Connect")}
+                variant="primary"
+              />
+            </div>
+          </div>
+        </.modal>
+      </form>
+    </div>
+    <.alert
+      :if={@bitrise_error && @bitrise_connection}
+      status="error"
+      type="secondary"
+      size="small"
+      title={@bitrise_error}
+    />
+    <form :if={@bitrise_connection} id="bitrise-connection-form" phx-submit="save-bitrise">
+      <.alert
+        :if={@bitrise_connection.last_error}
+        status="error"
+        type="secondary"
+        size="small"
+        title={@bitrise_connection.last_error}
+      />
+      <div data-part="fields">
+        <.text_input
+          id="bitrise-workspace-connected"
+          name="workspace_slug"
+          type="basic"
+          label={dgettext("dashboard_integrations", "Workspace slug")}
+          value={@bitrise_connection.workspace_slug}
+          required
+          show_required
+        />
+        <.text_input
+          id="bitrise-api-token-connected"
+          name="api_token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_integrations", "API token")}
+          value=""
+          placeholder="••••••••••••"
+        />
+      </div>
+      <div data-part="actions">
+        <.button
+          type="submit"
+          label={dgettext("dashboard_integrations", "Save changes")}
+          variant="primary"
+        />
+      </div>
+    </form>
+    <div :if={@bitrise_connection} id="bitrise-pools" data-part="pools">
+      <span data-part="title">{dgettext("dashboard_integrations", "Runner pools")}</span>
+      <div :for={pool <- @bitrise_pools} id={"bitrise-pool-#{pool.id}"} data-part="pool">
+        <span data-part="stack">{pool.stack_identifier}</span>
+        <span data-part="profile">{pool.profile_label}</span>
+        <.button
+          type="button"
+          label={dgettext("dashboard_integrations", "Remove")}
+          variant="secondary"
+          size="small"
+          phx-click="remove-bitrise-pool"
+          phx-value-id={pool.id}
+        />
+      </div>
+      <form id="add-bitrise-pool-form" phx-submit="add-bitrise-pool">
+        <div data-part="fields">
+          <.text_input
+            id="bitrise-pool-stack"
+            name="stack_identifier"
+            type="basic"
+            label={dgettext("dashboard_integrations", "Stack ID")}
+            label_tooltip={
+              dgettext(
+                "dashboard_integrations",
+                "The stack builds select for this pool in the Workflow Editor's Stacks & Machines tab."
+              )
+            }
+            value=""
+            required
+            show_required
+          />
+          <.select
+            id="bitrise-pool-profile"
+            name="profile_label"
+            label={dgettext("dashboard_integrations", "Profile")}
+            value={List.first(@bitrise_profile_labels)}
+          >
+            <:item :for={label <- @bitrise_profile_labels} value={label} label={label} />
+          </.select>
+          <.text_input
+            id="bitrise-pool-secret"
+            name="intro_secret"
+            type="password"
+            input_type="password"
+            label={dgettext("dashboard_integrations", "Pool token")}
+            label_tooltip={
+              dgettext(
+                "dashboard_integrations",
+                "The token Bitrise shows once when you create the runner pool."
+              )
+            }
+            value=""
+            required
+            show_required
+          />
+        </div>
+        <div data-part="actions">
+          <.button
+            type="submit"
+            label={dgettext("dashboard_integrations", "Add pool")}
+            variant="primary"
+          />
+        </div>
+      </form>
+    </div>
+  </.card_section>
+
   <.card_section :if={@runner_integrations_visible?} data-part="buildkite-card-section">
     <%!-- Connected: the whole card is the save form, with the actions on
           the header line and the fields below. A blank token keeps the
