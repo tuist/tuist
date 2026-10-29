@@ -109,7 +109,7 @@ func (t *TartRuntime) Create(ctx context.Context, r *Record) error {
 	if err != nil {
 		return err
 	}
-	if err = h.WaitReady(ctx, func(ctx context.Context) error { _, err := c.Exec(ctx, r.VMName(), "/usr/bin/true"); return err }); err != nil {
+	if err = t.waitGuestReady(ctx, r, h); err != nil {
 		return err
 	}
 	// The image's sandbox boot mode disables runner dispatch before its halt
@@ -141,12 +141,26 @@ func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
 	if err != nil {
 		return err
 	}
-	if err = h.WaitReady(ctx, func(ctx context.Context) error { _, err := c.Exec(ctx, r.VMName(), "/usr/bin/true"); return err }); err != nil {
+	if err = t.waitGuestReady(ctx, r, h); err != nil {
 		return err
 	}
 	_, err = t.control(ctx, r, "status")
 	return err
 }
+
+// After checkpoint restoration, the guest can execute built-in commands before
+// the shared bridge executable is usable. Readiness must exercise the same path
+// as the first user command, while retaining the VM's capacity reservation.
+func (t *TartRuntime) waitGuestReady(ctx context.Context, r *Record, h *tart.RunHandle) error {
+	return h.WaitReady(ctx, func(ctx context.Context) error {
+		reply, err := t.guest(ctx, r, map[string]string{"op": "ping"}, nil)
+		if err == nil && reply.Type != "pong" {
+			return errors.New("guest readiness returned no pong")
+		}
+		return err
+	})
+}
+
 func (t *TartRuntime) Pause(ctx context.Context, r *Record) error {
 	if busy, err := t.Busy(ctx, r); err != nil {
 		return err
