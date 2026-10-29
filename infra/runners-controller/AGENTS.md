@@ -351,7 +351,12 @@ cancellable and leaves the reserve intact. See
     `macOSClaimGrace` (3m) after its VM starts, so the guest's first
     dispatch poll can claim the job it was created for. Candidate
     ranking counts those seats as occupants to wait out. The
-    taint is removed when the Pod lands or after
+    taint is removed when the pool has placed all its Pods, when the
+    host has no room for another of the pool's Pods even once every
+    other pool's Pod is gone (`reservedHostSeated`; the same reconcile
+    then reserves the next host, so a pool short several Pods of a
+    one-per-host shape gets them one host at a time instead of one per
+    timeout), or after
     `reservationTimeout` (15m), and at most one host is held per fleet
     (`maxFleetReservations`; the count is taken over the pool's own
     fleet nodes, so darwin and linux hold separate budgets), since a
