@@ -262,29 +262,6 @@ private struct AtlasBusinessRow: View {
     }
 }
 
-struct AtlasAccountLogo: View {
-    let item: AtlasBusinessRecord
-    var size: CGFloat = 40
-
-    private var url: URL? {
-        guard !item["primary_domain"].isEmpty else { return nil }
-        var components = URLComponents(string: "https://www.google.com/s2/favicons")!
-        components.queryItems = [URLQueryItem(name: "domain", value: item["primary_domain"]), URLQueryItem(name: "sz", value: "128")]
-        return components.url
-    }
-
-    var body: some View {
-        AsyncImage(url: url) { image in
-            image.resizable().scaledToFit()
-        } placeholder: {
-            Text(String(item["name"].prefix(1)).uppercased()).font(.headline).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity).background(.quaternary)
-        }
-        .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size / 5))
-        .accessibilityHidden(true)
-    }
-}
-
 struct AtlasBusinessDetail: View {
     @ObservedObject var model: AtlasBusiness
     let original: AtlasBusinessRecord

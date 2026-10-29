@@ -180,3 +180,12 @@ Add new Swift sources to explicit Once source lists where needed, particularly t
 unhosted test bundle. Run `once build AtlasIOS`, `once test AtlasIOSTests` and
 `once lint AtlasSwiftLint` through Mise with local caching. Tests use Swift Testing
 and per-test storage adapters, not global credential/environment mutation.
+
+Favicon networking uses `AtlasCertificateTrust`'s protected URLSession, retaining
+ordinary SecTrust/hostname and OS/enterprise trust before denying keys across the
+constructed path, including anchors. Keep credential-free HTTPS-only redirects,
+bounded off-main image loading and cancellation; never retry through AsyncImage
+or an unprotected session. Tests bundle independent real DER fixtures; set
+`ATLAS_TRUST_LIVE=1` in the test process for native accepted-path key differentials.
+Keep preview source lists aligned. Simulator/host tests do not qualify devices,
+older supported OS versions, external OAuth browsers or signed releases.

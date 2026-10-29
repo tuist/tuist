@@ -102,6 +102,22 @@ groups preserve missing/false/zero distinctions. Unsupported unions, arrays, ref
 optional object groups and required empty groups fall back to web. Native validation
 is only usability: the pinned server contract remains authoritative.
 
+## TLS policy
+
+`certificate_trust.rs` embeds the twelve-key SPKI deny independently of host trust.
+Keep Rustls/WebPKI pins qualified, filter candidate anchors and preserve ordinary
+certificate, hostname and handshake-signature verification. HTTP uses the pooled
+protected client. Presence, Orbit and blocking Automation watches must pass the
+explicit protected WSS configuration, never library-default roots. TLS failures
+stop live reconnect loops with fixed errors; never log credential-bearing errors
+or fall back to another transport. Native image clients retain separate OS trust.
+
+`certificate_trust_tests.rs` uses real policy DER and otherwise-accepted private
+leaf/intermediate/absent-root denies through production HTTP and WSS factories.
+Set `TUIST_TRUST_LIVE=1` for public HTTP/WSS controls with default and restored
+incident roots. Declare policy sources and fixtures in Once targets. These checks
+do not qualify signed mobile artifacts, external browsers or every platform.
+
 ## Build and test
 
 The root Once graph has independent host, iOS and Android Cargo dependency targets,
