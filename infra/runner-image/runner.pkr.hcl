@@ -213,13 +213,15 @@ build {
 
   # Claim the space `disk_size_gb` added for the APFS container. The
   # plugin only does this after deleting a recovery partition, and the
-  # base has none left to delete, so it never does here.
+  # base has none left to delete, so it never does here. The live resize
+  # intermittently fails with -69606 while growing the APFS structures and
+  # undoes its changes, so it is retried.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
       "store=$(diskutil info / | awk -F': *' '/APFS Physical Store/ { print $2 }')",
       "printf 'y\\n' | sudo diskutil repairDisk \"$${store%s*}\"",
-      "sudo diskutil apfs resizeContainer \"$store\" 0"
+      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 && break; [ \"$attempt\" -lt 5 ] || exit 1; echo \"resizeContainer attempt $attempt failed, retrying in 15 s\" >&2; sleep 15; done"
     ]
   }
 
