@@ -317,6 +317,63 @@ defmodule Tuist.Runners.BitriseTest do
     end
   end
 
+  describe "connect/3" do
+    setup %{account: account} do
+      :ok = Bitrise.delete_connection(account.id)
+      :ok
+    end
+
+    test "connects the one workspace a workspace token sees", %{account: account} do
+      expect(Client, :list_workspaces, fn "bitwat_token" ->
+        {:ok, [%{slug: "6f7fab30975d4c3a", name: "Acme"}]}
+      end)
+
+      assert {:ok, connection} = Bitrise.connect(account.id, " bitwat_token ")
+      assert connection.workspace_slug == "6f7fab30975d4c3a"
+      assert connection.workspace_name == "Acme"
+      assert connection.api_token == "bitwat_token"
+    end
+
+    test "asks which workspace when the token sees several", %{account: account} do
+      workspaces = [%{slug: "a1", name: "Acme"}, %{slug: "b2", name: "Beta"}]
+      stub(Client, :list_workspaces, fn _token -> {:ok, workspaces} end)
+
+      assert {:choose_workspace, ^workspaces} = Bitrise.connect(account.id, "pat")
+      assert Bitrise.get_connection(account.id) == nil
+
+      assert {:ok, %{workspace_slug: "b2", workspace_name: "Beta"}} = Bitrise.connect(account.id, "pat", "b2")
+    end
+
+    test "refuses a rotated token that cannot see the connected workspace", %{account: account} do
+      stub(Client, :list_workspaces, fn
+        "first" -> {:ok, [%{slug: "a1", name: "Acme"}]}
+        "other" -> {:ok, [%{slug: "b2", name: "Beta"}]}
+      end)
+
+      assert {:ok, _connection} = Bitrise.connect(account.id, "first")
+      assert {:error, :workspace_not_visible} = Bitrise.connect(account.id, "other")
+      assert Bitrise.get_connection(account.id).api_token == "first"
+    end
+
+    test "passes Bitrise's refusal through and stores nothing", %{account: account} do
+      stub(Client, :list_workspaces, fn _token -> {:error, :unauthorized} end)
+
+      assert {:error, :unauthorized} = Bitrise.connect(account.id, "revoked")
+      assert {:error, :invalid_token} = Bitrise.connect(account.id, "  ")
+      assert Bitrise.get_connection(account.id) == nil
+    end
+  end
+
+  describe "available_pools/1" do
+    test "lists the connected workspace's self-hosted pools", %{account: account} do
+      pools = [%{stack_identifier: @stack, name: "tuist-macos"}]
+
+      expect(Client, :list_self_hosted_pools, fn %{workspace_slug: "n26-workspace"} -> {:ok, pools} end)
+
+      assert {:ok, ^pools} = Bitrise.available_pools(account.id)
+    end
+  end
+
   describe "save_pool/2" do
     test "refuses a profile the account does not have", %{account: account} do
       assert {:error, :unknown_profile} =

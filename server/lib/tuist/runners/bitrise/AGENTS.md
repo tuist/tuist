@@ -5,6 +5,11 @@ pools on the shared fleet. A connection holds the workspace slug and an API
 token; each pool binds a build `stack_identifier` to one Tuist profile and holds
 that pool's intro secret.
 
+- Customers connect with an API token only: `connect/3` reads the workspace
+  from `GET /organizations` (a workspace API token sees exactly its own), and a
+  rotated token must still see the connected workspace. The settings card lists
+  pools from `available-stacks` and falls back to a typed stack ID when Bitrise
+  cannot be read.
 - Bitrise has no per-build runner credential and no pool queue API. Demand comes
   from `GET /builds?owner_slug=<workspace>&status=0`: a build with no
   `started_on_worker_at` on a pool's stack is waiting for an agent.

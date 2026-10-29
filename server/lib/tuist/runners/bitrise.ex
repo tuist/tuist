@@ -66,6 +66,53 @@ defmodule Tuist.Runners.Bitrise do
   end
 
   @doc """
+  Connects the account to the Bitrise workspace `api_token` can see, or
+  rotates the token of the existing connection. A rotated token must still
+  see the connected workspace.
+
+  Returns `{:ok, connection}`, `{:choose_workspace, workspaces}` when the
+  token sees several workspaces and `workspace_slug` names none of them, or
+  `{:error, reason}`.
+  """
+  def connect(account_id, api_token, workspace_slug \\ nil) when is_integer(account_id) do
+    api_token = String.trim(api_token || "")
+    existing = get_connection(account_id)
+    workspace_slug = (existing && existing.workspace_slug) || workspace_slug
+
+    with :ok <- if(api_token == "", do: {:error, :invalid_token}, else: :ok),
+         {:ok, workspaces} <- Client.list_workspaces(api_token),
+         {:ok, workspace} <- pick_workspace(workspaces, workspace_slug) do
+      upsert_connection(account_id, %{
+        api_token: api_token,
+        workspace_slug: workspace.slug,
+        workspace_name: workspace.name
+      })
+    end
+  end
+
+  defp pick_workspace([], _slug), do: {:error, :no_workspace}
+  defp pick_workspace([workspace], nil), do: {:ok, workspace}
+  defp pick_workspace(workspaces, nil), do: {:choose_workspace, workspaces}
+
+  defp pick_workspace(workspaces, slug) do
+    case Enum.find(workspaces, &(&1.slug == slug)) do
+      nil -> {:error, :workspace_not_visible}
+      workspace -> {:ok, workspace}
+    end
+  end
+
+  @doc """
+  The connected workspace's self-hosted runner pools, as
+  `%{stack_identifier, name}`, whether or not they are connected yet.
+  """
+  def available_pools(account_id) when is_integer(account_id) do
+    case get_connection(account_id) do
+      nil -> {:error, :no_connection}
+      connection -> Client.list_self_hosted_pools(connection)
+    end
+  end
+
+  @doc """
   Removes an account's connection and its pools. Live lifecycle rows are
   left to drain through the orphan recovery paths.
   """
@@ -116,6 +163,9 @@ defmodule Tuist.Runners.Bitrise do
   end
 
   def get_build(workflow_job_id) when is_integer(workflow_job_id), do: Repo.get(Build, workflow_job_id)
+
+  def get_build_for_account(account_id, workflow_job_id) when is_integer(workflow_job_id),
+    do: Repo.get_by(Build, workflow_job_id: workflow_job_id, account_id: account_id)
 
   @doc """
   One poll pass over a connection.

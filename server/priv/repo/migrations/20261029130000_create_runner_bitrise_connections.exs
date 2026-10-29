@@ -5,6 +5,7 @@ defmodule Tuist.Repo.Migrations.CreateRunnerBitriseConnections do
     create table(:runner_bitrise_connections) do
       add :account_id, references(:accounts, on_delete: :delete_all), null: false
       add :workspace_slug, :string, null: false
+      add :workspace_name, :string
       add :api_token, :binary, null: false
       add :enabled, :boolean, null: false, default: true
       add :last_polled_at, :timestamptz
@@ -23,6 +24,7 @@ defmodule Tuist.Repo.Migrations.CreateRunnerBitriseConnections do
         null: false
 
       add :stack_identifier, :string, null: false
+      add :name, :string
       add :profile_label, :string, null: false
       add :intro_secret, :binary, null: false
       timestamps(type: :timestamptz)

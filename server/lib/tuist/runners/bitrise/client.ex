@@ -51,6 +51,51 @@ defmodule Tuist.Runners.Bitrise.Client do
   end
 
   @doc """
+  The workspaces `api_token` can see, as `%{slug, name}`. A workspace API
+  token sees only its own workspace; a personal access token sees every
+  workspace its user belongs to.
+  """
+  def list_workspaces(api_token) when is_binary(api_token) do
+    case request(%Connection{api_token: api_token}, "/organizations") do
+      {:ok, %{"data" => workspaces}} when is_list(workspaces) ->
+        {:ok, for(%{"slug" => slug} = workspace <- workspaces, do: %{slug: slug, name: workspace["name"] || slug})}
+
+      {:ok, body} ->
+        {:error, {:unexpected_body, truncate(body)}}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  @self_hosted_prefix "agent-pool-"
+  @self_hosted_title_prefix "Self-Hosted Runner: "
+
+  @doc """
+  The workspace's self-hosted runner pools, as `%{stack_identifier, name}`.
+  Bitrise lists a pool among the workspace's stacks with an `agent-pool-`
+  id and a `Self-Hosted Runner: <pool name>` title.
+  """
+  def list_self_hosted_pools(%Connection{} = connection) do
+    case request(connection, "/organizations/#{URI.encode(connection.workspace_slug)}/available-stacks") do
+      {:ok, stacks} when is_map(stacks) ->
+        pools =
+          for {id, stack} <- stacks, String.starts_with?(id, @self_hosted_prefix) do
+            title = (is_map(stack) && stack["title"]) || id
+            %{stack_identifier: id, name: String.replace_prefix(title, @self_hosted_title_prefix, "")}
+          end
+
+        {:ok, Enum.sort_by(pools, &String.downcase(&1.name))}
+
+      {:ok, body} ->
+        {:error, {:unexpected_body, truncate(body)}}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  @doc """
   One build of `app_slug`.
   """
   def get_build(%Connection{} = connection, app_slug, build_slug) do

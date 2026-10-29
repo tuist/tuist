@@ -161,7 +161,7 @@
     display: flex;
     flex-direction: column;
 
-    & > :is(#buildkite-form, [id^="gitlab-connection-"], #bitrise-connection-form, [id^="amp-settings-form-"]) {
+    & > :is(#buildkite-form, [id^="gitlab-connection-"], #bitrise-token-form, [id^="amp-settings-form-"]) {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-6);
@@ -224,10 +224,23 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-6);
 
-    & > [data-part="title"] {
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    & > [data-part="pools-header"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="description"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
     }
 
     & > [data-part="pool"] {
@@ -236,18 +249,42 @@
       align-items: center;
       gap: var(--noora-spacing-4);
 
-      & > [data-part="stack"] {
+      & > [data-part="details"] {
+        display: flex;
         flex-grow: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-1);
         min-width: 0;
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-        overflow-wrap: anywhere;
+
+        & > [data-part="name"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="stack"] {
+          color: var(--noora-surface-label-tertiary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          overflow-wrap: anywhere;
+        }
       }
 
       & > [data-part="profile"] {
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       }
+    }
+
+    & [data-part="hint"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & > [data-part="empty"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--noora-spacing-4);
     }
 
     & > #add-bitrise-pool-form {

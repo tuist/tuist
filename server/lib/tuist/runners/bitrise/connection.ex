@@ -13,6 +13,7 @@ defmodule Tuist.Runners.Bitrise.Connection do
 
   schema "runner_bitrise_connections" do
     field :workspace_slug, :string
+    field :workspace_name, :string
     field :api_token, Binary, redact: true
     field :enabled, :boolean, default: true
     field :last_polled_at, :utc_datetime
@@ -27,7 +28,7 @@ defmodule Tuist.Runners.Bitrise.Connection do
 
   def changeset(connection, attrs) do
     connection
-    |> cast(attrs, [:account_id, :workspace_slug, :api_token, :enabled])
+    |> cast(attrs, [:account_id, :workspace_slug, :workspace_name, :api_token, :enabled])
     |> update_change(:workspace_slug, &String.trim/1)
     |> update_change(:api_token, &String.trim/1)
     |> validate_required([:account_id, :workspace_slug, :api_token])

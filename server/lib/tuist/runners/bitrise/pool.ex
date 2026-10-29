@@ -16,6 +16,7 @@ defmodule Tuist.Runners.Bitrise.Pool do
 
   schema "runner_bitrise_pools" do
     field :stack_identifier, :string
+    field :name, :string
     field :profile_label, :string
     field :intro_secret, Binary, redact: true
 
@@ -27,7 +28,7 @@ defmodule Tuist.Runners.Bitrise.Pool do
 
   def changeset(pool, attrs) do
     pool
-    |> cast(attrs, [:account_id, :connection_id, :stack_identifier, :profile_label, :intro_secret])
+    |> cast(attrs, [:account_id, :connection_id, :stack_identifier, :name, :profile_label, :intro_secret])
     |> update_change(:stack_identifier, &String.trim/1)
     |> update_change(:intro_secret, &String.trim/1)
     |> validate_required([:account_id, :connection_id, :stack_identifier, :profile_label, :intro_secret])
