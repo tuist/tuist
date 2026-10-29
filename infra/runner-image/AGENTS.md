@@ -376,8 +376,14 @@ added to catch that failed on `admin`'s unwritable cache instead.
   answers 202 (no job proven on the Pod until GitHub's `in_progress`
   webhook, which can lag the job by minutes), 5xx or not at all are
   resent with the next batch, so a job's first sample is its start.
-  Disk free is the APFS container's Avail. The image build fails below
-  50 GiB of it (the 45 GiB free-disk commitment plus margin).
+  Disk free is the APFS container's Avail.
+- The job VM's disk is `disk_size_gb` (200 GB), larger than the base's
+  140 GB. The build's first provisioner grows the APFS container into it
+  (`diskutil repairDisk` + `apfs resizeContainer`), because the plugin
+  only resizes after deleting a recovery partition, and its last fails the
+  build below 100 GiB available. Growing the disk again takes room from
+  the rack's disk plan (`rackFleet.machine` in
+  `values-managed-production.yaml`), which counts two guests at this size.
 - `/opt/tuist/tuist-cas-proxy` — the last-resort compilation-cache (CAS) prune
   client, built from `cas-plugin/` alongside `runner-shell-agent` by
   `.github/actions/build-runner-image-binaries`. Every `provisioner "file"` in
