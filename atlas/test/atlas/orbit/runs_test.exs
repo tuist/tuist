@@ -293,7 +293,13 @@ defmodule Atlas.Orbit.RunsTest do
       send(test_pid, {:tools, Enum.map(request["tools"] || [], &get_in(&1, ["function", "name"]))})
 
       if Enum.any?(request["messages"], &(&1["role"] == "tool")) do
-        Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "There is one account."}))
+        reply =
+          JSON.encode!(%{
+            reply: "There is one account.",
+            suggestions: ["Show its open tasks", "Summarize its recent activity"]
+          })
+
+        Req.Test.json(conn, completion(%{"role" => "assistant", "content" => reply}))
       else
         Req.Test.json(conn, tool_call("list_accounts", %{"query" => "Example"}))
       end
@@ -313,7 +319,12 @@ defmodule Atlas.Orbit.RunsTest do
     assert tool.tool_name == "list_accounts" and tool.tool_status == "succeeded"
     assert tool.tool_input =~ "Example"
     assert tool.tool_output =~ "Example Org"
-    assert %Message{body: "There is one account."} = Enum.find(messages, &(&1.kind == "agent"))
+
+    assert %Message{
+             body: "There is one account.",
+             suggestions: ["Show its open tasks", "Summarize its recent activity"]
+           } =
+             Enum.find(messages, &(&1.kind == "agent"))
 
     # Audit and session telemetry never carry thread content.
     activity = Repo.one!(from a in Activity, where: a.action == "mcp.tool_called" and a.target_id == "list_accounts")

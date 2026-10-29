@@ -437,9 +437,11 @@ final class AtlasOrbitUITests: XCTestCase {
     }
 
     @MainActor func testComposeCreatesSeparatePrivateConversationsWithSuggestions() throws {
-        for arguments in [[], ["--dark", "--large-text"]] {
+        let appearances = [([], "light"), (["--dark", "--large-text"], "dark-large"),
+                           (["--reduce-transparency"], "opaque"), (["--increased-contrast"], "contrast")]
+        for (arguments, mode) in appearances {
             let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
-            app.launchArguments = ["--workspace"] + arguments
+            app.launchArguments = ["--workspace", "--orbit-suggestions"] + arguments
             app.launch()
             defer { app.terminate() }
             XCUIDevice.shared.orientation = .portrait
@@ -447,11 +449,11 @@ final class AtlasOrbitUITests: XCTestCase {
             XCTAssertTrue(compose.waitForExistence(timeout: 10))
             XCTAssertFalse(app.buttons["pip-mascot"].exists)
             XCTAssertTrue(app.buttons["thread-01922cc0-0000-7000-8000-000000000002"].exists)
-            capture(app, "ios-orbit-conversations-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            capture(app, "ios-orbit-conversations-\(mode)-preview")
             compose.tap()
             let mascot = app.buttons["pip-mascot"]
             XCTAssertTrue(mascot.waitForExistence(timeout: 5))
-            capture(app, "ios-orbit-new-conversation-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            capture(app, "ios-orbit-new-conversation-\(mode)-preview")
             mascot.tap()
             mascot.press(forDuration: 0.8)
             let draft = app.textFields["thread-composer"]
@@ -459,19 +461,45 @@ final class AtlasOrbitUITests: XCTestCase {
             XCTAssertTrue(suggestion.isHittable)
             XCTAssertGreaterThanOrEqual(suggestion.frame.height, 44)
             XCTAssertLessThanOrEqual(suggestion.frame.maxY, draft.frame.minY)
-            suggestion.tap()
+            let strip = app.scrollViews["thread-suggestions"]
+            let lastSuggestion = app.buttons["Find an account"]
+            let rowY = suggestion.frame.midY
+            strip.swipeLeft()
+            strip.swipeLeft()
+            XCTAssertTrue(lastSuggestion.isHittable)
+            XCTAssertLessThanOrEqual(lastSuggestion.frame.maxX, app.frame.maxX)
+            XCTAssertEqual(lastSuggestion.frame.midY, rowY, accuracy: 1)
+            XCTAssertEqual(draft.value as? String, "Message")
+            capture(app, "ios-orbit-suggestions-scrolled-\(mode)-preview")
+            strip.swipeRight()
+            strip.swipeRight()
+            XCTAssertTrue(suggestion.isHittable)
+            suggestion.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
             XCTAssertEqual(draft.value as? String, "What needs my attention?")
             XCTAssertFalse(app.staticTexts["What needs my attention?"].exists)
             XCTAssertFalse(suggestion.exists)
-            capture(app, "ios-orbit-suggestion-draft-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            capture(app, "ios-orbit-suggestion-draft-\(mode)-preview")
             draft.tap()
             draft.typeText(" Please.")
             let editedDraft = try XCTUnwrap(draft.value as? String)
             XCTAssertTrue(editedDraft.contains("What needs my attention?"))
             XCTAssertTrue(editedDraft.contains(" Please."))
             XCTAssertFalse(suggestion.exists)
+            capture(app, "ios-orbit-suggestion-keyboard-\(mode)-preview")
             app.buttons["thread-send"].tap()
             XCTAssertTrue(app.staticTexts[editedDraft].waitForExistence(timeout: 5))
+            let followUp = app.buttons["Show the overdue tasks"]
+            XCTAssertTrue(followUp.waitForExistence(timeout: 5))
+            XCTAssertFalse(suggestion.exists)
+            capture(app, "ios-orbit-contextual-suggestions-\(mode)-preview")
+            followUp.tap()
+            XCTAssertEqual(draft.value as? String, "Show the overdue tasks")
+            XCTAssertFalse(app.staticTexts["Show the overdue tasks"].exists)
+            XCTAssertFalse(followUp.exists)
+            app.buttons["thread-send"].tap()
+            XCTAssertTrue(app.buttons["Summarize the release risks"].waitForExistence(timeout: 5))
+            XCTAssertFalse(followUp.exists)
+            capture(app, "ios-orbit-evolved-suggestions-\(mode)-preview")
             app.navigationBars.buttons.element(boundBy: 0).tap()
             XCTAssertTrue(compose.waitForExistence(timeout: 5))
             compose.tap()

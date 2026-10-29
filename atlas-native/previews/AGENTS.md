@@ -76,6 +76,13 @@ on iOS/macOS. `--environment-running`, `--environment-completed` and
 Mac `--press environment-stop` exercises the Stop action without claiming the Mac has
 acknowledged it. Fixtures never execute the displayed xcodebuild command.
 
+`--workspace --orbit-suggestions` supplies two successive fictional replies with different
+follow-up prompts after explicit sends. The composer UI test checks horizontal reachability,
+draft-only selection/editing, replacement after each reply, and reset in a new conversation.
+`--reduce-transparency` and `--increased-contrast` exercise the system-surface fallback;
+light and dark accessibility-text states retain screenshot attachments. This is fixture-backed
+rendering/interaction evidence, not live model quality or inference evidence.
+
 `--live-activity` renders the shared production ActivityKit view and requests real
 local activities through the preview's separately identified WidgetKit extension.
 Start/update/stale/end controls use fictional conversation titles, generic phases

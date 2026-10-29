@@ -256,6 +256,37 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
              api |> post("/api/native/orbit/threads", %{title: " "}) |> json_response(422)
   end
 
+  test "authorized history carries each reply's evolving follow-ups, never client-authored suggestions" do
+    orbit_profile_fixture()
+    user = user_fixture()
+    api = bearer(user)
+    {:ok, thread, _} = Orbit.ensure_private(user)
+    path = "/api/native/orbit/threads/#{thread.id}/messages"
+
+    for {prompt, reply, suggestions} <- [
+          {"What needs attention?", "Two tasks are overdue.", ["Show the overdue tasks", "Compare priorities"]},
+          {"Show the overdue tasks", "The release review is the priority.", ["Summarize the release risks"]}
+        ] do
+      human =
+        api
+        |> post(path, %{body: prompt, client_id: Ecto.UUID.generate(), suggestions: ["Untrusted metadata"]})
+        |> json_response(201)
+
+      assert human["message"]["suggestions"] == []
+      run = Orbit.active_run(thread)
+      Repo.update!(Ecto.Changeset.change(run, status: "running"))
+      response = JSON.encode!(%{reply: reply, suggestions: suggestions})
+      assert :ok = Orbit.Runs.complete(run.id, run.resume_count, {:ok, response})
+
+      history = api |> get(path) |> json_response(200)
+      latest = List.last(history["messages"]["items"])
+      assert latest["kind"] == "agent" and latest["body"] == reply
+      assert latest["suggestions"] == suggestions
+    end
+
+    assert bearer(user_fixture()) |> get(path) |> json_response(404) == %{"error" => "not_found"}
+  end
+
   test "posts idempotently and returns history newest page first in chronological order" do
     orbit_profile_fixture()
     user = user_fixture()

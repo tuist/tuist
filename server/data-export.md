@@ -74,6 +74,15 @@ them, while shared join notices retain ordinary history retention.
 Full field, provider-sharing, retention and operator-export rules are in
 [`atlas/data-export.md`](../atlas/data-export.md#portable-signals-and-business-routing-profiles).
 
+Atlas also stores model-authored follow-up prompts in `orbit_messages.suggestions`
+(up to three strings, each at most 120 Unicode codepoints / 480 UTF-8 bytes).
+They are generated alongside the final reply using the existing authorized provider
+context and inherit message access, indefinite history retention, deletion and
+backups. Include them in authorized exports of related Orbit history, with ordinary
+third-party redaction. Tapping a native suggestion changes only a memory-held draft;
+no prompt content is added to audits, push alerts or the native inbox cache. See
+[`atlas/data-export.md`](../atlas/data-export.md#orbit-threads).
+
 ### Atlas automation definitions and execution records
 
 Atlas stores organizational process data in its separate PostgreSQL database:

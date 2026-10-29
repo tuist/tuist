@@ -57,6 +57,7 @@ defmodule Atlas.Orbit.Runs do
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.ModelFence
   alias Atlas.Orbit.Rendering
+  alias Atlas.Orbit.Reply
   alias Atlas.Orbit.Run
   alias Atlas.Orbit.Subagents
   alias Atlas.Orbit.Thread
@@ -410,7 +411,7 @@ defmodule Atlas.Orbit.Runs do
         store_opts ++
         [
           tools: Tools.build(run) ++ [Subagents.tool(run)],
-          system_prompt: Agent.system_prompt(thread, audience, description),
+          system_prompt: Agent.system_prompt(thread, audience, description) <> Reply.instructions(),
           load_project_instructions: false,
           compactor: {ToolResultPrune, keep_recent: 2, max_size: 4_000},
           max_tokens: @max_tokens
@@ -533,12 +534,20 @@ defmodule Atlas.Orbit.Runs do
     end
   end
 
-  defp finish!(run, thread, {:ok, text}) when is_binary(text) and text != "" do
+  defp finish!(run, thread, {:ok, text}) when is_binary(text) do
+    case Reply.decode(text) do
+      {"", _} -> finalize!(run, "failed", "empty_response", "The assistant did not reply. Try again.", thread)
+      {body, suggestions} -> finish!(run, thread, {:reply, body, suggestions})
+    end
+  end
+
+  defp finish!(run, thread, {:reply, body, suggestions}) do
     message =
       Orbit.append!(thread, %{
         kind: "agent",
         run_id: run.id,
-        body: Rendering.truncate(text, @reply_limit),
+        body: Rendering.truncate(body, @reply_limit),
+        suggestions: suggestions,
         author_name: Orbit.agent_name()
       })
 

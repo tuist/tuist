@@ -315,6 +315,8 @@ pub(super) struct Message {
     pub seq: u64,
     pub kind: String,
     pub body: String,
+    #[serde(default, deserialize_with = "deserialize_suggestions")]
+    pub suggestions: Vec<String>,
     pub author_id: Option<String>,
     pub author_name: String,
     pub inserted_at: String,
@@ -334,6 +336,29 @@ pub(super) struct Message {
     pub notice_kind: Option<String>,
     #[serde(default, deserialize_with = "deserialize_mentions")]
     pub mentioned_user_ids: Vec<String>,
+}
+
+fn deserialize_suggestions<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Vec<String>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let mut suggestions = Vec::new();
+    if let Some(values) = value.as_array() {
+        for text in values.iter().filter_map(serde_json::Value::as_str) {
+            let text = text.trim();
+            if !text.is_empty()
+                && text.len() <= 480
+                && text.chars().count() <= 120
+                && !suggestions.iter().any(|known| known == text)
+            {
+                suggestions.push(text.to_owned());
+                if suggestions.len() == 3 {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(suggestions)
 }
 
 fn deserialize_notice<'de, D: serde::Deserializer<'de>>(
