@@ -1,0 +1,280 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "3d4fda234fc5c6dd8e764a9b3a11a81f5ed8bd75ebebc7b8a1768a13da4dbbe5",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Tuist integration for Slack {#slack}": {
+                  "content_hash": "120eec5249a963764ef07f65e204782c283f79a75d75085e2bc568109c99ed77"
+                },
+                "## Disconnecting the integration {#disconnect}": {
+                  "content_hash": "c110622275b30819f54fd45595fcff8a7e9cd19e5a383cbe281b4300736b4d09"
+                },
+                "## How the integration works {#how-it-works}": {
+                  "content_hash": "0ff21900379e09752677990eea80735eefaa5daf6229cfdb5276342d842d1807"
+                },
+                "## Setup {#setup}": {
+                  "content_hash": "06eef71c229bc0a5e527b6e4c89db2a8c40b9368eb37c1652f1e9f629e3ec257"
+                },
+                "### Alert rules {#alert-rules}": {
+                  "content_hash": "d3315c09e1cb9c0923c352e040b1f729c3214825a8049c378b8692bdbdc6f306"
+                },
+                "### Flaky test alerts {#flaky-test-alerts}": {
+                  "content_hash": "bc6cf29182d8ded1a9fddbb36f44309ec87fa25784d3cd7bf2417272c7c95d72"
+                },
+                "### Project reports {#project-reports}": {
+                  "content_hash": "b4517f1b9b2e112fc784f087a7628740fd04f9a6fef3a939ac1d1126084c4820"
+                },
+                "Preamble": {
+                  "content_hash": "f157d86bcab2206a0e5d079e886c408c3bf31df8f4b63f8b4e4dd74e93d07733"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "5520390756477025591ca7ab9b5aa09fd03258b15aa63d514b55f70f6865ee11",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/integrations/slack.md",
+          "metadata": {
+            "content_hash": "e5d011812986028c21c10e8b6e63a8dfbc34f1a1ff49f7fa65f8ce69b87f5390"
+          }
+        },
+        {
+          "children": [],
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "e933eddf942fbf5f2e921689f3e655bfd542827dddfc906eb81c5b1b73e7e5ec",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "translate",
+            "language": "Cantonese (Traditional Chinese characters)",
+            "locale": "yue_Hant",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+              }
+            },
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "server/L10N/yue_Hant.md": {
+                    "content_hash": "a9f5de65e3df6568126c246af714d87b90c51701ce29f891a1c639178a35675a",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Cantonese-specific translation rules": {
+                        "content_hash": "b79034e38e7ae5b416325171841992d8f8eb36bca99d027472a78b4000adbe71"
+                      },
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "d1efbacf0b1133d96a12e1d2123485201c5894834efe99654f823b16cbf0f45d"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "e5dd367ba8638588b26a285bbc1eeb89e6a21538ff3b4f0eaabbf3f0b874387f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "acfc1e2b23eb84871683d43e1e798ab52804583919bb8651a4b7e6ca95ea30c3",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "3265808ed360b23ae68c93c873245d191314e6a027af2a9354034e62f4204749"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {
+                      "entry:f6977d4134bbe756e3aef4854d9ae407992551711ab5839ab61f114d6812132c": {
+                        "case_sensitive": false,
+                        "definition_hash": "9aac3cff7abfbe0b8aeea38965ad9095c891253fe2e76e7e584ee6ba8218a4c7",
+                        "term_hash": "c03dac40bf52cb692381200e184b33074a9b26e2fe0985463bd31f00c52a52c6",
+                        "translation_hash": "bdf28fe7d3760f610e78805533186a5c5a4f39c49399502a699e438c8e6a0511"
+                      },
+                      "entry:fdcdde56d01f2c4dab158a2c7113ac79adb7e903a93f74f13bb8d43b8cc484d8": {
+                        "case_sensitive": false,
+                        "definition_hash": "98331c521e97b455755792e924a8205eb9e5e1f87f3db30a09d717cecf8afea5",
+                        "term_hash": "85a3697afd825e592bd67bce9ede29674de23de7f443ef5408c7f8fdee0cddf8",
+                        "translation_hash": "2537f1f3417abbc9a74c54ad296c36210902155ccaeea4f67cdfcde1eded9145"
+                      }
+                    }
+                  },
+                  "hash": "1f57c09bb5cff70e4ed383d3b46ca58776fb96fa41703e7b9e5185dfc43d598e",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "6c6b86e9854a2c6072a6b0d90a74ca215ff3ee005002c584ca8c437c2cc120af"
+                  }
+                }
+              ],
+              "details": {},
+              "hash": "2732001d7f771e47fe3063d2111756084d3325f679cb13dec761392b7cfb0695",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "details": {},
+          "hash": "889b5bfa044f2b7de924abba33798e8e063a13f1af2f7c70c0824f1cf3e0d3f4",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "details": {},
+      "hash": "3d4fda234fc5c6dd8e764a9b3a11a81f5ed8bd75ebebc7b8a1768a13da4dbbe5",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/integrations/slack.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "84d9d6ee73870e19c0cf746c775e04a4d7987a0151eb97f71b671aca0d4d551a",
+  "output_path": "server/priv/docs/yue_Hant/guides/integrations/slack.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [
+        "repo:cache-hit",
+        "repo:test-case"
+      ],
+      "content_hash": "6c6b86e9854a2c6072a6b0d90a74ca215ff3ee005002c584ca8c437c2cc120af",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "e2d83711f920ed81085070185d1fe39a6f166821",
+  "source_path": "server/priv/docs/en/guides/integrations/slack.md",
+  "translated_at": "2026-10-29T16:56:53.412425Z",
+  "translation_session_id": "01a18889-9abd-7cd5-93c7-fbe3f8e92b65"
+}
