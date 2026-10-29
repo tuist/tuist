@@ -3,6 +3,92 @@ import Foundation
 import Testing
 
 struct AtlasWorkstationTests {
+    @Test func githubIdentityUsesOnlyLocalPublicGitHubRemotes() async throws {
+        for remote in ["git@github.com:Acme/Monorepo.git", "https://github.com/Acme/Monorepo.git",
+                       "ssh://git@github.com/Acme/Monorepo"] {
+            #expect(AtlasWorkstationProjects.githubRepository(remote: remote) == "acme/monorepo")
+        }
+        for remote in ["https://token@github.com/acme/repo", "https://github.com.evil.test/acme/repo",
+                       "file:///Users/person/repo", "git@gitlab.com:acme/repo.git",
+                       "https://github.com/acme/repo?secret=value", "https://github.com/acme/repo/extra",
+                       "https://github.com/acme/repo#branch", "git@github.com:acme/repo\n"] {
+            #expect(AtlasWorkstationProjects.githubRepository(remote: remote) == nil)
+        }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let setup = await AtlasWorkstationExecution.perform(command("environment_terminal", source:
+            "git init -q && git remote add origin git@github.com:Acme/Monorepo.git"), root: root)
+        try #require(setup.success)
+        let projects = await AtlasWorkstationProjects.metadata(["project-id": root])
+        #expect(projects.count == 1)
+        #expect(projects.first?.repository == "acme/monorepo")
+        #expect(projects.first?.coding == true)
+    }
+
+    @Test func codingWorktreesIsolateDirtyCheckoutsAndSurviveReopening() async throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let root = base.appendingPathComponent("repository")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let setup = await AtlasWorkstationExecution.perform(command("environment_terminal", source:
+            "git init -q && printf 'base\\nsecond\\nthird\\n' > file && git add file && " +
+            "git -c user.name=Atlas -c user.email=test@example.invalid -c commit.gpgsign=false commit -qm initial"), root: root)
+        try #require(setup.success)
+        try Data("dirty original".utf8).write(to: root.appendingPathComponent("file"))
+        let thread = UUID().uuidString.lowercased()
+        let first = try AtlasWorkstationWorktrees.prepare(repository: root, directory: base.appendingPathComponent("first"),
+                                                         threadId: thread, title: "Fix Unicode / handling")
+        let second = try AtlasWorkstationWorktrees.prepare(repository: root, directory: base.appendingPathComponent("second"),
+                                                          threadId: UUID().uuidString.lowercased(), title: "Fix Unicode / handling")
+        let write = await AtlasWorkstationExecution.perform(coding("write", path: "file", content: "isolated edit"), root: first)
+        #expect(write.success)
+        #expect(try String(contentsOf: root.appendingPathComponent("file"), encoding: .utf8) == "dirty original")
+        #expect(try String(contentsOf: second.appendingPathComponent("file"), encoding: .utf8) == "base\nsecond\nthird\n")
+        let reopened = try AtlasWorkstationWorktrees.prepare(repository: root, directory: first, threadId: thread, title: "Another title")
+        #expect(try String(contentsOf: reopened.appendingPathComponent("file"), encoding: .utf8) == "isolated edit")
+        let branch = await AtlasWorkstationExecution.perform(command("environment_terminal", source: "git branch --show-current"), root: first)
+        #expect(branch.output == "atlas/fix-unicode-handling-\(thread)\n")
+        let read = await AtlasWorkstationExecution.perform(coding("read", path: "file", offset: 2, limit: 1), root: second)
+        #expect(read.success && read.output == "2: second\n[Truncated. Continue with offset=3; for an oversized line use bash.]")
+    }
+
+    @Test func editsMatchOriginalTextAtomicallyAndPreserveUnicodeBOMAndCRLF() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("file")
+        let original = "\u{FEFF}one é\r\ntwo λ\r\nthree\r\n"
+        try Data(original.utf8).write(to: file)
+        let edited = await AtlasWorkstationExecution.perform(coding("edit", path: "file", edits: [
+            .init(oldText: "two λ\nthree", newText: "changed\nend"), .init(oldText: "one é", newText: "first Ω")
+        ]), root: root)
+        #expect(edited.success)
+        let expected = "\u{FEFF}first Ω\r\nchanged\r\nend\r\n"
+        #expect(try Data(contentsOf: file) == Data(expected.utf8))
+        for edits: [AtlasWorkstationCommand.Edit] in [
+            [.init(oldText: "first Ω", newText: "partial"), .init(oldText: "missing", newText: "bad")],
+            [.init(oldText: "changed\nend", newText: "bad"), .init(oldText: "end", newText: "overlap")],
+            [.init(oldText: "\n", newText: "ambiguous")]
+        ] {
+            let failed = await AtlasWorkstationExecution.perform(coding("edit", path: "file", edits: edits), root: root)
+            #expect(!failed.success)
+            #expect(try Data(contentsOf: file) == Data(expected.utf8))
+        }
+        let outside = root.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+        try Data("outside".utf8).write(to: outside)
+        defer { try? FileManager.default.removeItem(at: outside) }
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("escape"), withDestinationURL: outside)
+        for path in ["escape", "../\(outside.lastPathComponent)", outside.path] {
+            let denied = await AtlasWorkstationExecution.perform(coding("write", path: path, content: "bad"), root: root)
+            #expect(!denied.success)
+        }
+        #expect(try String(contentsOf: outside, encoding: .utf8) == "outside")
+        let empty = await AtlasWorkstationExecution.perform(coding("write", path: "empty", content: ""), root: root)
+        #expect(empty.success)
+        #expect(try Data(contentsOf: root.appendingPathComponent("empty")).isEmpty)
+    }
+
     @Test func fileToolsStayInsideTheProjectAndBoundDirectoryResults() async throws {
         let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let root = base.appendingPathComponent("project")
@@ -83,6 +169,14 @@ struct AtlasWorkstationTests {
     private func command(_ tool: String, path: String? = nil, source: String? = nil) -> AtlasWorkstationCommand {
         AtlasWorkstationCommand(id: UUID().uuidString.lowercased(), tool: tool,
                                 arguments: .init(projectId: UUID().uuidString.lowercased(), path: path, command: source),
+                                digest: String(repeating: "a", count: 64), claimToken: nil)
+    }
+
+    private func coding(_ tool: String, path: String, content: String? = nil,
+                        offset: Int? = nil, limit: Int? = nil, edits: [AtlasWorkstationCommand.Edit]? = nil) -> AtlasWorkstationCommand {
+        AtlasWorkstationCommand(id: UUID().uuidString.lowercased(), tool: tool,
+                                arguments: .init(projectId: UUID().uuidString.lowercased(), path: path, command: nil,
+                                                 offset: offset, limit: limit, content: content, edits: edits),
                                 digest: String(repeating: "a", count: 64), claimToken: nil)
     }
 }

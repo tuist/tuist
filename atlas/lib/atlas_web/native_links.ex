@@ -13,8 +13,8 @@ defmodule AtlasWeb.NativeLinks do
   never claimed. `/commercial/finance` maps to native invoices for the explicit
   header action only. The web finance dashboard is not equivalent to native invoice
   bookkeeping, so universal and app links never claim it.
-  Orbit is native-only: its `/open/orbit[/<uuid>]` links fall back to the
-  dashboard, and no nonexistent `/orbit` web pages are claimed.
+  Orbit's `/open/orbit[/<uuid>]` links continue to its authenticated web page.
+  Direct `/orbit` URLs remain browser-first, outside the app-link claims.
   """
 
   alias AtlasWeb.NativeLinks.Config
@@ -37,7 +37,7 @@ defmodule AtlasWeb.NativeLinks do
     %{screen: "time-off", page: "/people/time-off", claimed?: true, record_page: nil},
     %{screen: "people", page: "/people", claimed?: true, record_page: nil},
     %{screen: "profile", page: "/settings", claimed?: true, record_page: nil},
-    %{screen: "orbit", page: nil, claimed?: false, record_page: nil}
+    %{screen: "orbit", page: "/orbit", claimed?: false, record_page: "/orbit"}
   ]
   @record_screens ~w(tasks accounts invoices orbit)
 

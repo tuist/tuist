@@ -23,6 +23,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     #endif
     private(set) var sessionIdentity = UUID()
     let pushNotifications = AtlasPushNotifications()
+    let profileSettings = AtlasProfile()
 
     var environmentRequest: AtlasEnvironmentRequest { authenticatedRequest(operation: "environment") }
 
@@ -175,6 +176,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         server = nil
         accountModel?.invalidate()
         accountModel = nil
+        profileSettings.invalidate()
         let savedSession = (try? AtlasSecureStorage.load("session")).flatMap { try? AtlasAuthBridge.object($0) }
         if let session = savedSession {
             origin = (session["registration"] as? [String: Any])?["server"] as? String ?? origin
