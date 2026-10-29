@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>dev.tuist.atlas.macos</string>
+    <string>dev.tuist.atlas</string>
     <key>CFBundleExecutable</key>
     <string>Atlas</string>
     <key>CFBundleName</key>
