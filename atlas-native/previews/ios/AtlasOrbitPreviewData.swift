@@ -10,14 +10,18 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private var failedCachedRefresh = false
     private let clock = ContinuousClock()
     private var activityStarted: ContinuousClock.Instant?
+    private var inboxActivityStarted: ContinuousClock.Instant?
     private var followStarted: ContinuousClock.Instant?
     private var rich: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-rich") }
     private var signals: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-signals") }
     private var activity: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-activity") }
+    private var inboxActivity: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-inbox-activity") }
     private var follow: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-follow") }
     private var selected: [String: Any]?
     private var listKind: String?
     private var listStatus = "active"
+    private var query = ""
+    private var domain = ""
     private var archivedIDs: Set<String> = []
     private var createdThreads: [[String: Any]] = []
     private var draft = ""
@@ -72,6 +76,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
             }
             listKind = command["kind"] as? String
             if let status = command["status"] as? String { listStatus = status }
+            if let query = command["query"] as? String { self.query = query }
+            if let domain = command["domain"] as? String { self.domain = domain }
             loads += 1
             if loads > 1, ProcessInfo.processInfo.arguments.contains("--fail-orbit-refresh") {
                 throw AtlasAuthenticationError(kind: "server", message: "Preview refresh failed. Loaded threads are retained.")
@@ -175,7 +181,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
             ])
         }
         if action["action"] as? String == "next" {
-            try await Task.sleep(for: .seconds(activity || follow ? 1 : 30))
+            try await Task.sleep(for: .seconds(activity || follow || inboxActivity ? 1 : 30))
         }
         if action["action"] as? String == "draft" {
             draft = action["body"] as? String ?? ""
@@ -212,6 +218,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
 
     private func snapshot() throws -> Data {
         sequence += 1
+        if inboxActivity, inboxActivityStarted == nil { inboxActivityStarted = clock.now }
         if let id = selected?["id"] as? String {
             drafts[id] = draft
             mentionsByThread[id] = draftMentions
@@ -322,10 +329,26 @@ final class AtlasOrbitPreviewData: ObservableObject {
             ] + sent
         }
         return try JSONSerialization.data(withJSONObject: [
-            "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
+            "sequence": sequence, "assistant": ["name": "Pip", "configured": true, "searchable": true,
+                                                 "domains": [["id": "engineering", "name": "Engineering"], ["id": "commercial", "name": "Commercial"]]],
             "cached": cached,
-            "threads": threads.filter { (listKind == nil || $0["kind"] as? String == listKind) && $0["status"] as? String == listStatus },
+            "threads": threads.map { row in
+                var row = row
+                row["domain"] = (row["kind"] as? String == "shared") ? "commercial" : "engineering"
+                if inboxActivity, row["id"] as? String == privateID {
+                    let elapsed = inboxActivityStarted?.duration(to: clock.now).components.seconds ?? 0
+                    row["agent_status"] = elapsed < 12 ? "running" : "idle"
+                }
+                return row
+            }.filter { row in
+                let label = row["domain"] as? String
+                let text = "\(row["title"] as? String ?? "") \(row["summary"] as? String ?? "")"
+                return (listKind == nil || row["kind"] as? String == listKind) && row["status"] as? String == listStatus
+                    && (domain.isEmpty || (domain == "unclassified" ? label == nil : label == domain))
+                    && (query.isEmpty || text.localizedCaseInsensitiveContains(query))
+            },
             "status_filter": listStatus,
+            "query": query, "domain_filter": domain,
             "selection_id": selected?["id"] as Any? ?? NSNull(),
             "selected": selected as Any? ?? NSNull(), "messages": messages,
             "people": selected?["kind"] as? String == "shared" ? [["id": "online", "name": "Alex", "typing": false]] : [],

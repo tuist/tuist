@@ -100,6 +100,8 @@ class ThreadCardPreviewActivity : Activity() {
                     .put("owner_id", "preview-self")
                     .put("origin", "signal")
                     .put("priority", priority)
+                    .put("agent_status", if (index == 0) intent.getStringExtra("agent-status") else null)
+                    .put("domain", if (index == 0) "engineering" else "commercial")
                     .put("title", listOf("Build listing errors", "Northstar asks about SSO", "New lead from Acme")[index])
                     .put(
                         "summary",
@@ -149,23 +151,39 @@ class ThreadCardPreviewActivity : Activity() {
         var selected: JSONObject? = null
         var draft = ""
         var status = "active"
+        var query = ""
+        var domain = ""
 
         fun snapshot() =
             JSONObject()
                 .put("sequence", ++sequence)
-                .put("assistant", JSONObject().put("name", "Pip").put("configured", true))
                 .put(
+                    "assistant",
+                    JSONObject()
+                        .put("name", "Pip")
+                        .put("configured", true)
+                        .put("searchable", true)
+                        .put(
+                            "domains",
+                            JSONArray()
+                                .put(JSONObject().put("id", "engineering").put("name", "Engineering"))
+                                .put(JSONObject().put("id", "commercial").put("name", "Commercial")),
+                        ),
+                ).put(
                     "threads",
                     JSONArray(
                         (0 until threads.length()).map { threads.getJSONObject(it) }.filter {
-                            it.getString("status") ==
-                                status
+                            it.getString("status") == status &&
+                                (domain.isEmpty() || it.optString("domain") == domain) &&
+                                (it.optString("title") + " " + it.optString("summary")).contains(query, ignoreCase = true)
                         },
                     ),
                 ).put("selected", selected ?: JSONObject.NULL)
                 .put("selection_id", selected?.optString("id") ?: JSONObject.NULL)
                 .put("messages", if (selected == null) JSONArray() else messages)
                 .put("status_filter", status)
+                .put("query", query)
+                .put("domain_filter", domain)
                 .put("draft", draft)
                 .put("people", JSONArray())
         val model =
@@ -182,7 +200,11 @@ class ThreadCardPreviewActivity : Activity() {
                                         command.getString("id")
                                 }
                         "leave" -> selected = null
-                        "load" -> status = command.optString("status", status)
+                        "load" -> {
+                            status = command.optString("status", status)
+                            query = command.optString("query", query)
+                            domain = command.optString("domain", domain)
+                        }
                         "archive" -> selected?.put("status", if (command.getBoolean("archived")) "archived" else "active")
                         "draft" -> draft = command.optString("body")
                         "send" -> {
@@ -209,5 +231,11 @@ class ThreadCardPreviewActivity : Activity() {
         screen.view.fitsSystemWindows = true
         setContentView(screen.view)
         model.open()
+        if (intent.getBooleanExtra("finish-activity", false)) {
+            Handler(Looper.getMainLooper()).postDelayed({
+                threads.getJSONObject(0).put("agent_status", "idle")
+                model.refresh()
+            }, 12_000)
+        }
     }
 }

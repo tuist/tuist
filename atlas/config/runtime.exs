@@ -691,6 +691,10 @@ llm_config = Application.get_env(:atlas, :llm, [])
 # Client provisioning and temporary managed overrides belong to deployment configuration.
 config :atlas, ChatGPT, client_id: present_env.(["ATLAS_CHATGPT_CLIENT_ID"])
 
+# Relay aliases have no catalog metadata. Override their conservative 128k
+# compaction budget when the operator knows the effective provider window.
+config :atlas, :orbit_context_window, optional_positive_integer_env.("ATLAS_ORBIT_CONTEXT_WINDOW")
+
 cond do
   llm_mode == "local" ->
     config :atlas, :llm,

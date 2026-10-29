@@ -5,6 +5,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
   import ExUnit.CaptureLog
 
   alias Atlas.LLMs.PersonalProviders
+  alias Atlas.Orbit.Compactor
   alias Condukt.AnonymousAgent
   alias Ecto.Adapters.SQL.Sandbox
 
@@ -84,6 +85,52 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
 
     assert [%{"id" => "call-2", "function" => %{"name" => "list_accounts", "arguments" => "{}"}}] =
              message["tool_calls"]
+  end
+
+  test "compaction rejects oversized completed summaries through the real Codex adapter" do
+    expect(Finch, :stream_while, fn request, _pool, acc, callback, _opts ->
+      body = request.body |> IO.iodata_to_binary() |> JSON.decode!()
+      assert body["tools"] == []
+      # Codex subscription Responses does not support caller output caps.
+      refute Map.has_key?(body, "max_output_tokens")
+
+      response =
+        sse([
+          %{
+            "type" => "response.completed",
+            "response" => %{
+              "id" => "summary",
+              "status" => "completed",
+              "output" => [
+                %{
+                  "type" => "message",
+                  "role" => "assistant",
+                  "content" => [%{"type" => "output_text", "text" => String.duplicate("界", 1_400)}]
+                }
+              ]
+            }
+          }
+        ])
+
+      {:ok,
+       Enum.reduce([{:status, 200}, {:headers, [{"content-type", "text/event-stream"}]}, {:data, response}], acc, fn
+         event, acc ->
+           {:cont, acc} = callback.(event, acc)
+           acc
+       end)}
+    end)
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      params = body |> JSON.decode!() |> Map.delete("model")
+      assert {:ok, completion} = PersonalProviders.complete("chatgpt", chatgpt_token(), params)
+      Req.Test.json(conn, completion)
+    end
+
+    opts = plug |> Atlas.OrbitFixtures.client_opts() |> Keyword.put(:context_window, 128_000)
+
+    assert {:error, :summary_too_large} =
+             Compactor.compact([Condukt.Message.user(String.duplicate("Evidence ", 2_000))], opts)
   end
 
   test "Claude uses bearer subscription auth and preserves tools, tool results and image bytes" do

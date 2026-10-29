@@ -284,26 +284,37 @@ defmodule TuistWeb.API.PreviewsController do
     expires_in = 120
     content_length = Map.get(multipart_upload_part, :content_length)
 
-    {:ok, app_build} = AppBuilds.app_build_by_id(app_build_id)
+    case AppBuilds.app_build_by_id(app_build_id, project_id: selected_project.id) do
+      {:ok, app_build} ->
+        object_key =
+          AppBuilds.storage_key(%{
+            account_handle: account_handle,
+            project_handle: project_handle,
+            app_build: app_build
+          })
 
-    object_key =
-      AppBuilds.storage_key(%{
-        account_handle: account_handle,
-        project_handle: project_handle,
-        app_build: app_build
-      })
+        url =
+          Storage.multipart_generate_url(
+            object_key,
+            upload_id,
+            part_number,
+            selected_project.account,
+            expires_in: expires_in,
+            content_length: content_length
+          )
 
-    url =
-      Storage.multipart_generate_url(
-        object_key,
-        upload_id,
-        part_number,
-        selected_project.account,
-        expires_in: expires_in,
-        content_length: content_length
-      )
+        json(conn, %{status: "success", data: %{url: url}})
 
-    json(conn, %{status: "success", data: %{url: url}})
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Preview not found."})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: reason})
+    end
   end
 
   operation(:multipart_complete,
@@ -367,7 +378,7 @@ defmodule TuistWeb.API.PreviewsController do
     # The preview_id is still used to support CLI version pre 4.54.0
     app_build_id = Map.get(body_params, :app_build_id, preview_id)
 
-    case AppBuilds.app_build_by_id(app_build_id, preload: [:preview]) do
+    case AppBuilds.app_build_by_id(app_build_id, project_id: selected_project.id, preload: [:preview]) do
       {:ok, app_build} ->
         object_key =
           AppBuilds.storage_key(%{
@@ -481,7 +492,10 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _args
       ) do
-    case AppBuilds.preview_by_id(preview_id, preload: [:app_builds, :created_by_account]) do
+    case AppBuilds.preview_by_id(preview_id,
+           project_id: selected_project.id,
+           preload: [:app_builds, :created_by_account]
+         ) do
       {:ok, preview} ->
         Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
 
@@ -835,7 +849,7 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    case AppBuilds.preview_by_id(preview_id) do
+    case AppBuilds.preview_by_id(preview_id, project_id: selected_project.id) do
       {:ok, preview} ->
         expires_in = 3600
 

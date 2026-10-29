@@ -104,8 +104,9 @@ mise trust --quiet "$repo_root/server/mise.toml"
 # Pin this checkout's development instance so ports and database names are
 # stable across orbs: server on 8180, databases tuist_development_100.
 # Instance 1 would put the server on 8081, which the orb itself listens on.
-instance_file="$(git rev-parse --path-format=absolute --git-path tuist-dev-instance)"
-[[ -s "$instance_file" ]] || printf '100' >"$instance_file"
+# Overwrite rather than fill in: a mise invocation before this point persists a
+# random instance (seen on a self-hosted orb), which would otherwise win.
+printf '100' >"$(git rev-parse --path-format=absolute --git-path tuist-dev-instance)"
 
 step "Installing root tools"
 time mise install --quiet

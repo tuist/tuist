@@ -26,6 +26,38 @@ struct AtlasBusinessTests {
         #expect(model.query == "Follow")
     }
 
+    @Test func savedRowsArriveBeforeRefreshRemainReadOnlyAndDisappearAfterAccessDenial() async throws {
+        var saved = try #require(JSONSerialization.jsonObject(with: overview) as? [String: Any])
+        saved["cached"] = true
+        saved["can_write"] = false
+        saved["items"] = [["id": "saved", "fields": ["title": "Saved task"], "can_edit": false, "can_delete": false]]
+        let cache = try JSONSerialization.data(withJSONObject: saved)
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Error>?
+        var suspend = true
+        let model = AtlasBusiness(resource: .tasks) { action in
+            if action["action"] as? String == "create" { return Data("{\"item\":\(item)}".utf8) }
+            if !suspend { throw AtlasAuthenticationError(kind: "network", message: "Offline") }
+            return try await withCheckedThrowingContinuation { finish = $0; started.continuation.yield(()) }
+        }
+        model.cachedRequest = { _ in cache }
+        let loading = Task { await model.load() }
+        for await _ in started.stream { break }
+        #expect(model.page?.items.first?["title"] == "Saved task" && model.page?.cached == true)
+        #expect(model.page?.canWrite == false && model.page?.items.first?.canEdit == false)
+        finish?.resume(throwing: AtlasAuthenticationError(kind: "network", message: "Offline"))
+        await loading.value
+        suspend = false
+        #expect(model.page?.items.first?.id == "saved" && !model.busy)
+        #expect(!(await model.save(fields: ["title": "Must not write"], editing: nil)))
+        suspend = true
+        let retry = Task { await model.load() }
+        for await _ in started.stream { break }
+        finish?.resume(throwing: AtlasAuthenticationError(kind: "sign_in_required", message: "Revoked"))
+        await retry.value
+        #expect(model.page == nil && model.records.isEmpty && model.forbidden && !model.busy)
+    }
+
     @Test func failedMutationRetainsContentButSuccessfulSaveSurvivesARefreshFailure() async {
         var failure = false
         var mutationFails = true

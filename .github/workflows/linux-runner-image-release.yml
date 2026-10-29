@@ -12,6 +12,9 @@ on:
       - main
     paths:
       - infra/linux-runner-image/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
+      - infra/certificate-trust/java-store.sh
       - .github/workflows/linux-runner-image-release.yml
   workflow_dispatch:
 
@@ -81,6 +84,7 @@ jobs:
         with:
           context: infra/linux-runner-image
           file: infra/linux-runner-image/Dockerfile
+          build-contexts: certificate-trust=infra/certificate-trust
           # Linux runners run on x86 hosts; arm64 can land as an additive
           # `platforms:` entry.
           platforms: linux/amd64
@@ -106,11 +110,17 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep -E "^linux-runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1 || true)
           range=()
           [ -z "$LATEST_VERSION" ] || range=(-- "${LATEST_VERSION}..HEAD")
+          include_paths=(
+            --include-path "infra/linux-runner-image/**/*"
+            --include-path "infra/certificate-trust/policy.json"
+            --include-path "infra/certificate-trust/pem-store.sh"
+            --include-path "infra/certificate-trust/java-store.sh"
+          )
           {
             echo "body<<EOF"
             echo "Docker image: \`ghcr.io/tuist/tuist-linux-runner:${VERSION}\`"
             echo
-            git cliff --include-path "infra/linux-runner-image/**/*" --config infra/linux-runner-image/cliff.toml --repository "." 2>/dev/null "${range[@]}" \
+            git cliff "${include_paths[@]}" --config infra/linux-runner-image/cliff.toml --repository "." 2>/dev/null "${range[@]}" \
               | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2
             echo "EOF"
           } >> "$GITHUB_OUTPUT"

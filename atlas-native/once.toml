@@ -475,7 +475,7 @@ deps = ["./AtlasCoreMacOS", "./AtlasAuthMacOS", "./AtlasCoreFFI", "./AtlasAuthFF
 
 [target.attrs]
 platform = "macos"
-bundle_id = "dev.tuist.atlas.macos"
+bundle_id = "dev.tuist.atlas"
 product_name = "Atlas"
 minimum_os = "14.0"
 swift_flags = ["-O"]

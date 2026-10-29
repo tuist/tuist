@@ -15,6 +15,7 @@ struct AtlasSettingsView: View {
     @State private var editor: AtlasProfileEditorModel?
     @State private var profileGeneration = 0
     @Environment(\.atlasPresence) private var presence
+    @Environment(\.atlasReadCache) private var cachedRead
 
     var body: some View {
         Form {
@@ -38,6 +39,7 @@ struct AtlasSettingsView: View {
                                 editor = AtlasProfileEditorModel(description: profile.user.description, request: profileRequest)
                             }
                         }
+                        .disabled(profile.cached == true)
                         .accessibilityIdentifier("profile-edit-description")
                     } header: { Text("About you") } footer: {
                         Text("Share your company role, personality and communication preferences. " +
@@ -135,8 +137,8 @@ struct AtlasSettingsView: View {
         }
         .modifier(AtlasThemedContent())
         .onAppear { presence?.show(resource: "profile") }
-        .task { await accounts.load(); await loadProfile() }
-        .refreshable { await accounts.load(); await loadProfile() }
+        .task { await load() }
+        .refreshable { await load() }
         .sheet(item: $editor) { editor in
             AtlasProfileEditor(model: editor) { profile = $0 }
         }
@@ -147,20 +149,33 @@ struct AtlasSettingsView: View {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
 
+    private func load() async {
+        async let metadata: Void = accounts.load()
+        await loadProfile()
+        await metadata
+    }
+
     private func loadProfile() async {
         guard let profileRequest, editor == nil else { return }
         profileGeneration += 1
         let generation = profileGeneration
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        if profile == nil, let data = await cachedRead?(["operation": "business", "resource": "profile", "action": "list"]),
+           generation == profileGeneration, editor == nil, !Task.isCancelled {
+            profile = try? decoder.decode(AtlasNativeProfile.self, from: data)
+        }
         do {
             let data = try await profileRequest(["resource": "profile", "action": "list"])
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
             let loaded = try decoder.decode(AtlasNativeProfile.self, from: data)
-            guard generation == profileGeneration, editor == nil else { return }
+            guard generation == profileGeneration, editor == nil, !Task.isCancelled else { return }
             profile = loaded
             profileError = nil
         } catch is CancellationError {} catch {
-            if generation == profileGeneration, editor == nil { profileError = error.localizedDescription }
+            if generation == profileGeneration, editor == nil, !Task.isCancelled {
+                if AtlasReadCache.accessDenied(error) { profile = nil }
+                profileError = error.localizedDescription
+            }
         }
     }
 

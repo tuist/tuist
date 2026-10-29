@@ -603,6 +603,7 @@ jobs:
           # bin/${TARGETARCH}/kura staged above and performs no compilation.
           context: ./kura
           file: ./kura/Dockerfile.release
+          build-contexts: certificate-trust=./infra/certificate-trust
           platforms: linux/amd64
           push: true
           tags: |
@@ -1832,6 +1833,20 @@ jobs:
           # not there, and --create-namespace does not create one during a dry
           # run. That case is a first install, where there is no live release
           # for a rollback to damage.
+          echo "::group::Adopt release objects missing Helm's label"
+          adopt_render="$(mktemp)"
+          helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            "${helm_values_args[@]}" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+            --set registry.image.tag="$registry_image_tag" \
+            --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+            "${image_sets[@]}" | yq -o=json -I=0 'select(.kind != null)' | jq -s . > "$adopt_render"
+          bash .github/scripts/helm-adopt-release-objects.sh "$adopt_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+          rm -f "$adopt_render"
+          echo "::endgroup::"
+
           echo "::group::helm upgrade --dry-run=server (preflight)"
           if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
             preflight_log="$(mktemp)"

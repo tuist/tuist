@@ -36,6 +36,10 @@ pub(crate) enum Action {
         id: String,
         user_id: String,
     },
+    SavedHistory {
+        connection: String,
+        id: String,
+    },
     Active {
         connection: String,
         active: bool,
@@ -69,6 +73,10 @@ pub(crate) enum Command {
         kind: Option<String>,
         #[serde(default)]
         status: Option<StatusFilter>,
+        #[serde(default)]
+        query: Option<String>,
+        #[serde(default)]
+        domain: Option<String>,
     },
     LoadMore,
     Private,
@@ -152,7 +160,10 @@ impl StatusFilter {
 struct Snapshot {
     sequence: u64,
     status_filter: StatusFilter,
+    query: String,
+    domain_filter: String,
     cached: bool,
+    history_cached: bool,
     assistant: Option<Assistant>,
     threads: Vec<Thread>,
     // An untrusted navigation target, not thread metadata or permission to mutate.
@@ -181,6 +192,7 @@ struct Snapshot {
     error: Option<String>,
     live_message: Option<String>,
     needs_session: bool,
+    session_rejected: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -320,6 +332,9 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                 {
                     return Err(invalid());
                 }
+                if state.snapshot.session_rejected {
+                    return Err(error("sign_in_required", "Sign in to Atlas again."));
+                }
                 if state.closed
                     || state
                         .cache
@@ -328,8 +343,16 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                 {
                     return Err(error("closed", "This Atlas session has ended."));
                 }
-                if session.expires_at <= crate::now() || session.access_token.is_empty() {
+                if session.access_token.is_empty() {
                     return Err(error("sign_in_required", "Sign in to Atlas again."));
+                }
+                if session.expires_at <= crate::now() {
+                    state.snapshot.needs_session = true;
+                    publish(&model, &mut state);
+                    return Err(error(
+                        "session_expired",
+                        "Reconnect to refresh this conversation.",
+                    ));
                 }
                 state.session = session;
                 state.authenticated = true;
@@ -356,6 +379,35 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
         } => {
             let model = get(&connection)?;
             mention(&model, id, user_id)?;
+            snapshot(&model)
+        }
+        Action::SavedHistory { connection, id } => {
+            crate::time_off::validate_id(&id)?;
+            let model = get(&connection)?;
+            let live = {
+                let mut state = model.state.lock().map_err(|_| invalid())?;
+                if state.closed {
+                    return Err(error("closed", "This Orbit session is closed."));
+                }
+                let live = begin_selection(&mut state, Some(id.clone()));
+                let saved = state
+                    .cache
+                    .as_ref()
+                    .and_then(|cache| cache.read(&format!("orbit/history/v1/{id}")))
+                    .and_then(|payload| serde_json::from_str::<History>(&payload).ok());
+                if let Some(saved) =
+                    saved.filter(|saved| saved.thread.id == id && saved.messages.items.len() <= 25)
+                {
+                    let generation = state.generation;
+                    if reconcile_history(&mut state, saved, generation, false) {
+                        state.snapshot.history_cached = true;
+                        state.snapshot.has_older = false;
+                    }
+                }
+                publish(&model, &mut state);
+                live
+            };
+            close_live(live);
             snapshot(&model)
         }
         Action::Active { connection, active } => {
@@ -476,6 +528,9 @@ fn inbox_key(state: &State) -> String {
 }
 
 fn hydrate_inbox(state: &mut State) {
+    if !state.snapshot.query.is_empty() || !state.snapshot.domain_filter.is_empty() {
+        return;
+    }
     let saved = state
         .cache
         .as_ref()
@@ -565,8 +620,13 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
     match command {
         Command::Models => models_using(model, &Network),
         Command::SetModel { id, model: choice } => set_model_using(model, id, choice, &Network),
-        Command::Load { kind, status } => {
-            set_list_filters(model, kind, status)?;
+        Command::Load {
+            kind,
+            status,
+            query,
+            domain,
+        } => {
+            set_list_filters(model, kind, status, query, domain)?;
             load(model, false)?;
             start_live(model)
         }
@@ -673,6 +733,8 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
             page: 1,
             kind: state.list_kind.clone(),
             status: Some(state.snapshot.status_filter.as_str().into()),
+            query: Some(state.snapshot.query.clone()),
+            domain: Some(state.snapshot.domain_filter.clone()),
         });
         state.snapshot.loading = true;
         state.snapshot.error = None;
@@ -790,6 +852,8 @@ fn set_list_filters(
     model: &Arc<Model>,
     kind: Option<String>,
     status: Option<StatusFilter>,
+    query: Option<String>,
+    domain: Option<String>,
 ) -> Result<()> {
     if kind
         .as_deref()
@@ -799,16 +863,26 @@ fn set_list_filters(
     }
     let mut state = model.state.lock().map_err(|_| invalid())?;
     let status = status.unwrap_or(state.snapshot.status_filter);
-    if state.list_kind != kind || state.snapshot.status_filter != status {
+    let query = query.unwrap_or_else(|| state.snapshot.query.clone());
+    let domain = domain.unwrap_or_else(|| state.snapshot.domain_filter.clone());
+    if !orbit::valid_search(&query) || !orbit::valid_domain(&domain) {
+        return Err(invalid());
+    }
+    if state.list_kind != kind
+        || state.snapshot.status_filter != status
+        || state.snapshot.query != query
+        || state.snapshot.domain_filter != domain
+    {
         clear_candidates(&mut state);
         state.list_kind = kind;
         state.snapshot.status_filter = status;
+        state.snapshot.query = query;
+        state.snapshot.domain_filter = domain;
         state.list_page = 0;
         state.access_generation += 1;
         state.snapshot.threads.clear();
         state.snapshot.has_more = false;
         state.snapshot.cached = false;
-        state.snapshot.assistant = None;
         hydrate_inbox(&mut state);
         publish(model, &mut state);
     }
@@ -820,7 +894,7 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
 }
 
 fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Result<()> {
-    let (session, page, kind, status, access_generation, cache_generation) = {
+    let (session, page, kind, status, query, domain, access_generation, cache_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -836,6 +910,8 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
             if more { state.list_page + 1 } else { 1 },
             state.list_kind.clone(),
             Some(state.snapshot.status_filter.as_str().into()),
+            Some(state.snapshot.query.clone()),
+            Some(state.snapshot.domain_filter.clone()),
             state.access_generation,
             state
                 .cache
@@ -846,7 +922,13 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
     let result = orbit::request_using::<Overview>(
         network,
         session,
-        orbit::Action::List { page, kind, status },
+        orbit::Action::List {
+            page,
+            kind,
+            status,
+            query,
+            domain,
+        },
     );
     let mut state = model.state.lock().map_err(|_| invalid())?;
     state.snapshot.loading = false;
@@ -866,6 +948,8 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
     match result {
         Ok(value) => {
             if !more
+                && state.snapshot.query.is_empty()
+                && state.snapshot.domain_filter.is_empty()
                 && let (Some(cache), Some(generation)) = (&state.cache, cache_generation)
                 && let Ok(payload) = serde_json::to_string(&saved_inbox(&value))
             {
@@ -892,8 +976,9 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
                 state.snapshot.assistant = None;
                 state.snapshot.cached = false;
             }
+            note_auth_failure(&mut state, failure.kind);
             if state.snapshot.selection_id.is_none() {
-                note_failure(&mut state, failure);
+                state.snapshot.error = Some(failure.message.into());
             }
         }
     }
@@ -911,6 +996,22 @@ fn merge_list_thread(state: &mut State, incoming: Thread) {
     let items = &mut state.snapshot.threads;
     items.retain(|item| item.id != incoming.id);
     if incoming.status != state.snapshot.status_filter.as_str() {
+        return;
+    }
+    let domain = state.snapshot.domain_filter.as_str();
+    if (!domain.is_empty()
+        && domain != "unclassified"
+        && incoming.domain.as_deref() != Some(domain))
+        || (domain == "unclassified" && incoming.domain.is_some())
+    {
+        return;
+    }
+    // Detail refreshes must not reinsert a conversation excluded by the inbox search.
+    let query = state.snapshot.query.trim().to_lowercase();
+    if !query.is_empty()
+        && !incoming.title.to_lowercase().contains(&query)
+        && !incoming.summary.to_lowercase().contains(&query)
+    {
         return;
     }
     items.push(incoming);
@@ -1066,7 +1167,7 @@ fn models_using(model: &Arc<Model>, network: &impl Transport) -> Result<()> {
             });
         }
         Err(failure) => {
-            state.snapshot.needs_session |= failure.kind == "sign_in_required";
+            note_auth_failure(&mut state, failure.kind);
             state.snapshot.model_error = Some(failure.message.into());
         }
     }
@@ -1138,7 +1239,7 @@ fn set_model_using(
             }
         }
         Err(failure) if state.generation == generation => {
-            state.snapshot.needs_session |= failure.kind == "sign_in_required";
+            note_auth_failure(&mut state, failure.kind);
             state.snapshot.model_error = Some(failure.message.into());
         }
         Err(_) => {}
@@ -1170,7 +1271,11 @@ fn select_using(
         {
             return Ok(());
         }
-        let live = begin_selection(&mut state, id);
+        let live = if state.snapshot.history_cached && state.snapshot.selection_id == id {
+            state.live.take()
+        } else {
+            begin_selection(&mut state, id)
+        };
         publish(model, &mut state);
         live
     };
@@ -1184,6 +1289,7 @@ fn begin_selection(state: &mut State, id: Option<String>) -> Option<String> {
     clear_candidates(state);
     state.snapshot.selection_id = id;
     state.snapshot.selected = None;
+    state.snapshot.history_cached = false;
     state.snapshot.messages.clear();
     state.snapshot.people.clear();
     state.snapshot.error = None;
@@ -1207,6 +1313,7 @@ fn clear_candidates(state: &mut State) {
 fn mention_access(state: &State, id: &str) -> bool {
     !state.closed
         && state.active
+        && !state.snapshot.history_cached
         && !state.snapshot.needs_session
         && state.snapshot.selection_id.as_deref() == Some(id)
         && state
@@ -1226,15 +1333,23 @@ fn trailing_mention(body: &str) -> Option<(usize, &str)> {
     Some((at, query))
 }
 
-fn has_mention(body: &str, name: &str) -> bool {
+fn mention_spans(body: &str, name: &str) -> Vec<std::ops::Range<usize>> {
     let token = format!("@{name}");
-    body.match_indices(&token).any(|(at, _)| {
-        (at == 0 || body[..at].ends_with(char::is_whitespace))
-            && body[at + token.len()..]
-                .chars()
-                .next()
-                .is_none_or(|next| !next.is_alphanumeric() && next != '_')
-    })
+    body.match_indices(&token)
+        .filter(|(at, _)| {
+            let at = *at;
+            (at == 0 || body[..at].ends_with(char::is_whitespace))
+                && body[at + token.len()..]
+                    .chars()
+                    .next()
+                    .is_none_or(|next| !next.is_alphanumeric() && next != '_')
+        })
+        .map(|(at, _)| at..at + token.len())
+        .collect()
+}
+
+fn has_mention(body: &str, name: &str) -> bool {
+    !mention_spans(body, name).is_empty()
 }
 
 fn people_using(
@@ -1292,7 +1407,7 @@ fn people_using(
         Ok(value) => state.snapshot.mention_candidates = value.people,
         Err(failure) => {
             // Older servers have no people route. Only authoritative history can revoke this thread.
-            state.snapshot.needs_session |= failure.kind == "sign_in_required";
+            note_auth_failure(&mut state, failure.kind);
             state.snapshot.mention_error = Some(failure.message.into());
         }
     }
@@ -1338,11 +1453,12 @@ fn mention(model: &Model, id: String, user_id: String) -> Result<()> {
 }
 
 fn history(model: &Arc<Model>, older: bool) -> Result<()> {
-    history_using(model, older, &Network)
+    history_using(model, older, &Network)?;
+    start_live(model)
 }
 
 fn history_using(model: &Arc<Model>, older: bool, network: &impl Transport) -> Result<()> {
-    let (session, id, page, generation) = {
+    let (session, id, page, generation, cache_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -1361,6 +1477,10 @@ fn history_using(model: &Arc<Model>, older: bool, network: &impl Transport) -> R
             id,
             if older { state.history_page + 1 } else { 1 },
             state.generation,
+            state
+                .cache
+                .as_ref()
+                .and_then(crate::cache::Cache::generation),
         )
     };
     let result = orbit::request_using::<History>(
@@ -1380,6 +1500,39 @@ fn history_using(model: &Arc<Model>, older: bool, network: &impl Transport) -> R
         let mut live = None;
         match result {
             Ok(value) => {
+                if page == 1 && value.thread.id == id {
+                    let mut saved = History {
+                        thread: value.thread.clone(),
+                        messages: orbit::Page {
+                            items: value
+                                .messages
+                                .items
+                                .iter()
+                                .filter(|message| message.kind != "tool")
+                                .take(25)
+                                .cloned()
+                                .collect(),
+                            page: 1,
+                            total_pages: 1,
+                            total_count: value.messages.total_count,
+                        },
+                    };
+                    saved.thread.owner_id = None;
+                    saved.thread.agent_status = None;
+                    saved.thread.participants.clear();
+                    for message in &mut saved.messages.items {
+                        message.tool_input.clear();
+                        message.tool_output.clear();
+                        message.component = None;
+                    }
+                    if let (Some(cache), Some(generation)) = (&state.cache, cache_generation) {
+                        cache.write(
+                            &format!("orbit/history/v1/{id}"),
+                            &serde_json::to_string(&saved).map_err(|_| invalid())?,
+                            generation,
+                        );
+                    }
+                }
                 if !reconcile_history(&mut state, value, generation, older) {
                     state.snapshot.error = Some("Atlas returned a different thread.".into());
                 }
@@ -1419,6 +1572,7 @@ fn reconcile_history(state: &mut State, value: History, generation: u64, older: 
         return false;
     }
     merge_list_thread(state, value.thread.clone());
+    state.snapshot.history_cached = false;
     state.snapshot.selected = Some(value.thread);
     let disconnected_page = !older
         && !state.snapshot.messages.is_empty()
@@ -1457,6 +1611,7 @@ fn attachment_access(state: &State, id: &str, write: bool) -> Result<()> {
     if state.closed
         || !state.active
         || state.snapshot.needs_session
+        || state.snapshot.history_cached
         || state
             .snapshot
             .selected
@@ -1789,6 +1944,7 @@ fn send_using(
             || state.snapshot.attachment_busy
             || state.closed
             || state.snapshot.needs_session
+            || state.snapshot.history_cached
         {
             return Ok(());
         }
@@ -1802,7 +1958,7 @@ fn send_using(
         if selected.status == "archived" {
             return Err(invalid());
         }
-        let address_agent = selected.kind == "private" || address_agent;
+        let private = selected.kind == "private";
         let attachments = state
             .drafts
             .get(&id)
@@ -1855,6 +2011,17 @@ fn send_using(
                     .ok_or_else(invalid)
             })
             .collect::<Result<Vec<_>>>()?;
+        // A selected person such as Pip Smith occupies the whole human token;
+        // their name must not accidentally summon the assistant as well.
+        let human_spans = mentions
+            .iter()
+            .flat_map(|person| mention_spans(&body, &person.name))
+            .collect::<Vec<_>>();
+        let address_agent = private
+            || (address_agent
+                && mention_spans(&body.to_ascii_lowercase(), "pip")
+                    .iter()
+                    .any(|token| !human_spans.iter().any(|human| human.contains(&token.start))));
         let client_id = prepare_send_draft(&mut state, &id, &body, &attachment_ids, &mentions)?;
         let result = (
             state.session.clone(),
@@ -1943,11 +2110,40 @@ fn send_using(
 }
 
 fn note_failure(state: &mut State, failure: crate::AuthError) {
-    if failure.kind == "sign_in_required" {
-        clear_candidates(state);
-        state.snapshot.needs_session = true;
-    }
+    note_auth_failure(state, failure.kind);
     state.snapshot.error = Some(failure.message.into());
+}
+
+fn note_auth_failure(state: &mut State, kind: &str) {
+    match kind {
+        "sign_in_required" => reject_session(state),
+        "session_expired" => state.snapshot.needs_session = true,
+        _ => {}
+    }
+}
+
+fn reject_session(state: &mut State) {
+    // HTTP rejection is definitive, unlike a live connection asking for renewal.
+    if let Some(cache) = &state.cache {
+        cache.invalidate(true);
+    }
+    state.generation += 1;
+    state.access_generation += 1;
+    state.authenticated = false;
+    state.drafts.clear();
+    state.outbox.clear();
+    state.upload_attempt = None;
+    state.private_request_id = None;
+    clear_candidates(state);
+    let sequence = state.snapshot.sequence;
+    let selection_id = state.snapshot.selection_id.clone();
+    state.snapshot = Snapshot {
+        sequence,
+        selection_id,
+        needs_session: true,
+        session_rejected: true,
+        ..Snapshot::default()
+    };
 }
 
 fn revoke(state: &mut State, id: &str) {
@@ -1957,6 +2153,7 @@ fn revoke(state: &mut State, id: &str) {
     state.snapshot.people.clear();
     state.snapshot.threads.retain(|item| item.id != id);
     state.snapshot.selected = None;
+    state.snapshot.history_cached = false;
     state.snapshot.history_loading = false;
     state.history_pending = false;
     state.drafts.remove(id);
@@ -2101,6 +2298,7 @@ fn start_live(model: &Arc<Model>) -> Result<()> {
     if !state.active
         || state.closed
         || !state.authenticated
+        || state.snapshot.history_cached
         || state.live.is_some()
         || (state.snapshot.selection_id.is_some() && state.snapshot.selected.is_none())
     {
