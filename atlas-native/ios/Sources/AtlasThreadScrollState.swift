@@ -18,11 +18,11 @@ final class AtlasThreadScrollState: ObservableObject {
     private var previous: AtlasThreadScrollMetrics?
     private var baseline: CGFloat?
     private var correcting = false
-    private var latestTask: Task<Void, Never>?
+    private var positionTask: Task<Void, Never>?
 
     func reset() {
-        latestTask?.cancel()
-        latestTask = nil
+        positionTask?.cancel()
+        positionTask = nil
         if !following { following = true }
         userScrolling = nil
         previous = nil
@@ -30,13 +30,23 @@ final class AtlasThreadScrollState: ObservableObject {
         correcting = false
     }
 
-    @MainActor func scheduleLatest(_ action: @escaping () -> Void) {
-        guard latestTask == nil else { return }
-        latestTask = Task { @MainActor [weak self] in
+    @MainActor func schedulePosition(following expectedFollowing: Bool = true,
+                                     clear: @escaping () -> Void, _ action: @escaping () -> Void) {
+        // An explicit prompt jump supersedes a pending bottom correction.
+        if !expectedFollowing { positionTask?.cancel(); positionTask = nil }
+        guard positionTask == nil else { return }
+        positionTask = Task { @MainActor [weak self] in
             await Task.yield()
             guard !Task.isCancelled, let self else { return }
-            latestTask = nil
-            if following { action() }
+            // Reset may already have installed a new task while this cancelled one slept.
+            defer { if !Task.isCancelled { positionTask = nil } }
+            guard following == expectedFollowing, userScrolling != true else { return }
+            clear()
+            // A yield alone can be consumed in the same SwiftUI update transaction.
+            // Let the cleared target reach layout before restoring the position.
+            do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
+            guard following == expectedFollowing, userScrolling != true else { return }
+            action()
         }
     }
 
@@ -75,7 +85,7 @@ struct AtlasThreadScrollObserver: ViewModifier {
         if #available(iOS 18.0, macOS 15.0, *) {
             content.onScrollGeometryChange(for: AtlasThreadScrollMetrics.self) { geometry in
                 AtlasThreadScrollMetrics(height: geometry.contentSize.height,
-                                         bottom: geometry.contentSize.height + geometry.contentInsets.bottom - geometry.contentOffset.y,
+                                         bottom: geometry.contentSize.height - geometry.contentOffset.y - geometry.contentInsets.top,
                                          viewport: geometry.containerSize.height,
                                          inset: geometry.contentInsets.top + geometry.contentInsets.bottom)
             } action: { _, metrics in

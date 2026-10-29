@@ -451,7 +451,7 @@ defmodule Atlas.Orbit.Runs do
   defp transcript_messages(thread, run) do
     recent =
       Message
-      |> where([message], message.thread_id == ^thread.id)
+      |> where([message], message.thread_id == ^thread.id and is_nil(message.recipient_id))
       |> order_by(desc: :position)
       |> limit(@transcript_messages)
       |> Repo.all()
@@ -461,6 +461,7 @@ defmodule Atlas.Orbit.Runs do
         from message in Message,
           where:
             message.thread_id == ^thread.id and message.address_agent == true and
+              is_nil(message.recipient_id) and
               message.position >= ^run.trigger_seq
       )
 

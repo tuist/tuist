@@ -12,6 +12,7 @@ defmodule Atlas.Orbit.RunsTest do
   alias Atlas.Agents.Sessions.Session
   alias Atlas.Audit.Activity
   alias Atlas.Authorization.Roles
+  alias Atlas.Automations.Executor
   alias Atlas.Documents.TextExtractor
   alias Atlas.Inference.ModelBinding
   alias Atlas.LLMs.Connections
@@ -207,6 +208,75 @@ defmodule Atlas.Orbit.RunsTest do
     assert Repo.get!(Run, run.id).status == "cancelled"
     refute Repo.exists?(from message in Message, where: message.run_id == ^run.id and message.kind == "agent")
     refute_received :unexpected_provider_network_request
+  end
+
+  test "a signal policy starts an investigation through the real model loop without private profile context" do
+    actor = user_fixture(["automation:write"])
+    {:ok, _} = Users.update_my_profile(actor, "Private routing marker")
+
+    {_, revision} =
+      Atlas.AutomationsFixtures.workflow_fixture(actor, [
+        %{
+          "id" => "triage",
+          "behavior" => "signals.decide@1",
+          "inputs" => %{
+            "signal_id" => %{"$ref" => "input.signal_id"},
+            "action" => "opened",
+            "priority" => "now",
+            "reason" => "Investigate lead"
+          }
+        }
+      ])
+
+    {:ok, source} =
+      Atlas.Signals.create_source(actor, %{
+        "name" => "Leads",
+        "revision_id" => revision.id,
+        "reader_ids" => [],
+        "required_scopes" => []
+      })
+
+    {:ok, _} = Atlas.Signals.set_enabled(actor, source.id, true)
+
+    {:ok, signal} =
+      Atlas.Signals.ingest(actor, source.id, %{
+        "external_id" => "lead",
+        "correlation_key" => "prospect",
+        "type" => "lead.new",
+        "schema_version" => 1,
+        "occurred_at" => "2026-10-28T12:00:00Z",
+        "title" => "New lead",
+        "summary" => "Prospect needs setup documentation"
+      })
+
+    assert {:ok, _} = Executor.advance(signal.execution_id)
+    assert {:ok, _} = Executor.advance(signal.execution_id)
+    {:ok, signal} = Atlas.Signals.get(actor, signal.id)
+    {:ok, thread} = Orbit.fetch(actor, signal.thread_id)
+    run = Orbit.active_run(thread)
+    test_pid = self()
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      send(test_pid, {:investigation, body})
+
+      Req.Test.json(
+        conn,
+        completion(%{
+          "role" => "assistant",
+          "content" =>
+            "Initial finding: the prospect needs setup documentation. Suggested next action: confirm their platform."
+        })
+      )
+    end
+
+    assert :ok = Runs.execute(run.id, client_opts: client_opts(plug))
+    assert_receive {:investigation, body}
+    assert body =~ "Investigate the monitored signal"
+    assert body =~ "Prospect needs setup documentation"
+    refute body =~ "Private routing marker"
+    assert Repo.get!(Run, run.id).status == "succeeded"
+    assert Repo.get_by!(Message, run_id: run.id, kind: "agent").body =~ "Suggested next action"
   end
 
   test "runs a read-only tool, ratchets its scopes, and posts the reply" do

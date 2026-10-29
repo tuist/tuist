@@ -150,9 +150,13 @@ identity includes exact body, files, and mention IDs, so identical names/text wi
 different invitees cannot reuse a confirmed send. Uncertain retries retain those exact
 identities, and successful sends preserve newer drafts/mentions. Empty mention IDs
 are omitted from HTTP requests for compatibility. Messages default omitted additions
-to `notice_kind: null` and `mentioned_user_ids: []`; retain only the known `handoff`
-notice and valid UUID entries. Promotion to participant-scoped shared, title derivation,
-notification delivery, and factual handoff text belong to Atlas, never client inference.
+to `notice_kind: null` and `mentioned_user_ids: []`; retain only known `handoff`,
+`joined`, `private_handoff` notices and valid UUID entries. The server filters
+recipient-only history; never download all recaps and filter locally. Threads retain
+only known nullable `now`/`today`/`later` priorities. Merged list pages sort by priority,
+then recency/ID, matching the server. Promotion to participant-scoped shared, title
+derivation, notification delivery, and factual catch-up text belong to Atlas, never
+client inference.
 
 ## Orbit attachments and tool hierarchy
 

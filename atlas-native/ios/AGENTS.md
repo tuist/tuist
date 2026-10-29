@@ -74,8 +74,10 @@ WebView, remote images, custom-scheme links or executable fenced content.
 Orbit's welcome and empty private thread use the bundled `AtlasPipView` mascot and
 draft suggestions. Touch duration and tap cadence vary its expressions; never claim
 pressure sensing. Reduce Motion preserves expression changes without movement.
-Orbit lists authorized private and shared conversations in a native plain inbox with
-Today/Yesterday/Earlier sections, title, available summary and private/shared metadata.
+Orbit uses a native Messages-style inbox with conversation icons, titles and short previews.
+Signal priorities appear inline as Now/Today/Later, without one-row sections or repeated
+Shared/Signal badges; ordinary conversations retain Today/Yesterday/Earlier sections.
+Keep private/shared audience information accessible and available in thread details.
 Use static localized times/dates, not a ticking relative-time label. Active/Archived is a
 native segmented picker; eligible owners get swipe/context Archive and Restore actions.
 Confirm shared archive because it makes the conversation read-only for everyone. Archived
@@ -149,7 +151,10 @@ Show loading feedback before the first protected history
 request completes. Approaching the top automatically loads one earlier page, retaining the
 current visible message through the lazy stack's native anchoring, not a forced jump to the
 old first row after the response. The scroll content has one lazy stack with stable group IDs;
-do not wrap the entire transcript in another scroll target.
+do not wrap the entire transcript in another scroll target. On iOS, each group has a native
+hosting boundary that measures its natural height at the proposed width; keep the outer
+environment and let the transcript own safe-area insets. Preserve this isolation for tall
+Dynamic Type content rather than eagerly rendering the entire history.
 Keep manual retry and never loop failed requests.
 Keep the latest-message action beside the index
 and reserve transcript space so these controls do not cover message content.

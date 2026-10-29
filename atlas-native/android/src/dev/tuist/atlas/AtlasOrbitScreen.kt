@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.text.Editable
 import android.text.InputType
@@ -20,6 +21,7 @@ import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
 import android.widget.Button
@@ -72,11 +74,6 @@ class AtlasOrbitScreen(
             isSaveEnabled = false
             importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
         }
-    private val askAssistant =
-        CheckBox(activity).apply {
-            minHeight = dp(48)
-            isSaveEnabled = false
-        }
     private val sendButton =
         Button(activity).apply {
             text = "Send"
@@ -98,7 +95,6 @@ class AtlasOrbitScreen(
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(4), dp(16), dp(8))
             addView(attachmentRows, LinearLayout.LayoutParams(-1, -2))
-            addView(askAssistant, LinearLayout.LayoutParams(-2, -2))
             addView(
                 LinearLayout(activity).apply {
                     gravity = Gravity.BOTTOM
@@ -168,8 +164,12 @@ class AtlasOrbitScreen(
                 }
             },
         )
-        askAssistant.setOnCheckedChangeListener { _, checked -> if (!syncing) composerFor?.let { model.setAskAssistant(it, checked) } }
-        sendButton.setOnClickListener { composerFor?.let { model.send(it, composerField.text.toString()) } }
+        sendButton.setOnClickListener {
+            composerFor?.let {
+                scroll.scrollTo(0, content.height)
+                model.send(it, composerField.text.toString())
+            }
+        }
         render()
     }
 
@@ -250,6 +250,9 @@ class AtlasOrbitScreen(
         toolbar.title = title
         toolbar.subtitle = null
         refreshAction { model.refresh() }
+        menuAction(if (snapshot.statusFilter == "active") "Show archived" else "Show active") {
+            model.filterStatus(if (snapshot.statusFilter == "active") "archived" else "active")
+        }
         val key =
             listOf(
                 "list",
@@ -258,6 +261,7 @@ class AtlasOrbitScreen(
                 snapshot.loading,
                 snapshot.hasMore,
                 snapshot.cached,
+                snapshot.statusFilter,
                 snapshot.error,
                 model.failure,
             )
@@ -292,8 +296,15 @@ class AtlasOrbitScreen(
         } else {
             errors()
         }
+        for (priority in listOf("now", "today", "later")) {
+            val threads = snapshot.threads.filter { it.priority == priority }
+            for (thread in threads) {
+                conversationRow(thread)
+            }
+        }
         val assistant = snapshot.assistant
         if (assistant != null) {
+            if (snapshot.threads.any { it.priority != null }) heading("Conversations")
             val pinned = snapshot.privateThread
             val subtitle =
                 buildString {
@@ -311,18 +322,11 @@ class AtlasOrbitScreen(
             }
         }
         button("New shared thread", assistant != null && !snapshot.cached) { model.startCreate() }
-        heading("Shared")
-        val shared = snapshot.shared
-        if (shared.isEmpty() && !snapshot.loading && snapshot.error == null) text("No shared threads yet.")
+        val shared = snapshot.shared.filter { it.priority == null }
+        if (shared.isNotEmpty() || snapshot.shared.isEmpty()) heading("Shared")
+        if (snapshot.shared.isEmpty() && !snapshot.loading && snapshot.error == null) text("No shared threads yet.")
         for (thread in shared) {
-            val subtitle =
-                listOf(
-                    thread.participants.joinToString(", ") { it.name },
-                    thread.summary,
-                    if (thread.archived) "Archived" else "",
-                    time(thread.updatedAt),
-                ).filter { it.isNotEmpty() }.joinToString("\n")
-            row(thread.title, subtitle, !snapshot.loading || snapshot.cached) { model.select(thread.id) }
+            conversationRow(thread)
         }
         if (snapshot.loading && snapshot.threads.isEmpty()) text("Loading threads…")
         if (!snapshot.loading && snapshot.hasMore) button("Load more threads") { model.loadMore() }
@@ -338,8 +342,24 @@ class AtlasOrbitScreen(
         val id = thread.id
         val assistant = snapshot.assistant
         toolbar.title = if (thread.isPrivate) assistant?.name ?: thread.title else thread.title
-        toolbar.subtitle = if (thread.isPrivate) "Private" else thread.participants.joinToString(", ") { it.name }
+        toolbar.subtitle =
+            if (thread.isPrivate) "Private" else (listOf(assistant?.name ?: "Pip") + thread.participants.map { it.name }).joinToString(", ")
         refreshAction { model.refresh() }
+        if (presence?.selfId != null && thread.ownerId == presence.selfId) {
+            menuAction(if (thread.archived) "Restore conversation" else "Archive conversation") {
+                if (!thread.isPrivate && !thread.archived) {
+                    AlertDialog
+                        .Builder(activity)
+                        .setTitle("Archive this shared conversation?")
+                        .setMessage("It will become read-only for everyone. You can restore it from Archived.")
+                        .setNegativeButton("Cancel", null)
+                        .setPositiveButton("Archive") { _, _ -> model.archive(thread) }
+                        .show()
+                } else {
+                    model.archive(thread)
+                }
+            }
+        }
         toolbar.menu.add("Prompts").apply {
             setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             actionView =
@@ -407,9 +427,9 @@ class AtlasOrbitScreen(
         scroll.post {
             if (closed || protectedThreadId() != id || revision != scrollRevision || jumping) return@post
             when {
-                switched -> scroll.fullScroll(View.FOCUS_DOWN)
+                switched -> scroll.scrollTo(0, content.height)
                 prepended -> scroll.scrollTo(0, content.height - fromBottom)
-                atBottom && appended -> scroll.fullScroll(View.FOCUS_DOWN)
+                atBottom && appended -> scroll.scrollTo(0, content.height)
             }
         }
     }
@@ -544,7 +564,6 @@ class AtlasOrbitScreen(
         val snapshot = model.snapshot
         composer.visibility = if (thread.archived) View.GONE else View.VISIBLE
         if (thread.archived) return
-        val assistant = snapshot.assistant
         syncing = true
         // Rust owns the draft: entering a thread restores it, and sending clears it. Echoes of writes still
         // in flight are older than what is on screen, so they never replace the person's typing.
@@ -553,15 +572,10 @@ class AtlasOrbitScreen(
             composerField.setText(snapshot.draft)
             composerField.setSelection(composerField.text.length)
         }
-        askAssistant.visibility = if (!thread.isPrivate && assistant?.configured == true) View.VISIBLE else View.GONE
-        askAssistant.text = "Ask ${assistant?.name.orEmpty()}"
-        askAssistant.isChecked = model.askAssistant(id)
-        composerField.hint = if (thread.isPrivate) "Message ${assistant?.name.orEmpty()}" else "Message"
         syncing = false
         sendButton.text = if (model.sending) "Sending…" else "Send"
         val enabled = !model.sending && !model.attachmentBusy && !snapshot.needsSession
         composerField.isEnabled = !snapshot.needsSession
-        askAssistant.isEnabled = enabled
         sendButton.isEnabled =
             enabled && !snapshot.uploadPending && (composerField.text.isNotBlank() || snapshot.draftAttachments.isNotEmpty())
         attachButton.isEnabled = enabled && !snapshot.uploadPending && snapshot.draftAttachments.size < 4 && pickAttachment != null
@@ -727,6 +741,37 @@ class AtlasOrbitScreen(
                 setPadding(if (host === content) 0 else dp(12), dp(8), 0, dp(8))
             }
         messageViews[value.id] = card
+        if (value.kind == "system") {
+            if (value.noticeKind == "private_handoff" || value.noticeKind == "handoff") {
+                card.setPadding(dp(16), dp(16), dp(16), dp(16))
+                val recapTitle = if (value.noticeKind == "private_handoff") "Your catch-up · Only visible to you" else "Conversation recap"
+                card.addView(
+                    body(recapTitle).apply {
+                        setTypeface(typeface, Typeface.BOLD)
+                        if (Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
+                        setCompoundDrawablesRelativeWithIntrinsicBounds(android.R.drawable.ic_lock_lock, 0, 0, 0)
+                        compoundDrawablePadding = dp(8)
+                    },
+                )
+                card.background =
+                    android.graphics.drawable.GradientDrawable().apply {
+                        val color = android.util.TypedValue()
+                        activity.theme.resolveAttribute(android.R.attr.colorBackground, color, true)
+                        setColor(appearance?.palette?.optString("surface")?.let(android.graphics.Color::parseColor) ?: color.data)
+                        cornerRadius = dp(12).toFloat()
+                    }
+            }
+            card.addView(
+                body(value.body).apply {
+                    if (value.noticeKind == "joined") {
+                        gravity = Gravity.CENTER
+                        textSize = 14f
+                    }
+                },
+            )
+            host.addView(card, LinearLayout.LayoutParams(-1, -2))
+            return
+        }
         if (value.isTool) {
             val children = model.childTools(value.id)
             val expanded = value.id in model.expandedTools
@@ -945,6 +990,112 @@ class AtlasOrbitScreen(
             },
             ViewGroup.LayoutParams(-1, -2),
         )
+    }
+
+    private fun conversationRow(thread: AtlasOrbitModel.Thread) {
+        val background =
+            activity.obtainStyledAttributes(
+                intArrayOf(android.R.attr.selectableItemBackground, android.R.attr.colorControlHighlight),
+            )
+        val ripple = background.getResourceId(0, 0)
+        val circleColor = background.getColor(1, 0)
+        background.recycle()
+        val row =
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.TOP
+                minimumHeight = dp(72)
+                setPadding(dp(4), dp(16), dp(4), dp(16))
+                isEnabled = !model.snapshot.loading || model.snapshot.cached
+                isFocusable = true
+                contentDescription =
+                    listOfNotNull(
+                        thread.priorityTitle,
+                        thread.title,
+                        thread.summary,
+                        time(thread.updatedAt),
+                        if (thread.isPrivate) "Private conversation" else "Shared conversation",
+                    ).filter { it.isNotEmpty() }.joinToString(". ")
+                setBackgroundResource(ripple)
+                accessibilityDelegate =
+                    object : View.AccessibilityDelegate() {
+                        override fun onInitializeAccessibilityNodeInfo(
+                            host: View,
+                            info: AccessibilityNodeInfo,
+                        ) {
+                            super.onInitializeAccessibilityNodeInfo(host, info)
+                            info.className = Button::class.java.name
+                        }
+                    }
+                setOnClickListener {
+                    hideKeyboard()
+                    model.select(thread.id)
+                }
+            }
+        row.addView(
+            TextView(activity).apply {
+                text =
+                    thread.title
+                        .split(" ")
+                        .filter { it.isNotEmpty() }
+                        .take(2)
+                        .map { it.first().uppercaseChar() }
+                        .joinToString("")
+                textSize = 18f
+                gravity = Gravity.CENTER
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                this.background =
+                    GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(circleColor)
+                    }
+            },
+            LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginEnd = dp(16) },
+        )
+        row.addView(
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                thread.priorityTitle?.let { priority ->
+                    addView(
+                        TextView(activity).apply {
+                            id = android.R.id.text2
+                            text = priority
+                            textSize = 14f
+                        },
+                    )
+                }
+                addView(
+                    TextView(activity).apply {
+                        text = thread.title
+                        textSize = 17f
+                        setTypeface(null, Typeface.BOLD)
+                        setPadding(0, dp(2), 0, dp(4))
+                    },
+                )
+                if (thread.summary.isNotEmpty()) {
+                    addView(
+                        TextView(activity).apply {
+                            id = android.R.id.text2
+                            text = thread.summary
+                            textSize = 15f
+                            maxLines = if (resources.configuration.fontScale >= 1.5f) 3 else 2
+                            ellipsize = TextUtils.TruncateAt.END
+                        },
+                    )
+                }
+                addView(
+                    TextView(activity).apply {
+                        id = android.R.id.text2
+                        text = time(thread.updatedAt)
+                        textSize = 12f
+                        setPadding(0, dp(6), 0, 0)
+                    },
+                )
+            },
+            LinearLayout.LayoutParams(0, -2, 1f),
+        )
+        content.addView(row, ViewGroup.LayoutParams(-1, -2))
     }
 
     private fun hideKeyboard() {

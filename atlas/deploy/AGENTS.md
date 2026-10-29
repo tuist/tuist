@@ -12,6 +12,26 @@
 - `demo.md` describes the isolated public read-only demo: standalone chart plus `values-demo.yaml`, dedicated database and SELECT-only serving role, separate migration credentials, fictional release seeds, and DNS/PostgreSQL-only egress. Never layer the managed production values or mount production credentials into it.
 - Leave scheduler sizing to Erlang's processor and container quota detection unless the operator supplies `ERL_FLAGS`. Compose accepts the override in `.env`; Helm accepts it through `env.ERL_FLAGS`.
 
+## Signals activation and rollback
+
+Signals admission is off by default outside tests. Keep `ATLAS_SIGNALS_ENABLED`
+unset or `false` for the first compatibility rollout. Disabled sources, signing
+keys and webhook verification can be prepared without starting investigations.
+Only set it to `true` after **all** HTTP, Automation and Orbit workers run the
+Signals-aware release and the permitted rollback image is also Signals-aware.
+Verify deployment completion and worker versions, not just a healthy new pod.
+Activation, ingestion and decisions return `signals_disabled` while the gate is
+closed; the HTTP admission routes return 503 so upstream deliveries can retry.
+
+Do not roll back to a pre-Signals image after activation, including automatic
+Helm rollback: old readers do not enforce `signal_reader_ids`, and old Automation
+workers cannot execute `signals.decide@1`. Closing the flag or pausing sources
+does not make existing signal threads safe for those readers. Establish a
+compatible release as the rollback floor before activation, or keep Signals off.
+This is an operator-enforced coordinated rollout, not mixed-version support with
+pre-Signals binaries. Normal pause/resume uses individual source enablement;
+drain admitted work before closing the instance gate.
+
 ## Push notifications
 
 Push delivery is optional and needs only server-side credentials; native builds and

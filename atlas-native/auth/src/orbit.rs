@@ -225,6 +225,8 @@ pub(super) struct Thread {
     pub summary: String,
     #[serde(default)]
     pub origin: String,
+    #[serde(default, deserialize_with = "deserialize_priority")]
+    pub priority: Option<Priority>,
     pub owner_id: Option<String>,
     #[serde(default)]
     pub participants: Vec<Person>,
@@ -263,6 +265,21 @@ pub(super) fn validate_model(model: Option<&str>) -> Result<()> {
         return Err(invalid());
     }
     Ok(())
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum Priority {
+    Now,
+    Today,
+    Later,
+}
+
+fn deserialize_priority<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Priority>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).ok())
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -325,7 +342,7 @@ fn deserialize_notice<'de, D: serde::Deserializer<'de>>(
     let value = serde_json::Value::deserialize(deserializer)?;
     Ok(value
         .as_str()
-        .filter(|kind| *kind == "handoff")
+        .filter(|kind| matches!(*kind, "handoff" | "private_handoff" | "joined"))
         .map(str::to_owned))
 }
 

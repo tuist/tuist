@@ -20,8 +20,10 @@ defmodule Atlas.Orbit.Thread do
     field :origin, :string, default: "manual"
     field :source_type, :string
     field :source_id, :string
+    field :priority, :string
     field :request_id, Ecto.UUID
     field :required_scopes, {:array, :string}, default: []
+    field :signal_reader_ids, {:array, Ecto.UUID}
     field :last_seq, :integer, default: 0
     field :model, :string
     field :environment_id, Ecto.UUID
@@ -47,6 +49,7 @@ defmodule Atlas.Orbit.Thread do
       :source_id,
       :owner_id,
       :required_scopes,
+      :signal_reader_ids,
       :request_id
     ])
     |> update_change(:title, &String.trim/1)
