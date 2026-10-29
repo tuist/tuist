@@ -28,7 +28,9 @@ Deploy all of the following before enabling an account:
    Cold template preparation has a one-hour deadline: staging's first Xcode
    image pull exceeded the normal twenty-minute CI deadline. Removal or
    replacement of the control Pod cancels preparation within one polling
-   interval plus the bounded API probe. Ownership recovery and eviction keep
+   interval plus the bounded API probe. Transient API failures are retried
+   without discarding a healthy download; a fresh control identity check is
+   required after the pull before readiness. Ownership recovery and eviction keep
    running independently. Prewarm the image before enabling an account;
    this one-time transfer is not part of resident resume latency.
 5. Run the acceptance checks below on staging, then enable `macos_sandboxes`
