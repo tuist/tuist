@@ -340,10 +340,10 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_REGISTRATION_INTERVAL_MS` | How often the node sends a registration heartbeat. | Yes | `60000` |
 | `KURA_USAGE_WINDOW_SECS` | Usage rollup window size. Kura aggregates request traffic in memory by bounded dimensions before writing closed windows to the durable usage outbox. | Yes | `60` |
 | `KURA_USAGE_FLUSH_INTERVAL_MS` | How often closed usage windows are flushed from memory to RocksDB. | Yes | `60000` |
-| `KURA_USAGE_DELIVERY_INTERVAL_MS` | How often the usage outbox attempts delivery to the control plane. Delivery pauses under critical memory pressure. | Yes | `5000` |
+| `KURA_USAGE_DELIVERY_INTERVAL_MS` | Normal usage delivery interval and base for exponential retry backoff with jitter (normally capped at 60 seconds). Numeric Retry-After responses set a minimum delay. Delivery pauses under critical memory pressure. | Yes | `5000` |
 | `KURA_USAGE_BATCH_SIZE` | Maximum number of usage rollups sent in one control-plane request. | Yes | `1000` |
 | `KURA_USAGE_MAX_BUCKETS` | Maximum number of in-memory usage aggregation buckets. New buckets are rejected when this cap is reached. | Yes | `10000` |
-| `KURA_USAGE_OUTBOX_MAX_DEPTH` | Maximum number of durable usage rollups retained in RocksDB before closed windows stop flushing. | Yes | `100000` |
+| `KURA_USAGE_OUTBOX_MAX_DEPTH` | Soft depth threshold at which closed windows stop flushing to RocksDB. A graceful shutdown can append one final batch, bounded by `KURA_USAGE_MAX_BUCKETS`, beyond this threshold. | Yes | `100000` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before the janitor expires it. | Yes | `86400000` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often the multipart janitor scans for stale uploads. | Yes | `600000` |
 | `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` | Optional fixed cap on active multipart sessions, overriding memory-based sizing. Durable sessions survive restarts and reductions in the automatic limit. | Yes | auto |
@@ -639,7 +639,30 @@ Both surfaces are metered: the HTTP cache path records rollups with `protocol = 
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
 
-The usage pipeline follows Kura's resource discipline: bucket count, durable outbox depth, and delivery batch size are capped; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
+The usage pipeline caps bucket count and delivery batch size, and applies a soft durable outbox depth threshold; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
+
+The server admits one complete batch per replica, with a three-second budget
+shared by attribution and all usage/storage inserts. It returns 202 only after
+the required ClickHouse inserts complete; overload, timeout, and write failure
+return 503 with Retry-After. Kura retains the durable rows until a 2xx response
+and owns retries, including partial or ambiguous commits. Server ingestion has
+no second durable queue and disables both application and driver insert retries.
+The concurrency cap is replica-local, not a fleet-wide ClickHouse quota, and
+HTTP timeout does not prove that remote ClickHouse work has stopped.
+
+During graceful shutdown, Kura stops and joins periodic checkpoint and delivery
+tasks, drains traffic producers, then synchronously checkpoints remaining usage
+to RocksDB. It does not wait for remote delivery. Current-window partial rollups
+carry an incarnation suffix so successive deploys in the same window cannot
+overwrite each other's counters; those IDs remain stable across local retries.
+One final batch of at most KURA_USAGE_MAX_BUCKETS is allowed beyond the normal
+soft outbox depth. Repeated restarts during a prolonged outage can therefore
+grow the durable backlog beyond that soft threshold. A failed local fsync, an
+incomplete producer drain, SIGKILL before checkpoint, or loss of the local volume
+can still lose unpersisted usage. Storage evictions and snapshots remain
+best-effort in-memory telemetry. Shutdown reserves five seconds of scheduling
+headroom for the local checkpoint, not a hard fsync deadline: a stalled disk can
+still exhaust the orchestrator's termination grace.
 
 ## ☸️ Deployment Options
 
