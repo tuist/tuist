@@ -258,15 +258,6 @@ async fn serve_connection(
             },
             request_span.clone(),
         );
-        // Enroll before asynchronous preparation, then recheck drain. Either
-        // shutdown observes this guard, or we refuse to start producing usage
-        // after it has observed zero inflight requests and checkpointed.
-        let request_guard = state.start_http_request(HttpTrafficClass::Public);
-        if state.runtime.is_draining() {
-            drop(request_guard);
-            drop(permit);
-            return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
-        }
         let classified = scope_request(
             request_context.clone(),
             open_and_authorize(&state, parsed, artifact).instrument(request_span.clone()),
@@ -341,7 +332,6 @@ async fn serve_connection(
             }
             ClassifiedRequest::Fallback => {
                 drop(permit);
-                drop(request_guard);
                 return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
             }
         }
@@ -871,6 +861,7 @@ async fn serve_accelerated(
     keep_alive: bool,
 ) -> std::io::Result<Option<TcpStream>> {
     let transfer_started_at = Instant::now();
+    let _request_guard = state.start_http_request(HttpTrafficClass::Public);
     let AcceleratedCandidate {
         transfer,
         file,
