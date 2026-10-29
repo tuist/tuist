@@ -287,7 +287,9 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			return err
 		}
 		if runtime, ok := m.Runtime.(*TartRuntime); ok {
-			if err = ensureImage(ctx, runtime.Client, cfg.Image); err != nil {
+			if err = s.withPreparingControl(parent, control, func(prepareCtx context.Context) error {
+				return ensureImage(prepareCtx, runtime.Client, cfg.Image)
+			}); err != nil {
 				return err
 			}
 		}

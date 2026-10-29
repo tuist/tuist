@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
@@ -77,5 +79,15 @@ func ensureImage(ctx context.Context, c *tart.Client, image string) error {
 	if free < total*3/10+100*1024*1024*1024 {
 		return fmt.Errorf("%w: template disk floor", ErrCapacity)
 	}
-	return c.Pull(tart.InBackground(ctx), image)
+	// A cold Xcode image at background QoS can exceed the CI client's normal
+	// twenty-minute deadline. The store is isolated and eviction runs separately.
+	copy := *c
+	copy.PullTimeout = templatePreparationTimeout
+	started := time.Now()
+	slog.Info("preparing macOS sandbox template", "image", image)
+	err = copy.Pull(tart.InBackground(ctx), image)
+	if err == nil {
+		slog.Info("prepared macOS sandbox template", "image", image, "duration", time.Since(started))
+	}
+	return err
 }

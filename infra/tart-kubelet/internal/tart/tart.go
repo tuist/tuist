@@ -67,6 +67,9 @@ type Client struct {
 	// the pull at background QoS, so the host schedules running VMs' CPU and
 	// disk I/O first. Empty runs it like any other pull.
 	BackgroundPull []string
+	// PullTimeout overrides the normal CI pull deadline for isolated stores.
+	// Zero keeps the default; callers still bound the parent context.
+	PullTimeout time.Duration
 }
 
 // New returns a Client with sensible defaults.
@@ -157,9 +160,16 @@ func (c *Client) PullFrom(ctx context.Context, image string, insecure bool) erro
 			name = c.BackgroundPull[0]
 		}
 	}
-	ctx, cancel := context.WithTimeout(ctx, pullTimeout)
+	timeout := c.PullTimeout
+	if timeout <= 0 {
+		timeout = pullTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	_, err := c.run(ctx, name, args...)
+	if err != nil && ctx.Err() != nil {
+		return fmt.Errorf("pull %s: %w", image, ctx.Err())
+	}
 	return err
 }
 
