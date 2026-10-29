@@ -1,6 +1,6 @@
 import Foundation
 
-struct AtlasThreadPerson: Decodable, Identifiable {
+struct AtlasThreadPerson: Decodable, Identifiable, Equatable {
     let id: String
     let name: String
 }
@@ -18,6 +18,17 @@ struct AtlasThread: Decodable, Identifiable, Hashable {
     let agentStatus: String?
     var model: String?
     var priority: String?
+    var domain: String?
+
+    var activityLabel: String? {
+        guard status == "active" else { return nil }
+        switch agentStatus {
+        case "queued": return "Pip is queued"
+        case "running": return "Pip is running"
+        case "compacting": return "Pip is compacting"
+        default: return nil
+        }
+    }
 
     var priorityTitle: String? {
         switch priority {
@@ -33,7 +44,6 @@ struct AtlasThread: Decodable, Identifiable, Hashable {
             ?? (try? Date.ISO8601FormatStyle().parse(updatedAt))
     }
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
@@ -146,6 +156,13 @@ struct AtlasThreadTimelineData {
 struct AtlasOrbitAssistant: Decodable {
     let name: String
     let configured: Bool
+    let searchable: Bool?
+    let domains: [AtlasOrbitDomain]?
+}
+
+struct AtlasOrbitDomain: Decodable, Identifiable {
+    let id: String
+    let name: String
 }
 
 struct AtlasModelChoice: Decodable, Identifiable {
@@ -191,6 +208,8 @@ extension AtlasOrbit {
         let hasMore: Bool
         let hasOlder: Bool
         let statusFilter: String?
+        let query: String?
+        let domainFilter: String?
         let error: String?
         let liveMessage: String?
         let needsSession: Bool

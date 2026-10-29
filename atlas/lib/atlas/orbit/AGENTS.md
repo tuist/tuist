@@ -18,6 +18,24 @@ The original draft migration remains historical. `RenameConversationsToOrbit` re
 - Pip is one general agent (`Atlas.Orbit.Agent`) and Atlas's mascot. Keep its name fixed across prompts, API responses, private-thread titles and new message author labels. The inference profile remains configurable, not Pip's identity. No organization, privileged user or upstream service is assumed.
 - `orbit_threads.last_seq` is the revision. Every append or tool status change takes the next sequence under the thread row lock. `position` is a message's stable creation order (served as `seq`); a message's own `seq` column records its last change.
 
+New nonempty human and signal messages transactionally enqueue one incomplete
+`ClassifyThread` job per unlabeled thread. The tool-free classifier assigns one
+primary domain from `Classification.domains/0` using the acting person's existing
+Orbit provider selection and current read access. It sends only title, summary and
+the bounded source message, never profiles, attachments or recipient-only catch-ups.
+The model request and fallback retain the access fence; persistence rechecks access
+under the thread lock. Labels increment the revision without changing recency.
+Session prompts/results and telemetry remain redacted. Unconfigured or inaccessible
+threads remain unclassified; provider failures retry. Domain labels are organization
+metadata, never permissions. The operator-only `mix atlas.orbit.backfill_domains`
+queues missing labels for existing active and archived histories in 100-thread
+batches. `--dry-run` counts without writes or inference; `--limit N` bounds scanned
+candidates. Backfill uses the current readable owner's provider and the earliest
+nonempty human message or original signal evidence, never tool output or catch-ups.
+Incomplete jobs deduplicate with normal message-triggered classification. Existing
+labels, archive status and recency are preserved; classification never resumes a run.
+There is no startup hook or migration-triggered inference.
+
 ## Access and the sensitivity ratchet
 
 - A participant can read a thread only while holding every scope in `required_scopes`. The audience is the set of current readers. `Access` recomputes it from database state on every call; nothing is cached for a run's lifetime.

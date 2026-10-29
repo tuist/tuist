@@ -42,6 +42,13 @@ API/MCP inventory under `/api/automation` and add source-specific authorization.
 
 ## Native Orbit
 
+The list also accepts optional `query` (literal, case-insensitive title/summary
+search, at most 200 UTF-8 bytes without controls) and `domain` (a catalogue ID or
+`unclassified`). Apply both before counts/pagination and after authorization;
+unknown parameters return 422. Additive `assistant.searchable: true` and
+`assistant.domains: [{id, name}]` advertise support; older servers omit them.
+Thread projections include nullable `domain`. Search terms are not persisted.
+
 `GET /api/native/orbit/models` returns `{models: [{id, name, provider}], error: null|provider_auth|provider_unavailable}` for the caller's account plus the configured workspace model, without credentials or upstream instructions. `PATCH /api/native/orbit/threads/:id/model` accepts exactly `{model: null|"workspace"|"chatgpt:<validated-model-id>"}` and returns `{thread}` with optional nullable `model`. Only a currently readable active owner may change the preference; members get 403, unreadable/missing IDs 404, active runs 409 `model_run_active`, and invalid selections/extra fields 422. The choice freezes on each run, and explicit selections never change providers on failure. Catalog failure is optional-feature state, not lost access to protected history.
 
 `AtlasWeb.NativeOrbitController` serves fixed routes under `/api/native/orbit/threads`, declared before the dynamic native resource routes and protected by the same bearer-only, `no-store` pipeline. Older servers answer the list route with the dynamic resource's 404, which clients treat as unsupported. Domain rules live in [Orbit](../../atlas/orbit/AGENTS.md). Threads a caller cannot read return `404 {"error":"not_found"}`, indistinguishable from missing ones.

@@ -22,6 +22,10 @@ pub(crate) enum Action {
         kind: Option<String>,
         #[serde(default)]
         status: Option<String>,
+        #[serde(default)]
+        query: Option<String>,
+        #[serde(default)]
+        domain: Option<String>,
     },
     Private,
     CreatePrivate {
@@ -177,6 +181,43 @@ pub(super) struct Assistant {
     pub configured: bool,
     #[serde(default)]
     pub can_create_private: bool,
+    #[serde(default)]
+    pub searchable: bool,
+    #[serde(default, deserialize_with = "deserialize_domains")]
+    pub domains: Vec<Domain>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub(super) struct Domain {
+    pub id: String,
+    pub name: String,
+}
+
+fn deserialize_domains<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Vec<Domain>, D::Error> {
+    let values = Vec::<Domain>::deserialize(deserializer)?;
+    let mut domains = Vec::<Domain>::new();
+    for value in values.into_iter().take(16) {
+        if valid_domain(&value.id)
+            && !value.id.is_empty()
+            && !value.name.trim().is_empty()
+            && value.name.len() <= 80
+            && !value.name.chars().any(char::is_control)
+            && !domains.iter().any(|known| known.id == value.id)
+        {
+            domains.push(value);
+        }
+    }
+    Ok(domains)
+}
+
+pub(super) fn valid_domain(value: &str) -> bool {
+    value.len() <= 32 && value.bytes().all(|byte| byte.is_ascii_lowercase())
+}
+
+pub(super) fn valid_search(value: &str) -> bool {
+    value.len() <= 200 && !value.chars().any(char::is_control)
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -235,6 +276,8 @@ pub(super) struct Thread {
     pub agent_status: Option<AgentStatus>,
     #[serde(default)]
     pub model: Option<String>,
+    #[serde(default)]
+    pub domain: Option<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -444,7 +487,13 @@ pub(super) fn request_using<T: DeserializeOwned>(
                 .extend([id.as_str(), "model"]);
             (Method::PATCH, Some(json!({"model":model})))
         }
-        Action::List { page, kind, status } => {
+        Action::List {
+            page,
+            kind,
+            status,
+            query,
+            domain,
+        } => {
             validate_page(*page)?;
             url.query_pairs_mut().append_pair("page", &page.to_string());
             if let Some(kind) = kind {
@@ -458,6 +507,18 @@ pub(super) fn request_using<T: DeserializeOwned>(
                     return Err(invalid());
                 }
                 url.query_pairs_mut().append_pair("status", status);
+            }
+            if let Some(query) = query.as_deref().filter(|query| !query.is_empty()) {
+                if !valid_search(query) {
+                    return Err(invalid());
+                }
+                url.query_pairs_mut().append_pair("query", query);
+            }
+            if let Some(domain) = domain.as_deref().filter(|domain| !domain.is_empty()) {
+                if !valid_domain(domain) {
+                    return Err(invalid());
+                }
+                url.query_pairs_mut().append_pair("domain", domain);
             }
             (Method::GET, None)
         }

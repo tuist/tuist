@@ -11,6 +11,7 @@ defmodule Atlas.Agents.Sessions.TelemetryHandler do
 
   alias Atlas.Agents.Sessions.Event
   alias Atlas.Moodboard.Suggestions
+  alias Atlas.Orbit.Classification
   alias Atlas.Repo
 
   require Logger
@@ -127,7 +128,7 @@ defmodule Atlas.Agents.Sessions.TelemetryHandler do
 
   # Private threads and unpublished shares retain names/status/timings only,
   # never source content, tool arguments, results or model messages.
-  @redacted_agents [Atlas.Orbit.Agent, Suggestions]
+  @redacted_agents [Atlas.Orbit.Agent, Classification, Suggestions]
   @redacted_keys [:agent, :tool, :tool_call_id, :status, :turn, :role, :operation, :kind]
 
   defp sanitize(%{agent: agent} = metadata) when agent in @redacted_agents do

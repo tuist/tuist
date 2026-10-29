@@ -21,6 +21,7 @@ defmodule Atlas.Orbit.Thread do
     field :source_type, :string
     field :source_id, :string
     field :priority, :string
+    field :domain, :string
     field :request_id, Ecto.UUID
     field :required_scopes, {:array, :string}, default: []
     field :signal_reader_ids, {:array, Ecto.UUID}

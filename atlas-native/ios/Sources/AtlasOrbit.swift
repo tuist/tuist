@@ -84,12 +84,6 @@ final class AtlasOrbit: ObservableObject {
         }
     }
 
-    func load(more: Bool = false, status: String? = nil) async {
-        var command: [String: Any] = ["action": more ? "load_more" : "load"]
-        if let status { command["status"] = status }
-        await perform(command)
-    }
-
     func privateThread() async -> AtlasThread? {
         guard await perform(["action": "private"]) else { return nil }
         return selected
@@ -283,6 +277,19 @@ final class AtlasOrbit: ObservableObject {
 }
 
 extension AtlasOrbit {
+    var query: String { state?.query ?? "" }
+    var domainFilter: String { state?.domainFilter ?? "" }
+    var domains: [AtlasOrbitDomain] { assistant?.domains ?? [] }
+    func domainTitle(_ domain: String?) -> String? { domains.first { $0.id == domain }?.name }
+
+    func load(more: Bool = false, status: String? = nil, query: String? = nil, domain: String? = nil) async {
+        var command: [String: Any] = ["action": more ? "load_more" : "load"]
+        if let status { command["status"] = status }
+        if let query { command["query"] = query }
+        if let domain { command["domain"] = domain }
+        await perform(command)
+    }
+
     func loadModels() async { await perform(["action": "models"]) }
 
     func setModel(_ choice: String?, threadId: String) async {

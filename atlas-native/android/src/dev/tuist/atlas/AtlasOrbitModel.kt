@@ -12,6 +12,13 @@ class AtlasOrbitModel(
     data class Assistant(
         val name: String,
         val configured: Boolean,
+        val searchable: Boolean = false,
+        val domains: List<Domain> = emptyList(),
+    )
+
+    data class Domain(
+        val id: String,
+        val name: String,
     )
 
     data class Person(
@@ -29,10 +36,24 @@ class AtlasOrbitModel(
         val updatedAt: String,
         val priority: String? = null,
         val ownerId: String? = null,
+        val domain: String? = null,
+        val agentStatus: String? = null,
     ) {
         val isPrivate get() = kind == "private"
         val archived get() = status == "archived"
         val priorityTitle get() = priority?.replaceFirstChar(Char::uppercase)
+        val activityLabel: String?
+            get() =
+                if (status != "active") {
+                    null
+                } else {
+                    when (agentStatus) {
+                        "queued" -> "Pip is queued"
+                        "running" -> "Pip is running"
+                        "compacting" -> "Pip is compacting"
+                        else -> null
+                    }
+                }
     }
 
     data class Message(
@@ -91,6 +112,8 @@ class AtlasOrbitModel(
         val uploadFilename: String? = null,
         val cached: Boolean = false,
         val statusFilter: String = "active",
+        val query: String = "",
+        val domainFilter: String = "",
     ) {
         val privateThread get() = threads.firstOrNull { it.isPrivate }
         val shared get() = threads.filter { !it.isPrivate }
@@ -211,6 +234,8 @@ class AtlasOrbitModel(
 
     fun openPrivate() = command(JSONObject().put("action", "private"))
 
+    fun newPrivate() = command(JSONObject().put("action", "create_private"))
+
     fun select(id: String) {
         viewEpoch += 1
         AtlasOrbitAttachments.clear()
@@ -246,6 +271,16 @@ class AtlasOrbitModel(
 
     fun filterStatus(status: String) {
         if (status in listOf("active", "archived")) command(JSONObject().put("action", "load").put("status", status))
+    }
+
+    fun filter(
+        query: String? = null,
+        domain: String? = null,
+    ) {
+        val action = JSONObject().put("action", "load")
+        if (query != null) action.put("query", query)
+        if (domain != null) action.put("domain", domain)
+        command(action)
     }
 
     fun archive(thread: Thread) {
@@ -590,7 +625,14 @@ class AtlasOrbitModel(
     private fun parse(value: JSONObject) =
         Snapshot(
             value.getLong("sequence"),
-            value.optJSONObject("assistant")?.let { Assistant(it.getString("name"), it.getBoolean("configured")) },
+            value.optJSONObject("assistant")?.let { assistant ->
+                Assistant(
+                    assistant.getString("name"),
+                    assistant.getBoolean("configured"),
+                    assistant.optBoolean("searchable"),
+                    assistant.optJSONArray("domains")?.objects()?.map { Domain(it.getString("id"), it.getString("name")) } ?: emptyList(),
+                )
+            },
             value.getJSONArray("threads").objects().map(::thread),
             value.optJSONObject("selected")?.let(::thread),
             value.getJSONArray("messages").objects().map(::message),
@@ -612,6 +654,8 @@ class AtlasOrbitModel(
             value.nullableString("upload_filename"),
             value.optBoolean("cached"),
             value.optString("status_filter", "active"),
+            value.optString("query"),
+            value.optString("domain_filter"),
         )
 
     private fun thread(value: JSONObject) =
@@ -625,6 +669,8 @@ class AtlasOrbitModel(
             value.getString("updated_at"),
             value.nullableString("priority")?.takeIf { it in listOf("now", "today", "later") },
             value.nullableString("owner_id"),
+            value.nullableString("domain"),
+            value.nullableString("agent_status"),
         )
 
     private fun message(value: JSONObject) =

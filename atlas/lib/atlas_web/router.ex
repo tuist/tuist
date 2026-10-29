@@ -202,7 +202,7 @@ defmodule AtlasWeb.Router do
     pipe_through :native
 
     get "/orbit/models", NativeOrbitController, :models
-    get "/orbit/threads", NativeOrbitController, :index
+    get "/orbit/threads", NativeOrbitController, :index, log: false
     post "/orbit/threads", NativeOrbitController, :create
     post "/orbit/threads/private", NativeOrbitController, :private
     get "/orbit/threads/:thread_id/environment-commands", NativeEnvironmentCommandsController, :index

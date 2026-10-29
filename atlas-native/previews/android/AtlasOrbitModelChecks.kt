@@ -68,8 +68,17 @@ internal fun checkOrbitModel() {
     check(pending.none { it.first.optJSONObject("command")?.getString("action") == "load" })
     val wait = take("next")
     check(wait.first.getLong("after") == 1L)
-    load.second(Result.success(snapshot(2)))
+    val running = snapshot(2)
+    running.getJSONArray("threads").getJSONObject(0).put("agent_status", "running")
+    load.second(Result.success(running))
     check(!model.snapshot.cached)
+    val runningThread = checkNotNull(model.snapshot.privateThread)
+    check(runningThread.activityLabel == "Pip is running")
+    val labels = mapOf("queued" to "Pip is queued", "running" to "Pip is running", "compacting" to "Pip is compacting")
+    for (status in listOf(null, "idle", "queued", "running", "compacting", "unknown")) {
+        check(runningThread.copy(agentStatus = status).activityLabel == labels[status])
+        check(runningThread.copy(agentStatus = status, status = "archived").activityLabel == null)
+    }
     check(
         model.snapshot.privateThread?.id == PRIVATE && model.snapshot.shared
             .single()
@@ -83,6 +92,7 @@ internal fun checkOrbitModel() {
     // The wait loop continues from the latest sequence and stays single.
     wait.second(Result.success(snapshot(3, SHARED)))
     check(model.snapshot.selected?.id == SHARED && take("next").first.getLong("after") == 3L)
+    check(model.snapshot.privateThread?.activityLabel == null)
 
     // Drafts are local Rust writes scoped to the thread typed in; echoes are tracked so the view keeps typing.
     model.setDraft(SHARED, "Hel")

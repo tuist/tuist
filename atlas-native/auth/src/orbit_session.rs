@@ -69,6 +69,10 @@ pub(crate) enum Command {
         kind: Option<String>,
         #[serde(default)]
         status: Option<StatusFilter>,
+        #[serde(default)]
+        query: Option<String>,
+        #[serde(default)]
+        domain: Option<String>,
     },
     LoadMore,
     Private,
@@ -152,6 +156,8 @@ impl StatusFilter {
 struct Snapshot {
     sequence: u64,
     status_filter: StatusFilter,
+    query: String,
+    domain_filter: String,
     cached: bool,
     assistant: Option<Assistant>,
     threads: Vec<Thread>,
@@ -476,6 +482,9 @@ fn inbox_key(state: &State) -> String {
 }
 
 fn hydrate_inbox(state: &mut State) {
+    if !state.snapshot.query.is_empty() || !state.snapshot.domain_filter.is_empty() {
+        return;
+    }
     let saved = state
         .cache
         .as_ref()
@@ -565,8 +574,13 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
     match command {
         Command::Models => models_using(model, &Network),
         Command::SetModel { id, model: choice } => set_model_using(model, id, choice, &Network),
-        Command::Load { kind, status } => {
-            set_list_filters(model, kind, status)?;
+        Command::Load {
+            kind,
+            status,
+            query,
+            domain,
+        } => {
+            set_list_filters(model, kind, status, query, domain)?;
             load(model, false)?;
             start_live(model)
         }
@@ -673,6 +687,8 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
             page: 1,
             kind: state.list_kind.clone(),
             status: Some(state.snapshot.status_filter.as_str().into()),
+            query: Some(state.snapshot.query.clone()),
+            domain: Some(state.snapshot.domain_filter.clone()),
         });
         state.snapshot.loading = true;
         state.snapshot.error = None;
@@ -790,6 +806,8 @@ fn set_list_filters(
     model: &Arc<Model>,
     kind: Option<String>,
     status: Option<StatusFilter>,
+    query: Option<String>,
+    domain: Option<String>,
 ) -> Result<()> {
     if kind
         .as_deref()
@@ -799,16 +817,26 @@ fn set_list_filters(
     }
     let mut state = model.state.lock().map_err(|_| invalid())?;
     let status = status.unwrap_or(state.snapshot.status_filter);
-    if state.list_kind != kind || state.snapshot.status_filter != status {
+    let query = query.unwrap_or_else(|| state.snapshot.query.clone());
+    let domain = domain.unwrap_or_else(|| state.snapshot.domain_filter.clone());
+    if !orbit::valid_search(&query) || !orbit::valid_domain(&domain) {
+        return Err(invalid());
+    }
+    if state.list_kind != kind
+        || state.snapshot.status_filter != status
+        || state.snapshot.query != query
+        || state.snapshot.domain_filter != domain
+    {
         clear_candidates(&mut state);
         state.list_kind = kind;
         state.snapshot.status_filter = status;
+        state.snapshot.query = query;
+        state.snapshot.domain_filter = domain;
         state.list_page = 0;
         state.access_generation += 1;
         state.snapshot.threads.clear();
         state.snapshot.has_more = false;
         state.snapshot.cached = false;
-        state.snapshot.assistant = None;
         hydrate_inbox(&mut state);
         publish(model, &mut state);
     }
@@ -820,7 +848,7 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
 }
 
 fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Result<()> {
-    let (session, page, kind, status, access_generation, cache_generation) = {
+    let (session, page, kind, status, query, domain, access_generation, cache_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -836,6 +864,8 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
             if more { state.list_page + 1 } else { 1 },
             state.list_kind.clone(),
             Some(state.snapshot.status_filter.as_str().into()),
+            Some(state.snapshot.query.clone()),
+            Some(state.snapshot.domain_filter.clone()),
             state.access_generation,
             state
                 .cache
@@ -846,7 +876,13 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
     let result = orbit::request_using::<Overview>(
         network,
         session,
-        orbit::Action::List { page, kind, status },
+        orbit::Action::List {
+            page,
+            kind,
+            status,
+            query,
+            domain,
+        },
     );
     let mut state = model.state.lock().map_err(|_| invalid())?;
     state.snapshot.loading = false;
@@ -866,6 +902,8 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
     match result {
         Ok(value) => {
             if !more
+                && state.snapshot.query.is_empty()
+                && state.snapshot.domain_filter.is_empty()
                 && let (Some(cache), Some(generation)) = (&state.cache, cache_generation)
                 && let Ok(payload) = serde_json::to_string(&saved_inbox(&value))
             {
@@ -911,6 +949,22 @@ fn merge_list_thread(state: &mut State, incoming: Thread) {
     let items = &mut state.snapshot.threads;
     items.retain(|item| item.id != incoming.id);
     if incoming.status != state.snapshot.status_filter.as_str() {
+        return;
+    }
+    let domain = state.snapshot.domain_filter.as_str();
+    if (!domain.is_empty()
+        && domain != "unclassified"
+        && incoming.domain.as_deref() != Some(domain))
+        || (domain == "unclassified" && incoming.domain.is_some())
+    {
+        return;
+    }
+    // Detail refreshes must not reinsert a conversation excluded by the inbox search.
+    let query = state.snapshot.query.trim().to_lowercase();
+    if !query.is_empty()
+        && !incoming.title.to_lowercase().contains(&query)
+        && !incoming.summary.to_lowercase().contains(&query)
+    {
         return;
     }
     items.push(incoming);
