@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -35,20 +36,21 @@ exit "${GUARD_EXIT:-0}"
 	}
 	for _, test := range []struct {
 		name, raw string
-		ack, pass bool
+		ack       bool
+		status    int
 	}{
-		{"absent requires qualification", "", false, false},
-		{"qualified install or migration", "", true, true},
-		{"unchanged", fixture(string(desired[0][1]), ""), false, true},
-		{"replacement blocked", fixture("old-image", ""), false, false},
-		{"qualified replacement", fixture("old-image", ""), true, true},
-		{"sidecar changes image set", fixture(string(desired[0][1]), `,{"name":"sidecar","image":"other"}`), false, false},
-		{"qualified sidecar", fixture(string(desired[0][1]), `,{"name":"sidecar","image":"other"}`), true, true},
-		{"malformed JSON", "{", true, false},
-		{"missing containers", `{"kind":"DaemonSet"}`, true, false},
-		{"wrong topology", strings.ReplaceAll(fixture(string(desired[0][1]), ""), "DaemonSet", "Deployment"), true, false},
-		{"old namespace", strings.ReplaceAll(fixture(string(desired[0][1]), ""), "mgmt-tailscale", "mgmt-system"), true, false},
-		{"multiple objects", fixture("old", "") + fixture("old", ""), true, false},
+		{"absent requires qualification", "", false, 3},
+		{"qualified install or migration", "", true, 0},
+		{"unchanged", fixture(string(desired[0][1]), ""), false, 0},
+		{"replacement blocked", fixture("old-image", ""), false, 3},
+		{"qualified replacement", fixture("old-image", ""), true, 0},
+		{"sidecar changes image set", fixture(string(desired[0][1]), `,{"name":"sidecar","image":"other"}`), false, 3},
+		{"qualified sidecar", fixture(string(desired[0][1]), `,{"name":"sidecar","image":"other"}`), true, 0},
+		{"malformed JSON", "{", true, 1},
+		{"missing containers", `{"kind":"DaemonSet"}`, true, 1},
+		{"wrong topology", strings.ReplaceAll(fixture(string(desired[0][1]), ""), "DaemonSet", "Deployment"), true, 1},
+		{"old namespace", strings.ReplaceAll(fixture(string(desired[0][1]), ""), "mgmt-tailscale", "mgmt-system"), true, 1},
+		{"multiple objects", fixture("old", "") + fixture("old", ""), true, 1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv("GUARD_FIXTURE", test.raw)
@@ -56,15 +58,25 @@ exit "${GUARD_EXIT:-0}"
 			if test.ack {
 				args = append(args, "--acknowledged")
 			}
-			command(t, test.pass, "bash", args...)
+			cmd := exec.Command("bash", args...)
+			output, err := cmd.CombinedOutput()
+			if cmd.ProcessState == nil || cmd.ProcessState.ExitCode() != test.status {
+				t.Fatalf("expected status %d: %v\n%s", test.status, err, output)
+			}
 			if call := strings.TrimSpace(string(read(t, filepath.Join(work, "call")))); call != "--request-timeout=30s -n mgmt-tailscale get daemonset tailscale --ignore-not-found -o json" {
 				t.Fatalf("wrong API boundary: %s", call)
 			}
 		})
 	}
 	t.Setenv("GUARD_FIXTURE", "")
-	t.Setenv("GUARD_EXIT", "1")
-	command(t, false, "bash", "guard.sh", "management-tailscale", "--acknowledged")
+	for _, status := range []string{"1", "3"} {
+		t.Setenv("GUARD_EXIT", status)
+		cmd := exec.Command("bash", "guard.sh", "management-tailscale", "--acknowledged")
+		output, err := cmd.CombinedOutput()
+		if cmd.ProcessState == nil || cmd.ProcessState.ExitCode() != 1 {
+			t.Fatalf("API exit %s must be a read failure, not pending qualification: %v\n%s", status, err, output)
+		}
+	}
 	if summary := string(read(t, filepath.Join(work, "summary"))); !strings.Contains(summary, "qualified-operator") || !strings.Contains(summary, string(desired[0][1])) {
 		t.Fatalf("missing qualification audit: %s", summary)
 	}

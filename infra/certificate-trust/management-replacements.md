@@ -10,6 +10,8 @@ Acknowledgement records a human's completed qualification; it grants no cluster
 access and does not perform that qualification. Unchanged image sets need no
 acknowledgement. Missing workloads still need qualification: absence can mean
 the legacy management Deployment has not migrated yet, not a fresh install.
+Exit status 3 means qualification is pending; status 1 means the guard could not
+read or validate live state. Callers must not treat read failures as deferrals.
 
 ## Management Tailscale
 
@@ -28,9 +30,13 @@ upgraded here: supported operator/proxy version skew and actual ingress/egress
 behavior require their own explicit gate before those components are changed.
 
 Merging changes invokes the existing management apply workflow. A differing or
-absent DaemonSet blocks its apply job before mutation until a qualified manual
-dispatch. The workflow's earlier Hetzner/Talos reconciliation jobs are unchanged.
-Once the serving image set matches, ordinary main pushes proceed again. No
+absent DaemonSet defers only Tailscale migration, apply and drift verification
+until a qualified manual dispatch. The workflow emits a warning and records the
+deferral in its summary; it does not claim the candidate image was installed.
+Unrelated management resources still reconcile and retain their normal health
+and drift checks. Unreadable or malformed live state fails the apply job before
+mutation. The earlier Hetzner/Talos reconciliation jobs are unchanged. Once the
+serving image set matches, ordinary main pushes reconcile Tailscale too. No
 workflow or cluster operation was run to qualify the candidate in this PR.
 
 ## HCCM

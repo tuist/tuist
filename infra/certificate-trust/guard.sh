@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Read-only replacement guard. Acknowledgement never grants Kubernetes access.
+# Exit 3 means qualification is pending; read/validation errors remain failures.
 set -euo pipefail
 [[ $# -ge 1 && $# -le 2 ]] || { echo "usage: $0 management-tailscale|hccm [--acknowledged]" >&2; exit 2; }
 component="$1"
@@ -33,13 +34,13 @@ case "$component" in
   *) echo "unknown component: $component" >&2; exit 2 ;;
 esac
 [[ -n "$desired" && "$desired" != *$'\n'* ]] || { echo "cannot establish one desired image" >&2; exit 1; }
-raw="$(kubectl --request-timeout=30s -n "$namespace" get "$resource" "$name" --ignore-not-found -o json)"
+raw="$(kubectl --request-timeout=30s -n "$namespace" get "$resource" "$name" --ignore-not-found -o json)" || exit 1
 if [[ -n "$raw" ]]; then
   printf '%s' "$raw" | jq -es --arg kind "$kind" --arg name "$name" --arg namespace "$namespace" '
     length == 1 and (.[0] |
       .kind == $kind and .metadata.name == $name and .metadata.namespace == $namespace and
       (.spec.template.spec.containers | type == "array" and length > 0 and
-        all(.[]; (.name | type) == "string" and (.image | type) == "string")))' > /dev/null
+        all(.[]; (.name | type) == "string" and (.image | type) == "string")))' > /dev/null || exit 1
   if printf '%s' "$raw" | jq -e --arg image "$desired" --arg name "$container" \
     '[.spec.template.spec.containers[] | {name, image}] == [{name: $name, image: $image}]' > /dev/null; then
     echo "$component: serving image unchanged; no replacement qualification consumed"
@@ -50,7 +51,7 @@ fi
 # serving. Its migration is also an access replacement and needs qualification.
 if [[ "$acknowledged" != true ]]; then
   echo "Refusing unqualified $component replacement or installation: $requirement. See infra/certificate-trust/management-replacements.md." >&2
-  exit 1
+  exit 3
 fi
 message="$component: explicit human qualification acknowledged for $desired"
 echo "$message"
