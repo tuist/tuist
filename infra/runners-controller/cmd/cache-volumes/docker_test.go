@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
@@ -227,5 +228,80 @@ func TestDockerMergeOffersAssignedHeadForAnOlderMountedCopy(t *testing.T) {
 	a.exposeDockerHead = func(context.Context, cachevolumes.Slot, string, cachevolumes.Identity) error { return nil }
 	if code, response := requestDocker(t, a, "/docker-merge", "10.0.0.5"); code != http.StatusOK || response["merge"] != true || response["generation"] != float64(8) {
 		t.Fatalf("stale mount did not receive its assigned head: %d %v", code, response)
+	}
+}
+
+func TestDockerMergeWaitsForAnotherFinishedJobToPublish(t *testing.T) {
+	a, _ := dockerAgent(t, http.StatusOK)
+	requestDocker(t, a, "/docker", "10.0.0.5")
+	slots, err := a.store.Snapshot()
+	if err != nil || len(slots) != 1 {
+		t.Fatalf("snapshot: %v %v", slots, err)
+	}
+	// Another job on this host mounted the same generation, finished with a
+	// changed data root and is still uploading it: the head has not moved yet.
+	sibling := slots[0]
+	sibling.ID, sibling.PodName, sibling.PodUID = "44444444-4444-4444-8444-444444444444", "sibling", "sibling-uid"
+	journal := filepath.Join(a.root, "state", sibling.ID+".json")
+	writeSibling := func(state string) {
+		sibling.State = state
+		data, _ := json.Marshal(sibling)
+		if err := os.WriteFile(journal, data, 0600); err != nil {
+			t.Error(err)
+		}
+	}
+	writeSibling("active")
+	directory := filepath.Join(a.root, "pods", sibling.PodUID, sibling.Scope)
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	report, _ := json.Marshal(cachevolumes.DockerReport{Clean: true, Changed: true})
+	if err := os.WriteFile(filepath.Join(directory, cachevolumes.DockerReportName), report, 0600); err != nil {
+		t.Fatal(err)
+	}
+	poll := dockerPublicationPoll
+	dockerPublicationPoll = 10 * time.Millisecond
+	t.Cleanup(func() { dockerPublicationPoll = poll })
+	published := make(chan struct{})
+	t.Cleanup(func() { <-published })
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		writeSibling("sealed")
+		close(published)
+	}()
+	a.dockerHeads = func(slot cachevolumes.Slot) (cachevolumes.Identity, error) {
+		select {
+		case <-published:
+			return cachevolumes.Identity{BaseGeneration: slot.BaseGeneration + 1}, nil
+		default:
+			return cachevolumes.Identity{BaseGeneration: slot.BaseGeneration}, nil
+		}
+	}
+	a.exposeDockerHead = func(context.Context, cachevolumes.Slot, string, cachevolumes.Identity) error { return nil }
+	if code, response := requestDocker(t, a, "/docker-merge", "10.0.0.5"); code != http.StatusOK || response["merge"] != true || response["generation"] != float64(slots[0].BaseGeneration+1) {
+		t.Fatalf("answered before the other job published: %d %v", code, response)
+	}
+}
+
+func TestDockerMergeDoesNotWaitForAnUnchangedDataRoot(t *testing.T) {
+	a, _ := dockerAgent(t, http.StatusOK)
+	requestDocker(t, a, "/docker", "10.0.0.5")
+	slots, _ := a.store.Snapshot()
+	sibling := slots[0]
+	sibling.ID, sibling.PodName, sibling.PodUID = "44444444-4444-4444-8444-444444444444", "sibling", "sibling-uid"
+	data, _ := json.Marshal(sibling)
+	if err := os.WriteFile(filepath.Join(a.root, "state", sibling.ID+".json"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	directory := filepath.Join(a.root, "pods", sibling.PodUID, sibling.Scope)
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	report, _ := json.Marshal(cachevolumes.DockerReport{Clean: true})
+	if err := os.WriteFile(filepath.Join(directory, cachevolumes.DockerReportName), report, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if a.dockerPublicationPending(slots[0]) {
+		t.Fatal("waited for a data root that will not publish")
 	}
 }
