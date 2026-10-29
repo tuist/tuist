@@ -461,12 +461,12 @@ msgid "This stops new work and pauses this integration’s running Orbs. Saved d
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:743
-#: lib/tuist_web/live/integrations_live.html.heex:788
+#: lib/tuist_web/live/integrations_live.html.heex:827
 #, elixir-autogen, elixir-format
 msgid "API token"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1051
+#: lib/tuist_web/live/integrations_live.ex:1061
 #, elixir-autogen, elixir-format
 msgid "Add pool"
 msgstr ""
@@ -481,27 +481,27 @@ msgstr ""
 msgid "Connect Bitrise"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1036
+#: lib/tuist_web/live/integrations_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Pool token"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:824
+#: lib/tuist_web/live/integrations_live.html.heex:797
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:810
+#: lib/tuist_web/live/integrations_live.html.heex:783
 #, elixir-autogen, elixir-format
 msgid "Runner pools"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1012
+#: lib/tuist_web/live/integrations_live.ex:1014
 #, elixir-autogen, elixir-format
 msgid "Stack ID"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:811
+#: lib/tuist_web/live/integrations_live.html.heex:784
 #, elixir-autogen, elixir-format
 msgid "A build runs on Tuist when its workflow selects the pool's stack under Stacks & Machines in Bitrise."
 msgstr ""
@@ -511,12 +511,12 @@ msgstr ""
 msgid "Bitrise API token updated."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1103
+#: lib/tuist_web/live/integrations_live.ex:1113
 #, elixir-autogen, elixir-format
 msgid "Bitrise rejected this API token."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1038
+#: lib/tuist_web/live/integrations_live.ex:1048
 #, elixir-autogen, elixir-format
 msgid "Bitrise shows a pool's token once, when you create the pool. If you didn't save it, create the pool again."
 msgstr ""
@@ -546,7 +546,7 @@ msgstr ""
 msgid "In Bitrise, open Workspace settings, then Security, and create a workspace API token with the Viewer role and Tester/QA access to Bitrise CI. Tuist only uses it to read your builds."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:834
+#: lib/tuist_web/live/integrations_live.html.heex:807
 #, elixir-autogen, elixir-format
 msgid "Loading runner pools from Bitrise…"
 msgstr ""
@@ -561,17 +561,18 @@ msgstr ""
 msgid "Run builds of your self-hosted Bitrise runner pools on Tuist runners. Your workflows stay on Bitrise; only the machines change."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1002
+#: lib/tuist_web/live/integrations_live.ex:999
+#: lib/tuist_web/live/integrations_live.ex:1003
 #, elixir-autogen, elixir-format
 msgid "Runner pool"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1106
+#: lib/tuist_web/live/integrations_live.ex:1116
 #, elixir-autogen, elixir-format
 msgid "This API token can't see any Bitrise workspace."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1110
+#: lib/tuist_web/live/integrations_live.ex:1120
 #, elixir-autogen, elixir-format
 msgid "This API token can't see the connected workspace. Disconnect first to switch workspaces."
 msgstr ""
@@ -586,17 +587,18 @@ msgstr ""
 msgid "This workspace has no self-hosted runner pools yet. Create one in Bitrise under Workspace settings, then Infrastructure."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1014
+#: lib/tuist_web/live/integrations_live.ex:1016
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't load your runner pools from Bitrise. Enter the pool's stack ID, which starts with agent-pool-."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1116
+#: lib/tuist_web/live/integrations_live.ex:1126
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't reach Bitrise. Try again in a moment."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:1026
+#: lib/tuist_web/live/integrations_live.ex:1027
+#: lib/tuist_web/live/integrations_live.ex:1035
 #, elixir-autogen, elixir-format
 msgid "Tuist profile"
 msgstr ""
@@ -606,12 +608,17 @@ msgstr ""
 msgid "Workspace"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:790
+#: lib/tuist_web/live/integrations_live.html.heex:829
 #, elixir-autogen, elixir-format
 msgid "Paste a new token to replace the stored one. It must belong to the same workspace."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:803
+#: lib/tuist_web/live/integrations_live.html.heex:842
 #, elixir-autogen, elixir-format
 msgid "Update token"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.ex:1029
+#, elixir-autogen, elixir-format
+msgid "The machine this pool's builds run on."
 msgstr ""

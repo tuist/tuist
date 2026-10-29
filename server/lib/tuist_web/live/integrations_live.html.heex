@@ -778,33 +778,6 @@
       size="small"
       title={elem(@bitrise_flash, 1)}
     />
-    <form :if={@bitrise_connection} id="bitrise-token-form" phx-submit="rotate-bitrise-token">
-      <div data-part="fields">
-        <.text_input
-          id="bitrise-api-token-connected"
-          name="api_token"
-          type="password"
-          input_type="password"
-          label={dgettext("dashboard_integrations", "API token")}
-          hint={
-            dgettext(
-              "dashboard_integrations",
-              "Paste a new token to replace the stored one. It must belong to the same workspace."
-            )
-          }
-          value=""
-          placeholder="••••••••••••"
-          required
-        />
-      </div>
-      <div data-part="actions">
-        <.button
-          type="submit"
-          label={dgettext("dashboard_integrations", "Update token")}
-          variant="secondary"
-        />
-      </div>
-    </form>
     <div :if={@bitrise_connection} id="bitrise-pools" data-part="pools">
       <div data-part="pools-header">
         <span data-part="title">{dgettext("dashboard_integrations", "Runner pools")}</span>
@@ -844,6 +817,33 @@
         />
       </.async_result>
     </div>
+    <form :if={@bitrise_connection} id="bitrise-token-form" phx-submit="rotate-bitrise-token">
+      <div data-part="fields">
+        <.text_input
+          id="bitrise-api-token-connected"
+          name="api_token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_integrations", "API token")}
+          hint={
+            dgettext(
+              "dashboard_integrations",
+              "Paste a new token to replace the stored one. It must belong to the same workspace."
+            )
+          }
+          value=""
+          placeholder="••••••••••••"
+          required
+        />
+      </div>
+      <div data-part="actions">
+        <.button
+          type="submit"
+          label={dgettext("dashboard_integrations", "Update token")}
+          variant="secondary"
+        />
+      </div>
+    </form>
   </.card_section>
 
   <.card_section :if={@runner_integrations_visible?} data-part="buildkite-card-section">

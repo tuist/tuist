@@ -995,15 +995,17 @@ defmodule TuistWeb.IntegrationsLive do
     ~H"""
     <form id="add-bitrise-pool-form" phx-submit="add-bitrise-pool">
       <div data-part="fields">
-        <.select
-          :if={@pools}
-          id="bitrise-pool-stack"
-          name="stack_identifier"
-          label={dgettext("dashboard_integrations", "Runner pool")}
-          value={List.first(@pools).stack_identifier}
-        >
-          <:item :for={pool <- @pools} value={pool.stack_identifier} label={pool.name} />
-        </.select>
+        <div :if={@pools} data-part="field">
+          <.label label={dgettext("dashboard_integrations", "Runner pool")} required />
+          <.select
+            id="bitrise-pool-stack"
+            name="stack_identifier"
+            label={dgettext("dashboard_integrations", "Runner pool")}
+            value={List.first(@pools).stack_identifier}
+          >
+            <:item :for={pool <- @pools} value={pool.stack_identifier} label={pool.name} />
+          </.select>
+        </div>
         <.text_input
           :if={is_nil(@pools)}
           id="bitrise-pool-stack"
@@ -1020,14 +1022,22 @@ defmodule TuistWeb.IntegrationsLive do
           required
           show_required
         />
-        <.select
-          id="bitrise-pool-profile"
-          name="profile_label"
-          label={dgettext("dashboard_integrations", "Tuist profile")}
-          value={List.first(@profile_labels)}
-        >
-          <:item :for={label <- @profile_labels} value={label} label={label} />
-        </.select>
+        <div data-part="field">
+          <.label
+            label={dgettext("dashboard_integrations", "Tuist profile")}
+            required
+            tooltip={dgettext("dashboard_integrations", "The machine this pool's builds run on.")}
+            tooltip_id="bitrise-pool-profile-tooltip"
+          />
+          <.select
+            id="bitrise-pool-profile"
+            name="profile_label"
+            label={dgettext("dashboard_integrations", "Tuist profile")}
+            value={TuistWeb.IntegrationsLive.default_bitrise_profile(@pools, @profile_labels)}
+          >
+            <:item :for={label <- @profile_labels} value={label} label={label} />
+          </.select>
+        </div>
         <.text_input
           id="bitrise-pool-secret"
           name="intro_secret"
@@ -1114,6 +1124,16 @@ defmodule TuistWeb.IntegrationsLive do
 
   defp bitrise_connect_error(_reason),
     do: dgettext("dashboard_integrations", "Tuist couldn't reach Bitrise. Try again in a moment.")
+
+  @doc """
+  The profile the pool form starts on: the one named like the first pool
+  offered, as the setup guide suggests naming pools, or the first profile.
+  """
+  def default_bitrise_profile([%{name: name} | _pools], profile_labels) do
+    if name in profile_labels, do: name, else: List.first(profile_labels)
+  end
+
+  def default_bitrise_profile(_pools, profile_labels), do: List.first(profile_labels)
 
   @doc """
   The connected workspace's pools that are not bound to a profile yet.

@@ -1201,6 +1201,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
       render_async(lv)
 
+      assert has_element?(lv, ~s(#bitrise-pool-profile option[selected][value="tuist-macos"]))
+
       label = account |> Profiles.list_for_account() |> Enum.map(&Profile.dispatch_label/1) |> List.first()
 
       html =
