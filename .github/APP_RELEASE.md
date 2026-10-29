@@ -35,6 +35,19 @@ authorization; ask the owner for the mapping/export instead.
    tip. Run local-wire tests with Homebrew OpenSSL 3; public TLS controls are a
    separate opt-in qualification. Retain exact commands, outputs and source SHA.
    Confirm the lockfile was regenerated, not guessed.
+
+   The unsigned build must use **Release**, matching the packaging configuration,
+   not only the default Debug build. Do not invoke `app:bundle` for this preflight:
+   it retrieves signing material before compiling. From the generated repo root:
+
+   ```bash
+   xcodebuild clean build -workspace Tuist.xcworkspace -scheme TuistApp \
+     -configuration Release -destination 'generic/platform=macOS' \
+     -derivedDataPath "${TMPDIR:-/tmp}/tuist-app-hotfix-release" \
+     CODE_SIGN_IDENTITY="" CODE_SIGN_ENTITLEMENTS="" \
+     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+   ```
+
 3. After explicit release authorization, select **App Release** on **main** and
    dispatch with `source_sha` equal to that qualified merged tip's full SHA and
    `stable_tag` equal to the current live macOS tag. The planner derives and fetches
