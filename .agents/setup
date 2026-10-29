@@ -26,12 +26,14 @@ for package in "${apt_packages[@]}"; do
 done
 if ((${#missing_packages[@]})); then
   step "Installing ${missing_packages[*]}"
-  if [[ ! -f /etc/apt/sources.list.d/pgdg.list ]]; then
+  # Orb providers differ in base image (Debian 12, Ubuntu 24.04), so match the
+  # PGDG suite to this distribution; a mismatched suite has unmet dependencies.
+  pgdg_list="deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main"
+  if [[ "$(cat /etc/apt/sources.list.d/pgdg.list 2>/dev/null)" != "$pgdg_list" ]]; then
     sudo install -d /usr/share/postgresql-common/pgdg
     sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
       https://www.postgresql.org/media/keys/ACCC4CF8.asc
-    echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" |
-      sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+    echo "$pgdg_list" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
   fi
   sudo apt-get update -q
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing_packages[@]}"
@@ -54,8 +56,9 @@ host  all all 127.0.0.1/32 trust
 host  all all ::1/128 trust
 EOF
 sudo chown postgres:postgres "$pg_conf/pg_hba.conf" "$pg_conf/conf.d/amp-orb.conf"
-sudo systemctl enable postgresql@16-main >/dev/null 2>&1
-sudo systemctl restart postgresql@16-main
+# pg_ctlcluster goes through systemd when it runs and pg_ctl otherwise, since
+# some orb providers boot without systemd.
+sudo pg_ctlcluster 16 main restart
 for _ in $(seq 1 30); do
   pg_isready -q -h localhost && break
   sleep 1
