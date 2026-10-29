@@ -382,6 +382,10 @@ defmodule TuistWeb.API.AgentSessionsController do
     conn |> put_status(:bad_request) |> json(%{message: changeset_message(changeset)})
   end
 
+  defp agent_session_error(conn, :macos_sandboxes_disabled) do
+    conn |> put_status(:forbidden) |> json(%{message: "macOS sandboxes are not enabled for this account."})
+  end
+
   defp agent_session_error(conn, :no_agent_environment) do
     conn
     |> put_status(:bad_request)

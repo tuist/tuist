@@ -58,6 +58,7 @@ defmodule Tuist.Sandboxes.Capacity do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxNode
@@ -259,6 +260,8 @@ defmodule Tuist.Sandboxes.Capacity do
   defp allocation_outcome(_row, _node, _needed), do: :missing_grant
 
   @doc "Checks a new turn on an already-running VM under the node admission lock."
+  def admit_turn(%Sandbox{platform: :darwin} = sandbox, apply), do: MacosCapacity.admit_turn(sandbox, apply)
+
   def admit_turn(%Sandbox{node_name: name}, apply) when is_binary(name) do
     case Nodes.lookup(name) do
       {:ok, _pid, info} ->
@@ -437,7 +440,7 @@ defmodule Tuist.Sandboxes.Capacity do
   def disk_space?(_node, _sandbox), do: true
 
   def ready_nodes(template) when is_binary(template) do
-    Enum.filter(Nodes.connected_nodes(), &template_ready?(&1, template))
+    Enum.filter(Nodes.connected_nodes(), &(Map.get(&1, :platform, "linux") != "darwin" and template_ready?(&1, template)))
   end
 
   defp template_ready?(node, template) do
@@ -453,6 +456,8 @@ defmodule Tuist.Sandboxes.Capacity do
   free the most. Returns `{:error, :no_node}` when no connected node has
   the template and `{:error, :no_capacity}` when none has room.
   """
+  def place(%Sandbox{platform: :darwin} = sandbox), do: MacosCapacity.place(sandbox)
+
   def place(%Sandbox{node_name: nil, template: template} = sandbox) do
     ready =
       Nodes.await(
@@ -520,6 +525,8 @@ defmodule Tuist.Sandboxes.Capacity do
   paused one does not fit as is, and grows an elastic node's carve-out
   when that is not enough.
   """
+  def admit(%Sandbox{platform: :darwin} = sandbox), do: MacosCapacity.admit(sandbox)
+
   def admit(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
     with :ok <- Concurrency.check(sandbox.account_id, sandbox) do
       do_admit(sandbox)
@@ -563,6 +570,9 @@ defmodule Tuist.Sandboxes.Capacity do
   environments with no connected node at all are admissible; the latter
   fail on dispatch as before.
   """
+  def admissible?(%AgentEnvironment{platform: :darwin} = environment, session_id),
+    do: MacosCapacity.admissible?(environment, session_id)
+
   def admissible?(%AgentEnvironment{} = agent_environment, session_id) when is_binary(session_id) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
       %Sandbox{state: state, node_name: name} when state in @charged_states ->

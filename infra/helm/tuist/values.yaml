@@ -2557,6 +2557,12 @@ macosFleet:
 # separate substrate on the same nodes. See infra/sandboxd/AGENTS.md.
 sandboxes:
   enabled: false
+  macos:
+    enabled: false
+    templateName: macos
+    xcodeVersion: "26.6"
+    # Empty follows the same released, digest-pinned image as the CI pool.
+    image: ""
   namespace: tuist-sandboxes
   # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
   # server deploys publish/select the guest template automatically; sandboxd

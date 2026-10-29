@@ -74,6 +74,10 @@ defmodule Tuist.FeatureFlags do
     not sandboxes_flag_required?() or FunWithFlags.enabled?(:sandboxes, for: account)
   end
 
+  @doc "Default-off macOS sandbox enablement, including staging and development."
+  def macos_sandboxes_enabled?(account),
+    do: sandboxes_enabled?(account) and FunWithFlags.enabled?(:macos_sandboxes, for: account)
+
   defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """

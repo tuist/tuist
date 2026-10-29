@@ -35,8 +35,9 @@ const (
 
 // sandboxDaemon is one sandboxd Pod as the autoscaler sees it.
 type sandboxDaemon struct {
-	name string
-	node string
+	name   string
+	node   string
+	native bool
 	// memory is the largest of the request, allocated resources and applied
 	// container resources, so an incomplete shrink never frees memory early.
 	memory      int64
@@ -63,20 +64,31 @@ func listSandboxDaemons(ctx context.Context, reader client.Reader, namespace str
 		return nil, nil
 	}
 	var pods corev1.PodList
-	if err := reader.List(ctx, &pods, client.InNamespace(namespace), client.MatchingLabels{sandboxdLabel: "true"}); err != nil {
+	if err := reader.List(ctx, &pods, client.InNamespace(namespace)); err != nil {
 		return nil, fmt.Errorf("list sandbox daemons: %w", err)
 	}
 	daemons := make([]sandboxDaemon, 0, len(pods.Items))
 	for i := range pods.Items {
 		pod := &pods.Items[i]
+		native := pod.Labels[macosSandboxRole] == "execution"
+		if !native && pod.Labels[sandboxdLabel] != "true" {
+			continue
+		}
 		if pod.Spec.NodeName == "" || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			continue
 		}
 		asked, allocated := daemonMemory(pod)
-		daemon := sandboxDaemon{name: pod.Name, node: pod.Spec.NodeName, memory: max(asked, allocated)}
+		if native {
+			asked = allocationPodMemory(pod)
+			allocated = asked
+		}
+		daemon := sandboxDaemon{native: native, name: pod.Name, node: pod.Spec.NodeName, memory: max(asked, allocated)}
 		daemon.terminating = !pod.DeletionTimestamp.IsZero()
 		footprint := podFootprint(pod)
 		daemon.cpuMilli = footprint.Cpu().MilliValue()
+		if native && pod.Status.Phase != corev1.PodRunning {
+			daemon.deferred = asked
+		}
 		// A deleting daemon still holds its allocation while it pauses VMs.
 		if pod.DeletionTimestamp.IsZero() && resizeDeferred(pod) && asked > allocated {
 			daemon.deferred = asked - allocated
@@ -231,13 +243,20 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 	now time.Time,
 	logger logr.Logger,
 ) (bool, error) {
-	if r.SandboxesNamespace == "" || pool.Spec.OS != "linux" || fleet == nil {
+	if r.SandboxesNamespace == "" || (pool.Spec.OS != "linux" && pool.Spec.OS != "darwin") || fleet == nil {
+		return false, nil
+	}
+	if pool.Spec.OS == "darwin" && macOSCIQueued(fleet) {
 		return false, nil
 	}
 
 	var nodes corev1.NodeList
 	// The same nodes the fleet's budget counts.
-	if err := r.List(ctx, &nodes, client.MatchingLabels{fleetNodePoolLabel: pool.Spec.FleetSelector}); err != nil {
+	selector := fleetNodeSelector(pool)
+	if pool.Spec.OS == "linux" {
+		selector = client.MatchingLabels{fleetNodePoolLabel: pool.Spec.FleetSelector}
+	}
+	if err := r.List(ctx, &nodes, selector); err != nil {
 		return false, fmt.Errorf("list fleet nodes: %w", err)
 	}
 	inFleet := map[string]bool{}
@@ -311,8 +330,20 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 		candidates[node] = append(candidates[node], sandboxCandidate{pod: pod, pool: owner.Name, since: since})
 	}
 
+	plan := planSandboxPreemption(deficits, freeing, candidates)
+	if pool.Spec.OS == "darwin" {
+		var allPods corev1.PodList
+		var reader client.Reader = r.Client
+		if r.APIReader != nil {
+			reader = r.APIReader
+		}
+		if err := reader.List(ctx, &allPods); err != nil {
+			return false, err
+		}
+		plan = planNativeSandboxPreemption(nodes.Items, allPods.Items, deficits, candidates, now)
+	}
 	var mine []*corev1.Pod
-	for _, c := range planSandboxPreemption(deficits, freeing, candidates) {
+	for _, c := range plan {
 		if c.pool == pool.Name {
 			mine = append(mine, c.pod)
 		}

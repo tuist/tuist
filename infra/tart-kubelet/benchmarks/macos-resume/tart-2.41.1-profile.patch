@@ -1,0 +1,113 @@
+diff --git a/Sources/tart/CI/CI.swift b/Sources/tart/CI/CI.swift
+index 0e3bb28..ec10054 100644
+--- a/Sources/tart/CI/CI.swift
++++ b/Sources/tart/CI/CI.swift
+@@ -1,5 +1,6 @@
+ struct CI {
+-  private static let rawVersion = "${VERSION}"
++  // Keep the version console device identical to the profiled release.
++  private static let rawVersion = "2.41.1"
+ 
+   static var version: String {
+     rawVersion.expanded() ? rawVersion : "SNAPSHOT"
+diff --git a/Sources/tart/Commands/Run.swift b/Sources/tart/Commands/Run.swift
+index 1c965e1..5a07328 100644
+--- a/Sources/tart/Commands/Run.swift
++++ b/Sources/tart/Commands/Run.swift
+@@ -418,6 +418,7 @@ struct Run: AsyncParsableCommand {
+ 
+   @MainActor
+   func runOnMainThread() throws {
++    resumeProfile("run_enter")
+     let localStorage = try VMStorageLocal()
+     let vmDir = try localStorage.open(name)
+ 
+@@ -475,6 +476,7 @@ struct Run: AsyncParsableCommand {
+     let additionalDisks = try additionalDisks()
+     defer { withExtendedLifetime(additionalDisks) {} }
+ 
++    resumeProfile("configuration_started")
+     vm = try VM(
+       vmDir: vmDir,
+       network: userSpecifiedNetwork(vmDir: vmDir) ?? NetworkShared(),
+@@ -524,6 +526,7 @@ struct Run: AsyncParsableCommand {
+     // now VM state will return "running" so we can unlock
+     try storageLock.unlock()
+ 
++    resumeProfile("configuration_finished")
+     let task = Task {
+       do {
+         var resume = false
+@@ -532,8 +535,11 @@ struct Run: AsyncParsableCommand {
+           if #available(macOS 14, *) {
+             if FileManager.default.fileExists(atPath: vmDir.stateURL.path) {
+               print("restoring VM state from a snapshot...")
++              resumeProfile("restore_started")
+               try await vm!.virtualMachine.restoreMachineStateFrom(url: vmDir.stateURL)
++              resumeProfile("restore_finished")
+               try FileManager.default.removeItem(at: vmDir.stateURL)
++              resumeProfile("state_removed")
+               resume = true
+               print("resuming VM...")
+             }
+@@ -587,6 +593,7 @@ struct Run: AsyncParsableCommand {
+ 
+         if #available(macOS 14, *) {
+           let controlSocket = try await ControlSocket(vmDir.controlSocketURL)
++          resumeProfile("control_ready")
+ 
+           ErrorReportingTask("Failed to run control socket") {
+             try await controlSocket.run()
+@@ -633,7 +640,9 @@ struct Run: AsyncParsableCommand {
+               try await vm!.virtualMachine.pause()
+ 
+               print("creating a snapshot...")
++              resumeProfile("save_started")
+               try await vm!.virtualMachine.saveMachineStateTo(url: vmDir.stateURL)
++              resumeProfile("save_finished")
+ 
+               print("snapshot created successfully! shutting down the VM...")
+ 
+diff --git a/Sources/tart/ResumeProfile.swift b/Sources/tart/ResumeProfile.swift
+new file mode 100644
+index 0000000..bbd1ed0
+--- /dev/null
++++ b/Sources/tart/ResumeProfile.swift
+@@ -0,0 +1,23 @@
++// Benchmark-only instrumentation. No paths, arguments or guest data are logged.
++import Foundation
++import Darwin
++
++private let resumeProfileEnabled = ProcessInfo.processInfo.environment["TUIST_TART_PROFILE"] == "1"
++
++func resumeProfile(_ event: String) {
++  guard resumeProfileEnabled else { return }
++  let uptime = DispatchTime.now().uptimeNanoseconds
++  var usage = rusage()
++  getrusage(RUSAGE_SELF, &usage)
++  let cpuUS = Int64(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) * 1_000_000
++    + Int64(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec)
++  let record: [String: Any] = [
++    "event": event, "uptime_ns": uptime, "pid": getpid(),
++    "cpu_us": cpuUS, "max_rss_bytes": usage.ru_maxrss,
++    "page_faults": usage.ru_majflt, "block_inputs": usage.ru_inblock,
++  ]
++  if let json = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) {
++    // Direct write avoids stdout buffering changing observed phase boundaries.
++    FileHandle.standardError.write(Data("TUIST_RESUME_PROFILE ".utf8) + json + Data("\n".utf8))
++  }
++}
+diff --git a/Sources/tart/VM.swift b/Sources/tart/VM.swift
+index 91a952e..6d929b4 100644
+--- a/Sources/tart/VM.swift
++++ b/Sources/tart/VM.swift
+@@ -306,7 +306,9 @@ class VM: NSObject, VZVirtualMachineDelegate, ObservableObject {
+ 
+   @MainActor
+   private func resume() async throws {
++    resumeProfile("resume_started")
+     try await virtualMachine.resume()
++    resumeProfile("resume_finished")
+   }
+ 
+   @MainActor

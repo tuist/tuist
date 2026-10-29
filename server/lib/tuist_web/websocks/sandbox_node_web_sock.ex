@@ -18,12 +18,24 @@ defmodule TuistWeb.SandboxNodeWebSock do
   require Logger
 
   @impl WebSock
-  def init(%{node_name: node_name}) do
-    {:ok, %{node_name: node_name, tracked?: false, pending: %{}, next_id: 1, info: empty_info()}}
+  def init(%{node_name: node_name} = args) do
+    {:ok,
+     %{
+       identity: Map.get(args, :identity, %{platform: "linux"}),
+       node_name: node_name,
+       tracked?: false,
+       pending: %{},
+       next_id: 1,
+       info: empty_info()
+     }}
   end
 
   defp empty_info do
     %{
+      platform: "linux",
+      generation: nil,
+      control_uid: nil,
+      admission: %{},
       capacity: %{},
       elastic: %{},
       memory: %{},
@@ -39,7 +51,11 @@ defmodule TuistWeb.SandboxNodeWebSock do
   def handle_in({payload, [opcode: :text]}, state) do
     case JSON.decode(payload) do
       {:ok, %{"type" => type} = frame} when is_binary(type) ->
-        handle_frame(type, frame, state)
+        if type in ["hello", "report"] and not valid_identity?(frame, state.identity) do
+          {:stop, :identity_mismatch, {1008, "node identity changed"}, state}
+        else
+          handle_frame(type, frame, state)
+        end
 
       _ ->
         Logger.warning("sandboxes: node sent an undecodable frame", node: state.node_name)
@@ -180,8 +196,18 @@ defmodule TuistWeb.SandboxNodeWebSock do
   defp stream_name("stderr"), do: {:ok, :stderr}
   defp stream_name(_stream), do: :error
 
+  defp valid_identity?(frame, %{platform: "darwin", generation: generation, control_uid: control_uid}) do
+    frame["platform"] == "darwin" and frame["generation"] == generation and frame["control_uid"] == control_uid
+  end
+
+  defp valid_identity?(frame, %{platform: "linux"}), do: Map.get(frame, "platform", "linux") == "linux"
+
   defp merge_info(info, frame) do
     info
+    |> maybe_merge(:platform, frame["platform"], & &1)
+    |> maybe_merge(:generation, frame["generation"], & &1)
+    |> maybe_merge(:control_uid, frame["control_uid"], & &1)
+    |> maybe_merge(:admission, frame["admission"], & &1)
     |> maybe_merge(:capacity, frame["capacity"], &capacity/1)
     |> maybe_merge(:elastic, frame["elastic"], &elastic/1)
     |> maybe_merge(:memory, frame["memory"], &memory/1)

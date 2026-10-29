@@ -106,15 +106,19 @@ type TemplateInfo struct {
 }
 
 type SandboxInfo struct {
-	ID            string `json:"id"`
-	State         string `json:"state"`
-	Template      string `json:"template"`
-	TemplateTag   string `json:"template_tag"`
-	VCPUs         int    `json:"vcpus"`
-	MemoryMB      int    `json:"memory_mb"`
-	WorkspaceGB   int    `json:"workspace_gb"`
-	Hostname      string `json:"hostname"`
-	WorkerRunning bool   `json:"worker_running"`
+	// Resident is true while a paused macOS VM still owns a host slot and RAM.
+	// False must be sent too: omission leaves the server's old charge intact.
+	Resident       bool   `json:"resident"`
+	ID             string `json:"id"`
+	State          string `json:"state"`
+	Template       string `json:"template"`
+	TemplateTag    string `json:"template_tag"`
+	VCPUs          int    `json:"vcpus"`
+	MemoryMB       int    `json:"memory_mb"`
+	WorkspaceGB    int    `json:"workspace_gb"`
+	Hostname       string `json:"hostname"`
+	WorkerRunning  bool   `json:"worker_running"`
+	FinishedWorkID string `json:"finished_work_id,omitempty"`
 	// ColdBoot marks a paused sandbox whose next resume boots the kernel on
 	// its own disks instead of restoring memory, because the daemon lost the
 	// VM while it was running and the disks moved on since the last snapshot.
@@ -125,6 +129,10 @@ type SandboxInfo struct {
 }
 
 type Hello struct {
+	ControlUID         string         `json:"control_uid,omitempty"`
+	Admission          any            `json:"admission,omitempty"`
+	Platform           string         `json:"platform,omitempty"`
+	Generation         string         `json:"generation,omitempty"`
 	Type               string         `json:"type"`
 	Node               string         `json:"node"`
 	DaemonVersion      string         `json:"daemon_version"`
@@ -152,6 +160,8 @@ type Stream struct {
 }
 
 type Event struct {
+	WorkID     string `json:"work_id,omitempty"`
+	Generation string `json:"generation,omitempty"`
 	Type       string `json:"type"`
 	Event      string `json:"event"`
 	SandboxID  string `json:"sandbox_id,omitempty"`
@@ -171,11 +181,15 @@ type MemoryReport struct {
 // changes, so a resize reaches the server's budget without waiting out the
 // interval.
 type Report struct {
-	Type      string        `json:"type"`
-	Capacity  Capacity      `json:"capacity"`
-	Sandboxes []SandboxInfo `json:"sandboxes"`
-	Memory    MemoryReport  `json:"memory"`
-	Disk      DiskReport    `json:"disk"`
+	ControlUID string        `json:"control_uid,omitempty"`
+	Admission  any           `json:"admission,omitempty"`
+	Platform   string        `json:"platform,omitempty"`
+	Generation string        `json:"generation,omitempty"`
+	Type       string        `json:"type"`
+	Capacity   Capacity      `json:"capacity"`
+	Sandboxes  []SandboxInfo `json:"sandboxes"`
+	Memory     MemoryReport  `json:"memory"`
+	Disk       DiskReport    `json:"disk"`
 }
 
 type Command struct {

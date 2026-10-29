@@ -12,6 +12,7 @@ node only covers what is inside the VM and how the template reaches a node.
 | `cmd/sbx-init` | PID 1. Mounts proc, sysfs, devtmpfs, devpts, /dev/shm, /run, /tmp and cgroup2; names the guest from the kernel command line; configures `lo` and `eth0` (`10.0.0.2/30`, default route `10.0.0.1`, MAC left to the VMM) with netlink; writes `/etc/resolv.conf`, `/etc/hostname` and `/etc/hosts`; creates `/workspace` and `/mnt/memory`; supervises `sbx-agent` with 1s to 30s backoff; reaps orphans; powers off on SIGTERM (and on SIGINT, which is what Firecracker's ctrl-alt-del becomes). Logs to the console and `/dev/kmsg`. Linux-only; the non-Linux build is a stub. |
 | `cmd/sbx-agent` | vsock server on port 5000. `-listen tcp://127.0.0.1:5000` runs it on a TCP socket for development. |
 | `cmd/sbx-worker` | Runs one already-claimed Managed Agents work item with the Anthropic Go SDK's `EnvironmentWorker.HandleItem`. |
+| `cmd/sbx-macos` | Darwin-only stdin bridge for Tart guest execution and managed workers. Process-group fencing tests must run on macOS; the provider image workflow gates publication on that suite. |
 | `internal/protocol` | Request and response frames, newline-delimited JSON. |
 | `internal/exec` | Command registry: process groups, streamed stdout/stderr, timeouts (exit 124), kill by exec id. |
 | `internal/agent` | Op dispatch behind a `System` interface, tested over `net.Pipe`. |

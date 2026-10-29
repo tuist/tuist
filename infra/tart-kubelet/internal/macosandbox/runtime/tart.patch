@@ -1,0 +1,42 @@
+diff --git a/Sources/tart/CI/CI.swift b/Sources/tart/CI/CI.swift
+index 0e3bb28..6b9a01f 100644
+--- a/Sources/tart/CI/CI.swift
++++ b/Sources/tart/CI/CI.swift
+@@ -1,5 +1,5 @@
+ struct CI {
+-  private static let rawVersion = "${VERSION}"
++  private static let rawVersion = "2.41.1"
+
+   static var version: String {
+     rawVersion.expanded() ? rawVersion : "SNAPSHOT"
+diff --git a/Sources/tart/Commands/Run.swift b/Sources/tart/Commands/Run.swift
+index 1c965e1..0a9c6ed 100644
+--- a/Sources/tart/Commands/Run.swift
++++ b/Sources/tart/Commands/Run.swift
+@@ -534,6 +534,13 @@ struct Run: AsyncParsableCommand {
+               print("restoring VM state from a snapshot...")
+               try await vm!.virtualMachine.restoreMachineStateFrom(url: vmDir.stateURL)
+               try FileManager.default.removeItem(at: vmDir.stateURL)
++              if ProcessInfo.processInfo.environment["TUIST_SANDBOX_RUNTIME"] == "1" {
++                let marker = vmDir.baseURL.appendingPathComponent("checkpoint-instance")
++                if FileManager.default.fileExists(atPath: marker.path) {
++                  try FileManager.default.removeItem(at: marker)
++                }
++                try synchronizeSandboxDirectory(vmDir.baseURL)
++              }
+               resume = true
+               print("resuming VM...")
+             }
+@@ -593,6 +600,12 @@ struct Run: AsyncParsableCommand {
+           }
+         }
+
++        if ProcessInfo.processInfo.environment["TUIST_SANDBOX_RUNTIME"] == "1" {
++          Task { @MainActor in
++            await runSandboxControl(vm!.virtualMachine, directory: vmDir.baseURL)
++          }
++        }
++
+         try await vm!.run()
+
+         if let vncImpl = vncImpl {

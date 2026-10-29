@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -21,7 +22,7 @@ var sandboxAllocationMu sync.Mutex
 // Sandboxes and queued CI compete for uncommitted capacity. Host reservations
 // still protect a waiting CI shape; a queue elsewhere does not revoke all grants.
 func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, pool *tuistv1.RunnerPool, fleet *fleetAllocation) error {
-	if pool.Spec.OS != "linux" || r.SandboxesNamespace == "" || fleet == nil {
+	if (pool.Spec.OS != "linux" && pool.Spec.OS != "darwin") || r.SandboxesNamespace == "" || fleet == nil {
 		return nil
 	}
 	// One reporter per fleet; all members still compute the same CI decision.
@@ -46,6 +47,9 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 	var pods corev1.PodList
 	if err := reader.List(ctx, &pods); err != nil {
 		return err
+	}
+	if pool.Spec.OS == "darwin" {
+		return r.publishMacosGrants(ctx, nodes.Items, pods.Items, fleet, observed)
 	}
 	daemons, err := listSandboxDaemons(ctx, reader, r.SandboxesNamespace)
 	if err != nil {
@@ -150,4 +154,80 @@ func allocationPodMemory(pod *corev1.Pod) int64 {
 		}
 	}
 	return max(app+sidecars, initPeak) + copy.Spec.Overhead.Memory().Value()
+}
+
+const macosSandboxRole = "tuist.dev/macos-sandbox-role"
+const macosSandboxGrant = "tuist.dev/macos-sandbox-grant"
+
+// macOS retains CI-first admission. Linux uses the independent shared-capacity
+// policy above; a native resident must yield when CI demand is queued or unknown.
+func macOSCIQueued(fleet *fleetAllocation) bool {
+	if fleet == nil {
+		return true
+	}
+	for _, member := range fleet.members {
+		if member.queued > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *AutoscalerReconciler) publishMacosGrants(ctx context.Context, nodes []corev1.Node, pods []corev1.Pod, fleet *fleetAllocation, observed time.Time) error {
+	for i := range nodes {
+		node := &nodes[i]
+		for j := range pods {
+			pod := &pods[j]
+			if pod.Namespace != r.SandboxesNamespace || pod.Spec.NodeName != node.Name || pod.Labels[macosSandboxRole] != "control" {
+				continue
+			}
+			allow := !macOSCIQueued(fleet) && nodeFilterReason(node) == "" && !isReserved(node) && pod.DeletionTimestamp.IsZero()
+			for _, condition := range node.Status.Conditions {
+				if (condition.Type == corev1.NodeMemoryPressure || condition.Type == corev1.NodeDiskPressure || condition.Type == corev1.NodePIDPressure) && condition.Status != corev1.ConditionFalse {
+					allow = false
+				}
+			}
+			room := nativeSandboxRoom(node, pods, fleet, observed)
+			allow = allow && room.cpu > 0 && room.memory > 0 && room.slots > 0
+			grant, _ := json.Marshal(map[string]any{"cpu_milli": room.cpu, "memory_bytes": room.memory, "slots": room.slots, "node_uid": string(node.UID), "control_uid": string(pod.UID), "observed_at": observed, "allow": allow})
+			before := node.DeepCopy()
+			if node.Annotations == nil {
+				node.Annotations = map[string]string{}
+			}
+			node.Annotations[macosSandboxGrant] = string(grant)
+			// Optimistic locking cannot overwrite a concurrent CI reservation/taint.
+			if err := r.Patch(ctx, node, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Grants include native capacity only: busy CI and other bound workloads are
+// excluded, while reclaimable warm runners may yield. Server placement then
+// subtracts its existing native reservations from this per-host envelope.
+func nativeSandboxRoom(node *corev1.Node, pods []corev1.Pod, fleet *fleetAllocation, now time.Time) nativeFootprint {
+	room := nativeFootprint{node.Status.Allocatable.Cpu().MilliValue(), node.Status.Allocatable.Memory().Value(), 2}
+	for i := range pods {
+		pod := &pods[i]
+		if pod.Spec.NodeName != node.Name || pod.Labels[macosSandboxRole] == "execution" {
+			continue
+		}
+		reclaimable := false
+		if fleet != nil && pod.DeletionTimestamp.IsZero() {
+			member, ok := fleet.members[pod.Labels["tuist.dev/runner-pool"]]
+			if ok && member.pool != nil && isIdle(pod) && !isStaleRunner(pod, member.pool) && isWarmCapacity(pod, member.pool) {
+				since, warm := warmSince(pod)
+				reclaimable = warm && now.Sub(since) >= preemptionGrace
+			}
+		}
+		if !reclaimable {
+			room.subtract(nativePodFootprint(pod))
+		}
+	}
+	room.cpu = max(room.cpu, 0)
+	room.memory = max(room.memory, 0)
+	room.slots = max(room.slots, 0)
+	return room
 }

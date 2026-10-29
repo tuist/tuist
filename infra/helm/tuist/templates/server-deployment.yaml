@@ -306,7 +306,7 @@ spec:
             - name: TUIST_AMP_PROVIDER_NODE_SELECTOR
               value: {{ .Values.ampOrbProvider.nodeSelector | toJson | quote }}
             {{- end }}
-            {{- if .Values.sandboxes.enabled }}
+            {{- if or .Values.sandboxes.enabled .Values.sandboxes.macos.enabled }}
             # Sandboxes namespace: the principal namespace the server requires
             # on the sandboxd node connection's TokenReview.
             - name: TUIST_SANDBOXES_NAMESPACE

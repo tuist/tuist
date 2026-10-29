@@ -28,6 +28,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     field :agent_model, :string, default: "claude-sonnet-5"
     field :agent_system_prompt, :string
     field :name, :string
+    field :platform, Ecto.Enum, values: [:linux, :darwin], default: :linux
     field :template, :string, default: "default"
     field :vcpus, :integer, default: 2
     field :memory_mb, :integer, default: 4096
@@ -44,6 +45,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
   def create_changeset(agent_environment, attrs) do
     agent_environment
     |> cast(attrs, [
+      :platform,
       :account_id,
       :anthropic_environment_id,
       :environment_key,

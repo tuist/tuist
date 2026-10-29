@@ -343,6 +343,17 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test -run CheckoutMasterEndToEnd .` in
   `infra/runner-cache`; the podagent tests cover the mailbox and collection.
 
+## Sandbox experiments
+
+For flag-controlled native sandbox placement, capacity, recovery and rollout,
+read [macOS sandbox operation](macos-sandboxes.md).
+
+The opt-in [macOS sandbox resume experiment](macos-sandbox-resume.md) uses an
+isolated Tart store and the asynchronous launcher. Keep its save/restore work
+outside the single Pod reconcile worker, and never treat a suspend CLI exit or
+snapshot file alone as released capacity. Its admission evaluator is shadow-only;
+it must not authorize VM launches on the shared runner fleet.
+
 ## Tart versions
 
 The operator installs Tart in place (see

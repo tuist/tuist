@@ -1,0 +1,92 @@
+{{- if .Values.sandboxes.macos.enabled }}
+{{- $namespace := .Values.sandboxes.namespace | default "tuist-sandboxes" }}
+{{- if ne $namespace "tuist-sandboxes" }}{{ fail "macOS sandbox host identity currently requires the tuist-sandboxes namespace" }}{{- end }}
+{{- $image := .Values.sandboxes.macos.image }}
+{{- if not $image }}
+{{- $image = include "tuist.macosRunnerImage" (dict "root" . "xcodeVersion" .Values.sandboxes.macos.xcodeVersion) }}
+{{- end }}
+{{- if not .Values.sandboxes.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+---
+{{- end }}
+# This Pod is a host-service identity, not a guest. tart-kubelet intercepts it
+# before the ordinary VM launch path and keeps its token outside all shares.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tuist-macos-sandboxd
+  namespace: {{ $namespace }}
+automountServiceAccountToken: false
+---
+# The server checks the Pod UID and role after TokenReview. This permission
+# must exist even when the Linux sandbox DaemonSet is disabled.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "macos-sandbox-reader") }}
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "macos-sandbox-reader") }}
+  namespace: {{ $namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.componentName" (dict "root" . "component" "macos-sandbox-reader") }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tuist-macos-sandboxd
+  namespace: {{ $namespace }}
+spec:
+  selector:
+    matchLabels:
+      tuist.dev/macos-sandbox-role: control
+  template:
+    metadata:
+      labels:
+        tuist.dev/macos-sandbox-role: control
+      annotations:
+        tuist.dev/macos-sandbox-config: {{ dict "url" .Values.server.appUrl "image" $image "template" .Values.sandboxes.macos.templateName | toJson | quote }}
+    spec:
+      serviceAccountName: tuist-macos-sandboxd
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/os: darwin
+        tuist.dev/macos-sandbox-host: v1
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: tuist.dev/fleet
+                    operator: In
+                    values:
+                      - {{ include "tuist.runnersFleetName" . | quote }}
+                      - {{ include "tuist.rackFleetName" . | quote }}
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: host-service
+          image: {{ $image | quote }}
+          # No VM and no guest resources. Execution reservations charge the
+          # configured CPU/RAM separately, including while resident-paused.
+          resources: {}
+{{- end }}

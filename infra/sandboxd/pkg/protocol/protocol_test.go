@@ -96,3 +96,31 @@ func TestHelloRoundTrip(t *testing.T) {
 		t.Fatalf("unexpected hello %+v", frame)
 	}
 }
+
+func TestNativeReportsExplicitResidencyAfterEviction(t *testing.T) {
+	for _, resident := range []bool{true, false} {
+		sandboxes := []SandboxInfo{{ID: "native", State: StatePaused, Resident: resident}}
+		for _, frame := range []any{
+			Hello{Type: FrameHello, Platform: "darwin", Sandboxes: sandboxes},
+			Report{Type: FrameReport, Platform: "darwin", Sandboxes: sandboxes},
+		} {
+			data, err := json.Marshal(frame)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// The server distinguishes an absent field (keep its old reservation)
+			// from false (the VM is fenced and its capacity can be released).
+			var received struct {
+				Sandboxes []struct {
+					Resident *bool `json:"resident"`
+				} `json:"sandboxes"`
+			}
+			if err := json.Unmarshal(data, &received); err != nil {
+				t.Fatal(err)
+			}
+			if len(received.Sandboxes) != 1 || received.Sandboxes[0].Resident == nil || *received.Sandboxes[0].Resident != resident {
+				t.Fatalf("%T lost explicit resident=%v: %s", frame, resident, data)
+			}
+		}
+	}
+}

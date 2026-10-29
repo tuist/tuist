@@ -36,6 +36,10 @@ name: Server Deployment
 on:
   workflow_dispatch:
     inputs:
+      build_only:
+        description: Build and publish only the server image, without deployment or cluster credentials
+        type: boolean
+        default: false
       environment:
         description: Target environment
         required: true
@@ -116,6 +120,10 @@ on:
         description: JSON array of the macOS catalog runner images this deploy targets
         value: ${{ jobs.deploy.outputs.macos_runner_images }}
     inputs:
+      build_only:
+        description: Build and publish only the server image, without deployment or cluster credentials
+        type: boolean
+        default: false
       sandbox_template_image_tag:
         description: Published sandbox template tag; fresh deploys build it, pre-built server deploys preserve the live template when unset
         required: false
@@ -315,7 +323,7 @@ jobs:
   build-sandbox-template:
     name: Publish sandbox template
     needs: guard_production_source
-    if: needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.sandbox_template_image_tag == ''
+    if: inputs.build_only != true && needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.sandbox_template_image_tag == ''
     uses: ./.github/workflows/sandbox-image.yml
     with:
       commit_sha: ${{ inputs.commit_sha || github.sha }}
@@ -448,7 +456,7 @@ jobs:
   build-images:
     name: Build + push ${{ matrix.name }}
     needs: guard_production_source
-    if: needs.guard_production_source.result == 'success' && inputs.image_tag == ''
+    if: inputs.build_only != true && needs.guard_production_source.result == 'success' && inputs.image_tag == ''
     runs-on: tuist-linux-large
     timeout-minutes: 45
     strategy:
@@ -501,7 +509,7 @@ jobs:
   build-xcresult-processor-release:
     name: Build xcresult processor release
     needs: guard_production_source
-    if: needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.xcresult_processor_release_digest == ''
+    if: inputs.build_only != true && needs.guard_production_source.result == 'success' && inputs.image_tag == '' && inputs.xcresult_processor_release_digest == ''
     runs-on: tuist-macos-27-0
     timeout-minutes: 30
     outputs:
@@ -546,7 +554,7 @@ jobs:
     #     tag, the deploy uses that instead, so building the sha image is waste.
     # Keep these conditions in lockstep with the deploy precedence below.
     name: Build + push Kura runtime (amd64)
-    if: inputs.environment == 'staging' && inputs.image_tag == '' && inputs.kura_runtime_image_tag == ''
+    if: inputs.build_only != true && inputs.environment == 'staging' && inputs.image_tag == '' && inputs.kura_runtime_image_tag == ''
     # tuist-linux is amd64; the staging node pool is amd64 (Hetzner ccx), so the
     # runner-native amd64-only build suffices (the release pipeline is multi-arch).
     runs-on: tuist-linux
@@ -624,7 +632,7 @@ jobs:
     name: Observability chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
     # `build` is skipped when image_tag is supplied - keep running.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_observability != false
+    if: inputs.build_only != true && always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_observability != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -692,7 +700,7 @@ jobs:
     # past runs without sharing a slot with the sibling install jobs.
     name: Tailscale operator chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_tailscale_operator != false
+    if: inputs.build_only != true && always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_tailscale_operator != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -806,7 +814,7 @@ jobs:
     # past runs without sharing a slot with the sibling install jobs.
     name: Platform chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_platform != false
+    if: inputs.build_only != true && always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_platform != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -905,7 +913,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-sandbox-template.result == 'success' || needs.build-sandbox-template.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
+    if: inputs.build_only != true && always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-sandbox-template.result == 'success' || needs.build-sandbox-template.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}

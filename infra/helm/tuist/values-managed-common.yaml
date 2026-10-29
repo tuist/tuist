@@ -614,6 +614,10 @@ runnersFleetLinux:
     enabled: true
     defaultEnabled: true
 
+# Prepare host services; account admission remains default-off via :macos_sandboxes.
+sandboxes:
+  macos:
+    enabled: true
 # Account-owned provider workloads run on the general pool.
 ampOrbProvider:
   nodeSelector:

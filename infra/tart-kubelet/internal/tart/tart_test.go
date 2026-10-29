@@ -13,6 +13,17 @@ import (
 	"time"
 )
 
+func TestIsolatedPullHonorsItsDeadline(t *testing.T) {
+	binary := filepath.Join(t.TempDir(), "tart")
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexec sleep 2\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	c := &Client{Binary: binary, PullTimeout: 50 * time.Millisecond}
+	if err := c.Pull(context.Background(), "image:version"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("isolated pull deadline was not enforced or identified: %v", err)
+	}
+}
+
 // Regression for the warm-path miss: `tart list` encodes Size as an
 // integer while `tart get` encodes it as a quoted decimal string. A plain
 // int64 field errored on the latter, which made Get() fail on every golden

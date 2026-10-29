@@ -375,14 +375,27 @@ defmodule Tuist.Kubernetes.ClientTest do
                "user" => %{
                  "username" => "system:serviceaccount:tuist-sandboxes:tuist-tuist-sandboxd",
                  "uid" => "uid-2",
-                 "extra" => %{"authentication.kubernetes.io/node-name" => ["node-a"]}
+                 "extra" => %{
+                   "authentication.kubernetes.io/node-name" => ["node-a"],
+                   "authentication.kubernetes.io/node-uid" => ["node-uid"],
+                   "authentication.kubernetes.io/pod-name" => ["control"],
+                   "authentication.kubernetes.io/pod-uid" => ["pod-uid"]
+                 }
                }
              }
            }
          }}
       end)
 
-      assert {:ok, %{namespace: "tuist-sandboxes", name: "tuist-tuist-sandboxd", node_name: "node-a"}} =
+      assert {:ok,
+              %{
+                namespace: "tuist-sandboxes",
+                name: "tuist-tuist-sandboxd",
+                node_name: "node-a",
+                node_uid: "node-uid",
+                pod_name: "control",
+                pod_uid: "pod-uid"
+              }} =
                Client.create_sandbox_node_token_review("node-token", opts)
     end
   end

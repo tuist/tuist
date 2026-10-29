@@ -44,6 +44,29 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     end
   end
 
+  test "native API rejects disabled accounts and accepts the 24 GiB shape", %{conn: conn, account: account} do
+    stub(Tuist.FeatureFlags, :macos_sandboxes_enabled?, fn _ -> false end)
+    body = %{platform: "darwin", memory_mb: 24_576}
+    assert conn |> post(~p"/api/accounts/#{account.name}/sandboxes", body) |> json_response(:forbidden)
+
+    stub(Tuist.FeatureFlags, :macos_sandboxes_enabled?, fn _ -> true end)
+
+    expect(Capacity, :place, fn sandbox ->
+      sandbox |> Ecto.Changeset.change(node_name: "mac-1", node_uid: "node-uid", resident: true) |> Repo.update!()
+      {:ok, "mac-1"}
+    end)
+
+    expect(Nodes, :call, fn "mac-1", "create", args, _opts ->
+      assert %{vcpus: 8, memory_mb: 24_576, template: "macos", node_uid: "node-uid"} = args
+      {:ok, %{"template_tag" => "versioned-image"}}
+    end)
+
+    response = conn |> post(~p"/api/accounts/#{account.name}/sandboxes", body) |> json_response(:created)
+    assert response["platform"] == "darwin"
+    assert response["resident"] == true
+    assert response["memory_mb"] == 24_576
+  end
+
   describe "Amp Orb dispatch" do
     test "marks only admission refusals as retryable", %{conn: conn, account: account} do
       for {reason, status, hint} <- [
