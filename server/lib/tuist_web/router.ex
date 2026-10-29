@@ -1312,6 +1312,7 @@ defmodule TuistWeb.Router do
     get "/users/settings/mfa", UserMFAController, :show
     post "/users/settings/mfa/enroll", UserMFAController, :enroll
     post "/users/settings/mfa/confirm", UserMFAController, :confirm
+    post "/users/settings/mfa/cancel", UserMFAController, :cancel
     post "/users/settings/mfa/disable", UserMFAController, :disable
 
     live_session :require_authenticated_user,

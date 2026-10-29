@@ -9,11 +9,7 @@ defmodule TuistWeb.UserMFAController do
   plug :private_response
 
   def challenge(conn, _params) do
-    if UserMFA.get_challenge(get_session(conn, :pending_mfa)) do
-      render_page(conn, :challenge, error: nil)
-    else
-      redirect(conn, to: ~p"/users/log_in")
-    end
+    render_challenge(conn, error: nil, recovery: false)
   end
 
   def verify(conn, params) do
@@ -32,7 +28,9 @@ defmodule TuistWeb.UserMFAController do
         conn |> delete_session(:pending_mfa) |> redirect(to: ~p"/users/log_in")
 
       {:error, _} ->
-        conn |> put_status(:unauthorized) |> render_page(:challenge, error: invalid_code())
+        conn
+        |> put_status(:unauthorized)
+        |> render_challenge(error: invalid_code(), recovery: params["recovery"] == "true")
     end
   end
 
@@ -58,10 +56,21 @@ defmodule TuistWeb.UserMFAController do
         |> render_page(:recovery, codes: result.recovery_codes)
 
       {:error, _} ->
+        secret =
+          case UserMFA.get_pending_enrollment(conn.assigns.current_user, conn.assigns.current_user_session) do
+            nil -> nil
+            factor -> factor.secret
+          end
+
         conn
         |> put_status(:unauthorized)
-        |> render_page(:settings, enabled: false, secret: nil, error: invalid_code())
+        |> render_page(:settings, enabled: false, secret: secret, error: invalid_code())
     end
+  end
+
+  def cancel(conn, _params) do
+    :ok = UserMFA.cancel_enrollment(conn.assigns.current_user, conn.assigns.current_user_session)
+    redirect(conn, to: ~p"/users/settings/mfa")
   end
 
   def disable(conn, params) do
@@ -92,8 +101,16 @@ defmodule TuistWeb.UserMFAController do
     conn |> put_resp_header("cache-control", "private, no-store") |> put_resp_header("referrer-policy", "no-referrer")
   end
 
+  defp render_challenge(conn, assigns) do
+    case UserMFA.get_challenge(get_session(conn, :pending_mfa)) do
+      nil -> redirect(conn, to: ~p"/users/log_in")
+      challenge -> render_page(conn, :challenge, Keyword.put(assigns, :email, challenge.user.email))
+    end
+  end
+
   defp render_page(conn, template, assigns) do
     conn
+    |> put_layout(false)
     |> put_view(TuistWeb.UserMFAHTML)
     |> render(
       template,

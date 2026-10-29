@@ -27,10 +27,12 @@ defmodule TuistWeb.UserMFAControllerTest do
     enrollment = old |> recycle() |> post(~p"/users/settings/mfa/enroll")
     assert get_resp_header(enrollment, "cache-control") == ["private, no-store"]
     secret = setup_secret(enrollment)
+    assert enrollment |> html_response(200) |> Floki.parse_document!() |> Floki.attribute("#mfa-setup-qr", "src") != []
     refute UserMFA.enabled?(user)
 
     invalid = enrollment |> recycle() |> post(~p"/users/settings/mfa/confirm", %{"mfa_code" => "invalid"})
     assert html_response(invalid, 401) =~ "code is invalid"
+    assert setup_secret(invalid, 401) == secret
     refute UserMFA.enabled?(user)
 
     other_browser = login(user)
@@ -55,6 +57,55 @@ defmodule TuistWeb.UserMFAControllerTest do
     stale = login(other)
     stub(Time, :utc_now, fn -> DateTime.add(now, 301) end)
     assert stale |> recycle() |> post(~p"/users/settings/mfa/enroll") |> html_response(403) =~ "Sign out"
+  end
+
+  test "browser OTP forms identify the account without restricting recovery codes to six digits", %{user: user, now: now} do
+    enroll(user, now)
+    pending = login(user)
+    page = pending |> recycle() |> get(~p"/users/mfa") |> html_response(200) |> Floki.parse_document!()
+    assert Floki.attribute(page, "#mfa-challenge input[autocomplete=username]", "value") == [user.email]
+    assert Floki.find(page, ~s(label[for="mfa-code"])) != []
+    assert Floki.find(page, ~s(#mfa-code[autocomplete="one-time-code"][inputmode=numeric][maxlength="6"])) != []
+    assert Floki.attribute(page, "#mfa-recovery-code", "maxlength") == []
+
+    invalid =
+      pending
+      |> recycle()
+      |> post(~p"/users/mfa", %{"mfa_code" => "invalid-recovery-code", "recovery" => "true"})
+      |> html_response(401)
+      |> Floki.parse_document!()
+
+    assert Floki.find(invalid, "#mfa-recovery[open]") != []
+    assert Floki.find(invalid, "#mfa-recovery-code[autofocus]") != []
+    assert Floki.find(invalid, "#mfa-code[autofocus]") == []
+  end
+
+  test "cancel discards only this browser's pending setup, never an enabled factor", %{user: user, now: now} do
+    enrollment = user |> login() |> recycle() |> post(~p"/users/settings/mfa/enroll")
+    secret = setup_secret(enrollment)
+
+    other_browser = login(user)
+    assert other_browser |> recycle() |> post("/users/settings/mfa/cancel") |> redirected_to() == ~p"/users/settings/mfa"
+
+    confirmed = enrollment |> recycle() |> post(~p"/users/settings/mfa/confirm", %{"mfa_code" => code(secret, now)})
+    assert UserMFA.enabled?(user)
+    assert confirmed |> recycle() |> post("/users/settings/mfa/cancel") |> redirected_to() == ~p"/users/settings/mfa"
+    assert UserMFA.enabled?(user)
+
+    other = user_fixture(preload: [:account])
+    pending = other |> login() |> recycle() |> post(~p"/users/settings/mfa/enroll")
+    old_secret = setup_secret(pending)
+    cancelled = pending |> recycle() |> post("/users/settings/mfa/cancel")
+    assert redirected_to(cancelled) == ~p"/users/settings/mfa"
+    refute UserMFA.enabled?(other)
+
+    assert pending
+           |> recycle()
+           |> post(~p"/users/settings/mfa/confirm", %{"mfa_code" => code(old_secret, now)})
+           |> html_response(401)
+
+    replacement = cancelled |> recycle() |> post(~p"/users/settings/mfa/enroll")
+    refute setup_secret(replacement) == old_secret
   end
 
   test "factor changes reject a session revoked after the request authenticated", %{user: user, now: now} do
@@ -215,6 +266,18 @@ defmodule TuistWeb.UserMFAControllerTest do
     assert user |> login() |> redirected_to() == ~p"/#{user.account.name}/projects"
   end
 
+  test "notification delivery failure cannot undo enrollment or disablement", %{user: user, now: now} do
+    stub(Tuist.Accounts.UserNotifier, :deliver_mfa_change_notification, fn _, _ -> {:error, :delivery_unavailable} end)
+    {confirmed, _secret, [recovery | _]} = enroll(user, now)
+    assert UserMFA.enabled?(user)
+    assert Accounts.get_user_by_session_token(get_session(confirmed, :user_token)).id == user.id
+
+    disabled = confirmed |> recycle() |> post(~p"/users/settings/mfa/disable", %{"mfa_code" => recovery})
+    assert redirected_to(disabled) == ~p"/users/settings/mfa"
+    refute UserMFA.enabled?(user)
+    assert Accounts.get_user_by_session_token(get_session(disabled, :user_token)).id == user.id
+  end
+
   defp login(user, extra \\ %{}) do
     params = Map.merge(%{"email" => user.email, "password" => valid_user_password()}, extra)
     post(build_conn(), ~p"/users/log_in", %{"user" => params})
@@ -227,9 +290,9 @@ defmodule TuistWeb.UserMFAControllerTest do
     {confirmed, secret, recovery_codes(confirmed)}
   end
 
-  defp setup_secret(conn) do
+  defp setup_secret(conn, status \\ 200) do
     conn
-    |> html_response(200)
+    |> html_response(status)
     |> Floki.parse_document!()
     |> Floki.find("#mfa-setup-key")
     |> Floki.text()

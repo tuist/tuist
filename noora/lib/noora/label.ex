@@ -27,7 +27,7 @@ defmodule Noora.Label do
 
   attr(:tooltip_id, :string, default: nil, doc: "A stable, unique ID for the tooltip")
 
-  attr(:rest, :global, doc: "Additional HTML attributes")
+  attr(:rest, :global, include: ~w(for), doc: "Additional HTML attributes")
 
   def label(assigns) do
     ~H"""

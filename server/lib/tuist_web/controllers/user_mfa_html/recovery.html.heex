@@ -1,4 +1,5 @@
-<.link_frame
+<.auth_page
+  id="mfa"
   title={dgettext("dashboard_auth", "Save your recovery codes")}
   subtitle={
     dgettext(
@@ -10,16 +11,28 @@
   <ul id="mfa-recovery-codes">
     <li :for={code <- @codes}><code>{code}</code></li>
   </ul>
-  <p>
+  <p data-part="security-note">
     {dgettext(
       "dashboard_auth",
       "Store these codes securely. Losing both your authenticator and recovery codes can lock you out of your account."
     )}
   </p>
   <.button
+    id="mfa-copy-recovery"
+    type="button"
+    variant="secondary"
+    data-mfa-copy="#mfa-recovery-codes"
+    data-copied={dgettext("dashboard_auth", "Recovery codes copied")}
+    data-copy-error={
+      dgettext("dashboard_auth", "Could not copy. Select and copy the text instead.")
+    }
+    label={dgettext("dashboard_auth", "Copy recovery codes")}
+  />
+  <span id="mfa-copy-status" role="status"></span>
+  <.button
     variant="primary"
     size="large"
     href={~p"/users/settings/mfa"}
     label={dgettext("dashboard_auth", "I saved my recovery codes")}
   />
-</.link_frame>
+</.auth_page>

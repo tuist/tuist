@@ -51,7 +51,7 @@ defmodule TuistWeb.MembersLiveTest do
     assert_receive {:invitation_email, _}
     assert {:error, _} = Accounts.resend_invitation(invitation, %{url: opts.url})
     {:ok, view, _} = live(conn, "/#{account.name}/members")
-    render_hook(view, "resend_invite", %{"id" => invitation.id})
+    assert render_hook(view, "resend_invite", %{"id" => invitation.id}) =~ "Too many invitations"
     assert Accounts.get_invitation_by_id(invitation.id).token == invitation.token
     Accounts.cancel_invitation(invitation)
     assert {:error, _, _, _} = Accounts.invite_users_to_organization([String.upcase(email)], opts)

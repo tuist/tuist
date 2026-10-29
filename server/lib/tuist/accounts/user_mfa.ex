@@ -79,6 +79,15 @@ defmodule Tuist.Accounts.UserMFA do
     end)
   end
 
+  def get_pending_enrollment(user, session) do
+    Repo.one(
+      from factor in __MODULE__,
+        where: factor.user_id == ^user.id and is_nil(factor.confirmed_at),
+        where: factor.enrollment_session_hash == ^hash(session.token),
+        where: factor.enrollment_expires_at > ^now()
+    )
+  end
+
   def confirm_enrollment(user, session, code) do
     user
     |> with_factor(fn factor ->
@@ -103,6 +112,20 @@ defmodule Tuist.Accounts.UserMFA do
   def verify(user, code) do
     with_factor(user, fn factor ->
       if factor.confirmed_at, do: verify_locked(factor, code, true), else: {:error, :not_enabled}
+    end)
+  end
+
+  def cancel_enrollment(user, session) do
+    transaction(fn ->
+      lock_user(user.id)
+
+      Repo.delete_all(
+        from factor in __MODULE__,
+          where: factor.user_id == ^user.id and is_nil(factor.confirmed_at),
+          where: factor.enrollment_session_hash == ^hash(session.token)
+      )
+
+      :ok
     end)
   end
 
