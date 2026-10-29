@@ -1229,10 +1229,11 @@ Shape:
   config, **not** the runner's `<runner root>/_work` default —
   see "Why the work directory is /home/runner/work" below.
 - `dind-externals` emptyDir at `/home/runner/actions-runner/externals`
-  (sidecar only), filled by the `dind-externals` init container —
+  (sidecar only), filled by the `dind-externals` native sidecar —
   the runner image running `cp -a` out of its own image layer into
   the volume, staged at `/mnt/dind-externals` there so the mount
-  doesn't shadow the source. See "Why stage externals" below.
+  doesn't shadow the source. The poller mounts it read-only for the
+  copy's marker. See "Why stage externals" below.
 - `dind-storage` emptyDir at `/mnt/dind-disk` (sidecar only).
   Plain node-disk emptyDir — holds a sparse `disk.img` the
   sidecar entrypoint loop-mounts as ext4 onto `/var/lib/docker`
@@ -1292,11 +1293,22 @@ runtimes every JS action executes under — ships in the runner
 image alone. Without the staged copy every step in the job
 container dies on a missing `/__e/node2x/bin/node`.
 
-Same fix ARC ships as `init-dind-externals`. The copy runs before
-the sidecar, so it is in place by the time dockerd can serve a
-container and a runner image that stops shipping externals fails
-the Pod early rather than at job time. Cost is a per-Pod copy of
-the node runtimes at warm-up, off the job's critical path.
+Same fix ARC ships as `init-dind-externals`, but as a native sidecar
+with no startupProbe, so the containers after it start while it
+copies. The copy takes 3-6 s on a host booting several sandboxes, and
+as a blocking init container it sat in front of every cold boot: a
+job that arrives faster than the warm floor waits for the whole boot.
+`tuist-cache-volume` is copied first and renamed into place, because
+the `dind` sidecar executes it (it waits for that file alone); the
+rest follows, then `.tuist-externals-staged`. The poller waits for
+that marker before its first claim, so no job starts against a partial
+copy, and exits non-zero after 120 s without it, which fails the Pod
+early as before when an image stops shipping externals. A restarted
+sidecar leaves a finished copy alone, since a job may be running it.
+
+The `dind` startupProbe runs every second (120 s ceiling). dockerd is
+up about a second after its container starts, and every container
+after it waits for the probe to see that.
 
 ### Why the work directory is /home/runner/work
 
