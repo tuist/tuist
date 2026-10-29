@@ -1,52 +1,49 @@
 import SwiftUI
 
+struct AtlasOrbitSearch: ViewModifier {
+    @Binding var text: String
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.searchable(text: $text, prompt: "Search titles and summaries")
+        } else {
+            content
+        }
+    }
+}
+
 #if os(iOS)
 struct AtlasMobileConversationRow: View {
     let thread: AtlasThread
+    var domainTitle: String?
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: thread.kind == "private" ? "lock.bubble" : "bubble.left.and.bubble.right")
-                .font(.title3).foregroundStyle(.secondary)
-                .frame(width: 48, height: 48)
-                .background(.quaternary, in: Circle())
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 5) {
-                if let priority = thread.priorityTitle {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(priority).font(.subheadline.weight(.medium))
-                            .foregroundStyle(thread.priority == "now" ? Color.accentColor : Color.secondary)
-                        if !typeSize.isAccessibilitySize {
-                            Spacer(minLength: 8)
-                            timestamp
-                        }
-                    }
-                }
-                HStack(alignment: .firstTextBaseline) {
-                    Text(thread.title).font(.headline).foregroundStyle(.primary)
-                        .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
-                    if thread.priorityTitle == nil, !typeSize.isAccessibilitySize {
-                        Spacer(minLength: 8)
-                        timestamp
-                    }
-                }
-                if !thread.summary.isEmpty {
-                    Text(thread.summary).font(.subheadline).foregroundStyle(.secondary)
-                        .lineLimit(typeSize.isAccessibilitySize ? 3 : 2)
-                }
-                if ["queued", "running", "compacting"].contains(thread.agentStatus ?? "") {
-                    Label("Pip is working", systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
-                }
-                if typeSize.isAccessibilitySize { timestamp }
+        VStack(alignment: .leading, spacing: 4) {
+            Text(thread.title).font(.body.weight(.semibold)).foregroundStyle(.primary)
+                .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+            if !thread.summary.isEmpty {
+                Text(thread.summary).font(.subheadline).foregroundStyle(.secondary)
+                    .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 8) {
+                if let priority = thread.priorityTitle {
+                    Text(priority).font(.caption.weight(.medium))
+                        .foregroundStyle(thread.priority == "now" ? Color.accentColor : Color.secondary)
+                }
+                if let domainTitle { AtlasThreadDomainBadge(title: domainTitle) }
+                Spacer(minLength: 8)
+                if !typeSize.isAccessibilitySize { timestamp }
+                AtlasThreadRunningIndicator(running: thread.activityLabel != nil)
+            }
+            if typeSize.isAccessibilitySize { timestamp }
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .padding(.vertical, 12)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityValue(thread.kind == "private" ? "Private conversation" : "Shared conversation")
+        .accessibilityValue(([thread.kind == "private" ? "Private conversation" : "Shared conversation"]
+                             + [thread.activityLabel].compactMap { $0 }).joined(separator: ". "))
     }
 
     @ViewBuilder private var timestamp: some View {
@@ -63,3 +60,55 @@ struct AtlasMobileConversationRow: View {
     }
 }
 #endif
+
+struct AtlasThreadRunningIndicator: View {
+    let running: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        Image(systemName: "circle.fill").font(.system(size: 8)).foregroundStyle(.tint)
+            .symbolEffect(.pulse, options: .repeating, isActive: running && !reduceMotion && scenePhase == .active)
+            .opacity(running ? 1 : 0)
+            .frame(width: 12, height: 12)
+            .accessibilityHidden(true)
+    }
+}
+
+struct AtlasThreadDomainBadge: View {
+    let title: String
+
+    var body: some View {
+        Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(.quaternary, lineWidth: 1))
+            .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+struct AtlasOrbitDomainFilter: View {
+    @ObservedObject var model: AtlasOrbit
+
+    private var title: String {
+        model.domainFilter == "unclassified" ? "Unclassified" : model.domainTitle(model.domainFilter) ?? "All domains"
+    }
+
+    var body: some View {
+        Menu {
+            Picker("Domain", selection: Binding(get: { model.domainFilter }, set: { domain in
+                Task { await model.load(domain: domain) }
+            })) {
+                Text("All domains").tag("")
+                ForEach(model.domains) { domain in Text(domain.name).tag(domain.id) }
+                Text("Unclassified").tag("unclassified")
+            }
+        } label: {
+            Label(model.domainFilter.isEmpty ? "Filter" : title,
+                  systemImage: model.domainFilter.isEmpty ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+        }
+        .disabled(model.assistant?.searchable != true || model.cached)
+        .accessibilityLabel("Filter conversations")
+        .accessibilityValue(title)
+        .accessibilityIdentifier("orbit-filter")
+    }
+}

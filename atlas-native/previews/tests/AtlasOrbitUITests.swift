@@ -1,6 +1,115 @@
 import XCTest
 
 final class AtlasOrbitUITests: XCTestCase {
+    @MainActor func testRunningIndicatorClearsWithoutMovingInboxRows() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        defer { app.terminate() }
+        for appearance in [[], ["--dark", "--large-text"]] {
+            let mode = appearance.isEmpty ? "light" : "dark-large"
+            app.launchArguments = ["--workspace", "--orbit-inbox-activity"] + appearance
+            app.launch()
+            XCUIDevice.shared.orientation = .portrait
+            let row = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            let running = NSPredicate(format: "value CONTAINS %@", "Pip is running")
+            XCTAssertTrue(running.evaluate(with: row))
+            let idle = app.buttons["thread-01922cc0-0000-7000-8000-000000000002"]
+            XCTAssertFalse(running.evaluate(with: idle))
+            let frame = row.frame
+            capture(app, "ios-orbit-running-\(mode)-preview")
+            for _ in 0..<3 {
+                _ = app.screenshot()
+                XCTAssertEqual(row.frame, frame)
+            }
+            let finished = XCTNSPredicateExpectation(predicate: NSCompoundPredicate(notPredicateWithSubpredicate: running), object: row)
+            XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 20), .completed)
+            XCTAssertEqual(row.frame, frame)
+            capture(app, "ios-orbit-finished-\(mode)-preview")
+            app.terminate()
+        }
+    }
+
+    @MainActor func testDomainFilterAndNativeSearch() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        defer { app.terminate() }
+        for appearance in [[], ["--dark", "--large-text"]] {
+            let mode = appearance.isEmpty ? "light" : "dark-large"
+            app.launchArguments = ["--workspace"] + appearance
+            app.launch()
+            XCUIDevice.shared.orientation = .portrait
+            let release = app.buttons["thread-01922cc0-0000-7000-8000-000000000003"]
+            let shared = app.buttons["thread-01922cc0-0000-7000-8000-000000000002"]
+            XCTAssertTrue(release.waitForExistence(timeout: 10))
+            capture(app, "ios-orbit-domains-default-\(mode)-preview")
+            let filter = app.buttons["orbit-filter"]
+            XCTAssertTrue(filter.isHittable)
+            filter.tap()
+            capture(app, "ios-orbit-domains-menu-\(mode)-preview")
+            app.buttons["Engineering"].tap()
+            XCTAssertTrue(release.waitForExistence(timeout: 5))
+            XCTAssertFalse(shared.exists)
+            capture(app, "ios-orbit-domains-filtered-\(mode)-preview")
+            let search = app.searchFields.firstMatch
+            if !search.isHittable { app.swipeDown() }
+            XCTAssertTrue(search.waitForExistence(timeout: 5))
+            search.tap()
+            search.typeText("release")
+            XCTAssertTrue(release.waitForExistence(timeout: 5))
+            capture(app, "ios-orbit-domains-search-\(mode)-preview")
+            search.typeText("zzzz")
+            XCTAssertTrue(app.staticTexts["No matching conversations"].waitForExistence(timeout: 5))
+            XCTAssertFalse(release.exists)
+            capture(app, "ios-orbit-domains-empty-\(mode)-preview")
+            app.terminate()
+        }
+    }
+
+    @MainActor func testInboxAndShortConversationKeepStableLayout() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        defer { app.terminate() }
+        for appearance in [[], ["--dark", "--large-text"]] {
+            let mode = appearance.isEmpty ? "light" : "dark-large"
+            app.launchArguments = ["--workspace"] + appearance
+            app.launch()
+            XCUIDevice.shared.orientation = .portrait
+            let row = app.buttons["thread-01922cc0-0000-7000-8000-000000000003"]
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            XCTAssertGreaterThanOrEqual(row.frame.height, 44)
+            if appearance.isEmpty { XCTAssertLessThanOrEqual(row.frame.height, 76) }
+            let picker = app.segmentedControls["orbit-status"]
+            XCTAssertTrue(picker.isHittable)
+            let pickerFrame = picker.frame
+            capture(app, "ios-orbit-compact-inbox-\(mode)-preview")
+            XCTAssertEqual(picker.frame, pickerFrame)
+            _ = try app.visibleElement("thread-01922cc0-0000-7000-8000-000000000003", type: .button)
+            row.tap()
+            let reply = app.staticTexts["Start with validation, release notes, and a rollback plan."]
+            XCTAssertTrue(reply.waitForExistence(timeout: 5))
+            let frame = reply.frame
+            for _ in 0..<6 {
+                _ = app.screenshot()
+                XCTAssertEqual(reply.frame.minY, frame.minY, accuracy: 1)
+                XCTAssertEqual(reply.frame.height, frame.height, accuracy: 1)
+            }
+            XCTAssertTrue(reply.isHittable)
+            capture(app, "ios-orbit-stable-short-\(mode)-preview")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(picker.waitForExistence(timeout: 5))
+            // Native large titles may expand on Back; the settled inbox must not keep moving.
+            let restoredPickerFrame = picker.frame
+            for _ in 0..<3 {
+                _ = app.screenshot()
+                XCTAssertEqual(picker.frame, restoredPickerFrame)
+            }
+            picker.buttons["Archived"].tap()
+            XCTAssertTrue(app.staticTexts["No archived conversations"].waitForExistence(timeout: 5))
+            picker.buttons["Active"].tap()
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            XCTAssertEqual(picker.frame, restoredPickerFrame)
+            app.terminate()
+        }
+    }
+
     @MainActor func testSignalsQueueAndRecipientCatchUp() throws {
         for arguments in [[], ["--dark", "--large-text"]] {
             let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
