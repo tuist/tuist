@@ -419,6 +419,8 @@ defmodule TuistWeb.Authentication do
       |> Phoenix.Component.assign(:current_user, user_session && user_session.user)
       |> Phoenix.Component.assign(:current_user_session, user_session)
 
+    remember_live_authentication(socket, token)
+
     if user_session && socket.router && LiveView.connected?(socket) do
       schedule_session_check(user_session)
 
@@ -426,8 +428,10 @@ defmodule TuistWeb.Authentication do
       |> LiveView.attach_hook(:browser_session, :handle_event, fn _, _, socket ->
         check_live_session(socket, token, touch: true)
       end)
-      |> LiveView.attach_hook(:browser_session, :handle_params, fn _, _, socket ->
-        check_live_session(socket, token, touch: true)
+      |> LiveView.attach_hook(:browser_session, :handle_params, fn params, _, socket ->
+        socket
+        |> Phoenix.Component.assign(:sso_route_params, params)
+        |> check_live_session(token, touch: true)
       end)
       |> LiveView.attach_hook(:browser_session, :handle_info, fn
         :check_browser_session, socket ->
@@ -464,11 +468,45 @@ defmodule TuistWeb.Authentication do
   end
 
   defp enforce_live_sso(socket) do
+    remember_live_authentication(
+      socket,
+      socket.assigns[:current_user_session] && socket.assigns.current_user_session.token
+    )
+
     account_handle = get_in(socket.assigns, [:sso_route_params, "account_handle"])
 
     case required_sso_organization(socket, account_handle, socket.assigns[:current_user_session]) do
       nil -> {:cont, socket}
       organization -> {:halt, LiveView.redirect(socket, to: sso_provider_path(organization))}
+    end
+  end
+
+  # Components run in the root LiveView process but do not inherit its assigns
+  # or event hooks. Keep only connection context here, never an authorization
+  # decision: every event re-reads the session and current SSO configuration.
+  # This context dies with the socket; it is not a shared authentication cache.
+  defp remember_live_authentication(socket, token) do
+    if socket.router && LiveView.connected?(socket) && not Map.has_key?(socket.assigns, :myself) do
+      assigns = Map.take(socket.assigns, [:current_user, :current_user_session, :sso_route_params])
+      Process.put({__MODULE__, :live_authentication}, {token, assigns})
+    end
+  end
+
+  @doc false
+  def check_live_component_session(socket) do
+    case Process.get({__MODULE__, :live_authentication}) do
+      {token, assigns} when is_binary(token) ->
+        guarded_socket = %{socket | assigns: Map.merge(socket.assigns, assigns)}
+
+        case check_live_session(guarded_socket, token, touch: true) do
+          {:cont, _} -> {:cont, socket}
+          {:halt, _} = halted -> halted
+        end
+
+      _ ->
+        # Anonymous/public and non-browser components retain their own domain
+        # authorization. An expired/revoked browser still has a token above.
+        {:cont, socket}
     end
   end
 
