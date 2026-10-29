@@ -19,13 +19,19 @@ defmodule Atlas.Push.APNs do
 
   alias Atlas.Push.Config
   alias Atlas.Push.Credentials
+  alias Atlas.Push.Installation
+  alias Atlas.Push.LiveActivity
 
   @hosts %{"production" => "https://api.push.apple.com", "sandbox" => "https://api.sandbox.push.apple.com"}
 
   def origins, do: Map.values(@hosts)
 
-  def deliver(%{token: token, environment: environment}, payload, opts) when is_map_key(@hosts, environment) do
-    with {:ok, apns} <- Config.apns_for(environment),
+  def deliver(%{token: token, environment: environment} = registration, payload, opts)
+      when is_map_key(@hosts, environment) do
+    live_activity? = Keyword.get(opts, :live_activity, false)
+
+    with {:ok, platform, topic} <- destination(registration, live_activity?),
+         {:ok, apns} <- Config.apns_for(platform, environment),
          {:ok, provider_token} <- Credentials.apns_token(apns) do
       request =
         Keyword.merge(
@@ -33,9 +39,9 @@ defmodule Atlas.Push.APNs do
             json: payload,
             headers: [
               {"authorization", "bearer " <> provider_token},
-              {"apns-topic", Config.apns_topic()},
-              {"apns-push-type", "alert"},
-              {"apns-priority", "10"},
+              {"apns-topic", topic},
+              {"apns-push-type", if(live_activity?, do: "liveactivity", else: "alert")},
+              {"apns-priority", if(live_activity?, do: "5", else: "10")},
               {"apns-expiration", Integer.to_string(DateTime.to_unix(Keyword.fetch!(opts, :expires_at)))},
               {"apns-collapse-id", Keyword.fetch!(opts, :collapse_id)}
             ],
@@ -56,6 +62,13 @@ defmodule Atlas.Push.APNs do
       {:error, _reason} -> {:retry, nil}
     end
   end
+
+  defp destination(%Installation{platform: platform}, false) when platform in ["ios", "macos"],
+    do: {:ok, platform, Config.apns_topic(platform)}
+
+  defp destination(%LiveActivity{}, true), do: {:ok, "ios", Config.apns_topic() <> ".push-type.liveactivity"}
+
+  defp destination(_registration, _live_activity?), do: {:error, :not_configured}
 
   defp classify({:ok, %Req.Response{status: 200}}, _apns), do: :ok
 

@@ -144,6 +144,22 @@ Each node owns one persistent volume, runs one writer process, and exchanges tra
 | Helm chart, rollout scripts, observability config | `ops/` |
 | End-to-end and shell-based tests | `test/e2e/`, `spec/e2e/` |
 
+## Network-trusted cache authorization
+
+The self-hosted Tuist server owns the default-off
+`TUIST_NETWORK_TRUSTED_CACHE_ACCESS` policy. Public discovery informs clients;
+Kura instead authenticates with its control-plane credentials to fetch the
+account-bound internal cache policy. A separate eight-entry cache coalesces
+checks and expires authority within 60 seconds of request start, without the
+credential engine's outage grace. Older/malformed/unreachable control planes
+deny unsigned access after expiry. HTTP and gRPC distinguish absent credentials
+from supplied invalid, blank or duplicate credentials before policy evaluation.
+Only cache read/write/inspect and capabilities operations qualify; purges,
+Remote Asset fetching and BES reporting do not. Tenant routing checks remain
+mandatory. Operators enforce the office/VPN boundary outside Kura. Peer/storage
+formats are unchanged, and mixed-version nodes continue serving authenticated
+clients while old nodes refuse unsigned requests.
+
 ## Storage Planes
 
 Kura splits durable state into two planes so that the hot path is simple and the cold path can compact freely:
@@ -267,6 +283,21 @@ reactor to drive an asynchronous client, and it is built off-runtime because
 `reqwest::blocking` panics when constructed inside one. A dropped batch is
 telemetry loss only; it never blocks request handling.
 
+HTTP export failures also emit `kura.telemetry.http_export_failed`, with a fixed
+`error.type` (`dns`, `connect`, `tls`, `timeout`, `http_status`, `body`, or `other`),
+connection-phase flag, optional HTTP status and elapsed milliseconds. Diagnostics
+never include URLs, headers, response text or raw error messages. The additional
+warning is limited to once per minute per category per exporter, with a suppressed
+count on the next warning; the SDK's existing export errors remain unchanged.
+Timeout takes precedence over other categories; a connection timeout includes
+DNS/TCP/TLS setup and cannot identify which setup phase stalled. DNS classification
+uses hyper-util's fixed `dns error` cause marker because that error type is private;
+the marker comparison uses a nine-byte stack buffer instead of allocating error
+strings. TLS classification uses typed rustls causes. Body errors include response
+decoding failures, such as a truncated successful response. Unrecognized failures
+stay `other` or `connect` rather than guessing a more specific cause. There are no
+added retries.
+
 Mesh **membership itself** is control-plane state for enrolled nodes: a node that stops sending mesh heartbeats is deactivated (withheld from every peer's view) and its row is purged once its peer certificate can no longer be valid. Heartbeats never create or restore membership — a withheld node is answered `mesh_member: false` and recovers with a **recovery re-enrollment** (backoff-limited), which reactivates or recreates its membership server-side. Nothing local is torn down for it and readiness is not clawed back: the writes missed while out of the mesh were never enqueued for the node (replication targets are computed at write time), and the backfill watermarks are durable, so the next pass re-walks from them and reconciles the gap in the background while the node keeps serving.
 
 Each tick produces a `MembershipUpdate` and feeds it into `ReadinessState` (`src/state.rs`). The state tracks:
@@ -301,7 +332,7 @@ A node moves through three explicit traffic states (`src/runtime.rs`). Ordinary 
 
 - **`joining`** — public reads/writes are accepted but `/ready` returns `503`. After discovery settles, the node becomes ready once its segment ring is at least `KURA_BACKFILL_READY_RING_PERCENT` full **or** its pull links have settled: the backward pass against each sibling completed and the forward cursor within one page of the sibling's head (a region of one settles its initial region passes instead; no peers settle immediately; a link that spends its bootstrap budget, or whose peer predates pull, settles cold while background retries continue). Readiness follows the sibling, never the region: with a sibling present, neither region sync nor the gateway role gates it; a region of one has no sibling to be warm from, so its initial passes over the remote gateways gate it instead, with the same ring-fullness escape. `/ready` lists `replica bootstrap in progress` while that term holds. Readiness then **latches for the process lifetime** — later re-join backfills and recovery re-enrollments never regress it — while the orthogonal inputs (writer lock, draining) still gate `/ready`. The `/status/rollout` report carries a `backfill_initial_cycle` mode (`pending` / `complete` / `degraded`) that rollout consumers gate on.
 - **`serving`** — `/ready` returns `200`. Public APIs handle traffic normally.
-- **`draining`** — public HTTP rejects new requests and stops reusing HTTP/1.1 connections; established HTTP/2 connections (gRPC included) receive a GOAWAY so channels finish in-flight streams and reconnect elsewhere. Inflight work continues until a shared **drain deadline** (`KURA_DRAIN_COMPLETION_TIMEOUT_MS`) elapses. Request arrivals update exact packed total and public counters without waking the shutdown waiter. Completions notify that waiter only after draining begins, because steady-state notifications cannot advance a drain and would otherwise serialize concurrent traffic through shared notification state. A pulling node whose feed has live consumers then **waits to be pulled**: it exits only once every sibling's forward cursor has reached its feed head, or once the remaining drain budget less `KURA_SYNC_DRAIN_MARGIN_MS` runs out — normally nothing, since the sibling long-polls continuously. A sibling that only holds a `{head}` snapshot (mid-bootstrap) pins the feed's trim floor but is not waited for, and a region of one exits at once. An expiry counts on `kura_sync_forward_drain_timeout_total` and loses nothing on a persistent volume — the recreated pod serves the tail — so the sibling merely lags for the restart. The internal peer listener then stops accepting and gives its open connections at most 30 s (`INTERNAL_SHUTDOWN_GRACE_SECS`, the peer client's idle read timeout) rather than the rest of the drain budget: a response no peer is reading holds its HTTP/2 stream open under flow control until the grace ends. Connections still open when the grace runs out are logged with their count.
+- **`draining`** — public HTTP rejects new requests and stops reusing HTTP/1.1 connections; HTTP/2 connections (gRPC included) that are open when draining begins receive a GOAWAY at that moment, not at termination, so channels finish in-flight streams and reconnect elsewhere during the preStop delay instead of collecting refusals. The listeners keep accepting until termination: a connection a stale endpoint list still routes here during the drain gets its requests refused with a status the client retries, and is recycled at termination. Inflight work continues until a shared **drain deadline** (`KURA_DRAIN_COMPLETION_TIMEOUT_MS`) elapses. Request arrivals update exact packed total and public counters without waking the shutdown waiter. Completions notify that waiter only after draining begins, because steady-state notifications cannot advance a drain and would otherwise serialize concurrent traffic through shared notification state. A pulling node whose feed has live consumers then **waits to be pulled**: it exits only once every sibling's forward cursor has reached its feed head, or once the remaining drain budget less `KURA_SYNC_DRAIN_MARGIN_MS` runs out — normally nothing, since the sibling long-polls continuously. A sibling that only holds a `{head}` snapshot (mid-bootstrap) pins the feed's trim floor but is not waited for, and a region of one exits at once. An expiry counts on `kura_sync_forward_drain_timeout_total` and loses nothing on a persistent volume — the recreated pod serves the tail — so the sibling merely lags for the restart. The internal peer listener then stops accepting and gives its open connections at most 30 s (`INTERNAL_SHUTDOWN_GRACE_SECS`, the peer client's idle read timeout) rather than the rest of the drain budget: a response no peer is reading holds its HTTP/2 stream open under flow control until the grace ends. Connections still open when the grace runs out are logged with their count.
 
 Independent of draining, the co-hosted listener's hyper path recycles every connection after `CONNECTION_MAX_AGE` (300s): the server sends GOAWAY and allows in-flight streams `CONNECTION_MAX_AGE_GRACE` (900s) to finish before severing. Without recycling, a long-lived Bazel channel would pin to a demoted-but-alive NodePort primary indefinitely after failover. Both public listeners — plaintext and TLS, with acceleration on or off — share this per-connection serving path, so recycling and drain GOAWAY apply uniformly; the internal mTLS peer listener is a separate plane with its own lifecycle.
 
@@ -366,6 +397,10 @@ shutdown joins. A single outstanding blocking DNS lookup, serial deadline-bound
 samples, and bounded response/resolver buffers limit work. Results go to ordinary
 JSON logs. This shares the runtime process resource budget; it is not a separate
 security sandbox. See the [runbook](../../infra/kura-controller/connectivity-diagnostics.md).
+The fixed profile compares server `/ready` and Alloy `/v1/traces` header timings,
+including normal and absolute DNS names. Alloy receives unauthenticated GETs on
+port 4318, never spans. Six serial samples precede a 60-second pause; there is no
+additional worker, retry queue or application startup dependency.
 
 Each node exposes:
 

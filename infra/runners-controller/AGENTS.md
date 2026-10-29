@@ -1,11 +1,13 @@
-# runners-controller
+# Runners Controller
 
-Kubernetes controller for `RunnerPool` CRDs. Runs in the workload
-cluster, reconciles Pods + per-Pod `ServiceAccount`s that the Tuist
-server's dispatch endpoint authenticates via the TokenReview API.
+Reconciles `RunnerPool` Pods/per-Pod SAs and desired replicas. Run `go test ./...` here; keep API changes aligned with [chart CRDs](../helm/tuist/crds/).
 
-Two reconcilers, both on the same `RunnerPool` resource but with
-independent workqueues:
+The Linux cache agent gives XFS up to 100 ms after each pressure eviction to
+report reclaimed space before admission removes another master. The wait is
+cancellable and leaves the reserve intact. See
+[`runner-cache/AGENTS.md`](../runner-cache/AGENTS.md).
+
+## Lifecycle and capacity
 
 - **`RunnerPoolReconciler`** — converges Pods + SAs to match
   `spec.replicas`. Idle Pods (those without the
@@ -21,13 +23,45 @@ independent workqueues:
   fingerprint for a runner that "lost communication" (0 = clean,
   137+OOMKilled = host OOM, 137+Error = guest OOM / in-VM kill, signal
   15 = SIGTERM, other = crash), captured before the Pod is gone.
+  A rack Mac mini whose power chain or site is over budget carries the
+  `tuist.dev/power-budget` NoSchedule taint (set by the CAPI provider's
+  RackSite controller, "Power-aware admission" in its AGENTS.md). Such a
+  Node counts as no capacity (`nodeFilterReason`: `power_budget`), and its
+  idle Pods are retired like a cordoned Node's
+  (`reapIdlePodsOnCordonedNodes`), so only the jobs already running there
+  keep drawing.
+  A Node NotReady for two minutes (`nodeUnreachableRetireAfter`), such as
+  every mini of a rack site that went dark, has its idle Pods retired the
+  same way. It is already no capacity (`not_ready`), but its warm Pods would
+  otherwise count toward `spec.replicas` until taint-based eviction about
+  five minutes in, and the autoscaler would create no replacements at the
+  sites still up. Pods that claimed a job are left alone.
+
+  `spec.site` pins a pool to one rack site within its fleet (nodeSelector
+  `node.cluster.x-k8s.io/rack-site`, also applied to the Node set the
+  reservation, preemption and shape caps reason about, `fleetNodeSelector`).
+  A rack fleet spans every site whose runners are on
+  (`infra/rack-nodes/AGENTS.md`, "Several sites"); empty `site` places the
+  pool anywhere in it, exactly as before the field existed.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and
   patches `RunnerPool.spec.replicas`. The per-pool policy math lives in
   `internal/scaling/desired.go`; tuning knobs (`minWarmPoolFloor`,
-  `maxReplicas`, `scaleDownCooldownSeconds`, `holdRecentPeak`) live in
-  the `RunnerPool` spec, so a tuning change is helm-only.
+  `maxLearnedWarmPoolFloor`, `maxReplicas`, `scaleDownCooldownSeconds`,
+  `holdRecentPeak`) live in the `RunnerPool` spec, so a tuning change is
+  helm-only.
+
+  The server also learns a floor per pool (`learned_warm_floor`,
+  `Tuist.Runners.LearnedWarmFloors`): the burst its jobs arrive in, while
+  the pool has had a job in the last day. The pool keeps that many runners
+  idle above load, capped by `maxLearnedWarmPoolFloor` (0, the default,
+  turns it off), and the allocator funds it in the floor tier alongside
+  `minWarmPoolFloor`. Set the cap to what an idle pool may cost; the
+  learned value follows demand, so floors need no hand-tuning when demand
+  moves between pools. `tuist_runners_autoscaler_learned_warm_floor_replicas`
+  and `..._learned_warm_spare_replicas` show the learned value and what the
+  cap leaves of it.
 
   `holdRecentPeak` (default true) keeps a pool sized to the server's
   hourly p95 of concurrent runners after load falls. A pool whose jobs
@@ -36,6 +70,11 @@ independent workqueues:
   `minWarmPoolFloor` instead of holding the burst's runners for an
   hour. Explicit `runnersFleet.pools` / `runnersFleetLinux.pools`
   entries render it when their `autoscaling` block sets it.
+
+  The autoscaler also stamps `status.lastDemandAt` when the pool has real
+  work (`Signals.Load() > 0`), at most every ten minutes, with a status merge
+  patch. tart-kubelet ranks the images a host keeps within its golden budget by
+  it (`infra/tart-kubelet/AGENTS.md`).
 
   **Fleet-capacity awareness.** Both Linux shape pools and macOS Xcode
   pools share a capacity budget across siblings, so their warm capacity
@@ -81,9 +120,10 @@ independent workqueues:
     dispatchable `queued` jobs its own idle bound Pods cannot absorb:
     `min(rejected, queued - idleBound)`. `withheld` work (accounts at
     their concurrency limit) never preempts. Entitlement is not checked
-    here: a job is only queued on a site pool when dispatch routed it
+    here: a job is only queued on a rack pool when dispatch routed it
     there (`runner_site` accounts, or the pool's own dispatch label), and
-    the site spillover worker moves queued jobs off a site that is down.
+    a rack pool spans every site whose runners are on, so its queue is
+    served by whichever site has room.
   - Demand is counted in the allocator's per-Pod cost, minus seats
     already on their way back, so consecutive ticks do not over-preempt
     while a Tart VM tears down. A pool returns the seats it holds above
@@ -139,6 +179,45 @@ independent workqueues:
     failures still use the independent per-pool target so a transient
     read failure cannot freeze scale-up for queued work. Memory is the
     only dimension — Kata pins it per microVM and CPU is oversubscribed.
+
+    Queued CI and sandbox work have equal admission priority with zero additional
+    warm sandbox memory. The fleet's first enabled pool publishes short-lived
+    per-node grants; CI reservations revoke before tainting, and unknown fleet
+    demand disables sandbox
+    preemption. Queued CI alone does not revoke sandbox grants or block retiring
+    idle, unclaimed warm runners for sandbox growth. Keep the server/controller
+    protocol and its ordering guarantees aligned with [`fleet-sharing.md`](../sandboxd/fleet-sharing.md).
+
+    Sandbox daemons (`infra/sandboxd`, namespace from
+    `TUIST_SANDBOXES_NAMESPACE`, an env var so a controller release that
+    predates it ignores the chart setting it) share these nodes. Their
+    memory is subtracted from the budget after the reserve fraction: the
+    largest of each daemon Pod's request, what the kubelet allocated and
+    the container resources it still reports as applied,
+    which is what the scheduler counts. The Tuist server resizes those Pods
+    in place, growing a node's carve-out when sandboxes need more than the
+    floor and shrinking it back once they pause, so warm pools shrink while
+    a carve-out is grown and refill when it shrinks. When the kubelet defers
+    a growth (`PodResizePending`, reason `Deferred`) for lack of room, the
+    autoscaler retires idle warm runners on that node ahead of the cooldown
+    (`controllers/sandboxes.go`): the same eligibility as cross-pool
+    preemption, oldest warm first until their memory covers what the growth
+    waits for less what runners already leaving the node free, planned
+    deterministically so each pool's reconcile marks only its own runners
+    (`tuist.dev/preempted-for: sandboxes`, event
+    `RunnerPodPreemptedForSandboxes`). Runners executing a job are never
+    chosen; the growth then waits for them to finish. Retired runners are
+    remembered per node for `preemptionSettle`, because a retired Pod can
+    leave the API before the kubelet applies the growth, and the next tick
+    would otherwise retire another runner for it. Daemon Pods are read
+    through the uncached `APIReader`, since the manager caches only the
+    runners namespace. A failed read propagates to the existing autoscaler
+    fallback and prevents sandbox preemption or new host reservation.
+    Per-node shape caps and reservation calculations subtract the same
+    allocation plus the daemon's CPU request, including pending shrinks and
+    terminating daemons. Never write the adjusted allocatable back to a Node.
+    See [sharing policy](../sandboxd/fleet-sharing.md) for the proposed
+    coordination between CI demand and sandbox growth.
   - macOS: budget = sum of allocatable memory across nodes labeled
     `tuist.dev/fleet=<FleetSelector>` + `kubernetes.io/os=darwin`,
     unscaled; cost = `spec.podMemoryMB` (no RuntimeClass — the guest is
@@ -248,16 +327,22 @@ independent workqueues:
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), or past `idleHostReservationGrace` (30s) when the best
-    candidate holds only idle runners and no seat in flight (draining it
-    waits on no job, and with a warm runner per rack image every host of a
-    quiet fleet can hold one), the RunnerPool reconciler taints one eligible host
-    `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring the host with
-    the fewest running jobs and, among those, one already holding the
-    pool's golden image. Every runner Pod
+    candidate clears at once (draining it waits on no job): it holds only
+    idle runners and no seat in flight, or, on Linux, the starved Pod's
+    request plus RuntimeClass overhead fits beside the host's jobs, seats in
+    flight and non-runner Pods once its idle runners are retired. Pods
+    outside the runners namespace are not counted except sandbox daemons,
+    whose allocation is read separately and cannot be drained by retiring
+    runners. The RunnerPool reconciler
+    then taints one eligible host
+    `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring a host that
+    clears at once, then the fewest running jobs and, among those, one
+    already holding the pool's golden image. Every runner Pod
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
-    waited out, never evicted; only idle Pods of other pools are
-    retired, and only once their seat is no longer in flight
+    waited out, never evicted; only idle runner Pods of other pools are
+    retired (never the cache-volume agent DaemonSet that shares the
+    namespace), and only once their seat is no longer in flight
     (`seatInFlight`). A Pod that bound within `seatGrace` (2m) is the
     seat some other reservation just produced, and dispatch has not yet
     reached it. A macOS Pod is in flight while it is bound and Pending,
@@ -1267,6 +1352,11 @@ memory tax), and the loop mount is bounded by the
 The entrypoint installs `e2fsprogs` via apk on each boot
 because `docker:*-dind` doesn't ship `mkfs.ext4` by default;
 worth baking into a custom dind image once the shape settles.
+Docker-cache-enabled pools also install GNU `coreutils`: merging retained
+BuildKit volumes requires archive copying with xattrs, hard links and sparse
+files preserved. BusyBox `cp -a` is insufficient for overlay snapshots. Deploy
+this controller change with the runner's BuildKit retention support; an older
+sidecar without GNU cp safely withholds such a merge.
 StartupProbe failureThreshold bumped from 30 → 60 to absorb
 the ~8 s of pre-dockerd setup time.
 
@@ -1287,6 +1377,110 @@ catalog from two sides.
 Follow-up: bake `e2fsprogs` into a custom `tuist-dind` image so
 the `apk add` on every Pod startup goes away.
 
+## Nested virtualization (Android emulators)
+
+A Linux pool with `spec.nestedVirtualization: true` gives its runner
+container a usable `/dev/kvm`, so jobs can run hardware-accelerated
+x86_64 Android emulators (Gradle Managed Devices, Macrobenchmark).
+The Kata microVM stays the isolation boundary; the emulator is a guest
+of the job's microVM, not of the host.
+
+Kata's stock guest kernels have no `CONFIG_KVM` and no module support,
+so a stock guest never has `/dev/kvm` even though it already sees the
+host's `svm`/`vmx` flags (QEMU runs `-cpu host`, and both OVH CPUs run
+KVM with nesting on). Three pieces close that:
+
+- **Kernel**: `infra/kata-kvm-kernel/` builds Kata's own x86_64 guest
+  kernel with a KVM fragment and publishes it as the
+  `kata-kvm-kernel@<kata>-<revision>` release. The CAPI provider installs
+  it on every Kata host beside the stock kernels, adds `kernel` to the
+  hypervisor's `enable_annotations` through a Kata `config.d` drop-in,
+  verifies the host allows nesting on the current boot, and only then
+  labels the node `tuist.dev/kata-kvm=true` (`reconcileLinuxKataKVM`).
+- **Pod**: `podtemplate.Build` stamps
+  `io.katacontainers.config.hypervisor.kernel` with the stable kernel
+  path, requests one `devices.tuist.dev/kvm` on the runner container
+  only, and adds the KVM label to the nodeSelector. `fleetNodeSelector`
+  adds the same label, so reservations and placement caps reason about
+  the KVM hosts only. Build refuses the flag outside `os: linux` +
+  `kata-qemu`: under runc, `/dev/kvm` would be the host's device.
+- **Device**: `cmd/kvm-device-plugin` (shipped in the controller image,
+  DaemonSet `kvm-device-plugin.yaml`, on `tuist.dev/kata-kvm=true` hosts
+  only) advertises the resource and answers allocations with the CDI
+  device `tuist.dev/kvm=kvm`, which containerd resolves from the spec the
+  plugin writes to `/var/run/cdi`. The Kata shim passes the resulting
+  `linux.devices` entry to the agent unchanged; the agent creates
+  10:232 in the guest, which is the guest kernel's KVM. CDI rather than
+  a plain device spec because of the mode: from a device spec, containerd
+  copies the host node's 0660 and host kvm gid, which the runner user
+  cannot open; the CDI spec sets 0666 on the container's node and leaves
+  the host's `/dev/kvm` untouched.
+
+Docker's sidecar has a separate `/dev`. For nested pools its existing
+privileged entrypoint creates the guest's 10:232 device with mode 0666
+before starting dockerd (including the cache-volume supervisor path).
+`docker run --device /dev/kvm` and job-container `options` can then forward
+it to unprivileged containers. Do not allocate a second plugin resource to
+the sidecar: both containers share the Kata guest kernel and a second
+allocation would halve effective Pod capacity. KVM setup failure must
+prevent dockerd startup. The nested runtime revision includes this change
+so bounded idle rollout replaces old templates without stopping active jobs.
+
+Managed environments enable KVM on every Linux pool through
+`runnersFleetLinux.nestedVirtualization.defaultEnabled`; ordinary Runner
+Profiles need no special capability or dispatch label. The self-hosted default
+stays off. Explicit pool/shape overrides remain available. Turning the default
+off keeps the plugin installed and rolls idle Pods back to the stock kernel;
+claimed/running jobs finish unchanged. The kernel choice participates in the
+existing RuntimeClass revision used by bounded idle rollout.
+
+The device plugin reads only its Node (RBAC permits `get nodes`) and advertises
+one shared allocation per allocatable Pod slot, refreshing every 30 seconds.
+There is no separate KVM concurrency budget; CPU, memory and kubelet Pod
+capacity remain the limits. API refresh errors preserve the last known count;
+initial discovery fails closed. Host `/dev/kvm` health still controls device
+health independently. Exposing the guest device does not create a nested VM;
+only workloads using KVM incur nested execution costs.
+
+The managed deploy runs `.github/scripts/runner-kvm-prepare.sh` before switching
+pools. It stages the resolved provider image and Helm-owned plugin resources,
+waits for rollout, then requires current-boot KVM proof and sufficient healthy
+allocations on every Ready, schedulable host in each affected fleet. Failure
+leaves the additive prerequisites in place and existing pools unchanged. A new
+cluster without runner hosts uses normal bootstrap plus the Pod node selector.
+Turning the default off bypasses preparation, so rollback works during an outage.
+
+The guest KVM interface exercises host nested-virtualization handling; the Kata
+VM remains the isolation boundary. Keep host and guest kernels current. The
+pool flag is a rollout control, not a complete security boundary: the stock
+kernel lacks KVM, but its guest CPU already exposes virtualization extensions.
+
+Verified (2026-10-16): with the stock guest kernel, the injected node
+exists and `open` fails `ENODEV` (the guest device cgroup does not
+block it); with the KVM kernel, a non-root user opens it and creates a
+VM, and the emulator's `-accel-check` passes. Nesting depth matters for
+benchmarks: on our bare metal an emulator in Kata is two levels deep, the
+same as an emulator on a hosted CI VM.
+
+Measured on the staging OVH host (Ryzen 7 9700X), 4 vCPU, API 34 x86_64
+Pixel 6, emulator directly on the host vs in an unprivileged Kata Pod on the
+KVM kernel with `/dev/kvm` from the plugin: cold boot 15.1 s vs 28.7 s;
+Macrobenchmark `timeToInitialDisplayMs` (15 cold starts, first excluded)
+median 504 ms vs 733 ms with CV 4.1% vs 5.0%. Nesting costs roughly 1.5 to
+2x in absolute time but barely widens the spread, so baseline comparisons
+stay meaningful as long as baseline and candidate run on the same pool. A
+runc Pod running the same workload needs more memory than the Kata one,
+because the emulator's host-side QEMU memory and page cache count against
+the container there.
+
+The normal runner-pool path passed on 2026-10-27 in
+[run 40478493276](https://github.com/tuist/tuist/actions/runs/40478493276), after
+deploying over staging's live Kura rehearsal. The provider automatically set
+`KataKVMReady` and the node label, the device plugin advertised 16 slots, and
+the queued workflow ran as UID 1000 with KVM acceleration. The committed
+[`android-smoke` fixture](../kata-kvm-kernel/android-smoke/AGENTS.md) passed
+both Gradle Managed Device instrumentation and all 15 Macrobenchmark cold starts.
+
 ## Linux cache volumes
 
 Local reflink image clones are implemented in
@@ -1301,6 +1495,17 @@ ordinary Docker jobs, Buildkite native commands, and GitLab shell jobs. Keep
 the remaining operational validation limits explicit in the rollout guide.
 Mount revision changes use the existing bounded idle rollout. No account-wide
 cache root or infrastructure credential crosses into workflow containers.
+
+RunnerPool `dockerCache` (chart `runnersFleetLinux.cacheVolumes.dockerCache`, with
+`pools` limiting it to named pools during a rollout) moves each job's dockerd onto
+its repository's Docker cache volume: the dind sidecar runs dockerd under the
+`tuist-cache-volume dind` supervisor with `--max-concurrent-downloads=8`, and the
+runner gets `TUIST_DOCKER_CACHE=1`. It needs cache volumes. With the field off the
+sidecar's command is byte for byte what it was (`TestDockerCacheOffKeepsTheSidecarCommand`):
+any change to it replaces every Pod of the pools it covers. Staging and production
+enable it on every Linux pool and keep it as the off switch, while the per-account
+`:runner_docker_cache` flag decides who gets a cache (canary qualifies its default Linux shape before production enablement).
+The agent serves `/docker`, `/docker-seen` and `/docker-merge`; see [Docker cache volumes](cache-volumes.md#docker-cache-volumes).
 
 Managed production enables custom volumes on normal deployment. The agent image
 ships the bounded filesystem provisioning script, invoked by an opt-in privileged

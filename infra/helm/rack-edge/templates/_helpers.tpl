@@ -51,6 +51,18 @@ bird.conf: |
 {{ base $path }}: |
   {{- $.Files.Get $path | nindent 2 }}
 {{- end }}
+{{- with .Files.Get (printf "sites/%s/ztp.sh" $site) }}
+ztp.sh: |
+  {{- . | nindent 2 }}
+{{- end }}
+{{- with .Files.Get (printf "sites/%s/picos-bootstrap.sh" $site) }}
+picos-bootstrap.sh: |
+  {{- . | nindent 2 }}
+{{- end }}
+{{- range $path, $_ := .Files.Glob (printf "sites/%s/ztp-*.conf" $site) }}
+{{ base $path }}: |
+  {{- $.Files.Get $path | nindent 2 }}
+{{- end }}
 {{- end }}
 
 {{- /*

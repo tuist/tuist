@@ -66,23 +66,55 @@ defmodule Atlas.Orbit.RunsTest do
   end
 
   @tag :personal_inference
-  test "personal transport failures persist timeout and outage categories through Condukt" do
+  test "personal transport failures persist categories and emit sanitized error diagnostics through Condukt" do
     Repo.update_all(ModelBinding, set: [atlas_orbit: false])
     actor = user_fixture()
     {:ok, _} = Connections.connect_claude(actor, "sk-ant-oat01-" <> String.duplicate("actor", 12))
 
     for {response, category} <- [
+          {{:ok, %{status: 400, body: "private rejected request"}}, "provider_request"},
+          {{:ok,
+            %{status: 400, body: %{"error" => %{"code" => "model_not_found", "message" => "private provider body"}}}},
+           "model_not_found"},
+          {{:ok, %{status: 400, body: %{"error" => %{"code" => "context_length_exceeded"}}}}, "context_length"},
+          {{:ok, %{status: 401, body: "private provider body"}}, "provider_auth"},
+          {{:ok, %{status: 429, body: "private provider body"}}, "provider_rate_limited"},
           {{:error, %Req.TransportError{reason: :timeout}}, "timeout"},
-          {{:ok, %{status: 503, body: "private upstream outage"}}, "provider_unavailable"}
+          {{:ok, %{status: 503, body: "private upstream outage"}}, "provider_unavailable"},
+          {{:ok, %{status: 402, body: "private provider body"}}, "provider_billing"}
         ] do
       {:ok, thread, _} = Orbit.ensure_private(actor)
       run = post_and_get_run(actor, thread, "Hello")
-      expect(Req, :post, fn _opts -> response end)
-      assert :ok = Runs.execute(run.id)
+      stub(Req, :post, fn _opts -> response end)
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert :ok = Runs.execute(run.id)
+        end)
+
+      assert log =~ "[error]"
+      assert log =~ "thread run failed: #{category}"
+      refute log =~ "private upstream outage"
+      refute log =~ "private provider body"
       assert Repo.get!(Run, run.id).error_category == category
       notice = Repo.get_by!(Message, run_id: run.id, kind: "system")
       refute notice.body =~ "configure"
       refute notice.body =~ "private upstream outage"
+      refute notice.body =~ "private provider body"
+
+      if category == "provider_request" do
+        assert notice.body =~ "Choose another model"
+      end
+
+      if category == "model_not_found" do
+        assert notice.body =~ "not available to your AI account"
+        assert notice.body =~ "Choose another model above the composer"
+      end
+
+      if category == "context_length" do
+        assert notice.body =~ "Start a new conversation"
+      end
+
       refute_received :unexpected_provider_network_request
     end
   end
@@ -262,7 +294,47 @@ defmodule Atlas.Orbit.RunsTest do
     refute inspect(request["messages"]) =~ "Private role context: engineering lead"
   end
 
-  for boundary <- [:cancelled, :deadline] do
+  test "addressed promotion starts a fresh shared follow-up without private description or checkpoint" do
+    owner = user_fixture()
+    newcomer = user_fixture()
+    {:ok, thread, _} = Orbit.ensure_private(owner)
+    {:ok, _} = Users.update_my_profile(owner, "Private profile description marker")
+    run = post_and_get_run(owner, thread, "Initial request")
+    run = Repo.update!(Ecto.Changeset.change(run, status: "running", session_id: Condukt.SessionID.generate()))
+    Checkpoints.record(run.session_id, [Condukt.Message.user("Private checkpoint marker")], 1)
+
+    assert {:ok, message, :created} =
+             Orbit.post_message(owner, thread, %{
+               "body" => "Discuss together",
+               "client_id" => Ecto.UUID.generate(),
+               "mention_ids" => [newcomer.id],
+               "address_agent" => true
+             })
+
+    assert message.address_agent
+    assert :ok = Runs.complete(run.id, 0, {:ok, "Discard this response"})
+    assert Repo.reload!(run).checkpoint == nil
+    successor = Orbit.active_run(thread)
+    assert successor.id != run.id and successor.status == "queued" and successor.checkpoint == nil
+
+    test_pid = self()
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      send(test_pid, {:shared_request, body})
+      Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Shared reply"}))
+    end
+
+    assert :ok = Runs.execute(successor.id, client_opts: client_opts(plug))
+    assert_receive {:shared_request, body}
+    assert body =~ "shared thread titled"
+    assert body =~ newcomer.name
+    refute body =~ "Private profile description marker"
+    refute body =~ "Private checkpoint marker"
+    refute body =~ "Discard this response"
+  end
+
+  for boundary <- [:cancelled, :archived, :deadline] do
     test "#{boundary} stops a blocked research child through the real run worker" do
       owner = user_fixture()
       {:ok, thread, _} = Orbit.ensure_private(owner)
@@ -288,12 +360,13 @@ defmodule Atlas.Orbit.RunsTest do
 
       case unquote(boundary) do
         :cancelled -> {:ok, _} = Orbit.cancel_run(owner, thread, run.id)
+        :archived -> {:ok, _} = Orbit.set_status(owner, thread, "archived")
         :deadline -> send(worker.pid, :deadline)
       end
 
       assert :ok = Task.await(worker, 5_000)
       assert_receive {:DOWN, ^monitor, :process, ^child, _}, 2_000
-      expected = if unquote(boundary) == :cancelled, do: "cancelled", else: "failed"
+      expected = if unquote(boundary) == :deadline, do: "failed", else: "cancelled"
       assert Repo.get!(Run, run.id).status == expected
       assert Repo.get_by!(Message, run_id: run.id, tool_name: "task").tool_status != "running"
       refute Repo.exists?(from message in Message, where: message.run_id == ^run.id and message.kind == "agent")

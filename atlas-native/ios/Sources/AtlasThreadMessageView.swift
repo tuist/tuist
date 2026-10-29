@@ -15,14 +15,29 @@ struct AtlasThreadMessageView: View {
     private var palette: AtlasTheme.Palette? { contrast == .increased ? nil : theme?.palette(scheme) }
     private var fill: Color {
         if outgoing { return palette.map { Color(atlasHex: $0.accent) } ?? AtlasSettingsStyle.tint }
+        #if os(macOS)
+        return palette.map { Color(atlasHex: $0.surface) } ?? Color(nsColor: .controlBackgroundColor)
+        #else
         return palette.map { Color(atlasHex: $0.surface) } ?? Color(uiColor: .secondarySystemGroupedBackground)
+        #endif
     }
 
     var body: some View {
         Group {
             if message.kind == "system" {
-                Text(message.body).font(.caption).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity).multilineTextAlignment(.center)
+                if message.noticeKind == "handoff" {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Conversation recap", systemImage: "person.badge.plus").font(.headline)
+                            .accessibilityAddTraits(.isHeader)
+                        AtlasMarkdown(source: message.body).equatable()
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(fill, in: RoundedRectangle(cornerRadius: 16))
+                } else {
+                    Text(message.body).font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).multilineTextAlignment(.center)
+                }
             } else {
                 HStack(alignment: .bottom, spacing: 0) {
                     if outgoing { Spacer(minLength: 40) }
@@ -39,7 +54,7 @@ struct AtlasThreadMessageView: View {
                                     ? palette.map { Color(atlasHex: $0.onAccent) } ?? AtlasSettingsStyle.onTint : .primary)
                                 .background(fill, in: RoundedRectangle(cornerRadius: 20))
                         }
-                        if let date = ISO8601DateFormatter().date(from: message.insertedAt) {
+                        if let date = message.insertedDate {
                             Text(date, style: .time).font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 12)
                         }
                     }
@@ -54,7 +69,7 @@ struct AtlasThreadMessageView: View {
         VStack(alignment: .leading, spacing: 8) {
             if !message.body.isEmpty {
                 if message.kind == "agent" {
-                    AtlasMarkdown(source: message.body)
+                    AtlasMarkdown(source: message.body).equatable()
                 } else {
                     Text(message.body).textSelection(.enabled)
                 }

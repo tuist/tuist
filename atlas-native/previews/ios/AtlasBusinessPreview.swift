@@ -84,6 +84,7 @@ final class AtlasBusinessPreviewData: ObservableObject {
     ]
 
     init() {
+        if AtlasSocialPreviewData.enabled { items["accounts"] = AtlasSocialPreviewData.accounts }
         if ProcessInfo.processInfo.arguments.contains("--business-pagination") {
             for index in 4...30 {
                 items["tasks", default: []].append(Self.record("task-\(index)", [

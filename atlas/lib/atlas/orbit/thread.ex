@@ -23,6 +23,11 @@ defmodule Atlas.Orbit.Thread do
     field :request_id, Ecto.UUID
     field :required_scopes, {:array, :string}, default: []
     field :last_seq, :integer, default: 0
+    field :model, :string
+    field :environment_id, Ecto.UUID
+    field :environment_name, :string
+    field :project_id, Ecto.UUID
+    field :personal_environment_dispatched, :boolean, default: false
 
     belongs_to :owner, User
     has_many :participants, Participant

@@ -17,6 +17,7 @@ use tokio_tungstenite::tungstenite::{
 pub(crate) enum Action {
     Open { session: Session, id: String },
     OpenList { session: Session },
+    OpenEnvironment { session: Session, id: String },
     Next { connection: String, after: u64 },
     Typing { connection: String, typing: bool },
     Close { connection: String },
@@ -61,6 +62,10 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
             open_session(session, format!("orbit:thread:{id}"))
         }
         Action::OpenList { session } => open_session(session, "orbit:me".into()),
+        Action::OpenEnvironment { session, id } => {
+            crate::time_off::validate_id(&id)?;
+            open_session(session, format!("environment:{id}"))
+        }
         Action::Next { connection, after } => {
             let state = get(&connection)?;
             let latest = state.latest.lock().map_err(|_| invalid())?;
@@ -227,7 +232,12 @@ async fn run(
                             &frame[4]
                         } else if frame[3] == "phx_close" || frame[3] == "phx_error" { break; }
                         else { continue; };
-                        match sanitize(payload.clone()) {
+                        let snapshot = if topic.starts_with("environment:") {
+                            crate::environments::sanitize_commands(payload.clone())
+                        } else {
+                            sanitize(payload.clone())
+                        };
+                        match snapshot {
                             Ok(value) => { backoff = 1; publish(&state, value); }
                             Err(_) => break,
                         }

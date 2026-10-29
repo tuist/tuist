@@ -70,7 +70,7 @@ func ManagedKey(key string) string {
 type Subject struct {
 	Scope string
 	Use   string
-	// Kind is custom, managed or checkout, or "" when the host cannot tell.
+	// Kind is custom, managed, checkout or docker, or "" when the host cannot tell.
 	Kind string
 	// Key is set only for a managed volume.
 	Key string
@@ -90,6 +90,8 @@ func SubjectOf(slot Slot) Subject {
 	switch {
 	case slot.Kind == KindCheckout:
 		kind, key = KindCheckout, ""
+	case slot.Kind == KindDocker:
+		kind, key = KindDocker, ""
 	case key != "":
 		kind = KindManaged
 	}

@@ -1,41 +1,51 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
 msgid ""
-msgstr ""
-"Language: zh_Hant\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
+msgstr "Language: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/build_run_live.html.heex:869
+#: lib/tuist_web/live/build_run_live.html.heex:878
 #: lib/tuist_web/live/generate_runs_live.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "%{hit_rate}%"
 msgstr "%{hit_rate}%"
 
-#: lib/tuist_web/live/build_run_live.ex:638
+#: lib/tuist_web/live/build_run_live.ex:966
+#: lib/tuist_web/live/mix_build_live.ex:482
+#: lib/tuist_web/live/mix_build_live.ex:488
 #, elixir-autogen, elixir-format
 msgid "%{message} in %{link}"
-msgstr "%{message} 在 %{link}"
+msgstr "%{link} 中的 %{message}"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:222
+#: lib/tuist_web/live/xcode_builds_live.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "%{percentage}%"
 msgstr "%{percentage}%"
 
-#: lib/tuist_web/live/generate_runs_live.html.heex:101
+#: lib/tuist_web/live/generate_runs_live.html.heex:98
 #: lib/tuist_web/live/run_detail_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "%{run_duration}s"
-msgstr "%{run_duration}秒"
+msgstr "%{run_duration}s"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:341
+#: lib/tuist_web/components/runs/module_cache_tab.ex:475
 #, elixir-autogen, elixir-format
 msgid "Additional strings"
-msgstr "附加字串"
+msgstr "其他字串"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:382
+#: lib/tuist_web/helpers/build_entity_labels.ex:90
+#: lib/tuist_web/live/cargo_builds_live.ex:245
+#: lib/tuist_web/live/xcode_builds_live.ex:387
 #: lib/tuist_web/live/xcode_builds_live.ex:392
-#: lib/tuist_web/live/xcode_builds_live.ex:395
+#: lib/tuist_web/live/xcode_builds_live.ex:398
+#: lib/tuist_web/live/xcode_builds_live.ex:401
 #: lib/tuist_web/live/xcode_builds_live.html.heex:41
 #: lib/tuist_web/live/xcode_builds_live.html.heex:64
 #: lib/tuist_web/live/xcode_builds_live.html.heex:89
@@ -44,75 +54,108 @@ msgstr "附加字串"
 msgid "Any"
 msgstr "任何"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:443
+#: lib/tuist_web/live/build_entity_live.ex:1053
+#: lib/tuist_web/live/build_entity_live.html.heex:277
+#: lib/tuist_web/live/xcode_builds_live.html.heex:456
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr "平均"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:260
+#: lib/tuist_web/live/cargo_builds_live.html.heex:138
+#: lib/tuist_web/live/xcode_builds_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Avg. build duration"
-msgstr "平均構建時間"
+msgstr "平均建置時間"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1037
+#: lib/tuist_web/live/build_run_live.html.heex:951
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache keys"
-msgstr "讀取快取鍵的平均延遲"
+msgstr "讀取快取金鑰的平均延遲"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1093
+#: lib/tuist_web/live/build_run_live.html.heex:1007
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache keys"
-msgstr "寫入快取鍵的平均延遲"
+msgstr "寫入快取金鑰的平均延遲"
 
-#: lib/tuist_web/live/generate_runs_live.ex:279
+#: lib/tuist_web/live/build_entity_live.ex:503
+#: lib/tuist_web/live/build_entity_live.ex:1177
+#: lib/tuist_web/live/build_entity_live.html.heex:602
+#: lib/tuist_web/live/cargo_build_runs_live.ex:46
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:71
+#: lib/tuist_web/live/generate_runs_live.ex:286
 #: lib/tuist_web/live/generate_runs_live.html.heex:84
-#: lib/tuist_web/live/xcode_build_runs_live.ex:241
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:121
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:35
+#: lib/tuist_web/live/once_runs_live.ex:894
+#: lib/tuist_web/live/xcode_build_runs_live.ex:244
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr "分支"
 
-#: lib/tuist_web/live/build_run_live.html.heex:195
+#: lib/tuist_web/live/bazel_build_invocation_live.ex:13
+#: lib/tuist_web/live/bazel_invocation_live.ex:63
+#: lib/tuist_web/live/build_run_live.html.heex:223
+#: lib/tuist_web/live/cargo_build_live.html.heex:42
+#: lib/tuist_web/live/mix_build_live.html.heex:375
+#: lib/tuist_web/live/once_run_live.ex:289
 #, elixir-autogen, elixir-format
 msgid "Build Details"
-msgstr "構建詳情"
+msgstr "建置詳細資訊"
 
-#: lib/tuist_web/live/build_run_live.ex:66
+#: lib/tuist_web/live/build_run_live.ex:87
+#: lib/tuist_web/live/build_run_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Build Run"
-msgstr "構建執行"
+msgstr "建置執行"
 
 #: lib/tuist_web/live/build_run_live.html.heex:6
 #: lib/tuist_web/live/build_runs_live.ex:16
+#: lib/tuist_web/live/build_runs_live.ex:19
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:3
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:3
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "構建執行"
+msgstr "建置執行次數"
 
-#: lib/tuist_web/live/build_run_live.ex:886
-#: lib/tuist_web/live/build_run_live.html.heex:262
-#: lib/tuist_web/live/build_run_live.html.heex:469
-#: lib/tuist_web/live/build_run_live.html.heex:485
-#: lib/tuist_web/live/build_run_live.html.heex:531
-#: lib/tuist_web/live/xcode_builds_live.html.heex:662
-#: lib/tuist_web/live/xcode_builds_live.html.heex:716
+#: lib/tuist_web/live/bazel_invocation_live.ex:241
+#: lib/tuist_web/live/bazel_invocations_live.ex:446
+#: lib/tuist_web/live/bazel_invocations_live.ex:458
+#: lib/tuist_web/live/build_run_live.ex:1206
+#: lib/tuist_web/live/build_run_live.html.heex:283
+#: lib/tuist_web/live/build_run_live.html.heex:466
+#: lib/tuist_web/live/build_run_live.html.heex:482
+#: lib/tuist_web/live/build_run_live.html.heex:525
+#: lib/tuist_web/live/cargo_build_live.html.heex:76
+#: lib/tuist_web/live/cargo_builds_live.html.heex:312
+#: lib/tuist_web/live/cargo_builds_live.html.heex:342
+#: lib/tuist_web/live/mix_build_live.html.heex:412
+#: lib/tuist_web/live/once_run_live.ex:323
+#: lib/tuist_web/live/once_runs_live.ex:667
+#: lib/tuist_web/live/once_runs_live.ex:679
+#: lib/tuist_web/live/xcode_builds_live.html.heex:693
+#: lib/tuist_web/live/xcode_builds_live.html.heex:747
 #, elixir-autogen, elixir-format
 msgid "Build duration"
-msgstr "構建時長"
+msgstr "建置持續時間"
 
-#: lib/tuist_web/live/build_run_live.ex:44
-#: lib/tuist_web/live/build_run_live.ex:55
+#: lib/tuist_web/live/build_run_live.ex:62
+#: lib/tuist_web/live/build_run_live.ex:73
+#: lib/tuist_web/live/mix_build_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Build not found."
-msgstr "找不到構建。"
+msgstr "找不到建置。"
 
+#: lib/tuist_web/live/cargo_builds_live.ex:172
 #: lib/tuist_web/live/xcode_builds_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Build runs"
-msgstr "構建執行"
+msgstr "構建運行次數"
 
+#: lib/tuist_web/live/cargo_builds_live.ex:188
+#: lib/tuist_web/live/cargo_builds_live.html.heex:101
 #: lib/tuist_web/live/xcode_builds_live.ex:225
-#: lib/tuist_web/live/xcode_builds_live.html.heex:217
+#: lib/tuist_web/live/xcode_builds_live.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
 msgstr "構建成功率"
@@ -122,66 +165,87 @@ msgstr "構建成功率"
 msgid "Build:"
 msgstr "構建："
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:335
+#: lib/tuist_web/components/runs/module_cache_tab.ex:463
 #, elixir-autogen, elixir-format
 msgid "Buildable folders"
 msgstr "可構建資料夾"
 
+#: lib/tuist_web/helpers/build_entity_labels.ex:57
 #: lib/tuist_web/live/builds_live.ex:15
-#: lib/tuist_web/live/xcode_builds_live.html.heex:195
+#: lib/tuist_web/live/builds_live.ex:19
+#: lib/tuist_web/live/cargo_build_live.html.heex:3
+#: lib/tuist_web/live/cargo_builds_live.html.heex:79
+#: lib/tuist_web/live/mix_build_live.html.heex:3
+#: lib/tuist_web/live/xcode_builds_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr "構建"
+msgstr "構建記錄"
 
-#: lib/tuist_web/live/build_run_live.html.heex:269
+#: lib/tuist_web/live/bazel_invocation_live.ex:250
+#: lib/tuist_web/live/build_run_live.html.heex:290
+#: lib/tuist_web/live/cargo_build_live.html.heex:82
+#: lib/tuist_web/live/mix_build_live.html.heex:419
+#: lib/tuist_web/live/once_run_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "Built at"
 msgstr "構建時間"
 
-#: lib/tuist_web/live/build_run_live.html.heex:258
+#: lib/tuist_web/live/bazel_invocation_live.ex:236
+#: lib/tuist_web/live/build_run_live.html.heex:279
+#: lib/tuist_web/live/cargo_build_live.html.heex:69
+#: lib/tuist_web/live/mix_build_live.html.heex:408
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Built by"
 msgstr "構建者"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:241
+#: lib/tuist_web/components/runs/module_cache_tab.ex:317
 #, elixir-autogen, elixir-format
 msgid "Bundle ID"
-msgstr "套件識別碼"
+msgstr "Bundle ID"
 
-#: lib/tuist_web/live/build_run_live.html.heex:902
+#: lib/tuist_web/live/build_run_live.html.heex:911
+#: lib/tuist_web/live/cargo_build_live.html.heex:178
+#: lib/tuist_web/live/mix_build_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "CAS Outputs"
 msgstr "CAS 輸出"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1259
+#: lib/tuist_web/live/build_run_live.html.heex:1171
+#: lib/tuist_web/live/mix_build_live.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "CAS output"
 msgstr "CAS 輸出"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1371
+#: lib/tuist_web/components/reapi_cache_outputs.ex:281
+#: lib/tuist_web/live/build_run_live.html.heex:1280
 #, elixir-autogen, elixir-format
 msgid "CAS outputs"
 msgstr "CAS 輸出"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1605
+#: lib/tuist_web/live/build_run_live.html.heex:1507
 #, elixir-autogen, elixir-format
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "使用 Tuist 快取時，CAS 輸出將顯示於此"
+msgstr "使用 Tuist 快取時，CAS 輸出將顯示在此處"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1323
+#: lib/tuist_web/components/cargo_cache_inspection.ex:79
+#: lib/tuist_web/components/reapi_cache_outputs.ex:90
+#: lib/tuist_web/live/build_run_live.html.heex:1232
 #, elixir-autogen, elixir-format
 msgid "CAS outputs:"
 msgstr "CAS 輸出："
 
-#: lib/tuist_web/live/xcode_builds_live.ex:384
-#: lib/tuist_web/live/xcode_builds_live.ex:385
+#: lib/tuist_web/helpers/build_entity_labels.ex:88
+#: lib/tuist_web/live/xcode_builds_live.ex:389
+#: lib/tuist_web/live/xcode_builds_live.ex:390
 #: lib/tuist_web/live/xcode_builds_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
 
-#: lib/tuist_web/live/build_run_live.html.heex:109
-#: lib/tuist_web/live/build_run_live.html.heex:128
+#: lib/tuist_web/live/build_run_live.html.heex:101
+#: lib/tuist_web/live/build_run_live.html.heex:120
+#: lib/tuist_web/live/mix_build_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "CI Run"
 msgstr "CI 執行"
@@ -191,386 +255,484 @@ msgstr "CI 執行"
 msgid "Cache Runs"
 msgstr "快取執行"
 
-#: lib/tuist_web/live/build_run_live.html.heex:827
+#: lib/tuist_web/live/build_run_live.html.heex:836
+#: lib/tuist_web/live/cargo_build_live.html.heex:113
+#: lib/tuist_web/live/mix_build_live.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Cache Summary"
 msgstr "快取摘要"
 
-#: lib/tuist_web/live/build_run_live.html.heex:878
+#: lib/tuist_web/live/build_run_live.html.heex:887
+#: lib/tuist_web/live/cargo_build_live.html.heex:154
+#: lib/tuist_web/live/mix_build_live.ex:286
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
-msgstr "快取下載"
+msgstr "快取下載次數"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:60
+#: lib/tuist_web/components/runs/module_cache_tab.ex:66
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
 msgstr "快取命中率"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:35
+#: lib/tuist_web/components/runs/module_cache_tab.ex:41
 #, elixir-autogen, elixir-format
 msgid "Cache hits"
-msgstr "快取命中"
+msgstr "快取命中次數"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1222
+#: lib/tuist_web/components/cargo_cache_inspection.ex:237
+#: lib/tuist_web/live/build_run_live.html.heex:1130
+#: lib/tuist_web/live/mix_build_live.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Cache key"
-msgstr "快取鍵"
+msgstr "快取金鑰"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:49
+#: lib/tuist_web/components/runs/module_cache_tab.ex:55
 #, elixir-autogen, elixir-format
 msgid "Cache misses"
-msgstr "快取未命中"
+msgstr "快取未命中次數"
 
-#: lib/tuist_web/live/build_run_live.html.heex:886
+#: lib/tuist_web/live/build_run_live.html.heex:895
+#: lib/tuist_web/live/cargo_build_live.html.heex:165
+#: lib/tuist_web/live/mix_build_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
-msgstr "快取上傳"
+msgstr "快取上傳次數"
 
-#: lib/tuist_web/live/build_run_live.html.heex:897
+#: lib/tuist_web/live/build_run_live.html.heex:906
+#: lib/tuist_web/live/cargo_build_live.html.heex:173
+#: lib/tuist_web/live/mix_build_live.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Cacheable Tasks"
 msgstr "可快取任務"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:401
+#: lib/tuist_web/components/runs/module_cache_tab.ex:532
 #, elixir-autogen, elixir-format
 msgid "Cacheable targets"
 msgstr "可快取目標"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:101
+#: lib/tuist_web/components/runs/module_cache_tab.ex:133
 #, elixir-autogen, elixir-format
 msgid "Cacheable targets:"
 msgstr "可快取目標："
 
-#: lib/tuist_web/live/build_run_live.html.heex:968
+#: lib/tuist_web/live/mix_build_live.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks"
 msgstr "可快取任務"
 
-#: lib/tuist_web/live/build_run_live.html.heex:846
+#: lib/tuist_web/live/build_run_live.html.heex:855
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
 msgstr "未在快取中找到的可快取任務。"
 
-#: lib/tuist_web/live/build_run_live.html.heex:835
+#: lib/tuist_web/live/build_run_live.html.heex:844
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "從快取（本地 + 遠端）取得的可快取任務。"
+msgstr "從快取（本機 + 遠端）檢索的可快取任務。"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1297
+#: lib/tuist_web/live/build_run_live.html.heex:1206
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks will appear here when using Tuist cache"
-msgstr "使用 Tuist 快取時，可快取任務將顯示於此"
+msgstr "使用 Tuist cache 時，可快取任務將顯示在此處"
 
-#: lib/tuist_web/live/build_run_live.html.heex:920
+#: lib/tuist_web/components/cargo_cache_inspection.ex:81
+#: lib/tuist_web/live/build_run_live.html.heex:925
+#: lib/tuist_web/live/mix_build_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks:"
 msgstr "可快取任務："
 
-#: lib/tuist_web/live/build_run_live.html.heex:280
-#: lib/tuist_web/live/xcode_build_runs_live.ex:249
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:154
-#: lib/tuist_web/live/xcode_builds_live.ex:435
-#: lib/tuist_web/live/xcode_builds_live.html.heex:357
-#: lib/tuist_web/live/xcode_builds_live.html.heex:887
+#: lib/tuist_web/live/build_run_live.html.heex:301
+#: lib/tuist_web/live/xcode_build_runs_live.ex:252
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:133
+#: lib/tuist_web/live/xcode_builds_live.ex:441
+#: lib/tuist_web/live/xcode_builds_live.html.heex:370
+#: lib/tuist_web/live/xcode_builds_live.html.heex:936
 #, elixir-autogen, elixir-format
 msgid "Category"
 msgstr "類別"
 
-#: lib/tuist_web/live/xcode_build_runs_live.ex:254
+#: lib/tuist_web/live/xcode_build_runs_live.ex:257
 #: lib/tuist_web/live/xcode_builds_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Clean"
-msgstr "清理"
+msgstr "清除"
 
-#: lib/tuist_web/live/build_run_live.html.heex:203
-#: lib/tuist_web/live/generate_runs_live.ex:258
+#: lib/tuist_web/helpers/build_entity_labels.ex:78
+#: lib/tuist_web/helpers/build_entity_labels.ex:81
+#: lib/tuist_web/live/bazel_invocation_live.ex:217
+#: lib/tuist_web/live/build_run_live.html.heex:231
+#: lib/tuist_web/live/cargo_build_live.html.heex:50
+#: lib/tuist_web/live/cargo_build_runs_live.ex:25
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:58
+#: lib/tuist_web/live/cargo_builds_live.html.heex:434
+#: lib/tuist_web/live/generate_runs_live.ex:265
 #: lib/tuist_web/live/generate_runs_live.html.heex:58
+#: lib/tuist_web/live/mix_build_live.html.heex:383
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:20
+#: lib/tuist_web/live/mix_builds_live.html.heex:680
+#: lib/tuist_web/live/once_run_live.ex:297
 #: lib/tuist_web/live/run_detail_live.html.heex:115
+#: lib/tuist_web/live/toolchain_cache_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "Command"
 msgstr "指令"
 
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:81
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:41
+#: lib/tuist_web/live/once_runs_live.ex:902
 #: lib/tuist_web/live/run_detail_live.html.heex:171
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:127
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr "提交 SHA"
 
-#: lib/tuist_web/live/build_run_live.ex:857
-#: lib/tuist_web/live/build_run_live.ex:894
-#: lib/tuist_web/live/build_run_live.html.heex:470
-#: lib/tuist_web/live/build_run_live.html.heex:493
-#: lib/tuist_web/live/build_run_live.html.heex:552
+#: lib/tuist_web/helpers/build_entity_labels.ex:85
+#: lib/tuist_web/live/build_run_live.ex:1177
+#: lib/tuist_web/live/build_run_live.ex:1214
+#: lib/tuist_web/live/build_run_live.html.heex:467
+#: lib/tuist_web/live/build_run_live.html.heex:490
+#: lib/tuist_web/live/build_run_live.html.heex:545
+#: lib/tuist_web/live/build_run_live.html.heex:620
 #: lib/tuist_web/live/build_run_live.html.heex:627
-#: lib/tuist_web/live/build_run_live.html.heex:634
-#: lib/tuist_web/live/build_run_live.html.heex:700
+#: lib/tuist_web/live/build_run_live.html.heex:690
+#: lib/tuist_web/live/mix_build_live.ex:503
+#: lib/tuist_web/live/mix_build_live.html.heex:623
 #, elixir-autogen, elixir-format
 msgid "Compilation duration"
 msgstr "編譯時長"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1477
-#: lib/tuist_web/live/build_run_live.html.heex:1478
-#: lib/tuist_web/live/build_run_live.html.heex:1504
-#: lib/tuist_web/live/build_run_live.html.heex:1570
+#: lib/tuist_web/components/reapi_cache_outputs.ex:219
+#: lib/tuist_web/live/build_run_live.html.heex:1386
+#: lib/tuist_web/live/build_run_live.html.heex:1387
+#: lib/tuist_web/live/build_run_live.html.heex:1413
+#: lib/tuist_web/live/build_run_live.html.heex:1473
 #, elixir-autogen, elixir-format
 msgid "Compressed Size"
-msgstr "壓縮後大小"
+msgstr "壓縮大小"
 
-#: lib/tuist_web/live/build_run_live.ex:1095
+#: lib/tuist_web/live/build_run_live.ex:1431
 #, elixir-autogen, elixir-format
 msgid "Compressed Size (MB)"
-msgstr "壓縮後大小（MB）"
+msgstr "壓縮大小 (MB)"
 
-#: lib/tuist_web/live/build_run_live.html.heex:218
-#: lib/tuist_web/live/xcode_build_runs_live.ex:216
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:91
+#: lib/tuist_web/components/build_timeline.ex:322
+#: lib/tuist_web/live/build_run_live.html.heex:239
+#: lib/tuist_web/live/xcode_build_runs_live.ex:211
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "Configuration"
-msgstr "組態"
+msgstr "設定"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:607
+#: lib/tuist_web/live/bazel_invocations_live.ex:409
+#: lib/tuist_web/live/cargo_builds_live.html.heex:276
+#: lib/tuist_web/live/once_runs_live.ex:629
+#: lib/tuist_web/live/xcode_builds_live.html.heex:634
 #, elixir-autogen, elixir-format
 msgid "Configuration Insights"
-msgstr "組態洞察"
+msgstr "設定洞察"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Configuration:"
-msgstr "組態："
+msgstr "設定："
 
-#: lib/tuist_web/live/build_run_live.html.heex:1277
+#: lib/tuist_web/components/cache_output_list.ex:27
 #, elixir-autogen, elixir-format
 msgid "Copy"
 msgstr "複製"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:81
+#: lib/tuist_web/components/runs/module_cache_tab.ex:113
 #, elixir-autogen, elixir-format
 msgid "Copy as JSON"
-msgstr "以 JSON 複製"
+msgstr "複製為 JSON"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:271
+#: lib/tuist_web/components/runs/module_cache_tab.ex:377
 #, elixir-autogen, elixir-format
 msgid "Copy files"
 msgstr "複製檔案"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:277
+#: lib/tuist_web/components/runs/module_cache_tab.ex:383
 #, elixir-autogen, elixir-format
 msgid "Core data models"
-msgstr "核心資料模型"
+msgstr "Core Data 模型"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:317
+#: lib/tuist_web/components/runs/module_cache_tab.ex:422
 #, elixir-autogen, elixir-format
 msgid "Dependencies"
-msgstr "依賴"
+msgstr "相依性"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:299
+#: lib/tuist_web/components/runs/module_cache_tab.ex:405
 #, elixir-autogen, elixir-format
 msgid "Deployment target"
 msgstr "部署目標"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:247
-#, elixir-autogen, elixir-format
-msgid "Destinations"
-msgstr "目的地"
-
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:193
-#: lib/tuist_web/live/xcode_builds_live.ex:390
-#: lib/tuist_web/live/xcode_builds_live.html.heex:631
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:169
+#: lib/tuist_web/live/xcode_builds_live.ex:396
+#: lib/tuist_web/live/xcode_builds_live.html.heex:659
 #, elixir-autogen, elixir-format
 msgid "Device"
 msgstr "裝置"
 
-#: lib/tuist_web/live/build_run_live.ex:1068
-#: lib/tuist_web/live/build_run_live.html.heex:1384
-#: lib/tuist_web/live/build_run_live.html.heex:1540
+#: lib/tuist_web/components/reapi_cache_outputs.ex:173
+#: lib/tuist_web/components/reapi_cache_outputs.ex:202
+#: lib/tuist_web/components/reapi_cache_outputs.ex:291
+#: lib/tuist_web/helpers/cargo_cache.ex:63
+#: lib/tuist_web/live/build_run_live.ex:1404
+#: lib/tuist_web/live/build_run_live.html.heex:1293
+#: lib/tuist_web/live/build_run_live.html.heex:1446
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr "下載"
 
-#: lib/tuist_web/live/build_run_live.html.heex:88
+#: lib/tuist_web/live/build_run_live.html.heex:75
 #: lib/tuist_web/live/run_detail_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Download result"
 msgstr "下載結果"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1425
+#: lib/tuist_web/components/cargo_cache_inspection.ex:125
+#: lib/tuist_web/components/reapi_cache_outputs.ex:106
+#: lib/tuist_web/components/runs/module_cache_tab.ex:166
+#: lib/tuist_web/live/build_run_live.html.heex:1334
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
 msgstr "下載吞吐量"
 
+#: lib/tuist_web/components/build_timeline.ex:234
+#: lib/tuist_web/components/cargo_cache_inspection.ex:281
+#: lib/tuist_web/helpers/build_entity_labels.ex:86
+#: lib/tuist_web/helpers/cargo_cache.ex:88
+#: lib/tuist_web/live/bazel_invocations_live.ex:506
+#: lib/tuist_web/live/bazel_invocations_live.ex:523
+#: lib/tuist_web/live/cargo_build_live.ex:130
+#: lib/tuist_web/live/cargo_build_live.html.heex:314
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:13
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:21
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:92
+#: lib/tuist_web/live/cargo_builds_live.html.heex:453
 #: lib/tuist_web/live/generate_runs_live.html.heex:13
 #: lib/tuist_web/live/generate_runs_live.html.heex:21
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:13
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:21
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:135
-#: lib/tuist_web/live/xcode_builds_live.html.heex:879
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:49
+#: lib/tuist_web/live/once_runs_live.ex:989
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:30
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
+#: lib/tuist_web/live/xcode_builds_live.html.heex:928
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr "持續時間"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:311
+#: lib/tuist_web/components/runs/module_cache_tab.ex:417
 #, elixir-autogen, elixir-format
 msgid "Entitlements"
 msgstr "權限"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:289
-#: lib/tuist_web/live/xcode_builds_live.ex:434
-#: lib/tuist_web/live/xcode_builds_live.html.heex:356
+#: lib/tuist_web/components/runs/module_cache_tab.ex:395
+#: lib/tuist_web/live/build_entity_live.ex:1110
+#: lib/tuist_web/live/build_entity_live.ex:1172
+#: lib/tuist_web/live/cargo_build_runs_live.ex:62
+#: lib/tuist_web/live/cargo_builds_live.html.heex:198
+#: lib/tuist_web/live/cargo_builds_live.html.heex:285
+#: lib/tuist_web/live/cargo_builds_live.html.heex:295
+#: lib/tuist_web/live/xcode_builds_live.ex:440
+#: lib/tuist_web/live/xcode_builds_live.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "環境"
 
+#: lib/tuist_web/live/build_entity_live.ex:975
+#: lib/tuist_web/live/cargo_builds_live.html.heex:16
 #: lib/tuist_web/live/xcode_builds_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Environment:"
 msgstr "環境："
 
-#: lib/tuist_web/live/build_run_live.html.heex:182
-#: lib/tuist_web/live/build_run_live.html.heex:358
-#: lib/tuist_web/live/build_run_live.html.heex:783
-#: lib/tuist_web/live/build_run_live.html.heex:790
+#: lib/tuist_web/live/build_run_live.html.heex:196
+#: lib/tuist_web/live/build_run_live.html.heex:355
+#: lib/tuist_web/live/build_run_live.html.heex:782
+#: lib/tuist_web/live/build_run_live.html.heex:789
+#: lib/tuist_web/live/cargo_build_live.html.heex:31
+#: lib/tuist_web/live/cargo_build_live.html.heex:352
+#: lib/tuist_web/live/cargo_build_live.html.heex:364
+#: lib/tuist_web/live/mix_build_live.html.heex:70
+#: lib/tuist_web/live/mix_build_live.html.heex:472
+#: lib/tuist_web/live/mix_build_live.html.heex:701
+#: lib/tuist_web/live/mix_build_live.html.heex:708
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "錯誤"
 
-#: lib/tuist_web/live/build_run_live.html.heex:348
+#: lib/tuist_web/live/build_run_live.html.heex:345
+#: lib/tuist_web/live/mix_build_live.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "Errors and Warnings"
 msgstr "錯誤與警告"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:256
+#: lib/tuist_web/components/runs/module_cache_tab.ex:362
 #, elixir-autogen, elixir-format
 msgid "External"
 msgstr "外部"
 
-#: lib/tuist_web/live/build_run_live.ex:923
-#: lib/tuist_web/live/build_run_live.html.heex:239
-#: lib/tuist_web/live/build_run_live.html.heex:579
-#: lib/tuist_web/live/generate_runs_live.ex:271
+#: lib/tuist_web/components/build_timeline.ex:252
+#: lib/tuist_web/components/build_timeline.ex:297
+#: lib/tuist_web/components/build_timeline.ex:334
+#: lib/tuist_web/helpers/build_entity_labels.ex:93
+#: lib/tuist_web/helpers/cargo_cache.ex:66
+#: lib/tuist_web/live/build_entity_live.ex:517
+#: lib/tuist_web/live/build_entity_live.ex:1145
+#: lib/tuist_web/live/build_entity_live.html.heex:438
+#: lib/tuist_web/live/build_entity_live.html.heex:582
+#: lib/tuist_web/live/build_run_live.ex:1243
+#: lib/tuist_web/live/build_run_live.html.heex:260
+#: lib/tuist_web/live/build_run_live.html.heex:572
+#: lib/tuist_web/live/cargo_build_live.html.heex:61
+#: lib/tuist_web/live/cargo_build_live.html.heex:303
+#: lib/tuist_web/live/cargo_build_runs_live.ex:39
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:66
+#: lib/tuist_web/live/cargo_builds_live.html.heex:442
+#: lib/tuist_web/live/generate_runs_live.ex:278
 #: lib/tuist_web/live/generate_runs_live.html.heex:81
+#: lib/tuist_web/live/mix_build_live.html.heex:401
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:31
+#: lib/tuist_web/live/once_run_live.ex:1271
 #: lib/tuist_web/live/run_detail_live.html.heex:144
-#: lib/tuist_web/live/xcode_build_runs_live.ex:231
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:107
-#: lib/tuist_web/live/xcode_builds_live.ex:446
-#: lib/tuist_web/live/xcode_builds_live.html.heex:864
+#: lib/tuist_web/live/xcode_build_runs_live.ex:226
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:89
+#: lib/tuist_web/live/xcode_builds_live.ex:452
+#: lib/tuist_web/live/xcode_builds_live.html.heex:913
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr "失敗"
 
+#: lib/tuist_web/live/cargo_builds_live.ex:180
+#: lib/tuist_web/live/cargo_builds_live.html.heex:118
+#: lib/tuist_web/live/cargo_builds_live.html.heex:390
+#: lib/tuist_web/live/once_runs_live.ex:1012
 #: lib/tuist_web/live/xcode_builds_live.ex:211
-#: lib/tuist_web/live/xcode_builds_live.html.heex:239
-#: lib/tuist_web/live/xcode_builds_live.html.heex:783
+#: lib/tuist_web/live/xcode_builds_live.html.heex:248
+#: lib/tuist_web/live/xcode_builds_live.html.heex:832
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
-msgstr "失敗的構建"
+msgstr "失敗的建構"
 
-#: lib/tuist_web/live/build_run_live.ex:654
+#: lib/tuist_web/live/build_run_live.ex:982
 #, elixir-autogen, elixir-format
 msgid "Failed compiling C file %{path}"
 msgstr "編譯 C 檔案 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:657
-#: lib/tuist_web/live/build_run_live.ex:693
+#: lib/tuist_web/live/build_run_live.ex:985
+#: lib/tuist_web/live/build_run_live.ex:1021
 #, elixir-autogen, elixir-format
 msgid "Failed compiling Swift file %{path}"
 msgstr "編譯 Swift 檔案 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:690
+#: lib/tuist_web/live/build_run_live.ex:1018
 #, elixir-autogen, elixir-format
 msgid "Failed compiling XIB file %{path}"
 msgstr "編譯 XIB 檔案 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:672
+#: lib/tuist_web/live/build_run_live.ex:1000
 #, elixir-autogen, elixir-format
 msgid "Failed compiling assets catalog %{path}"
-msgstr "編譯資源目錄 %{path} 失敗"
+msgstr "編譯資產目錄 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:675
+#: lib/tuist_web/live/build_run_live.ex:1003
 #, elixir-autogen, elixir-format
 msgid "Failed compiling storyboard %{path}"
-msgstr "編譯 storyboard %{path} 失敗"
+msgstr "編譯 Storyboard %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:669
+#: lib/tuist_web/live/build_run_live.ex:997
 #, elixir-autogen, elixir-format
 msgid "Failed copying Swift libraries %{path}"
-msgstr "複製 Swift 函式庫 %{path} 失敗"
+msgstr "複製 Swift 程式庫 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:684
+#: lib/tuist_web/live/build_run_live.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Failed copying resource file %{path}"
 msgstr "複製資源檔案 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:663
+#: lib/tuist_web/live/build_run_live.ex:991
 #, elixir-autogen, elixir-format
 msgid "Failed creating static library %{path}"
-msgstr "建立靜態函式庫 %{path} 失敗"
+msgstr "建立靜態程式庫 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:660
+#: lib/tuist_web/live/build_run_live.ex:988
 #, elixir-autogen, elixir-format
 msgid "Failed executing script %{script_name}"
-msgstr "執行腳本 %{script_name} 失敗"
+msgstr "執行指令碼 %{script_name} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:666
+#: lib/tuist_web/live/build_run_live.ex:994
 #, elixir-autogen, elixir-format
 msgid "Failed linking %{path}"
 msgstr "連結 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:681
+#: lib/tuist_web/live/build_run_live.ex:1009
 #, elixir-autogen, elixir-format
 msgid "Failed linking storyboards %{path}"
-msgstr "連結 storyboard %{path} 失敗"
+msgstr "連結 Storyboards %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:687
+#: lib/tuist_web/live/build_run_live.ex:1015
 #, elixir-autogen, elixir-format
 msgid "Failed merging Swift module %{path}"
 msgstr "合併 Swift 模組 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:696
+#: lib/tuist_web/live/build_run_live.ex:1024
 #, elixir-autogen, elixir-format
 msgid "Failed precompiling bridging header %{path}"
 msgstr "預編譯橋接標頭 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:708
+#: lib/tuist_web/live/build_run_live.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Failed processing %{path}"
 msgstr "處理 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:702
+#: lib/tuist_web/live/build_run_live.ex:1030
 #, elixir-autogen, elixir-format
 msgid "Failed validating %{path}"
 msgstr "驗證 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:699
+#: lib/tuist_web/live/build_run_live.ex:1027
 #, elixir-autogen, elixir-format
 msgid "Failed validating embedded binary %{path}"
-msgstr "驗證嵌入式二進位檔 %{path} 失敗"
+msgstr "驗證內嵌二進位檔 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.ex:678
+#: lib/tuist_web/live/build_run_live.ex:1006
 #, elixir-autogen, elixir-format
 msgid "Failed writing auxiliary file %{path}"
 msgstr "寫入輔助檔案 %{path} 失敗"
 
-#: lib/tuist_web/live/build_run_live.html.heex:626
-#: lib/tuist_web/live/build_run_live.html.heex:642
-#: lib/tuist_web/live/build_run_live.html.heex:666
+#: lib/tuist_web/components/build_timeline.ex:220
+#: lib/tuist_web/helpers/build_entity_labels.ex:17
+#: lib/tuist_web/live/build_run_live.html.heex:619
+#: lib/tuist_web/live/build_run_live.html.heex:635
+#: lib/tuist_web/live/build_run_live.html.heex:659
+#: lib/tuist_web/live/mix_build_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "File"
 msgstr "檔案"
 
-#: lib/tuist_web/live/build_run_live.html.heex:440
-#: lib/tuist_web/live/build_run_live.html.heex:605
+#: lib/tuist_web/live/build_run_live.html.heex:437
+#: lib/tuist_web/live/build_run_live.html.heex:598
+#: lib/tuist_web/live/mix_build_live.html.heex:551
+#: lib/tuist_web/live/mix_build_live.html.heex:566
 #, elixir-autogen, elixir-format
 msgid "File Breakdown"
-msgstr "檔案分析"
+msgstr "檔案細項"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:136
-#: lib/tuist_web/live/build_run_live.html.heex:502
-#: lib/tuist_web/live/build_run_live.html.heex:651
-#: lib/tuist_web/live/build_run_live.html.heex:1160
-#: lib/tuist_web/live/build_run_live.html.heex:1510
+#: lib/tuist_web/components/cargo_cache_inspection.ex:187
+#: lib/tuist_web/components/reapi_cache_outputs.ex:167
+#: lib/tuist_web/components/runs/module_cache_tab.ex:211
+#: lib/tuist_web/live/build_entity_live.html.heex:542
+#: lib/tuist_web/live/build_run_live.html.heex:499
+#: lib/tuist_web/live/build_run_live.html.heex:644
+#: lib/tuist_web/live/build_run_live.html.heex:1074
+#: lib/tuist_web/live/build_run_live.html.heex:1419
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:35
 #: lib/tuist_web/live/generate_runs_live.html.heex:38
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
+#: lib/tuist_web/live/mix_build_live.html.heex:218
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr "篩選"
@@ -581,258 +743,369 @@ msgstr "篩選"
 msgid "Generate Runs"
 msgstr "產生執行"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:192
+#: lib/tuist_web/components/runs/module_cache_tab.ex:264
 #, elixir-autogen, elixir-format
 msgid "Hash"
 msgstr "雜湊"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:294
+#: lib/tuist_web/components/runs/module_cache_tab.ex:400
 #, elixir-autogen, elixir-format
 msgid "Headers"
 msgstr "標頭"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:170
-#: lib/tuist_web/live/build_run_live.ex:1043
-#: lib/tuist_web/live/build_run_live.html.heex:1197
-#: lib/tuist_web/live/run_detail_live.ex:324
-#: lib/tuist_web/live/test_run_live.ex:1096
+#: lib/tuist_web/components/runs/module_cache_tab.ex:242
+#: lib/tuist_web/helpers/build_entity_labels.ex:97
+#: lib/tuist_web/helpers/cargo_cache.ex:58
+#: lib/tuist_web/live/build_run_live.ex:1379
+#: lib/tuist_web/live/build_run_live.ex:1606
+#: lib/tuist_web/live/build_run_live.html.heex:1105
+#: lib/tuist_web/live/mix_build_live.html.heex:252
+#: lib/tuist_web/live/run_detail_live.ex:348
+#: lib/tuist_web/live/run_detail_live.ex:381
+#: lib/tuist_web/live/test_run_live.ex:1418
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "命中"
 
-#: lib/tuist_web/live/build_run_live.html.heex:855
-#: lib/tuist_web/live/generate_runs_live.ex:287
+#: lib/tuist_web/live/build_run_live.html.heex:864
+#: lib/tuist_web/live/cargo_build_live.html.heex:142
+#: lib/tuist_web/live/generate_runs_live.ex:294
 #: lib/tuist_web/live/generate_runs_live.html.heex:61
+#: lib/tuist_web/live/mix_build_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
 msgstr "命中率"
 
-#: lib/tuist_web/live/xcode_build_runs_live.ex:253
+#: lib/tuist_web/live/xcode_build_runs_live.ex:256
 #: lib/tuist_web/live/xcode_builds_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Incremental"
 msgstr "增量"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:305
+#: lib/tuist_web/components/runs/module_cache_tab.ex:411
 #, elixir-autogen, elixir-format
 msgid "Info.plist"
 msgstr "Info.plist"
 
-#: lib/tuist_web/live/build_run_live.html.heex:325
-#: lib/tuist_web/live/build_run_live.html.heex:1475
-#: lib/tuist_web/live/build_run_live.html.heex:1488
-#: lib/tuist_web/live/build_run_live.html.heex:1525
+#: lib/tuist_web/components/build_metadata.ex:24
+#: lib/tuist_web/components/cargo_cache_inspection.ex:265
+#: lib/tuist_web/components/reapi_cache_outputs.ex:149
+#: lib/tuist_web/components/reapi_cache_outputs.ex:157
+#: lib/tuist_web/components/reapi_cache_outputs.ex:193
+#: lib/tuist_web/helpers/cargo_cache.ex:89
+#: lib/tuist_web/live/build_run_live.html.heex:1384
+#: lib/tuist_web/live/build_run_live.html.heex:1397
+#: lib/tuist_web/live/build_run_live.html.heex:1434
 #, elixir-autogen, elixir-format
 msgid "Key"
-msgstr "鍵"
+msgstr "金鑰"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:180
-#: lib/tuist_web/components/runs/module_cache_tab.ex:416
-#: lib/tuist_web/live/build_run_live.ex:1047
-#: lib/tuist_web/live/build_run_live.html.heex:985
-#: lib/tuist_web/live/build_run_live.html.heex:1200
-#: lib/tuist_web/live/run_detail_live.ex:329
-#: lib/tuist_web/live/test_run_live.ex:1101
-#: lib/tuist_web/live/xcode_builds_live.ex:383
-#: lib/tuist_web/live/xcode_builds_live.ex:386
+#: lib/tuist_web/components/runs/module_cache_tab.ex:252
+#: lib/tuist_web/components/runs/module_cache_tab.ex:547
+#: lib/tuist_web/helpers/build_entity_labels.ex:89
+#: lib/tuist_web/live/build_run_live.ex:1383
+#: lib/tuist_web/live/build_run_live.ex:1611
+#: lib/tuist_web/live/build_run_live.html.heex:928
+#: lib/tuist_web/live/build_run_live.html.heex:1108
+#: lib/tuist_web/live/cargo_build_runs_live.ex:65
+#: lib/tuist_web/live/cargo_builds_live.ex:145
+#: lib/tuist_web/live/mix_build_live.ex:335
+#: lib/tuist_web/live/mix_build_live.ex:352
+#: lib/tuist_web/live/run_detail_live.ex:353
+#: lib/tuist_web/live/run_detail_live.ex:386
+#: lib/tuist_web/live/test_run_live.ex:1423
+#: lib/tuist_web/live/xcode_builds_live.ex:388
+#: lib/tuist_web/live/xcode_builds_live.ex:391
 #: lib/tuist_web/live/xcode_builds_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Local"
-msgstr "本地"
+msgstr "本機"
 
-#: lib/tuist_web/live/build_run_live.html.heex:775
-#: lib/tuist_web/live/build_run_live.html.heex:818
+#: lib/tuist_web/live/build_run_live.html.heex:774
+#: lib/tuist_web/live/build_run_live.html.heex:827
+#: lib/tuist_web/live/cargo_build_live.html.heex:410
+#: lib/tuist_web/live/mix_build_live.html.heex:693
+#: lib/tuist_web/live/mix_build_live.html.heex:747
 #, elixir-autogen, elixir-format
 msgid "Looks like you're having a great day!"
-msgstr "看起來您今天過得很愉快！"
+msgstr "看來你今天過得很愉快！"
 
-#: lib/tuist_web/live/build_run_live.html.heex:211
+#: lib/tuist_web/live/build_run_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Mac device"
 msgstr "Mac 裝置"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:186
-#: lib/tuist_web/components/runs/module_cache_tab.ex:442
-#: lib/tuist_web/live/build_run_live.ex:1049
-#: lib/tuist_web/live/build_run_live.html.heex:1013
-#: lib/tuist_web/live/build_run_live.html.heex:1212
-#: lib/tuist_web/live/run_detail_live.ex:330
-#: lib/tuist_web/live/test_run_live.ex:1102
+#: lib/tuist_web/components/runs/module_cache_tab.ex:258
+#: lib/tuist_web/components/runs/module_cache_tab.ex:573
+#: lib/tuist_web/helpers/cargo_cache.ex:61
+#: lib/tuist_web/live/build_run_live.ex:1385
+#: lib/tuist_web/live/build_run_live.ex:1612
+#: lib/tuist_web/live/build_run_live.html.heex:938
+#: lib/tuist_web/live/build_run_live.html.heex:1120
+#: lib/tuist_web/live/mix_build_live.ex:336
+#: lib/tuist_web/live/mix_build_live.ex:370
+#: lib/tuist_web/live/run_detail_live.ex:354
+#: lib/tuist_web/live/run_detail_live.ex:387
+#: lib/tuist_web/live/test_run_live.ex:1424
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "未命中"
+msgstr "已錯過"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:156
-#: lib/tuist_web/live/build_run_live.html.heex:468
-#: lib/tuist_web/live/build_run_live.html.heex:477
-#: lib/tuist_web/live/build_run_live.html.heex:517
+#: lib/tuist_web/components/runs/module_cache_tab.ex:231
+#: lib/tuist_web/helpers/build_entity_labels.ex:14
+#: lib/tuist_web/helpers/build_entity_labels.ex:18
+#: lib/tuist_web/live/build_entity_live.ex:611
+#: lib/tuist_web/live/build_run_live.html.heex:465
+#: lib/tuist_web/live/build_run_live.html.heex:474
+#: lib/tuist_web/live/build_run_live.html.heex:514
+#: lib/tuist_web/live/mix_build_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr "模組"
 
-#: lib/tuist_web/live/build_run_live.html.heex:435
-#: lib/tuist_web/live/build_run_live.html.heex:447
+#: lib/tuist_web/live/build_run_live.html.heex:432
+#: lib/tuist_web/live/build_run_live.html.heex:444
+#: lib/tuist_web/live/mix_build_live.html.heex:556
+#: lib/tuist_web/live/mix_build_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "Module Breakdown"
-msgstr "模組分析"
+msgstr "模組細項"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:73
+#: lib/tuist_web/components/runs/module_cache_tab.ex:105
+#: lib/tuist_web/live/build_run_live.html.heex:180
 #: lib/tuist_web/live/run_detail_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr "模組快取"
 
-#: lib/tuist_web/live/build_run_live.ex:902
+#: lib/tuist_web/helpers/cargo_cache.ex:86
+#: lib/tuist_web/live/build_run_live.ex:1222
+#: lib/tuist_web/live/cargo_build_live.ex:131
+#: lib/tuist_web/live/mix_build_live.ex:500
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr "名稱"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1603
+#: lib/tuist_web/components/cargo_cache_inspection.ex:306
+#: lib/tuist_web/components/reapi_cache_outputs.ex:235
+#: lib/tuist_web/live/build_run_live.html.heex:1178
+#: lib/tuist_web/live/build_run_live.html.heex:1505
 #, elixir-autogen, elixir-format
 msgid "No CAS outputs found"
 msgstr "未找到 CAS 輸出"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1295
+#: lib/tuist_web/components/cargo_cache_inspection.ex:309
+#: lib/tuist_web/live/build_run_live.html.heex:1204
+#: lib/tuist_web/live/mix_build_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "No cacheable tasks found"
-msgstr "未找到可快取任務"
+msgstr "未找到可快取的任務"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1087
-#: lib/tuist_web/live/build_run_live.html.heex:1143
-#: lib/tuist_web/live/build_run_live.html.heex:1439
-#: lib/tuist_web/live/build_run_live.html.heex:1456
+#: lib/tuist_web/components/cargo_cache_inspection.ex:102
+#: lib/tuist_web/components/cargo_cache_inspection.ex:118
+#: lib/tuist_web/components/cargo_cache_inspection.ex:134
+#: lib/tuist_web/components/cargo_cache_inspection.ex:147
+#: lib/tuist_web/components/reapi_cache_outputs.ex:124
+#: lib/tuist_web/helpers/cargo_cache.ex:131
+#: lib/tuist_web/live/build_entity_live.ex:719
+#: lib/tuist_web/live/build_entity_live.html.heex:102
+#: lib/tuist_web/live/build_entity_live.html.heex:203
+#: lib/tuist_web/live/build_entity_live.html.heex:248
+#: lib/tuist_web/live/build_run_live.html.heex:1001
+#: lib/tuist_web/live/build_run_live.html.heex:1057
+#: lib/tuist_web/live/build_run_live.html.heex:1348
+#: lib/tuist_web/live/build_run_live.html.heex:1365
+#: lib/tuist_web/live/mix_build_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr "無資料"
 
-#: lib/tuist_web/live/generate_runs_live.html.heex:131
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:215
-#: lib/tuist_web/live/xcode_builds_live.html.heex:598
-#: lib/tuist_web/live/xcode_builds_live.html.heex:732
-#: lib/tuist_web/live/xcode_builds_live.html.heex:903
+#: lib/tuist_web/live/bazel_invocations_live.ex:474
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:127
+#: lib/tuist_web/live/cargo_builds_live.html.heex:262
+#: lib/tuist_web/live/cargo_builds_live.html.heex:354
+#: lib/tuist_web/live/cargo_builds_live.html.heex:466
+#: lib/tuist_web/live/generate_runs_live.html.heex:125
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:92
+#: lib/tuist_web/live/once_runs_live.ex:695
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:191
+#: lib/tuist_web/live/xcode_builds_live.html.heex:612
+#: lib/tuist_web/live/xcode_builds_live.html.heex:763
+#: lib/tuist_web/live/xcode_builds_live.html.heex:952
 #, elixir-autogen, elixir-format
 msgid "No data yet"
 msgstr "尚無資料"
 
-#: lib/tuist_web/live/build_run_live.html.heex:816
+#: lib/tuist_web/live/build_run_live.html.heex:825
+#: lib/tuist_web/live/cargo_build_live.html.heex:407
+#: lib/tuist_web/live/mix_build_live.html.heex:745
 #, elixir-autogen, elixir-format
 msgid "No errors detected"
 msgstr "未偵測到錯誤"
 
-#: lib/tuist_web/live/build_run_live.html.heex:722
+#: lib/tuist_web/live/build_run_live.html.heex:711
 #, elixir-autogen, elixir-format
 msgid "No files found"
 msgstr "未找到檔案"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:203
-#: lib/tuist_web/live/build_run_live.html.heex:586
+#: lib/tuist_web/components/runs/module_cache_tab.ex:275
+#: lib/tuist_web/live/build_run_live.html.heex:579
 #, elixir-autogen, elixir-format
 msgid "No modules found"
 msgstr "未找到模組"
 
-#: lib/tuist_web/live/build_run_live.html.heex:773
+#: lib/tuist_web/live/build_run_live.html.heex:772
+#: lib/tuist_web/live/cargo_build_live.html.heex:408
+#: lib/tuist_web/live/mix_build_live.html.heex:691
 #, elixir-autogen, elixir-format
 msgid "No warnings detected"
 msgstr "未偵測到警告"
 
-#: lib/tuist_web/live/build_run_live.html.heex:296
+#: lib/tuist_web/components/runs/module_cache_tab.ex:662
+#: lib/tuist_web/live/build_run_live.html.heex:317
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:76
+#: lib/tuist_web/live/mix_build_live.html.heex:434
 #: lib/tuist_web/live/run_detail_live.html.heex:167
 #: lib/tuist_web/live/run_detail_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr "無"
 
-#: lib/tuist_web/live/build_run_live.html.heex:166
+#: lib/tuist_web/live/build_entity_live.html.heex:41
+#: lib/tuist_web/live/build_run_live.html.heex:168
+#: lib/tuist_web/live/cargo_build_live.html.heex:28
+#: lib/tuist_web/live/mix_build_live.html.heex:49
 #: lib/tuist_web/live/run_detail_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "概覽"
 
-#: lib/tuist_web/live/build_run_live.ex:922
-#: lib/tuist_web/live/build_run_live.html.heex:232
-#: lib/tuist_web/live/build_run_live.html.heex:574
-#: lib/tuist_web/live/generate_runs_live.ex:270
+#: lib/tuist_web/live/bazel_invocation_live.ex:956
+#: lib/tuist_web/live/build_entity_live.ex:516
+#: lib/tuist_web/live/build_entity_live.ex:1144
+#: lib/tuist_web/live/build_entity_live.html.heex:433
+#: lib/tuist_web/live/build_entity_live.html.heex:577
+#: lib/tuist_web/live/build_run_live.ex:1242
+#: lib/tuist_web/live/build_run_live.html.heex:253
+#: lib/tuist_web/live/build_run_live.html.heex:567
+#: lib/tuist_web/live/cargo_build_live.html.heex:60
+#: lib/tuist_web/live/cargo_build_live.html.heex:302
+#: lib/tuist_web/live/cargo_build_runs_live.ex:38
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:65
+#: lib/tuist_web/live/cargo_builds_live.html.heex:441
+#: lib/tuist_web/live/generate_runs_live.ex:277
 #: lib/tuist_web/live/generate_runs_live.html.heex:79
+#: lib/tuist_web/live/mix_build_live.html.heex:394
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:26
+#: lib/tuist_web/live/once_run_live.ex:1265
+#: lib/tuist_web/live/once_runs_live.ex:880
+#: lib/tuist_web/live/once_runs_live.ex:1342
 #: lib/tuist_web/live/run_detail_live.html.heex:137
-#: lib/tuist_web/live/xcode_build_runs_live.ex:230
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:102
-#: lib/tuist_web/live/xcode_builds_live.ex:445
-#: lib/tuist_web/live/xcode_builds_live.html.heex:859
+#: lib/tuist_web/live/xcode_build_runs_live.ex:225
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:84
+#: lib/tuist_web/live/xcode_builds_live.ex:451
+#: lib/tuist_web/live/xcode_builds_live.html.heex:908
 #, elixir-autogen, elixir-format
 msgid "Passed"
 msgstr "通過"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:62
+#: lib/tuist_web/components/runs/module_cache_tab.ex:68
 #, elixir-autogen, elixir-format
 msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "成功從快取取得的模組百分比。"
+msgstr "成功從快取中檢索的模組百分比。"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:230
+#: lib/tuist_web/components/runs/module_cache_tab.ex:306
 #, elixir-autogen, elixir-format
 msgid "Product"
 msgstr "產品"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:235
+#: lib/tuist_web/components/runs/module_cache_tab.ex:311
 #, elixir-autogen, elixir-format
 msgid "Product name"
 msgstr "產品名稱"
 
-#: lib/tuist_web/live/build_run_live.ex:873
-#: lib/tuist_web/live/build_run_live.ex:910
-#: lib/tuist_web/live/build_run_live.html.heex:695
+#: lib/tuist_web/components/build_timeline.ex:215
+#: lib/tuist_web/helpers/build_entity_labels.ex:77
+#: lib/tuist_web/live/build_entity_live.ex:603
+#: lib/tuist_web/live/build_entity_live.ex:606
+#: lib/tuist_web/live/build_entity_live.ex:607
+#: lib/tuist_web/live/build_run_live.ex:1193
+#: lib/tuist_web/live/build_run_live.ex:1230
+#: lib/tuist_web/live/build_run_live.html.heex:685
 #, elixir-autogen, elixir-format
 msgid "Project"
 msgstr "專案"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:323
+#: lib/tuist_web/components/runs/module_cache_tab.ex:451
 #, elixir-autogen, elixir-format
 msgid "Project settings"
 msgstr "專案設定"
 
+#: lib/tuist_web/live/bazel_invocations_live.ex:507
+#: lib/tuist_web/live/bazel_invocations_live.ex:531
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:14
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:22
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:103
+#: lib/tuist_web/live/cargo_builds_live.html.heex:459
 #: lib/tuist_web/live/generate_runs_live.html.heex:14
 #: lib/tuist_web/live/generate_runs_live.html.heex:29
-#: lib/tuist_web/live/generate_runs_live.html.heex:111
+#: lib/tuist_web/live/generate_runs_live.html.heex:108
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:76
+#: lib/tuist_web/live/once_runs_live.ex:990
 #: lib/tuist_web/live/run_detail_live.html.heex:156
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:29
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:165
-#: lib/tuist_web/live/xcode_builds_live.html.heex:896
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:15
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:144
+#: lib/tuist_web/live/xcode_builds_live.html.heex:945
 #, elixir-autogen, elixir-format
 msgid "Ran at"
-msgstr "執行於"
+msgstr "執行時間"
 
-#: lib/tuist_web/live/generate_runs_live.ex:314
+#: lib/tuist_web/live/build_entity_live.html.heex:612
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:84
+#: lib/tuist_web/live/cargo_builds_live.html.heex:447
+#: lib/tuist_web/live/generate_runs_live.ex:321
 #: lib/tuist_web/live/generate_runs_live.html.heex:87
+#: lib/tuist_web/live/once_runs_live.ex:905
 #: lib/tuist_web/live/run_detail_live.html.heex:152
-#: lib/tuist_web/live/xcode_build_runs_live.ex:309
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:130
-#: lib/tuist_web/live/xcode_builds_live.html.heex:876
+#: lib/tuist_web/live/xcode_build_runs_live.ex:312
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:112
+#: lib/tuist_web/live/xcode_builds_live.html.heex:925
 #, elixir-autogen, elixir-format
 msgid "Ran by"
 msgstr "執行者"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:742
+#: lib/tuist_web/live/cargo_builds_live.html.heex:365
+#: lib/tuist_web/live/once_runs_live.ex:50
+#: lib/tuist_web/live/xcode_builds_live.html.heex:791
 #, elixir-autogen, elixir-format
 msgid "Recent Builds"
-msgstr "最近構建"
+msgstr "近期建置"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:174
-#: lib/tuist_web/components/runs/module_cache_tab.ex:429
-#: lib/tuist_web/live/build_run_live.ex:1048
-#: lib/tuist_web/live/build_run_live.html.heex:999
-#: lib/tuist_web/live/build_run_live.html.heex:1206
-#: lib/tuist_web/live/run_detail_live.ex:328
-#: lib/tuist_web/live/test_run_live.ex:1100
+#: lib/tuist_web/components/runs/module_cache_tab.ex:246
+#: lib/tuist_web/components/runs/module_cache_tab.ex:560
+#: lib/tuist_web/live/build_run_live.ex:1384
+#: lib/tuist_web/live/build_run_live.ex:1610
+#: lib/tuist_web/live/build_run_live.html.heex:933
+#: lib/tuist_web/live/build_run_live.html.heex:1114
+#: lib/tuist_web/live/mix_build_live.ex:334
+#: lib/tuist_web/live/mix_build_live.ex:361
+#: lib/tuist_web/live/run_detail_live.ex:352
+#: lib/tuist_web/live/run_detail_live.ex:385
+#: lib/tuist_web/live/test_run_live.ex:1422
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr "遠端"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:265
+#: lib/tuist_web/components/build_timeline.ex:319
+#: lib/tuist_web/components/build_timeline.ex:327
+#: lib/tuist_web/components/runs/module_cache_tab.ex:371
 #, elixir-autogen, elixir-format
 msgid "Resources"
 msgstr "資源"
 
-#: lib/tuist_web/live/run_detail_live.ex:36
+#: lib/tuist_web/helpers/build_entity_labels.ex:79
+#: lib/tuist_web/live/run_detail_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Run"
 msgstr "執行"
@@ -840,27 +1113,36 @@ msgstr "執行"
 #: lib/tuist_web/live/run_detail_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Run duration"
-msgstr "執行時長"
+msgstr "執行持續時間"
 
-#: lib/tuist_web/live/xcode_build_runs_live.ex:205
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:58
-#: lib/tuist_web/live/xcode_builds_live.ex:432
-#: lib/tuist_web/live/xcode_builds_live.html.heex:355
-#: lib/tuist_web/live/xcode_builds_live.html.heex:848
+#: lib/tuist_web/helpers/build_entity_labels.ex:80
+#: lib/tuist_web/live/xcode_build_runs_live.ex:200
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:67
+#: lib/tuist_web/live/xcode_builds_live.ex:438
+#: lib/tuist_web/live/xcode_builds_live.html.heex:368
+#: lib/tuist_web/live/xcode_builds_live.html.heex:897
 #, elixir-autogen, elixir-format
 msgid "Scheme"
-msgstr "方案"
+msgstr "Scheme"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Scheme:"
-msgstr "方案："
+msgstr "Scheme："
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:128
-#: lib/tuist_web/live/build_run_live.html.heex:458
-#: lib/tuist_web/live/build_run_live.html.heex:616
-#: lib/tuist_web/live/build_run_live.html.heex:1152
-#: lib/tuist_web/live/build_run_live.html.heex:1465
+#: lib/tuist_web/components/cargo_cache_inspection.ex:163
+#: lib/tuist_web/components/reapi_cache_outputs.ex:139
+#: lib/tuist_web/components/runs/module_cache_tab.ex:203
+#: lib/tuist_web/live/bazel_invocation_live.ex:588
+#: lib/tuist_web/live/build_entity_live.html.heex:509
+#: lib/tuist_web/live/build_run_live.html.heex:455
+#: lib/tuist_web/live/build_run_live.html.heex:609
+#: lib/tuist_web/live/build_run_live.html.heex:1066
+#: lib/tuist_web/live/build_run_live.html.heex:1374
+#: lib/tuist_web/live/cargo_build_live.html.heex:268
+#: lib/tuist_web/live/mix_build_live.html.heex:209
+#: lib/tuist_web/live/mix_build_live.html.heex:583
+#: lib/tuist_web/live/once_run_live.ex:753
 #: lib/tuist_web/live/xcode_builds_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "Search..."
@@ -871,56 +1153,89 @@ msgstr "搜尋..."
 msgid "Selective Testing"
 msgstr "選擇性測試"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1476
-#: lib/tuist_web/live/build_run_live.html.heex:1496
-#: lib/tuist_web/live/build_run_live.html.heex:1556
+#: lib/tuist_web/components/cargo_cache_inspection.ex:278
+#: lib/tuist_web/components/reapi_cache_outputs.ex:150
+#: lib/tuist_web/components/reapi_cache_outputs.ex:158
+#: lib/tuist_web/components/reapi_cache_outputs.ex:214
+#: lib/tuist_web/helpers/cargo_cache.ex:87
+#: lib/tuist_web/live/build_run_live.html.heex:1385
+#: lib/tuist_web/live/build_run_live.html.heex:1405
+#: lib/tuist_web/live/build_run_live.html.heex:1462
 #, elixir-autogen, elixir-format
 msgid "Size"
 msgstr "大小"
 
-#: lib/tuist_web/live/build_run_live.ex:1087
+#: lib/tuist_web/live/build_run_live.ex:1423
 #, elixir-autogen, elixir-format
 msgid "Size (MB)"
 msgstr "大小（MB）"
 
-#: lib/tuist_web/live/build_run_live.html.heex:473
-#: lib/tuist_web/live/build_run_live.html.heex:630
-#: lib/tuist_web/live/build_run_live.html.heex:1481
+#: lib/tuist_web/components/cargo_cache_inspection.ex:171
+#: lib/tuist_web/components/reapi_cache_outputs.ex:152
+#: lib/tuist_web/live/bazel_invocations_live.ex:510
+#: lib/tuist_web/live/build_entity_live.html.heex:370
+#: lib/tuist_web/live/build_entity_live.html.heex:521
+#: lib/tuist_web/live/build_run_live.html.heex:470
+#: lib/tuist_web/live/build_run_live.html.heex:623
+#: lib/tuist_web/live/build_run_live.html.heex:1390
+#: lib/tuist_web/live/cargo_build_live.html.heex:275
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:16
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:17
+#: lib/tuist_web/live/mix_build_live.html.heex:592
+#: lib/tuist_web/live/once_runs_live.ex:833
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
-msgstr "排序依據："
+msgstr "排序方式："
 
-#: lib/tuist_web/live/build_run_live.html.heex:292
+#: lib/tuist_web/live/build_run_live.html.heex:313
+#: lib/tuist_web/live/cargo_build_live.html.heex:91
+#: lib/tuist_web/live/mix_build_live.html.heex:430
 #: lib/tuist_web/live/run_detail_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Source"
 msgstr "來源"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:260
+#: lib/tuist_web/components/runs/module_cache_tab.ex:366
 #, elixir-autogen, elixir-format
 msgid "Sources"
 msgstr "來源"
 
-#: lib/tuist_web/live/build_run_live.ex:918
-#: lib/tuist_web/live/build_run_live.ex:1064
-#: lib/tuist_web/live/build_run_live.html.heex:229
-#: lib/tuist_web/live/build_run_live.html.heex:1537
-#: lib/tuist_web/live/generate_runs_live.ex:266
+#: lib/tuist_web/components/cargo_cache_inspection.ex:268
+#: lib/tuist_web/components/reapi_cache_outputs.ex:198
+#: lib/tuist_web/live/bazel_invocation_live.ex:226
+#: lib/tuist_web/live/build_entity_live.ex:511
+#: lib/tuist_web/live/build_entity_live.ex:1109
+#: lib/tuist_web/live/build_entity_live.ex:1171
+#: lib/tuist_web/live/build_entity_live.html.heex:573
+#: lib/tuist_web/live/build_run_live.ex:1238
+#: lib/tuist_web/live/build_run_live.ex:1400
+#: lib/tuist_web/live/build_run_live.html.heex:250
+#: lib/tuist_web/live/build_run_live.html.heex:1443
+#: lib/tuist_web/live/cargo_build_live.html.heex:56
+#: lib/tuist_web/live/cargo_build_live.html.heex:298
+#: lib/tuist_web/live/cargo_build_runs_live.ex:34
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:61
+#: lib/tuist_web/live/cargo_builds_live.html.heex:437
+#: lib/tuist_web/live/generate_runs_live.ex:273
+#: lib/tuist_web/live/mix_build_live.html.heex:391
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:23
+#: lib/tuist_web/live/once_run_live.ex:310
 #: lib/tuist_web/live/run_detail_live.html.heex:134
-#: lib/tuist_web/live/xcode_build_runs_live.ex:226
-#: lib/tuist_web/live/xcode_builds_live.ex:433
+#: lib/tuist_web/live/xcode_build_runs_live.ex:221
+#: lib/tuist_web/live/xcode_builds_live.ex:439
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "狀態"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:778
+#: lib/tuist_web/live/cargo_builds_live.html.heex:385
+#: lib/tuist_web/live/once_runs_live.ex:1009
+#: lib/tuist_web/live/xcode_builds_live.html.heex:827
 #, elixir-autogen, elixir-format
 msgid "Successful builds"
-msgstr "成功構建"
+msgstr "成功建置"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:29
+#: lib/tuist_web/components/runs/module_cache_tab.ex:35
 #, elixir-autogen, elixir-format
 msgid "Summary"
 msgstr "摘要"
@@ -930,36 +1245,48 @@ msgstr "摘要"
 msgid "Swift version"
 msgstr "Swift 版本"
 
-#: lib/tuist_web/live/build_run_live.ex:865
-#: lib/tuist_web/live/build_run_live.html.heex:692
+#: lib/tuist_web/components/build_timeline.ex:221
+#: lib/tuist_web/live/build_entity_live.ex:595
+#: lib/tuist_web/live/build_entity_live.ex:602
+#: lib/tuist_web/live/build_entity_live.ex:604
+#: lib/tuist_web/live/build_entity_live.ex:605
+#: lib/tuist_web/live/build_run_live.ex:1185
+#: lib/tuist_web/live/build_run_live.html.heex:682
 #, elixir-autogen, elixir-format
 msgid "Target"
 msgstr "目標"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:283
+#: lib/tuist_web/components/runs/module_cache_tab.ex:389
 #, elixir-autogen, elixir-format
 msgid "Target scripts"
 msgstr "目標腳本"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:329
+#: lib/tuist_web/components/runs/module_cache_tab.ex:457
 #, elixir-autogen, elixir-format
 msgid "Target settings"
 msgstr "目標設定"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1185
+#: lib/tuist_web/components/cargo_cache_inspection.ex:209
+#: lib/tuist_web/helpers/build_entity_labels.ex:13
+#: lib/tuist_web/live/build_run_live.html.heex:1094
+#: lib/tuist_web/live/mix_build_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Task"
 msgstr "任務"
 
-#: lib/tuist_web/live/build_run_live.html.heex:833
+#: lib/tuist_web/live/build_run_live.html.heex:842
+#: lib/tuist_web/live/cargo_build_live.html.heex:120
+#: lib/tuist_web/live/mix_build_live.ex:283
 #, elixir-autogen, elixir-format
 msgid "Task hits"
-msgstr "任務命中"
+msgstr "任務命中次數"
 
-#: lib/tuist_web/live/build_run_live.html.heex:844
+#: lib/tuist_web/live/build_run_live.html.heex:853
+#: lib/tuist_web/live/cargo_build_live.html.heex:131
+#: lib/tuist_web/live/mix_build_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr "任務未命中"
+msgstr "任務未命中次數"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:107
 #, elixir-autogen, elixir-format
@@ -969,130 +1296,154 @@ msgstr "測試詳情"
 #: lib/tuist_web/live/run_detail_live.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
-msgstr "測試執行"
+msgstr "測試執行次數"
 
-#: lib/tuist_web/live/build_run_live.html.heex:68
+#: lib/tuist_web/live/build_run_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Test: %{scheme}"
 msgstr "測試：%{scheme}"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:272
+#: lib/tuist_web/live/cargo_builds_live.html.heex:147
+#: lib/tuist_web/live/xcode_builds_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "包含個別百分位區間的平均構建時間。"
+msgstr "包含各個百分位區間的平均建置持續時間。"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:241
+#: lib/tuist_web/live/cargo_builds_live.html.heex:120
+#: lib/tuist_web/live/xcode_builds_live.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "The number of builds that failed."
-msgstr "失敗構建的數量。"
+msgstr "建置失敗的次數。"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:219
+#: lib/tuist_web/live/cargo_builds_live.html.heex:103
+#: lib/tuist_web/live/xcode_builds_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "The percentage of builds that succeeded."
-msgstr "成功構建的百分比。"
+msgstr "建置成功的百分比。"
 
-#: lib/tuist_web/live/build_run_live.html.heex:857
+#: lib/tuist_web/live/build_run_live.html.heex:866
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "快取命中（本地 + 遠端）的可快取任務百分比。"
+msgstr "可快取任務中命中快取（本地 + 遠端）的百分比。"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:204
+#: lib/tuist_web/live/cargo_builds_live.html.heex:88
+#: lib/tuist_web/live/xcode_builds_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "The total number of builds."
-msgstr "構建總數。"
+msgstr "建置總數。"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1044
+#: lib/tuist_web/live/build_run_live.html.heex:958
 #, elixir-autogen, elixir-format
 msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
-msgstr "從快取中讀取快取鍵（唯一標識可快取任務）的時間。"
+msgstr "從快取讀取唯一識別可快取任務的快取鍵所需的時間。"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1100
+#: lib/tuist_web/live/build_run_live.html.heex:1014
 #, elixir-autogen, elixir-format
 msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
-msgstr "寫入快取鍵（唯一標識可快取任務）到快取的時間。"
+msgstr "將唯一識別可快取任務的快取鍵寫入快取所需的時間。"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1427
+#: lib/tuist_web/live/build_run_live.html.heex:1336
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput in megabits per second."
-msgstr "加權平均下載速率（以 Mbps 計）。"
+msgstr "以時間加權的平均下載吞吐量，單位為每秒兆位元 (Mbps)。"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1444
+#: lib/tuist_web/live/build_run_live.html.heex:1353
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average upload throughput in megabits per second."
-msgstr "加權平均上傳速率（以 Mbps 計）。"
+msgstr "以時間加權的平均上傳吞吐量，單位為每秒兆位元 (Mbps)。"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:202
+#: lib/tuist_web/live/cargo_builds_live.html.heex:86
+#: lib/tuist_web/live/xcode_builds_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Total builds"
-msgstr "總構建數"
+msgstr "總建置數"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:37
+#: lib/tuist_web/components/runs/module_cache_tab.ex:43
 #, elixir-autogen, elixir-format
 msgid "Total number of modules taken from either the local or the remote cache."
 msgstr "從本地或遠端快取取得的模組總數。"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:51
+#: lib/tuist_web/components/runs/module_cache_tab.ex:57
 #, elixir-autogen, elixir-format
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
-msgstr "如果快取已完全填充，可能取得的模組總數。"
+msgstr "如果快取已完全填充，可能從中取得的模組總數。"
 
-#: lib/tuist_web/live/build_run_live.html.heex:880
+#: lib/tuist_web/live/build_run_live.html.heex:889
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded."
-msgstr "快取工件下載的總大小。"
+msgstr "已下載的快取成品總大小。"
 
-#: lib/tuist_web/live/build_run_live.html.heex:888
+#: lib/tuist_web/live/build_run_live.html.heex:897
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded."
-msgstr "快取工件上傳的總大小。"
+msgstr "已上傳的快取成品總大小。"
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:204
+#: lib/tuist_web/components/runs/module_cache_tab.ex:276
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "嘗試更改搜尋條件"
+msgstr "嘗試變更您的搜尋字詞"
 
-#: lib/tuist_web/live/build_run_live.html.heex:587
-#: lib/tuist_web/live/build_run_live.html.heex:723
+#: lib/tuist_web/live/build_run_live.html.heex:580
+#: lib/tuist_web/live/build_run_live.html.heex:712
+#: lib/tuist_web/live/cargo_build_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
-msgstr "嘗試更新您的搜尋"
+msgstr "嘗試更新您的搜尋條件"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Tuist version"
 msgstr "Tuist 版本"
 
-#: lib/tuist_web/live/build_run_live.ex:1030
-#: lib/tuist_web/live/build_run_live.ex:1077
-#: lib/tuist_web/live/build_run_live.html.heex:678
-#: lib/tuist_web/live/build_run_live.html.heex:1217
-#: lib/tuist_web/live/build_run_live.html.heex:1551
+#: lib/tuist_web/components/build_timeline.ex:226
+#: lib/tuist_web/components/cargo_cache_inspection.ex:228
+#: lib/tuist_web/components/cargo_cache_inspection.ex:275
+#: lib/tuist_web/components/reapi_cache_outputs.ex:209
+#: lib/tuist_web/live/build_run_live.ex:1366
+#: lib/tuist_web/live/build_run_live.ex:1413
+#: lib/tuist_web/live/build_run_live.html.heex:668
+#: lib/tuist_web/live/build_run_live.html.heex:1125
+#: lib/tuist_web/live/build_run_live.html.heex:1457
+#: lib/tuist_web/live/mix_build_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Type"
 msgstr "類型"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:617
+#: lib/tuist_web/live/bazel_invocations_live.ex:418
+#: lib/tuist_web/live/cargo_builds_live.html.heex:289
+#: lib/tuist_web/live/once_runs_live.ex:638
+#: lib/tuist_web/live/xcode_builds_live.html.heex:645
 #, elixir-autogen, elixir-format
 msgid "Type:"
 msgstr "類型："
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:194
-#: lib/tuist_web/live/build_run_live.html.heex:71
-#: lib/tuist_web/live/build_run_live.html.heex:221
-#: lib/tuist_web/live/build_run_live.html.heex:284
-#: lib/tuist_web/live/build_run_live.html.heex:1195
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:94
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:158
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:180
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:188
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:196
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:199
-#: lib/tuist_web/live/xcode_builds_live.ex:405
-#: lib/tuist_web/live/xcode_builds_live.ex:439
-#: lib/tuist_web/live/xcode_builds_live.ex:442
-#: lib/tuist_web/live/xcode_builds_live.html.heex:851
-#: lib/tuist_web/live/xcode_builds_live.html.heex:871
-#: lib/tuist_web/live/xcode_builds_live.html.heex:891
+#: lib/tuist_web/components/build_timeline.ex:64
+#: lib/tuist_web/components/runs/module_cache_tab.ex:266
+#: lib/tuist_web/helpers/build_entity_labels.ex:103
+#: lib/tuist_web/live/build_entity_live.html.heex:607
+#: lib/tuist_web/live/build_run_live.html.heex:58
+#: lib/tuist_web/live/build_run_live.html.heex:242
+#: lib/tuist_web/live/build_run_live.html.heex:305
+#: lib/tuist_web/live/build_run_live.html.heex:1103
+#: lib/tuist_web/live/cargo_build_live.ex:127
+#: lib/tuist_web/live/cargo_build_live.ex:128
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:112
+#: lib/tuist_web/live/cargo_builds_live.ex:146
+#: lib/tuist_web/live/mix_build_live.html.heex:443
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:70
+#: lib/tuist_web/live/once_runs_live.ex:943
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:76
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:137
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:156
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:164
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:172
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:175
+#: lib/tuist_web/live/xcode_builds_live.ex:411
+#: lib/tuist_web/live/xcode_builds_live.ex:445
+#: lib/tuist_web/live/xcode_builds_live.ex:448
+#: lib/tuist_web/live/xcode_builds_live.html.heex:900
+#: lib/tuist_web/live/xcode_builds_live.html.heex:920
+#: lib/tuist_web/live/xcode_builds_live.html.heex:940
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "未知"
@@ -1100,292 +1451,336 @@ msgstr "未知"
 #: lib/tuist_web/live/build_run_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Unknown scheme"
-msgstr "未知方案"
+msgstr "未知的 Scheme"
 
-#: lib/tuist_web/live/build_run_live.ex:1069
-#: lib/tuist_web/live/build_run_live.html.heex:1401
-#: lib/tuist_web/live/build_run_live.html.heex:1546
+#: lib/tuist_web/components/reapi_cache_outputs.ex:174
+#: lib/tuist_web/components/reapi_cache_outputs.ex:203
+#: lib/tuist_web/components/reapi_cache_outputs.ex:300
+#: lib/tuist_web/helpers/cargo_cache.ex:64
+#: lib/tuist_web/live/build_run_live.ex:1405
+#: lib/tuist_web/live/build_run_live.html.heex:1310
+#: lib/tuist_web/live/build_run_live.html.heex:1452
 #, elixir-autogen, elixir-format
 msgid "Upload"
 msgstr "上傳"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1442
+#: lib/tuist_web/components/cargo_cache_inspection.ex:138
+#: lib/tuist_web/components/reapi_cache_outputs.ex:107
+#: lib/tuist_web/components/runs/module_cache_tab.ex:182
+#: lib/tuist_web/live/build_run_live.html.heex:1351
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
 msgstr "上傳吞吐量"
 
-#: lib/tuist_web/live/build_run_live.html.heex:405
-#: lib/tuist_web/live/xcode_builds_live.html.heex:749
+#: lib/tuist_web/live/build_entity_live.html.heex:489
+#: lib/tuist_web/live/build_run_live.html.heex:402
+#: lib/tuist_web/live/cargo_builds_live.html.heex:372
+#: lib/tuist_web/live/mix_build_live.html.heex:520
+#: lib/tuist_web/live/once_runs_live.ex:722
+#: lib/tuist_web/live/xcode_builds_live.html.heex:798
 #, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "檢視更多"
+msgstr "查看更多"
 
-#: lib/tuist_web/live/build_run_live.ex:712
+#: lib/tuist_web/live/build_run_live.ex:1040
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling C file %{path}"
-msgstr "編譯 C 檔案 %{path} 時的警告"
+msgstr "編譯 C 檔案 %{path} 時出現警告"
 
-#: lib/tuist_web/live/build_run_live.ex:715
-#: lib/tuist_web/live/build_run_live.ex:751
+#: lib/tuist_web/live/build_run_live.ex:1043
+#: lib/tuist_web/live/build_run_live.ex:1079
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling Swift file %{path}"
-msgstr "編譯 Swift 檔案 %{path} 時的警告"
+msgstr "編譯 Swift 檔案 %{path} 時出現警告"
 
-#: lib/tuist_web/live/build_run_live.ex:748
+#: lib/tuist_web/live/build_run_live.ex:1076
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling XIB file %{path}"
-msgstr "編譯 XIB 檔案 %{path} 時的警告"
+msgstr "編譯 XIB 檔案 %{path} 時出現警告"
 
-#: lib/tuist_web/live/build_run_live.ex:730
+#: lib/tuist_web/live/build_run_live.ex:1058
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling assets catalog %{path}"
-msgstr "編譯資源目錄 %{path} 時的警告"
+msgstr "編譯資產目錄 %{path} 時發出警告"
 
-#: lib/tuist_web/live/build_run_live.ex:733
+#: lib/tuist_web/live/build_run_live.ex:1061
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling storyboard %{path}"
-msgstr "編譯 storyboard %{path} 時的警告"
+msgstr "編譯故事板 %{path} 時發出警告"
 
-#: lib/tuist_web/live/build_run_live.ex:727
+#: lib/tuist_web/live/build_run_live.ex:1055
 #, elixir-autogen, elixir-format
 msgid "Warning when copying Swift libraries %{path}"
-msgstr "複製 Swift 函式庫 %{path} 時的警告"
+msgstr "複製 Swift 函式庫 %{path} 時發出警告"
 
-#: lib/tuist_web/live/build_run_live.ex:742
+#: lib/tuist_web/live/build_run_live.ex:1070
 #, elixir-autogen, elixir-format
 msgid "Warning when copying resource file %{path}"
-msgstr "複製資源檔案 %{path} 時的警告"
+msgstr "複製資源檔案 %{path} 時發出警告"
 
-#: lib/tuist_web/live/build_run_live.ex:721
+#: lib/tuist_web/live/build_run_live.ex:1049
 #, elixir-autogen, elixir-format
 msgid "Warning when creating static library %{path}"
-msgstr "建立靜態函式庫 %{path} 時的警告"
+msgstr "建立靜態函式庫 %{path} 時發出警告"
 
-#: lib/tuist_web/live/build_run_live.ex:718
+#: lib/tuist_web/live/build_run_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Warning when executing script %{script_name}"
-msgstr "執行腳本 %{script_name} 時的警告"
+msgstr "執行指令碼 %{script_name} 時發出警告"
 
-#: lib/tuist_web/live/build_run_live.ex:724
+#: lib/tuist_web/live/build_run_live.ex:1052
 #, elixir-autogen, elixir-format
 msgid "Warning when linking %{path}"
-msgstr "連結 %{path} 時的警告"
+msgstr "連結 %{path} 時發出警告"
 
-#: lib/tuist_web/live/build_run_live.ex:739
+#: lib/tuist_web/live/build_run_live.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Warning when linking storyboards %{path}"
-msgstr "連結 storyboard %{path} 時的警告"
+msgstr "連結故事板 %{path} 時發出警告"
 
-#: lib/tuist_web/live/build_run_live.ex:745
+#: lib/tuist_web/live/build_run_live.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Warning when merging Swift module %{path}"
 msgstr "合併 Swift 模組 %{path} 時的警告"
 
-#: lib/tuist_web/live/build_run_live.ex:754
+#: lib/tuist_web/live/build_run_live.ex:1082
 #, elixir-autogen, elixir-format
 msgid "Warning when precompiling bridging header %{path}"
 msgstr "預編譯橋接標頭 %{path} 時的警告"
 
-#: lib/tuist_web/live/build_run_live.ex:766
+#: lib/tuist_web/live/build_run_live.ex:1094
 #, elixir-autogen, elixir-format
 msgid "Warning when processing %{path}"
 msgstr "處理 %{path} 時的警告"
 
-#: lib/tuist_web/live/build_run_live.ex:760
+#: lib/tuist_web/live/build_run_live.ex:1088
 #, elixir-autogen, elixir-format
 msgid "Warning when validating %{path}"
 msgstr "驗證 %{path} 時的警告"
 
-#: lib/tuist_web/live/build_run_live.ex:757
+#: lib/tuist_web/live/build_run_live.ex:1085
 #, elixir-autogen, elixir-format
 msgid "Warning when validating embedded binary %{path}"
-msgstr "驗證嵌入式二進位檔 %{path} 時的警告"
+msgstr "驗證內嵌二進位檔 %{path} 時的警告"
 
-#: lib/tuist_web/live/build_run_live.ex:736
+#: lib/tuist_web/live/build_run_live.ex:1064
 #, elixir-autogen, elixir-format
 msgid "Warning when writing auxiliary file %{path}"
 msgstr "寫入輔助檔案 %{path} 時的警告"
 
-#: lib/tuist_web/live/build_run_live.html.heex:177
-#: lib/tuist_web/live/build_run_live.html.heex:395
-#: lib/tuist_web/live/build_run_live.html.heex:742
-#: lib/tuist_web/live/build_run_live.html.heex:749
+#: lib/tuist_web/live/build_run_live.html.heex:191
+#: lib/tuist_web/live/build_run_live.html.heex:392
+#: lib/tuist_web/live/build_run_live.html.heex:731
+#: lib/tuist_web/live/build_run_live.html.heex:738
+#: lib/tuist_web/live/cargo_build_live.html.heex:30
+#: lib/tuist_web/live/cargo_build_live.html.heex:353
+#: lib/tuist_web/live/cargo_build_live.html.heex:365
+#: lib/tuist_web/live/mix_build_live.html.heex:65
+#: lib/tuist_web/live/mix_build_live.html.heex:510
+#: lib/tuist_web/live/mix_build_live.html.heex:649
+#: lib/tuist_web/live/mix_build_live.html.heex:656
 #, elixir-autogen, elixir-format
 msgid "Warnings"
 msgstr "警告"
 
-#: lib/tuist_web/live/build_run_live.html.heex:172
-#: lib/tuist_web/live/build_run_live.html.heex:909
+#: lib/tuist_web/live/build_run_live.html.heex:186
+#: lib/tuist_web/live/build_run_live.html.heex:918
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr "Xcode 快取"
 
-#: lib/tuist_web/live/build_run_live.html.heex:302
-#: lib/tuist_web/live/xcode_build_runs_live.ex:262
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:177
-#: lib/tuist_web/live/xcode_builds_live.ex:388
-#: lib/tuist_web/live/xcode_builds_live.html.heex:621
-#: lib/tuist_web/live/xcode_builds_live.html.heex:868
+#: lib/tuist_web/live/build_run_live.html.heex:331
+#: lib/tuist_web/live/xcode_build_runs_live.ex:265
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:153
+#: lib/tuist_web/live/xcode_builds_live.ex:394
+#: lib/tuist_web/live/xcode_builds_live.html.heex:649
+#: lib/tuist_web/live/xcode_builds_live.html.heex:917
 #, elixir-autogen, elixir-format
 msgid "Xcode version"
 msgstr "Xcode 版本"
 
-#: lib/tuist_web/live/build_run_live.html.heex:308
+#: lib/tuist_web/live/build_run_live.html.heex:332
 #: lib/tuist_web/live/run_detail_live.html.heex:202
-#: lib/tuist_web/live/xcode_build_runs_live.ex:270
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:185
-#: lib/tuist_web/live/xcode_builds_live.ex:389
-#: lib/tuist_web/live/xcode_builds_live.html.heex:639
+#: lib/tuist_web/live/xcode_build_runs_live.ex:273
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:161
+#: lib/tuist_web/live/xcode_builds_live.ex:395
+#: lib/tuist_web/live/xcode_builds_live.html.heex:667
 #, elixir-autogen, elixir-format
 msgid "macOS version"
 msgstr "macOS 版本"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:485
+#: lib/tuist_web/live/xcode_builds_live.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "p50"
 msgstr "p50"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:259
+#: lib/tuist_web/live/cargo_builds_live.html.heex:135
+#: lib/tuist_web/live/xcode_builds_live.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "p50 build duration"
-msgstr "p50 構建時長"
+msgstr "p50 建置持續時間"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1040
+#: lib/tuist_web/live/build_run_live.html.heex:954
 #, elixir-autogen, elixir-format
 msgid "p50 latency reading cache keys"
-msgstr "p50 讀取快取鍵延遲"
+msgstr "p50 讀取快取鍵的延遲"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1096
+#: lib/tuist_web/live/build_run_live.html.heex:1010
 #, elixir-autogen, elixir-format
 msgid "p50 latency writing cache keys"
-msgstr "p50 寫入快取鍵延遲"
+msgstr "p50 寫入快取鍵的延遲"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:471
+#: lib/tuist_web/live/xcode_builds_live.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "p90"
 msgstr "p90"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:258
+#: lib/tuist_web/live/cargo_builds_live.html.heex:136
+#: lib/tuist_web/live/xcode_builds_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "p90 build duration"
-msgstr "p90 構建時長"
+msgstr "p90 建置持續時間"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1039
+#: lib/tuist_web/live/build_run_live.html.heex:953
 #, elixir-autogen, elixir-format
 msgid "p90 latency reading cache keys"
-msgstr "p90 讀取快取鍵延遲"
+msgstr "p90 延遲讀取快取鍵"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1095
+#: lib/tuist_web/live/build_run_live.html.heex:1009
 #, elixir-autogen, elixir-format
 msgid "p90 latency writing cache keys"
-msgstr "p90 寫入快取鍵延遲"
+msgstr "p90 延遲寫入快取鍵"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:457
+#: lib/tuist_web/live/xcode_builds_live.html.heex:470
 #, elixir-autogen, elixir-format
 msgid "p99"
 msgstr "p99"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:257
+#: lib/tuist_web/live/cargo_builds_live.html.heex:137
+#: lib/tuist_web/live/xcode_builds_live.html.heex:266
 #, elixir-autogen, elixir-format
 msgid "p99 build duration"
-msgstr "p99 構建時長"
+msgstr "p99 建置持續時間"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1038
+#: lib/tuist_web/live/build_run_live.html.heex:952
 #, elixir-autogen, elixir-format
 msgid "p99 latency reading cache keys"
-msgstr "p99 讀取快取鍵延遲"
+msgstr "p99 延遲讀取快取鍵"
 
-#: lib/tuist_web/live/build_run_live.html.heex:1094
+#: lib/tuist_web/live/build_run_live.html.heex:1008
 #, elixir-autogen, elixir-format
 msgid "p99 latency writing cache keys"
-msgstr "p99 寫入快取鍵延遲"
+msgstr "p99 延遲寫入快取鍵"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:380
+#: lib/tuist_web/live/build_entity_live.ex:638
+#: lib/tuist_web/live/xcode_builds_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "自上個月以來"
+msgstr "自上月以來"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:377
+#: lib/tuist_web/live/build_entity_live.ex:636
+#: lib/tuist_web/live/xcode_builds_live.ex:382
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr "自上週以來"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:378
+#: lib/tuist_web/live/xcode_builds_live.ex:383
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr "自去年以來"
 
-#: lib/tuist_web/live/build_run_live.html.heex:361
-#: lib/tuist_web/live/build_run_live.html.heex:398
-#: lib/tuist_web/live/build_run_live.html.heex:752
-#: lib/tuist_web/live/build_run_live.html.heex:793
+#: lib/tuist_web/live/build_run_live.html.heex:358
+#: lib/tuist_web/live/build_run_live.html.heex:395
+#: lib/tuist_web/live/build_run_live.html.heex:741
+#: lib/tuist_web/live/build_run_live.html.heex:792
+#: lib/tuist_web/live/cargo_build_live.html.heex:367
+#: lib/tuist_web/live/mix_build_live.html.heex:475
+#: lib/tuist_web/live/mix_build_live.html.heex:513
+#: lib/tuist_web/live/mix_build_live.html.heex:659
+#: lib/tuist_web/live/mix_build_live.html.heex:711
 #, elixir-autogen, elixir-format
 msgid "•"
 msgstr "•"
 
+#: lib/tuist_web/live/build_entity_live.ex:1019
+#: lib/tuist_web/live/cargo_builds_live.html.heex:68
 #: lib/tuist_web/live/xcode_builds_live.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr "套用"
 
+#: lib/tuist_web/live/build_entity_live.ex:1014
+#: lib/tuist_web/live/cargo_builds_live.html.heex:61
 #: lib/tuist_web/live/xcode_builds_live.html.heex:175
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "取消"
 
+#: lib/tuist_web/live/build_entity_live.ex:1004
+#: lib/tuist_web/live/cargo_builds_live.html.heex:56
 #: lib/tuist_web/live/xcode_builds_live.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr "自訂"
 
+#: lib/tuist_web/live/cargo_builds_live.html.heex:53
 #: lib/tuist_web/live/xcode_builds_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr "過去 12 個月"
 
+#: lib/tuist_web/live/build_entity_live.ex:995
+#: lib/tuist_web/live/cargo_builds_live.html.heex:38
 #: lib/tuist_web/live/xcode_builds_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "過去 24 小時"
 
+#: lib/tuist_web/live/build_entity_live.ex:1001
+#: lib/tuist_web/live/cargo_builds_live.html.heex:48
 #: lib/tuist_web/live/xcode_builds_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr "過去 30 天"
 
+#: lib/tuist_web/live/build_entity_live.ex:998
+#: lib/tuist_web/live/cargo_builds_live.html.heex:43
 #: lib/tuist_web/live/xcode_builds_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr "過去 7 天"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:379
+#: lib/tuist_web/live/build_entity_live.ex:637
+#: lib/tuist_web/live/xcode_builds_live.ex:384
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "自上個期間以來"
+msgstr "自上一週期以來"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:376
+#: lib/tuist_web/live/build_entity_live.ex:635
+#: lib/tuist_web/live/xcode_builds_live.ex:381
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "自昨日以來"
+msgstr "自昨天以來"
 
-#: lib/tuist_web/live/generate_runs_live.ex:295
+#: lib/tuist_web/live/generate_runs_live.ex:302
 #: lib/tuist_web/live/run_detail_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
 msgstr "快取端點"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:398
+#: lib/tuist_web/live/xcode_builds_live.ex:404
 #: lib/tuist_web/live/xcode_builds_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "全部"
 
-#: lib/tuist_web/live/build_run_live.html.heex:318
+#: lib/tuist_web/components/build_metadata.ex:22
 #, elixir-autogen, elixir-format
 msgid "Custom metadata"
-msgstr "自訂元資料"
+msgstr "自訂中繼資料"
 
-#: lib/tuist_web/live/generate_runs_live.ex:21
+#: lib/tuist_web/live/generate_runs_live.ex:22
+#: lib/tuist_web/live/generate_runs_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Generations"
 msgstr "世代"
@@ -1395,62 +1790,1443 @@ msgstr "世代"
 msgid "Tag:"
 msgstr "標籤："
 
-#: lib/tuist_web/live/xcode_build_runs_live.ex:285
+#: lib/tuist_web/live/xcode_build_runs_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "標籤"
 
-#: lib/tuist_web/live/build_run_live.html.heex:328
+#: lib/tuist_web/components/build_metadata.ex:27
 #, elixir-autogen, elixir-format
 msgid "Value"
 msgstr "值"
 
-#: lib/tuist_web/live/build_run_live.html.heex:188
+#: lib/tuist_web/live/build_run_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Machine Metrics"
 msgstr "機器指標"
 
-#: lib/tuist_web/live/build_run_live.html.heex:101
-#: lib/tuist_web/live/build_run_live.html.heex:118
+#: lib/tuist_web/live/build_run_live.html.heex:88
+#: lib/tuist_web/live/build_run_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Download build"
-msgstr "下載構建"
+msgstr "下載建置"
 
-#: lib/tuist_web/live/build_run_live.html.heex:246
-#: lib/tuist_web/live/xcode_build_runs_live.ex:233
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
+#: lib/tuist_web/live/build_run_live.html.heex:267
+#: lib/tuist_web/live/xcode_build_runs_live.ex:228
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Failed processing"
 msgstr "處理失敗"
 
-#: lib/tuist_web/live/build_run_live.html.heex:252
-#: lib/tuist_web/live/xcode_build_runs_live.ex:232
-#: lib/tuist_web/live/xcode_build_runs_live.html.heex:112
+#: lib/tuist_web/live/build_run_live.html.heex:273
+#: lib/tuist_web/live/xcode_build_runs_live.ex:227
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Processing"
 msgstr "處理中"
 
-#: lib/tuist_web/live/build_run_live.html.heex:144
+#: lib/tuist_web/live/build_run_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Your build is being processed"
-msgstr "您的構建正在處理中"
+msgstr "您的建置正在處理中"
 
-#: lib/tuist_web/live/build_run_live.html.heex:154
+#: lib/tuist_web/live/build_run_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Refresh"
 msgstr "重新整理"
 
-#: lib/tuist_web/live/build_run_live.html.heex:147
+#: lib/tuist_web/live/build_run_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "這通常需要幾秒鐘。如果頁面沒有自動更新，請點擊重新整理按鈕。"
+msgstr "這通常需要幾秒鐘。如果頁面沒有自動更新，請點擊刷新按鈕。"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Download session"
-msgstr "下載階段"
+msgstr "下載會話"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:504
+#: lib/tuist_web/live/xcode_builds_live.html.heex:517
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset."
-msgstr "已達到 10,000 筆條目限制，資料僅包含至 %{date}。請嘗試依方案、組態或其他屬性篩選以縮小資料集範圍。"
+msgstr "已達到 10,000 條記錄的限制，僅包含截至 %{date} 的數據。請嘗試按方案、配置或其他屬性進行篩選，以縮小數據集範圍。"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:78
+#, elixir-autogen, elixir-format
+msgid "Downloaded"
+msgstr "已下載"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:168
+#, elixir-autogen, elixir-format
+msgid "Time-weighted average download throughput from the remote cache during this run."
+msgstr "本次運行期間從遠程緩存下載的時間加權平均吞吐量。"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:184
+#, elixir-autogen, elixir-format
+msgid "Time-weighted average upload throughput to the remote cache during this run."
+msgstr "本次運行期間上傳到遠程緩存的時間加權平均吞吐量。"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:91
+#, elixir-autogen, elixir-format
+msgid "Uploaded"
+msgstr "已上傳"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:80
+#, elixir-autogen, elixir-format
+msgid "Total data downloaded from the remote cache during this run (%{count} artifacts)."
+msgstr "本次運行期間從遠程緩存下載的總數據量（%{count} 個構件）。"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:93
+#, elixir-autogen, elixir-format
+msgid "Total data uploaded to the remote cache during this run (%{count} artifacts)."
+msgstr "本次執行期間上傳至遠端快取的總資料量（%{count} 個構件）。"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:469
+#, elixir-autogen, elixir-format
+msgid "Additional hashing inputs"
+msgstr "額外的雜湊輸入"
+
+#: lib/tuist_web/components/build_timeline.ex:182
+#, elixir-autogen, elixir-format
+msgid "Build steps. Drag across a time range to focus. Press Escape to cancel a drag. Use the left and right arrow keys to inspect steps. Use plus and minus to zoom, and Home to reset."
+msgstr "建置步驟。拖曳時間範圍以聚焦。按 Escape 鍵取消拖曳。使用左右方向鍵檢查步驟。使用加號和減號縮放，並按 Home 鍵重設。"
+
+#: lib/tuist_web/components/build_timeline.ex:292
+#: lib/tuist_web/components/build_timeline.ex:303
+#, elixir-autogen, elixir-format
+msgid "Compilation"
+msgstr "編譯"
+
+#: lib/tuist_web/components/build_timeline.ex:304
+#, elixir-autogen, elixir-format
+msgid "Linking"
+msgstr "連結"
+
+#: lib/tuist_web/components/build_timeline.ex:137
+#, elixir-autogen, elixir-format
+msgid "No timeline available"
+msgstr "無可用時間軸"
+
+#: lib/tuist_web/components/build_timeline.ex:296
+#: lib/tuist_web/components/build_timeline.ex:333
+#, elixir-autogen, elixir-format
+msgid "Other"
+msgstr "其他"
+
+#: lib/tuist_web/components/build_timeline.ex:241
+#, elixir-autogen, elixir-format
+msgid "Outcome"
+msgstr "結果"
+
+#: lib/tuist_web/components/build_timeline.ex:305
+#, elixir-autogen, elixir-format
+msgid "Scripts"
+msgstr "腳本"
+
+#: lib/tuist_web/components/build_timeline.ex:280
+#, elixir-autogen, elixir-format
+msgid "Search steps or targets"
+msgstr "搜尋步驟或目標"
+
+#: lib/tuist_web/components/build_timeline.ex:284
+#, elixir-autogen, elixir-format
+msgid "Search steps or targets…"
+msgstr "搜尋步驟或目標…"
+
+#: lib/tuist_web/components/build_timeline.ex:230
+#: lib/tuist_web/live/cargo_build_live.ex:132
+#: lib/tuist_web/live/cargo_build_live.html.heex:309
+#, elixir-autogen, elixir-format
+msgid "Started after"
+msgstr "開始於之後"
+
+#: lib/tuist_web/components/build_timeline.ex:246
+#: lib/tuist_web/helpers/build_entity_labels.ex:92
+#, elixir-autogen, elixir-format
+msgid "Succeeded"
+msgstr "成功"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:190
+#: lib/tuist_web/live/build_run_live.html.heex:174
+#: lib/tuist_web/live/gradle_build_live.html.heex:76
+#: lib/tuist_web/live/mix_build_live.html.heex:55
+#, elixir-autogen, elixir-format
+msgid "Timeline"
+msgstr "時間軸"
+
+#: lib/tuist_web/components/build_timeline.ex:80
+#, elixir-autogen, elixir-format
+msgid "elapsed"
+msgstr "已耗時"
+
+#: lib/tuist_web/components/build_timeline.ex:75
+#: lib/tuist_web/components/build_timeline.ex:81
+#, elixir-autogen, elixir-format
+msgid "steps"
+msgstr "步驟"
+
+#: lib/tuist_web/components/build_timeline.ex:85
+#, elixir-autogen, elixir-format
+msgid "targets"
+msgstr "目標"
+
+#: lib/tuist_web/components/build_timeline.ex:20
+#: lib/tuist_web/components/build_timeline.ex:27
+#: lib/tuist_web/components/build_timeline.ex:77
+#, elixir-autogen, elixir-format
+msgid "Build Timeline"
+msgstr "建置時間軸"
+
+#: lib/tuist_web/components/build_timeline.ex:272
+#, elixir-autogen, elixir-format
+msgid "No steps in this time range match your filters."
+msgstr "在此時間範圍內沒有符合您篩選條件的步驟。"
+
+#: lib/tuist_web/components/build_timeline.ex:70
+#, elixir-autogen, elixir-format
+msgid "Loading log…"
+msgstr "正在載入日誌…"
+
+#: lib/tuist_web/components/build_timeline.ex:260
+#, elixir-autogen, elixir-format
+msgid "Log"
+msgstr "日誌"
+
+#: lib/tuist_web/components/build_timeline.ex:71
+#, elixir-autogen, elixir-format
+msgid "No log recorded for this step."
+msgstr "此步驟未記錄任何日誌。"
+
+#: lib/tuist_web/components/build_timeline.ex:264
+#, elixir-autogen, elixir-format
+msgid "This log was truncated."
+msgstr "此日誌已被截斷。"
+
+#: lib/tuist_web/components/build_timeline.ex:73
+#, elixir-autogen, elixir-format
+msgid "Unable to load the log. Select the step again to retry."
+msgstr "無法載入日誌。請重新選擇步驟以重試。"
+
+#: lib/tuist_web/components/build_timeline.ex:203
+#, elixir-autogen, elixir-format
+msgid "Resize step details"
+msgstr "調整步驟詳細資訊"
+
+#: lib/tuist_web/components/build_timeline.ex:100
+#, elixir-autogen, elixir-format
+msgid "Disk I/O"
+msgstr "磁碟 I/O"
+
+#: lib/tuist_web/components/build_timeline.ex:52
+#: lib/tuist_web/components/build_timeline.ex:110
+#, elixir-autogen, elixir-format
+msgid "In"
+msgstr "輸入"
+
+#: lib/tuist_web/components/build_timeline.ex:98
+#, elixir-autogen, elixir-format
+msgid "Memory"
+msgstr "記憶體"
+
+#: lib/tuist_web/components/build_timeline.ex:99
+#, elixir-autogen, elixir-format
+msgid "Network"
+msgstr "網路"
+
+#: lib/tuist_web/components/build_timeline.ex:53
+#: lib/tuist_web/components/build_timeline.ex:113
+#, elixir-autogen, elixir-format
+msgid "Out"
+msgstr "輸出"
+
+#: lib/tuist_web/components/build_timeline.ex:54
+#: lib/tuist_web/components/build_timeline.ex:111
+#, elixir-autogen, elixir-format
+msgid "Read"
+msgstr "讀取"
+
+#: lib/tuist_web/components/build_timeline.ex:55
+#: lib/tuist_web/components/build_timeline.ex:114
+#: lib/tuist_web/helpers/build_entity_labels.ex:99
+#, elixir-autogen, elixir-format
+msgid "Write"
+msgstr "寫入"
+
+#: lib/tuist_web/components/build_timeline.ex:139
+#, elixir-autogen, elixir-format
+msgid "This build has no recorded step timings. Recorded steps are retained for 90 days."
+msgstr "此建構沒有記錄的步驟耗時。記錄的步驟會保留 90 天。"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:331
+#, elixir-autogen, elixir-format
+msgid "Embedded product references"
+msgstr "內嵌產品參考"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:661
+#: lib/tuist_web/live/build_entity_live.ex:667
+#, elixir-autogen, elixir-format
+msgid "Unavailable"
+msgstr "無法使用"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:339
+#, elixir-autogen, elixir-format
+msgid "Foreign build"
+msgstr "外部建構"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:347
+#, elixir-autogen, elixir-format
+msgid "Test device"
+msgstr "測試裝置"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:355
+#, elixir-autogen, elixir-format
+msgid "Test runtime"
+msgstr "測試執行環境"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:323
+#, elixir-autogen, elixir-format
+msgid "Destinations"
+msgstr "目標位置"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:445
+#, elixir-autogen, elixir-format
+msgid "Dependencies hash"
+msgstr "相依性雜湊"
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:425
+#, elixir-autogen, elixir-format
+msgid "No direct target dependencies recorded"
+msgstr "未記錄直接目標依賴項"
+
+#: lib/tuist_web/components/build_timeline.ex:314
+#, elixir-autogen, elixir-format
+msgid "Analysis/setup"
+msgstr "分析/設定"
+
+#: lib/tuist_web/components/build_timeline.ex:323
+#, elixir-autogen, elixir-format
+msgid "Artifact transforms"
+msgstr "構件轉換"
+
+#: lib/tuist_web/components/build_timeline.ex:60
+#, elixir-autogen, elixir-format
+msgid "Cache hit"
+msgstr "快取命中"
+
+#: lib/tuist_web/components/build_timeline.ex:313
+#, elixir-autogen, elixir-format
+msgid "Fetching"
+msgstr "擷取中"
+
+#: lib/tuist_web/components/build_timeline.ex:312
+#, elixir-autogen, elixir-format
+msgid "File preparation"
+msgstr "檔案準備"
+
+#: lib/tuist_web/components/build_timeline.ex:58
+#, elixir-autogen, elixir-format
+msgid "Local cache hit"
+msgstr "本機快取命中"
+
+#: lib/tuist_web/components/build_timeline.ex:63
+#: lib/tuist_web/helpers/build_entity_labels.ex:102
+#, elixir-autogen, elixir-format
+msgid "No source"
+msgstr "無來源"
+
+#: lib/tuist_web/components/build_timeline.ex:321
+#, elixir-autogen, elixir-format
+msgid "Packaging"
+msgstr "封裝"
+
+#: lib/tuist_web/components/build_timeline.ex:59
+#, elixir-autogen, elixir-format
+msgid "Remote cache hit"
+msgstr "遠端快取命中"
+
+#: lib/tuist_web/components/build_timeline.ex:282
+#, elixir-autogen, elixir-format
+msgid "Search steps, targets, or categories"
+msgstr "搜尋步驟、目標或類別"
+
+#: lib/tuist_web/components/build_timeline.ex:286
+#, elixir-autogen, elixir-format
+msgid "Search steps, targets, or categories…"
+msgstr "搜尋步驟、目標或類別…"
+
+#: lib/tuist_web/components/build_timeline.ex:62
+#: lib/tuist_web/helpers/build_entity_labels.ex:101
+#, elixir-autogen, elixir-format
+msgid "Skipped"
+msgstr "已略過"
+
+#: lib/tuist_web/components/build_timeline.ex:320
+#, elixir-autogen, elixir-format
+msgid "Testing"
+msgstr "測試"
+
+#: lib/tuist_web/components/build_timeline.ex:61
+#: lib/tuist_web/helpers/build_entity_labels.ex:100
+#, elixir-autogen, elixir-format
+msgid "Up-to-date"
+msgstr "最新狀態"
+
+#: lib/tuist_web/components/build_timeline.ex:51
+#, elixir-autogen, elixir-format
+msgid "cores"
+msgstr "核心"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1189
+#, elixir-autogen, elixir-format
+msgid "Load more"
+msgstr "載入更多"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1188
+#, elixir-autogen, elixir-format
+msgid "Loading..."
+msgstr "載入中..."
+
+#: lib/tuist_web/live/mix_build_live.ex:516
+#, elixir-autogen, elixir-format
+msgid "%{count} file"
+msgid_plural "%{count} files"
+msgstr[0] "%{count} 個檔案"
+
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:55
+#, elixir-autogen, elixir-format
+msgid "%{duration}s"
+msgstr "%{duration} 秒"
+
+#: lib/tuist_web/live/mix_build_live.ex:461
+#, elixir-autogen, elixir-format
+msgid "Compilation failed"
+msgstr "編譯失敗"
+
+#: lib/tuist_web/live/mix_build_live.ex:462
+#, elixir-autogen, elixir-format
+msgid "Compilation warning"
+msgstr "編譯警告"
+
+#: lib/tuist_web/live/mix_build_live.ex:502
+#: lib/tuist_web/live/mix_build_live.html.heex:629
+#, elixir-autogen, elixir-format
+msgid "Compile-time dependencies"
+msgstr "編譯期相依性"
+
+#: lib/tuist_web/live/mix_build_live.ex:501
+#: lib/tuist_web/live/mix_build_live.html.heex:632
+#, elixir-autogen, elixir-format
+msgid "Compile-time dependents"
+msgstr "編譯期依賴項"
+
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Elixir / OTP"
+msgstr "Elixir / OTP"
+
+#: lib/tuist_web/live/mix_build_live.html.heex:456
+#: lib/tuist_web/live/mix_builds_live.ex:206
+#: lib/tuist_web/live/mix_builds_live.html.heex:464
+#, elixir-autogen, elixir-format
+msgid "Elixir version"
+msgstr "Elixir 版本"
+
+#: lib/tuist_web/live/mix_build_live.ex:463
+#, elixir-autogen, elixir-format
+msgid "Failed compiling Elixir file %{path}"
+msgstr "編譯 Elixir 檔案 %{path} 失敗"
+
+#: lib/tuist_web/live/mix_build_live.ex:62
+#, elixir-autogen, elixir-format
+msgid "Mix Build"
+msgstr "Mix 建置"
+
+#: lib/tuist_web/live/mix_build_live.html.heex:440
+#: lib/tuist_web/live/mix_builds_live.ex:205
+#: lib/tuist_web/live/mix_builds_live.html.heex:484
+#, elixir-autogen, elixir-format
+msgid "Mix environment"
+msgstr "Mix 環境"
+
+#: lib/tuist_web/live/mix_build_live.html.heex:457
+#: lib/tuist_web/live/mix_builds_live.ex:204
+#: lib/tuist_web/live/mix_builds_live.html.heex:474
+#, elixir-autogen, elixir-format
+msgid "OTP version"
+msgstr "OTP 版本"
+
+#: lib/tuist_web/components/build_timeline.ex:295
+#, elixir-autogen, elixir-format
+msgid "Other compilers"
+msgstr "其他編譯器"
+
+#: lib/tuist_web/components/build_timeline.ex:281
+#, elixir-autogen, elixir-format
+msgid "Search files or modules"
+msgstr "搜尋檔案或模組"
+
+#: lib/tuist_web/components/build_timeline.ex:285
+#, elixir-autogen, elixir-format
+msgid "Search files or modules…"
+msgstr "搜尋檔案或模組…"
+
+#: lib/tuist_web/components/build_timeline.ex:293
+#, elixir-autogen, elixir-format
+msgid "Type checking"
+msgstr "類型檢查"
+
+#: lib/tuist_web/live/mix_build_live.ex:466
+#, elixir-autogen, elixir-format
+msgid "Warning when compiling Elixir file %{path}"
+msgstr "編譯 Elixir 檔案 %{path} 時出現警告"
+
+#: lib/tuist_web/live/mix_build_runs_live.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Warnings / Errors"
+msgstr "警告／錯誤"
+
+#: lib/tuist_web/components/build_timeline.ex:294
+#, elixir-autogen, elixir-format
+msgid "Writing to disk"
+msgstr "寫入磁碟"
+
+#: lib/tuist_web/live/mix_build_live.ex:65
+#: lib/tuist_web/live/mix_build_live.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "mix compile"
+msgstr "mix compile"
+
+#: lib/tuist_web/components/build_health.ex:222
+#, elixir-autogen, elixir-format
+msgid "Infrastructure / tooling"
+msgstr "基礎架構／工具"
+
+#: lib/tuist_web/components/build_health.ex:223
+#, elixir-autogen, elixir-format
+msgid "Unclassified"
+msgstr "未分類"
+
+#: lib/tuist_web/components/build_health.ex:221
+#, elixir-autogen, elixir-format
+msgid "Verification"
+msgstr "驗證"
+
+#: lib/tuist_web/components/build_health.ex:164
+#: lib/tuist_web/components/build_health.ex:167
+#: lib/tuist_web/components/build_health.ex:212
+#: lib/tuist_web/live/bazel_invocations_live.ex:505
+#: lib/tuist_web/live/bazel_invocations_live.ex:515
+#: lib/tuist_web/live/gradle_build_runs_live.html.heex:29
+#: lib/tuist_web/live/gradle_build_runs_live.html.heex:38
+#: lib/tuist_web/live/once_runs_live.ex:988
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:13
+#: lib/tuist_web/live/xcode_build_runs_live.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "Failure category"
+msgstr "失敗類別"
+
+#: lib/tuist_web/components/build_health.ex:202
+#, elixir-autogen, elixir-format
+msgid "The recorded build data does not contain enough evidence for Tuist to classify this failure as verification or infrastructure and tooling."
+msgstr "記錄的建置資料不包含足夠證據，讓 Tuist 能將此失敗歸類為驗證或基礎設施與工具。"
+
+#: lib/tuist_web/components/build_health.ex:175
+#, elixir-autogen, elixir-format
+msgid "About failure category"
+msgstr "關於失敗類別"
+
+#: lib/tuist_web/components/build_health.ex:195
+#, elixir-autogen, elixir-format
+msgid "Inferred from recorded build data. Infrastructure and tooling covers configuration, dependency resolution, and execution infrastructure failures."
+msgstr "從記錄的建置資料推斷。基礎設施與工具涵蓋設定、依賴解析和執行基礎設施的失敗。"
+
+#: lib/tuist_web/components/build_health.ex:188
+#, elixir-autogen, elixir-format
+msgid "Inferred from recorded build data. Verification covers compilation, test, lint, and check failures."
+msgstr "從記錄的建置資料推斷。驗證涵蓋編譯、測試、lint 和檢查失敗。"
+
+#: lib/tuist_web/live/mix_build_live.ex:325
+#, elixir-autogen, elixir-format
+msgid "Avg. latency reading cache artifacts"
+msgstr "讀取快取構件的平均延遲"
+
+#: lib/tuist_web/live/mix_build_live.ex:329
+#, elixir-autogen, elixir-format
+msgid "Avg. latency writing cache artifacts"
+msgstr "寫入快取構件的平均延遲"
+
+#: lib/tuist_web/live/mix_build_live.html.heex:260
+#, elixir-autogen, elixir-format
+msgid "Dependency compilation"
+msgstr "相依性編譯"
+
+#: lib/tuist_web/live/mix_build_live.html.heex:60
+#: lib/tuist_web/live/mix_build_live.html.heex:119
+#: lib/tuist_web/live/mix_build_live.html.heex:356
+#, elixir-autogen, elixir-format
+msgid "Mix cache"
+msgstr "混合快取"
+
+#: lib/tuist_web/live/mix_build_live.ex:328
+#, elixir-autogen, elixir-format
+msgid "p50 latency reading cache artifacts"
+msgstr "讀取快取構件的 p50 延遲"
+
+#: lib/tuist_web/live/mix_build_live.ex:332
+#, elixir-autogen, elixir-format
+msgid "p50 latency writing cache artifacts"
+msgstr "寫入快取構件的 p50 延遲"
+
+#: lib/tuist_web/live/mix_build_live.ex:327
+#, elixir-autogen, elixir-format
+msgid "p90 latency reading cache artifacts"
+msgstr "讀取快取構件的 p90 延遲"
+
+#: lib/tuist_web/live/mix_build_live.ex:331
+#, elixir-autogen, elixir-format
+msgid "p90 latency writing cache artifacts"
+msgstr "寫入快取構件的 p90 延遲"
+
+#: lib/tuist_web/live/mix_build_live.ex:326
+#, elixir-autogen, elixir-format
+msgid "p99 latency reading cache artifacts"
+msgstr "讀取快取構件的 p99 延遲"
+
+#: lib/tuist_web/live/mix_build_live.ex:330
+#, elixir-autogen, elixir-format
+msgid "p99 latency writing cache artifacts"
+msgstr "寫入快取構件的 p99 延遲"
+
+#: lib/tuist_web/live/mix_build_live.html.heex:311
+#: lib/tuist_web/live/mix_build_live.html.heex:357
+#, elixir-autogen, elixir-format
+msgid "Dependency bundle"
+msgstr "相依性套件包"
+
+#: lib/tuist_web/components/reapi_cache_outputs.ex:237
+#, elixir-autogen, elixir-format
+msgid "Only actual CAS transfers reported by Kura appear here. Local snapshot copies are not remote CAS outputs; compressed sizes are unavailable."
+msgstr "此處僅顯示由 Kura 回報的實際 CAS 傳輸。本機快照副本並非遠端 CAS 輸出，因此無法提供壓縮後的大小。"
+
+#: lib/tuist_web/components/reapi_cache_outputs.ex:113
+#, elixir-autogen, elixir-format
+msgid "Time-weighted CAS transfer throughput reported by Kura through the shared REAPI analytics pipeline, excluding action-cache metadata and local copies."
+msgstr "透過共用 REAPI 分析管道，由 Kura 回報的時間加權 CAS 傳輸吞吐量，不包含動作快取中繼資料與本機副本。"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:15
+#: lib/tuist_web/helpers/build_entity_labels.ex:16
+#, elixir-autogen, elixir-format
+msgid "Action"
+msgstr "動作"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:8
+#: lib/tuist_web/helpers/build_entity_labels.ex:9
+#, elixir-autogen, elixir-format
+msgid "Actions"
+msgstr "動作"
+
+#: lib/tuist_web/live/build_entity_live.html.heex:62
+#: lib/tuist_web/live/build_entity_live.html.heex:189
+#, elixir-autogen, elixir-format
+msgid "Analytics"
+msgstr "分析"
+
+#: lib/tuist_web/live/build_entity_live.ex:599
+#, elixir-autogen, elixir-format
+msgid "Build path"
+msgstr "建構路徑"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:212
+#: lib/tuist_web/live/cargo_build_live.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "Cache"
+msgstr "快取"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:94
+#, elixir-autogen, elixir-format
+msgid "Cancelled"
+msgstr "已取消"
+
+#: lib/tuist_web/live/build_entity_live.ex:608
+#, elixir-autogen, elixir-format
+msgid "Capability"
+msgstr "功能"
+
+#: lib/tuist_web/live/build_entity_live.ex:1178
+#: lib/tuist_web/live/cargo_build_live.html.heex:95
+#, elixir-autogen, elixir-format
+msgid "Commit"
+msgstr "提交"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:58
+#: lib/tuist_web/live/build_entity_live.ex:616
+#, elixir-autogen, elixir-format
+msgid "Compilations"
+msgstr "編譯次數"
+
+#: lib/tuist_web/live/build_entity_live.ex:609
+#, elixir-autogen, elixir-format
+msgid "Declared action index"
+msgstr "已宣告的動作索引"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:59
+#: lib/tuist_web/live/build_entity_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Executions"
+msgstr "執行次數"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:84
+#, elixir-autogen, elixir-format
+msgid "File compilation duration"
+msgstr "檔案編譯持續時間"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:10
+#, elixir-autogen, elixir-format
+msgid "Files"
+msgstr "檔案"
+
+#: lib/tuist_web/live/build_entity_live.html.heex:367
+#, elixir-autogen, elixir-format
+msgid "Last seen"
+msgstr "最後檢視時間"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:96
+#, elixir-autogen, elixir-format
+msgid "Local hit"
+msgstr "本機命中"
+
+#: lib/tuist_web/live/build_entity_live.ex:1100
+#, elixir-autogen, elixir-format
+msgid "Measured durations"
+msgstr "測量持續時間"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:98
+#, elixir-autogen, elixir-format
+msgid "Miss"
+msgstr "未命中"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:7
+#: lib/tuist_web/helpers/build_entity_labels.ex:11
+#: lib/tuist_web/live/build_entity_live.ex:655
+#, elixir-autogen, elixir-format
+msgid "Modules"
+msgstr "模組"
+
+#: lib/tuist_web/live/build_entity_live.html.heex:661
+#, elixir-autogen, elixir-format
+msgid "Next"
+msgstr "下一頁"
+
+#: lib/tuist_web/live/build_entity_live.ex:1042
+#: lib/tuist_web/live/build_entity_live.ex:1046
+#, elixir-autogen, elixir-format
+msgid "No data in this period"
+msgstr "此期間無資料"
+
+#: lib/tuist_web/live/build_entity_live.ex:958
+#: lib/tuist_web/live/build_entity_live.ex:1044
+#, elixir-autogen, elixir-format
+msgid "No recorded durations"
+msgstr "沒有記錄的持續時間"
+
+#: lib/tuist_web/live/toolchain_cache_live.ex:379
+#, elixir-autogen, elixir-format
+msgid "No recorded lookups"
+msgstr "沒有記錄的查找次數"
+
+#: lib/tuist_web/live/build_entity_live.ex:40
+#: lib/tuist_web/live/build_entity_live.ex:210
+#, elixir-autogen, elixir-format
+msgid "Not found in this project."
+msgstr "在此專案中找不到。"
+
+#: lib/tuist_web/live/build_entity_live.ex:518
+#: lib/tuist_web/live/build_entity_live.ex:583
+#: lib/tuist_web/live/build_entity_live.ex:668
+#: lib/tuist_web/live/build_entity_live.ex:719
+#: lib/tuist_web/live/build_entity_live.ex:1146
+#: lib/tuist_web/live/build_entity_live.html.heex:101
+#: lib/tuist_web/live/build_entity_live.html.heex:249
+#: lib/tuist_web/live/build_entity_live.html.heex:443
+#: lib/tuist_web/live/build_entity_live.html.heex:455
+#: lib/tuist_web/live/build_entity_live.html.heex:594
+#, elixir-autogen, elixir-format
+msgid "Not recorded"
+msgstr "未記錄"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:34
+#: lib/tuist_web/live/build_entity_live.ex:1140
+#: lib/tuist_web/live/build_entity_live.ex:1141
+#: lib/tuist_web/live/build_entity_live.ex:1198
+#, elixir-autogen, elixir-format
+msgid "Not reported"
+msgstr "未報告"
+
+#: lib/tuist_web/live/build_entity_live.html.heex:461
+#, elixir-autogen, elixir-format
+msgid "Nothing recorded for these filters"
+msgstr "這些篩選條件下沒有記錄"
+
+#: lib/tuist_web/live/build_entity_live.ex:610
+#, elixir-autogen, elixir-format
+msgid "Path"
+msgstr "路徑"
+
+#: lib/tuist_web/live/build_entity_live.html.heex:653
+#, elixir-autogen, elixir-format
+msgid "Previous"
+msgstr "上一頁"
+
+#: lib/tuist_web/live/build_entity_live.ex:1174
+#: lib/tuist_web/live/build_entity_live.html.heex:519
+#: lib/tuist_web/live/build_entity_live.html.heex:526
+#: lib/tuist_web/live/build_entity_live.html.heex:626
+#, elixir-autogen, elixir-format
+msgid "Recorded at"
+msgstr "記錄於"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:95
+#, elixir-autogen, elixir-format
+msgid "Remote hit"
+msgstr "遠端命中"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:30
+#, elixir-autogen, elixir-format
+msgid "Root build"
+msgstr "根建置"
+
+#: lib/tuist_web/live/build_entity_live.ex:598
+#, elixir-autogen, elixir-format
+msgid "Root project"
+msgstr "根專案"
+
+#: lib/tuist_web/live/build_entity_live.ex:949
+#, elixir-autogen, elixir-format
+msgid "Showing the latest 10,000 measured durations since %{date}. Narrow the period or environment to see other observations."
+msgstr "顯示自 %{date} 以來最新測量的 10,000 個持續時間。縮短期間或環境以查看其他觀察結果。"
+
+#: lib/tuist_web/live/build_entity_live.ex:600
+#, elixir-autogen, elixir-format
+msgid "Task path"
+msgstr "任務路徑"
+
+#: lib/tuist_web/live/build_entity_live.ex:601
+#, elixir-autogen, elixir-format
+msgid "Task type"
+msgstr "任務類型"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:6
+#, elixir-autogen, elixir-format
+msgid "Tasks"
+msgstr "任務"
+
+#: lib/tuist_web/live/build_entity_live.html.heex:637
+#, elixir-autogen, elixir-format
+msgid "This page remains available independently of individual build history."
+msgstr "此頁面獨立於個別建置歷史記錄，仍可存取。"
+
+#: lib/tuist_web/live/build_entity_live.html.heex:462
+#, elixir-autogen, elixir-format
+msgid "Try another period or report a new build."
+msgstr "嘗試其他時間範圍或回報新的建置。"
+
+#: lib/tuist_web/live/xcode_build_runs_live.ex:236
+#, elixir-autogen, elixir-format
+msgid "Reported name"
+msgstr "已回報的名稱"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:329
+#, elixir-autogen, elixir-format
+msgid "%{percentile} latency reading cache keys"
+msgstr "讀取快取鍵的 %{percentile} 延遲"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:332
+#, elixir-autogen, elixir-format
+msgid "%{percentile} latency writing cache keys"
+msgstr "寫入快取鍵的 %{percentile} 延遲"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:235
+#: lib/tuist_web/live/cargo_build_live.html.heex:247
+#, elixir-autogen, elixir-format
+msgid "About compiler jobs"
+msgstr "關於編譯器工作"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:67
+#, elixir-autogen, elixir-format
+msgid "All statuses"
+msgstr "所有狀態"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:65
+#, elixir-autogen, elixir-format
+msgid "Already present"
+msgstr "已存在"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:276
+#, elixir-autogen, elixir-format
+msgid "Blob"
+msgstr "Blob"
+
+#: lib/tuist_web/live/cargo_builds_live.html.heex:414
+#, elixir-autogen, elixir-format
+msgid "Build"
+msgstr "建構"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:232
+#, elixir-autogen, elixir-format
+msgid "Build script"
+msgstr "建構腳本"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:157
+#, elixir-autogen, elixir-format
+msgid "Bytes downloaded from the remote cache, including protocol metadata."
+msgstr "從遠端快取下載的位元組數，包含協定中繼資料。"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:167
+#, elixir-autogen, elixir-format
+msgid "Bytes uploaded to the remote cache."
+msgstr "上傳至遠端快取的位元組數。"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:150
+#, elixir-autogen, elixir-format
+msgid "CAS object:"
+msgstr "CAS 物件："
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:63
+#, elixir-autogen, elixir-format
+msgid "Cache inspection is incomplete"
+msgstr "快取檢查不完整"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:50
+#, elixir-autogen, elixir-format
+msgid "Cache verification detected divergent outputs"
+msgstr "快取驗證偵測到不一致的輸出"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:134
+#, elixir-autogen, elixir-format
+msgid "Cacheable tasks that compiled instead of reusing cached outputs, including cold builds and verification rebuilds."
+msgstr "可快取任務因編譯而非重用快取輸出，包括冷啟動建構與驗證重建。"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:41
+#, elixir-autogen, elixir-format
+msgid "Cargo Cache"
+msgstr "Cargo 快取"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:72
+#, elixir-autogen, elixir-format
+msgid "Checked the cache but could not reuse cached outputs."
+msgstr "已檢查快取但無法重用快取輸出。"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:123
+#, elixir-autogen, elixir-format
+msgid "Compilation actions restored from the local or remote cache."
+msgstr "從本機或遠端快取還原的編譯動作。"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled to learn the task inputs for future cache reuse."
+msgstr "已編譯以學習任務輸入，供未來快取重用。"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:233
+#, elixir-autogen, elixir-format
+msgid "Compiler"
+msgstr "編譯器"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:197
+#: lib/tuist_web/live/cargo_build_live.html.heex:202
+#: lib/tuist_web/live/cargo_build_live.html.heex:227
+#, elixir-autogen, elixir-format
+msgid "Compiler jobs"
+msgstr "編譯器工作"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:217
+#, elixir-autogen, elixir-format
+msgid "Compiler jobs and diagnostics below cover only these displayed invocations."
+msgstr "下方的編譯器工作與診斷僅涵蓋這些顯示的調用。"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:206
+#, elixir-autogen, elixir-format
+msgid "Compiler jobs could not be loaded."
+msgstr "無法載入編譯器工作。"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:127
+#, elixir-autogen, elixir-format
+msgid "Completed remote CAS bytes divided by their summed operation durations, including connection, retry and verification time. Operations can overlap; this is not whole-build network throughput."
+msgstr "已完成的遠端 CAS 位元組數除以其總作業持續時間（包含連線、重試和驗證時間）。作業可能會重疊；這並非整個建置的網路吞吐量。"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:140
+#, elixir-autogen, elixir-format
+msgid "Completed remote CAS bytes divided by their summed upload-attempt durations, including presence checks. Already-present blobs and failed attempts are excluded. Operations can overlap."
+msgstr "已完成的遠端 CAS 位元組數除以其總上傳嘗試持續時間（包含存在性檢查）。已存在的 blob 和失敗的嘗試會被排除。作業可能會重疊。"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:289
+#, elixir-autogen, elixir-format
+msgid "Crate"
+msgstr "Crate"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:294
+#, elixir-autogen, elixir-format
+msgid "Crate root: %{path}"
+msgstr "Crate 根目錄：%{path}"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:303
+#, elixir-autogen, elixir-format
+msgid "Detailed cache records were not collected"
+msgstr "未收集詳細的快取記錄"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:237
+#, elixir-autogen, elixir-format
+msgid "Each row is one rustc invocation for a crate, which can contain many source files. The path is its crate root. A crate can have multiple jobs for different targets or configurations. Durations can overlap. Started after is relative to the Cargo command."
+msgstr "每一列代表針對一個 Crate 的一次 rustc 叫用，該 Crate 可能包含多個原始碼檔案。路徑為其 Crate 根目錄。一個 Crate 可能因不同目標或設定而有多個工作。持續時間可能會重疊。「開始於之後」是相對於 Cargo 命令的時間。"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:327
+#, elixir-autogen, elixir-format
+msgid "Fresh Cargo artifacts do not invoke rustc. No compiler work is inferred for them."
+msgstr "全新的 Cargo 產物不會叫用 rustc。因此不會推斷出任何編譯器工作。"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:52
+#, elixir-autogen, elixir-format
+msgid "Fresh compiler outputs were retained instead of the divergent cached outputs."
+msgstr "保留了最新的編譯器輸出，而非使用不一致的快取輸出。"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:65
+#, elixir-autogen, elixir-format
+msgid "Inspection records are bounded and best-effort. The tables, charts and measurements below cover only captured records; the summary above retains the aggregate totals."
+msgstr "檢查記錄有數量上限且僅供參考。下方的表格、圖表和測量數據僅涵蓋已捕獲的記錄；上方的摘要則保留匯總總數。"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:92
+#, elixir-autogen, elixir-format
+msgid "Measured per-key cache-agent lookup latency for recorded tasks, including local and remote resolution. Repeated reads of a key are averaged; cumulative build timings are not used as latency samples."
+msgstr "針對已記錄的任務，測量每個金鑰的快取代理程式查找延遲，包括本機和遠端解析。對同一金鑰的重複讀取會進行平均；累計建置時間不用作延遲樣本。"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:108
+#, elixir-autogen, elixir-format
+msgid "Measured per-key cache-agent store latency for recorded tasks. This includes local storage and queueing, not completion of background remote publication. Repeated writes of a key are averaged."
+msgstr "針對已記錄的任務，測量每個金鑰的快取代理程式儲存延遲。這包括本機儲存和佇列處理，不包含背景遠端發布的完成時間。對同一金鑰的重複寫入會進行平均。"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:323
+#, elixir-autogen, elixir-format
+msgid "No compiler jobs found"
+msgstr "未找到編譯器工作"
+
+#: lib/tuist_web/live/cargo_builds_live.html.heex:231
+#, elixir-autogen, elixir-format
+msgid "Only the 10,000 most recent builds are shown. Narrow the date range or filters to see the full dataset."
+msgstr "僅顯示最近的 10,000 次建置。縮小日期範圍或篩選條件以查看完整資料集。"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Percentage of cacheable tasks that reused cached outputs instead of compiling."
+msgstr "可快取任務中重複使用快取輸出而非重新編譯的百分比。"
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:80
+#, elixir-autogen, elixir-format
+msgid "Queried actions:"
+msgstr "查詢的動作："
+
+#: lib/tuist_web/helpers/cargo_cache.ex:78
+#, elixir-autogen, elixir-format
+msgid "Rebuilt to compare fresh outputs with cached outputs and verify cache correctness."
+msgstr "重建以比較新輸出與快取輸出，並驗證快取的正確性。"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:69
+#, elixir-autogen, elixir-format
+msgid "Reused cached outputs instead of compiling."
+msgstr "重複使用快取輸出，而非重新編譯。"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:109
+#: lib/tuist_web/live/cargo_build_runs_live.ex:54
+#: lib/tuist_web/live/cargo_build_runs_live.html.heex:109
+#: lib/tuist_web/live/cargo_builds_live.html.heex:199
+#: lib/tuist_web/live/cargo_builds_live.html.heex:286
+#: lib/tuist_web/live/cargo_builds_live.html.heex:294
+#, elixir-autogen, elixir-format
+msgid "Rust version"
+msgstr "Rust 版本"
+
+#: lib/tuist_web/live/cargo_builds_live.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Rust version:"
+msgstr "Rust 版本："
+
+#: lib/tuist_web/components/cargo_cache_inspection.ex:257
+#, elixir-autogen, elixir-format
+msgid "Showing the first 50 recorded CAS references."
+msgstr "顯示前 50 筆記錄的 CAS 參考。"
+
+#: lib/tuist_web/live/cargo_build_live.html.heex:215
+#, elixir-autogen, elixir-format
+msgid "Showing the first 500 compiler jobs"
+msgstr "顯示前 500 個編譯器工作"
+
+#: lib/tuist_web/live/build_entity_live.ex:473
+#: lib/tuist_web/live/build_entity_live.ex:880
+#, elixir-autogen, elixir-format
+msgid "Avg."
+msgstr "平均"
+
+#: lib/tuist_web/live/build_entity_live.ex:890
+#, elixir-autogen, elixir-format
+msgid "%{percentile} compilation duration"
+msgstr "%{percentile} 編譯時間"
+
+#: lib/tuist_web/live/build_entity_live.ex:893
+#, elixir-autogen, elixir-format
+msgid "%{percentile} execution duration"
+msgstr "%{percentile} 執行持續時間"
+
+#: lib/tuist_web/live/build_entity_live.ex:884
+#, elixir-autogen, elixir-format
+msgid "%{percentile} file compilation duration"
+msgstr "%{percentile} 檔案編譯持續時間"
+
+#: lib/tuist_web/live/build_entity_live.ex:762
+#, elixir-autogen, elixir-format
+msgid "Action executions"
+msgstr "動作執行次數"
+
+#: lib/tuist_web/live/build_entity_live.ex:906
+#, elixir-autogen, elixir-format
+msgid "Each module contributes its containing file's measured compilation duration. Sibling modules share that measurement; their durations are not additive."
+msgstr "每個模組會貢獻其包含檔案的已測量編譯持續時間。同層級模組會共用該測量結果；它們的持續時間並非累加。"
+
+#: lib/tuist_web/live/build_entity_live.ex:772
+#, elixir-autogen, elixir-format
+msgid "Failed action executions"
+msgstr "失敗的動作執行次數"
+
+#: lib/tuist_web/live/build_entity_live.ex:773
+#, elixir-autogen, elixir-format
+msgid "Failed compilations"
+msgstr "失敗的編譯次數"
+
+#: lib/tuist_web/live/build_entity_live.ex:771
+#, elixir-autogen, elixir-format
+msgid "Failed task executions"
+msgstr "失敗的工作執行次數"
+
+#: lib/tuist_web/live/build_entity_live.ex:763
+#, elixir-autogen, elixir-format
+msgid "File compilations"
+msgstr "檔案編譯次數"
+
+#: lib/tuist_web/live/build_entity_live.ex:764
+#, elixir-autogen, elixir-format
+msgid "Module compilations"
+msgstr "模組編譯"
+
+#: lib/tuist_web/live/build_entity_live.ex:1045
+#, elixir-autogen, elixir-format
+msgid "No recorded outcomes"
+msgstr "無記錄的結果"
+
+#: lib/tuist_web/live/build_entity_live.ex:761
+#, elixir-autogen, elixir-format
+msgid "Task executions"
+msgstr "任務執行"
+
+#: lib/tuist_web/live/build_entity_live.ex:810
+#, elixir-autogen, elixir-format
+msgid "Module compilation records derived from compiled files, including those without measured timing. A file defining multiple modules contributes one record per module, not independent compilation work."
+msgstr "從已編譯檔案衍生的模組編譯記錄，包括未測量耗時的記錄。定義多個模組的檔案會為每個模組貢獻一條記錄，而非獨立的編譯工作。"
+
+#: lib/tuist_web/live/build_entity_live.ex:806
+#, elixir-autogen, elixir-format
+msgid "Reported file compilations, including those without a measured duration."
+msgstr "回報的檔案編譯，包括未測量持續時間的編譯。"
+
+#: lib/tuist_web/live/build_entity_live.ex:793
+#, elixir-autogen, elixir-format
+msgid "Task executions with a recorded success or failure. Cache hits, skipped, up-to-date and no-source tasks are excluded, regardless of timing availability."
+msgstr "具有記錄成功或失敗的任務執行。無論是否有耗時資料，快取命中、跳過、最新且無原始碼的任務皆排除在外。"
+
+#: lib/tuist_web/live/build_entity_live.ex:800
+#, elixir-autogen, elixir-format
+msgid "Uncached action executions with a recorded success or failure. Cached, skipped, cancelled and unknown outcomes are excluded, regardless of timing availability."
+msgstr "具有記錄成功或失敗的未快取動作執行。無論是否有耗時資料，已快取、跳過、取消及結果未知的動作皆排除在外。"
+
+#: lib/tuist_web/live/build_entity_live.ex:786
+#, elixir-autogen, elixir-format
+msgid "BEP-reported action executions, not cache lookups. Reporting must publish all actions for complete execution coverage; missing timing remains unavailable."
+msgstr "BEP 回報的動作執行，非快取查詢。必須發布所有動作以確保完整的執行涵蓋範圍；缺少的耗時資料仍無法提供。"
+
+#: lib/tuist_web/live/build_entity_live.ex:597
+#, elixir-autogen, elixir-format
+msgid "Primary output"
+msgstr "主要輸出"
+
+#: lib/tuist_web/live/build_entity_live.ex:463
+#: lib/tuist_web/live/build_entity_live.html.heex:448
+#, elixir-autogen, elixir-format
+msgid "Last ran at"
+msgstr "最後執行時間"
+
+#: lib/tuist_web/live/build_entity_live.html.heex:430
+#, elixir-autogen, elixir-format
+msgid "Last status"
+msgstr "最後狀態"
+
+#: lib/tuist_web/live/build_entity_live.ex:859
+#, elixir-autogen, elixir-format
+msgid "Distinct actions with recorded activity during the selected period. The chart shows distinct actions per day, not a cumulative total."
+msgstr "在選定期間內有記錄活動的不同操作。圖表顯示每天的不同操作數量，而非累計總數。"
+
+#: lib/tuist_web/live/build_entity_live.ex:865
+#, elixir-autogen, elixir-format
+msgid "Distinct files with recorded activity during the selected period. The chart shows distinct files per day, not a cumulative total."
+msgstr "在選定期間內有記錄活動的不同檔案。圖表顯示每天的不同檔案數量，而非累計總數。"
+
+#: lib/tuist_web/live/build_entity_live.ex:871
+#, elixir-autogen, elixir-format
+msgid "Distinct modules with recorded activity during the selected period. The chart shows distinct modules per day, not a cumulative total."
+msgstr "在選定期間內有記錄活動的不同模組。圖表顯示每天的不同模組數量，而非累計總數。"
+
+#: lib/tuist_web/live/build_entity_live.ex:853
+#, elixir-autogen, elixir-format
+msgid "Distinct tasks with recorded activity during the selected period. The chart shows distinct tasks per day, not a cumulative total."
+msgstr "在選定期間內有記錄活動的不同任務。圖表顯示每天的不同任務數量，而非累計總數。"
+
+#: lib/tuist_web/live/build_entity_live.ex:927
+#, elixir-autogen, elixir-format
+msgid "Measured file compilation durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
+msgstr "在選定期間內測量的檔案編譯持續時間。缺失的測量數據已被排除；真實測量為零的值則包含在內。"
+
+#: lib/tuist_web/live/build_entity_live.ex:831
+#, elixir-autogen, elixir-format
+msgid "Recorded action execution failures during the selected period. Unknown outcomes are not counted as successes or failures."
+msgstr "在選定期間內記錄的動作執行失敗。未知結果不計入成功或失敗。"
+
+#: lib/tuist_web/live/build_entity_live.ex:837
+#, elixir-autogen, elixir-format
+msgid "Recorded file compilation failures during the selected period. Unknown outcomes are not counted as successes or failures."
+msgstr "在選定期間內記錄的檔案編譯失敗。未知結果不計入成功或失敗。"
+
+#: lib/tuist_web/live/build_entity_live.ex:843
+#, elixir-autogen, elixir-format
+msgid "Recorded module compilation failures during the selected period. Unknown outcomes are not counted as successes or failures."
+msgstr "在選定期間內記錄的模組編譯失敗。未知結果不計入成功或失敗。"
+
+#: lib/tuist_web/live/build_entity_live.ex:825
+#, elixir-autogen, elixir-format
+msgid "Recorded task execution failures during the selected period. Unknown outcomes are not counted as successes or failures."
+msgstr "在選定期間內記錄的任務執行失敗。未知結果不計入成功或失敗。"
+
+#: lib/tuist_web/live/build_entity_live.ex:920
+#, elixir-autogen, elixir-format
+msgid "Measured action durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
+msgstr "在選定期間內測量的動作持續時間。缺少測量值的項目會被排除；實際測量為零的值則包含在內。"
+
+#: lib/tuist_web/live/build_entity_live.ex:913
+#, elixir-autogen, elixir-format
+msgid "Measured task durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
+msgstr "在選定期間內測量的任務持續時間。缺少測量值的項目會被排除；實際測量為零的值則包含在內。"
+
+#: lib/tuist_web/live/build_entity_live.ex:887
+#, elixir-autogen, elixir-format
+msgid "%{percentile} module build duration"
+msgstr "%{percentile} 模組建置持續時間"
+
+#: lib/tuist_web/live/build_entity_live.ex:770
+#, elixir-autogen, elixir-format
+msgid "Failed module builds"
+msgstr "失敗的模組建置"
+
+#: lib/tuist_web/live/build_entity_live.ex:899
+#, elixir-autogen, elixir-format
+msgid "Measured compilation time for module builds, not total build time. Cache resolutions and modules without compilation work do not contribute timing samples."
+msgstr "測量的是模組編譯時間，而非總建置時間。快取解析和無需編譯工作的模組不會貢獻時間樣本。"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:83
+#, elixir-autogen, elixir-format
+msgid "Module build duration"
+msgstr "模組建置持續時間"
+
+#: lib/tuist_web/live/build_entity_live.ex:617
+#: lib/tuist_web/live/build_entity_live.ex:760
+#, elixir-autogen, elixir-format
+msgid "Module builds"
+msgstr "模組建置"
+
+#: lib/tuist_web/live/build_entity_live.ex:779
+#, elixir-autogen, elixir-format
+msgid "Module builds with recorded compilation work during the selected period. Module-cache resolutions and modules without compilation work are excluded."
+msgstr "在所選期間內有記錄編譯工作的模組建置。不包含模組快取解析和無需編譯工作的模組。"
+
+#: lib/tuist_web/live/build_entity_live.ex:817
+#, elixir-autogen, elixir-format
+msgid "Recorded module build failures during the selected period. Unknown outcomes are not counted as successes or failures."
+msgstr "在所選期間內記錄的模組建置失敗。未知結果不計為成功或失敗。"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:21
+#, elixir-autogen, elixir-format
+msgid "Search actions..."
+msgstr "搜尋動作..."
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:22
+#, elixir-autogen, elixir-format
+msgid "Search files..."
+msgstr "搜尋檔案..."
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:23
+#, elixir-autogen, elixir-format
+msgid "Search modules..."
+msgstr "搜尋模組..."
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:20
+#, elixir-autogen, elixir-format
+msgid "Search tasks..."
+msgstr "搜尋任務..."
+
+#: lib/tuist_web/live/build_entity_live.ex:596
+#, elixir-autogen, elixir-format
+msgid "Action type"
+msgstr "動作類型"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:61
+#, elixir-autogen, elixir-format
+msgid "No builds in this period"
+msgstr "此期間無建置"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:62
+#, elixir-autogen, elixir-format
+msgid "No compilations in this period"
+msgstr "此期間無編譯"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:63
+#, elixir-autogen, elixir-format
+msgid "No executions in this period"
+msgstr "此期間無執行"
+
+#: lib/tuist_web/live/build_entity_live.ex:696
+#, elixir-autogen, elixir-format
+msgid "No reported default-branch graph"
+msgstr "未回報預設分支圖表"
+
+#: lib/tuist_web/live/build_entity_live.ex:660
+#, elixir-autogen, elixir-format
+msgid "Not configured"
+msgstr "尚未設定"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:65
+#, elixir-autogen, elixir-format
+msgid "Recent builds"
+msgstr "近期建置"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:66
+#, elixir-autogen, elixir-format
+msgid "Recent compilations"
+msgstr "近期編譯"
+
+#: lib/tuist_web/helpers/build_entity_labels.ex:67
+#, elixir-autogen, elixir-format
+msgid "Recent executions"
+msgstr "近期執行"
+
+#: lib/tuist_web/live/build_entity_live.ex:657
+#, elixir-autogen, elixir-format
+msgid "Latest recorded module count from a generated-project graph on the default branch (%{branch}) before the end of the selected period, independent of environment. The chart carries that reported count forward until another scoped snapshot arrives. Historical graphs without scoped count metadata remain unavailable."
+msgstr "選定期間結束前，預設分支（%{branch}）上由生成專案圖產生的最新記錄模組數量，與環境無關。該圖表會沿用此回報的數量，直到收到另一個範圍快照為止。缺乏範圍計量中繼資料的歷史圖表仍無法使用。"
+
+#: lib/tuist_web/components/build_metadata.ex:120
+#, elixir-autogen, elixir-format
+msgid "Available logical processors"
+msgstr "可用邏輯處理器"
+
+#: lib/tuist_web/components/build_metadata.ex:61
+#: lib/tuist_web/components/build_metadata.ex:77
+#, elixir-autogen, elixir-format
+msgid "Build environment"
+msgstr "建置環境"
+
+#: lib/tuist_web/components/build_metadata.ex:132
+#, elixir-autogen, elixir-format
+msgid "CI job"
+msgstr "CI 工作"
+
+#: lib/tuist_web/components/build_metadata.ex:131
+#, elixir-autogen, elixir-format
+msgid "CI provider"
+msgstr "CI 提供者"
+
+#: lib/tuist_web/components/build_metadata.ex:123
+#, elixir-autogen, elixir-format
+msgid "Default charset"
+msgstr "預設字元集"
+
+#: lib/tuist_web/components/build_metadata.ex:127
+#, elixir-autogen, elixir-format
+msgid "Java VM"
+msgstr "Java VM"
+
+#: lib/tuist_web/components/build_metadata.ex:128
+#, elixir-autogen, elixir-format
+msgid "Java VM version"
+msgstr "Java VM 版本"
+
+#: lib/tuist_web/components/build_metadata.ex:125
+#, elixir-autogen, elixir-format
+msgid "Java runtime"
+msgstr "Java 執行環境"
+
+#: lib/tuist_web/components/build_metadata.ex:126
+#, elixir-autogen, elixir-format
+msgid "Java runtime version"
+msgstr "Java 執行環境版本"
+
+#: lib/tuist_web/components/build_metadata.ex:124
+#, elixir-autogen, elixir-format
+msgid "Java vendor"
+msgstr "Java 供應商"
+
+#: lib/tuist_web/components/build_metadata.ex:117
+#, elixir-autogen, elixir-format
+msgid "Kernel version"
+msgstr "核心版本"
+
+#: lib/tuist_web/components/build_metadata.ex:119
+#, elixir-autogen, elixir-format
+msgid "Machine model"
+msgstr "機器型號"
+
+#: lib/tuist_web/components/build_metadata.ex:130
+#, elixir-autogen, elixir-format
+msgid "Maximum Gradle workers"
+msgstr "Gradle 最大工作數"
+
+#: lib/tuist_web/components/build_metadata.ex:129
+#, elixir-autogen, elixir-format
+msgid "Maximum JVM heap"
+msgstr "JVM 堆積最大值"
+
+#: lib/tuist_web/components/build_metadata.ex:115
+#, elixir-autogen, elixir-format
+msgid "Operating system"
+msgstr "作業系統"
+
+#: lib/tuist_web/components/build_metadata.ex:116
+#, elixir-autogen, elixir-format
+msgid "Operating system version"
+msgstr "作業系統版本"
+
+#: lib/tuist_web/components/build_metadata.ex:118
+#, elixir-autogen, elixir-format
+msgid "Process architecture"
+msgstr "處理架構"
+
+#: lib/tuist_web/components/build_metadata.ex:122
+#, elixir-autogen, elixir-format
+msgid "Process locale"
+msgstr "處理區域設定"
+
+#: lib/tuist_web/components/build_metadata.ex:121
+#, elixir-autogen, elixir-format
+msgid "Reported OS memory"
+msgstr "回報的 OS 記憶體"
+
+#: lib/tuist_web/components/build_metadata.ex:133
+#, elixir-autogen, elixir-format
+msgid "Runner environment"
+msgstr "Runner 環境"
+
+#: lib/tuist_web/components/build_metadata.ex:134
+#, elixir-autogen, elixir-format
+msgid "Runner name"
+msgstr "Runner 名稱"

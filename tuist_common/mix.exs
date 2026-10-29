@@ -27,7 +27,7 @@ defmodule TuistCommon.MixProject do
     [
       {:sentry, "~> 11.0.4"},
       {:bandit, "~> 1.0"},
-      {:castore, "~> 1.0.12"},
+      {:castore, "~> 1.0.22"},
       {:ch,
        git: "https://github.com/tuist/ch.git",
        branch: "codex/experimental-transactions",

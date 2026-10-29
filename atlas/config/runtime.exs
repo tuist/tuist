@@ -255,6 +255,23 @@ if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do
     client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
 end
 
+# Personal grants have separate callbacks from Google sign-in and the Slack bot
+# install. Register /connections/:provider/callback on each existing OAuth app.
+config :atlas, :account_connections, %{
+  "github" => %{
+    client_id: System.get_env("ATLAS_GITHUB_APP_CLIENT_ID"),
+    client_secret: System.get_env("ATLAS_GITHUB_APP_CLIENT_SECRET")
+  },
+  "slack" => %{
+    client_id: System.get_env("ATLAS_SLACK_CLIENT_ID"),
+    client_secret: System.get_env("ATLAS_SLACK_CLIENT_SECRET")
+  },
+  "google" => %{
+    client_id: System.get_env("GOOGLE_CLIENT_ID"),
+    client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
+  }
+}
+
 # ## Admin Dashboard
 #
 # Set SUPER_ADMIN_PASSWORD to enable the admin dashboards (Oban, LiveDashboard)

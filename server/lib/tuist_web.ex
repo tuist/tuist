@@ -16,7 +16,7 @@ defmodule TuistWeb do
   below. Instead, define additional modules and import
   those modules here.
   """
-  use Boundary, deps: [Tuist], exports: [Endpoint, Router]
+  use Boundary, deps: [Tuist], exports: [Draining, Endpoint, Router]
 
   alias Plug.Conn
   alias TuistWeb.Controller
@@ -79,6 +79,7 @@ defmodule TuistWeb do
       on_mount({TuistWeb.Locale, :assign_locale})
       on_mount(TuistWeb.CSP)
       on_mount({TuistWeb.Timezone, :assign_timezone})
+      on_mount({TuistWeb.LayoutLive, :observability})
 
       unquote(html_helpers())
     end

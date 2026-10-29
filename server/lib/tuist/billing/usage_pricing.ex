@@ -23,7 +23,7 @@ defmodule Tuist.Billing.UsagePricing do
   @included_requests 1_000_000
   @included_passing_test_cases 5_000_000
 
-  @cents_per_egress_gigabyte 35
+  @cents_per_egress_gigabyte 10
   @cents_per_thousand_requests 1
   @cents_per_million_passing_test_cases 200
 

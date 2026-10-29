@@ -76,7 +76,8 @@
                     targetHashes: .value([
                         TargetReference(projectPath: temporaryDirectory, name: "Fixtures"): targetHash,
                     ]),
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .value(.all)
                 )
                 .called(1)
             verify(cacheStorage)
@@ -146,7 +147,8 @@
                     configuration: .any,
                     cacheStorage: .any,
                     targetHashes: .any,
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .any
                 )
                 .willReturn(generator)
             given(generator)
@@ -174,7 +176,8 @@
                     configuration: .any,
                     cacheStorage: .any,
                     targetHashes: .value([:]),
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .value(.all)
                 )
                 .called(1)
         }
@@ -346,7 +349,8 @@
                     configuration: .any,
                     cacheStorage: .any,
                     targetHashes: .any,
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .any
                 )
                 .called(0)
         }
@@ -499,7 +503,7 @@
             verify(generatorFactory)
                 .binaryCacheWarming(
                     config: .any, targetsToBinaryCache: .any, configuration: .any, cacheStorage: .any, targetHashes: .any,
-                    coverage: .value(.on)
+                    coverage: .value(.on), sdkSelection: .value(.all)
                 )
                 .called(1)
             verify(xcodeBuildController)
@@ -576,7 +580,7 @@
             verify(generatorFactory)
                 .binaryCacheWarming(
                     config: .any, targetsToBinaryCache: .any, configuration: .any, cacheStorage: .any, targetHashes: .any,
-                    coverage: .value(.on)
+                    coverage: .value(.on), sdkSelection: .value(.all)
                 )
                 .called(1)
         }
@@ -604,7 +608,7 @@
             verify(generatorFactory)
                 .binaryCacheWarming(
                     config: .any, targetsToBinaryCache: .any, configuration: .any, cacheStorage: .any, targetHashes: .any,
-                    coverage: .value(.off)
+                    coverage: .value(.off), sdkSelection: .value(.all)
                 )
                 .called(1)
             verify(xcodeBuildController)
@@ -1020,6 +1024,9 @@
             given(cacheStorage)
                 .fetch(.any, cacheCategory: .value(.binaries))
                 .willReturn(fetched)
+            given(cacheStorage)
+                .fetch(.any, cacheCategory: .value(.binaries), preserving: .any)
+                .willReturn([:])
             if let republishError {
                 given(cacheStorage)
                     .republishIfNeeded(.any, cacheCategory: .value(.binaries))
@@ -1036,7 +1043,8 @@
                     configuration: .value(resolvedConfiguration),
                     cacheStorage: .any,
                     targetHashes: .any,
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .any
                 )
                 .willReturn(generator)
             given(generator)

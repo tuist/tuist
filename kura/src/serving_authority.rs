@@ -59,6 +59,9 @@ pub struct ServingAuthority {
     pub barrier: Mutex<Option<crate::handover::Receipt>>,
     pub(crate) handover_preparation: tokio::sync::Mutex<()>,
     pub(crate) preparation: Mutex<Option<crate::handover::Preparation>>,
+    // Record versions whose content this destination confirmed against the
+    // source while it still served, for exactly one named intent.
+    pub(crate) verified_content: Mutex<Option<crate::handover::VerifiedContent>>,
     marker: Option<std::path::PathBuf>,
     // The exited holder that left this pod's volume marked. Until its exit
     // resume installs, no other grant may open the volume.
@@ -108,6 +111,7 @@ impl ServingAuthority {
             barrier: Mutex::new(None),
             handover_preparation: tokio::sync::Mutex::new(()),
             preparation: Mutex::new(None),
+            verified_content: Mutex::new(None),
             marker: None,
             inherited: Mutex::new(None),
             exit_attested: std::sync::atomic::AtomicBool::new(false),

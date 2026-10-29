@@ -55,7 +55,8 @@ public protocol GeneratorFactorying {
         configuration: String?,
         cacheProfile: CacheProfile,
         cacheStorage: CacheStoring,
-        coverage: BinaryCacheCoverage
+        coverage: BinaryCacheCoverage,
+        sdkSelection: BinaryCacheSDKSelection
     ) -> Generating
 
     /// Returns a generator for building a project.
@@ -145,9 +146,10 @@ public struct GeneratorFactory: GeneratorFactorying {
         configuration _: String?,
         cacheProfile _: CacheProfile,
         cacheStorage _: CacheStoring,
-        coverage: BinaryCacheCoverage
+        coverage: BinaryCacheCoverage,
+        sdkSelection: BinaryCacheSDKSelection = .all
     ) -> Generating {
-        defaultGenerator(config: config, includedTargets: includedTargets, coverage: coverage)
+        defaultGenerator(config: config, includedTargets: includedTargets, coverage: coverage, sdkSelection: sdkSelection)
     }
 
     public func building(
@@ -165,6 +167,15 @@ public struct GeneratorFactory: GeneratorFactorying {
         includedTargets: Set<TargetQuery>,
         coverage: BinaryCacheCoverage
     ) -> Generating {
+        defaultGenerator(config: config, includedTargets: includedTargets, coverage: coverage, sdkSelection: .all)
+    }
+
+    private func defaultGenerator(
+        config: Tuist,
+        includedTargets: Set<TargetQuery>,
+        coverage: BinaryCacheCoverage,
+        sdkSelection: BinaryCacheSDKSelection
+    ) -> Generating {
         let config = config.resolvingCoverage(coverage)
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -175,12 +186,15 @@ public struct GeneratorFactory: GeneratorFactorying {
             projectMapper: SequentialProjectMapper(mappers: projectMappers)
         )
         let graphMapperFactory = GraphMapperFactory()
-        let graphMappers = graphMapperFactory.automation(
+        var graphMappers = graphMapperFactory.automation(
             config: config,
             testPlan: nil,
             includedTargets: includedTargets,
             excludedTargets: []
         )
+        if sdkSelection == .simulators || sdkSelection == .devices {
+            graphMappers.append(CacheDestinationGraphMapper(simulator: sdkSelection == .simulators))
+        }
         let workspaceMappers = workspaceMapperFactory.default(
             tuist: config
         )
@@ -217,7 +231,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             configuration: String,
             cacheStorage: CacheStoring,
             targetHashes: [TargetReference: TargetContentHash],
-            coverage: BinaryCacheCoverage
+            coverage: BinaryCacheCoverage,
+            sdkSelection: BinaryCacheSDKSelection
         ) -> Generating
 
         /// Returns a generator to load the graph before generating the project to warm the cache
@@ -267,7 +282,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             configuration: String?,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring,
-            coverage: BinaryCacheCoverage
+            coverage: BinaryCacheCoverage,
+            sdkSelection: BinaryCacheSDKSelection
         ) -> Generating
 
         /// Returns a generator for building a project.
@@ -326,7 +342,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             configuration: String?,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring,
-            coverage: BinaryCacheCoverage
+            coverage: BinaryCacheCoverage,
+            sdkSelection: BinaryCacheSDKSelection = .all
         ) -> Generating {
             let config = config.resolvingCoverage(coverage)
             let contentHasher = ContentHasher()
@@ -337,13 +354,17 @@ public struct GeneratorFactory: GeneratorFactorying {
             )
             let graphMapperFactory = CacheGraphMapperFactory(contentHasher: contentHasher)
 
-            let graphMappers = graphMapperFactory.generation(
+            var graphMappers = graphMapperFactory.generation(
                 config: config,
                 cacheProfile: cacheProfile,
                 cacheSources: includedTargets,
                 configuration: configuration,
-                cacheStorage: cacheStorage
+                cacheStorage: cacheStorage,
+                sdkSelection: sdkSelection
             )
+            if sdkSelection == .simulators || sdkSelection == .devices {
+                graphMappers.append(CacheDestinationGraphMapper(simulator: sdkSelection == .simulators))
+            }
             let workspaceMappers = workspaceMapperFactory.default(tuist: config)
             return Generator(
                 manifestGraphLoader: ManifestGraphLoader(
@@ -474,7 +495,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             configuration: String,
             cacheStorage: CacheStoring,
             targetHashes: [TargetReference: TargetContentHash],
-            coverage: BinaryCacheCoverage
+            coverage: BinaryCacheCoverage,
+            sdkSelection: BinaryCacheSDKSelection = .all
         ) -> Generating {
             let config = config.resolvingCoverage(coverage)
             let contentHasher = ContentHasher()
@@ -492,7 +514,8 @@ public struct GeneratorFactory: GeneratorFactorying {
                 cacheSources: Set(targetsToBinaryCache.flatMap(\.value)),
                 configuration: configuration,
                 cacheStorage: cacheStorage,
-                targetHashes: targetHashes
+                targetHashes: targetHashes,
+                sdkSelection: sdkSelection
             )
             graphMappers = graphMappers.filter { !($0 is ExplicitDependencyGraphMapper) }
 

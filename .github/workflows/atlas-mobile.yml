@@ -84,6 +84,8 @@ jobs:
             runner: tuist-macos-27-0
           - platform: ios-device
             runner: tuist-macos-27-0
+          - platform: macos
+            runner: tuist-macos-27-0
           - platform: cli
             runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
@@ -91,12 +93,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: tuist/xcode-cache@v1
+        if: matrix.platform != 'macos'
       - uses: tuist/module-cache@v1
+        if: matrix.platform != 'macos'
       - uses: ./.github/actions/atlas-native
         with:
           platform: ${{ matrix.platform }}
           operation: build
-          authenticated: ${{ github.repository == 'tuist/tuist' && matrix.platform != 'ios-device' && matrix.platform != 'android' }}
+          authenticated: ${{ github.repository == 'tuist/tuist' && matrix.platform != 'ios-device' && matrix.platform != 'android' && matrix.platform != 'macos' }}
 
   build-fork:
     name: Build fork (${{ matrix.platform }})
@@ -113,6 +117,8 @@ jobs:
             runner: tuist-macos-27-0
           - platform: ios-device
             runner: tuist-macos-27-0
+          - platform: macos
+            runner: tuist-macos-27-0
           - platform: cli
             runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
@@ -120,7 +126,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: tuist/xcode-cache@v1
+        if: matrix.platform != 'macos'
       - uses: tuist/module-cache@v1
+        if: matrix.platform != 'macos'
       - uses: ./.github/actions/atlas-native
         with:
           platform: ${{ matrix.platform }}
@@ -139,6 +147,8 @@ jobs:
           - platform: core
             runner: ubuntu-24.04
           - platform: ios
+            runner: tuist-macos-27-0
+          - platform: macos
             runner: tuist-macos-27-0
           - platform: cli
             runner: ubuntu-24.04
@@ -167,6 +177,8 @@ jobs:
             runner: ubuntu-24.04
           - platform: ios
             runner: tuist-macos-27-0
+          - platform: macos
+            runner: tuist-macos-27-0
           - platform: cli
             runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
@@ -193,6 +205,10 @@ jobs:
         run: bash ios/distribution/test-associated-domains.sh
       - name: Test APNs provisioning guard without credentials
         run: python3 ios/distribution/push_test.py
+      - name: Test Live Activity embedding and provisioning without credentials
+        run: bash ios/distribution/test-live-activity.sh
+      - name: Test macOS packaging, signing order and release guards without credentials
+        run: bash macos/distribution/test-packaging.sh
       - name: Test Android signing publication guard without credentials
         run: python3 android/distribution/sign_test.py
       - name: Check launcher icon packaging
@@ -200,7 +216,17 @@ jobs:
       - name: Test Firebase dependency integrity and manifest/resource gates
         run: python3 android/push/push_test.py
       - name: Check signing script syntax
-        run: for script in ios/distribution/{bundle,keychain,associated-domains,push}.sh android/distribution/sign.sh; do bash -n "$script"; done
+        run: for script in ios/distribution/{bundle,keychain,associated-domains,push,live-activity,test-live-activity}.sh macos/distribution/*.sh modules/{embed-widget,check-widget}.sh android/distribution/sign.sh; do bash -n "$script"; done
+
+  release-macos:
+    name: Release macOS
+    needs: [build, test, test-distribution, lint-rust, lint-swift, lint-kotlin]
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: write
+    uses: ./.github/workflows/atlas-macos-release.yml
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
   previews:
     name: Publish internal previews

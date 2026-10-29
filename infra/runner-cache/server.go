@@ -120,3 +120,15 @@ func fits(ctx context.Context, delay time.Duration) bool {
 	deadline, ok := ctx.Deadline()
 	return !ok || time.Until(deadline) > delay
 }
+
+// ServerIdleTimeout is below the server's 15 s keep-alive timeout, so an agent
+// drops an idle connection before the server closes it.
+const ServerIdleTimeout = 10 * time.Second
+
+// NewServerClient returns the client agents use for server requests: it never
+// follows redirects and closes connections idle for ServerIdleTimeout.
+func NewServerClient(timeout time.Duration) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.IdleConnTimeout = ServerIdleTimeout
+	return &http.Client{Timeout: timeout, Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+}

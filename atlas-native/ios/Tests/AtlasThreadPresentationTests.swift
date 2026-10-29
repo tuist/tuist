@@ -258,6 +258,60 @@ struct AtlasThreadPresentationTests {
     }
 }
 
+extension AtlasThreadPresentationTests {
+    @Test func attachmentPreviewsPreserveBytesInPrivateTemporaryFiles() throws {
+        let data = Data([0x31, 0x00, 0xff, 0x72])
+        let file = try AtlasAttachmentFile.preview(data, filename: "report.txt")
+        let directory = file.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        #expect(file.lastPathComponent == "report.txt")
+        #expect(try Data(contentsOf: file) == data)
+        #if os(macOS)
+        let directoryAttributes = try FileManager.default.attributesOfItem(atPath: directory.path)
+        let fileAttributes = try FileManager.default.attributesOfItem(atPath: file.path)
+        #expect((directoryAttributes[.posixPermissions] as? NSNumber)?.intValue == 0o700)
+        #expect((fileAttributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+        #endif
+    }
+
+    @Test func bottomFollowingSurvivesLayoutCorrectionsButStopsForUserHistoryScrolling() {
+        let state = AtlasThreadScrollState()
+        let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
+        state.userScrolling = false
+        #expect(!update(.init(height: 2000, bottom: 600, viewport: 600)))
+        #expect(update(.init(height: 2200, bottom: 840, viewport: 600)))
+        // A later lazy-row correction can change offset without changing the new content height.
+        #expect(update(.init(height: 2200, bottom: 880, viewport: 600)))
+        #expect(state.following)
+        #expect(!update(.init(height: 2200, bottom: 600, viewport: 600)))
+        state.userScrolling = true
+        #expect(!update(.init(height: 2200, bottom: 645, viewport: 600)))
+        state.userScrolling = false
+        #expect(!update(.init(height: 2500, bottom: 945, viewport: 600)))
+        #expect(!state.following)
+        #expect(!update(.init(height: 2500, bottom: 600, viewport: 600)))
+        #expect(state.following)
+        #expect(update(.init(height: 2500, bottom: 760, viewport: 400, inset: 200)))
+        #expect(state.following)
+        // Lazy estimates can leave every message above the viewport, not at its bottom edge.
+        #expect(update(.init(height: 2500, bottom: 50, viewport: 400, inset: 200)))
+        #expect(update(.init(height: 2500, bottom: -30, viewport: 400, inset: 200)))
+        #expect(!update(.init(height: 2500, bottom: 400, viewport: 400, inset: 200)))
+    }
+
+    @Test func fallbackScrollAccumulatesSlowMovementAndRebasesContentGrowth() {
+        let state = AtlasThreadScrollState()
+        let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
+        #expect(!update(.init(height: 2000, bottom: 600, viewport: 600)))
+        #expect(update(.init(height: 2200, bottom: 840, viewport: 600)))
+        #expect(update(.init(height: 2200, bottom: 880, viewport: 600)))
+        #expect(state.following)
+        #expect(!update(.init(height: 2200, bottom: 600, viewport: 600)))
+        for step in 1...50 { _ = state.update(.init(height: 2200, bottom: 600 + CGFloat(step) / 2, viewport: 600)) }
+        #expect(!state.following)
+    }
+}
+
 /// A per-test capture adapter delivers hardware events, including deliberately late callbacks.
 @MainActor
 private final class VoiceCapture: AtlasVoiceCapturing {

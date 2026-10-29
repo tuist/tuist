@@ -6,6 +6,7 @@ defmodule AtlasWeb.NativeOrbitController do
   use AtlasWeb, :controller
 
   alias Atlas.Audit
+  alias Atlas.Environments
   alias Atlas.Orbit
   alias Atlas.Orbit.Attachments
   alias Atlas.Orbit.Components
@@ -25,13 +26,18 @@ defmodule AtlasWeb.NativeOrbitController do
   end
 
   def index(conn, params) do
-    case {page(params), Map.get(params, "kind")} do
-      {{:ok, page}, kind} when kind in [nil, "private", "shared"] ->
+    case {page(params), Map.get(params, "kind"), Map.get(params, "status", "active")} do
+      {{:ok, page}, kind, status} when kind in [nil, "private", "shared"] and status in ["active", "archived"] ->
         user = conn.assigns.current_user
-        {items, meta} = Orbit.list_for_user(user, page, kind)
+        {items, meta} = Orbit.list_for_user(user, page, kind, status)
 
         json(conn, %{
-          assistant: %{name: Orbit.agent_name(), configured: Orbit.agent_configured?(user)},
+          assistant: %{
+            name: Orbit.agent_name(),
+            configured: Orbit.agent_configured?(user),
+            can_create_private: true,
+            environments: true
+          },
           threads: Map.put(meta, :items, Enum.map(items, &thread/1))
         })
 
@@ -45,6 +51,21 @@ defmodule AtlasWeb.NativeOrbitController do
       {:ok, thread, :created} -> conn |> put_status(:created) |> json(%{thread: thread(thread)})
       {:ok, thread, :existing} -> json(conn, %{thread: thread(thread)})
       {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def models(conn, _params), do: json(conn, Orbit.models_for(conn.assigns.current_user))
+
+  def model(conn, %{"id" => id}) do
+    user = conn.assigns.current_user
+
+    with %{"model" => model} when map_size(conn.body_params) == 1 <- conn.body_params,
+         {:ok, thread} <- Orbit.fetch(user, id),
+         {:ok, selected} <- Orbit.set_model(user, thread, model) do
+      json(conn, %{thread: thread(selected)})
+    else
+      {:error, reason} -> respond_error(conn, reason)
+      _ -> respond_error(conn, :invalid_params)
     end
   end
 
@@ -63,6 +84,24 @@ defmodule AtlasWeb.NativeOrbitController do
   def create(conn, params) do
     case Orbit.create_shared(conn.assigns.current_user, Map.take(params, ["title", "participant_ids"])) do
       {:ok, thread} -> conn |> put_status(:created) |> json(%{thread: thread(thread)})
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def update(conn, %{"id" => id} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, thread} <- Orbit.fetch(user, id),
+         {:ok, thread} <- Orbit.set_status(user, thread, Map.get(params, "status")) do
+      json(conn, %{thread: thread(thread)})
+    else
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def environment(conn, %{"id" => id}) do
+    case Environments.select(conn.assigns.current_user, id, conn.body_params) do
+      {:ok, selected} -> json(conn, %{thread: thread(selected)})
       {:error, reason} -> respond_error(conn, reason)
     end
   end
@@ -89,10 +128,21 @@ defmodule AtlasWeb.NativeOrbitController do
            Orbit.post_message(
              conn.assigns.current_user,
              thread,
-             Map.take(params, ["body", "client_id", "address_agent", "attachment_ids"])
+             Map.take(params, ["body", "client_id", "address_agent", "attachment_ids", "mention_ids"])
            ) do
       status = if created == :created, do: :created, else: :ok
       conn |> put_status(status) |> json(%{message: message(message)})
+    else
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def people(conn, %{"id" => id} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, thread} <- Orbit.fetch(user, id),
+         {:ok, people} <- Orbit.mention_people(user, thread, Map.get(params, "query", "")) do
+      json(conn, %{people: people})
     else
       {:error, reason} -> respond_error(conn, reason)
     end
@@ -176,6 +226,10 @@ defmodule AtlasWeb.NativeOrbitController do
       summary: thread.summary || "",
       origin: thread.origin,
       owner_id: thread.owner_id,
+      model: thread.model,
+      environment_id: thread.environment_id,
+      environment_name: thread.environment_name,
+      project_id: thread.project_id,
       participants:
         Enum.map(thread.participants, fn participant ->
           %{id: participant.user_id, name: Orbit.display_name(participant.user)}
@@ -196,14 +250,16 @@ defmodule AtlasWeb.NativeOrbitController do
       id: message.id,
       kind: message.kind,
       body: message.body,
+      notice_kind: message.notice_kind,
+      mentioned_user_ids: message.mentioned_user_ids,
       author_id: if(message.kind == "human", do: message.author_id),
       author_name: author_name(message),
       inserted_at: DateTime.to_iso8601(message.inserted_at),
       tool_name: message.tool_name,
       tool_status: message.tool_status,
       parent_message_id: message.parent_message_id,
-      tool_input: message.tool_input || "",
-      tool_output: message.tool_output || "",
+      tool_input: Message.tool_input(message),
+      tool_output: Message.tool_output(message),
       component: Components.for_message(message),
       attachments: Enum.map(message.attachments, &Attachments.metadata/1),
       # Stable creation order; clients sort by it. Status changes to a tool
@@ -248,6 +304,19 @@ defmodule AtlasWeb.NativeOrbitController do
   defp respond_error(conn, :not_found), do: error(conn, :not_found, "not_found")
   defp respond_error(conn, :forbidden), do: error(conn, :forbidden, "forbidden")
   defp respond_error(conn, :archived), do: error(conn, :conflict, "archived")
+  defp respond_error(conn, :thread_promoted), do: error(conn, :conflict, "thread_promoted")
+
+  defp respond_error(conn, reason)
+       when reason in [
+              :personal_environment_history,
+              :private_environment_required,
+              :model_run_active,
+              :environment_run_active,
+              :environment_disabled,
+              :environment_project_unavailable
+            ], do: error(conn, :conflict, Atom.to_string(reason))
+
+  defp respond_error(conn, :invalid_params), do: error(conn, :unprocessable_entity, "invalid_params")
   defp respond_error(conn, :rate_limited), do: error(conn, :too_many_requests, "rate_limited")
   defp respond_error(conn, :storage_unavailable), do: error(conn, :service_unavailable, "storage_unavailable")
   defp respond_error(conn, _reason), do: error(conn, :conflict, "conflict")

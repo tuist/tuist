@@ -78,7 +78,7 @@ defmodule TuistWeb.ShardsLiveTest do
 
   setup :stub_analytics
 
-  for build_system <- [:cargo, :xcode] do
+  for build_system <- [:cargo, :xcode, :once] do
     @tag build_system: build_system
     test "shares shard navigation, analytics and run history for #{build_system}", %{
       conn: conn,
@@ -88,7 +88,7 @@ defmodule TuistWeb.ShardsLiveTest do
     } do
       project = Repo.update!(Ecto.Changeset.change(project, build_system: build_system))
       date = DateTime.utc_now()
-      scheme = if build_system == :cargo, do: "nextest", else: "AppScheme"
+      scheme = %{cargo: "nextest", xcode: "AppScheme", once: "once test"}[build_system]
       run = make_test_run(scheme: scheme)
 
       expect(ShardsAnalytics, :sharded_run_analytics, fn project_id, _ ->
@@ -132,9 +132,10 @@ defmodule TuistWeb.ShardsLiveTest do
       assert has_element?(
                view,
                "#sharded-runs-table",
-               if(build_system == :cargo, do: "cargo nextest run", else: "AppScheme")
+               if(build_system == :cargo, do: "cargo nextest run", else: scheme)
              )
 
+      assert has_element?(view, "#sharded-runs-table", if(build_system == :once, do: "Batch", else: "Module"))
       assert html =~ "/#{organization.account.name}/#{project.name}/tests/test-runs/#{run.id}"
 
       view |> element("[phx-click='select_widget'][phx-value-widget='avg_shard_balance']") |> render_click()

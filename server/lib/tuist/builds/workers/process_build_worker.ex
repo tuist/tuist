@@ -122,8 +122,12 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   defp storage_account(project_id) do
     case Projects.get_project_by_id(project_id) do
-      nil -> {:error, :project_not_found}
-      project -> {:ok, project.account}
+      nil ->
+        {:error, :project_not_found}
+
+      project ->
+        Tuist.Observability.set_selection(%{selected_project: project})
+        {:ok, project.account}
     end
   end
 

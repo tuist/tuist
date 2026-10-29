@@ -250,11 +250,48 @@ class AtlasOrbitScreen(
         toolbar.title = title
         toolbar.subtitle = null
         refreshAction { model.refresh() }
-        val key = listOf("list", snapshot.assistant, snapshot.threads, snapshot.loading, snapshot.hasMore, snapshot.error, model.failure)
+        val key =
+            listOf(
+                "list",
+                snapshot.assistant,
+                snapshot.threads,
+                snapshot.loading,
+                snapshot.hasMore,
+                snapshot.cached,
+                snapshot.error,
+                model.failure,
+            )
         if (key == renderedContent) return
         renderedContent = key
         content.removeAllViews()
-        errors()
+        if (snapshot.cached && (snapshot.error != null || model.failure != null)) {
+            content.addView(
+                LinearLayout(activity).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(
+                        TextView(activity).apply {
+                            text = "Couldn’t refresh"
+                            textSize = 15f
+                        },
+                        LinearLayout.LayoutParams(0, -2, 1f),
+                    )
+                    addView(
+                        Button(activity, null, android.R.attr.borderlessButtonStyle).apply {
+                            text = "Retry"
+                            isAllCaps = false
+                            minWidth = dp(64)
+                            minHeight = dp(48)
+                            isEnabled = !snapshot.loading
+                            setOnClickListener { model.refresh() }
+                        },
+                        LinearLayout.LayoutParams(-2, -2),
+                    )
+                },
+                LinearLayout.LayoutParams(-1, -2),
+            )
+        } else {
+            errors()
+        }
         val assistant = snapshot.assistant
         if (assistant != null) {
             val pinned = snapshot.privateThread
@@ -264,9 +301,16 @@ class AtlasOrbitScreen(
                     if (!assistant.configured) append("\nNot set up on this server yet")
                     pinned?.summary?.takeIf { it.isNotEmpty() }?.let { append("\n$it") }
                 }
-            row(assistant.name, subtitle, !snapshot.loading, "${assistant.name}, pinned private thread") { model.openPrivate() }
+            row(
+                assistant.name,
+                subtitle,
+                (!snapshot.loading || snapshot.cached) && (!snapshot.cached || pinned != null),
+                "${assistant.name}, pinned private thread",
+            ) {
+                if (snapshot.cached && pinned != null) model.select(pinned.id) else model.openPrivate()
+            }
         }
-        button("New shared thread", assistant != null) { model.startCreate() }
+        button("New shared thread", assistant != null && !snapshot.cached) { model.startCreate() }
         heading("Shared")
         val shared = snapshot.shared
         if (shared.isEmpty() && !snapshot.loading && snapshot.error == null) text("No shared threads yet.")
@@ -278,9 +322,9 @@ class AtlasOrbitScreen(
                     if (thread.archived) "Archived" else "",
                     time(thread.updatedAt),
                 ).filter { it.isNotEmpty() }.joinToString("\n")
-            row(thread.title, subtitle, !snapshot.loading) { model.select(thread.id) }
+            row(thread.title, subtitle, !snapshot.loading || snapshot.cached) { model.select(thread.id) }
         }
-        if (snapshot.loading) text(if (snapshot.threads.isEmpty()) "Loading threads…" else "Updating threads…")
+        if (snapshot.loading && snapshot.threads.isEmpty()) text("Loading threads…")
         if (!snapshot.loading && snapshot.hasMore) button("Load more threads") { model.loadMore() }
     }
 

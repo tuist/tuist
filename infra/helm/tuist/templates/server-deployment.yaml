@@ -132,6 +132,8 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION
+              value: {{ .Values.server.ssoRequireLoginDomainVerification | ternary "true" "false" | quote }}
             {{- if .Values.server.turnstile.enabled }}
             - name: TUIST_TURNSTILE_ENABLED
               value: "1"
@@ -293,6 +295,22 @@ spec:
             # it to list the cache masters it should prefetch.
             - name: TUIST_RUNNER_HOST_IDENTITY_NAMESPACE
               value: {{ .Release.Namespace | quote }}
+            {{- end }}
+            {{- if .Values.ampOrbProvider.enabled }}
+            - name: TUIST_AMP_PROVIDER_NAMESPACE
+              value: {{ .Values.ampOrbProvider.namespace | quote }}
+            - name: TUIST_AMP_PROVIDER_URL
+              value: {{ .Values.ampOrbProvider.url | quote }}
+            - name: TUIST_AMP_PROVIDER_IMAGE
+              value: {{ printf "%s:%s-provider" .Values.ampOrbProvider.image.repository .Values.sandboxes.templateImage.tag | quote }}
+            - name: TUIST_AMP_PROVIDER_NODE_SELECTOR
+              value: {{ .Values.ampOrbProvider.nodeSelector | toJson | quote }}
+            {{- end }}
+            {{- if .Values.sandboxes.enabled }}
+            # Sandboxes namespace: the principal namespace the server requires
+            # on the sandboxd node connection's TokenReview.
+            - name: TUIST_SANDBOXES_NAMESPACE
+              value: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
             {{- end }}
             {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address
@@ -566,9 +584,9 @@ spec:
           lifecycle:
             preStop:
               exec:
-                # Give the ingress time to stop routing new traffic before the
-                # release shuts down — avoids 502s during a rolling deploy.
-                command: ["sh", "-c", "sleep 10"]
+                # Drain while endpoints stop routing here: the release answers with
+                # `Connection: close` once the file exists (TuistWeb.Draining).
+                command: ["sh", "-c", "touch /tmp/tuist-server-draining; sleep 15"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
       {{- with .Values.server.seedAccountCredentials.secretName }}

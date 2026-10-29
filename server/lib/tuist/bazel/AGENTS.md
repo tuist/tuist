@@ -7,6 +7,7 @@ does not expose a second Build Event Service listener.
 
 ## Test artifacts
 
+- Profile/test processors bind observability to their already-loaded `Project`, not the run actor or unchecked job arguments. Leave that process-local target installed through Oban exception reporting; do not restore it before the reporter captures the error, and do not add a second resource query solely for attribution.
 - Kura recognizes only Bazel's conventional `test.xml` and `test.log` files
   referenced by Build Event Protocol test-result events.
 - Kura queues per-attempt facts, per-target summaries, and artifact digests,

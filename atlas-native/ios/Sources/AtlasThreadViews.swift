@@ -12,8 +12,17 @@ struct AtlasOrbitView: View {
     @State private var handledRevision: UUID?
     @State private var navigationIntent = UUID()
     @State private var selfId: String?
+    @State private var confirmingArchive: AtlasThread?
+    @State private var showingThreadInfo = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
+    @Environment(\.atlasNavigation) private var workspaceNavigation
+    #if os(iOS)
+    @Environment(\.atlasLiveActivity) private var liveActivity
+    #elseif os(macOS)
+    @Environment(\.atlasEnvironmentRequest) private var environmentRequest
+    @State private var showingEnvironment = false
+    #endif
 
     init(recordID: String? = nil, revision: UUID? = nil, request: @escaping ([String: Any]) async throws -> Data,
          localRequest: @escaping ([String: Any]) async throws -> Data) {
@@ -22,87 +31,28 @@ struct AtlasOrbitView: View {
         _model = StateObject(wrappedValue: AtlasOrbit(request: request, localRequest: localRequest))
     }
 
+    init(model: AtlasOrbit, recordID: String? = nil, revision: UUID? = nil) {
+        self.recordID = recordID
+        self.revision = revision
+        _model = StateObject(wrappedValue: model)
+    }
+
     var body: some View {
-        NavigationStack(path: $path) {
-            List {
-                if let assistant = model.assistant {
-                    if !assistant.configured {
-                        Section {
-                            Label {
-                                Text("Connect an AI account in Profile, or ask an administrator to configure Pip.")
-                            } icon: { Image(systemName: "info.circle") }
-                                .font(.footnote).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                Section {
-                    let conversations = model.threads.filter { $0.kind == "private" }
-                    ForEach(conversations) { thread in
-                        NavigationLink(value: thread) {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(thread.title).font(.body.weight(.medium)).lineLimit(2)
-                                if !thread.summary.isEmpty {
-                                    Text(thread.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-                                }
-                                if let date = ISO8601DateFormatter().date(from: thread.updatedAt) {
-                                    Text(date, style: .relative).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }.frame(minHeight: 44)
-                        }
-                        .listRowBackground(Color.clear)
-                        .accessibilityIdentifier("thread-\(thread.id)")
-                    }
-                    if conversations.isEmpty, !model.loading, model.assistant != nil {
-                        ContentUnavailableView("Your conversations with Pip", systemImage: "bubble.left.and.bubble.right",
-                                               description: Text("Start a conversation using the compose button above."))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                    }
-                    if model.hasMore {
-                        HStack {
-                            Button("Load more") { Task { await model.load(more: true) } }.disabled(model.loading)
-                            if model.loading { ProgressView().accessibilityLabel("Loading more threads") }
-                        }
-                    }
-                }
-                if let error = model.errorMessage {
-                    Section {
-                        Text(error).foregroundStyle(.red)
-                        Button("Retry") {
-                            Task {
-                                if let linkedThreadID { await openLinkedThread(id: linkedThreadID) } else { await model.load() }
-                            }
-                        }.disabled(model.loading || openingLinkedThread)
-                    }
-                }
-            }
-            .modifier(AtlasThemedContent())
-            .overlay {
-                if model.loading, model.assistant == nil { ProgressView("Loading threads") }
-            }
-            .defaultScrollAnchor(.top)
-            .navigationTitle("Orbit")
-            .navigationBarTitleDisplayMode(.large)
-            .navigationDestination(for: AtlasThread.self) { thread in
-                AtlasThreadDetail(model: model, thread: thread, selfId: selfId)
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("New conversation", systemImage: "square.and.pencil") {
-                        Task { await openPrivateThread() }
-                    }
-                    .disabled(model.assistant == nil || model.creating || openingPrivate)
-                    .accessibilityIdentifier("orbit-create")
-                }
-            }
-            .refreshable { await model.load() }
-            .onAppear { presence?.show() }
+        navigation
+        .confirmationDialog("Archive this shared conversation?", isPresented: Binding(
+            get: { confirmingArchive != nil }, set: { if !$0 { confirmingArchive = nil } }
+        ), titleVisibility: .visible, presenting: confirmingArchive) { thread in
+            Button("Archive conversation") { Task { await model.archive(thread, archived: true) } }
+        } message: { _ in
+            Text("It will become read-only for everyone. You can restore it from Archived.")
         }
+        #if os(iOS)
         .toolbar(path.isEmpty ? .visible : .hidden, for: .tabBar)
+        #endif
         .overlay {
             if openingLinkedThread || openingPrivate {
                 ProgressView(openingPrivate ? "Starting conversation…" : "Opening thread…").frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(uiColor: .systemBackground).opacity(0.95))
+                    .background(loadingBackground.opacity(0.95))
             }
         }
         .task(id: revision) {
@@ -122,19 +72,261 @@ struct AtlasOrbitView: View {
             }
         }
         .onReceive(presence?.$selfId.eraseToAnyPublisher() ?? Just(nil).eraseToAnyPublisher()) { selfId = $0 }
+        #if os(iOS)
+        .onReceive(model.workChanges) { liveActivity?.refresh() }
+        #endif
         .onAppear { model.setActive(scenePhase == .active) }
         .onChange(of: scenePhase) { _, phase in model.setActive(phase == .active) }
         .onDisappear { model.setActive(false) }
     }
 
+    @ViewBuilder private var navigation: some View {
+        #if os(macOS)
+        NavigationStack {
+            GeometryReader { geometry in
+                HSplitView {
+                    inbox.frame(minWidth: 240, idealWidth: 300, maxWidth: 380)
+                    Group {
+                        if let thread = path.last {
+                            AtlasThreadDetail(model: model, thread: thread, selfId: selfId)
+                        } else {
+                            ContentUnavailableView("No conversation selected", systemImage: "bubble.left.and.bubble.right",
+                                                   description: Text("Select a conversation or start a new one."))
+                        }
+                    }
+                    .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+            }
+        }
+        .navigationTitle(desktopThread.map { $0.kind == "private" ? (model.assistant?.name ?? "Pip") : $0.title } ?? "Orbit")
+        .navigationSubtitle(desktopThread.map {
+            $0.kind == "private" ? "Private · Only you and \(model.assistant?.name ?? "Pip")" : "Shared conversation"
+        } ?? "")
+        .toolbar {
+            ToolbarItem(id: "orbit-status", placement: .primaryAction) {
+                statusPicker.labelsHidden().frame(width: 170)
+            }
+            ToolbarItem(id: "orbit-create", placement: .primaryAction) { composeButton }
+            ToolbarItem(id: "orbit-environment", placement: .primaryAction) {
+                Button("Tool environment", systemImage: "desktopcomputer") { showingEnvironment.toggle() }
+                    .disabled(desktopThread?.kind != "private" || environmentRequest == nil)
+                    .popover(isPresented: $showingEnvironment) {
+                        if let thread = desktopThread, let environmentRequest {
+                            AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
+                        }
+                    }
+            }
+            ToolbarItem(id: "thread-info", placement: .primaryAction) {
+                Button("Thread details", systemImage: "info.circle") { showingThreadInfo = true }
+                    .disabled(desktopThread == nil).accessibilityIdentifier("thread-info")
+            }
+        }
+        .sheet(isPresented: $showingThreadInfo) {
+            if let thread = desktopThread {
+                AtlasThreadInfo(thread: thread, assistantName: model.assistant?.name ?? "Pip")
+            }
+        }
+        #else
+        NavigationStack(path: $path) {
+            inbox.navigationDestination(for: AtlasThread.self) { thread in
+                AtlasThreadDetail(model: model, thread: thread, selfId: selfId)
+            }
+        }
+        #endif
+    }
+
+    private var inbox: some View {
+        Group {
+            #if os(macOS)
+            List(selection: desktopSelection) { inboxRows }
+                .listStyle(.inset)
+            #else
+            List { inboxRows }.listStyle(.plain)
+            #endif
+        }
+        .modifier(AtlasThemedContent())
+        .overlay {
+            if model.loading, model.assistant == nil { ProgressView("Loading threads") }
+        }
+        .defaultScrollAnchor(.top)
+        #if os(iOS)
+        .navigationTitle("Orbit")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) { composeButton }
+        }
+        #endif
+        .refreshable { await model.load() }
+        .onAppear { presence?.show() }
+    }
+
+    private var composeButton: some View {
+        Button("New conversation", systemImage: "square.and.pencil") {
+            Task { await openPrivateThread() }
+        }
+        .disabled(model.cached || model.assistant == nil || model.creating || openingPrivate)
+        .accessibilityIdentifier("orbit-create")
+        #if os(macOS)
+        .keyboardShortcut("n")
+        #endif
+    }
+}
+
+extension AtlasOrbitView {
+    @ViewBuilder private var inboxRows: some View {
+        #if os(iOS)
+        Section {
+            statusPicker
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+        }
+        #endif
+        if model.cached, model.errorMessage != nil, linkedThreadID == nil {
+            HStack {
+                Text("Couldn’t refresh").foregroundStyle(.secondary)
+                    .accessibilityIdentifier("orbit-refresh-error")
+                Spacer()
+                Button { Task { await model.load() } } label: {
+                    Text("Retry").frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                    .buttonStyle(.borderless)
+                    .disabled(model.loading)
+                    .accessibilityIdentifier("orbit-refresh-retry")
+            }
+            .font(.footnote)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+        if let assistant = model.assistant {
+            if !assistant.configured {
+                Section {
+                    Label {
+                        Text("Connect an AI account in Profile, or ask an administrator to configure Pip.")
+                    } icon: { Image(systemName: "info.circle") }
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+        }
+        ForEach(conversationSections, id: \.title) { section in
+            Section(section.title) {
+                ForEach(section.threads) { thread in conversationRow(thread) }
+            }
+            .textCase(nil)
+        }
+        if model.threads.isEmpty, !model.loading, model.assistant != nil {
+            ContentUnavailableView(model.statusFilter == "archived" ? "No archived conversations" : "Your conversations with Pip",
+                                   systemImage: model.statusFilter == "archived" ? "archivebox" : "bubble.left.and.bubble.right",
+                                   description: Text(model.statusFilter == "archived"
+                                       ? "Archived conversations stay here until you restore them."
+                                       : "Start a conversation using the compose button above."))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+        }
+        if model.hasMore {
+            HStack {
+                Button("Load more") { Task { await model.load(more: true) } }.disabled(model.loading)
+                if model.loading { ProgressView().accessibilityLabel("Loading more threads") }
+            }
+        }
+        if let error = model.errorMessage, !model.cached || linkedThreadID != nil {
+            Section {
+                Text(error).foregroundStyle(.red)
+                Button("Retry") {
+                    Task {
+                        if let linkedThreadID { await openLinkedThread(id: linkedThreadID) } else { await model.load() }
+                    }
+                }.disabled(model.loading || openingLinkedThread)
+            }
+        }
+    }
+
+    private var statusPicker: some View {
+        Picker("Conversations", selection: Binding(get: { model.statusFilter }, set: { status in
+            Task { await model.load(status: status) }
+        })) {
+            Text("Active").tag("active")
+            Text("Archived").tag("archived")
+        }
+        .pickerStyle(.segmented)
+        .disabled(model.loading || model.saving)
+        .accessibilityIdentifier("orbit-status")
+    }
+
+    private var loadingBackground: Color {
+        #if os(macOS)
+        Color(nsColor: .windowBackgroundColor)
+        #else
+        Color(uiColor: .systemBackground)
+        #endif
+    }
+
+    private var conversationSections: [(title: String, threads: [AtlasThread])] {
+        let calendar = Calendar.current
+        let groups = Dictionary(grouping: model.threads) { thread in
+            guard let date = thread.updatedDate else { return "Earlier" }
+            if calendar.isDateInToday(date) { return "Today" }
+            return calendar.isDateInYesterday(date) ? "Yesterday" : "Earlier"
+        }
+        return ["Today", "Yesterday", "Earlier"].compactMap { title in
+            groups[title].map { (title: title, threads: $0) }
+        }
+    }
+
+    private func conversationRow(_ thread: AtlasThread) -> some View {
+        Group {
+            #if os(macOS)
+            AtlasDesktopConversationRow(thread: thread)
+            #else
+            Button { path.append(thread) } label: { AtlasMobileConversationRow(thread: thread) }
+                .buttonStyle(.plain)
+            #endif
+        }
+        #if os(macOS)
+        .tag(thread.id)
+        .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+        .listRowSeparator(.hidden)
+        #else
+        .listRowBackground(Color.clear)
+        #endif
+        .accessibilityIdentifier("thread-\(thread.id)")
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if let selfId, thread.ownerId == selfId { archiveAction(thread) }
+        }
+        .contextMenu {
+            if let selfId, thread.ownerId == selfId { archiveAction(thread) }
+        }
+    }
+
+    private func archiveAction(_ thread: AtlasThread) -> some View {
+        Button(thread.status == "archived" ? "Restore" : "Archive",
+               systemImage: thread.status == "archived" ? "tray.and.arrow.up" : "archivebox") {
+            if thread.kind != "private", thread.status != "archived" {
+                confirmingArchive = thread
+            } else {
+                Task { await model.archive(thread, archived: thread.status != "archived") }
+            }
+        }
+        .tint(.orange)
+        .disabled(model.cached || model.saving || model.loading)
+    }
+
     private func openPrivateThread() async {
         guard !openingPrivate else { return }
+        #if os(macOS)
+        guard canChangeConversation else { return }
+        #endif
         let intent = navigationIntent
         openingPrivate = true
         defer { openingPrivate = false }
         if let thread = await model.newPrivateThread(), !Task.isCancelled, navigationIntent == intent {
             linkedThreadID = nil
+            #if os(macOS)
+            path = [thread]
+            #else
             path.append(thread)
+            #endif
         }
     }
 
@@ -146,4 +338,57 @@ struct AtlasOrbitView: View {
         path = thread.map { [$0] } ?? []
         if thread != nil { linkedThreadID = nil }
     }
+
+    #if os(macOS)
+    private var desktopThread: AtlasThread? {
+        guard let thread = path.last else { return nil }
+        return model.selected?.id == thread.id ? model.selected : thread
+    }
+
+    private var desktopSelection: Binding<String?> {
+        Binding(get: { path.last?.id }, set: { id in
+            guard id != path.last?.id, canChangeConversation else { return }
+            path = id.flatMap { id in model.threads.first { $0.id == id } }.map { [$0] } ?? []
+        })
+    }
+
+    private var canChangeConversation: Bool {
+        guard workspaceNavigation?.hasProtectedWork == true else { return true }
+        workspaceNavigation?.message = "Finish or discard your changes before switching conversations."
+        return false
+    }
+    #endif
 }
+
+#if os(iOS)
+private struct AtlasMobileConversationRow: View {
+    let thread: AtlasThread
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(thread.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
+            if !thread.summary.isEmpty {
+                Text(thread.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+            }
+            HStack(spacing: 10) {
+                Label(thread.kind == "private" ? "Private" : "Shared", systemImage: thread.kind == "private" ? "lock" : "person.2")
+                if ["queued", "running", "compacting"].contains(thread.agentStatus ?? "") {
+                    Label("Working", systemImage: "sparkles")
+                }
+                Spacer(minLength: 0)
+                if let date = thread.updatedDate {
+                    if Calendar.current.isDateInToday(date) {
+                        Text(date, format: .dateTime.hour().minute())
+                    } else {
+                        Text(date, format: .dateTime.month(.abbreviated).day().year())
+                    }
+                }
+            }
+            .font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
+}
+#endif

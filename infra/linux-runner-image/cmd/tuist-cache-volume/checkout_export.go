@@ -96,8 +96,11 @@ func exportCheckoutMac() string {
 	return exportCheckoutAt(ctx, checkoutStatePath, macShare, gitCommand)
 }
 
+// gitCommand trusts the repository at dir whoever owns it: a container job's
+// checkout runs as the container's root, and git refuses a repository another
+// user owns. The job wrote it in its own runner, and the host verifies the export.
 func gitCommand(ctx context.Context, dir string, stdin io.Reader, stdout io.Writer, args ...string) error {
-	command := exec.CommandContext(ctx, "git", args...)
+	command := exec.CommandContext(ctx, "git", append([]string{"-c", "safe.directory=*"}, args...)...)
 	command.Dir = dir
 	command.Stdin = stdin
 	command.Stdout = stdout

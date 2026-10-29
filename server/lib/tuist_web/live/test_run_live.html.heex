@@ -513,10 +513,16 @@
           <:col
             :let={shard}
             label={
-              if(@run.shard_plan && @run.shard_plan.granularity == "suite",
-                do: dgettext("dashboard_tests", "Test Suites"),
-                else: dgettext("dashboard_tests", "Modules")
-              )
+              cond do
+                @run.build_system == "once" ->
+                  dgettext("dashboard_tests", "Batches")
+
+                @run.shard_plan && @run.shard_plan.granularity == "suite" ->
+                  dgettext("dashboard_tests", "Test Suites")
+
+                true ->
+                  dgettext("dashboard_tests", "Modules")
+              end
             }
           >
             <.text_cell label={format_number(shard.target_count)} />

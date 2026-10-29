@@ -4,6 +4,43 @@ import Testing
 @MainActor
 struct AtlasOrbitTests {
     private let id = "01922cc0-0000-7000-8000-000000000001"
+}
+
+extension AtlasOrbitTests {
+    @Test(arguments: ["2026-10-24T12:34:56.123456Z", "2026-10-24T12:34:56Z"])
+    func conversationDatesAcceptServerMicrosecondsAndLegacySeconds(timestamp: String) async throws {
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"date-handle\"}".utf8) }
+            return try snapshot(sequence: 1, updatedAt: timestamp)
+        }, localRequest: { _ in throw CancellationError() })
+        await model.load()
+        let date = try #require(model.threads.first?.updatedDate)
+        let expected = 1_792_845_296.0 + (timestamp.contains(".") ? 0.123456 : 0)
+        #expect(abs(date.timeIntervalSince1970 - expected) < 0.001)
+    }
+}
+
+extension AtlasOrbitTests {
+    @Test func localInboxAppearsBeforeProtectedRefreshAndSurvivesItsFailure() async throws {
+        var model: AtlasOrbit!
+        defer { model = nil }
+        var online = false
+        model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" {
+                let saved = try JSONSerialization.jsonObject(with: snapshot(sequence: 1, fields: ["cached": true]))
+                return try JSONSerialization.data(withJSONObject: ["connection": "saved-inbox", "snapshot": saved])
+            }
+            #expect(model.cached && model.threads.first?.id == id)
+            guard online else { throw AtlasAuthenticationError(kind: "network", message: "Offline. Try again.") }
+            return try snapshot(sequence: 2, fields: ["cached": false])
+        }, localRequest: { _ in throw CancellationError() })
+        await model.load()
+        #expect(model.cached && model.threads.first?.id == id)
+        #expect(model.errorMessage == "Offline. Try again.")
+        online = true
+        await model.load()
+        #expect(!model.cached && model.errorMessage == nil)
+    }
 
     @Test func adapterForwardsCommandsAndRendersRustState() async throws {
         var commands: [String] = []
@@ -25,7 +62,7 @@ struct AtlasOrbitTests {
         #expect(model.selected?.id == id)
     }
 
-    @Test func privateListAndDistinctCreationUseRustOwnedContract() async throws {
+    @Test func conversationListAndDistinctCreationUseRustOwnedContract() async throws {
         var commands: [[String: Any]] = []
         let model = AtlasOrbit(request: { action in
             if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
@@ -36,13 +73,99 @@ struct AtlasOrbitTests {
         await model.load()
         await model.load(more: true)
         #expect(commands[0]["action"] as? String == "load")
-        #expect(commands[0]["kind"] as? String == "private")
+        #expect(commands[0]["kind"] == nil)
         #expect(commands[1]["action"] as? String == "load_more")
         #expect(await model.newPrivateThread()?.id == id)
         #expect(commands[2]["action"] as? String == "create_private")
         #expect(commands[2].count == 1) // Replay UUID and owner identity belong to Rust/server.
     }
 
+    @Test func archivingKeepsHistoryAndDraftWhileReconcilingAuthoritativeStatus() async throws {
+        var sequence = 0
+        var status = "active"
+        var filter = "active"
+        let message: [String: Any] = [
+            "id": "history", "kind": "human", "body": "Keep this conversation.", "author_name": "Taylor",
+            "inserted_at": "2026-10-24T12:00:00Z", "tool_input": "", "tool_output": ""
+        ]
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"archive-handle\"}".utf8) }
+            let command = try #require(action["command"] as? [String: Any])
+            switch command["action"] as? String {
+            case "load":
+                filter = command["status"] as? String ?? filter
+            case "archive":
+                #expect(command["id"] as? String == id)
+                status = command["archived"] as? Bool == true ? "archived" : "active"
+            default: throw CancellationError()
+            }
+            sequence += 1
+            let thread: [String: Any] = [
+                "id": id, "title": "Keep this conversation", "kind": "private", "status": status,
+                "summary": "", "origin": "manual", "participants": [], "updated_at": "2026-10-24T12:00:00Z"
+            ]
+            return try snapshot(sequence: sequence, selected: true, draft: "An unsent thought", messages: [message], fields: [
+                "selected": thread, "threads": status == filter ? [thread] : [], "status_filter": filter
+            ])
+        }, localRequest: { _ in throw CancellationError() })
+        await model.load()
+        let thread = try #require(model.selected)
+        await model.archive(thread, archived: true)
+        #expect(model.selected?.status == "archived")
+        #expect(model.threads.isEmpty)
+        await model.load(status: "archived")
+        #expect(model.statusFilter == "archived")
+        #expect(model.threads.first?.status == "archived")
+        await model.archive(try #require(model.selected), archived: false)
+        #expect(model.selected?.status == "active")
+        #expect(model.threads.isEmpty)
+        #expect(model.messages.map(\.body) == ["Keep this conversation."])
+        #expect(model.draft == "An unsent thought")
+    }
+
+    @Test func mentionSelectionUsesRustIdentityAndRetainsTheEditableDraft() async throws {
+        let personId = "01922cc0-0000-7000-8000-000000000099"
+        var sequence = 0
+        var body = ""
+        var fields: [String: Any] = [:]
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"mention-handle\"}".utf8) }
+            let command = try #require(action["command"] as? [String: Any])
+            sequence += 1
+            if command["action"] as? String == "people" {
+                #expect(command["id"] as? String == id)
+                #expect(command["query"] as? String == "Al")
+                #expect(body == "Please review @Al")
+                fields["mention_candidates"] = [["id": personId, "name": "Alex Morgan"]]
+            }
+            if command["action"] as? String == "send" {
+                #expect(command["mention_ids"] as? [String] == [personId])
+            }
+            return try snapshot(sequence: sequence, selected: true, draft: body, fields: fields)
+        }, localRequest: { action in
+            sequence += 1
+            if action["action"] as? String == "draft" { body = action["body"] as? String ?? "" }
+            if action["action"] as? String == "mention" {
+                #expect(action["id"] as? String == id)
+                #expect(action["user_id"] as? String == personId)
+                #expect(action["name"] == nil)
+                body = "Please review @Alex Morgan "
+                fields["draft_mentions"] = [["id": personId, "name": "Alex Morgan"]]
+            }
+            return try snapshot(sequence: sequence, selected: true, draft: body, fields: fields)
+        })
+        _ = await model.open(id: id)
+        model.draft = "Please review @Al"
+        await model.searchPeople(query: "Al")
+        let person = try #require(model.mentionCandidates.first)
+        await model.mention(person)
+        #expect(model.draft == "Please review @Alex Morgan ")
+        #expect(model.draftMentions.map(\.id) == [personId])
+        await model.send(addressAgent: false)
+    }
+}
+
+extension AtlasOrbitTests {
     @Test func aNewerSelectionSupersedesPendingConversationCreation() async throws {
         var pending: CheckedContinuation<Data, Error>?
         let model = AtlasOrbit(request: { action in
@@ -150,6 +273,7 @@ struct AtlasOrbitTests {
         status = "running"
         await model.load()
         #expect(model.activityMessage == "Using get account…")
+        #expect(model.timeline.groups.first?.messages.map(\.toolStatus) == ["running", "succeeded"])
         status = "compacting"
         await model.load()
         #expect(model.activityMessage == "Compacting context…")
@@ -160,6 +284,7 @@ struct AtlasOrbitTests {
         messages[0]["tool_status"] = "succeeded"
         await model.load()
         #expect(model.activityMessage == "Typing…")
+        #expect(model.timeline.groups.first?.messages.map(\.toolStatus) == ["succeeded", "succeeded"])
         liveMessage = "Reconnecting…"
         await model.load()
         #expect(model.liveMessage == "Reconnecting…")
@@ -249,24 +374,27 @@ struct AtlasOrbitTests {
         pending?.resume(returning: effect)
         #expect(await action.value == false)
         #expect(model.messages.isEmpty)
+        #expect(model.timeline.groups.isEmpty)
     }
 }
 
 extension AtlasOrbitTests {
     private func snapshot(
         sequence: Int, selected: Bool = false, draft: String = "", messages: [[String: Any]] = [],
-        agentStatus: String? = nil, liveMessage: String? = nil
+        agentStatus: String? = nil, liveMessage: String? = nil, updatedAt: String = "2027-06-07T10:00:00Z",
+        fields: [String: Any] = [:]
     ) throws -> Data {
         let thread: [String: Any] = [
             "id": id, "title": "Private thread", "kind": "private", "status": "idle",
-            "summary": "", "origin": "manual", "participants": [], "updated_at": "2027-06-07T10:00:00Z",
+            "summary": "", "origin": "manual", "participants": [], "updated_at": updatedAt,
             "agent_status": agentStatus as Any? ?? NSNull()
         ]
-        return try JSONSerialization.data(withJSONObject: [
+        let value: [String: Any] = [
             "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
             "threads": [thread], "selected": selected ? thread as Any : NSNull(),
             "messages": messages, "people": [], "draft": draft, "loading": false, "history_loading": false, "saving": false,
             "has_more": true, "has_older": false, "needs_session": false, "live_message": liveMessage as Any? ?? NSNull()
-        ])
+        ]
+        return try JSONSerialization.data(withJSONObject: value.merging(fields) { _, latest in latest })
     }
 }

@@ -2,8 +2,13 @@ mod accounts;
 mod api;
 mod bridge;
 mod business;
+mod cache;
+mod connections;
+mod environments;
 pub mod form;
+mod moodboard;
 mod orbit;
+mod orbit_activity;
 mod orbit_components;
 mod orbit_live;
 mod orbit_session;
@@ -46,6 +51,8 @@ pub struct Session {
     access_token: String,
     refresh_token: String,
     expires_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cache_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -330,6 +337,7 @@ fn session(
         access_token: tokens.access_token,
         refresh_token,
         expires_at: now() + tokens.expires_in,
+        cache_id: Some(random_string()?),
     })
 }
 
@@ -361,11 +369,22 @@ pub fn restore(saved: Session) -> Result<Session> {
     restore_using(&Network, saved)
 }
 
-fn restore_using(network: &impl Transport, saved: Session) -> Result<Session> {
+// Local-only bootstrap: native storage must persist the namespace before exposing
+// cached UI. This validates saved structure, not current server authorization.
+fn bootstrap(mut saved: Session) -> Result<Session> {
     validate_registration(&saved.registration)?;
     if saved.access_token.is_empty() || saved.refresh_token.is_empty() {
         return Err(invalid());
     }
+    saved.registration.server = server_url(&saved.registration.server)?.to_string();
+    if saved.cache_id.is_none() {
+        saved.cache_id = Some(random_string()?);
+    }
+    Ok(saved)
+}
+
+fn restore_using(network: &impl Transport, saved: Session) -> Result<Session> {
+    let saved = bootstrap(saved)?;
     if saved.expires_at > now() + 60 {
         return Ok(saved);
     }
@@ -377,7 +396,9 @@ fn restore_using(network: &impl Transport, saved: Session) -> Result<Session> {
             ("refresh_token", &saved.refresh_token),
         ]),
     )?;
-    session(saved.registration, tokens, Some(saved.refresh_token))
+    let mut restored = session(saved.registration, tokens, Some(saved.refresh_token))?;
+    restored.cache_id = saved.cache_id;
+    Ok(restored)
 }
 
 #[cfg(test)]

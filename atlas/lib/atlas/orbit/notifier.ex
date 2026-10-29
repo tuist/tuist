@@ -12,9 +12,12 @@ defmodule Atlas.Orbit.Notifier do
 
   use GenServer
 
+  alias Atlas.Environments.Commands
   alias Atlas.Orbit
   alias Atlas.Orbit.Runs
   alias Atlas.Orbit.Viewers
+  alias Atlas.Push.Config
+  alias Atlas.Push.OrbitLiveActivity
 
   @sweep_interval :timer.seconds(5)
 
@@ -33,6 +36,7 @@ defmodule Atlas.Orbit.Notifier do
     # List channels hear an id-free invalidation and recompute their own
     # authorized list, so nothing about other people's threads leaks.
     Phoenix.PubSub.broadcast(Atlas.PubSub, Orbit.list_topic(), :orbit_changed)
+    if Config.available?("ios"), do: OrbitLiveActivity.thread_changed(id)
     {:noreply, state}
   end
 
@@ -45,10 +49,12 @@ defmodule Atlas.Orbit.Notifier do
 
   def handle_info(:sweep, state) do
     Viewers.prune()
+    OrbitLiveActivity.reconcile()
 
     if rem(state.sweeps, 3) == 0 do
       Runs.resume_stale()
       Runs.recover_queued()
+      Commands.sweep()
     end
 
     Process.send_after(self(), :sweep, @sweep_interval)

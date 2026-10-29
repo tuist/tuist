@@ -522,7 +522,7 @@ defmodule TuistWeb.UsageLive do
     """
   end
 
-  def egress_rate_label, do: "$0.35 " <> dgettext("dashboard_usage", "per GB")
+  def egress_rate_label, do: "$0.10 " <> dgettext("dashboard_usage", "per GB")
 
   def request_rate_label,
     do: "$0.01 " <> dgettext("dashboard_usage", "per %{count}", count: CldrHelpers.format_number(1_000))

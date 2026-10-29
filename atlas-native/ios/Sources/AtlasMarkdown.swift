@@ -2,9 +2,11 @@ import SwiftUI
 
 /// Bounded, native Markdown presentation. No HTML, remote images, WebView or
 /// executable diagrams. Code and unsupported syntax remain selectable text.
-struct AtlasMarkdown: View {
+struct AtlasMarkdown: View, Equatable {
     let source: String
     @ScaledMetric(relativeTo: .body) private var tableColumnWidth: CGFloat = 200
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.source == rhs.source }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

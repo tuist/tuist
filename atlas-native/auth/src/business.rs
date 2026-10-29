@@ -371,6 +371,8 @@ struct Profile {
 struct PushCapabilities {
     ios: bool,
     android: bool,
+    #[serde(default)]
+    macos: bool,
 }
 
 impl Record {

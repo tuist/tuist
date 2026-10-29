@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang={Gettext.get_locale()} class="[scrollbar-gutter:stable]">
+<html lang={TuistWeb.Locale.language_tag(Gettext.get_locale())} class="[scrollbar-gutter:stable]">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -23,6 +23,7 @@
             "where": {
               "and": [
                 { "href_matches": "/*" },
+                { "not": { "selector_matches": "[data-language-switch]" } },
                 { "not": { "href_matches": "/users/*" } },
                 { "not": { "href_matches": "/docs*" } },
                 { "not": { "href_matches": "/api/*" } },
@@ -106,7 +107,6 @@
         }
         rel="alternate"
         type="text/markdown"
-        hreflang="en"
         href={
           Tuist.Environment.app_url(
             path:
@@ -120,14 +120,13 @@
       <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
         <link
           rel="alternate"
-          hreflang={locale}
+          hreflang={TuistWeb.Locale.language_tag(locale)}
           href={
-            Tuist.Environment.app_url(
-              path:
-                TuistWeb.Marketing.Localization.localized_href(
-                  TuistWeb.Marketing.Localization.current_path(assigns),
-                  locale
-                )
+            TuistWeb.Utilities.SEO.canonical_url(
+              TuistWeb.Marketing.Localization.localized_href(
+                TuistWeb.Marketing.Localization.current_path(assigns),
+                locale
+              )
             )
           }
         />
@@ -136,7 +135,12 @@
         rel="alternate"
         hreflang="x-default"
         href={
-          Tuist.Environment.app_url(path: TuistWeb.Marketing.Localization.current_path(assigns))
+          TuistWeb.Utilities.SEO.canonical_url(
+            TuistWeb.Marketing.Localization.localized_href(
+              TuistWeb.Marketing.Localization.current_path(assigns),
+              "en"
+            )
+          )
         }
       />
     <% end %>

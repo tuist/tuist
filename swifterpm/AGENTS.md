@@ -1,8 +1,5 @@
-# Repository Instructions
+# SwifterPM
 
-- When posting comments or reviews on GitHub pull requests, do not use em dashes.
-- Write GitHub pull request comments and reviews as if Pepicrft wrote them directly. Do not frame them as assistant output unless explicitly asked to do so.
-- For local reviews of Swift changes, use `../.blick/skills/tuist-swift-review/SKILL.md` as the project-specific review context.
 - Use the shared `fileSystem` instance from `tuist/FileSystem` for filesystem operations. Convert URLs to `AbsolutePath` via the in-module `URL.absolutePath` helper. Do not use `Foundation.FileManager` in repository code, and do not call NIOFileSystem or `swift-tools-support-core` filesystem primitives directly.
 
 ## Authentication
@@ -21,7 +18,7 @@
 
 ## End-to-end tests
 
-- `mise run test:e2e` runs `e2e/resolution_spec.sh` and is part of CI. Scenarios that expect SwifterPM to do work itself (dump manifests, download registry archives) must first warm the cache with a resolve; a resolve without a lockfile or with uncached pins is delegated to native SwiftPM.
+- `mise run test:e2e` runs `e2e/resolution_spec.sh` and is part of CI. Ordinary resolves without a lockfile or with uncached pins are delegated to native SwiftPM; warm the cache first when testing SwifterPM's own resolution work. Forced installs restore the locked pins even on a cache miss, rebuild workspace state, and then run native forced-lockfile validation. Keep coverage for retained registry versions (upgrades and downgrades), empty caches, and invalid lockfiles.
 - Authenticated registry scenarios exercise Basic and Bearer credentials through cold, warm, lockfile-validation, missing-pin, and update paths. Their legacy Swift wrapper strips native environment providers and isolates `--security-path`; request records contain authorization outcomes, never secrets. Regression scenarios cover unused local/global/file registry settings, warm validation with exported credentials, public registry reads with the keychain enabled and interpreter execution forbidden, and restoration of headless keychain interaction policy on success/failure through injected unit tests. The scoped Swift wrapper isolates `--security-path` for all scenarios because HOME alone does not isolate macOS SwiftPM fingerprints.
 - Read pins through `normalize_package_resolved_file`. SwiftPM writes the version 1 `Package.resolved` format for packages below tools version 5.6, which several SwiftPM fixtures are.
 - Real-world graph scenarios require blank stderr as well as successful resolution and lockfile checks. Unexpected source-publication fallback is a cache regression, even when native resolution succeeds. Exercise intentional preservation/fallback separately in targeted tests.

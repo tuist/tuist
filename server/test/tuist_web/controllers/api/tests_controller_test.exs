@@ -336,6 +336,88 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
+    test "accepts a consolidated Once shard report with producer ordering", %{conn: conn, user: user, project: project} do
+      plan_id = UUIDv7.generate()
+
+      expect(Tests, :create_test, fn attrs ->
+        assert attrs.build_system == "once"
+        assert attrs.shard_plan_id == plan_id
+        assert attrs.shard_index == 2
+        assert attrs.shard_attempt == 3
+        assert attrs.shard_report_revision == 0
+        assert [%{name: "libs/widget/tests"}] = attrs.test_modules
+        {:ok, %Test{id: attrs.id, duration: attrs.duration, project_id: project.id, test_case_runs: []}}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          build_system: "once",
+          scheme: "once test",
+          is_ci: true,
+          duration: 30,
+          status: "success",
+          shard_plan_id: plan_id,
+          shard_index: 2,
+          shard_attempt: 3,
+          shard_report_revision: 0,
+          test_modules: [
+            %{
+              name: "libs/widget/tests",
+              status: "success",
+              duration: 25,
+              test_suites: [],
+              test_cases: [%{name: "works", test_suite_name: "WidgetSuite", status: "success", duration: 25}]
+            }
+          ]
+        })
+
+      assert %{"type" => "test", "id" => _id} = json_response(conn, :ok)
+    end
+
+    test "persists shard execution timestamps with seconds or milliseconds", %{conn: conn, user: user, project: project} do
+      for version <- [0, 1],
+          {ran_at, expected} <- [
+            {"2026-10-25T12:34:56Z", ~N[2026-10-25 12:34:56.000000]},
+            {"2026-10-25T12:34:56.123Z", ~N[2026-10-25 12:34:56.123000]}
+          ] do
+        plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 1, reporting_version: version)
+
+        response =
+          conn
+          |> recycle()
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+          |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+            build_system: "once",
+            is_ci: true,
+            duration: 25,
+            status: "success",
+            ran_at: ran_at,
+            shard_plan_id: plan.id,
+            shard_index: 0,
+            shard_attempt: 0,
+            shard_report_revision: 0,
+            test_modules: [
+              %{
+                name: "libs/widget/tests",
+                status: "success",
+                duration: 25,
+                test_suites: [],
+                test_cases: [%{name: "works", status: "success", duration: 25}]
+              }
+            ]
+          })
+          |> json_response(:ok)
+
+        assert %{"type" => "test", "id" => run_id} = response
+
+        assert [%{ran_at: ^expected, status: "success", actual_duration_ms: 25}] =
+                 Tuist.Shards.Analytics.shard_metrics(run_id)
+      end
+    end
+
     test "accepts the enumerated tests an older client still sends, and stores the run without them", %{
       conn: conn,
       user: user,

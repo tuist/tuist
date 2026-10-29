@@ -4,50 +4,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
 
-// executionWait is how long a Pod waits for GitHub to report the job its runner
-// executes, across its checkout and all its volumes.
-const executionWait = 25 * time.Second
-
-// executionWaits holds when each Pod stops waiting for GitHub's job report.
-type executionWaits struct {
-	mu    sync.Mutex
-	until map[string]time.Time
-}
-
-// deadline is when the Pod stops waiting. The first request answered 425 starts
-// one wait of executionWait from when it was asked, and the Pod's checkout and
-// every later volume share it: GitHub can report a job minutes after it started,
-// so a wait per request only delays a job that runs cold anyway.
-func (w *executionWaits) deadline(podUID string, asked time.Time) time.Time {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if until, ok := w.until[podUID]; ok {
-		return until
-	}
-	// A runner Pod lives for one job, which never outlasts six hours.
-	for uid, until := range w.until {
-		if time.Since(until) > 6*time.Hour {
-			delete(w.until, uid)
-		}
-	}
-	if w.until == nil {
-		w.until = map[string]time.Time{}
-	}
-	until := asked.Add(executionWait)
-	w.until[podUID] = until
-	return until
-}
+// errNotFound is the server's answer that it has nothing to allocate yet.
+var errNotFound = errors.New("nothing to allocate")
 
 func (a *agent) authorize(ctx context.Context, podUID string, asked time.Time, body []byte) (cachevolumes.Identity, error) {
 	var identity cachevolumes.Identity
@@ -70,6 +39,9 @@ func (a *agent) allocate(ctx context.Context, url, podUID string, asked time.Tim
 		if err != nil || status == http.StatusOK {
 			return err
 		}
+		if status == http.StatusNotFound {
+			return errNotFound
+		}
 		// The volume is larger than this host's maximum. Retrying cannot help.
 		if status == http.StatusInsufficientStorage {
 			return cachevolumes.ErrCapacity
@@ -81,7 +53,7 @@ func (a *agent) allocate(ctx context.Context, url, podUID string, asked time.Tim
 		// Retry only that explicit pending state, never denied provider identity.
 		if waiting == ctx {
 			var stop context.CancelFunc
-			waiting, stop = context.WithDeadline(ctx, a.executionWaits.deadline(podUID, asked))
+			waiting, stop = context.WithDeadline(ctx, a.executionWaits.Deadline(podUID, asked))
 			defer stop()
 		}
 		select {

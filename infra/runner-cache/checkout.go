@@ -903,6 +903,15 @@ func (c *Checkouts) gitEnv() []string {
 		// A detached repack keeps working in the mounted master, which then
 		// cannot be unmounted.
 		{"gc.autoDetach", "false"},
+		// Git shares the agent's memory limit. Bound both indexing and repacking;
+		// their default caches and CPU-based thread counts can exhaust it alone.
+		{"pack.threads", "1"},
+		{"pack.windowMemory", "32m"},
+		{"pack.deltaCacheSize", "16m"},
+		{"core.deltaBaseCacheLimit", "16m"},
+		{"core.bigFileThreshold", "16m"},
+		{"core.packedGitWindowSize", "16m"},
+		{"core.packedGitLimit", "64m"},
 	}
 	env := append(c.baseEnv(), "GIT_CONFIG_COUNT="+strconv.Itoa(len(settings)))
 	for i, setting := range settings {

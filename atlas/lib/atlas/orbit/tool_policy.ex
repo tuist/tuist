@@ -127,6 +127,7 @@ defmodule Atlas.Orbit.ToolPolicy do
     "cancel_chatgpt_provider_login",
     "disconnect_llm_provider",
     "list_llm_provider_connections",
+    "manage_account_connections",
     # MCP and identity administration.
     "create_mcp_server",
     "delete_mcp_server",

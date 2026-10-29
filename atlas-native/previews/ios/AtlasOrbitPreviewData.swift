@@ -6,6 +6,8 @@ import SwiftUI
 final class AtlasOrbitPreviewData: ObservableObject {
     private var sequence = 0
     private var loads = 0
+    private var cached = false
+    private var failedCachedRefresh = false
     private let clock = ContinuousClock()
     private var activityStarted: ContinuousClock.Instant?
     private var followStarted: ContinuousClock.Instant?
@@ -14,13 +16,21 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private var follow: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-follow") }
     private var selected: [String: Any]?
     private var listKind: String?
+    private var listStatus = "active"
+    private var archivedIDs: Set<String> = []
     private var createdThreads: [[String: Any]] = []
     private var draft = ""
+    private var draftMentions: [[String: String]] = []
+    private var mentionCandidates: [[String: String]] = []
+    private var mentionsByThread: [String: [[String: String]]] = [:]
+    private var promotedIDs: Set<String> = []
     private var draftAttachments: [[String: Any]] = []
     private var sent: [[String: Any]] = []
     private var drafts: [String: String] = [:]
     private var attachmentsByThread: [String: [[String: Any]]] = [:]
     private var sentByThread: [String: [[String: Any]]] = [:]
+    private var modelsByThread: [String: String] = [:]
+    private var modelError: String?
     private var seededAttachments = false
     private var olderPromptsLoaded = false
     private let promptTime = Date()
@@ -31,11 +41,36 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private let secondPrivateID = "01922cc0-0000-7000-8000-000000000003"
 
     func request(_ action: [String: Any]) async throws -> Data {
-        if action["action"] as? String == "open" { return Data("{\"connection\":\"preview-only\"}".utf8) }
+        if action["action"] as? String == "open" {
+            cached = ProcessInfo.processInfo.arguments.contains("--cached-orbit")
+            guard cached else { return Data("{\"connection\":\"preview-only\"}".utf8) }
+            let initial = try JSONSerialization.jsonObject(with: snapshot())
+            return try JSONSerialization.data(withJSONObject: ["connection": "preview-only", "snapshot": initial])
+        }
         let command = action["command"] as? [String: Any] ?? [:]
         switch command["action"] as? String {
+        case "models":
+            modelError = ProcessInfo.processInfo.arguments.contains("--fail-model-catalog")
+                ? "Reconnect ChatGPT in Settings → AI accounts to load its models." : nil
+        case "set_model":
+            if let id = command["id"] as? String, selected?["id"] as? String == id {
+                let choice = command["model"] as? String
+                modelsByThread[id] = choice
+                selected?["model"] = choice
+                modelError = nil
+            }
         case "load":
+            if cached {
+                try await Task.sleep(for: .seconds(6))
+                if ProcessInfo.processInfo.arguments.contains("--offline-orbit"),
+                   !failedCachedRefresh || !ProcessInfo.processInfo.arguments.contains("--recover-orbit") {
+                    failedCachedRefresh = true
+                    throw AtlasAuthenticationError(kind: "network", message: "Could not connect securely to Atlas. Try again.")
+                }
+                cached = false
+            }
             listKind = command["kind"] as? String
+            if let status = command["status"] as? String { listStatus = status }
             loads += 1
             if loads > 1, ProcessInfo.processInfo.arguments.contains("--fail-orbit-refresh") {
                 throw AtlasAuthenticationError(kind: "server", message: "Preview refresh failed. Loaded threads are retained.")
@@ -43,17 +78,28 @@ final class AtlasOrbitPreviewData: ObservableObject {
         case "private":
             select(thread(id: privateID, title: "Build listing latency", kind: "private"))
         case "create_private":
+            listStatus = "active"
             let created = thread(id: UUID().uuidString.lowercased(), title: "New conversation", kind: "private")
             createdThreads.insert(created, at: 0)
             select(created)
+        case "archive":
+            if ProcessInfo.processInfo.arguments.contains("--fail-orbit-archive") {
+                throw AtlasAuthenticationError(kind: "server", message: "Preview archive failed. Your conversation is still here.")
+            }
+            if let id = command["id"] as? String {
+                let archived = command["archived"] as? Bool == true
+                if archived { archivedIDs.insert(id) } else { archivedIDs.remove(id) }
+                if selected?["id"] as? String == id { selected?["status"] = archived ? "archived" : "active" }
+            }
         case "select":
-            if ProcessInfo.processInfo.arguments.contains("--delayed-orbit") { try await Task.sleep(for: .seconds(3)) }
+            if ProcessInfo.processInfo.arguments.contains("--delayed-orbit") { try await Task.sleep(for: .seconds(8)) }
             switch command["id"] as? String {
             case privateID: select(thread(id: privateID, title: "Build listing latency", kind: "private"))
             case secondPrivateID: select(thread(id: secondPrivateID, title: "Release checklist", kind: "private"))
             case sharedID: select(thread(id: sharedID, title: "Build listing latency", kind: "shared"))
             default:
-                if let created = createdThreads.first(where: { $0["id"] as? String == command["id"] as? String }) {
+                let available = createdThreads + (AtlasSocialPreviewData.enabled ? AtlasSocialPreviewData.threads : [])
+                if let created = available.first(where: { $0["id"] as? String == command["id"] as? String }) {
                     select(created)
                 } else {
                     select(nil)
@@ -61,15 +107,35 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 }
             }
         case "create": select(thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared"))
-        case "leave": select(nil)
+        case "leave":
+            if command["id"] as? String == selected?["id"] as? String { select(nil) }
+        case "people":
+            let query = command["query"] as? String ?? ""
+            mentionCandidates = query.isEmpty || "Alex Morgan".localizedCaseInsensitiveContains(query)
+                ? [["id": "01922cc0-0000-7000-8000-000000000099", "name": "Alex Morgan"]] : []
         case "history":
             if command["older"] as? Bool == true {
                 if ProcessInfo.processInfo.arguments.contains("--delayed-orbit-history") {
-                    try await Task.sleep(for: .seconds(8))
+                    try await Task.sleep(for: .seconds(20))
                 }
                 olderPromptsLoaded = true
             }
         case "send":
+            var handoff: [String: Any]?
+            if !draftMentions.isEmpty, let id = selected?["id"] as? String, !promotedIDs.contains(id) {
+                promotedIDs.insert(id)
+                selected?["kind"] = "shared"
+                if let index = createdThreads.firstIndex(where: { $0["id"] as? String == id }) { createdThreads[index]["kind"] = "shared" }
+                handoff = message(id: "handoff-\(sent.count)", kind: "system", body: """
+                    Conversation so far — excerpts for new participants (not an AI-generated summary).
+
+                    Initial request (excerpt):
+                    > Check whether other projects are affected too.
+
+                    Latest Pip reply (excerpt):
+                    > The build listing became slower after this morning’s deployment. I’m comparing the query plans.
+                    """, extra: ["notice_kind": "handoff"])
+            }
             if sent.isEmpty, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                let index = createdThreads.firstIndex(where: { $0["id"] as? String == selected?["id"] as? String }) {
                 let title = String(draft.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(200))
@@ -79,7 +145,9 @@ final class AtlasOrbitPreviewData: ObservableObject {
             sent.append(message(id: UUID().uuidString, kind: "human", body: draft, extra: [
                 "author_id": "preview-self", "author_name": "Taylor", "attachments": draftAttachments
             ]))
+            if let handoff { sent.append(handoff) }
             draft = ""
+            draftMentions = []
             draftAttachments = []
         case "upload_attachment":
             let bytes = Data(base64Encoded: command["data"] as? String ?? "") ?? Data()
@@ -105,19 +173,32 @@ final class AtlasOrbitPreviewData: ObservableObject {
         if action["action"] as? String == "next" {
             try await Task.sleep(for: .seconds(activity || follow ? 1 : 30))
         }
-        if action["action"] as? String == "draft" { draft = action["body"] as? String ?? "" }
+        if action["action"] as? String == "draft" {
+            draft = action["body"] as? String ?? ""
+            draftMentions.removeAll { !draft.contains("@" + ($0["name"] ?? "")) }
+        }
+        if action["action"] as? String == "mention",
+           let person = mentionCandidates.first(where: { $0["id"] == action["user_id"] as? String }),
+           let at = draft.lastIndex(of: "@") {
+            draft.replaceSubrange(at..., with: "@" + (person["name"] ?? "") + " ")
+            draftMentions.append(person)
+            mentionCandidates = []
+        }
         return try snapshot()
     }
 
     private func select(_ next: [String: Any]?) {
         if let id = selected?["id"] as? String {
             drafts[id] = draft
+            mentionsByThread[id] = draftMentions
             attachmentsByThread[id] = draftAttachments
             sentByThread[id] = sent
         }
         selected = next
         let id = next?["id"] as? String ?? ""
         draft = drafts[id] ?? ""
+        draftMentions = mentionsByThread[id] ?? []
+        mentionCandidates = []
         draftAttachments = attachmentsByThread[id] ?? []
         sent = sentByThread[id] ?? []
         activityStarted = clock.now
@@ -129,6 +210,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
         sequence += 1
         if let id = selected?["id"] as? String {
             drafts[id] = draft
+            mentionsByThread[id] = draftMentions
             attachmentsByThread[id] = draftAttachments
             sentByThread[id] = sent
         }
@@ -184,28 +266,52 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 if !seededAttachments { draftAttachments = [attachment]; seededAttachments = true }
             }
             if ProcessInfo.processInfo.arguments.contains("--orbit-prompts") { messages = promptHistory }
+            if ProcessInfo.processInfo.arguments.contains("--orbit-long-history") { messages = longHistory }
+            if AtlasSocialPreviewData.enabled { messages = AtlasSocialPreviewData.messages(threadID: selected?["id"] as? String ?? "") }
             if createdThreads.contains(where: { $0["id"] as? String == selected?["id"] as? String }) { messages = [] }
             messages += sent
             if follow, let followStarted {
                 let elapsed = followStarted.duration(to: clock.now).components.seconds
+                selected?["agent_status"] = elapsed < 6 ? "queued" : (elapsed < 18 ? "running" : "idle")
                 if elapsed >= 6 {
-                    let body = elapsed < 12 ? "A new reply appeared." : "A new reply appeared.\n\n" +
-                        (1...12).map { "Step \($0): Compare the fixture evidence, validate the affected projects, and keep the rollout reversible." }
-                            .joined(separator: "\n\n") + "\n\nThe growing reply is complete."
+                    let steps = min(12, max(0, Int(elapsed - 9) * 2))
+                    var body = "A new reply appeared."
+                    if steps > 0 {
+                        body += "\n\n" + (1...steps).map {
+                            "Step \($0): Compare the fixture evidence, validate the affected projects, and keep the rollout reversible."
+                        }.joined(separator: "\n\n")
+                    }
+                    if elapsed >= 18 { body += "\n\nThe growing reply is complete." }
                     messages.append(message(id: "follow-reply", kind: "agent", body: body))
                 }
             }
         }
-        let threads = createdThreads + [thread(id: privateID, title: "Build listing latency", kind: "private"),
-                                        thread(id: secondPrivateID, title: "Release checklist", kind: "private"),
-                                        thread(id: sharedID, title: "Build listing latency", kind: "shared")]
+        let seedThreads = AtlasSocialPreviewData.enabled ? AtlasSocialPreviewData.threads : [
+            thread(id: privateID, title: "Build listing latency", kind: "private"),
+            thread(id: secondPrivateID, title: "Release checklist", kind: "private"),
+            thread(id: sharedID, title: "Build listing latency", kind: "shared")
+        ]
+        let threads = (createdThreads + seedThreads).map { value in
+            var thread = value
+            thread["status"] = archivedIDs.contains(value["id"] as? String ?? "") ? "archived" : "active"
+            return thread
+        }
         return try JSONSerialization.data(withJSONObject: [
             "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
-            "threads": threads.filter { listKind == nil || $0["kind"] as? String == listKind },
+            "cached": cached,
+            "threads": threads.filter { (listKind == nil || $0["kind"] as? String == listKind) && $0["status"] as? String == listStatus },
+            "status_filter": listStatus,
             "selection_id": selected?["id"] as Any? ?? NSNull(),
             "selected": selected as Any? ?? NSNull(), "messages": messages,
             "people": selected?["kind"] as? String == "shared" ? [["id": "online", "name": "Alex", "typing": false]] : [],
-            "draft": draft, "draft_attachments": draftAttachments, "attachment_busy": false,
+            "draft": draft, "draft_mentions": draftMentions, "mention_candidates": mentionCandidates,
+            "draft_attachments": draftAttachments, "attachment_busy": false,
+            "models": ProcessInfo.processInfo.arguments.contains("--fail-model-catalog") ? [] : [
+                ["id": "chatgpt:gpt-6.1-sol", "name": "GPT-6.1 Sol", "provider": "ChatGPT"],
+                ["id": "chatgpt:gpt-6-sol", "name": "GPT-6 Sol", "provider": "ChatGPT"],
+                ["id": "workspace", "name": "Workspace model", "provider": "Atlas"]
+            ],
+            "model_error": modelError as Any? ?? NSNull(), "models_loading": false,
             "has_drafts": !draft.isEmpty || !draftAttachments.isEmpty || drafts.values.contains(where: { !$0.isEmpty }),
             "loading": false, "history_loading": false, "saving": false,
             "has_more": false, "has_older": ProcessInfo.processInfo.arguments.contains("--orbit-prompts") && !olderPromptsLoaded,
@@ -235,6 +341,27 @@ final class AtlasOrbitPreviewData: ObservableObject {
                     """, extra: ["inserted_at": date])]
         }
     }
+
+    private lazy var longHistory: [[String: Any]] = {
+        (0..<120).flatMap { index -> [[String: Any]] in
+            var rows = [self.message(id: "long-prompt-\(index)", kind: "human", body: "Review evidence for step \(index).", extra: [
+                "author_id": "preview-self", "author_name": "Taylor"
+            ])]
+            if index.isMultiple(of: 3) {
+                rows += (0..<4).map { tool in
+                    self.message(id: "long-tool-\(index)-\(tool)", kind: "tool", body: "", extra: [
+                        "tool_name": "get_builds", "tool_status": "succeeded", "tool_output": "Offline fixture evidence."
+                    ])
+                }
+            }
+            let paragraphs = (0..<(index == 119 ? 16 : index % 4 + 1)).map { paragraph in
+                "Evidence \(index).\(paragraph): **Compare the affected projects**, validate the query plan, and retain a rollback path."
+            }.joined(separator: "\n\n")
+            rows.append(self.message(id: "long-reply-\(index)", kind: "agent", body: paragraphs +
+                (index == 119 ? "\n\nThe long conversation is still visible." : "")))
+            return rows
+        }
+    }()
 
     private var toolTree: [[String: Any]] {
         let parent = "01922cc0-0000-7000-8000-000000000020"
@@ -273,9 +400,17 @@ final class AtlasOrbitPreviewData: ObservableObject {
     }
 
     private func thread(id: String, title: String, kind: String) -> [String: Any] {
-        ["id": id, "title": title, "kind": kind, "status": "active", "summary": kind == "shared" ? "Comparing query plans across affected projects." : "",
+        if AtlasSocialPreviewData.enabled, var social = AtlasSocialPreviewData.threads.first(where: { $0["id"] as? String == id }) {
+            social["status"] = archivedIDs.contains(id) ? "archived" : "active"
+            return social
+        }
+        let updated = id == secondPrivateID ? Calendar.current.date(byAdding: .day, value: -1, to: promptTime)! : promptTime
+        return ["id": id, "title": title, "kind": promotedIDs.contains(id) ? "shared" : kind,
+         "status": archivedIDs.contains(id) ? "archived" : "active",
+         "model": modelsByThread[id] as Any? ?? NSNull(),
+         "summary": kind == "shared" ? "Comparing query plans across affected projects." : "",
          "origin": kind == "private" ? "manual" : "signal", "owner_id": "preview-self", "participants": [["id": "preview-self", "name": "Taylor"]],
-         "updated_at": "2027-06-07T10:42:00Z"]
+         "updated_at": ISO8601DateFormatter().string(from: updated)]
     }
 
     private func message(id: String, kind: String, body: String, extra: [String: Any] = [:]) -> [String: Any] {

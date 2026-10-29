@@ -200,9 +200,20 @@ defmodule AtlasWeb.Router do
   scope "/api/native", AtlasWeb do
     pipe_through :native
 
+    get "/orbit/models", NativeOrbitController, :models
     get "/orbit/threads", NativeOrbitController, :index
     post "/orbit/threads", NativeOrbitController, :create
     post "/orbit/threads/private", NativeOrbitController, :private
+    get "/orbit/threads/:thread_id/environment-commands", NativeEnvironmentCommandsController, :index
+
+    post "/orbit/threads/:thread_id/environment-commands/:command_id/cancel",
+         NativeEnvironmentCommandsController,
+         :cancel
+
+    patch "/orbit/threads/:id", NativeOrbitController, :update
+    patch "/orbit/threads/:id/model", NativeOrbitController, :model
+    patch "/orbit/threads/:id/environment", NativeOrbitController, :environment
+    get "/orbit/threads/:id/people", NativeOrbitController, :people
     get "/orbit/threads/:id/messages", NativeOrbitController, :messages
     post "/orbit/threads/:id/messages", NativeOrbitController, :post_message
     post "/orbit/threads/:id/attachments", NativeOrbitController, :upload_attachment
@@ -212,6 +223,9 @@ defmodule AtlasWeb.Router do
     delete "/orbit/threads/:id/participants/:user_id", NativeOrbitController, :remove_participant
     post "/orbit/threads/:id/runs/:run_id/cancel", NativeOrbitController, :cancel_run
 
+    post "/moodboard/suggestions", NativeMoodboardController, :suggest, log: false
+    put "/moodboard/captures/:request_id", NativeMoodboardController, :capture, log: false
+
     get "/profile", NativeController, :profile
     patch "/profile", NativeController, :update_profile
     get "/:resource", NativeController, :index
@@ -220,6 +234,26 @@ defmodule AtlasWeb.Router do
     patch "/:resource/:id", NativeController, :update
     delete "/:resource/:id", NativeController, :delete
     post "/:resource/:id/complete", NativeController, :complete
+  end
+
+  scope "/api/me", AtlasWeb do
+    pipe_through :native
+
+    get "/connections", ConnectionController, :index, log: false
+    delete "/connections/:provider", ConnectionController, :delete, log: false
+    post "/connections/:provider/authorize", ConnectionController, :prepare, log: false
+
+    get "/environments", EnvironmentsController, :index
+    put "/environments/:id", EnvironmentsController, :update
+    delete "/environments/:id", EnvironmentsController, :delete
+    get "/environments/:id/commands", EnvironmentsController, :commands
+    post "/environments/:id/commands/:command_id/claim", EnvironmentsController, :claim
+    post "/environments/:id/commands/:command_id/result", EnvironmentsController, :result
+    post "/environments/:id/commands/:command_id/progress", EnvironmentsController, :progress
+
+    get "/orbit-live-activity", OrbitLiveActivityController, :show
+    put "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :update
+    delete "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :delete
   end
 
   scope "/api", AtlasWeb do
@@ -337,6 +371,9 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through [:browser, :require_auth]
 
+    get "/connections/:provider/authorize", ConnectionController, :authorize, log: false
+    get "/connections/:provider/callback", ConnectionController, :callback, log: false
+
     post "/settings/llm-providers/claude", LLMConnectionsController, :save_claude_browser
 
     live_session :authenticated_account,
@@ -344,6 +381,7 @@ defmodule AtlasWeb.Router do
       layout: {AtlasWeb.Layouts, :account} do
       live "/settings", AccountSettingsLive, :index
       live "/settings/llm-providers", LLMProviderSettingsLive, :index
+      live "/settings/connections", ConnectionsLive, :index
     end
 
     live_session :authenticated_dashboard,
@@ -373,6 +411,8 @@ defmodule AtlasWeb.Router do
       live "/outbound/email/inbox", EmailMailboxLive, :inbox
       live "/outbound/email/outbox", EmailMailboxLive, :outbox
       live "/outbound/email/outbox/:id", EmailMailboxLive, :sent_email
+      live "/library/moodboard", MoodboardLive, :index
+      live "/library/moodboard/:id", MoodboardShowLive, :show
       live "/library/notes", NotesLive, :index
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show

@@ -29,6 +29,8 @@ defmodule Tuist.Runners.CacheVolumes.Usage do
     field(:capacity_bytes, :integer)
     field(:volume_bytes, :integer)
     field(:attach_ms, :integer)
+    # The images and build cache a Docker data root kept, as its job reported them.
+    field(:docker_images, :map)
     field(:last_reported_at, :utc_datetime_usec)
     field(:attached_at, :utc_datetime_usec)
     field(:finished_at, :utc_datetime_usec)

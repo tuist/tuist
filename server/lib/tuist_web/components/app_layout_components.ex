@@ -136,7 +136,7 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           :if={
             (Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project)) and
-              Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)
+              Tuist.FeatureFlags.coverage_enabled?(@selected_account, @selected_project)
           }
           label={dgettext("dashboard", "Code Coverage")}
           icon="umbrella"
@@ -173,7 +173,7 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           :if={
             Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project) or
-              Project.cargo_project?(@selected_project)
+              Project.cargo_project?(@selected_project) or Project.once_project?(@selected_project)
           }
           label={dgettext("dashboard", "Shards")}
           icon="stack_2"

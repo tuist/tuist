@@ -68,14 +68,17 @@ This override takes precedence on either server type and is optional for a self-
 
 A node uses a control-plane client credential to authenticate cache requests (token introspection), report to the dashboard, and deliver usage. It is **not** how clients are routed to your nodes on a self-hosted Tuist server (see [How clients reach your nodes](#routing)).
 
-For a fully self-hosted deployment, generate a random credential yourself and configure the same pair on the Tuist server and on each Kura node:
+For a fully self-hosted deployment, generate a **UUID client ID** and a random secret, then configure the same pair on the Tuist server and on each Kura node:
 
 ```bash
-KURA_CONTROL_PLANE_CLIENT_ID="kura_$(openssl rand -hex 12)"
+KURA_CONTROL_PLANE_CLIENT_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 KURA_CONTROL_PLANE_CLIENT_SECRET="$(openssl rand -base64 32)"
 ```
 
 Set those values as `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` in the Tuist server environment, then use the same values in the Kura configuration below. Registration heartbeats include `KURA_TENANT_ID`, the account's permanent cache identity, so the server can attach the node to the right account even after an account rename.
+
+> [!WARNING]
+> The client ID must be a UUID without a `kura_` prefix. Non-UUID IDs cause token introspection to fail with HTTP `400`, even when the credentials match on both services.
 
 If you are connecting to the hosted `tuist.dev` server, or if you want a per-account credential that can be rotated from the UI, open the account's **Cache** page, choose **Generate credential**, and copy the `client_id` plus the one-time `secret`. On the hosted server, generating a self-hosted-node credential requires an Enterprise plan.
 
@@ -360,11 +363,13 @@ Your developers and CI reach the node's `KURA_ADVERTISED_HTTP_URL` (and, for a m
 ## Verify {#verify}
 
 ```bash
-curl http://localhost:4000/ready   # 200 once the node has joined and is serving
-curl http://localhost:4000/up      # liveness + mesh membership
+curl --fail-with-body http://localhost:4000/ready   # 200 once the node has joined and is serving
+curl --fail-with-body http://localhost:4000/up      # liveness + mesh membership
 ```
 
-A bridged node reports `state: joining` while it pulls the mesh and `state: serving` once it has caught up. Your node also appears on the account's **Cache** page once registration heartbeats start.
+A bridged node reports `state: joining` while it pulls the mesh and `state: serving` once it has caught up. Your node also appears under **Registered nodes** on the account's **Cache** page once registration heartbeats start.
+
+To verify remote caching, run `tuist cache` with uncached, cacheable targets and confirm successful uploads in the Kura logs. A zero exit status alone does not confirm that artifacts were stored.
 
 ## Upgrading {#upgrading}
 

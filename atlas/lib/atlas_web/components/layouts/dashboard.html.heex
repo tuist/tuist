@@ -283,6 +283,12 @@
           navigate={~p"/library/notes"}
           selected={String.starts_with?(@current_path, "/library/notes")}
         />
+        <.sidebar_item
+          label={gettext("Moodboard")}
+          icon="photo"
+          navigate={~p"/library/moodboard"}
+          selected={String.starts_with?(@current_path, "/library/moodboard")}
+        />
       </.sidebar_group>
       <.sidebar_group
         :if={Atlas.Users.has_scope?(@current_user, "admin:read")}

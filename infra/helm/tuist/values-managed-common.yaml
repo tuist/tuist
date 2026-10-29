@@ -78,6 +78,7 @@ server:
     name: tuist-server
   enabled: true
   hosted: true
+  ssoRequireLoginDomainVerification: true
   skipEmailConfirmation: false
   logLevel: info
   image:
@@ -130,6 +131,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+      # A request moves to another pod only when nginx could not connect to the
+      # first (refused, unreachable, connect timeout), so it never reached Phoenix.
+      # With request buffering off, nginx retries nothing it started sending.
+      nginx.ingress.kubernetes.io/proxy-next-upstream: "error timeout"
+      nginx.ingress.kubernetes.io/proxy-next-upstream-tries: "3"
 
   # Runtime secrets are sourced from 1Password by ESO; the encrypted priv/secrets
   # blob (and MASTER_KEY) are gone. `config.managedSecrets` syncs the
@@ -600,3 +606,15 @@ runnersFleet:
     - xcodeVersion: "26.3"
     - xcodeVersion: "26.1.1"
     - xcodeVersion: "26.0.1"
+
+# KVM is a standard managed Linux runner capability. Disable defaultEnabled
+# to roll pools back to the stock kernel while leaving host preparation intact.
+runnersFleetLinux:
+  nestedVirtualization:
+    enabled: true
+    defaultEnabled: true
+
+# Account-owned provider workloads run on the general pool.
+ampOrbProvider:
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general

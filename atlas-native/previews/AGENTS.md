@@ -2,6 +2,96 @@
 
 These independent Once targets render the production native Settings views with fixed, in-memory API responses. They make screenshots reproducible without real provider credentials, browser authentication, a public development server, or an Atlas-authorized ChatGPT client.
 
+`--workspace --cached-orbit` starts iOS with a saved inbox snapshot and delays its
+refresh; add `--offline-orbit` to retain it after a failed request and
+`--recover-orbit` to let Retry succeed. The Orbit UI test checks quiet startup,
+compact failure/Retry, retained rows and recovery in light/dark accessibility text.
+Android's `ThreadCardPreviewActivity` accepts
+`--ez saved-inbox true` and optional `--ez refreshed true` to render the production
+inbox states; the saved fixture fails after six seconds and recovers on Retry.
+Its startup adapter checks cover hydration before refresh. These
+are presentation fixtures, not SQLite durability or OAuth evidence; Rust tests
+exercise the actual database, migrations and invalidation fences.
+
+Before each `xcodebuild test-without-building` rerun, explicitly install the newly
+built preview with `xcrun simctl install <UDID> .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app`.
+Verify the installed executable's SHA-256 against the build output. The runner can
+otherwise launch an older installed target while using the newest test bundle.
+
+`AtlasMacOSPreview` renders the shared production workspace with the existing
+fictional business, Orbit and time-off fixtures, without authentication, push or
+Sparkle startup. Its own plist and resource list include the production `Atlas.icns`
+so Finder and Dock resolve the same artwork without changing the preview identity.
+Build with `ONCE_CACHE_PROVIDER=local mise exec -- once build AtlasMacOSPreview`,
+then prepare a new runnable copy using
+`bash macos/distribution/prepare-app.sh .once/out/AtlasMacOSPreview/AtlasMacOSPreview.app .once/macos-preview/AtlasMacOSPreview.app`.
+Launch with `--social-screenshots`, optionally `--dark` and
+`--destination https://atlas.example.org/open/accounts` (or another supported
+fixture destination). `--login` renders the production sign-in screen without
+restoring credentials; `--updates` renders the production update settings with a
+stopped Sparkle controller, never a feed request. `--press business-create`
+dispatches the production Command-N shortcut inside the fixture window before capture, including its
+native editor sheet. `--capture /absolute/path.png` captures only the app's own
+window through ScreenCaptureKit's current-process API on macOS 14.4+, not the
+person's desktop, and exits. Do not substitute AppKit's cached view bitmap:
+layer-backed sidebar content can be omitted. Captures remain fixture-backed
+presentation evidence, not real OAuth, microphone, provider or signed-update proof.
+`--compact` requests the 820pt minimum width. `--sort-column N` and
+`--select-row N` exercise the actual NSTableView's sort descriptors and keyboard row selection
+with zero-based indices before capturing; combine row selection with
+`--press business-open-selection` to dispatch Return through the production detail route.
+`--press business-open-command` uses Command-O instead. `--select-thread N`
+uses native arrow keys in Orbit's inbox (row indices include section headings),
+keeping the list visible beside the selected conversation.
+`--press orbit-draft-switch` types a fixture draft in the native composer, attempts
+the next row, dismisses the protected-work alert and checks selection/text retention.
+`--scroll-column N` exercises native horizontal scrolling when a compact window
+cannot fit every business column. Truncated headings retain resizable columns.
+`--scroll-row N` scrolls the native table before selecting, so
+`--business-pagination --scroll-row 24 --select-row 29` exercises automatic
+pagination beyond the first 25 records. `--press orbit-archived` dispatches the
+actual toolbar segmented control; `--press orbit-create` uses Command-N.
+The fixture fails rather than substituting a model write when an action is unavailable.
+`--scroll-content top|bottom` scrolls the first overflowing non-table native scroll
+view in the sheet, or workspace when no sheet is open. Use it to check that lower
+editor fields and the Finance overview's chart remain reachable in bounded viewports.
+`--measure-interactions /absolute/path.json` alongside `--capture` measures repeated
+native conversation selection, typing and window resizing, checks selection changes
+and draft text, and records native toolbar-item replacements. `settle_ms` includes
+a 16ms main-loop wait and the next layout/display pass, not pixel latency or FPS.
+Compare preserved before/after bundles back-to-back because host builds affect timing.
+`--press orbit-info` opens the production details sheet. `--press workspace-round-trip`
+uses sidebar keys to visit Accounts and return to the loaded Orbit inbox; combine it
+with `--fail-orbit-refresh` to catch accidental model recreation.
+`--settings` renders the production native Settings tabs with fictional profile
+data and in-memory environment storage. `--press settings-this-mac` selects the
+native This Mac tab; `--scroll-content bottom` exposes the lower permissions and
+save controls. `--press orbit-environment` opens the production tool-environment
+popover for the selected private fixture thread. These fixtures neither enroll
+this Mac nor access a real Keychain, microphone, display or live Atlas session.
+
+`--environment-jobs` adds a fictional queued job to the selected private conversation
+on iOS/macOS. `--environment-running`, `--environment-completed` and
+`--environment-unknown` render the corresponding authoritative-shaped states.
+Mac `--press environment-stop` exercises the Stop action without claiming the Mac has
+acknowledged it. Fixtures never execute the displayed xcodebuild command.
+
+`--live-activity` renders the shared production ActivityKit view and requests real
+local activities through the preview's separately identified WidgetKit extension.
+Start/update/stale/end controls use fictional conversation titles, generic phases
+and counts; requests use `pushType: nil` and never contact Atlas or APNs.
+`--long-activity-title` exercises title wrapping/truncation without extra inference.
+`AtlasLiveActivityUITests`
+exercises local lifecycle and system presentation plus accessible-text rendering.
+Lock Screen/Dynamic Island screenshots are demo data, not background APNs delivery,
+physical-device signing, inference or the authenticated coordinator's end-to-end proof.
+
+The iOS `--orbit-long-history` fixture supplies 400 messages with consecutive tools and uneven Markdown heights, ending in a very tall reply. Its UI regression checks real final-line visibility on entry and after idle keyboard/multiline-draft changes in light and dark accessibility text. CPU and native scrolling metrics accompany repeated history gestures; simulator numbers are comparative evidence, not physical-device frame-rate claims.
+
+Orbit archive fixtures retain status, filter and history in memory. UI checks exercise native swipe actions, shared confirmation/cancellation, read-only archived history and restore in light and dark accessibility text. `--fail-orbit-archive` injects a failed mutation without removing the conversation. These are presentation/adapter checks; server tests own owner authorization/run cancellation and Rust tests own request, retry and stale-response fences.
+
+`--workspace --social-screenshots` supplies a fictional customer-call brief, mixed private/shared inbox and seven fictional accounts, alongside the existing fake Finance overview. `AtlasWorkspaceUITests.testSocialScreenshotsWithFictionalBusinessData` captures the real production views in light and dark without a live session or inference. Export `atlas-social-*` attachments for sharing; label them as demo data, not real customer records or live assistant results.
+
 - Fixture apps and UI suites are local opt-in tools, not CI jobs or preview-publication gates. The Atlas native workflow still runs production builds, Rust/CLI/iOS unit tests, language-specific linting, and credential-free packaging/provisioning checks.
 - Build from `atlas-native/` with `ONCE_CACHE_PROVIDER=local mise exec -- once build AtlasSettingsIOSPreview` or the Android equivalent `AtlasSettingsAndroidPreview` (with the same Android SDK/NDK environment and compiler `PATH` as the production `build:android` task). Prepare vendored Rust sources serially before direct Once builds.
 - `ONCE_CACHE_PROVIDER=local mise exec -- once test AtlasSettingsUITests` drives the iOS preview through native Settings, secure Claude entry, expanded instructions, and ChatGPT sign-in/cancellation in light, dark, accessibility-sized text, and landscape. It checks 44pt actions, a physical tap outside the help link's text, Save availability during secure editing, device-code accessibility, and a late save after leaving/reopening Claude. Preview-only URL handling presents the destination instead of opening a browser. Full-screen screenshot attachments preserve PNG EXIF orientation (landscape wrappers must respect it). Screenshot attachments include `ios-settings`, `ios-claude`, `ios-claude-help`, `ios-claude-keyboard`, and `ios-chatgpt`, with appearance suffixes. Export attachments outside the repository with `xcrun xcresulttool export attachments` using the result bundle reported in the test log.
@@ -26,7 +116,7 @@ These independent Once targets render the production native Settings views with 
 - Workspace previews supply in-memory presence events to the production People views; Android also accepts `--es tab people`. `AtlasPresenceModelChecks` covers stale locations, late events after backgrounding, and closing a connection that opens after backgrounding. These fixtures do not open WebSockets or verify the live transport.
 - iOS `AtlasNavigationUITests` uses `--workspace --deep-links --business-pagination --destination <URI>` in the isolated preview to exercise the production destination parser/shell, a UUID beyond page one, unavailable-record Retry, server mismatch and native Back. Only preview sources read these arguments. The fixture rejects unknown record reads instead of accidentally creating a row. `--resume-destination <URI>` injects a warm fixture link after background/foreground so the UI test proves that rejection preserves a typed Claude draft and the native setup screen. Screenshot attachments are labeled `ios-navigation-*-preview`. `--revoke-record-access` denies a warm direct-record read after the list has loaded, proving cache invalidation, explicit Retry, and Back without stale rows or mutation controls.
 - iOS navigation tests also inject cold/warm HTTPS URLs through the same production parser and retain screenshot evidence with the native browser escape visible. These are fixture navigation tests, not OS domain-verification tests. When iterating with Once 0.68.2, clean the Android target's `.once/out/AtlasSettingsAndroidPreview` directory before final emulator smoke if retained classes mask source edits; do not confuse a stale APK with a parser regression.
-- `AtlasOrbitPreviewData` provides offline Rust-snapshot-shaped fixtures to the production iOS thread UI. `AtlasOrbitUITests` checks the private-conversation list, distinct navbar composition with empty-detail mascot/suggestions, authorized shared deep links, hidden detail tab bar and restored list tabs, current-person bubble alignment, keyboard-safe send action, 44pt controls, expandable tool evidence, and thread details. `--orbit-follow` appends a reply and later grows that same message ID, testing sticky-bottom behavior without moving history readers. Attachments named `ios-orbit-*-preview` are fixture-backed presentation evidence, not model execution, live WebSocket, authorization, or deploy-recovery tests. Shared behavior is tested in Rust, with server durability/security tested separately.
+- `AtlasOrbitPreviewData` provides offline Rust-snapshot-shaped fixtures to the production iOS thread UI. `AtlasOrbitUITests` checks the flat private/shared conversation list, distinct navbar composition with empty-detail mascot/suggestions, authorized shared deep links, hidden detail tab bar and restored list tabs, current-person bubble alignment, keyboard-safe send action, 44pt controls, expandable tool evidence, and thread details. `--orbit-follow` appends a reply, grows that same message ID in stages and removes activity; combine with `--orbit-prompts` for long lazy history and test with a multiline keyboard-open draft as well as a reader scrolled away. Mention fixtures check the person picker, cancelling the first-share confirmation without promotion, then confirmed sharing and a distinct recap in light and dark accessibility text. Attachments named `ios-orbit-*-preview` are fixture-backed presentation evidence, not model execution, live WebSocket, notification delivery, authorization, or deploy-recovery tests. Shared behavior is tested in Rust, with server durability/security tested separately.
 - iOS `--orbit-prompts` supplies long private/shared history and an explicit earlier page, including an attachment-only prompt. Prompt-index checks load that page, jump to an offscreen message, return to latest and retain the draft. Android startup checks cover earlier-history success/failure/retry with text and attachment drafts; prompt previews are bounded and timestamped. Native scroll, keyboard and accessibility presentation still require simulator/device interaction, not just adapter checks.
 - iOS `--voice-input` renders the production waveform/discard view and microphone gestures using explicitly labeled fixed samples, never the microphone. Hold/release and tap-stop immediately append editable text without sending; no live transcript or Done step is shown. Permission-prompt cancellation is covered separately with injected Swift permission completions; the fixture never opens system permission dialogs. Composer tests measure identical 44pt send/microphone targets and center alignment with multiline drafts, keyboard and dark accessibility text. Activity tests verify the indicator is in the scrollable timeline, and account-card tests require the NSH card before expanding evidence. Its UI test verifies 44pt actions and typed-draft preservation/append in light and large dark text; it is not speech-recognition evidence. `--orbit-rich` supplies an authorized-server-shaped `account_card` v1 and agent Markdown to the production renderer, with selected-Habibi light/dark accessibility-text screenshots. `--orbit-activity` advances queued/running/compacting/idle without changing message history, checking status presentation rather than live transport. `--delayed-business` delays business responses so initial large-title/top positioning is checked after asynchronous data arrives. These arguments exist only in the isolated preview and do not invoke inference or speech recognition. Physical-device permission/audio/model availability still requires a separate voice-input smoke test.
 - Thread tool fixtures include a server-shaped `result_table` v1. iOS tests exercise the actual bundled NSH runtime, measured 44pt source action, Rust-adapter effect, dark/accessibility text, scrolling and the keyboard-safe native composer. `--legacy-thread-cards` removes only the optional component to check older-server text evidence. Do not derive cards from preview tool output in production. The iOS transcript measures its bottom marker in scroll coordinates; do not use a lazy row's appearance/disappearance to drive follow-latest state, which loops layout when a large dynamic-height card scrolls across the viewport.

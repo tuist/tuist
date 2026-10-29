@@ -846,32 +846,46 @@ defmodule TuistWeb.TestRunLiveTest do
   end
 
   describe "shard card for sharded test runs" do
-    test "shows shard card for sharded test run", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+    for {build_system, granularity, label} <- [
+          {:once, "module", "Batches"},
+          {:xcode, "module", "Modules"},
+          {:xcode, "suite", "Test Suites"},
+          {:cargo, "module", "Modules"}
+        ] do
+      @tag build_system: build_system, granularity: granularity, label: label
+      test "shows #{build_system} #{granularity} shard counts as #{label}", %{
+        conn: conn,
+        organization: organization,
+        project: project,
+        build_system: build_system,
+        granularity: granularity,
+        label: label
+      } do
+        {:ok, project} = Projects.update_project(project, %{build_system: build_system})
+        shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2, granularity: granularity)
 
-      {:ok, test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          scheme: "AppScheme",
-          shard_plan_id: shard_plan.id,
-          shard_index: 0
-        )
+        {:ok, test_run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            build_system: to_string(build_system),
+            scheme: "AppScheme",
+            shard_plan_id: shard_plan.id,
+            shard_index: 0
+          )
 
-      stub(ShardsAnalytics, :shard_metrics, fn _ ->
-        [
-          %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()},
-          %{shard_index: 1, actual_duration_ms: 4000, status: "success", ran_at: NaiveDateTime.utc_now()}
-        ]
-      end)
+        stub(ShardsAnalytics, :shard_metrics, fn _ ->
+          [
+            %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()},
+            %{shard_index: 1, actual_duration_ms: 4000, status: "success", ran_at: NaiveDateTime.utc_now()}
+          ]
+        end)
 
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+        {:ok, lv, _html} =
+          live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-      assert has_element?(lv, "[data-part='shards-card']")
+        assert has_element?(lv, "[data-part='shards-card']")
+        assert has_element?(lv, "#shard-balance-table th", label)
+      end
     end
 
     test "shows pending shards when not all reported", %{
@@ -965,12 +979,12 @@ defmodule TuistWeb.TestRunLiveTest do
       refute has_element?(lv, "#shard-balance-table", "Not reported")
     end
 
-    test "refreshes the shard table when the run state reloads", %{
+    test "refreshes shard rows, metrics and cases when the run state reloads", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2, reporting_version: 1)
 
       {:ok, test_run} =
         RunsFixtures.test_fixture(
@@ -978,7 +992,15 @@ defmodule TuistWeb.TestRunLiveTest do
           scheme: "AppScheme",
           status: "in_progress",
           shard_plan_id: shard_plan.id,
-          shard_index: 0
+          shard_index: 0,
+          test_modules: [
+            %{
+              name: "FirstModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "firstShardCase", status: "success", duration: 500}]
+            }
+          ]
         )
 
       stub(ShardsAnalytics, :shard_metrics, fn _ ->
@@ -991,17 +1013,45 @@ defmodule TuistWeb.TestRunLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
       assert has_element?(lv, "#shard-balance-table", "Pending")
+      assert has_element?(lv, "#widget-test-cases", "1")
+      assert has_element?(lv, "#widget-failed-test-cases", "0")
+      assert has_element?(lv, "#test-cases-table", "firstShardCase")
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "failure",
+          shard_plan_id: shard_plan.id,
+          shard_index: 1,
+          test_modules: [
+            %{
+              name: "SecondModule",
+              status: "failure",
+              duration: 700,
+              test_cases: [
+                %{name: "secondShardPassed", status: "success", duration: 300},
+                %{name: "secondShardFailed", status: "failure", duration: 400}
+              ]
+            }
+          ]
+        )
 
       stub(ShardsAnalytics, :shard_metrics, fn _ ->
         [
           %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()},
-          %{shard_index: 1, actual_duration_ms: 7000, status: "success", ran_at: NaiveDateTime.utc_now()}
+          %{shard_index: 1, actual_duration_ms: 7000, status: "failure", ran_at: NaiveDateTime.utc_now()}
         ]
       end)
 
       render_hook(lv, "refresh_test_run")
 
       refute has_element?(lv, "#shard-balance-table", "Pending")
+      assert has_element?(lv, "#widget-test-cases", "3")
+      assert has_element?(lv, "#widget-failed-test-cases", "1")
+      assert has_element?(lv, "#test-cases-table", "firstShardCase")
+      assert has_element?(lv, "#test-cases-table", "secondShardPassed")
+      assert has_element?(lv, "#test-cases-table", "secondShardFailed")
     end
   end
 

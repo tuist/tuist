@@ -99,9 +99,10 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         sso_login_domain: Keyword.get(opts, :sso_login_domain),
         sso_login_domain_verification_token: Keyword.get(opts, :sso_login_domain_verification_token),
         sso_login_domain_verified_at: Keyword.get(opts, :sso_login_domain_verified_at),
-        sso_automatic_enrollment: Keyword.get(opts, :sso_automatic_enrollment, false),
+        sso_automatic_enrollment:
+          Keyword.get(opts, :sso_automatic_enrollment, false) and
+            not Keyword.get(opts, :existing_sso_configuration, false),
         sso_default_role: Keyword.get(opts, :sso_default_role, "user"),
-        sso_legacy_email_domain_fallback: Keyword.get(opts, :sso_legacy_email_domain_fallback, false),
         oauth2_client_id: oauth2_client_id,
         oauth2_client_secret: oauth2_client_secret,
         oauth2_authorize_url: oauth2_authorize_url,
@@ -111,6 +112,17 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         customer_id: customer_id,
         setup_billing: setup_billing
       )
+
+    # Existing unverified organizations can retain enabled policies even though
+    # new configurations must verify their domain before enabling them.
+    organization =
+      if Keyword.get(opts, :existing_sso_configuration, false) do
+        organization
+        |> Ecto.Changeset.change(sso_automatic_enrollment: Keyword.get(opts, :sso_automatic_enrollment, false))
+        |> Tuist.Repo.update!()
+      else
+        organization
+      end
 
     put_cache_usage(from(a in Account, where: a.organization_id == ^organization.id), opts)
 

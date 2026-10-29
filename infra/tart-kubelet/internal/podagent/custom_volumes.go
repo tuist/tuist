@@ -52,6 +52,7 @@ type CustomVolumes struct {
 	checkoutReserved uint64
 	checkoutMu       sync.Mutex
 	checkoutJobs     map[string]cachevolumes.CheckoutTask
+	executionWaits   cachevolumes.ExecutionWaits
 	// spare cancels the running background prefetch; guarded by Space.mu.
 	spare context.CancelCauseFunc
 	// spareScope is the scope that prefetch restores; guarded by Space.mu.
@@ -153,7 +154,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		return errors.New("cache filesystem unavailable")
 	}
 	// The timeout bounds metadata requests; archive transfers use masterDownloadClient and end on a stall instead.
-	c.HTTP = &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	c.HTTP = cachevolumes.NewServerClient(6 * time.Minute)
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
 		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000, MaxVolumeBytes: c.maxVolumeBytes(),
 		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, ObjectClient: masterDownloadClient, MaxBytes: c.maxVolumeBytes(), Token: c.token, Log: customCacheLog()},
@@ -192,6 +193,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	}
 	defer store.Close()
 	store.MaxVolumeBytes = c.maxVolumeBytes()
+	store.Observe = observeCustomCache
 	c.Store = store
 	c.images = backend
 	// Pressure eviction takes the masters of lineages a job holds or is cloning last.
@@ -485,15 +487,15 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		if input.Checkout {
 			budget = 15 * time.Second
 		}
-		deadline := time.Now().Add(budget)
-		if requestDeadline := info.ModTime().Add(budget); requestDeadline.Before(deadline) {
-			deadline = requestDeadline
+		asked := time.Now()
+		if info.ModTime().Before(asked) {
+			asked = info.ModTime()
 		}
-		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
+		acquireCtx, cancel := context.WithDeadline(ctx, asked.Add(budget))
 		if input.Checkout {
 			response := map[string]any{"error": "unavailable", "reason": "error"}
 			if c.Checkouts != nil {
-				response = c.checkout(acquireCtx, pod, input.UID)
+				response = c.checkout(acquireCtx, pod, input.UID, asked)
 			}
 			cancel()
 			if response == nil {
@@ -518,16 +520,20 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 		status, err := c.request(acquireCtx, "authorize", body, &identity)
 		// 425 means GitHub has not yet reported which job this runner executes.
-		for status == http.StatusTooEarly {
-			select {
-			case <-acquireCtx.Done():
-			case <-time.After(customAuthorizeRetry):
-				status, err = c.request(acquireCtx, "authorize", body, &identity)
+		if status == http.StatusTooEarly {
+			pendingCtx, stop := context.WithDeadline(acquireCtx, c.executionWaits.Deadline(string(pod.UID), asked))
+			for status == http.StatusTooEarly {
+				select {
+				case <-pendingCtx.Done():
+				case <-time.After(customAuthorizeRetry):
+					status, err = c.request(pendingCtx, "authorize", body, &identity)
+				}
+				if pendingCtx.Err() != nil && status != http.StatusOK {
+					err = cachevolumes.ErrExecutionPending
+					break
+				}
 			}
-			if acquireCtx.Err() != nil && status != http.StatusOK {
-				err = cachevolumes.ErrExecutionPending
-				break
-			}
+			stop()
 		}
 		// 507: the volume is larger than this host's maximum.
 		if status == http.StatusInsufficientStorage {

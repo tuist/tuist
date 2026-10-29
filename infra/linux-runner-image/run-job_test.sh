@@ -113,3 +113,15 @@ test ! -e "${CHECKOUT_CALLS}"
 GITHUB_WORKSPACE=/home/runner/work/repo/repo CHECKOUT_EXIT=1 bash -eu "${JOB_STARTED_HOOK}"
 grep -qx -- "--checkout /home/runner/work/repo/repo" "${CHECKOUT_CALLS}"
 echo "ok: the job-start hook asks for a cached checkout of the workspace"
+
+# The hook moves dockerd onto a Docker cache volume only where the sidecar
+# supports it, concurrently with the checkout, and a failing client never fails
+# the job.
+rm -f "${CHECKOUT_CALLS}"
+GITHUB_WORKSPACE=/home/runner/work/repo/repo env -u TUIST_DOCKER_CACHE bash -eu "${JOB_STARTED_HOOK}"
+! grep -qx -- "--docker" "${CHECKOUT_CALLS}"
+rm -f "${CHECKOUT_CALLS}"
+GITHUB_WORKSPACE=/home/runner/work/repo/repo TUIST_DOCKER_CACHE=1 CHECKOUT_EXIT=1 bash -eu "${JOB_STARTED_HOOK}"
+grep -qx -- "--docker" "${CHECKOUT_CALLS}"
+grep -qx -- "--checkout /home/runner/work/repo/repo" "${CHECKOUT_CALLS}"
+echo "ok: the job-start hook asks for the Docker cache beside the checkout"

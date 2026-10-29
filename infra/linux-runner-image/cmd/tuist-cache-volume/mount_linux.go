@@ -72,7 +72,8 @@ func sendMount(socket string, data []byte, target string) error {
 	return nil
 }
 
-func serveMounts(socket, root string) error {
+// docker, when set, serves the sidecar supervisor's Docker volume requests.
+func serveMounts(socket, root string, docker func(dockerMessage) (string, error)) error {
 	if os.Geteuid() != 0 {
 		return errors.New("mount helper must run as root inside the job VM")
 	}
@@ -106,11 +107,7 @@ func serveMounts(socket, root string) error {
 			go func() {
 				defer func() { <-slots; conn.Close() }()
 				_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
-				if err := mountRequest(conn, sourceRoot, work); err != nil {
-					_, _ = conn.Write([]byte(err.Error()))
-				} else {
-					_, _ = conn.Write([]byte("ok"))
-				}
+				_, _ = conn.Write([]byte(mountReply(conn, sourceRoot, work, docker)))
 			}()
 		default:
 			_, _ = conn.Write([]byte("mount helper busy"))
@@ -119,7 +116,24 @@ func serveMounts(socket, root string) error {
 	}
 }
 
-func mountRequest(conn *net.UnixConn, root, work *os.Root) error {
+// mountReply serves one request and returns the broker's answer: ok, the
+// supervisor's status for a Docker request, or the error.
+func mountReply(conn *net.UnixConn, root, work *os.Root, docker func(dockerMessage) (string, error)) string {
+	reply := "ok"
+	var handle func(dockerMessage) error
+	if docker != nil {
+		handle = func(message dockerMessage) (err error) {
+			reply, err = docker(message)
+			return err
+		}
+	}
+	if err := mountRequest(conn, root, work, handle); err != nil {
+		return err.Error()
+	}
+	return reply
+}
+
+func mountRequest(conn *net.UnixConn, root, work *os.Root, docker func(dockerMessage) error) error {
 	data, control := make([]byte, 4096), make([]byte, unix.CmsgSpace(8*4))
 	n, oobn, flags, _, err := conn.ReadMsgUnix(data, control)
 	if err != nil {
@@ -144,6 +158,14 @@ func mountRequest(conn *net.UnixConn, root, work *os.Root) error {
 			unix.CloseOnExec(fd)
 		}
 		fds = append(fds, rights...)
+	}
+	if message, ok := parseDockerMessage(data[:n]); ok && len(fds) == 0 && flags&unix.MSG_TRUNC == 0 {
+		if docker == nil {
+			return errors.New("docker cache unavailable in this sidecar")
+		}
+		// A teardown cleans and unmounts a whole data root.
+		_ = conn.SetDeadline(time.Now().Add(12 * time.Minute))
+		return docker(message)
 	}
 	if flags&(unix.MSG_TRUNC|unix.MSG_CTRUNC) != 0 || len(fds) != 2 {
 		return errors.New("expected mount namespace and target directory descriptors")
@@ -306,4 +328,17 @@ func emptyDirectory(fd int) error {
 		return err
 	}
 	return nil
+}
+
+// parseDockerMessage accepts a supervisor request: an object naming a Docker
+// operation, which never carries descriptors.
+func parseDockerMessage(data []byte) (dockerMessage, bool) {
+	var message dockerMessage
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&message); err != nil || (message.Docker != "switch" && message.Docker != "teardown") ||
+		((message.Merge != "" || message.Generation != 0) && (message.Docker != "teardown" || message.Merge == "" || message.Generation <= 0)) {
+		return dockerMessage{}, false
+	}
+	return message, true
 }

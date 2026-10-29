@@ -11,6 +11,7 @@ fn saved() -> Session {
         access_token: "atlas-access".into(),
         refresh_token: "atlas-refresh".into(),
         expires_at: crate::now() + 3600,
+        cache_id: None,
     }
 }
 
@@ -19,7 +20,11 @@ fn thread(id: &str, kind: &str) -> Thread {
 }
 
 fn opened() -> (String, Arc<Model>) {
-    let opened = execute(Action::Open { session: saved() }).unwrap();
+    let opened = execute(Action::Open {
+        session: saved(),
+        cache_directory: None,
+    })
+    .unwrap();
     let id = opened["connection"].as_str().unwrap().to_owned();
     let model = get(&id).unwrap();
     {
@@ -27,6 +32,135 @@ fn opened() -> (String, Arc<Model>) {
         state.snapshot.threads = vec![thread(FIRST, "private"), thread(SECOND, "shared")];
     }
     (id, model)
+}
+
+#[test]
+fn model_choices_and_selection_preserve_history_drafts_and_optional_feature_failures() {
+    let (connection, model) = opened();
+    {
+        let mut state = model.state.lock().unwrap();
+        state.active = true;
+        state.snapshot.selection_id = Some(FIRST.into());
+        state.snapshot.selected = Some(thread(FIRST, "private"));
+        state.snapshot.messages =
+            serde_json::from_value(json!([message(FIRST, 1, "evidence")])).unwrap();
+    }
+    draft(&model, FIRST.into(), "Keep this draft".into()).unwrap();
+    models_using(&model, &InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
+        assert_eq!(url.path(), "/api/native/orbit/models");
+        Ok(json!({"models":[
+            {"id":"chatgpt:gpt-6.1-sol","name":"GPT-6.1 Sol","provider":"ChatGPT","instructions":"private"},
+            {"id":"../other","name":"Unsafe","provider":"ChatGPT"},
+            {"id":"workspace","name":"Workspace model","provider":"Atlas"}
+        ],"error":null}))
+    })).unwrap();
+    assert_eq!(
+        snapshot(&model).unwrap()["models"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(
+        snapshot(&model).unwrap()["models"][0]
+            .get("instructions")
+            .is_none()
+    );
+    for choice in [Some("chatgpt:gpt-6.1-sol".to_owned()), None] {
+        set_model_using(
+            &model,
+            FIRST.into(),
+            choice.clone(),
+            &InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+                assert_eq!(
+                    url.path(),
+                    format!("/api/native/orbit/threads/{FIRST}/model")
+                );
+                let crate::transport::Body::Api {
+                    method, payload, ..
+                } = body
+                else {
+                    panic!("Expected authenticated API request")
+                };
+                assert_eq!(method, reqwest::Method::PATCH);
+                assert_eq!(payload, Some(json!({"model":choice})));
+                let mut selected = thread(FIRST, "private");
+                selected.model = choice.clone();
+                Ok(json!({"thread":selected}))
+            }),
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot(&model).unwrap()["selected"]["model"],
+            json!(choice)
+        );
+    }
+    for status in [403, 404, 409, 501] {
+        set_model_using(
+            &model,
+            FIRST.into(),
+            Some("workspace".into()),
+            &InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+                let crate::transport::Body::Api { failure, .. } = body else {
+                    panic!("Expected authenticated API request")
+                };
+                Err(failure(status, b"private response"))
+            }),
+        )
+        .unwrap();
+        let value = snapshot(&model).unwrap();
+        assert_eq!(value["selected"]["id"], FIRST);
+        assert_eq!(value["draft"], "Keep this draft");
+        assert_eq!(value["messages"][0]["tool_output"], "evidence");
+        assert!(
+            !value["model_error"]
+                .as_str()
+                .unwrap()
+                .contains("private response")
+        );
+        assert_eq!(value["needs_session"], false);
+    }
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn late_or_mismatched_model_changes_cannot_replace_another_conversation() {
+    let (connection, model) = opened();
+    {
+        let mut state = model.state.lock().unwrap();
+        state.active = true;
+        state.snapshot.selection_id = Some(FIRST.into());
+        state.snapshot.selected = Some(thread(FIRST, "private"));
+    }
+    set_model_using(
+        &model,
+        FIRST.into(),
+        Some("workspace".into()),
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            Ok(json!({"thread":thread(SECOND,"shared")}))
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["selected"]["id"], FIRST);
+    assert!(snapshot(&model).unwrap()["model_error"].is_string());
+    set_model_using(
+        &model,
+        FIRST.into(),
+        Some("workspace".into()),
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            let mut state = model.state.lock().unwrap();
+            begin_selection(&mut state, Some(SECOND.into()));
+            state.snapshot.selected = Some(thread(SECOND, "shared"));
+            let mut selected = thread(FIRST, "private");
+            selected.model = Some("workspace".into());
+            Ok(json!({"thread":selected}))
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["selected"]["id"], SECOND);
+    assert!(snapshot(&model).unwrap()["selected"]["model"].is_null());
+    assert!(snapshot(&model).unwrap()["model_error"].is_null());
+    execute(Action::Close { connection }).unwrap();
 }
 
 #[test]
@@ -180,11 +314,31 @@ fn captured_send_body_keeps_retry_key_without_overwriting_newer_drafts() {
             body: "New thought".into(),
             client_id: random_uuid().unwrap(),
             attachments: vec![],
+            mentions: vec![],
         },
     );
     assert_eq!(prepare_send(&mut state, FIRST, "At tap time").unwrap(), key);
     assert_eq!(state.drafts[FIRST].body, "New thought");
     assert_ne!(prepare_send(&mut state, FIRST, "New thought").unwrap(), key);
+    let mentions = [Person {
+        id: SECOND.into(),
+        name: "Alice Smith".into(),
+    }];
+    let mentioned_key =
+        prepare_send_draft(&mut state, FIRST, "@Alice Smith ", &[], &mentions).unwrap();
+    assert_eq!(
+        prepare_send_draft(&mut state, FIRST, "@Alice Smith ", &[], &mentions).unwrap(),
+        mentioned_key
+    );
+    let different_invitee = [Person {
+        id: UNSEEN.into(),
+        name: "Alice Smith".into(),
+    }];
+    assert_ne!(
+        prepare_send_draft(&mut state, FIRST, "@Alice Smith ", &[], &different_invitee).unwrap(),
+        mentioned_key
+    );
+    assert_eq!(state.drafts[FIRST].body, "New thought");
     drop(state);
     execute(Action::Close { connection: id }).unwrap();
 }
@@ -209,16 +363,24 @@ fn duplicate_submission_reuses_key_but_retyping_the_same_text_is_a_new_message()
 }
 
 #[test]
-fn reconciliation_deduplicates_and_keeps_private_thread_first() {
-    let mut items = vec![];
-    merge_thread(&mut items, thread(SECOND, "shared"));
-    merge_thread(&mut items, thread(FIRST, "private"));
+fn reconciliation_deduplicates_and_orders_across_kinds_by_updated_at_then_descending_id() {
+    let (connection, model) = opened();
+    let mut state = model.state.lock().unwrap();
+    state.snapshot.threads.clear();
+    merge_list_thread(&mut state, thread(SECOND, "shared"));
+    merge_list_thread(&mut state, thread(FIRST, "private"));
     let mut updated = thread(SECOND, "shared");
     updated.title = "Updated".into();
-    merge_thread(&mut items, updated);
-    assert_eq!(items.len(), 2);
-    assert_eq!(items[0].id, FIRST);
-    assert_eq!(items[1].title, "Updated");
+    merge_list_thread(&mut state, updated);
+    assert_eq!(state.snapshot.threads.len(), 2);
+    assert_eq!(state.snapshot.threads[0].id, SECOND);
+    assert_eq!(state.snapshot.threads[0].title, "Updated");
+    let mut newer = thread(FIRST, "private");
+    newer.updated_at = "2027-06-08T10:00:00Z".into();
+    merge_list_thread(&mut state, newer);
+    assert_eq!(state.snapshot.threads[0].id, FIRST);
+    drop(state);
+    execute(Action::Close { connection }).unwrap();
 }
 
 #[test]
@@ -350,7 +512,10 @@ fn invalid_drafts_and_cross_instance_session_are_rejected() {
         execute(Action::Request {
             connection: id.clone(),
             session,
-            command: Command::Load { kind: None }
+            command: Command::Load {
+                kind: None,
+                status: None
+            }
         })
         .is_err()
     );
@@ -399,13 +564,27 @@ fn assert_messages_request(url: &url::Url, body: crate::transport::Body<'_>, id:
 }
 
 #[test]
-fn private_creation_replays_uncertain_uuid_then_creates_distinct_histories_and_drafts() {
+fn private_creation_refreshes_capability_then_replays_uuid_and_creates_distinct_histories() {
     use std::cell::{Cell, RefCell};
     let (connection, model) = opened();
-    model.state.lock().unwrap().snapshot.threads.clear();
+    set_list_filters(&model, Some("private".into()), None).unwrap();
+    select_using(
+        &model,
+        Some(UNSEEN.into()),
+        None,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            Ok(json!({"thread":thread(UNSEEN,"private"),"messages":{"items":[],"page":1,"total_pages":1,"total_count":0}}))
+        }),
+    )
+    .unwrap();
+    draft(&model, UNSEEN.into(), "Existing private draft".into()).unwrap();
+    let draft_key = model.state.lock().unwrap().drafts[UNSEEN].client_id.clone();
     let requests = RefCell::new(Vec::<String>::new());
     let committed = RefCell::new(BTreeMap::<String, String>::new());
     let lose_first_response = Cell::new(true);
+    let capability = Cell::new(None);
+    let fail_preflight = Cell::new(false);
+    let list_calls = Cell::new(0);
     let network = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
         let crate::transport::Body::Api {
             method,
@@ -417,6 +596,21 @@ fn private_creation_replays_uncertain_uuid_then_creates_distinct_histories_and_d
             panic!("expected bearer transport")
         };
         assert_eq!(token, "atlas-access");
+        if method == reqwest::Method::GET && url.path() == "/api/native/orbit/threads" {
+            assert_eq!(url.query(), Some("page=1&kind=private&status=active"));
+            assert!(payload.is_none());
+            list_calls.set(list_calls.get() + 1);
+            if fail_preflight.get() {
+                return Err(error("transport", "The connection was interrupted."));
+            }
+            let mut assistant = json!({"name":"Pip","configured":true});
+            if let Some(supported) = capability.get() {
+                assistant["can_create_private"] = json!(supported);
+            }
+            return Ok(
+                json!({"assistant":assistant,"threads":{"items":[thread(UNSEEN,"private")],"page":1,"total_pages":1,"total_count":1}}),
+            );
+        }
         if method == reqwest::Method::POST {
             assert_eq!(
                 url.as_str(),
@@ -458,7 +652,67 @@ fn private_creation_replays_uncertain_uuid_then_creates_distinct_histories_and_d
         }
     });
     let command = || serde_json::from_value::<Command>(json!({"action":"create_private"})).unwrap();
+    load_using(&model, false, &network).unwrap();
+    assert_eq!(
+        snapshot(&model).unwrap()["assistant"]["can_create_private"],
+        false
+    );
+    let original = snapshot(&model).unwrap();
+    for advertised in [None, Some(false)] {
+        capability.set(advertised);
+        create_using(&model, command(), &network).unwrap();
+        let value = snapshot(&model).unwrap();
+        assert_eq!(
+            value["error"],
+            "This Atlas server does not support new private conversations yet. Update the server, then try again."
+        );
+        for field in [
+            "selection_id",
+            "selected",
+            "messages",
+            "threads",
+            "draft",
+            "has_drafts",
+        ] {
+            assert_eq!(value[field], original[field], "preserve {field}");
+        }
+        assert_eq!(
+            model.state.lock().unwrap().drafts[UNSEEN].client_id,
+            draft_key
+        );
+        assert!(model.state.lock().unwrap().private_request_id.is_none());
+        assert!(requests.borrow().is_empty());
+        assert!(committed.borrow().is_empty());
+    }
+    fail_preflight.set(true);
     create_using(&model, command(), &network).unwrap();
+    let value = snapshot(&model).unwrap();
+    assert_eq!(value["error"], "The connection was interrupted.");
+    for field in [
+        "selection_id",
+        "selected",
+        "messages",
+        "threads",
+        "draft",
+        "has_drafts",
+    ] {
+        assert_eq!(value[field], original[field], "preserve {field}");
+    }
+    assert_eq!(value["loading"], false);
+    assert_eq!(
+        model.state.lock().unwrap().drafts[UNSEEN].client_id,
+        draft_key
+    );
+    assert!(model.state.lock().unwrap().private_request_id.is_none());
+    assert!(requests.borrow().is_empty());
+    assert!(committed.borrow().is_empty());
+    fail_preflight.set(false);
+    capability.set(Some(true));
+    create_using(&model, command(), &network).unwrap();
+    assert_eq!(
+        snapshot(&model).unwrap()["assistant"]["can_create_private"],
+        true
+    );
     assert!(snapshot(&model).unwrap()["error"].is_string());
     assert!(model.state.lock().unwrap().private_request_id.is_some());
     create_using(&model, command(), &network).unwrap();
@@ -498,6 +752,15 @@ fn private_creation_replays_uncertain_uuid_then_creates_distinct_histories_and_d
     assert_eq!(requests.borrow()[0], requests.borrow()[1]);
     assert_ne!(requests.borrow()[1], requests.borrow()[2]);
     assert!(model.state.lock().unwrap().private_request_id.is_none());
+    assert_eq!(list_calls.get(), 5);
+    assert_eq!(
+        model.state.lock().unwrap().drafts[UNSEEN].body,
+        "Existing private draft"
+    );
+    assert_eq!(
+        model.state.lock().unwrap().drafts[UNSEEN].client_id,
+        draft_key
+    );
     execute(Action::Close { connection }).unwrap();
 }
 
@@ -505,12 +768,12 @@ fn private_creation_replays_uncertain_uuid_then_creates_distinct_histories_and_d
 fn private_list_filter_survives_pagination_refresh_and_shared_direct_selection() {
     use std::cell::Cell;
     let (connection, model) = opened();
-    set_list_kind(&model, Some("private".into())).unwrap();
+    set_list_filters(&model, Some("private".into()), None).unwrap();
     let expected_page = Cell::new(1);
     let network = InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
         assert_eq!(
             url.query(),
-            Some(format!("page={}&kind=private", expected_page.get()).as_str())
+            Some(format!("page={}&kind=private&status=active", expected_page.get()).as_str())
         );
         Ok(
             json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[thread(if expected_page.get()==1 {FIRST} else {SECOND},"private")],"page":expected_page.get(),"total_pages":2,"total_count":2}}),
@@ -544,16 +807,16 @@ fn private_list_filter_survives_pagination_refresh_and_shared_direct_selection()
     )
     .unwrap();
     assert_eq!(snapshot(&model).unwrap()["selected"]["kind"], "shared");
-    assert!(set_list_kind(&model, Some("invalid".into())).is_err());
-    let Command::Load { kind } =
+    assert!(set_list_filters(&model, Some("invalid".into()), None).is_err());
+    let Command::Load { kind, status } =
         serde_json::from_value::<Command>(json!({"action":"load"})).unwrap()
     else {
         panic!("expected legacy load")
     };
-    set_list_kind(&model, kind).unwrap();
+    set_list_filters(&model, kind, status).unwrap();
     assert_eq!(model.state.lock().unwrap().list_page, 0);
     load_using(&model, false, &InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
-        assert_eq!(url.query(), Some("page=1"));
+        assert_eq!(url.query(), Some("page=1&status=active"));
         Ok(json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[thread(UNSEEN,"shared")],"page":1,"total_pages":1,"total_count":1}}))
     })).unwrap();
     assert_eq!(snapshot(&model).unwrap()["threads"][0]["kind"], "shared");
@@ -562,7 +825,49 @@ fn private_list_filter_survives_pagination_refresh_and_shared_direct_selection()
 
 #[test]
 fn late_private_creation_never_replaces_a_newer_selection_and_close_discards_retry_identity() {
+    for close in [false, true] {
+        let (connection, model) = opened();
+        let network = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+            assert_eq!(
+                url.as_str(),
+                "https://atlas.example/api/native/orbit/threads?page=1&status=active"
+            );
+            let crate::transport::Body::Api { method, .. } = body else {
+                panic!("expected bearer transport")
+            };
+            assert_eq!(method, reqwest::Method::GET);
+            if close {
+                execute(Action::Close {
+                    connection: connection.clone(),
+                })
+                .unwrap();
+            } else {
+                select_using(
+                    &model,
+                    Some(SECOND.into()),
+                    None,
+                    &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                        Ok(response(SECOND))
+                    }),
+                )
+                .unwrap();
+            }
+            Ok(
+                json!({"assistant":{"name":"Pip","configured":true,"can_create_private":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}),
+            )
+        });
+        create_using(&model, Command::CreatePrivate, &network).unwrap();
+        assert!(model.state.lock().unwrap().private_request_id.is_none());
+        assert!(snapshot(&model).unwrap()["assistant"].is_null());
+        if !close {
+            assert_eq!(snapshot(&model).unwrap()["selected"]["id"], SECOND);
+            execute(Action::Close { connection }).unwrap();
+        }
+    }
     let (connection, model) = opened();
+    load_using(&model, false, &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+        Ok(json!({"assistant":{"name":"Pip","configured":true,"can_create_private":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}))
+    })).unwrap();
     let network = InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
         select_using(
             &model,
@@ -582,6 +887,53 @@ fn late_private_creation_never_replaces_a_newer_selection_and_close_discards_ret
     assert!(model.state.lock().unwrap().private_request_id.is_some());
     execute(Action::Close { connection }).unwrap();
     assert!(model.state.lock().unwrap().private_request_id.is_none());
+}
+
+#[test]
+fn promoted_creation_conflict_allows_an_explicit_new_attempt_without_replaying_forever() {
+    let (connection, model) = opened();
+    load_using(&model, false, &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+        Ok(json!({"assistant":{"name":"Pip","configured":true,"can_create_private":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}))
+    })).unwrap();
+    let attempts = std::cell::RefCell::new(Vec::new());
+    let network = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+        let crate::transport::Body::Api {
+            method, payload, ..
+        } = body
+        else {
+            panic!("expected bearer transport")
+        };
+        if method == reqwest::Method::GET {
+            return Ok(response(UNSEEN));
+        }
+        let payload = payload.unwrap();
+        let id = payload["request_id"].as_str().unwrap().to_owned();
+        let mut attempts = attempts.borrow_mut();
+        attempts.push(id);
+        match attempts.len() {
+            1 => Err(error("transport", "The connection was interrupted.")),
+            2 => {
+                assert_eq!(attempts[0], attempts[1]);
+                Err(error(
+                    "conflict",
+                    "This thread changed. Refresh it and try again.",
+                ))
+            }
+            3 => {
+                assert_ne!(attempts[1], attempts[2]);
+                Ok(json!({"thread":thread(UNSEEN, "private")}))
+            }
+            _ => panic!("creation must never retry automatically"),
+        }
+    });
+    create_using(&model, Command::CreatePrivate, &network).unwrap();
+    create_using(&model, Command::CreatePrivate, &network).unwrap();
+    assert_eq!(attempts.borrow().len(), 2);
+    assert!(snapshot(&model).unwrap()["selected"].is_null());
+    create_using(&model, Command::CreatePrivate, &network).unwrap();
+    assert_eq!(snapshot(&model).unwrap()["selected"]["id"], UNSEEN);
+    assert_eq!(attempts.borrow().len(), 3);
+    execute(Action::Close { connection }).unwrap();
 }
 
 #[test]
@@ -783,6 +1135,390 @@ fn attachment_model() -> (String, Arc<Model>) {
     (connection, model)
 }
 
+fn pick_mention(
+    connection: &str,
+    model: &Arc<Model>,
+    query: &str,
+    user_id: &str,
+    name: &str,
+) -> Value {
+    people_using(
+        model,
+        FIRST.into(),
+        query.into(),
+        &crate::tests::MockTransport::new(vec![
+            json!({"people":[{"id":user_id,"name":name,"email":"must-not-forward"}]}),
+        ]),
+    )
+    .unwrap();
+    execute(
+        serde_json::from_value(
+            json!({"action":"mention","connection":connection,"id":FIRST,"user_id":user_id}),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn mention_candidates_fence_queries_selection_access_and_local_actions_without_losing_drafts() {
+    for stale_failure in [false, true] {
+        let (connection, model) = attachment_model();
+        draft(&model, FIRST.into(), "Please @Al".into()).unwrap();
+        {
+            let mut state = model.state.lock().unwrap();
+            state.snapshot.error = Some("Keep the message error".into());
+            state.drafts.get_mut(FIRST).unwrap().attachments = vec![attachment()];
+        }
+        let older = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+            assert_eq!(
+                url.as_str(),
+                format!("https://atlas.example/api/native/orbit/threads/{FIRST}/people?query=Al")
+            );
+            let crate::transport::Body::Api {
+                method,
+                token,
+                payload,
+                ..
+            } = body
+            else {
+                panic!()
+            };
+            assert_eq!(method, reqwest::Method::GET);
+            assert_eq!(token, "atlas-access");
+            assert!(payload.is_none());
+            let pending = snapshot(&model).unwrap();
+            assert_eq!(pending["loading"], false);
+            assert_eq!(pending["saving"], false);
+            assert_eq!(pending["mention_loading"], true);
+            draft(&model, FIRST.into(), "Please @Ali".into()).unwrap();
+            people_using(&model, FIRST.into(), "Ali".into(), &crate::tests::MockTransport::new(vec![
+                json!({"people":[{"id":SECOND,"name":"Alice Smith","email":"must-not-forward"}]})
+            ])).unwrap();
+            if stale_failure {
+                Err(error("unavailable", "Stale denial"))
+            } else {
+                Ok(json!({"people":[{"id":UNSEEN,"name":"Old result"}]}))
+            }
+        });
+        people_using(&model, FIRST.into(), "Al".into(), &older).unwrap();
+        let current = snapshot(&model).unwrap();
+        assert_eq!(
+            current["mention_candidates"],
+            json!([{"id":SECOND,"name":"Alice Smith"}])
+        );
+        assert_eq!(current["draft"], "Please @Ali");
+        assert_eq!(current["error"], "Keep the message error");
+        assert!(current["mention_error"].is_null());
+        assert!(mention(&model, FIRST.into(), UNSEEN.into()).is_err());
+        assert!(mention(&model, SECOND.into(), SECOND.into()).is_err());
+        assert!(mention(&model, FIRST.into(), "../user".into()).is_err());
+        model.state.lock().unwrap().active = false;
+        assert!(mention(&model, FIRST.into(), SECOND.into()).is_err());
+        model.state.lock().unwrap().active = true;
+        let value = execute(
+            serde_json::from_value(
+                json!({"action":"mention","connection":connection,"id":FIRST,"user_id":SECOND}),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(value["draft"], "Please @Alice Smith ");
+        assert_eq!(
+            value["draft_mentions"],
+            json!([{"id":SECOND,"name":"Alice Smith"}])
+        );
+        assert_eq!(value["draft_attachments"], json!([attachment()]));
+        assert_eq!(value["mention_candidates"], json!([]));
+        for id in [SECOND, FIRST] {
+            begin_selection(&mut model.state.lock().unwrap(), Some(id.into()));
+            history_using(
+                &model,
+                false,
+                &crate::tests::MockTransport::new(vec![response(id)]),
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            snapshot(&model).unwrap()["draft_mentions"],
+            value["draft_mentions"]
+        );
+        draft(&model, FIRST.into(), "Please @Alice Smithson ".into()).unwrap();
+        assert_eq!(snapshot(&model).unwrap()["draft_mentions"], json!([]));
+        draft(&model, FIRST.into(), "Please @Alice Smith ".into()).unwrap();
+        assert_eq!(snapshot(&model).unwrap()["draft_mentions"], json!([])); // Plain text never grants a mention.
+        assert_eq!(
+            snapshot(&model).unwrap()["draft_attachments"],
+            json!([attachment()])
+        );
+        execute(Action::Close { connection }).unwrap();
+    }
+    for status in [403, 404, 501, 500] {
+        let (connection, model) = attachment_model();
+        draft(&model, FIRST.into(), "Ask @Ali".into()).unwrap();
+        pick_mention(&connection, &model, "Ali", SECOND, "Alice Smith");
+        draft(&model, FIRST.into(), "Ask @Alice Smith @Bo".into()).unwrap();
+        {
+            let mut state = model.state.lock().unwrap();
+            state.snapshot.error = Some("Keep the message error".into());
+            state.drafts.get_mut(FIRST).unwrap().attachments = vec![attachment()];
+            publish(&model, &mut state);
+        }
+        let before = snapshot(&model).unwrap();
+        let denial = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+            let crate::transport::Body::Api { failure, .. } = body else {
+                panic!()
+            };
+            Err(failure(status, b"must-not-forward"))
+        });
+        people_using(&model, FIRST.into(), "Bo".into(), &denial).unwrap();
+        let after = snapshot(&model).unwrap();
+        for field in [
+            "selected",
+            "selection_id",
+            "messages",
+            "threads",
+            "draft",
+            "draft_mentions",
+            "draft_attachments",
+            "error",
+        ] {
+            assert_eq!(
+                after[field], before[field],
+                "People {status} must preserve {field}"
+            );
+        }
+        assert!(after["mention_error"].is_string());
+        assert!(!after.to_string().contains("must-not-forward"));
+        assert_eq!(after["mention_loading"], false);
+        let never = crate::tests::MockTransport::new(vec![]);
+        assert!(people_using(&model, "../thread".into(), "Bo".into(), &never).is_err());
+        assert!(people_using(&model, FIRST.into(), "x".repeat(101), &never).is_err());
+        assert!(never.requests.borrow().is_empty());
+        history_using(
+            &model,
+            false,
+            &InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+                let crate::transport::Body::Api { failure, .. } = body else {
+                    panic!()
+                };
+                Err(failure(404, b"must-not-forward"))
+            }),
+        )
+        .unwrap();
+        assert!(snapshot(&model).unwrap()["selected"].is_null());
+        assert_eq!(snapshot(&model).unwrap()["draft_mentions"], json!([]));
+        assert!(model.state.lock().unwrap().drafts.is_empty());
+        execute(Action::Close { connection }).unwrap();
+    }
+    for fence in ["selection", "access", "background", "revoke", "close"] {
+        let (connection, model) = attachment_model();
+        draft(&model, FIRST.into(), "@A".into()).unwrap();
+        let network = InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            match fence {
+                "selection" => {
+                    begin_selection(&mut model.state.lock().unwrap(), Some(SECOND.into()));
+                }
+                "access" => {
+                    set_list_filters(&model, Some("shared".into()), None).unwrap();
+                }
+                "background" => {
+                    set_active(&model, false).unwrap();
+                }
+                "revoke" => {
+                    history_using(
+                        &model,
+                        false,
+                        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                            Err(error("unavailable", "Access revoked"))
+                        }),
+                    )
+                    .unwrap();
+                }
+                _ => {
+                    execute(Action::Close {
+                        connection: connection.clone(),
+                    })
+                    .unwrap();
+                }
+            }
+            Ok(json!({"people":[{"id":SECOND,"name":"Alice Smith"}]}))
+        });
+        people_using(&model, FIRST.into(), "A".into(), &network).unwrap();
+        assert_eq!(snapshot(&model).unwrap()["mention_candidates"], json!([]));
+        assert!(mention(&model, FIRST.into(), SECOND.into()).is_err());
+        if fence == "revoke" {
+            assert!(model.state.lock().unwrap().drafts.is_empty());
+            assert!(model.state.lock().unwrap().outbox.is_empty());
+        }
+        execute(Action::Close { connection }).unwrap();
+    }
+}
+
+#[test]
+fn mentioned_sends_replay_captured_ids_preserve_newer_drafts_and_reconcile_server_promotion() {
+    use std::cell::{Cell, RefCell};
+    let (connection, model) = attachment_model();
+    model.state.lock().unwrap().snapshot.selected = Some(thread(FIRST, "private"));
+    draft(&model, FIRST.into(), "Coordinate @Ali".into()).unwrap();
+    model
+        .state
+        .lock()
+        .unwrap()
+        .drafts
+        .get_mut(FIRST)
+        .unwrap()
+        .attachments = vec![attachment()];
+    let selected = pick_mention(&connection, &model, "Ali", SECOND, "Alice Smith");
+    let captured = selected["draft"].as_str().unwrap().to_owned();
+    let key = RefCell::new(String::new());
+    let uncertain = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+        let crate::transport::Body::Api {
+            payload: Some(payload),
+            ..
+        } = body
+        else {
+            panic!()
+        };
+        assert_eq!(payload["body"], captured);
+        assert_eq!(payload["mention_ids"], json!([SECOND]));
+        assert_eq!(payload["attachment_ids"], json!([UNSEEN]));
+        assert_eq!(payload["address_agent"], true);
+        *key.borrow_mut() = payload["client_id"].as_str().unwrap().into();
+        Err(error("network", "Try the same message again."))
+    });
+    send_using(
+        &model,
+        FIRST.into(),
+        captured.clone(),
+        None,
+        None,
+        false,
+        &uncertain,
+    )
+    .unwrap();
+    assert_eq!(
+        snapshot(&model).unwrap()["draft_mentions"],
+        selected["draft_mentions"]
+    );
+    let edit_during_send = Cell::new(true);
+    let replay = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+        let crate::transport::Body::Api {
+            method, payload, ..
+        } = body
+        else {
+            panic!()
+        };
+        if method == reqwest::Method::GET {
+            assert_eq!(
+                url.as_str(),
+                format!("https://atlas.example/api/native/orbit/threads/{FIRST}/messages?page=1")
+            );
+            let mut promoted = thread(FIRST, "shared");
+            promoted.title = "Initial task title".into();
+            return Ok(
+                json!({"thread":promoted,"messages":{"items":[{"id":SECOND,"seq":2,"kind":"system","body":"Pip is handing off to the participants.","author_name":"Pip","inserted_at":"2027-06-07T10:00:00Z","notice_kind":"handoff","mentioned_user_ids":[]}],"page":1,"total_pages":1,"total_count":1}}),
+            );
+        }
+        let payload = payload.unwrap();
+        assert_eq!(payload["client_id"], *key.borrow());
+        assert_eq!(payload["body"], captured);
+        assert_eq!(payload["mention_ids"], json!([SECOND]));
+        if edit_during_send.replace(false) {
+            draft(&model, FIRST.into(), "Next @Bo".into()).unwrap();
+            pick_mention(&connection, &model, "Bo", UNSEEN, "Bob Jones");
+        }
+        Ok(json!({"message":message(UNSEEN,1,"")}))
+    });
+    send_using(
+        &model,
+        FIRST.into(),
+        captured.clone(),
+        Some(vec![UNSEEN.into()]),
+        Some(vec![SECOND.into()]),
+        false,
+        &replay,
+    )
+    .unwrap();
+    let value = snapshot(&model).unwrap();
+    assert_eq!(value["draft"], "Next @Bob Jones ");
+    assert_eq!(
+        value["draft_mentions"],
+        json!([{"id":UNSEEN,"name":"Bob Jones"}])
+    );
+    assert_eq!(value["draft_attachments"], json!([]));
+    assert_eq!(value["selected"]["kind"], "shared");
+    assert_eq!(value["selected"]["title"], "Initial task title");
+    assert_eq!(value["threads"][0]["kind"], "shared");
+    assert_eq!(value["messages"][0]["notice_kind"], "handoff");
+    // Another candidate can have the same display name without sharing the replay identity.
+    draft(&model, FIRST.into(), "Coordinate @Ali".into()).unwrap();
+    pick_mention(&connection, &model, "Ali", UNSEEN, "Alice Smith");
+    assert_eq!(snapshot(&model).unwrap()["draft"], captured);
+    // A captured retry must not borrow a different invitee from the same visible text.
+    let newer = snapshot(&model).unwrap();
+    send_using(
+        &model,
+        FIRST.into(),
+        captured.clone(),
+        Some(vec![UNSEEN.into()]),
+        Some(vec![SECOND.into()]),
+        false,
+        &replay,
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["draft"], newer["draft"]);
+    assert_eq!(
+        snapshot(&model).unwrap()["draft_mentions"],
+        newer["draft_mentions"]
+    );
+    let different_invitee = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+        let crate::transport::Body::Api {
+            payload: Some(payload),
+            ..
+        } = body
+        else {
+            panic!()
+        };
+        assert_ne!(payload["client_id"], *key.borrow());
+        assert_eq!(payload["mention_ids"], json!([UNSEEN]));
+        Err(error("network", "Try again."))
+    });
+    send_using(
+        &model,
+        FIRST.into(),
+        captured,
+        None,
+        None,
+        false,
+        &different_invitee,
+    )
+    .unwrap();
+    let never = crate::tests::MockTransport::new(vec![]);
+    for ids in [
+        vec!["../user".into()],
+        vec![SECOND.into(); 11],
+        vec![SECOND.into()],
+    ] {
+        assert!(
+            send_using(
+                &model,
+                FIRST.into(),
+                "@Unknown ".into(),
+                None,
+                Some(ids),
+                false,
+                &never
+            )
+            .is_err()
+        );
+    }
+    assert!(never.requests.borrow().is_empty());
+    execute(Action::Close { connection }).unwrap();
+    assert!(model.state.lock().unwrap().drafts.is_empty());
+    assert!(model.state.lock().unwrap().outbox.is_empty());
+}
+
 fn upload_command() -> Command {
     Command::UploadAttachment {
         id: FIRST.into(),
@@ -829,6 +1565,7 @@ fn attachment_upload_and_attachment_only_send_retries_own_identity_and_preserve_
             FIRST.into(),
             "Caption".into(),
             None,
+            None,
             false,
             &crate::tests::MockTransport::new(vec![])
         )
@@ -873,7 +1610,16 @@ fn attachment_upload_and_attachment_only_send_retries_own_identity_and_preserve_
             "Could not connect securely to Atlas. Try again.",
         ))
     });
-    send_using(&model, FIRST.into(), "".into(), None, false, &failed_send).unwrap();
+    send_using(
+        &model,
+        FIRST.into(),
+        "".into(),
+        None,
+        None,
+        false,
+        &failed_send,
+    )
+    .unwrap();
     let successful_send = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
         let crate::transport::Body::Api {
             method, payload, ..
@@ -894,6 +1640,7 @@ fn attachment_upload_and_attachment_only_send_retries_own_identity_and_preserve_
         FIRST.into(),
         "".into(),
         Some(vec![UNSEEN.into()]),
+        None,
         false,
         &successful_send,
     )
@@ -1048,6 +1795,289 @@ fn superseded_uploads_never_publish_files_and_close_clears_uncertain_bytes() {
 }
 
 #[test]
+fn archive_restore_reconciles_status_without_erasing_history_drafts_or_retry_identity() {
+    let (connection, model) = attachment_model();
+    draft(&model, FIRST.into(), "Keep this draft".into()).unwrap();
+    let key = model.state.lock().unwrap().drafts[FIRST].client_id.clone();
+    let messages = snapshot(&model).unwrap()["messages"].clone();
+    let before = snapshot(&model).unwrap()["sequence"].as_u64().unwrap();
+    let command: Command =
+        serde_json::from_value(json!({"action":"archive","id":FIRST,"archived":true})).unwrap();
+    assert!(matches!(command, Command::Archive { archived: true, .. }));
+    let mutation = |archived: bool| {
+        InspectTransport(move |url: &url::Url, body: crate::transport::Body<'_>| {
+            let crate::transport::Body::Api {
+                method, payload, ..
+            } = body
+            else {
+                panic!()
+            };
+            if method == reqwest::Method::GET {
+                assert_eq!(
+                    url.as_str(),
+                    "https://atlas.example/api/native/orbit/threads?page=1&status=archived"
+                );
+                return Ok(
+                    json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}),
+                );
+            }
+            assert_eq!(
+                url.as_str(),
+                format!("https://atlas.example/api/native/orbit/threads/{FIRST}")
+            );
+            assert_eq!(method, reqwest::Method::PATCH);
+            let status = if archived { "archived" } else { "active" };
+            assert_eq!(payload.unwrap(), json!({"status":status}));
+            let mut value = thread(FIRST, "shared");
+            value.status = status.into();
+            Ok(json!({"thread":value}))
+        })
+    };
+    archive_using(&model, FIRST.into(), true, &mutation(true)).unwrap();
+    let value = snapshot(&model).unwrap();
+    assert_eq!(value["selected"]["status"], "archived");
+    assert!(
+        value["threads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["id"] != FIRST)
+    );
+    assert_eq!(value["messages"], messages);
+    assert_eq!(value["draft"], "Keep this draft");
+    assert!(value["sequence"].as_u64().unwrap() > before);
+
+    let before = value["sequence"].as_u64().unwrap();
+    set_list_filters(&model, None, Some(StatusFilter::Archived)).unwrap();
+    assert!(snapshot(&model).unwrap()["sequence"].as_u64().unwrap() > before);
+    let Command::Load { kind, status } = serde_json::from_value(json!({"action":"load"})).unwrap()
+    else {
+        panic!()
+    };
+    set_list_filters(&model, kind, status).unwrap();
+    assert_eq!(snapshot(&model).unwrap()["status_filter"], "archived");
+    let network = InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
+        assert!(url.query().unwrap().ends_with("status=archived"));
+        let mut archived = thread(FIRST, "shared");
+        archived.status = "archived".into();
+        Ok(
+            json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[archived],"page":1,"total_pages":1,"total_count":1}}),
+        )
+    });
+    load_using(&model, false, &network).unwrap();
+    load_using(&model, true, &network).unwrap();
+    assert_eq!(snapshot(&model).unwrap()["threads"][0]["id"], FIRST);
+    archive_using(&model, FIRST.into(), false, &mutation(false)).unwrap();
+    let value = snapshot(&model).unwrap();
+    assert_eq!(value["selected"]["status"], "active");
+    assert_eq!(value["threads"], json!([]));
+    assert_eq!(value["messages"], messages);
+    assert_eq!(model.state.lock().unwrap().drafts[FIRST].client_id, key);
+    assert!(
+        serde_json::from_value::<Command>(json!({"action":"load","status":"deleted"})).is_err()
+    );
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn archive_route_denials_and_old_servers_do_not_revoke_protected_history_or_drafts() {
+    for status in [403, 404, 501, 422, 500] {
+        let (connection, model) = attachment_model();
+        draft(&model, FIRST.into(), "Keep me".into()).unwrap();
+        let before = snapshot(&model).unwrap();
+        let network = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+            let crate::transport::Body::Api { failure, .. } = body else {
+                panic!()
+            };
+            Err(failure(status, b"must-not-forward"))
+        });
+        archive_using(&model, FIRST.into(), true, &network).unwrap();
+        let after = snapshot(&model).unwrap();
+        assert_eq!(after["selected"], before["selected"]);
+        assert_eq!(after["messages"], before["messages"]);
+        assert_eq!(after["draft"], "Keep me");
+        assert!(!after["error"].is_null());
+        assert!(!after.to_string().contains("must-not-forward"));
+        assert!(!after["saving"].as_bool().unwrap());
+        execute(Action::Close { connection }).unwrap();
+    }
+}
+
+#[test]
+fn late_list_and_history_reads_cannot_undo_archive_and_late_mutation_cannot_replace_selection() {
+    for read in ["list", "history"] {
+        let (connection, model) = attachment_model();
+        let network = InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            archive_using(
+                &model,
+                FIRST.into(),
+                true,
+                &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                    let mut archived = thread(FIRST, "shared");
+                    archived.status = "archived".into();
+                    Ok(json!({"thread":archived}))
+                }),
+            )
+            .unwrap();
+            if read == "list" {
+                Ok(
+                    json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[thread(FIRST,"shared")],"page":1,"total_pages":1,"total_count":1}}),
+                )
+            } else {
+                Ok(response(FIRST))
+            }
+        });
+        if read == "list" {
+            load_using(&model, false, &network).unwrap();
+        } else {
+            history_using(&model, false, &network).unwrap();
+        }
+        assert_eq!(snapshot(&model).unwrap()["selected"]["status"], "archived");
+        assert!(
+            snapshot(&model).unwrap()["threads"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|item| item["id"] != FIRST)
+        );
+        execute(Action::Close { connection }).unwrap();
+    }
+    let (connection, model) = attachment_model();
+    archive_using(
+        &model,
+        FIRST.into(),
+        true,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            select_using(
+                &model,
+                Some(SECOND.into()),
+                None,
+                &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                    Ok(response(SECOND))
+                }),
+            )
+            .unwrap();
+            let mut archived = thread(FIRST, "shared");
+            archived.status = "archived".into();
+            Ok(json!({"thread":archived}))
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["selected"]["id"], SECOND);
+    assert_eq!(
+        snapshot(&model).unwrap()["messages"][0]["tool_output"],
+        "protected evidence"
+    );
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn archive_callbacks_cannot_restore_revoked_closed_or_background_state() {
+    for fence in [
+        "revoke",
+        "close",
+        "background",
+        "filter",
+        "wrong_id",
+        "wrong_status",
+    ] {
+        let (connection, model) = attachment_model();
+        archive_using(
+            &model,
+            FIRST.into(),
+            true,
+            &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                match fence {
+                    "revoke" => {
+                        history_using(
+                            &model,
+                            false,
+                            &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                                Err(error("unavailable", "Denied"))
+                            }),
+                        )
+                        .unwrap();
+                    }
+                    "close" => {
+                        execute(Action::Close {
+                            connection: connection.clone(),
+                        })
+                        .unwrap();
+                    }
+                    "background" => {
+                        set_active(&model, false).unwrap();
+                    }
+                    "filter" => {
+                        set_list_filters(&model, None, Some(StatusFilter::Archived)).unwrap();
+                    }
+                    _ => {}
+                }
+                let mut archived =
+                    thread(if fence == "wrong_id" { SECOND } else { FIRST }, "shared");
+                if fence != "wrong_status" {
+                    archived.status = "archived".into();
+                }
+                Ok(json!({"thread":archived}))
+            }),
+        )
+        .unwrap();
+        let value = snapshot(&model).unwrap();
+        if matches!(fence, "revoke" | "close") {
+            assert!(value["selected"].is_null());
+            assert_eq!(value["messages"], json!([]));
+        } else {
+            assert_eq!(value["selected"]["status"], "active");
+            assert!(!value["messages"].as_array().unwrap().is_empty());
+        }
+        assert_eq!(value["saving"], false);
+        execute(Action::Close { connection }).unwrap();
+    }
+}
+
+#[test]
+fn status_filter_fences_old_pages_and_protected_history_keeps_archived_rows_out_of_active_list() {
+    let (connection, model) = attachment_model();
+    let calls = std::cell::Cell::new(0);
+    let network = InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
+        calls.set(calls.get() + 1);
+        if calls.get() == 1 {
+            assert!(url.query().unwrap().ends_with("status=active"));
+            set_list_filters(&model, None, Some(StatusFilter::Archived)).unwrap();
+            load_using(&model, false, &crate::tests::MockTransport::new(vec![])).unwrap();
+        } else {
+            assert!(url.query().unwrap().ends_with("status=archived"));
+        }
+        let mut item = thread(FIRST, "shared");
+        if calls.get() > 1 {
+            item.status = "archived".into();
+        }
+        Ok(
+            json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[item],"page":1,"total_pages":1,"total_count":1}}),
+        )
+    });
+    load_using(&model, false, &network).unwrap();
+    assert_eq!(calls.get(), 2);
+    assert_eq!(
+        snapshot(&model).unwrap()["threads"][0]["status"],
+        "archived"
+    );
+    set_list_filters(&model, None, Some(StatusFilter::Active)).unwrap();
+    history_using(
+        &model,
+        false,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            let mut value = response(FIRST);
+            value["thread"]["status"] = json!("archived");
+            Ok(value)
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["selected"]["status"], "archived");
+    assert_eq!(snapshot(&model).unwrap()["threads"], json!([]));
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
 fn only_upload_bridge_envelopes_may_exceed_one_mebibyte() {
     let large = "A".repeat(1024 * 1024 + 4);
     for value in [
@@ -1061,4 +2091,137 @@ fn only_upload_bridge_envelopes_may_exceed_one_mebibyte() {
     let upload = json!({"operation":"orbit_session","action":"request","connection":"not-open","session":saved(),"command":{"action":"upload_attachment","id":FIRST,"filename":"big.txt","content_type":"text/plain","data":large}});
     let result: Value = serde_json::from_str(&crate::bridge::execute(&upload.to_string())).unwrap();
     assert_eq!(result["error"]["kind"], "closed"); // Allowed through the bounded bridge; no handle means no HTTP.
+}
+
+#[test]
+fn inbox_reopens_locally_with_expired_credentials_then_refreshes_without_blanking() {
+    use crate::tests::{MockTransport, TestDirectory};
+    use std::sync::mpsc;
+    let directory = TestDirectory::new();
+    let mut session = crate::bootstrap(saved()).unwrap();
+    let overview = |id: &str| {
+        json!({"assistant":{"name":"Pip","configured":true,"can_create_private":true},
+        "threads":{"items":[thread(id, "private")],"page":1,"total_pages":2,"total_count":26}})
+    };
+    let open = |session: Session| {
+        execute(Action::Open {
+            session,
+            cache_directory: Some(directory.as_str().into()),
+        })
+        .unwrap()
+    };
+    {
+        let opened = open(session.clone());
+        let connection = opened["connection"].as_str().unwrap().to_owned();
+        let model = get(&connection).unwrap();
+        load_using(&model, false, &MockTransport::new(vec![overview(FIRST)])).unwrap();
+        assert_eq!(snapshot(&model).unwrap()["cached"], false);
+        execute(Action::Close { connection }).unwrap();
+    }
+    session.expires_at = 1;
+    let opened = open(session.clone()); // No HTTP or refresh-token exchange.
+    assert_eq!(opened["snapshot"]["threads"][0]["id"], FIRST);
+    assert_eq!(opened["snapshot"]["cached"], true);
+    assert_eq!(opened["snapshot"]["assistant"]["can_create_private"], false);
+    assert!(opened["snapshot"]["threads"][0]["owner_id"].is_null());
+    assert_eq!(opened["snapshot"]["has_more"], false);
+    assert!(opened["snapshot"]["selected"].is_null());
+    let connection = opened["connection"].as_str().unwrap().to_owned();
+    let model = get(&connection).unwrap();
+    set_active(&model, true).unwrap();
+    assert!(model.state.lock().unwrap().live.is_none()); // Local bootstrap never connects.
+    assert!(
+        execute(Action::Request {
+            connection: connection.clone(),
+            session,
+            command: Command::Archive {
+                id: FIRST.into(),
+                archived: true
+            },
+        })
+        .is_err()
+    );
+    model.state.lock().unwrap().session.expires_at = crate::now() + 3600;
+    let (started, waiting) = mpsc::channel();
+    let (release, released) = mpsc::channel();
+    let refreshing = model.clone();
+    let result = overview(SECOND);
+    let refresh = std::thread::spawn(move || {
+        load_using(
+            &refreshing,
+            false,
+            &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                started.send(()).unwrap();
+                released.recv_timeout(Duration::from_secs(5)).unwrap();
+                Ok(result.clone())
+            }),
+        )
+        .unwrap()
+    });
+    waiting.recv_timeout(Duration::from_secs(5)).unwrap();
+    let pending = snapshot(&model).unwrap();
+    assert_eq!(pending["threads"][0]["id"], FIRST);
+    assert_eq!(pending["loading"], true);
+    release.send(()).unwrap();
+    refresh.join().unwrap();
+    assert_eq!(snapshot(&model).unwrap()["threads"][0]["id"], SECOND);
+    assert_eq!(snapshot(&model).unwrap()["cached"], false);
+    load_using(
+        &model,
+        false,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            Err(error("network", "Offline."))
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["threads"][0]["id"], SECOND);
+    execute(Action::Close { connection }).unwrap();
+    drop(model);
+    let reopened = open(crate::bootstrap(saved()).unwrap());
+    assert_eq!(reopened["snapshot"]["threads"], json!([])); // New credential lifetime, same origin.
+    execute(Action::Close {
+        connection: reopened["connection"].as_str().unwrap().into(),
+    })
+    .unwrap();
+}
+
+#[test]
+fn logout_during_refresh_cannot_repopulate_the_durable_inbox() {
+    use crate::tests::{MockTransport, TestDirectory};
+    let directory = TestDirectory::new();
+    let session = crate::bootstrap(saved()).unwrap();
+    let opened = execute(Action::Open {
+        session: session.clone(),
+        cache_directory: Some(directory.as_str().into()),
+    })
+    .unwrap();
+    let connection = opened["connection"].as_str().unwrap().to_owned();
+    let model = get(&connection).unwrap();
+    let overview = json!({"assistant":{"name":"Pip","configured":true},
+        "threads":{"items":[thread(FIRST,"shared")],"page":1,"total_pages":1,"total_count":1}});
+    load_using(&model, false, &MockTransport::new(vec![overview.clone()])).unwrap();
+    load_using(
+        &model,
+        false,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            forget_cache(&session, directory.as_str()).unwrap();
+            Ok(overview.clone())
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["threads"], json!([]));
+    assert!(
+        execute(Action::Open {
+            session,
+            cache_directory: Some(directory.as_str().into())
+        })
+        .is_err()
+    );
+    let db = rusqlite::Connection::open(directory.path().join("reads.sqlite3")).unwrap();
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM read_snapshots", [], |row| row
+            .get::<_, u32>(0))
+            .unwrap(),
+        0
+    );
 }

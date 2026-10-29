@@ -21,12 +21,16 @@ omitting it preserves generic browser login, including self-hosted providers.
   analytics. Errors expose fixed categories/messages, never raw transport bodies.
 - `time_off.rs` implements only the fixed owner-scoped `/api/me/time-off` list/create/update/cancel routes. It validates calendar dates and request IDs before networking, filters responses through personal request/public-holiday types, and never accepts owner/status/approval parameters or an arbitrary path. The API transport has feature-specific fixed error mappings so holiday errors do not become account-login expiry errors. Keep Rust sources in both production Once targets and test sources in the host test target.
 - `orbit_session.rs` is the shared thread feature model. `open` creates an opaque session-scoped handle; authenticated `request` commands update its credential snapshot and execute feature actions. Local `draft`, `active`, `next`, and `close` actions never require credential serialization. Draft, send, and leave carry the originating thread ID so late UI actions cannot target a newly selected thread; send also captures the text at tap time, while Rust owns its stable retry key. The model owns pagination, deduplication and ordering by server sequence, retained drafts and stable retry IDs, stale-selection fencing, and revocation cleanup. Swift/Kotlin render its monotonically sequenced snapshots rather than reimplementing those rules. `orbit.rs` filters the fixed `/api/native/orbit/threads` contract; `orbit_live.rs` uses the same authenticated WSS endpoint as presence but joins only the fixed inbox topic `orbit:me` or a validated `orbit:thread:<uuid>`. Inbox invalidations reload the authorized list, so monitored sessions appear without client polling. Live notifications invalidate authoritative HTTP history; they are not the durable event log. A refresh request replaces expired credentials and reopens live viewing. All handles are memory-only and must close at sign-out.
-- `load` accepts optional `kind=private|shared`; omitted means the legacy unfiltered list, preserving Android's contract. A changed filter resets pagination and fences older list results. `load_more`, foreground reconciliation and live invalidations retain the selected filter. Swift's `AtlasOrbit.load()` defaults to private-only pagination without restricting authorized shared UUID deep links.
+- `load` accepts optional `kind=private|shared`; omitted means all kinds, preserving Android's contract. Optional `status=active|archived` starts at active and omission preserves the current status filter, exposed as snapshot `status_filter`. Changed filters reset pagination, fence older list results and immediately publish a new sequence. `load_more`, foreground reconciliation, capability preflight and live invalidations retain the selected filters. Native rows sort across kinds by `updated_at DESC, id DESC`, matching the server before pagination. Swift loads all kinds so promoted conversations remain discoverable; protected history updates authoritative selected metadata, but a mismatched status never reintroduces that row into the current status-filtered list.
+- Authenticated `archive {id, archived: bool}` uses fixed `PATCH /api/native/orbit/threads/<uuid> {status: archived|active}` only. Server owner authorization remains authoritative; platforms use existing `owner_id` for eligibility, with no new capability field. Confirm the response ID/status before reconciling it, remove rows that no longer match the status filter and increment snapshot sequence. Reset loaded pagination and reconcile page one with a filtered GET after success, because removing a row shifts server offsets. Preserve readable selected history, drafts, files and exact retry IDs. Fence pre-mutation list/history callbacks and never replace a newer selection. Optional mutation 403/404/501 (including older servers) shows a fixed feature error without revoking cached protected history; only authoritative Messages denial does that. No fallback route or automatic mutation retry exists. Archive is recoverable and restore starts no run.
 - `create_private` creates a distinct owner-only Pip conversation through `POST /api/native/orbit/threads {kind: private, request_id: UUID}`. Rust generates and retains that exact UUID after an uncertain response until creation is confirmed; neither Swift nor Kotlin supplies an owner or synthesizes a new conversation by relabeling an old thread. Close/sign-out releases the memory-only replay identity. A confirmed creation reads protected history before exposing selected metadata and cannot replace a newer selection. The legacy `private` action still opens the latest existing private conversation (or creates only on first use); shared creation and direct reads remain supported. Swift exposes distinct creation as `newPrivateThread()`.
+- A definitive creation `409` (including replay after promotion) releases the rejected UUID without automatically issuing another POST. A subsequent explicit New action may create a fresh private conversation; uncertain transport/invalid-response failures must still replay the original UUID. Recover the promoted shared conversation through the ordinary authorized list.
+- Optional list metadata `assistant.can_create_private` defaults to false and passes through snapshots. Before distinct creation, an absent/false capability triggers a fresh typed `List`/`Overview` read using the current kind filter; apply only assistant metadata, preserving rows, pagination, selection, history and drafts. A still-unsupported server returns a fixed update-and-retry explanation, and a failed preflight retains its fixed transport/auth error. Neither case sends a POST, generates a new replay UUID, or falls back to legacy `/private`. Retrying in the same session must discover an upgraded server without restarting. Capability true preserves the existing exact UUID-replay-safe creation contract; superseded/closed preflights cannot start a creation.
 - Direct `orbit_session` `select` accepts a validated UUID even outside loaded pages and reads only fixed `Messages { id, page: 1 }`. Additive snapshot `selection_id` is a navigation intent for Back/Retry, never authoritative metadata; `selected` stays null until matching protected history succeeds. Do not synthesize Thread metadata or page the list to resolve a link. `has_drafts` reports retained nonblank drafts across threads for platform protected-work guards. Unavailable reads revoke cached rows, history, presence and that thread's drafts/retry IDs, retain the target for explicit Retry, and invalidate older list/detail results; superseded failures cannot revoke a newer selection. Shared state tests inject transport at the actual typed route boundary, including unseen IDs, denial, mismatched metadata, retry, supersession and close.
 - `orbit_components.rs` filters the server-authored `result_table` v1 contract: at most three columns, five rows, bounded strings, one `show_evidence` action, no extra executable/navigation fields. Invalid/unknown versions drop only the component and preserve original tool evidence. Local `orbit_session` `component_action` events require the current active selected thread and a matching succeeded tool message's server-provided action; the sole effect reveals existing source evidence. No model run, business mutation, arbitrary request or thread state is authored by the client.
 - `themes.rs` implements `themes` (fixed public GET on the selected origin), `validate_themes` (including cached catalogs), and `default_themes` (bundled Atlas). Treat this as optional appearance data, never an authentication requirement. Public transport attaches no bearer token and never maps 401/403/404/501 to rejected credentials. Validate the version, stable IDs, limits, opaque colors, radii and WCAG contrast; serialize only allowlisted fields. Native adapters own per-origin preferences and cache, using separate workers and generation guards. Do not add theme networking to the credential queue.
-- `push.rs` implements only bearer-authenticated PUT/DELETE `/api/me/push-devices/:installation_id` through the `push` bridge command. Register accepts platform, token and environment (`sandbox|production`, Android production only), never an owner/app/topic/endpoint selector. UUID/token validation precedes networking; responses expose only registered/deleted status and the server registration UUID, never the token. Native coordinators own opt-in, device-only installation storage and logout cleanup. A deleted installation ID is terminal: clients rotate it only after successful cleanup. Keep this source in all three production Once targets.
+- `push.rs` implements only bearer-authenticated PUT/DELETE `/api/me/push-devices/:installation_id` through the `push` bridge command. Register accepts platform (`ios|macos|android`), token and environment (`sandbox|production`, Android production only), never an owner/app/topic/endpoint selector. iOS and macOS share bounded APNs hex-token validation but send distinct platforms. UUID/token validation precedes networking; responses expose only registered/deleted status and the server registration UUID, never the token. Native coordinators own opt-in, device-only installation storage and logout cleanup. A deleted installation ID is terminal: clients rotate it only after successful cleanup. Keep this source in all production Once targets.
+- `orbit_activity.rs` implements `orbit_activity`: fixed bearer GET `/api/me/orbit-live-activity` and PUT/DELETE registration routes beneath it. Validate lowercase UUIDs, bounded hex tokens, environment and sessions before networking. Return generic phases, timestamps, completed-tool counts and up to three distinct conversation IDs with optional typed `title`; strip unknown response metadata. Missing/null titles are accepted and omitted on serialization for older-server compatibility; present titles must be strings of at most 80 Unicode scalar values, rejecting overlong/non-string values without echoing them. The server uses only the currently authorized stored `Thread.title`, cleaned for whitespace/control/format characters with `Conversation` for blank values. This title is an explicit contextual exception to the previous content-free contract: Apple receives bounded titles, which can appear on the Lock Screen. Raw prompts/results, replies and tool text remain excluded; neither inference nor title logging/persistence is introduced. Optional-route failures never reject OAuth credentials. The iOS coordinator owns ActivityKit lifecycle and token cleanup; Rust neither creates activities nor accepts owner/topic/endpoint selectors. Keep this source in all three production Once targets.
 - `business.rs` implements allowlisted tasks/accounts/invoices CRUD and task completion under `/api/native`, plus read-only caller Profile. Validate fields/IDs/dates before networking and filter response fields; preserve decimal strings and currency-separated summaries. Server contexts remain authoritative for scopes, manual-invoice provenance and audit attribution. Keep feature networking independent after serialized session refresh/persistence so unrelated work can run in parallel.
 - Optional account `details` and invoice `finance_overview` are typed read-only projections. Filter every related record's fields, drop account details from non-account resources and bank overview from non-invoice resources, and never expand write allowlists to include them. Preserve nullable metrics and exact converted decimal strings. Missing additions remain compatible with older servers; the server owns document-summary permissions and FX conversion.
 - Orbit HTTP/live snapshots retain typed optional `agent_status`. Apply every authorized live status update to the selected thread even when the message revision is unchanged; never synthesize activity from elapsed time or leak status after selection/access-loss fences. `account_card` v1 shares existing bounds/actions but requires exact `Field`/`Value` columns; unknown/malformed types retain original evidence.
@@ -35,8 +39,14 @@ omitting it preserves generic browser login, including self-hosted providers.
 - C inputs are borrowed NUL-terminated strings. Outputs are owned allocations and
   must be freed exactly once using `atlas_auth_free`. JNI uses VM-managed strings.
 - The calling native coordinator owns secure storage and serializes credential
-  mutations. Rust does not persist anything or call platform APIs. This keeps
-  platform SDKs out of host tests and avoids a global runtime/session lock.
+  mutations. Rust never persists credentials or calls platform APIs. Its optional
+  `cache.rs` persists sanitized read projections to an adapter-supplied private
+  directory; see [Durable read cache](../README.md#durable-read-cache) for key,
+  retention, invalidation and append-only transactional SQLite migration rules.
+  Local `bootstrap` validates/upgrades the opaque session without networking;
+  native adapters persist it before publishing the shell. Protected requests
+  still restore/rotate credentials first. Keep platform SDKs out of host tests
+  and never hold the SQLite mutex during networking.
 - iOS presents ASWebAuthenticationSession; Android presents the system browser
   and receives its registered custom-scheme callback. Rust validates the complete
   callback destination, state, duplicate parameters, and ten-minute login lifetime.
@@ -55,6 +65,26 @@ omitting it preserves generic browser login, including self-hosted providers.
   exposing a signed-in state. Authenticated API calls restore through the same coordinator to avoid concurrent refresh-token reuse. Both native adapters persist rotated credentials before making an API request, including when that request subsequently fails. iOS shares the main-actor credential coordinator and session identity across Automation and business features; Android's application-scoped coordinator shares its credential worker across activities and drains pending login cancellation before shutdown. Keep Automation HTTP/watch waits on separate bounded workers, not the refresh queue.
 
 ## Native API and forms
+
+`moodboard.rs` implements only bearer POST `/api/native/moodboard/suggestions` and
+PUT `/api/native/moodboard/captures/<UUID>`. Validate sources, reviewed fields and IDs
+before networking; strip response extras and never echo provider/server bodies.
+Optional endpoint failures do not revoke OAuth. The host persists the immutable first
+save payload/UUID for uncertain retries; the extension has no Rust/auth/network dependency.
+Keep the source in all three production Once lists and tests in the host test glob.
+
+`environments.rs` owns the `environment` bridge command: fixed caller-only
+registration, command claim/progress/result and private-thread environment selection,
+activity and cancellation routes. Validate selectors, exact fields and bounded typed command envelopes
+before native execution. `orbit_live.rs` joins only `environment:<uuid>` with the
+bound native OAuth client; event waits stay outside credential serialization.
+Live snapshots are transport notifications, not durable sessions or permission
+grants. A claimed command is never replayed, while an identical result may be
+uploaded again. Claims carry only the digest: terminal envelopes require the fixed
+1800-second policy. Terminal execution requires explicit local opt-in, not per-command decisions.
+The owner activity projection never forwards claim tokens. The Mac adapter owns
+opt-in, local paths and process lifetime; shared native conversation controls own
+command progress and cancellation. Atlas owns durable jobs, runs and authorization.
 
 `api.rs` owns an allowlisted Automation request enum, same-origin bearer HTTP and
 bounded TLS Phoenix subscriptions. Credentials travel in the WebSocket subprotocol,
@@ -91,6 +121,39 @@ app-hosted tests are not implemented in that release. The simulator app has its
 own Keychain entitlement. Real device/browser login and secure-storage smoke
 checks remain part of preview validation.
 
+## Orbit mentions
+
+Authenticated session command `people {id, query}` uses only protected GET
+`/api/native/orbit/threads/<uuid>/people?query=...`. Queries are at most 100 bytes,
+without control characters, and must match the current draft's trailing `@query`.
+Native adapters must await their pending local draft update before searching.
+Responses expose only up to 20 eligible `{id, name}` candidates, never email or
+arbitrary response fields. Snapshot `mention_candidates`, `mention_loading`, and
+nullable `mention_error` are independent of global loading/saving/message errors.
+Selection, query/request generation, access, lifecycle, and close fence late results.
+People 403/404/501 means unavailable suggestions with a fixed explanation; it must
+not erase authorized history, selection or drafts on an older server. Only a current
+authoritative history denial establishes lost thread access, not a People failure.
+
+Local action `mention {connection, id, user_id}` requires that user to be a current
+candidate in the active protected selection. Rust replaces trailing `@query` with
+`@Full Name ` and retains typed identities in the per-thread draft. Snapshot
+`draft_mentions` contains only `{id, name}`. Existing `draft` edits remove selections
+whose visible `@Name` token disappears and preserve attachments; never infer identities
+from arbitrary text. Navigation retains mentions, while revoke/close clears them.
+
+Session `send` accepts optional `mention_ids` (up to 10 distinct UUIDs), defaulting to
+the originating Rust draft/retry metadata. Capture explicit IDs alongside body and
+attachment IDs at tap time, before awaiting other work; supplied IDs must already be
+known from that thread's Rust draft/outbox and visible in the captured body. Retry
+identity includes exact body, files, and mention IDs, so identical names/text with
+different invitees cannot reuse a confirmed send. Uncertain retries retain those exact
+identities, and successful sends preserve newer drafts/mentions. Empty mention IDs
+are omitted from HTTP requests for compatibility. Messages default omitted additions
+to `notice_kind: null` and `mentioned_user_ids: []`; retain only the known `handoff`
+notice and valid UUID entries. Promotion to participant-scoped shared, title derivation,
+notification delivery, and factual handoff text belong to Atlas, never client inference.
+
 ## Orbit attachments and tool hierarchy
 
 `orbit_session` authenticated request commands include `upload_attachment`
@@ -103,7 +166,7 @@ sequentially. Snapshot additions are `draft_attachments` (typed metadata),
 snapshots. Local text `draft` preserves uploaded files. `has_drafts` includes files and
 uncertain uploads across threads. Send captures optional `attachment_ids` (default:
 current draft), supports attachment-only messages, and blocks unresolved uploads.
-Retry identity covers both text and files; a successful send removes sent files but
+Retry identity covers text, files, and selected mention IDs; a successful send removes sent files but
 preserves newer typing. Close/revocation releases pending bytes and retry state.
 
 All attachment routes are fixed `/api/native/orbit/threads/<uuid>/attachments[/<uuid>]`

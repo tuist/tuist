@@ -1,30 +1,24 @@
 # Tuist Server (Elixir/Phoenix)
 
-This node covers the Tuist Server application under `server/`. Follow downlinks for subsystem boundaries.
+PostgreSQL is the primary database; ClickHouse analytics writes use `IngestRepo`, reads use `ClickHouseRepo`.
 
-## Project Architecture
-Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It provides binary caching, app preview deployment, and build analytics services.
+## Development
 
-**Key Technologies**
-- Backend: Elixir 1.19.5 with Phoenix 1.7.12
-- Databases: PostgreSQL (primary), ClickHouse (analytics; write via IngestRepo, read via ClickHouseRepo)
-- Frontend: Phoenix LiveView with JavaScript/TypeScript and esbuild
-- Package management: aube for JavaScript dependencies
+- Run commands from `server/`. Use Mise and PostgreSQL 16 (`brew install postgresql@16` / `brew services start postgresql@16`).
+- Bootstrap with `mise run clickhouse:start` and `mise install`; start with `mise run dev`. CLI integration uses `http://localhost:8080` by default; worktrees can have their own port.
+- Dev secrets (OAuth, Stripe, etc.) are optional: `fnox.toml` sources the 1Password `Development` vault using an `op` session or `OP_SERVICE_ACCOUNT_TOKEN`. Without access the server boots with those integrations disabled.
+- After dependency changes or in a fresh worktree, run `mise run install`; after pulling migrations, run `mix ecto.migrate`.
+- Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.
+- `TUIST_DEV_DISABLE_DEBUG_ERRORS=1 mise run dev` renders real error pages instead of Plug.Debugger. `debug_errors` is compiled into `TuistWeb.Endpoint`; when flipping it, remove `_build/dev/lib/tuist/ebin/Elixir.TuistWeb.Endpoint.beam` or run `mix compile --force`.
+- Origin app secrets include `ORIGIN_APP/app_id` and its independent Ed25519 PEM `ORIGIN_APP/private_key`. Keep the registered App ID beside its matching key; never hardcode or log private keys.
 
-**Core Components**
-- `lib/tuist/` - Business logic modules (accounts, billing, bundles, projects, etc.)
-- `lib/tuist_web/` - Web interface (controllers, LiveView, marketing site)
-- `priv/repo/migrations/` - PostgreSQL migrations
-- `priv/ingest_repo/migrations/` - ClickHouse migrations (analytics)
-- `assets/` - Frontend assets (JS/CSS)
-- `config/` - Application configuration
+## Validation
 
-## Main Business Domains
-- Accounts (auth, orgs, billing)
-- Projects (tokens, permissions)
-- Bundles (binary cache)
-- Previews (iOS app preview deployment)
-- Command Events (CLI analytics)
+- Prefer focused ExUnit runs: `mix test test/path/to/specific_test.exs`, `mix test test/path/to/test_file.exs:line_number`, or `mix test --only tag_name`.
+- Tests compile only English and exclude `:locale` tests by default. Use `TUIST_DEV_ALL_LOCALES=1 mix test` (optionally with a focused path) to compile all locales and include those tests, as CI does.
+- Dev compiles skip Boundary validation. Run `MIX_ENV=test mix compile` to check boundaries before pushing.
+- Format with `mise run format`; lint with `mix credo`; security checks: `mix sobelow` or `mise run security`.
+- For migrations, run `mix excellent_migrations.check_safety`; use `mix ecto.dump` when updating the database structure dump.
 
 ## Horizontal Scaling
 
@@ -34,46 +28,34 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 - Make retried work idempotent and persist required work before acknowledging it. Supervision and graceful shutdown do not make in-memory work durable.
 - Validate relevant cross-replica and failure scenarios, and consider cold starts, simultaneous cache expiry, CPU cost, database-pool pressure and shared-backend limits. Single-replica tests and warm-cache throughput alone do not establish horizontal scalability.
 
-## Development Setup
-**Prerequisites**
-- PostgreSQL 16
-- Mise development environment manager
-- For dev secrets (OAuth, Stripe, etc.): 1Password access via fnox — an `op` session or `OP_SERVICE_ACCOUNT_TOKEN` scoped to the `Development` vault. Optional; the server boots without it (those integrations stay disabled).
+## Assets
 
-**Setup Commands**
-```bash
-brew install postgresql@16
-brew services start postgresql@16
-mise run clickhouse:start
-mise install
-mise run dev
-```
+- JS dependencies use aube. `mix assets.setup` installs server esbuild and local `noora` JS dependencies.
+- `mix assets.build` builds local `noora` assets, then app/marketing/docs/apidocs bundles. Use `mix assets.deploy` for production assets.
 
-**Test User Account**
-- Email: `tuistrocks@tuist.dev`
-- Password: `tuistrocks`
+## Elixir and tests
 
-## Common Commands
-**Database**
-- `mise run db:setup`
-- `mise run db:reset`
-- `mix ecto.migrate`
-- `mix ecto.rollback`
+- Do not add typespecs (`@spec`, `@type`, etc.).
+- Declare aliases at module level, never inside functions. Prefer aliases for reused modules; reserve imports for DSLs such as `Ecto.Query`.
+- Use tagged tuples for recoverable failures.
+- Timestamps: `:timestamptz` in migrations, `:utc_datetime` in `lib/`.
+- Register mocked modules with `Mimic.copy` only in `server/test/test_helper.exs`, not in individual tests or functions.
+- Tests default to `async: true`; avoid global state and change the architecture when necessary to support concurrency.
+- Never mutate System environment variables in tests. Use mocks, stubs, or dependency injection for environment-dependent behavior.
+- ExUnit files follow `test/**/module_name_test.exs`; tests set up a clean database.
+- Comment complex or non-obvious logic and remove addressed TODOs.
 
-**Server**
-- `mise run dev`
-- `mix phx.server`
-- `iex -S mix phx.server`
-- `TUIST_DEV_DISABLE_DEBUG_ERRORS=1 mise run dev` - Render the real error pages (`TuistWeb.ErrorHTML`, e.g. the marketing 404) instead of Plug.Debugger's stack-trace page. `debug_errors` is compiled into `TuistWeb.Endpoint`, so when flipping it run `rm _build/dev/lib/tuist/ebin/Elixir.TuistWeb.Endpoint.beam` first (or `mix compile --force`)
+## Translations
 
-**Testing**
-- `mix test`
-- `mix test test/path/to/specific_test.exs`
-- `mix test test/path/to/test_file.exs:line_number_of_test`
-- `mix test --only tag_name`
-- The `:test` env compiles only the `"en"` locale by default so a cold `_build/test` (e.g. a fresh worktree) doesn't generate ex_cldr code for all ten locales. Tests that assert other locales' formatting/normalization are tagged `:locale` and excluded by default. Run `TUIST_DEV_ALL_LOCALES=1 mix test` to compile the full locale set and include them (this is what CI does).
+- Use `dgettext/2` for translatable text. Run `mix gettext.extract` after adding/changing or moving translated calls (CI checks source-line references) and commit only `.pot` templates alongside code; `translate.exs` and the `tuistit` bot manage translations.
+- Never run `mix gettext.extract --merge` or edit `.po` files.
+- Currency symbols and monetary amounts are not translatable; surrounding descriptions such as "and up" or "per unit" are. Example: `"0€ " <> dgettext("marketing", "and up")`.
+- Catalog translation is incremental by source-message key; write each successful batch before the next request. Reuse Markdown translations only when source and context hashes match.
+- Restore the unmerged `l10n/update-translations` branch with a three-way merge before model requests; conflicts stop the run before spending tokens. Save validated partial progress even when translation fails.
+- Provider-wide failures stop queued batches across sources and locales; in-flight requests may finish. Keep the translation-step timeout shorter than the job timeout so partial progress can be saved.
+- Run `elixir translate_test.exs` from the repository root when changing translation logic or branch recovery; it uses temporary local repositories.
 
-**Dependency Caching, Build and Test Insights**
+## Dependency caching, build and test insights
 - `mix compile` and `mix test` cache supported compiled dependencies and report to the hosted `tuist/server` project through the local `tuist_ex` package. `tuist: [project: "tuist/server", cache: true]` enables caching; the compile alias bootstraps `tuist_ex` and exposes its dependencies without compiling the rest before `tuist.compile` restores cached artifacts. Native/custom compilation and local dependencies still compile through Mix, and unavailable authentication or caching falls back to normal compilation. The test alias keeps database creation, timezone setup, and migrations before `tuist.test`.
 - Authenticate locally with `mix tuist.login` (shares the Tuist CLI credentials). In CI, provide a project-scoped `TUIST_TOKEN` or authenticate with `mix tuist.login` using the CI provider's OIDC identity.
 - `TUIST_PROJECT` and `TUIST_URL` override the destination. Reporting failures never fail a build or test run; set `TUIST_DEBUG=1` to diagnose them.
@@ -82,21 +64,15 @@ mise run dev
 - Local/CI ClickHouse keeps HTTP connections alive for 300 seconds and disables request-count rotation. The SQL sandbox's uncommitted rows belong to the driver's session; a transparent reconnect after ClickHouse's default 10,000 requests starts a different session and makes those fixtures disappear. Preserve both settings in `mise/tasks/clickhouse/start.sh`. The launcher also raises the server child's open-files soft limit to the available hard limit, best-effort like release startup, so inherited container limits do not make seeds fail with `EMFILE`. It logs the effective limit and leaves the caller's limits untouched. Run `bash ../.github/scripts/server-clickhouse.test.sh` for low/high/restricted limits, unsupported raises and already-running behavior.
 - Concurrent local shards need separate `MIX_BUILD_PATH`, `TUIST_SERVER_TEST_POSTGRES_DB`, `TUIST_SERVER_TEST_CLICKHOUSE_DB`, and `TUIST_SERVER_TEST_PORT` values. Put the database and port overrides after `mise exec -- env` so the development-instance setup does not overwrite them. Leave `MIX_TEST_PARTITION` unset when overriding database names: legacy cross-database migrations append it themselves. For isolated local setup, invoke `bash mise/tasks/db/reset.sh` under those overrides instead of nesting `mise run`, which reloads and replaces the database environment.
 
-**Code Quality**
-- `mix credo`
-- `mise run format`
-- `mix sobelow`
-- `mise run security`
-- Dev compiles skip the Boundary compiler for fast content reloads. Run a non-dev compile (for example, `MIX_ENV=test mix compile`) when you want to validate boundaries locally before pushing.
+## Data export documentation
 
-**Assets**
-- `mix assets.setup` - Installs server esbuild and the local `noora` JS dependencies
-- `mix assets.build` - Builds local `noora` assets, then app/marketing/docs/apidocs bundles
-- `mix assets.deploy`
+Keep `server/data-export.md` current for all personal and organizational data so legal customer exports remain complete. Update it whenever a change:
 
-**Database Utilities**
-- `mix ecto.dump`
-- `mix excellent_migrations.check_safety`
+- Adds or changes PostgreSQL/ClickHouse tables, customer-data columns, Ecto schemas/models, data relationships, or retention policies.
+- Adds stored file types, categories or buckets; changes S3/object-storage keys or path structures, or upload/download processes.
+- Collects new user fields, analytics/tracking, integration data, or customer-owned generated content.
+
+Document data type and purpose, storage location (table or S3 path), relationships, retention, and export capabilities. Follow the existing format and verify the export process can actually retrieve the documented data.
 
 ## Marketing Site
 
@@ -106,19 +82,6 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 - Styles: `assets/marketing/marketing.css` is the single entry, served as `bundle.css` and built together with `bundle.js` from `marketing.js`. Page styles live under `assets/marketing/css/routes/`, layout styles under `assets/marketing/css/layouts/`, tokens and the page skeleton under `assets/marketing/css/shared/`.
 - Page switches are cross-document view transitions with prefetch-on-hover (see the root layout); the navbar and footer hooks are mounted by `assets/marketing/js/lib/static-hooks.js` independently of LiveView, so they must not rely on LiveView-only hook APIs.
 - Social cards are designed PNGs under `priv/static/marketing/images/og/`, served by `TuistWeb.Marketing.SocialCards`; per-item pages (blog posts, changelog entries, case studies, newsletter issues) keep their generated images.
-
-## Key Configuration Files
-- `.mise.toml` - Tool versions
-- `mix.exs` - Elixir project configuration
-- `package.json` - JS dependencies (aube)
-- `config/` - Phoenix configuration
-- `fnox.toml` - Dev secrets sourced from 1Password (Development vault) at runtime via fnox, including `ORIGIN_APP/app_id` and the independent `ORIGIN_APP/private_key` signing key. Store the registered App ID beside its matching key; never hardcode an Origin private key.
-
-## Testing Guidelines
-- Tests use ExUnit; files follow `test/**/module_name_test.exs`.
-- Tests run with a clean database.
-- Never modify System environment variables in tests (shared state).
-- Use mocks/stubs/DI for environment-dependent behavior.
 
 ## Metrics and Alerts
 - PromEx plugins listed in `server/lib/tuist/prom_ex.ex` export the `tuist_*`
@@ -144,31 +107,6 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
   whose size depends on data or on the client, as `all_by_uuid_chunks/2` in
   `Tuist.Tests` does, and never build an `or` of per-row equalities.
 
-## Code Style Guidelines
-- Use `alias` for modules used multiple times; avoid `import` unless using DSLs (e.g., Ecto.Query).
-- Declare aliases at the module level, not inside functions.
-- Copy modules for mocking in `server/test/test_helper.exs`, not inside functions.
-- Prefer `{:ok, value}` / `{:error, reason}` for recoverable failures.
-- Credo rules:
-  - Timestamps in migrations: `:timestamptz`
-  - Timestamps in `lib/`: `:utc_datetime`
-- Add comments for complex logic; remove `TODO` once addressed.
-
-## Translation Management (Gettext)
-- Translations are managed through Weblate. Do not edit `.po` files.
-- Only update `.pot` templates when adding/changing strings.
-- Do not run `mix gettext.extract --merge` (modifies `.po`).
-- Currency symbols/amounts are not translatable; surrounding text is.
-- CI will fail if `.po` files are modified by anyone other than `tuistit`.
-
-## Important Notes
-- Run `mix ecto.migrate` after pulling migrations.
-- Use `mise run install` after dependency changes or when bootstrapping a fresh worktree.
-- Local development connects to `http://localhost:8080` for Tuist CLI integration.
-
-## Data Export Documentation
-Update `server/data-export.md` whenever you change stored customer data (schema, storage, retention, or new data collection). This is required for legal compliance.
-
 ## CI build reuse
 
 - The test builder, formatter and seed jobs retain ordinary `deps` and `_build` volumes. Always run dependency resolution and the required compilation/checks on warm caches; Mix owns invalidation.
@@ -180,14 +118,20 @@ Update `server/data-export.md` whenever you change stored customer data (schema,
 - Docker builds use the repository root context and `Dockerfile.dockerignore`, not `server/.dockerignore`. Keep every Dockerfile COPY input allowed, and exclude nested dependency/build directories and credentials. The fetched dependency stage copies only local package manifests and skips local compilation; local sources compile in the application stage. Preserve per-commit runtime security updates. Explicitly retain the public `priv/static/server/self-host/.env.example` after the general `.env*` exclusion; the Docker smoke test asserts it ships. Bare parent negations re-include their entire subtree, so keep the context allowlist narrow.
 
 ## Related Context (Downlinks)
-- Isolated cluster discovery checks: `verification/cluster_formation.exs`, see `verification/AGENTS.md`.
-- Activity log executable and streamed step protocol: `server/native/xcactivitylog_nif/AGENTS.md`
-- Business logic: `server/lib/tuist/AGENTS.md`
-- Web/UI layer: `server/lib/tuist_web/AGENTS.md`
-- Assets pipeline: `server/assets/AGENTS.md`
-- Configuration: `server/config/AGENTS.md`
-- Migrations and seeds: `server/priv/AGENTS.md`
-- Test conventions: `server/test/AGENTS.md`
+- Isolated cluster discovery checks: [verification/AGENTS.md](verification/AGENTS.md).
+- Activity log executable and streamed step protocol: [native/xcactivitylog_nif/AGENTS.md](native/xcactivitylog_nif/AGENTS.md).
+- Business logic: [lib/tuist/AGENTS.md](lib/tuist/AGENTS.md).
+- Web/UI layer: [lib/tuist_web/AGENTS.md](lib/tuist_web/AGENTS.md).
+- Assets pipeline: [assets/AGENTS.md](assets/AGENTS.md).
+- Configuration: [config/AGENTS.md](config/AGENTS.md).
+- Migrations, docs and seeds: [priv/AGENTS.md](priv/AGENTS.md).
+- Test conventions and regression contracts: [test/AGENTS.md](test/AGENTS.md).
 - Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
 
 - Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.
+
+## Deployment
+
+- Read [../infra/AGENTS.md](../infra/AGENTS.md) before shared-infrastructure work. Managed deployments use CAPI Kubernetes on Hetzner through Helm; chart and environment values live in `infra/helm/tuist/`.
+- `.github/workflows/server-production-deployment.yml` cascades main through canary, acceptance tests, runners acceptance and the Kura rollout gate before production (with a hotfix fast path). Runners acceptance requires remote compilation-cache hits; `.github/workflows/runners-acceptance.yml` probes production runners and the BER1 rack hourly.
+- Canary/production pin the newest `kura@X.Y.0-canary.N` in the deployed commit; the cascade calls `kura-release.yml` when Kura changed. Fresh staging builds its runtime from that commit. `kura_runtime_image_tag` overrides the pin in `server-deployment.yml`, which also supports single-environment manual deployments.

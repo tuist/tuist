@@ -75,6 +75,7 @@ func main() {
 		enableLeaderElection      bool
 		secretsNamespace          string
 		ovhPrivateNetworkConfig   string
+		ovhRunnerEgressConfig     string
 		vultrPrivateNetworkConfig string
 		rackCardRootSecret        string
 
@@ -135,6 +136,8 @@ func main() {
 		"ConfigMap in the secrets namespace declaring regional Vultr private networks")
 	flag.StringVar(&ovhPrivateNetworkConfig, "ovh-private-network-config", "",
 		"ConfigMap in the secrets namespace declaring the private-only OVH cache network")
+	flag.StringVar(&ovhRunnerEgressConfig, "ovh-runner-egress-config", "",
+		"ConfigMap in the secrets namespace declaring OVH runner vRack egress")
 	flag.StringVar(&rackCardRootSecret, "rack-card-root-secret", "rack-card-root",
 		"Secret in --secrets-namespace whose `key` every rack power card's passwords are derived from. Without it no RackPDU or RackATS card is adopted")
 
@@ -309,6 +312,17 @@ func main() {
 		"The rack Linux fleet whose Secrets the RackLinuxHost controller publishes installs with: <fleet>-ssh, <fleet>-boot and <fleet>-console.")
 	flag.StringVar(&rackLinuxInstallServerURL, "rack-linux-install-server-url", "",
 		"The rack boot server's HTTP address as a netbooting host reaches it. Empty, or no --rack-linux-fleet-name, publishes no installs.")
+	var rackLinuxInternetBootServerURL string
+	flag.StringVar(&rackLinuxInternetBootServerURL, "rack-linux-internet-boot-server-url", "",
+		"The boot server preinstalled rack hosts reach over the internet before their site has one. Set, the first edge of a site is published an install once its TPM is pinned.")
+	var rackLinuxPreinstalledProducts []string
+	flag.Func("rack-linux-preinstalled-product",
+		"A hardware model, as its SMBIOS vendor and product name, that arrives with the preinstall image's installer partition, "+
+			"which its installs keep. Repeatable.",
+		func(v string) error {
+			rackLinuxPreinstalledProducts = append(rackLinuxPreinstalledProducts, v)
+			return nil
+		})
 	var rackLinuxAMTProvisioningSecretName string
 	flag.StringVar(&rackLinuxAMTProvisioningSecretName, "rack-linux-amt-provisioning-secret-name", "",
 		"Secret in the operator namespace holding the AMT provisioning certificate (pfx, password) the RackLinuxHost controller "+
@@ -709,6 +723,8 @@ func main() {
 	}
 
 	if err := (&macos.ScalewayAppleSiliconMachineReconciler{
+		APIReader:                     mgr.GetAPIReader(),
+		ProcessorDeploymentName:       fleetSpreadDeployment,
 		Client:                        mgr.GetClient(),
 		Scheme:                        mgr.GetScheme(),
 		ScalewayClient:                scwClient,
@@ -899,7 +915,8 @@ func main() {
 
 	var rackInstall *linux.RackInstall
 	if rackLinuxFleetName != "" && rackLinuxInstallServerURL != "" {
-		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, AuthorizedKeys: rackLinuxAuthorizedKeys}
+		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, InternetServerURL: rackLinuxInternetBootServerURL,
+			PreinstalledProducts: rackLinuxPreinstalledProducts, AuthorizedKeys: rackLinuxAuthorizedKeys}
 	}
 	var rackAMT *linux.RackAMT
 	if rackLinuxFleetName != "" && rackLinuxAMTProvisioningSecretName != "" {
@@ -953,6 +970,7 @@ func main() {
 		EgressNamespace:     egressNamespace,
 		EgressProxyGroup:    egressProxyGroup,
 		EgressProxyTags:     egressProxyTags,
+		AMTProducts:         rackLinuxAMTProducts,
 		NodeBinary:          rackNodeBinary,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackLinuxMachineReconciler")
@@ -1019,6 +1037,8 @@ func main() {
 			DefaultOS:                "ubuntu_24.04",
 			PrivateNetworkConfigName: ovhPrivateNetworkConfig,
 			PrivateNetworkNamespace:  secretsNamespace,
+			RunnerEgressConfigName:   ovhRunnerEgressConfig,
+			RunnerEgressNamespace:    secretsNamespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
 			os.Exit(1)

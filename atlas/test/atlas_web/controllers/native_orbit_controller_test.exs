@@ -17,9 +17,14 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
 
     for api <- [conn, session],
         {method, path} <- [
+          {:get, "/api/native/orbit/models"},
           {:get, "/api/native/orbit/threads"},
           {:post, "/api/native/orbit/threads"},
           {:post, "/api/native/orbit/threads/private"},
+          {:patch, "/api/native/orbit/threads/#{id}"},
+          {:patch, "/api/native/orbit/threads/#{id}/model"},
+          {:patch, "/api/native/orbit/threads/#{id}/environment"},
+          {:get, "/api/native/orbit/threads/#{id}/people"},
           {:get, "/api/native/orbit/threads/#{id}/messages"},
           {:post, "/api/native/orbit/threads/#{id}/messages"},
           {:post, "/api/native/orbit/threads/#{id}/attachments"},
@@ -32,11 +37,19 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     end
   end
 
-  test "lists the bot and the caller's threads, private thread first" do
+  test "lists the bot and the caller's active threads, most recently updated first" do
     user = user_fixture()
     api = bearer(user)
 
-    assert %{"assistant" => %{"name" => "Pip", "configured" => false}, "threads" => %{"items" => [], "page" => 1}} =
+    assert %{
+             "assistant" => %{
+               "name" => "Pip",
+               "configured" => false,
+               "can_create_private" => true,
+               "environments" => true
+             },
+             "threads" => %{"items" => [], "page" => 1}
+           } =
              api |> get("/api/native/orbit/threads?page=1") |> json_response(200)
 
     orbit_profile_fixture()
@@ -45,19 +58,65 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert api |> post("/api/native/orbit/threads/private", %{}) |> json_response(200) == private
 
     body = api |> get("/api/native/orbit/threads") |> json_response(200)
-    assert body["assistant"] == %{"name" => "Pip", "configured" => true}
+
+    assert body["assistant"] == %{
+             "name" => "Pip",
+             "configured" => true,
+             "can_create_private" => true,
+             "environments" => true
+           }
+
     assert %{"page" => 1, "total_pages" => 1, "total_count" => 2, "items" => [first, second]} = body["threads"]
     assert first["id"] == private["thread"]["id"]
     assert first["kind"] == "private" and first["title"] == "New conversation"
     assert second["kind"] == "shared" and second["title"] == "Team"
 
     assert Map.keys(first) |> Enum.sort() ==
-             ~w(agent_status id kind latest_seq origin owner_id participants status summary title updated_at)
+             ~w(agent_status environment_id environment_name id kind latest_seq model origin owner_id participants project_id status summary title updated_at)
 
+    assert is_nil(first["environment_id"]) and is_nil(first["environment_name"]) and is_nil(first["project_id"])
     assert first["participants"] == [%{"id" => user.id, "name" => user.name}]
     assert first["status"] == "active" and first["origin"] == "manual" and first["summary"] == ""
 
     assert api |> get("/api/native/orbit/threads?page=0") |> json_response(422) == %{"error" => "invalid_params"}
+  end
+
+  test "model choices are owner-authorized, durable, and frozen on each run" do
+    owner = user_fixture()
+    member = user_fixture()
+    api = bearer(owner)
+    orbit_profile_fixture()
+
+    assert %{"models" => [%{"id" => "workspace"}], "error" => nil} =
+             api |> get("/api/native/orbit/models") |> json_response(200)
+
+    {:ok, thread} = Orbit.create_shared(owner, %{"title" => "Models", "participant_ids" => [member.id]})
+    path = "/api/native/orbit/threads/#{thread.id}/model"
+    choice = "chatgpt:gpt-6.1-sol"
+    assert %{"thread" => %{"model" => ^choice}} = api |> patch(path, %{model: choice}) |> json_response(200)
+    revision = Repo.reload!(thread).last_seq
+    assert %{"thread" => %{"model" => ^choice}} = api |> patch(path, %{model: choice}) |> json_response(200)
+    assert Repo.reload!(thread).last_seq == revision
+    assert bearer(member) |> patch(path, %{model: nil}) |> json_response(403) == %{"error" => "forbidden"}
+    assert bearer(user_fixture()) |> patch(path, %{model: nil}) |> json_response(404) == %{"error" => "not_found"}
+
+    for params <- [%{}, %{model: "chatgpt:../other"}, %{model: %{}}, %{model: choice, owner_id: member.id}] do
+      assert api |> patch(path, params) |> json_response(422)
+    end
+
+    api
+    |> post("/api/native/orbit/threads/#{thread.id}/messages", %{body: "Hi", client_id: Ecto.UUID.generate()})
+    |> json_response(201)
+
+    run = Orbit.active_run(thread)
+    assert run.model == choice
+    assert api |> patch(path, %{model: "workspace"}) |> json_response(409) == %{"error" => "model_run_active"}
+    assert Repo.reload!(run).model == choice
+    Repo.update!(Ecto.Changeset.change(run, status: "failed"))
+    assert %{"thread" => %{"model" => nil}} = api |> patch(path, %{model: nil}) |> json_response(200)
+    assert Repo.reload!(run).model == choice
+    assert {:ok, _} = Orbit.set_status(owner, thread, "archived")
+    assert api |> patch(path, %{model: choice}) |> json_response(409) == %{"error" => "archived"}
   end
 
   test "creates distinct private conversations, replays creation, and keeps histories owner-only" do
@@ -397,5 +456,120 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
            |> bearer()
            |> delete("/api/native/orbit/threads/#{thread.id}/participants/#{member.id}")
            |> json_response(200) == %{"removed" => true}
+  end
+
+  test "mention directory returns bounded name-only eligible choices and literal search" do
+    owner = user_fixture(["finance:read", "documents:read"])
+    allowed = user_fixture(["finance:write", "documents:read"], "Allowed%_")
+    denied = user_fixture(["finance:read"], "Allowed%_")
+    {:ok, thread, _} = Orbit.ensure_private(owner)
+    thread = Repo.update!(Ecto.Changeset.change(thread, required_scopes: ["finance:read", "documents:read"]))
+    path = "/api/native/orbit/threads/#{thread.id}/people"
+    response = owner |> bearer() |> get(path, %{query: "Allowed%_"})
+    assert get_resp_header(response, "cache-control") == ["no-store"]
+    assert json_response(response, 200) == %{"people" => [%{"id" => allowed.id, "name" => allowed.name}]}
+    assert denied |> bearer() |> get(path) |> json_response(404) == %{"error" => "not_found"}
+
+    for query <- [String.duplicate("x", 101), <<0>>, ["nested"], %{bad: "shape"}] do
+      assert owner |> bearer() |> get(path, %{query: query}) |> json_response(422)
+    end
+
+    for _ <- 1..22, do: user_fixture(["finance:read", "documents:read"], "Choice")
+    assert %{"people" => choices} = owner |> bearer() |> get(path, %{query: "Choice"}) |> json_response(200)
+    assert length(choices) == 20
+    assert Enum.all?(choices, &(Enum.sort(Map.keys(&1)) == ["id", "name"]))
+  end
+
+  test "message mentions promote private history without granting nonparticipant access" do
+    owner = user_fixture()
+    newcomer = user_fixture()
+    stranger = user_fixture(Atlas.Authorization.executive_scopes())
+    {:ok, thread, _} = Orbit.ensure_private(owner)
+    path = "/api/native/orbit/threads/#{thread.id}"
+
+    params = %{
+      body: "Please join this conversation",
+      client_id: Ecto.UUID.generate(),
+      mention_ids: [newcomer.id],
+      address_agent: false
+    }
+
+    assert %{"message" => message} = owner |> bearer() |> post(path <> "/messages", params) |> json_response(201)
+    assert message["mentioned_user_ids"] == [newcomer.id]
+    assert message["notice_kind"] == nil
+    assert owner |> bearer() |> post(path <> "/messages", params) |> json_response(200) == %{"message" => message}
+
+    assert %{"thread" => shared, "messages" => %{"items" => [_, notice]}} =
+             newcomer |> bearer() |> get(path <> "/messages") |> json_response(200)
+
+    assert shared["kind"] == "shared"
+    assert shared["title"] == params.body
+    assert notice["kind"] == "system" and notice["notice_kind"] == "handoff"
+    assert notice["mentioned_user_ids"] == []
+    assert notice["body"] =~ "Initial request (excerpt)"
+    assert stranger |> bearer() |> get(path <> "/messages") |> json_response(404)
+
+    assert %{"people" => [%{"id" => owner_id}]} = newcomer |> bearer() |> get(path <> "/people") |> json_response(200)
+    assert owner_id == owner.id
+
+    assert newcomer
+           |> bearer()
+           |> post(path <> "/messages", %{params | client_id: Ecto.UUID.generate(), mention_ids: [stranger.id]})
+           |> json_response(403)
+  end
+
+  test "uncertain private creation replay after promotion conflicts safely instead of creating another conversation" do
+    owner = user_fixture()
+    newcomer = user_fixture()
+    request_id = Ecto.UUID.generate()
+    {:ok, thread, _} = Orbit.create_private(owner, %{"request_id" => request_id})
+
+    assert owner
+           |> bearer()
+           |> post("/api/native/orbit/threads/#{thread.id}/messages", %{
+             body: "Join",
+             client_id: Ecto.UUID.generate(),
+             mention_ids: [newcomer.id],
+             address_agent: false
+           })
+           |> json_response(201)
+
+    assert owner
+           |> bearer()
+           |> post("/api/native/orbit/threads", %{kind: "private", request_id: request_id})
+           |> json_response(409) ==
+             %{"error" => "thread_promoted"}
+
+    assert {:ok, same} = Orbit.fetch(owner, thread.id)
+    assert same.kind == "shared" and same.request_id == request_id
+    assert {[_], %{total_count: 1}} = Orbit.list_for_user(owner)
+    assert {:ok, own, :created} = Orbit.create_private(newcomer, %{"request_id" => request_id})
+    assert own.id != thread.id
+
+    assert %{rows: [[definition]]} =
+             Repo.query!(
+               "SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'orbit_threads_private_request_index'"
+             )
+
+    assert definition =~ "WHERE (request_id IS NOT NULL)"
+    refute definition =~ "kind"
+  end
+
+  test "invalid mentions fail atomically and without revealing the target" do
+    owner = user_fixture(["finance:read"])
+    denied = user_fixture()
+    {:ok, thread, _} = Orbit.ensure_private(owner)
+    Repo.update!(Ecto.Changeset.change(thread, required_scopes: ["finance:read"]))
+    path = "/api/native/orbit/threads/#{thread.id}/messages"
+
+    for ids <- [[denied.id], [Ecto.UUID.generate()], ["bad"], nil, %{}, List.duplicate(denied.id, 11)] do
+      assert owner
+             |> bearer()
+             |> post(path, %{body: "Do not share", client_id: Ecto.UUID.generate(), mention_ids: ids})
+             |> json_response(422) ==
+               %{"error" => "validation_failed", "fields" => %{"mention_ids" => ["invalid"]}}
+
+      assert Repo.reload!(thread).kind == "private" and Repo.reload!(thread).last_seq == 0
+    end
   end
 end
