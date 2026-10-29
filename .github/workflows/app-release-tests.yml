@@ -1,0 +1,29 @@
+name: App Release Tests
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/app-release*.yml
+      - .github/scripts/app-hotfix-plan*.py
+      - .github/scripts/app-release.test.cjs
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/app-release*.yml
+      - .github/scripts/app-hotfix-plan*.py
+      - .github/scripts/app-release.test.cjs
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: npm ci --ignore-scripts
+      - run: python3 .github/scripts/app-hotfix-plan.test.py
+      - run: node --test .github/scripts/app-release.test.cjs
