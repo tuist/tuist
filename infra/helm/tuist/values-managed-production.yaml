@@ -1570,6 +1570,20 @@ rackFleet:
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 3
           maxReplicas: 32
+      # 27.0's 12 vCPU pool keeps one warm guest, a whole host, whatever its
+      # history, and learns up to three for its fan-outs. Its demand is
+      # starting from no history, and a cold 12 vCPU job has to wait for a
+      # whole host to free up before it boots (p50 41 s, up to 110 s, in the
+      # week to 2026-10-29 on 27.1's pool). The other Xcodes' 12 vCPU pools
+      # keep the shape's scaling below.
+      "27.0":
+        shapes:
+          12vcpu-28gb:
+            autoscaling:
+              enabled: true
+              minWarmPoolFloor: 1
+              maxLearnedWarmPoolFloor: 3
+              maxReplicas: 16
     shapes:
       12vcpu-28gb:
         autoscaling:
