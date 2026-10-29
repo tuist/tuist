@@ -62,6 +62,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - run: npm ci --ignore-scripts
       - run: node --test .github/scripts/gradle-patch-release.test.mjs
 
   check:
@@ -118,7 +119,8 @@ jobs:
         run: |
           # Execute controls from the workflow revision, never the selected source.
           if [[ -n "$PATCH_VERSION" ]]; then
-            bash .github/scripts/gradle-patch-release.sh
+            cp .github/scripts/gradle-patch-release.sh "$RUNNER_TEMP/gradle-patch-release.sh"
+            bash "$RUNNER_TEMP/gradle-patch-release.sh"
           fi
           git checkout --detach "$SOURCE_SHA"
       - uses: ./.github/actions/mise
@@ -172,10 +174,17 @@ jobs:
             echo "Tag $TAG already exists on origin" >&2
             exit 1
           fi
+          # Tests may take long enough for maintainers to correct the branch.
+          # Use the retained main guard and reject a changed tip; never substitute source.
+          if [[ -n "$PATCH_VERSION" ]]; then
+            (cd "$GITHUB_WORKSPACE" && bash "$RUNNER_TEMP/gradle-patch-release.sh")
+          fi
           PUBLISH_KEY=$(op read "op://tuist/GRADLE_PUBLISH_KEY/password")
           PUBLISH_SECRET=$(op read "op://tuist/GRADLE_PUBLISH_SECRET/password")
           ./gradlew publishPlugins -Pversion=${{ needs.check.outputs.next-version-number }} -Pgradle.publish.key="$PUBLISH_KEY" -Pgradle.publish.secret="$PUBLISH_SECRET"
         env:
+          SOURCE_SHA: ${{ needs.check.outputs.source-sha }}
+          PATCH_VERSION: ${{ inputs.patch_version }}
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Update version in settings.gradle.kts

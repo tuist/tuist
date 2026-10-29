@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Validate a manually selected stable Gradle patch, without publishing anything.
-# Run from a full checkout of the trusted workflow revision, before switching source.
+# Run from the repository root, using the trusted workflow revision's script even
+# after switching source. The publisher retains that copy outside the checkout.
 set -euo pipefail
 
 fail() { echo "$*" >&2; exit 1; }

@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import yaml from 'js-yaml';
 
 const script = fileURLToPath(new URL('./gradle-patch-release.sh', import.meta.url));
+const workflow = yaml.load(readFileSync(new URL('../workflows/gradle-release.yml', import.meta.url), 'utf8'));
 
 test('stable patches require the next version and merged, Gradle-only stable source', () => {
   const dir = mkdtempSync(join(tmpdir(), 'gradle-patch-'));
@@ -73,6 +75,34 @@ test('stable patches require the next version and merged, Gradle-only stable sou
     rejected({ GITHUB_REF: 'refs/heads/releases/gradle-0.18.x' });
     rejected({ GITHUB_REF: 'refs/heads/feature' });
     const validSource = source;
+    // Planning succeeded, but maintainers correct the branch during the build.
+    commit('gradle/plugin', 'fix(gradle): corrected TLS source');
+    git('push', '-q', 'origin', 'HEAD');
+    git('checkout', '--detach', validSource);
+    copyFileSync(script, join(dir, 'gradle-patch-release.sh'));
+    const credentialAccess = join(dir, 'credential-access');
+    const publisher = workflow.jobs.release.steps.find(step => step.run?.includes('publishPlugins'));
+    const command = publisher.run
+      .replaceAll('${{ needs.check.outputs.next-version }}', 'gradle@0.18.1')
+      .replaceAll('${{ needs.check.outputs.next-version-number }}', '0.18.1');
+    const publish = () => spawnSync('bash', ['-e', '-o', 'pipefail', '-c',
+      'op() { touch "$CREDENTIAL_ACCESS"; return 1; }\n' + command], {
+      cwd: join(repo, publisher['working-directory']), encoding: 'utf8',
+      env: { ...process.env, GITHUB_EVENT_NAME: 'workflow_dispatch',
+        GITHUB_REF: 'refs/heads/main', SOURCE_SHA: validSource, PATCH_VERSION: '0.18.1',
+        GITHUB_WORKSPACE: repo, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, 'publication-output'),
+        CREDENTIAL_ACCESS: credentialAccess, BASH_ENV: '/dev/null', OP_SERVICE_ACCOUNT_TOKEN: '' },
+    });
+    const publication = publish();
+    assert.notEqual(publication.status, 0, 'A corrected branch must invalidate the built source');
+    assert.equal(existsSync(credentialAccess), false, 'Reject changed source before retrieving Portal credentials');
+    assert.match(publication.stderr, /source_sha must be the current head/);
+    assert.equal(git('rev-parse', 'HEAD'), validSource, 'Do not silently replace the tested source');
+    git('switch', 'releases/gradle-0.18.x');
+    git('reset', '--hard', validSource);
+    git('push', '-q', '--force', 'origin', 'HEAD');
+    publish(); // An unchanged branch reaches the credential stub (which stops publication).
+    assert.equal(existsSync(credentialAccess), true, 'The fresh-source control must reach the publishing gate');
     source = commit('unrelated', 'unrelated source');
     git('push', '-q', 'origin', 'HEAD');
     rejected(); // Even a release branch cannot bring unrelated main code.
