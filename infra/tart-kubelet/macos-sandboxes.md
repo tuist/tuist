@@ -60,6 +60,9 @@ The kubelet refreshes host memory and process pressure on each heartbeat. macOS
 memory warning/critical levels and a process table at least 90% full report
 pressure; failed probes report `Unknown` and deny native admission. This also
 recovers conditions left `Unknown` by Kubernetes after a kubelet heartbeat gap.
+Pressure probes run before the Node metadata/status writes, and status conflicts
+are retried. This lets kubelet restart while the controller refreshes capacity
+grants without a concurrent grant update terminating the host service.
 Idle warm CI runners can yield to a pending sandbox reservation; active CI jobs
 are never selected for this preemption.
 
