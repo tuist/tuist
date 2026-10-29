@@ -580,9 +580,22 @@ and never cancelled mid-release. If package publication succeeds but the GitHub
 release fails, a retry verifies the published package contents and resumes
 documentation and release creation without replacing the package. Manual releases are restricted to `main`.
 
-The release workflow sets the package version from the shared release checker;
-the version in `mix.exs` is the development baseline. Release notes are generated
-from scoped commits using `cliff.toml`.
+For a stable-only hotfix, create `releases/tuist-ex-MAJOR.MINOR.x` at the latest
+published stable tag, and merge only the required SDK backport into it. Dispatch
+`tuist-ex-release.yml` **from main** with all three inputs: `source_sha` (the full
+merged release-branch tip SHA), `base_tag` (for example `tuist-ex@0.10.0`) and
+`patch_version` (for example `0.10.1`). Blank inputs preserve the ordinary main
+release check. Partial inputs fail closed. The stable lane requires the latest
+stable tag, its descendant release-branch tip, exactly the next patch version,
+an unused tag, and changes limited to `tuist_ex/` and its validation workflow.
+Validation, package assembly and the GitHub tag all use the same immutable source;
+the workflow rechecks boundaries immediately before publication. A partial Hex
+publication can resume only while the target Git tag is absent and the rebuilt
+package checksum matches. Never replace an existing tag or package.
+
+The release workflow sets the package version from the shared release checker
+or the explicit stable patch input; the version in `mix.exs` is the development
+baseline. Release notes are generated from scoped commits using `cliff.toml`.
 
 Publication reuses the repository's `HEX_API_KEY` secret, which also publishes
 Noora. Its Hex account must be the intended owner of `tuist_ex` and the key
