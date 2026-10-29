@@ -34,7 +34,7 @@ msgstr "已經有帳號了嗎？"
 #: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
-msgstr "已經設定好 Tuist 專案了嗎？跳過設定並前往儀表板。"
+msgstr "已經設定好您的 Tuist 專案了嗎？跳過設定並前往儀表板。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:92
 #: lib/tuist_web/live/user_forgot_password_live.ex:71
@@ -45,12 +45,12 @@ msgstr "返回登入"
 #: lib/tuist_web/live/user_registration_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Binary caching"
-msgstr "二進位快取"
+msgstr "二進制快取"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Change your password"
-msgstr "變更密碼"
+msgstr "變更您的密碼"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:34
 #: lib/tuist_web/live/user_forgot_password_live.ex:39
@@ -61,7 +61,7 @@ msgstr "檢查您的電子郵件"
 #: lib/tuist_web/live/user_registration_live.ex:250
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr "請查看收件匣中的確認郵件，並點擊連結以繼續。"
+msgstr "請查看收件匣中的確認電子郵件，並點擊連結以繼續。"
 
 #: lib/tuist_web/live/choose_username_live.ex:57
 #, elixir-autogen, elixir-format
@@ -103,9 +103,9 @@ msgstr "將您的專案連接到儀表板"
 #: lib/tuist_web/live/connect_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Connection successful"
-msgstr "連接成功"
+msgstr "連線成功"
 
-#: lib/tuist_web/live/sso_login_live.ex:101
+#: lib/tuist_web/live/sso_login_live.ex:112
 #, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr "聯絡我們"
@@ -130,9 +130,9 @@ msgstr "了解選擇性測試如何縮短您的測試時間。"
 #: lib/tuist_web/live/user_login_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
-msgstr "還沒有帳號？"
+msgstr "沒有帳號？"
 
-#: lib/tuist_web/live/sso_login_live.ex:84
+#: lib/tuist_web/live/sso_login_live.ex:95
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:72
 #: lib/tuist_web/live/user_forgot_password_live.ex:51
 #: lib/tuist_web/live/user_login_live.ex:144
@@ -169,7 +169,7 @@ msgstr "忘記您的密碼？"
 #: lib/tuist_web/live/user_forgot_password_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "如果我們的記錄中存在您的電子郵件，您將很快收到重設指示。"
+msgstr "如果您的電子郵件存在於我們的記錄中，您將很快收到重設指示。"
 
 #: lib/tuist_web/live/connect_live.ex:104
 #: lib/tuist_web/live/connect_live.ex:166
@@ -182,7 +182,7 @@ msgstr "安裝 Tuist CLI"
 msgid "Instantly share your app using a URL."
 msgstr "透過 URL 立即分享您的應用程式。"
 
-#: lib/tuist_web/live/sso_login_live.ex:96
+#: lib/tuist_web/live/sso_login_live.ex:107
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr "對 SSO 感興趣？"
@@ -192,7 +192,7 @@ msgstr "對 SSO 感興趣？"
 msgid "Keep me logged in"
 msgstr "保持登入狀態"
 
-#: lib/tuist_web/live/sso_login_live.ex:92
+#: lib/tuist_web/live/sso_login_live.ex:103
 #: lib/tuist_web/live/user_login_live.ex:20
 #: lib/tuist_web/live/user_login_live.ex:192
 #: lib/tuist_web/live/user_registration_live.ex:226
@@ -200,13 +200,13 @@ msgstr "保持登入狀態"
 msgid "Log in"
 msgstr "登入"
 
-#: lib/tuist_web/live/sso_login_live.ex:67
+#: lib/tuist_web/live/sso_login_live.ex:78
 #: lib/tuist_web/live/user_login_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr "登入 Tuist"
 
-#: lib/tuist_web/live/sso_login_live.ex:69
+#: lib/tuist_web/live/sso_login_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via SSO"
 msgstr "透過 SSO 登入您的企業帳戶"
@@ -220,7 +220,7 @@ msgstr "新密碼"
 #: lib/tuist_web/live/connect_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "Next steps"
-msgstr "下一步驟"
+msgstr "下一步"
 
 #: lib/tuist_web/live/connect_live.ex:67
 #, elixir-autogen, elixir-format
@@ -246,7 +246,7 @@ msgstr "預覽"
 #: lib/tuist_web/live/connect_live.ex:70
 #, elixir-autogen, elixir-format
 msgid "Project Ready? Proceed to dashboard"
-msgstr "專案已準備就緒？前往儀表板"
+msgstr "專案已就緒？前往儀表板"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:60
 #: lib/tuist_web/live/user_reset_password_live.ex:58
@@ -294,7 +294,7 @@ msgstr "Tuist CLI 已連線！"
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
 #: lib/tuist_web/live/device_codes_success_live.ex:26
-#: lib/tuist_web/live/sso_login_live.ex:61
+#: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
 #: lib/tuist_web/live/user_forgot_password_live.ex:22
@@ -353,7 +353,7 @@ msgstr "等待連線中"
 #: lib/tuist_web/live/user_forgot_password_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "We'll send a password reset link to your inbox"
-msgstr "我們將寄送密碼重設連結至您的信箱"
+msgstr "我們將寄送密碼重設連結至您的電子郵件信箱"
 
 #: lib/tuist_web/live/user_login_live.ex:54
 #, elixir-autogen, elixir-format
@@ -363,7 +363,7 @@ msgstr "歡迎回來！請登入以繼續"
 #: lib/tuist_web/live/user_registration_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Welcome! Create an account to continue"
-msgstr "歡迎！建立帳號以繼續"
+msgstr "歡迎！建立帳戶以繼續"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:49
 #, elixir-autogen, elixir-format
@@ -452,12 +452,12 @@ msgstr "為您的帳戶選擇使用者名稱"
 msgid "Log in with SSO"
 msgstr "使用 SSO 登入"
 
-#: lib/tuist_web/live/sso_login_live.ex:46
+#: lib/tuist_web/live/sso_login_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr "此電子郵件未設定任何 SSO 組織。請檢查地址，並請您的組織管理員驗證 SSO 網域設定。"
 
-#: lib/tuist_web/controllers/auth_controller.ex:581
+#: lib/tuist_web/controllers/auth_controller.ex:576
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr "此電子郵件已存在帳號。請改為登入。"
@@ -486,7 +486,7 @@ msgstr "重新傳送確認電子郵件"
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "We'll send a new confirmation link to %{email}."
-msgstr "我們將向 %{email} 傳送新的確認連結。"
+msgstr "我們將向 %{email} 發送新的確認連結。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:48
 #, elixir-autogen, elixir-format
@@ -504,7 +504,7 @@ msgstr "請完成安全檢查並重試。"
 #: lib/tuist_web/live/user_registration_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
-msgstr "無法載入安全檢查。請檢查 challenges.cloudflare.com 是否有阻擋程式，然後重新載入頁面。"
+msgstr "無法載入安全檢查。請檢查 challenges.cloudflare.com 是否被封鎖，然後重新載入頁面。"
 
 #: lib/tuist_web/live/choose_username_live.ex:191
 #: lib/tuist_web/live/user_registration_live.ex:402
@@ -535,7 +535,7 @@ msgstr "發生錯誤。請重試。"
 #: lib/tuist_web/live/user_registration_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Verifying, one moment..."
-msgstr "正在驗證，請稍候..."
+msgstr "驗證中，請稍候..."
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:87
 #, elixir-autogen, elixir-format
@@ -545,12 +545,12 @@ msgstr "快速檢查"
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:89
 #, elixir-autogen, elixir-format
 msgid "Public dashboards are protected against automated scraping. Confirm you're human to continue."
-msgstr "公開儀表板已針對自動化爬蟲進行防護。請確認您是人類以繼續。"
+msgstr "公開儀表板已受到保護，防止自動化爬蟲抓取。請確認您是真人以繼續操作。"
 
 #: lib/tuist_web/controllers/public_page_challenge_controller.ex:137
 #, elixir-autogen, elixir-format
 msgid "Too many attempts. Please wait a moment and try again."
-msgstr "嘗試次數過多。請稍候片刻後再試。"
+msgstr "嘗試次數過多。請稍候片刻後再試一次。"
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:110
 #, elixir-autogen, elixir-format
@@ -560,17 +560,17 @@ msgstr "Turnstile 目前無法使用。請稍後再試。"
 #: lib/tuist_web/controllers/public_page_challenge_controller.ex:152
 #, elixir-autogen, elixir-format
 msgid "Verification failed. Please try again."
-msgstr "驗證失敗。請重試。"
+msgstr "驗證失敗。請再試一次。"
 
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:26
 #, elixir-autogen, elixir-format
 msgid "Verify you're human"
-msgstr "驗證您是人類"
+msgstr "驗證您是真人"
 
 #: lib/tuist_web/controllers/auth_controller.ex:80
 #, elixir-autogen, elixir-format
 msgid "Google sign-in could not be completed. Please try logging in again."
-msgstr "無法完成 Google 登入。請重新登入。"
+msgstr "無法完成 Google 登入。請嘗試重新登入。"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:57
 #, elixir-autogen, elixir-format
@@ -586,7 +586,7 @@ msgstr "取消"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Link account"
-msgstr "連結帳戶"
+msgstr "連結帳號"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:120
 #, elixir-autogen, elixir-format
@@ -596,7 +596,7 @@ msgstr "連結已過期"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
-msgstr "僅在 %{organization} 是您的組織時才進行連結。任何能登入此身分提供者帳戶的人，都能登入您的整個 Tuist 帳戶。"
+msgstr "僅在 %{organization} 是您的組織時才進行連結。任何能登入此身分提供者帳號的人，都能登入您的整個 Tuist 帳號。"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:128
 #, elixir-autogen, elixir-format
@@ -608,15 +608,15 @@ msgstr "連結單一登入 · Tuist"
 msgid "Link single sign-on?"
 msgstr "要連結單一登入嗎？"
 
-#: lib/tuist_web/controllers/auth_controller.ex:440
+#: lib/tuist_web/controllers/auth_controller.ex:435
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
-msgstr "請登入您的 Tuist 帳戶，以便將其與您組織的單一登入進行連結。"
+msgstr "請登入您的 Tuist 帳號，以便將其與您組織的單一登入進行連結。"
 
 #: lib/tuist_web/controllers/sso_link_controller.ex:121
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
-msgstr "請再次使用單一登入來連結您的帳戶。"
+msgstr "請再次使用單一登入來連結您的帳號。"
 
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
 #, elixir-autogen, elixir-format
@@ -646,7 +646,7 @@ msgstr "讓 %{organization} 身分提供者協助您登入 Tuist 帳號。"
 #: lib/tuist_web/live/connect_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "Add it to the dependencies in your mix.exs, then run mix deps.get."
-msgstr "將其加入 mix.exs 中的相依性，然後執行 mix deps.get。"
+msgstr "將其加入 mix.exs 中的相依項目，然後執行 mix deps.get。"
 
 #: lib/tuist_web/live/connect_live.ex:205
 #, elixir-autogen, elixir-format
@@ -656,13 +656,13 @@ msgstr "新增 Tuist 套件"
 #: lib/tuist_web/live/connect_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Add this to the project options in the same file."
-msgstr "將此內容加入同一檔案中的專案選項。"
+msgstr "在同一個檔案中將此設定加入專案選項。"
 
 #: lib/tuist_web/live/connect_live.ex:182
 #: lib/tuist_web/live/connect_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Log in and run your tests"
-msgstr "登入並執行你的測試"
+msgstr "登入並執行測試"
 
 #: lib/tuist_web/live/connect_live.ex:172
 #: lib/tuist_web/live/connect_live.ex:221
@@ -673,7 +673,7 @@ msgstr "將它指向此專案"
 #: lib/tuist_web/live/connect_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Report your builds, catch flaky tests, and split your tests across machines."
-msgstr "回報你的建置、捕捉不穩定的測試，並將你的測試分散到多台機器上執行。"
+msgstr "回報建構、捕捉不穩定測試，並將測試分散至多台機器執行。"
 
 #: lib/tuist_web/live/connect_live.ex:232
 #, elixir-autogen, elixir-format
@@ -688,7 +688,7 @@ msgstr "使用 Mix"
 #: lib/tuist_web/live/connect_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Add a tuist.toml file at your repository root."
-msgstr "在你的儲存庫根目錄新增 tuist.toml 檔案。"
+msgstr "在儲存庫根目錄新增 tuist.toml 檔案。"
 
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format
@@ -698,7 +698,7 @@ msgstr "使用 Cargo"
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Choose an organization"
-msgstr "選擇一個組織"
+msgstr "選擇組織"
 
 #: lib/tuist_web/controllers/integration_installation_controller.ex:53
 #, elixir-autogen, elixir-format
@@ -723,4 +723,9 @@ msgstr "選擇要連接至 %{provider} 的 Tuist 組織。"
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "You need administrator access to connect an integration."
-msgstr "您需要管理員權限才能連接整合服務。"
+msgstr "您需要管理員權限才能連接整合。"
+
+#: lib/tuist_web/live/sso_login_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
+msgstr "多個組織使用此登入網域。請使用您組織的 SSO 登入連結，或要求管理員透過 DNS 驗證該網域。"

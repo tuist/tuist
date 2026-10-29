@@ -7,15 +7,15 @@
 ---
 # Tuist をインストールする {#install-tuist}
 
-Tuist コマンドラインインターフェースは **macOS** および **Linux** で動作し、Xcode、生成されたプロジェクト、Gradle、Bazel の各プロジェクトを Tuist のキャッシュ、インサイト、ランナーインフラストラクチャに接続します。[ソース](https://github.com/tuist/tuist) から Tuist をビルドすることもできますが、有効で検証可能なインストールを保証するために、以下のインストール方法のいずれかを使用することをお勧めします。
+Tuist のコマンドラインインターフェースは **macOS** および **Linux** で動作し、Xcode、生成されたプロジェクト、Gradle、Bazel の各プロジェクトを Tuist のキャッシュ、インサイト、ランナーインフラストラクチャに接続します。[ソース](https://github.com/tuist/tuist)から Tuist をビルドすることもできますが、有効で検証可能なインストールを保証するために、以下のインストール方法のいずれかを使用することを推奨します。
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 > [!NOTE]
-> Mise がインストールされていない場合は、まず [はじめにガイド](https://mise.jdx.dev/getting-started.html) に従ってください。異なる環境間でツールの決定論的なバージョンを保証する必要があるチームや組織の場合、Mise は [Homebrew](https://brew.sh) の推奨される代替手段です。
+> Mise がインストールされていない場合は、まず [スタートガイド](https://mise.jdx.dev/getting-started.html) に従ってください。Mise は、異なる環境間でツールのバージョンを決定論的に保証する必要があるチームや組織にとって、[Homebrew](https://brew.sh) の推奨される代替手段です。
 
 
-グローバルに単一バージョンのツールをインストールしてアクティブ化する Homebrew などのツールとは異なり、**Mise はバージョンを固定** します（グローバルまたはプロジェクト単位）。Tuist をインストールしてアクティブ化するには、`mise use` を実行してください：
+Homebrew のようにツールをグローバルに単一バージョンでインストールしてアクティブ化するのではなく、**Mise はバージョンを固定**します（グローバルまたはプロジェクト単位）。Tuist をインストールしてアクティブ化するには、`mise use` を実行してください：
 
 ```bash
 mise use tuist@x.y.z          # Install and pin tuist-x.y.z in the current project
@@ -32,14 +32,14 @@ mise use -g tuist@system       # Use the system's tuist as the global default
 <details>
 <summary>Linux サポート</summary>
 
-Linux では、Tuist は Mise 経由でのみ利用可能です。Xcode に依存するコマンド（`tuist generate` など）は Linux では利用できませんが、`tuist inspect bundle` のようなプラットフォームに依存しないコマンドは期待どおりに動作します。
+Linux では、Tuist は Mise 経由でのみ利用可能です。Xcode に依存するコマンド（`tuist generate` など）は Linux では利用できませんが、`tuist inspect bundle` のようなプラットフォーム非依存のコマンドは期待通りに動作します。
 
 </details>
 
 
 ### <a href="https://brew.sh">Homebrew</a> （macOS のみ） {#recommended-homebrew}
 
-[Homebrew](https://brew.sh) と [私たちの Formula](https://github.com/tuist/homebrew-tuist) を使用して Tuist をインストールできます：
+[Homebrew](https://brew.sh) と [当社の Formula](https://github.com/tuist/homebrew-tuist) を使用して Tuist をインストールできます：
 
 ```bash
 brew tap tuist/tuist
@@ -50,7 +50,7 @@ brew install --formula tuist@x.y.z
 > [!TIP]
 > **バイナリの真正性を検証する**
 >
-> 次のコマンドを実行することで、インストールされたバイナリが私たちによってビルドされたものであることを検証できます。このコマンドは、証明書のチームが `U6LC622NKF` であるかどうかを確認します：
+> 次のコマンドを実行すると、インストールされたバイナリが当社によってビルドされたことを確認できます。このコマンドは証明書のチーム ID が `U6LC622NKF` であることを確認します：
 >
 > ```bash
 > curl -fsSL "https://docs.tuist.dev/verify.sh" | bash

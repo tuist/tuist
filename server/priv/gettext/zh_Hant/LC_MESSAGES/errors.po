@@ -23,9 +23,9 @@ msgstr "找不到頁面"
 #: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:25
 #, elixir-autogen, elixir-format
 msgid "Build not found"
-msgstr "找不到組建"
+msgstr "找不到建置"
 
 #: lib/tuist_web/controllers/build_controller.ex:67
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "您無權存取此組建"
+msgstr "您無權存取此建置"
