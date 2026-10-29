@@ -162,7 +162,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 #   - DB clients: client-only — services land in containers in
 #     workflows that need them
 #   - common CLI utilities: ripgrep, fd-find, tree, less, vim,
-#     httpie, netcat, dnsutils, iputils-ping, file
+#     httpie, netcat, dnsutils, iproute2, iputils-ping, file. The Bitrise
+#     den agent reads the default interface through `ip`, and fails to
+#     start without it
 #   - python3 toolchain: python3 + pip + venv so actions/setup-*
 #     can bootstrap pip-based tooling without re-installing the
 #     interpreter
@@ -229,6 +231,7 @@ RUN apt-get update \
         httpie \
         netcat-openbsd \
         dnsutils \
+        iproute2 \
         iputils-ping \
         python3 \
         python3-pip \

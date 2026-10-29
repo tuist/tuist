@@ -8,8 +8,18 @@ that pool's intro secret.
 - Bitrise has no per-build runner credential and no pool queue API. Demand comes
   from `GET /builds?owner_slug=<workspace>&status=0`: a build with no
   `started_on_worker_at` on a pool's stack is waiting for an agent.
+- A pool's stack is `agent-pool-<pool uuid>`, listed by
+  `GET /organizations/<workspace>/available-stacks` with the title
+  `Self-Hosted Runner: <pool name>`. Build and app slugs are dashed UUIDs.
+  `is_on_hold` stays false while a build waits for an agent, and
+  `paging.total_item_count` is not reliable.
 - The VM connects `bitrise-den-agent connect --single-task` with the pool's intro
   secret, passed as `BITRISE_DEN_AGENT_INTRO_SECRET`, never on the command line.
+  The agent logs `Current task` the moment it is assigned a build, before the
+  start hook runs; the runners latch their idle watchdog on that line. A
+  SIGTERM makes it deregister ("Agent terminated") and exit 0, and an exited
+  agent does not count against the workspace's runner limit. On Linux it needs
+  iproute2 to find the default interface.
   Bitrise hands that agent any build of the pool, so the claim is GitHub-shaped:
   never treat the dispatched build as the one that ran. Bitrise and GitHub rows
   are not `assigned_job?` in `Tuist.Runners.serve_claim/2`.

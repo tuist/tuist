@@ -1265,15 +1265,20 @@ AGENT_CONFIG
           --tracking-id "$(hostname)" &
         runner_pid=$!
         unset bitrise_secret
+        # The agent logs `Current task` the moment Bitrise assigns it a build,
+        # seconds before the build start hook runs, so that line latches the
+        # watchdog too. Its output goes to this script's log.
         if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
           (
             waited=0
             while [ "${waited}" -lt "${idle_timeout}" ]; do
               [ -e "${JOB_STARTED_MARKER}" ] && exit 0
+              grep -q '"msg":"Current task' "${LOG}" 2>/dev/null && exit 0
               kill -0 "${runner_pid}" 2>/dev/null || exit 0
               sleep 1
               waited=$((waited + 1))
             done
+            grep -q '"msg":"Current task' "${LOG}" 2>/dev/null && exit 0
             echo "$(date -u +%FT%TZ) dispatch-poll: no bitrise build assigned within ${idle_timeout}s; terminating idle agent"
             kill -TERM "${runner_pid}" 2>/dev/null || true
           ) &

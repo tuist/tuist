@@ -88,11 +88,17 @@ AGENT_CONFIG
     /usr/local/bin/vitals.sh &
   fi
 
+  # The agent logs `Current task` the moment Bitrise assigns it a build,
+  # seconds before the build start hook runs, so that line latches the
+  # watchdog too. Its output is teed so it still reaches the Pod logs.
+  BITRISE_AGENT_LOG=/tmp/tuist-bitrise-agent.log
+  : >"${BITRISE_AGENT_LOG}"
+
   echo "$(date -u +%FT%TZ) run-job: connecting bitrise agent"
   /usr/local/bin/bitrise-den-agent connect \
     --server https://exec.bitrise.io \
     --single-task \
-    --tracking-id "$(hostname)" &
+    --tracking-id "$(hostname)" > >(tee -a "${BITRISE_AGENT_LOG}") 2>&1 &
   agent_pid=$!
   unset BITRISE_DEN_AGENT_INTRO_SECRET
   trap 'kill -TERM "${agent_pid}" 2>/dev/null || true' TERM INT
@@ -103,10 +109,12 @@ AGENT_CONFIG
       waited=0
       while [ "${waited}" -lt "${idle_timeout}" ]; do
         [ -e "${BITRISE_JOB_STARTED_MARKER}" ] && exit 0
+        grep -q '"msg":"Current task' "${BITRISE_AGENT_LOG}" 2>/dev/null && exit 0
         kill -0 "${agent_pid}" 2>/dev/null || exit 0
         sleep 1
         waited=$((waited + 1))
       done
+      grep -q '"msg":"Current task' "${BITRISE_AGENT_LOG}" 2>/dev/null && exit 0
       echo "$(date -u +%FT%TZ) run-job: no bitrise build assigned within ${idle_timeout}s; terminating idle agent"
       kill -TERM "${agent_pid}" 2>/dev/null || true
     ) &
