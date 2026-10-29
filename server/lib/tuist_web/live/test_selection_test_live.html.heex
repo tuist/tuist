@@ -69,11 +69,7 @@
   </div>
 
   <.card
-    title={
-      if @test.decision == "selected",
-        do: dgettext("dashboard_tests", "Why it was selected"),
-        else: dgettext("dashboard_tests", "Why it was skipped")
-    }
+    title={dgettext("dashboard_tests", "Decision / Reason")}
     icon="filter_question"
     data-part="reason-card"
   >
