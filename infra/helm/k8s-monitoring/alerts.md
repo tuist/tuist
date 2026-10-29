@@ -2853,8 +2853,8 @@ GROUP BY fleet, account_id
 
 Create it with the rule above: on images that report Size minus the Data
 volume's Used it reads about 20 GiB high. The closest a job came in the
-30 days to 2026-10-29 was account 1583 on 2026-10-16, which wrote 66 GiB
-on the 140 GB disk and kept an estimated 5 to 10 GiB.
+30 days to 2026-10-29 was on 2026-10-16: it wrote 66 GiB on the 140 GB
+disk and kept an estimated 5 to 10 GiB.
 
 When it fires, look at the account's jobs on that pool: one job that
 writes far more than its usual runs is a workflow change to raise with
