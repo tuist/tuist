@@ -81,6 +81,32 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert Concurrency.limits_for(user.account, :macos) == %{vcpus: 18, memory_gb: 42}
   end
 
+  test "updates sandbox limits independently and rejects invalid limits", %{conn: conn, user: user} do
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    ci_limits = Concurrency.limits_for(user.account, :linux)
+
+    lv
+    |> form("#sandbox-concurrency-form", %{
+      "account" => %{"sandbox_vcpus_limit" => "8", "sandbox_memory_gb_limit" => "24"}
+    })
+    |> render_submit()
+
+    account = Repo.reload!(user.account)
+    assert account.sandbox_vcpus_limit == 8
+    assert account.sandbox_memory_gb_limit == 24
+    assert Concurrency.limits_for(account, :linux) == ci_limits
+
+    html =
+      lv
+      |> form("#sandbox-concurrency-form", %{
+        "account" => %{"sandbox_vcpus_limit" => "0", "sandbox_memory_gb_limit" => "-1"}
+      })
+      |> render_submit()
+
+    assert html =~ "must be greater than"
+    assert Repo.reload!(account).sandbox_vcpus_limit == 8
+  end
+
   test "links Kura servers to their latest deployment", %{conn: conn, user: user} do
     {:ok, server} =
       Kura.create_server(%{

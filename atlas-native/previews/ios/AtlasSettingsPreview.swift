@@ -150,6 +150,8 @@ struct AtlasSettingsPreview: App {
             }
             .preferredColorScheme(appearance.mode.scheme ?? (ProcessInfo.processInfo.arguments.contains("--dark") ? .dark : .light))
             .dynamicTypeSize(ProcessInfo.processInfo.arguments.contains("--large-text") ? .accessibility2 : .large)
+            .environment(\._accessibilityReduceTransparency, ProcessInfo.processInfo.arguments.contains("--reduce-transparency"))
+            .environment(\._colorSchemeContrast, ProcessInfo.processInfo.arguments.contains("--increased-contrast") ? .increased : .standard)
         }
     }
 }

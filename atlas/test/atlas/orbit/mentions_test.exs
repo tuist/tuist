@@ -45,11 +45,21 @@ defmodule Atlas.Orbit.MentionsTest do
     assert {:ok, shared} = Orbit.fetch(newcomer, thread.id)
     assert shared.kind == "shared" and shared.owner_id == owner.id and shared.title == "Initial request"
     assert length(shared.participants) == 2
-    notice = Repo.get_by!(Message, thread_id: thread.id, notice_kind: "handoff")
+    notice = Repo.get_by!(Message, thread_id: thread.id, notice_kind: "private_handoff")
     assert notice.kind == "system"
-    assert notice.body =~ "not an AI-generated summary"
-    assert notice.body =~ "> Initial\n> request"
-    assert notice.body =~ "> Latest factual reply"
+    assert notice.recipient_id == newcomer.id
+    assert notice.body == ""
+    assert notice.private_body =~ "not an AI-generated summary"
+    assert notice.private_body =~ "> Initial\n> request"
+    assert notice.private_body =~ "> Latest factual reply"
+
+    {recipient_history, _} = Orbit.list_messages(shared, 1, newcomer)
+    {owner_history, _} = Orbit.list_messages(shared, 1, owner)
+    {agent_history, _} = Orbit.list_messages(shared)
+    assert Enum.any?(recipient_history, &(&1.id == notice.id))
+    refute Enum.any?(owner_history ++ agent_history, &(&1.id == notice.id))
+    refute Atlas.Orbit.Agent.transcript(recipient_history) =~ "Conversation so far"
+    assert Enum.any?(owner_history, &(&1.notice_kind == "joined" and &1.body =~ "joins the conversation"))
 
     assert {:ok, replay, :existing} =
              Orbit.post_message(owner, thread, %{params | "mention_ids" => [Ecto.UUID.generate()]})
@@ -57,7 +67,10 @@ defmodule Atlas.Orbit.MentionsTest do
     assert replay.id == message.id
     assert {:ok, _, :existing} = Orbit.post_message(owner, thread, %{params | "mention_ids" => "bad"})
 
-    assert Repo.aggregate(from(m in Message, where: m.thread_id == ^thread.id and m.notice_kind == "handoff"), :count) ==
+    assert Repo.aggregate(
+             from(m in Message, where: m.thread_id == ^thread.id and m.notice_kind == "private_handoff"),
+             :count
+           ) ==
              1
 
     jobs = all_enqueued(worker: Deliver)
@@ -153,7 +166,12 @@ defmodule Atlas.Orbit.MentionsTest do
     assert {:error, :not_found} = Orbit.fetch(outsider, shared.id)
     assert {:ok, _, :created} = Orbit.post_message(member, shared, attrs("@any name is not an invitation", [owner.id]))
     assert {:ok, _, :created} = Orbit.post_message(owner, shared, attrs("@outsider without selected ID"))
-    refute Repo.get_by(Message, thread_id: shared.id, notice_kind: "handoff")
+
+    assert Repo.aggregate(
+             from(m in Message, where: m.thread_id == ^shared.id and m.notice_kind == "private_handoff"),
+             :count
+           ) == 1
+
     assert {:ok, _, :created} = Orbit.post_message(owner, shared, attrs("Invite", [outsider.id]))
     assert Repo.reload!(shared).title == "Meaningful title"
     assert {:ok, _} = Orbit.fetch(outsider, shared.id)
@@ -183,9 +201,44 @@ defmodule Atlas.Orbit.MentionsTest do
     body = "Start\n" <> String.duplicate("a\u0301", 200)
     assert {:ok, _, :created} = Orbit.post_message(owner, thread, attrs(body, [newcomer.id]))
     assert length(String.codepoints(Repo.reload!(thread).title)) == 200
-    notice = Repo.get_by!(Message, thread_id: thread.id, notice_kind: "handoff")
-    assert notice.body =~ "Reply Reply"
-    assert byte_size(notice.body) < 7_000
+    notice = Repo.get_by!(Message, thread_id: thread.id, notice_kind: "private_handoff")
+    assert notice.body == ""
+    assert notice.private_body =~ "Reply Reply"
+    assert byte_size(notice.private_body) < 7_000
+  end
+
+  test "recaps remain recipient-only across multiple invites, access loss and deletion", %{owner: owner, thread: thread} do
+    first = user_fixture(["finance:read"])
+    second = user_fixture(["finance:read"])
+    thread = Repo.update!(Ecto.Changeset.change(thread, required_scopes: ["finance:read"]))
+
+    assert {:ok, _, :created} =
+             Orbit.post_message(owner, thread, attrs("Investigate the balance", [first.id, second.id]))
+
+    for person <- [first, second] do
+      {history, _} = Orbit.list_messages(thread, 1, person)
+      assert [notice] = Enum.filter(history, &(&1.notice_kind == "private_handoff"))
+      assert notice.recipient_id == person.id
+      assert notice.body =~ "Investigate the balance"
+    end
+
+    # The old server selects body without recipient awareness. Its readable text
+    # must contain none of the private recap, even after a new server has written it.
+    legacy = Repo.all(from m in Message, where: m.thread_id == ^thread.id, select: m.body)
+    refute Enum.any?(legacy, &String.contains?(&1, "Conversation so far"))
+
+    assert {:ok, _} = Orbit.add_participant(owner, thread, first.id)
+
+    assert Repo.aggregate(from(m in Message, where: m.thread_id == ^thread.id and not is_nil(m.recipient_id)), :count) ==
+             2
+
+    Repo.delete_all(from role in UserRole, where: role.user_id == ^first.id)
+    assert {[], %{total_count: 0}} = Orbit.list_messages(thread, 1, first)
+    assert :ok = Orbit.remove_participant(owner, thread, second.id)
+    assert {[], %{total_count: 0}} = Orbit.list_messages(thread, 1, second)
+    Repo.delete!(first)
+    refute Repo.exists?(from m in Message, where: m.recipient_id == ^first.id)
+    assert Repo.exists?(from m in Message, where: m.thread_id == ^thread.id and m.notice_kind == "joined")
   end
 
   test "archival, removal and scope revocation cannot be bypassed by stale handles", %{owner: owner, thread: thread} do

@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -367,7 +368,7 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	// runner container. Mirrors the ARC pattern.
 	pod := build(t, basePool("linux"))
 
-	// Five init containers: the externals staging copy, then the dind
+	// Five init containers: the externals staging sidecar, then the dind
 	// sidecar (whose startupProbe gates the rest of the Pod), then the
 	// metrics and shell sidecars, then the poller.
 	if len(pod.Spec.InitContainers) != 5 {
@@ -378,8 +379,8 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 		names = append(names, c.Name)
 	}
 	// dind must still precede the poller so docker is up before a job
-	// can be claimed, and the staging copy must precede dind so the
-	// externals are in place before dockerd can serve a container.
+	// can be claimed, and the staging sidecar must precede dind, which
+	// runs the tuist-cache-volume binary it stages.
 	if got, want := names, []string{"dind-externals", "dind", "metrics", "shell", "poller"}; !slices.Equal(got, want) {
 		t.Errorf("initContainer order = %v, want %v", got, want)
 	}
@@ -479,14 +480,12 @@ func TestBuild_LinuxDindSharesRunnerExternals(t *testing.T) {
 	if staging.Image != pod.Spec.Containers[0].Image {
 		t.Errorf("staging Image = %q, want the runner image %q", staging.Image, pod.Spec.Containers[0].Image)
 	}
-	// A plain init container: it has to finish, not linger like the
-	// native sidecars around it.
-	if staging.RestartPolicy != nil {
-		t.Errorf("staging RestartPolicy = %v, want nil (runs to completion)", *staging.RestartPolicy)
+	// A native sidecar, so the containers after it start while it copies.
+	if staging.RestartPolicy == nil || *staging.RestartPolicy != corev1.ContainerRestartPolicyAlways {
+		t.Errorf("staging RestartPolicy = %v, want Always (native sidecar)", staging.RestartPolicy)
 	}
-	args := strings.Join(staging.Args, " ")
-	if !strings.Contains(args, "cp -a /home/runner/actions-runner/externals/. /mnt/dind-externals/") {
-		t.Errorf("staging args = %q, want a copy of the runner externals into the shared volume", args)
+	if staging.StartupProbe != nil {
+		t.Errorf("staging startupProbe = %+v, want none: a probe would hold the containers after it", staging.StartupProbe)
 	}
 	// Staging must not mount the volume over its own source.
 	if hasVolumeMount(staging.VolumeMounts, corev1.VolumeMount{Name: "dind-externals", MountPath: "/home/runner/actions-runner/externals"}) {
@@ -510,6 +509,110 @@ func TestBuild_LinuxDindSharesRunnerExternals(t *testing.T) {
 	}
 	if !hasVolume(pod.Spec.Volumes, "dind-externals") {
 		t.Errorf("pod missing volume \"dind-externals\"; got %+v", pod.Spec.Volumes)
+	}
+
+	// The poller reads the copy's marker, and nothing else.
+	poller := initContainerByName(t, pod, "poller")
+	if !hasVolumeMount(poller.VolumeMounts, corev1.VolumeMount{Name: "dind-externals", MountPath: "/mnt/dind-externals", ReadOnly: true}) {
+		t.Errorf("poller missing the read-only dind-externals mount; got %+v", poller.VolumeMounts)
+	}
+}
+
+func TestBuild_LinuxExternalsStagingGatesThePoller(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	pod := build(t, pool)
+
+	dir := t.TempDir()
+	source := filepath.Join(dir, "externals")
+	stage := filepath.Join(dir, "stage")
+	for _, path := range []string{filepath.Join(source, "node24", "bin"), stage} {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, mode := range map[string]os.FileMode{"node24/bin/node": 0o755, "tuist-cache-volume": 0o755, ".hidden": 0o644} {
+		if err := os.WriteFile(filepath.Join(source, name), []byte(name), mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	localize := func(command string) string {
+		command = strings.ReplaceAll(command, externalsStagePath, stage)
+		return strings.ReplaceAll(command, externalsPath, source)
+	}
+	run := func(command string) ([]byte, error) {
+		cmd := exec.Command("sh", "-c", command)
+		cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"))
+		return cmd.CombinedOutput()
+	}
+
+	// The poller refuses to claim before the copy lands. dispatch-poll.sh
+	// is replaced by a stub, and the wait bounded to one tick.
+	if err := os.WriteFile(filepath.Join(dir, "dispatch-poll.sh"), []byte("#!/bin/sh\necho polling\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	poller := initContainerByName(t, pod, "poller")
+	wait := localize(poller.Command[2])
+	wait = strings.ReplaceAll(wait, "/usr/local/bin/dispatch-poll.sh", filepath.Join(dir, "dispatch-poll.sh"))
+	wait = strings.ReplaceAll(wait, "-ge "+strconv.Itoa(externalsStageTimeoutTicks), "-ge 1")
+	if out, err := run(wait); err == nil || strings.Contains(string(out), "polling") {
+		t.Fatalf("poller polled before the externals were staged: %v, %s", err, out)
+	}
+
+	staging := initContainerByName(t, pod, "dind-externals")
+	copyOnly, _, ok := strings.Cut(localize(staging.Args[0]), "; trap ")
+	if !ok {
+		t.Fatalf("staging args %q do not end by idling", staging.Args[0])
+	}
+	if out, err := run(copyOnly); err != nil {
+		t.Fatalf("staging failed: %v, %s", err, out)
+	}
+	for _, name := range []string{"node24/bin/node", "tuist-cache-volume", ".hidden", externalsStagedMarker} {
+		if _, err := os.Stat(filepath.Join(stage, name)); err != nil {
+			t.Errorf("staged copy missing %s: %v", name, err)
+		}
+	}
+	if info, err := os.Stat(filepath.Join(stage, "node24/bin/node")); err != nil || info.Mode().Perm() != 0o755 {
+		t.Errorf("staged node lost its mode: %v, %v", info, err)
+	}
+	if _, err := os.Stat(filepath.Join(stage, ".tuist-cache-volume.partial")); !os.IsNotExist(err) {
+		t.Errorf("partial cache-volume binary left behind: %v", err)
+	}
+	if out, err := run(wait); err != nil || !strings.Contains(string(out), "polling") {
+		t.Fatalf("poller did not start after staging: %v, %s", err, out)
+	}
+
+	// A restarted sidecar keeps the finished copy instead of rewriting
+	// files a job may already be running.
+	if err := os.Remove(filepath.Join(source, "node24/bin/node")); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run(copyOnly); err != nil {
+		t.Fatalf("restaged copy failed: %v, %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(stage, "node24/bin/node")); err != nil {
+		t.Errorf("restart rewrote the finished copy: %v", err)
+	}
+
+	// dind runs the binary, so it waits for that file alone.
+	if command := initContainerByName(t, pod, "dind").Args[0]; !strings.Contains(command, "until [ -x "+externalsPath+"/tuist-cache-volume ]") {
+		t.Errorf("dind does not wait for the staged tuist-cache-volume: %s", command)
+	}
+}
+
+func TestBuild_LinuxStagingFailsWithoutExternals(t *testing.T) {
+	pod := build(t, basePool("linux"))
+	dir := t.TempDir()
+	staging := initContainerByName(t, pod, "dind-externals")
+	copyOnly, _, _ := strings.Cut(staging.Args[0], "; trap ")
+	copyOnly = strings.ReplaceAll(copyOnly, externalsStagePath, dir)
+	copyOnly = strings.ReplaceAll(copyOnly, externalsPath, filepath.Join(dir, "missing"))
+	if out, err := exec.Command("sh", "-c", copyOnly).CombinedOutput(); err == nil {
+		t.Fatalf("staging succeeded with no externals directory: %s", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, externalsStagedMarker)); !os.IsNotExist(err) {
+		t.Errorf("marker written without externals: %v", err)
 	}
 }
 
@@ -846,8 +949,8 @@ func TestBuild_LinuxCredentialSplit(t *testing.T) {
 	if envValue(poller.Env, "TUIST_RUNNER_JIT_OUTPUT_PATH") != jitFilePath {
 		t.Errorf("poller TUIST_RUNNER_JIT_OUTPUT_PATH = %q, want %q", envValue(poller.Env, "TUIST_RUNNER_JIT_OUTPUT_PATH"), jitFilePath)
 	}
-	if got, want := poller.Command, []string{"/usr/local/bin/dispatch-poll.sh"}; len(got) != 1 || got[0] != want[0] {
-		t.Errorf("poller Command = %v, want %v", got, want)
+	if got := poller.Command; len(got) != 3 || got[0] != "sh" || !strings.HasSuffix(got[2], "; exec /usr/local/bin/dispatch-poll.sh") {
+		t.Errorf("poller Command = %v, want dispatch-poll.sh exec'd after the externals wait", got)
 	}
 	if poller.SecurityContext == nil || poller.SecurityContext.RunAsUser == nil || *poller.SecurityContext.RunAsUser != 0 {
 		t.Errorf("poller must run as root (uid 0) to write the JIT emptyDir; got %+v", poller.SecurityContext)
@@ -1181,6 +1284,7 @@ func TestDockerCacheOffKeepsTheSidecarCommand(t *testing.T) {
 	pool.Spec.CacheVolumeURL = "http://agent:8090"
 	dind := initContainer(t, build(t, pool), "dind")
 	want := "set -e && ulimit -n 1048576 && apk add --no-cache e2fsprogs >/dev/null && mkdir -p /mnt/dind-disk && truncate -s 100G /mnt/dind-disk/disk.img && mkfs.ext4 -q -F /mnt/dind-disk/disk.img && mkdir -p /var/lib/docker && mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
+		"until [ -x /home/runner/actions-runner/externals/tuist-cache-volume ]; do sleep 0.1; done && " +
 		"rm -f " + workPath + "/.tuist-cache-mount.sock && (/home/runner/actions-runner/externals/tuist-cache-volume mount-server " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache &); " +
 		"exec dockerd --host=unix:///var/run/docker.sock --group=123 --default-ulimit nofile=1048576:1048576"
 	if got := dind.Args[0]; got != want {

@@ -19,6 +19,7 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
+  alias Tuist.Sandboxes.Concurrency, as: SandboxConcurrency
   alias Tuist.Utilities.ByteFormatter
 
   # Enough to see a pattern without the card becoming the page.
@@ -36,6 +37,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
+         |> assign(:sandbox_concurrency_form, to_form(SandboxConcurrency.change_limits(account), as: "account"))
          |> assign(:prepaid_balance, balance)
          |> assign(:prepaid_minutes_value, held_minutes(balance))
          |> assign(:on_runner_trial, Trials.on_trial?(account))
@@ -86,6 +88,21 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   ## Plan & billing event handlers (moved from OpsAccountsLive)
+
+  @impl true
+  def handle_event("update_sandbox_concurrency_limits", %{"account" => params}, socket) do
+    case SandboxConcurrency.update_limits(socket.assigns.account, params) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> assign(:sandbox_concurrency_form, to_form(SandboxConcurrency.change_limits(account), as: "account"))
+         |> put_flash(:info, dgettext("dashboard", "Sandbox concurrency limits updated."))}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :sandbox_concurrency_form, to_form(changeset, as: "account"))}
+    end
+  end
 
   @impl true
   def handle_event("update_runner_concurrency_limits", %{"account" => params}, socket) do

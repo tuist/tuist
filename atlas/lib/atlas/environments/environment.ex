@@ -5,6 +5,9 @@ defmodule Atlas.Environments.Environment do
   schema "personal_environments" do
     field :owner_id, Ecto.UUID
     field :oauth_client_id, Ecto.UUID
+    field :provider, :string, default: "native"
+    field :provider_state, :string
+    field :managed_thread_id, Ecto.UUID
     field :name, :string
     field :enabled, :boolean, default: false
     field :terminal, :boolean, default: false

@@ -55,4 +55,4 @@ msgstr "인증 요청이 만료되었습니다. Slack 연결 과정을 다시 �
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Slack returned an unexpected webhook URL. Please try again."
-msgstr "Slack에서 예상치 못한 웹훅 URL이 반환되었습니다. 다시 시도해 주세요."
+msgstr "Slack에서 예상치 못한 웹훅 URL을 반환했습니다. 다시 시도해 주세요."

@@ -267,13 +267,13 @@ test('publication windows cannot make the watchdog finish before cache probes ap
   assert.match(result.stdout, /verify-final/);
 });
 
-test('canary enables only the acceptance pool; production remains disabled', () => {
+test('canary qualifies the acceptance pool before production enables Docker caching', () => {
   const values = file => yaml.load(fs.readFileSync(path.join(root, 'infra/helm/tuist', file), 'utf8'));
   const canary = values('values-managed-canary.yaml').runnersFleetLinux.cacheVolumes;
   assert.equal(canary.enabled, true);
   assert.equal(canary.dockerCache.enabled, true);
   assert.deepEqual(canary.dockerCache.pools, ['tuist-tuist-runner-pool-linux-2vcpu-8gb']);
-  assert.equal(values('values-managed-production.yaml').runnersFleetLinux.cacheVolumes.dockerCache.enabled, false);
+  assert.equal(values('values-managed-production.yaml').runnersFleetLinux.cacheVolumes.dockerCache.enabled, true);
 });
 
 test('probe rejects an older candidate image before any build', () => {

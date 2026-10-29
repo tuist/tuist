@@ -3,6 +3,9 @@ mod api;
 mod bridge;
 mod business;
 mod cache;
+mod certificate_trust;
+#[cfg(test)]
+mod certificate_trust_tests;
 mod connections;
 mod environments;
 pub mod form;
@@ -17,6 +20,8 @@ mod push;
 mod themes;
 mod time_off;
 mod transport;
+
+pub use certificate_trust::POLICY_ID as CERTIFICATE_TRUST_POLICY;
 
 use transport::{Body, Network, Transport};
 

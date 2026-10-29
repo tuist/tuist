@@ -8,6 +8,7 @@ defmodule Atlas.MCP.Server do
 
   alias Atlas.Audit
   alias Atlas.Automations.Interfaces
+  alias Atlas.MCP.Automation
   alias Atlas.MCP.Prompts.GenerateEnterpriseContract, as: GenerateEnterpriseContractPrompt
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Tool
@@ -153,6 +154,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetMCPConnectionStatus
   alias Atlas.MCP.Tools.GetMonthlyInvoiceTotals
   alias Atlas.MCP.Tools.GetMoodboardResource
+  alias Atlas.MCP.Tools.GetMyBusinessProfile
   alias Atlas.MCP.Tools.GetMyProfile
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetNudgeAnalyticsStatus
@@ -317,6 +319,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
   alias Atlas.MCP.Tools.UpdateManualFinanceInvoice
   alias Atlas.MCP.Tools.UpdateMoodboardResource
+  alias Atlas.MCP.Tools.UpdateMyBusinessProfile
   alias Atlas.MCP.Tools.UpdateMyProfile
   alias Atlas.MCP.Tools.UpdateNote
   alias Atlas.MCP.Tools.UpdatePOC
@@ -331,6 +334,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateTask
   alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
   alias Atlas.MCP.Tools.UploadPostalLetter
+  alias Atlas.Users.BusinessProfile
 
   @name "atlas"
   @version "0.3.0"
@@ -555,10 +559,15 @@ defmodule Atlas.MCP.Server do
   @error_alert_write_tools [SaveErrorAlertRule, DeleteErrorAlertRule]
   @automation_read_tools Interfaces.tools(:read)
   @automation_write_tools Interfaces.tools(:write)
+  @signal_tools for operation <- Interfaces.operations(),
+                    Automation.signal_operation?(operation.operation),
+                    do: operation.tool
   @static_tools [
     GetMCPConnectionStatus,
     GetMyProfile,
     UpdateMyProfile,
+    GetMyBusinessProfile,
+    UpdateMyBusinessProfile,
     ManageAccountConnections,
     ListLLMProviderConnections,
     ConnectClaudeProvider,
@@ -1009,6 +1018,12 @@ defmodule Atlas.MCP.Server do
   defp personal_connection_tool_allowed?(conn, ManageAccountConnections),
     do: ManageAccountConnections.allowed_context?(conn)
 
+  defp personal_connection_tool_allowed?(conn, module) when module in [GetMyBusinessProfile, UpdateMyBusinessProfile],
+    do: BusinessProfile.allowed_context?(conn)
+
+  defp personal_connection_tool_allowed?(conn, module) when module in @signal_tools,
+    do: Automation.allowed_context?(conn, :get_signal)
+
   defp personal_connection_tool_allowed?(_conn, _tool_module), do: true
 
   defp approval_tool_allowed?(conn, ReviewHoliday), do: Atlas.TimeOff.can_approve?(Tool.current_user(conn))
@@ -1117,7 +1132,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
+       when name in ~w(create_signal_source ingest_signal decide_signal update_my_business_profile save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

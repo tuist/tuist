@@ -9,16 +9,15 @@ defmodule Atlas.Push.Config do
   """
 
   @apns_topic "dev.tuist.atlas"
-  @macos_apns_topic "dev.tuist.atlas.macos"
   @apns_vars ~w(ATLAS_APNS_TEAM_ID ATLAS_APNS_KEY_ID ATLAS_APNS_PRIVATE_KEY)
   @fcm_var "ATLAS_FCM_SERVICE_ACCOUNT_JSON"
   @apple_identifier ~r/\A[A-Z0-9]{10}\z/
   @firebase_project ~r/\A[a-z][a-z0-9-]{4,28}[a-z0-9]\z/
 
-  # The zero-arity topic remains iOS-only, including its Live Activity suffix.
+  # Both Apple apps share the base topic; the Live Activity suffix is iOS-only.
   def apns_topic, do: @apns_topic
   def apns_topic("ios"), do: @apns_topic
-  def apns_topic("macos"), do: @macos_apns_topic
+  def apns_topic("macos"), do: @apns_topic
 
   def apns do
     case Keyword.get(config(), :apns) do
@@ -104,8 +103,8 @@ defmodule Atlas.Push.Config do
     end
   end
 
-  # A .p8 key does not encode topic restrictions. Reusing it for desktop requires
-  # the operator to verify authorization for the distinct fixed macOS App ID.
+  # Sharing the App ID does not provision desktop push. Enable it only after
+  # the macOS Developer ID profile and APNs authorization have been verified.
   defp parse_macos_enabled!(env) do
     case present(env, "ATLAS_APNS_MACOS_ENABLED") do
       value when value in [nil, "false"] -> false

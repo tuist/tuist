@@ -118,6 +118,48 @@ func TestDesiredReplicas(t *testing.T) {
 			knobs:   PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30},
 			want:    30,
 		},
+		{
+			name:    "an idle pool keeps its learned burst warm",
+			signals: Signals{LearnedWarmFloor: 3},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 0, MaxLearnedWarmPoolFloor: 3, MaxReplicas: 30},
+			want:    3,
+		},
+		{
+			name:    "the learned burst is kept above current load",
+			signals: Signals{Claimed: 2, Occupied: 2, LearnedWarmFloor: 3},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 0, MaxLearnedWarmPoolFloor: 3, MaxReplicas: 30},
+			want:    5, // load 2 + spare 3
+		},
+		{
+			name:    "the learned burst is capped by maxLearnedWarmPoolFloor",
+			signals: Signals{LearnedWarmFloor: 17},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 0, MaxLearnedWarmPoolFloor: 1, MaxReplicas: 32},
+			want:    1,
+		},
+		{
+			name:    "a zero cap turns the learned floor off",
+			signals: Signals{LearnedWarmFloor: 4},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30},
+			want:    1,
+		},
+		{
+			name:    "the learned burst is not added to the p95 hold",
+			signals: Signals{Claimed: 1, Occupied: 1, P95ConcurrentLastHour: 6, LearnedWarmFloor: 3},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 0, MaxLearnedWarmPoolFloor: 3, MaxReplicas: 30},
+			want:    6, // max(p95 6 + 0, load 1 + 3)
+		},
+		{
+			name:    "the static floor wins when it keeps more warm",
+			signals: Signals{LearnedWarmFloor: 1},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 4, MaxLearnedWarmPoolFloor: 4, MaxReplicas: 30},
+			want:    4,
+		},
+		{
+			name:    "the learned burst respects MaxReplicas",
+			signals: Signals{Claimed: 30, Occupied: 30, LearnedWarmFloor: 3},
+			knobs:   PolicyKnobs{MaxLearnedWarmPoolFloor: 3, MaxReplicas: 32},
+			want:    32,
+		},
 	}
 
 	for _, tc := range tests {
@@ -125,6 +167,47 @@ func TestDesiredReplicas(t *testing.T) {
 			got := DesiredReplicas(tc.signals, tc.knobs)
 			if got != tc.want {
 				t.Errorf("DesiredReplicas(%+v, %+v) = %d, want %d", tc.signals, tc.knobs, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWarmFloor(t *testing.T) {
+	tests := []struct {
+		name    string
+		signals Signals
+		knobs   PolicyKnobs
+		want    int32
+	}{
+		{
+			name:  "no learned floor is the static floor",
+			knobs: PolicyKnobs{MinWarmPoolFloor: 2},
+			want:  2,
+		},
+		{
+			name:    "the learned spare sits above load",
+			signals: Signals{Claimed: 4, Occupied: 4, LearnedWarmFloor: 3},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 1, MaxLearnedWarmPoolFloor: 3},
+			want:    7,
+		},
+		{
+			name:    "a static floor above load plus spare stays",
+			signals: Signals{LearnedWarmFloor: 1},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 4, MaxLearnedWarmPoolFloor: 4},
+			want:    4,
+		},
+		{
+			name:    "a zero cap keeps the learned floor out of the floor tier",
+			signals: Signals{Claimed: 4, Occupied: 4, LearnedWarmFloor: 3},
+			knobs:   PolicyKnobs{MinWarmPoolFloor: 1},
+			want:    1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := WarmFloor(tc.signals, tc.knobs); got != tc.want {
+				t.Errorf("WarmFloor(%+v, %+v) = %d, want %d", tc.signals, tc.knobs, got, tc.want)
 			}
 		})
 	}

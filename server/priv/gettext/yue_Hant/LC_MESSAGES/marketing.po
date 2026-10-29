@@ -4,7 +4,7 @@ msgstr "Language: yue_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
-msgstr "Tuist 團隊發送的電子報，分享產品更新、我們對現代應用程式開發的觀點，以及未來的發展方向。隨時掌握我們的動向和背後原因。"
+msgstr "Tuist 團隊發送的電子報，分享產品更新、我們對現代應用程式開發的見解，以及未來的發展方向。掌握我們的動向和背後原因。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:82
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:97
@@ -42,22 +42,22 @@ msgstr "Bluesky"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "Build Insights"
-msgstr "建構洞察"
+msgstr "構建洞察"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Automation only moves as fast as the loop it runs in."
-msgstr "自動化的速度取決於其運作循環的速度。"
+msgstr "自動化的速度取決於其運行循環的速度。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Bundle Insights"
-msgstr "套件洞察"
+msgstr "套件分析"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "CI provider"
-msgstr "CI 提供者"
+msgstr "CI 供應商"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:6
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:5
@@ -103,7 +103,7 @@ msgstr "社群支援"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
-msgstr "透過論壇提供社區支援"
+msgstr "透過論壇獲得社群支援"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:79
 #, elixir-autogen, elixir-format
@@ -128,7 +128,7 @@ msgstr "Cookie 政策"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "Custom legal agreements and terms of service tailored to your organization's needs."
-msgstr "根據貴組織需求量身定制的自訂法律協議及服務條款。"
+msgstr "為貴機構需求量身訂製的自訂法律協議與服務條款。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:375
 #, elixir-autogen, elixir-format
@@ -144,12 +144,12 @@ msgstr "開發人員"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1029
 #, elixir-autogen, elixir-format
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
-msgstr "探索 Tuist 的靈活定價方案。享受無時間限制的免費方案，只需按用量付費。此外，開源專案永久免費。"
+msgstr "探索 Tuist 的靈活定價方案。享受無時間限制的免費方案，並按實際用量付費。此外，開源專案永久免費。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:971
 #, elixir-autogen, elixir-format
 msgid "Do you offer annual billing discounts?"
-msgstr "你們提供年度帳單折扣嗎？"
+msgstr "你們提供年繳折扣嗎？"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:993
 #, elixir-autogen, elixir-format
@@ -196,24 +196,24 @@ msgstr "功能"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
-msgstr "在層級限制內免費"
+msgstr "在方案限額內免費"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:566
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "Generated Projects"
-msgstr "已生成的專案"
+msgstr "已產生的專案"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:22
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Generated projects"
-msgstr "已生成的專案"
+msgstr "已產生的專案"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "Get help when you need it through various support channels."
-msgstr "透過多種支援渠道，在您需要的時候取得協助。"
+msgstr "透過各種支援渠道，在您需要時取得協助。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:196
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:136
@@ -247,7 +247,7 @@ msgstr "太好了！電郵 %{email} 已確認並訂閱 Tuist Digest。"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Host Tuist server on your own infrastructure for complete control and data sovereignty."
-msgstr "將 Tuist 伺服器託管於您自己的基礎設施上，以獲得完全的控制權和數據主權。"
+msgstr "在您自己的基礎設施上託管 Tuist 伺服器，以獲得完全控制權和數據主權。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:983
 #, elixir-autogen, elixir-format
@@ -257,7 +257,7 @@ msgstr "如何估算我的項目成本？"
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Imprint"
-msgstr "版權聲明"
+msgstr "版權資訊"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:658
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:694
@@ -273,7 +273,7 @@ msgstr "付費方案有免費試用嗎？"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:976
 #, elixir-autogen, elixir-format
 msgid "Is there a minimum contract length?"
-msgstr "有最短合約期限嗎？"
+msgstr "有最低合約期限嗎？"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:72
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:63
@@ -289,7 +289,7 @@ msgstr "最後更新於 %{date}"
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Learn about Tuist and meet the team"
-msgstr "了解 Tuist 並認識我們的團隊"
+msgstr "了解 Tuist 並認識團隊"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:133
 #, elixir-autogen, elixir-format
@@ -314,7 +314,7 @@ msgstr "登入"
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Longevity"
-msgstr "長久性"
+msgstr "長遠發展"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:112
 #, elixir-autogen, elixir-format
@@ -336,7 +336,7 @@ msgstr "電子報驗證失敗"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:977
 #, elixir-autogen, elixir-format
 msgid "No, there's no minimum contract length. You're free to cancel at any time."
-msgstr "不，合約沒有最短期限。你可以隨時取消。"
+msgstr "不，沒有最低合約期限。你可以隨時取消。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:250
 #, elixir-autogen, elixir-format
@@ -370,7 +370,7 @@ msgstr "請檢查你的電子郵件以確認訂閱。"
 #: lib/tuist_web/marketing/live/marketing_previews_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Previews"
-msgstr "Previews"
+msgstr "預覽"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:71
 #, elixir-autogen, elixir-format
@@ -453,7 +453,7 @@ msgstr "註冊"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:413
 #, elixir-autogen, elixir-format
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
-msgstr "自從在我們的 iOS 專案中採用 Tuist 以來，我們在可擴展性和生產力方面都看到了顯著的提升。整體而言，它讓我們的開發流程更快、更高效，讓團隊能夠專注於構建功能，而不受工具限制的拖慢。"
+msgstr "自從在我們的 iOS 專案中採用 Tuist 以來，我們在可擴展性和生產力方面看到了重大改進。整體而言，它讓我們的開發流程更快、更高效，讓團隊能夠專注於建構功能，而不受工具限制的拖慢。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:61
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:115
@@ -471,7 +471,7 @@ msgstr "社交媒體"
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
-msgstr "出現問題。請再試一次。"
+msgstr "發生錯誤。請再試一次。"
 
 #: lib/tuist_web/marketing/structured_markup.ex:417
 #, elixir-autogen, elixir-format
@@ -481,7 +481,7 @@ msgstr "隨時掌握 Tuist 的最新變更與改進。"
 #: lib/tuist_web/marketing/live/marketing_changelog_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Stay updated with the latest changes and improvements in Tuist. Read our changelog for detailed information about new features, bug fixes, and enhancements."
-msgstr "隨時掌握 Tuist 的最新變更與改進。閱讀我們的更新日誌，了解新功能、錯誤修復和增強功能的詳細資訊。"
+msgstr "隨時掌握 Tuist 的最新變更與改進。請查閱我們的更新日誌，以取得新功能、錯誤修正及增強功能的詳細資訊。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:37
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:537
@@ -508,7 +508,7 @@ msgstr "Swift Stories 電子報"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Tailored agreement for specific needs"
-msgstr "針對特定需求量身打造的協議"
+msgstr "針對特定需求量身訂做的協議"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:242
 #, elixir-autogen, elixir-format
@@ -550,7 +550,7 @@ msgstr "電子報期數 %{issue_number} 並非有效數字。"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Track and reduce app size by spotting duplicate assets and bloated resources."
-msgstr "透過偵測重複資產和臃腫資源，追蹤並減少應用程式大小。"
+msgstr "透過識別重複資產和臃腫資源，追蹤並減少應用程式大小。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:474
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:497
@@ -594,27 +594,27 @@ msgstr "Tuist 摘要電子報"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:979
 #, elixir-autogen, elixir-format
 msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
-msgstr "Tuist Pro 透過我們的社區論壇和 GitHub issues 提供支援。企業方案則包括透過 Slack 頻道提供的專屬支援，並享有高優先級的回應速度。"
+msgstr "Tuist Pro 包括透過我們的社區論壇和 GitHub Issues 提供的支援。企業方案包括透過 Slack 頻道提供的專屬支援，並享有高優先級回應時間。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:452
 #, elixir-autogen, elixir-format
 msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
-msgstr "Tuist 讓我們能夠將現有的單體式代碼庫遷移至模組化架構。我們將不同的業務領域提取為特定模組，這使我們得以移除額外的依賴項、提升可測試性，並讓開發週期比以往更快。它甚至讓我們能夠建立「測試應用程式」，以加速每個模組的開發進度。"
+msgstr "Tuist 讓我們能夠將現有的單體式代碼庫遷移至模組化架構。我們將不同的領域提取為特定模組。這使我們能夠移除額外的依賴項、簡化測試流程，並讓開發週期比以往更快。它甚至讓我們能夠建立「測試應用程式」，以加快每個模組的開發速度。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:386
 #, elixir-autogen, elixir-format
 msgid "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
-msgstr "對於我們這種多位工程師同時協作的大型代碼庫來說，Tuist 帶來了顛覆性的改變。我自版本 1 就開始使用，見證產品隨著時間推移不斷演進並擴展新功能，實在令人驚嘆。"
+msgstr "對於我們有多位工程師同時協作的大型代碼庫來說，Tuist 帶來了顛覆性的改變。我自版本 1 開始使用，見證產品隨時間推移不斷演進並擴展新功能，實在令人驚嘆。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:401
 #, elixir-autogen, elixir-format
 msgid "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
-msgstr "Tuist 徹底革新了 DraftKings 的 iOS 開發工作流程。其自動化功能簡化了專案生成、構建設置和依賴管理。強烈推薦給尋求工作流程優化的 iOS 團隊。"
+msgstr "Tuist 徹底革新了我們在 DraftKings 的 iOS 開發工作流程。其自動化功能簡化了專案生成、構建設置和依賴項管理。強烈推薦給尋求工作流程優化的 iOS 團隊。"
 
 #: lib/tuist_web/marketing/structured_markup.ex:160
 #, elixir-autogen, elixir-format
 msgid "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
-msgstr "Tuist 旨在伴隨您一同成長。只有當您需要超出免費層級的限制或需要專屬支援時，才需添加信用卡。"
+msgstr "Tuist 的設計旨在伴隨您成長。僅當您需要超出免費方案限制或需要專屬支援時，才需新增付款卡片。"
 
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_atom.xml.eex:3
 #: lib/tuist_web/marketing/controllers/marketing_xml/blog_rss.xml.eex:4
@@ -632,7 +632,7 @@ msgstr "Tuist 更新日誌"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
-msgstr "將以 Swift DSL 定義的專案轉換為 Xcode 工作區和專案。"
+msgstr "將以 Swift DSL 定義的專案轉換為 Xcode workspace 和專案。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:153
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:154
@@ -654,13 +654,13 @@ msgstr "將以 Swift DSL 定義的專案轉換為 Xcode 工作區和專案。"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Unlimited"
-msgstr "無限"
+msgstr "無限制"
 
 #: lib/tuist_web/marketing/controllers/marketing_xml/changelog_atom.xml.eex:4
 #: lib/tuist_web/marketing/controllers/marketing_xml/changelog_rss.xml.eex:5
 #, elixir-autogen, elixir-format
 msgid "Updates to Tuist's features and improvements."
-msgstr "Tuist 功能與改進的更新。"
+msgstr "Tuist 功能與改進的最新資訊。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:75
 #, elixir-autogen, elixir-format
@@ -670,12 +670,12 @@ msgstr "按用量／席位定價"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:425
 #, elixir-autogen, elixir-format
 msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. We're confident that it will continue to enhance our productivity and collaboration in future projects."
-msgstr "在我們目前的專案中使用 Tuist 帶來了翻天覆地的變化。它大幅減輕了建置時間的壓力，並減少團隊內的衝突，讓我們能更專注於開發，而非設定問題。我們有信心，在未來的專案中，它將持續提升我們的生產力與協作效率。"
+msgstr "在目前的專案中使用 Tuist 帶來了翻天覆地的變化。它大幅減輕了建置時間的壓力，並減少團隊內的衝突，讓我們能更專注於開發，而非設定問題。我們有信心，它將在未來的專案中持續提升我們的生產力與協作效率。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:687
 #, elixir-autogen, elixir-format
 msgid "Verification failed. Please try signing up again."
-msgstr "驗證失敗。請嘗試重新註冊。"
+msgstr "驗證失敗。請重新註冊。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:666
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:702
@@ -696,27 +696,27 @@ msgstr "查看全部"
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "View in web browser"
-msgstr "在瀏覽器中查看"
+msgstr "在瀏覽器中檢視"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:963
 #, elixir-autogen, elixir-format
 msgid "We accept credit card payments and wire transfers."
-msgstr "我們接受信用卡付款及電匯。"
+msgstr "我們接受信用卡付款和電匯。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:989
 #, elixir-autogen, elixir-format
 msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
-msgstr "每個付費方案均提供慷慨的免費層級，讓您在付費前試用各項功能。"
+msgstr "每個付費方案都提供慷慨的免費層級，讓您在付費前即可試用各項功能。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
-msgstr "我們是一支精幹且充滿熱情的團隊，極度重視開發者體驗，並以細心與注重細節打造工具為榮。"
+msgstr "我們是一支小型但充滿熱情的團隊，非常重視開發者體驗，並以細心和注重細節打造工具為榮。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:966
 #, elixir-autogen, elixir-format
 msgid "What happens if I exceed my plan limits?"
-msgstr "如果超出方案限制會怎樣？"
+msgstr "如果我超出方案限制會怎樣？"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:962
 #, elixir-autogen, elixir-format
@@ -731,7 +731,7 @@ msgstr "每個方案包含哪些支援服務？"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:440
 #, elixir-autogen, elixir-format
 msgid "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and swift-syntax compiled forever. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
-msgstr "使用宏、外部 SDK 和許多 SPM 模組（完全模組化的應用程式）時，Xcode 在我的 M1 裝置上經常變慢或卡住。SPM 不斷解析，程式碼自動完成無法運作，swift-syntax 則永遠編譯不完。這不僅適用於擁有大型應用程式的大型團隊。Tuist 讓我在開發側邊專案時，重新找回作為獨立開發者的生產力。"
+msgstr "使用宏、外部 SDK 和許多 SPM 模組（完全模組化的應用程式）時，Xcode 在我的 M1 裝置上經常變慢或卡住。SPM 不斷解析，程式碼補全無法運作，swift-syntax 則永遠編譯不完。這不僅適用於擁有大型應用程式的大型團隊。Tuist 讓我這個獨立開發者在側邊專案中重拾生產力。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:958
 #, elixir-autogen, elixir-format
@@ -741,7 +741,7 @@ msgstr "是的，我們提供。請透過 contact@tuist.dev 聯絡我們，討�
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:994
 #, elixir-autogen, elixir-format
 msgid "Yes, we do. Please reach out to contact@tuist.dev for more information."
-msgstr "是的，我們提供。請聯絡 contact@tuist.dev 以獲取更多資訊。"
+msgstr "是的，我們提供。如需更多資訊，請聯絡 contact@tuist.dev。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:972
 #, elixir-autogen, elixir-format
@@ -756,22 +756,22 @@ msgstr "是的，您可以隨時透過我們的管理介面管理您的方案。
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:984
 #, elixir-autogen, elixir-format
 msgid "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
-msgstr "您可以設定 Air 方案並使用其功能數天，以估算使用量。如果您需要更高的上限，請告訴我們，我們可以協助您設定自訂方案。"
+msgstr "您可以設定 Air 方案並使用其功能數天，以估算用量。如果您需要更高的限額，請告訴我們，我們可以協助您設定自訂方案。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:967
 #, elixir-autogen, elixir-format
 msgid "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
-msgstr "在達到方案限額之前，系統會向你發出警告。一旦達到限額，方案將限制互動次數，以避免產生意外費用。"
+msgstr "在達到方案限制之前，你會收到警告。一旦達到限制，方案將限制互動次數，以避免產生意外費用。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
-msgstr "每 6 週你會收到通訊期刊，內容涵蓋 Tuist 最重要的工作進展，以及我們對大規模應用程式開發未來的願景。"
+msgstr "你每 6 週會收到一份電子報，內容涵蓋 Tuist 最重要的工作進展，以及我們對大規模應用程式開發未來的願景。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
-msgstr "你只需為使用的功能付費，費用根據你的使用量計算，且僅在超過免費額度後才會收費。"
+msgstr "你只需為使用的功能付費，費用根據你的使用量計算，且僅在使用量超過免費額度後才會收費。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:194
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:1189
@@ -812,12 +812,12 @@ msgstr "閱讀故事"
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "%{company} case study"
-msgstr "%{company} 個案研究"
+msgstr "%{company} 案例研究"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "(opens in new tab)"
-msgstr "（在新視窗中開啟）"
+msgstr "（在新標籤頁中開啟）"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:47
 #, elixir-autogen, elixir-format
@@ -828,7 +828,7 @@ msgstr "成立年份"
 #: lib/tuist_web/marketing/structured_markup.ex:502
 #, elixir-autogen, elixir-format
 msgid "Learn how teams use Tuist to scale their iOS development."
-msgstr "了解團隊如何利用 Tuist 擴展其 iOS 開發。"
+msgstr "了解團隊如何使用 Tuist 擴展其 iOS 開發。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:51
 #, elixir-autogen, elixir-format
@@ -839,7 +839,7 @@ msgstr "已加入"
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Read next"
-msgstr "下一步閱讀"
+msgstr "接下來閱讀"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:79
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:103
@@ -850,13 +850,13 @@ msgstr "公開儀表板"
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "See how leading teams scale with Tuist"
-msgstr "看看領先團隊如何透過 Tuist 擴展規模"
+msgstr "看看頂尖團隊如何透過 Tuist 擴展規模"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:134
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "AI moves fast. So should your builds."
-msgstr "AI 發展迅速。你的構建也應如此。"
+msgstr "AI 發展迅速，你的構建也應如此。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:109
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:943
@@ -885,7 +885,7 @@ msgstr "測試"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Download only what you need — faster, lighter builds locally and on CI."
-msgstr "僅下載所需內容 — 在本地和 CI 上實現更快、更輕量的構建。"
+msgstr "只下載所需內容 — 在本地和 CI 上實現更快、更輕量的構建。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:539
 #, elixir-autogen, elixir-format
@@ -900,17 +900,17 @@ msgstr "快取 · Tuist"
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Generate a shareable build URL so teammates can run it on their devices without using the development toolchain."
-msgstr "產生可分享的構建 URL，讓團隊成員無需使用開發工具鏈即可在其裝置上運行。"
+msgstr "產生可共享的構建 URL，讓團隊成員無需使用開發工具鏈即可在其裝置上運行。"
 
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Make code review hands-on"
-msgstr "讓代碼審查更貼近實作"
+msgstr "親身體驗程式碼審查"
 
 #: lib/tuist_web/marketing/live/marketing_previews_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "Previews · Tuist"
-msgstr "Previews · Tuist"
+msgstr "預覽 · Tuist"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:122
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:43
@@ -938,22 +938,22 @@ msgstr "全部"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
-msgstr "所有功能，無需信用卡"
+msgstr "所有功能，無需提供信用卡"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Ask about Tuist on"
-msgstr "在以下平台詢問關於 Tuist 的問題"
+msgstr "在以下平台查詢 Tuist 相關資訊"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "Ask about Tuist on %{assistant}"
-msgstr "在 %{assistant} 上詢問關於 Tuist 的問題"
+msgstr "在 %{assistant} 上查詢 Tuist 相關資訊"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "All systems normal"
-msgstr "所有系統運作正常"
+msgstr "所有系統正常"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:64
 #, elixir-autogen, elixir-format
@@ -968,7 +968,7 @@ msgstr "透過網址即時分享你的應用程式。無需等待 TestFlight，�
 #: lib/tuist_web/marketing/live/marketing_cache_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
-msgstr "透過重用已編譯的二進制檔案來加速構建，縮短本地開發和 CI 中的構建時間。"
+msgstr "透過重用已編譯的二進制檔案來加速建構，縮短本地開發和 CI 中的建構時間。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:262
 #, elixir-autogen, elixir-format
@@ -978,12 +978,12 @@ msgstr "標準支援"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
-msgstr "透過 Slack 和電郵提供標準支援"
+msgstr "透過 Slack 和電子郵件提供標準支援"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
 #, elixir-autogen, elixir-format
 msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
-msgstr "讓我們成為你的虛擬夥伴，持續優化並監控你的設定，讓你可以專注於交付產品"
+msgstr "讓我們成為你的虛擬夥伴，持續優化並監控你的設定，讓你可以專注於交付"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:647
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:48
@@ -999,12 +999,12 @@ msgstr "確認訂閱"
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "Open the confirmation link from the latest newsletter email, or subscribe again to receive a fresh link."
-msgstr "開啟最新一期電子報電郵中的確認連結，或重新訂閱以獲取新的連結。"
+msgstr "開啟最新一期電子報郵件中的確認連結，或重新訂閱以獲取新的連結。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "Please confirm that you want %{email} to receive Tuist Digest."
-msgstr "請確認你希望 %{email} 接收 Tuist Digest。"
+msgstr "請確認您希望 %{email} 接收 Tuist Digest。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:144
 #, elixir-autogen, elixir-format
@@ -1039,7 +1039,7 @@ msgstr "API 文件"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:279
 #, elixir-autogen, elixir-format
 msgid "After integrating Tuist into our large-scale iOS codebase with over 160 modules, an internal survey showed developer satisfaction at 4.25/5. Developers highlighted faster compile times, smoother branch switching, and easier dependency management."
-msgstr "在將 Tuist 整合到擁有超過 160 個模組的大規模 iOS 程式碼庫後，內部調查顯示開發人員滿意度為 4.25/5。開發人員強調編譯時間更快、分支切換更順暢，以及依賴管理更容易。"
+msgstr "在將 Tuist 整合到擁有超過 160 個模組的大型 iOS 程式碼庫後，內部調查顯示開發人員滿意度為 4.25/5。開發人員強調編譯時間更快、分支切換更順暢，以及依賴項管理更容易。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:260
 #, elixir-autogen, elixir-format
@@ -1060,7 +1060,7 @@ msgstr "建構時間："
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:740
 #, elixir-autogen, elixir-format
 msgid "Built for every stack"
-msgstr "為每個技術堆疊而建構"
+msgstr "適用於每個技術堆疊"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:803
 #, elixir-autogen, elixir-format
@@ -1076,12 +1076,12 @@ msgstr "快取命中率："
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Check our sources, issues and PRs"
-msgstr "查看我們的來源、議題和 PR"
+msgstr "查看我們的來源、問題和 PR"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Checkout repository"
-msgstr "檢出儲存庫"
+msgstr "簽出儲存庫"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:269
 #, elixir-autogen, elixir-format
@@ -1121,7 +1121,7 @@ msgstr "在不同裝置上下載 Tuist 應用程式"
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Download only what you need — faster, lighter builds locally and on CI"
-msgstr "只下載你需要的內容 — 讓本地和 CI 的構建更快、更輕量"
+msgstr "只下載你需要的內容 — 在本地和 CI 上實現更快、更輕量的構建"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:199
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:362
@@ -1132,33 +1132,33 @@ msgstr "持續時間："
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:542
 #, elixir-autogen, elixir-format
 msgid "Enhance mobile-specific workflows and accelerate builds across developer, CI, and agent environments."
-msgstr "增強移動端專屬工作流程，並加速開發者、CI 和代理環境中的構建速度。"
+msgstr "增強移動端專屬工作流程，並加速開發者、CI 和代理環境中的構建。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:883
 #, elixir-autogen, elixir-format
 msgid "Enterprise-Ready Security"
-msgstr "企業級安全準備"
+msgstr "企業級安全性"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:907
 #, elixir-autogen, elixir-format
 msgid "Every customer gets their own dedicated compute environment, fully managed by us."
-msgstr "每位客戶都擁有專屬的運算環境，由我們全面管理。"
+msgstr "每位客戶都擁有專用的計算環境，由我們全面管理。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:80
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist's features on public dashboard"
-msgstr "在公共儀表板上探索 Tuist 的功能"
+msgstr "在公開儀表板上探索 Tuist 的功能"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:489
 #, elixir-autogen, elixir-format
 msgid "Faster tests you can actually trust."
-msgstr "更快且真正可信賴的測試。"
+msgstr "你可以真正信賴的更快測試。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:519
 #, elixir-autogen, elixir-format
 msgid "Flaky tests detected:"
-msgstr "檢測到不穩定的測試："
+msgstr "檢測到不穩定測試："
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:739
 #, elixir-autogen, elixir-format
@@ -1168,12 +1168,12 @@ msgstr "框架"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:742
 #, elixir-autogen, elixir-format
 msgid "From native mobile apps to cross-platform projects, support the tools, languages, and frameworks your teams already rely on."
-msgstr "從原生移動應用程式到跨平台專案，支援你的團隊已經依賴的工具、語言和框架。"
+msgstr "從原生流動應用程式到跨平台項目，支援你團隊已經依賴的工具、語言和框架。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:921
 #, elixir-autogen, elixir-format
 msgid "Hear from our community about their experience with Tuist."
-msgstr "聽聽我們的社群分享他們使用 Tuist 的經驗。"
+msgstr "聽聽我們社群分享他們使用 Tuist 的經驗。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:68
 #, elixir-autogen, elixir-format
@@ -1188,12 +1188,12 @@ msgstr "安裝依賴項"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:372
 #, elixir-autogen, elixir-format
 msgid "It made the transition to SPM and the migration of our private pods to our monorepo super easy. We were able to create a framework template, making the option to build a modular project very simple. After integrating Tuist, we reduced our build time by 30%! We have no more project file conflicts and honestly - once you try it, you'll never go back"
-msgstr "它讓轉換到 SPM 以及將我們的私人 pods 遷移到 monorepo 變得超級簡單。我們能夠建立一個框架模板，使構建模組化專案的選項變得非常簡單。整合 Tuist 後，我們將建置時間縮短了 30%！我們不再有專案檔案衝突，老實說——一旦你嘗試過，就再也回不去了"
+msgstr "它讓轉換到 SPM 以及將我們的私人 pods 遷移到 monorepo 變得超級簡單。我們能夠建立一個框架模板，使構建模組化項目的選項變得非常簡單。整合 Tuist 後，我們將建置時間縮短了 30%！我們不再遇到專案檔案衝突，老實說——一旦你試過，就再也回不去了"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:339
 #, elixir-autogen, elixir-format
 msgid "It's now trivial to spin up a compact Example app for any module. Even app extensions like widgets and Live Activities can be wrapped in their own Example apps just as easily. Instead of launching the entire app to try something out, I work against a small app that contains only the part I care about — and that alone changes how quickly you can iterate."
-msgstr "現在為任何模組啟動一個精簡的 Example 應用程式簡直易如反掌。即使是像小工具和 Live Activities 這樣的應用程式擴展，也可以同樣輕鬆地包裝在它們自己的 Example 應用程式中。我不再需要啟動整個應用程式來測試某些功能，而是針對一個只包含我關心部分的小型應用程式進行開發——這單獨一點就改變了你迭代的速度。"
+msgstr "現在為任何模組啟動一個精簡的 Example app 變得輕而易舉。即使是像小工具和 Live Activities 這樣的應用程式擴展，也可以同樣輕鬆地包裝在它們自己的 Example apps 中。我不再需要啟動整個應用程式來嘗試新功能，而是針對一個只包含我關注部分的小型應用程式進行開發——這單單這一點就改變了你迭代的速度。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:134
 #, elixir-autogen, elixir-format
@@ -1246,18 +1246,18 @@ msgstr "從第一天起就開源"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:324
 #, elixir-autogen, elixir-format
 msgid "Our workspace definition became pure Swift code. Touching the project structure used to mean editing .pbxproj files whose diffs no human can read; now each domain team declares and owns its module configuration in Swift, and structure changes are reviewable diffs. Dependencies became visible data too — with the module graph declared in code, we finally have concrete, shared data to ground our dependency discussions."
-msgstr "我們的工作區定義已變成純 Swift 程式碼。過去，修改專案結構意味著編輯 .pbxproj 檔案，其差異沒有人能讀懂；現在，每個領域團隊都在 Swift 中聲明並擁有其模組設定，結構變更成為可審查的差異。依賴關係也成為可見的數據——由於模組圖是在代碼中聲明的，我們終於有了具體、共享的數據來支撐我們的依賴討論。"
+msgstr "我們的工作區定義變成了純 Swift 代碼。過去，修改項目結構意味著編輯 .pbxproj 文件，其差異無人能讀；現在，每個領域團隊都在 Swift 中聲明並擁有其模塊配置，結構變更成為可審查的差異。依賴關係也變成了可見的數據——由於模塊圖是在代碼中聲明的，我們終於有了具體、共享的數據來支撐我們的依賴討論。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:196
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:359
 #, elixir-autogen, elixir-format
 msgid "Parallel"
-msgstr "平行"
+msgstr "並行"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "Post run actions"
-msgstr "執行後動作"
+msgstr "運行後操作"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:697
 #, elixir-autogen, elixir-format
@@ -1267,12 +1267,12 @@ msgstr "閱讀 %{company} 案例研究"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Restore cache"
-msgstr "還原快取"
+msgstr "恢復緩存"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Reuse build artifacts across your team and CI to avoid recompiling the same code"
-msgstr "在團隊和 CI 之間重用構建產物，以避免重新編譯相同的代碼"
+msgstr "在團隊和 CI 之間重用構建產物，避免重新編譯相同的代碼"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:262
 #, elixir-autogen, elixir-format
@@ -1282,7 +1282,7 @@ msgstr "運行 UI 測試"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Run actions"
-msgstr "執行動作"
+msgstr "運行操作"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:255
 #, elixir-autogen, elixir-format
@@ -1308,18 +1308,18 @@ msgstr "執行單元測試"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:175
 #, elixir-autogen, elixir-format
 msgid "Runners that spin up in seconds and scale with your team and your agents."
-msgstr "數秒內啟動並能隨團隊及代理程式規模擴展的執行器。"
+msgstr "數秒內啟動並隨團隊與代理程式擴展的 Runner。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:192
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "Runners:"
-msgstr "執行器："
+msgstr "Runner："
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:885
 #, elixir-autogen, elixir-format
 msgid "SOC 2 compliant with the controls expected from critical infrastructure."
-msgstr "符合 SOC 2 標準，具備關鍵基礎設施所需的控制措施。"
+msgstr "符合 SOC 2，具備關鍵基礎設施所需的控制措施。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:267
 #, elixir-autogen, elixir-format
@@ -1365,7 +1365,7 @@ msgstr "設定 mise"
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Share build artifacts across your developers, CI, and agent environments, so no one waits on code that's already compiled."
-msgstr "在開發人員、CI 和代理環境之間共享構建產物，讓無人需要等待已編譯的代碼。"
+msgstr "在您的開發人員、CI 及代理環境之間共享構建產物，讓所有人無需等待已編譯的代碼。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:552
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:342
@@ -1376,7 +1376,7 @@ msgstr "透過 URL 即時分享你的應用程式。無需等待，只需點擊�
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Share your app instantly with a URL—click and run on any device"
-msgstr "透過 URL 即時分享你的應用程式——點擊即可在任何裝置上運行"
+msgstr "透過 URL 即時分享你的應用程式—點擊即可在任何裝置上運行"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:40
 #, elixir-autogen, elixir-format
@@ -1391,12 +1391,12 @@ msgstr "簡化模組化 Xcode 專案，使其更易於維護和擴展。"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:264
 #, elixir-autogen, elixir-format
 msgid "Since adopting Tuist as our iOS build system and Gradle remote caching solution, the results have been nothing short of incredible. It's directly impacted both our CI and local build times, and increased the visibility of our platform through Tuist's insights dashboard. We're now seeing a 64% reduction in CI time and 4x faster clean builds. It's been just a month since we completed the integration, and the value is already showing across the company."
-msgstr "自從採用 Tuist 作為我們的 iOS 建置系統和 Gradle 遠端快取解決方案以來，成果簡直令人驚嘆。它直接影響了我們的 CI 和本地建置時間，並透過 Tuist 的洞察儀表板提高了我們平台的能見度。我們現在看到 CI 時間減少了 64%，乾淨建置速度提升了 4 倍。我們完成整合僅一個月，價值已經在公司內部顯現。"
+msgstr "自從採用 Tuist 作為我們的 iOS 建置系統和 Gradle 遠端快取解決方案以來，成果令人驚嘆。它直接影響了我們的 CI 和本地建置時間，並透過 Tuist 的洞察儀表板提高了我們平台的能見度。我們現在看到 CI 時間減少了 64%，乾淨建置速度加快了 4 倍。完成整合僅一個月，價值已在全公司顯現。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Spin up runners in seconds and scale with your team and agents"
-msgstr "在幾秒鐘內啟動執行器，並隨著你的團隊和代理程式擴展"
+msgstr "在數秒內啟動執行器，並隨著團隊和代理程式擴展"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:122
 #, elixir-autogen, elixir-format
@@ -1406,12 +1406,12 @@ msgstr "保持更新 - 訂閱我們的電子報"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Stop waiting on the queue."
-msgstr "不再需要排隊等待。"
+msgstr "無需再排隊等待。"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Test only what changed and catch flaky tests automatically"
-msgstr "只測試有變更的部分，並自動捕捉不穩定的測試"
+msgstr "只測試變更部分，並自動捕捉不穩定測試"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:990
 #, elixir-autogen, elixir-format
@@ -1421,7 +1421,7 @@ msgstr "用戶評價"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:514
 #, elixir-autogen, elixir-format
 msgid "Tests ran:"
-msgstr "已執行測試："
+msgstr "已運行測試："
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:509
 #, elixir-autogen, elixir-format
@@ -1441,22 +1441,22 @@ msgstr "透明度"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:852
 #, elixir-autogen, elixir-format
 msgid "Transparent by default. Inspect the code, contribute improvements, and stay in control."
-msgstr "預設透明。檢查代碼、貢獻改進，並保持掌控。"
+msgstr "預設透明。檢查程式碼、貢獻改進，並保持掌控。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:249
 #, elixir-autogen, elixir-format
 msgid "Tuist cuts our build times by 65% and reduces project conflicts, letting us focus on developer experience and testing. Hundreds of devs across multiple organizations, alongside AI agents, collaborate on Trendyol. Tuist is key to running tens of thousands of UI and unit tests across thousands of pipelines every day."
-msgstr "Tuist 將我們的構建時間縮短了 65%，並減少項目衝突，讓我們專注於開發者體驗和測試。Trendyol 有多個組織的數百名開發人員與 AI 代理協作。Tuist 是每天在數千條流水線上運行數萬次 UI 和單元測試的關鍵。"
+msgstr "Tuist 將我們的建構時間縮短了 65%，並減少專案衝突，讓我們能專注於開發者體驗和測試。Trendyol 有數百名來自不同組織的開發人員，以及 AI 代理共同協作。Tuist 是每天在數千條流水線上運行數萬個 UI 和單元測試的關鍵。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:219
 #, elixir-autogen, elixir-format
 msgid "Tuist has made a meaningful difference to developer productivity across our growing iOS engineering organization which means faster iteration for both our engineers and coding agents working alongside them. Tuist has helped us turn build performance into a scalable advantage"
-msgstr "Tuist 為我們不斷擴展的 iOS 工程團隊帶來了顯著的生產力提升，這意味著我們的工程師和與他們並肩工作的編碼代理都能更快地進行迭代。Tuist 幫助我們將建置效能轉化為可擴展的優勢"
+msgstr "Tuist 為我們不斷擴大的 iOS 工程團隊帶來了顯著的生產力提升，讓我們的工程師和與他們協作的編碼代理都能更快地迭代。Tuist 幫助我們將建構效能轉化為可擴展的優勢"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:234
 #, elixir-autogen, elixir-format
 msgid "Tuist has made a real difference in how we work with Fetch's large, highly modular iOS codebase. Its remote module cache has materially reduced build times and tightened feedback loops for engineers locally and in CI, while Build Insights gives us valuable visibility into build performance and where to focus next. That combination of speed and observability has made the developer experience meaningfully better."
-msgstr "Tuist 對我們處理 Fetch 龐大且高度模組化的 iOS 程式碼庫的方式產生了實質影響。其遠端模組快取大幅縮短了建置時間，並緊縮了工程師在本地和 CI 中的回饋循環，而 Build Insights 則讓我們對建置效能及下一步優化重點擁有寶貴的可見性。這種速度與可觀察性的結合，顯著提升了開發者體驗。"
+msgstr "Tuist 對我們處理 Fetch 龐大且高度模組化的 iOS 程式碼庫的方式產生了實質影響。其遠端模組快取大幅縮短了建構時間，並緊縮了工程師在本機和 CI 中的回饋循環，而 Build Insights 則讓我們對建構效能及下一步優化重點擁有寶貴的洞察力。這種速度與可觀察性的結合，顯著提升了開發者體驗。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:806
 #, elixir-autogen, elixir-format
@@ -1466,12 +1466,12 @@ msgstr "Tuist 以開放方式建構，因為我們相信開發者基礎設施應
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:622
 #, elixir-autogen, elixir-format
 msgid "Tuist is trusted by over 300+ product teams, from fast-growing startups to global enterprises."
-msgstr "超過 300+ 個產品團隊信賴 Tuist，從快速成長的新創公司到全球企業皆包括在內。"
+msgstr "全球超過 300+ 個產品團隊信賴 Tuist，從快速成長的新創公司到全球企業皆在其中。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:294
 #, elixir-autogen, elixir-format
 msgid "Tuist made git worktrees practical on our huge codebase. Worktrees used to be painful here — every new one ate serious disk space, opening the project over and over had real overhead, and each fresh worktree meant another clean build. Tuist shrank all of those hurdles, so now I spin up worktrees without hesitation — which is exactly what AI-assisted development needs."
-msgstr "Tuist 讓 git worktrees 在我們龐大的程式碼庫中變得實用。過去在這裡使用 worktrees 很痛苦——每個新的 worktree 都會佔用大量磁碟空間，反覆開啟專案帶來真正的額外負擔，而且每個新的 worktree 都意味著另一次完全建置。Tuist 消除了這些障礙，所以我現在可以毫不猶豫地啟動 worktrees——這正是 AI 輔助開發所需要的。"
+msgstr "Tuist 讓 git worktrees 在我們龐大的程式碼庫中變得實用。過去在這裡使用 worktrees 很痛苦——每個新的 worktree 都會佔用大量磁碟空間，反覆開啟專案帶來真正的額外負擔，而且每個新的 worktree 都意味著需要重新進行乾淨建構。Tuist 消除了這些障礙，現在我可以毫不猶豫地啟動 worktrees——這正是 AI 輔助開發所需要的。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:265
 #, elixir-autogen, elixir-format
@@ -1493,17 +1493,17 @@ msgstr "你還在等什麼？"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:309
 #, elixir-autogen, elixir-format
 msgid "With Tuist's development cache and focused modules, our local feedback loop got dramatically shorter. A build that took around 4 minutes drops to about 25 seconds on the next run — 123 of 124 targets served straight from cache. The feeling of facing the entire project on every build is gone; I just iterate on the modules I'm actually changing, and I rarely think about project file conflicts anymore."
-msgstr "藉助 Tuist 的開發快取和聚焦模組，我們的本地回饋循環大幅縮短。原本需要約 4 分鐘的建置，在下一次執行時降至約 25 秒——124 個目標中有 123 個直接從快取提供。每次建置都要面對整個專案的感覺已經消失；我只需迭代實際變更的模組，而且我很少再想到專案檔案衝突的問題。"
+msgstr "藉助 Tuist 的開發快取和聚焦模組，我們的本機回饋循環大幅縮短。原本需要約 4 分鐘的建構，在下一次執行時降至約 25 秒——124 個目標中有 123 個直接從快取提供。每次建構都要面對整個專案的感覺已經消失；我只需迭代實際更改的模組，也很少再考慮專案檔案衝突的問題。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "With cache"
-msgstr "使用快取"
+msgstr "連快取"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Without cache"
-msgstr "不使用快取"
+msgstr "無快取"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:905
 #, elixir-autogen, elixir-format
@@ -1513,7 +1513,7 @@ msgstr "專屬基礎設施"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:776
 #, elixir-autogen, elixir-format
 msgid "and more ..."
-msgstr "以及更多..."
+msgstr "等等..."
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:299
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:314
@@ -1526,12 +1526,12 @@ msgstr "Toss 的 iOS 開發人員"
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:168
 #, elixir-autogen, elixir-format
 msgid "Copy logo as SVG"
-msgstr "複製 SVG 格式標誌"
+msgstr "複製 SVG 格式的標誌"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Copy wordmark as SVG"
-msgstr "複製 SVG 格式字標"
+msgstr "複製 SVG 格式的文字標誌"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:207
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:63
@@ -1557,7 +1557,7 @@ msgstr "品牌指南"
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "Run only the tests affected by your changes and flag flaky ones automatically, so a successful build truly means success."
-msgstr "只運行受你更改影響的測試，並自動標記不穩定的測試，讓成功的建構真正代表成功。"
+msgstr "只運行受你的更改影響的測試，並自動標記不穩定的測試，讓成功的建構真正代表成功。"
 
 #: lib/tuist_web/marketing/structured_markup.ex:260
 #, elixir-autogen, elixir-format
@@ -1615,38 +1615,38 @@ msgstr "團隊"
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:8
 #, elixir-autogen, elixir-format
 msgid "Tuist compresses that loop. Builds, tests, and the retries in between finish in seconds instead of minutes, so your developers stay in flow, your CI stops burning time, and the agents in your pipeline can think, try, and correct their way to code that works."
-msgstr "Tuist 縮短了這個循環。構建、測試以及其間的重試都能在數秒內完成，而非數分鐘，讓開發人員保持心流狀態，CI 不再浪費時間，而管道中的代理則能透過思考、嘗試和修正，最終產出可行的代碼。"
+msgstr "Tuist 縮短了這個循環。構建、測試以及中間的重試都能在幾秒鐘內完成，而不是幾分鐘，讓你的開發人員保持心流狀態，你的 CI 不再浪費時間，而管道中的代理可以思考、嘗試並修正，直至代碼正常運作。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Then AI happened, and optimizing your toolchain stopped being a luxury only large teams could afford. Every developer, and every agent working alongside them, needs the same fast, reliable feedback loops. That's what we're building next, with a stubborn commitment to sparking joy in the people who use it."
-msgstr "隨著 AI 的出現，優化工具鏈已不再是只有大型團隊才能負擔的奢侈品。每位開發人員，以及與他們並肩工作的每個代理，都需要同樣快速且可靠的反饋循環。這正是我們接下來要打造的目標，並堅定不移地致力於為使用者帶來愉悅體驗。"
+msgstr "然後 AI 出現了，優化工具鏈不再是只有大型團隊才能負擔的奢侈品。每位開發人員，以及與他們並肩工作的每個代理，都需要同樣快速、可靠的反饋循環。這正是我們接下來要打造的東西，並堅定不移地致力於為使用者帶來愉悅體驗。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Tuist started as a client-side toolkit for the Apple ecosystem. We turned it into a business so we could do what we love most, full time: building the infrastructure and technology to support the full diversity of build toolchains developers use today. Whatever you build with, we want the toolchain underneath to feel invisible."
-msgstr "Tuist 最初是作為 Apple 生態系統的客戶端工具包而誕生。我們將它發展成一項業務，以便能全職投入我們最熱愛的工作：打造基礎設施和技術，以支援當今開發人員使用的各種多樣化構建工具鏈。無論你使用什麼技術進行構建，我們都希望底層的工具鏈感覺如同隱形一般。"
+msgstr "Tuist 最初是作為 Apple 生態系統的客戶端工具包而起家的。我們將它發展成一項業務，以便能夠全職從事我們最熱愛的事情：構建基礎設施和技術，以支援開發人員今天使用的各種構建工具鏈。無論你使用什麼技術進行構建，我們都希望底層的工具鏈感覺不到存在。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "We're obsessed with helping developers build better software, faster. That obsession comes from doing the work at scale ourselves. Our team spent years shipping the tools behind mobile at %{shopify}, and Tuist is what we learned along the way."
-msgstr "我們致力協助開發人員更快打造更優質的軟件。這份執著源於我們親身以大規模實踐。我們的團隊曾在 %{shopify} 花費數年時間，交付移動端背後的工具，而 Tuist 正是我們在此過程中積累的經驗結晶。"
+msgstr "我們致力於幫助開發者更快更好地構建軟件。這份執著源於我們自身在大規模環境中的實踐經驗。我們的團隊在 %{shopify} 花了數年時間交付移動端背後的工具，而 Tuist 正是我們在此過程中積累的結晶。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "We want developers to build"
-msgstr "我們希望開發人員打造"
+msgstr "我們希望開發者能夠構建"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "better software, faster."
-msgstr "更優質的軟件，更快。"
+msgstr "更好、更快的軟件。"
 
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:97
 #: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Atom feed"
-msgstr "Atom feed"
+msgstr "Atom 訂閱源"
 
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:64
 #, elixir-autogen, elixir-format
@@ -1667,7 +1667,7 @@ msgstr "列表檢視"
 #: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "RSS feed"
-msgstr "RSS feed"
+msgstr "RSS 訂閱源"
 
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:79
 #, elixir-autogen, elixir-format
@@ -1682,12 +1682,12 @@ msgstr "搜尋..."
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Tuist bridges the gaps in developer tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges, so you can deliver exceptional apps at speed."
-msgstr "Tuist 填補開發者工具中的缺口，讓團隊能夠快速推進。我們解決建構複雜性、工作流程摩擦和協作挑戰，讓您能快速交付卓越的應用程式。"
+msgstr "Tuist 彌合開發者工具中的缺口，讓團隊能夠快速推進。我們解決建置複雜性、工作流程摩擦和協作挑戰，讓您能以高速交付卓越的應用程式。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "For tight layouts or logo-only grids, the Tuist mark can be used in either color or monochrome. Use whichever fits the surrounding design best, while keeping the full wordmark for contexts where stronger brand recognition is needed."
-msgstr "對於緊湊的版面配置或僅含標誌的網格，可以使用彩色或單色的 Tuist 標誌。請選擇最適合周圍設計的版本，而在需要更強品牌辨識度的情況下，請使用完整字標。"
+msgstr "在緊湊的版面或僅限標誌的網格中，可以使用彩色或單色的 Tuist 標誌。請選擇最適合周圍設計的版本，而在需要更強品牌識別度的情境下，請使用完整的字體標誌。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:103
 #, elixir-autogen, elixir-format
@@ -1707,7 +1707,7 @@ msgstr "淺色背景上的單色 Tuist 標誌"
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "Monochrome Tuist wordmark on a dark background"
-msgstr "深色背景上的單色 Tuist 字標"
+msgstr "深色背景上的單色 Tuist 字體標誌"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:18
 #, elixir-autogen, elixir-format
@@ -1728,7 +1728,7 @@ msgstr "只要空間允許，應使用 Tuist 字標。首選彩色版本，但�
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Tuist brand assets are provided for use when referencing or representing Tuist. Please keep the assets as provided and avoid using them in ways that could suggest an official partnership, sponsorship, or endorsement where one doesn't exist. They also shouldn't be incorporated into your own logo, product name, or brand identity. If you're unsure about a particular use, feel free to"
-msgstr "提供 Tuist 品牌資產，供在提及或代表 Tuist 時使用。請保持資產原樣，避免以可能暗示存在官方合作夥伴關係、贊助或背書（而實際上並不存在）的方式使用它們。這些資產也不應納入您自己的標誌、產品名稱或品牌識別中。如果您對特定用法不確定，歡迎"
+msgstr "提供 Tuist 品牌資產，供在提及或代表 Tuist 時使用。請保持資產原樣，避免以可能暗示存在官方合作夥伴關係、贊助或背書（而實際上並不存在）的方式使用。這些資產也不應納入您自己的標誌、產品名稱或品牌識別中。如果您對特定用法不確定，歡迎"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:104
 #, elixir-autogen, elixir-format
@@ -1778,37 +1778,37 @@ msgstr "與我們"
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "Accelerate builds with caching designed around how your projects actually compile."
-msgstr "透過專為項目實際編譯方式設計的快取功能，加速構建流程。"
+msgstr "透過專為專案實際編譯方式設計的快取功能，加速建置流程。"
 
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Artifacts are served from the region closest to your developers, CI, and agent environments for fast access wherever builds run."
-msgstr "構建產物會從最接近開發人員、CI 及代理環境的地區提供，確保無論在哪裡運行構建都能快速存取。"
+msgstr "構件會從最接近開發人員、CI 及代理環境的區域提供服務，讓無論在哪裡執行建置都能快速存取。"
 
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "Built for your build system"
-msgstr "專為你的構建系統而設"
+msgstr "專為你的建置系統而設"
 
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Built-in observability"
-msgstr "內建可觀測性"
+msgstr "內建可觀察性"
 
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Cache lookups stay lightweight, so every build can check for reusable artifacts without introducing extra build cost."
-msgstr "快取查找保持輕量，因此每次建構都能檢查可重複使用的構件，而不會增加額外的建構成本。"
+msgstr "快取查找保持輕量，因此每個建構都可以檢查可重複使用的構件，而不會增加額外的建構成本。"
 
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Everything you'd want from a cache"
-msgstr "你期望從快取獲得的一切"
+msgstr "您期望從快取中獲得的一切"
 
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Fast everywhere, with near-zero overhead and built-in observability into cache performance."
-msgstr "處處快速，幾乎零開銷，並內建快取效能的可觀測性。"
+msgstr "處處快速，幾乎零開銷，並內建快取效能的可觀察性。"
 
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:217
 #, elixir-autogen, elixir-format
@@ -1818,12 +1818,12 @@ msgstr "低延遲，無處不在"
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Minimal overhead"
-msgstr "最低開銷"
+msgstr "最小開銷"
 
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "Never build the"
-msgstr "永不重複建構"
+msgstr "永不建構"
 
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:276
 #, elixir-autogen, elixir-format
@@ -1833,12 +1833,12 @@ msgstr "查看快取命中、未命中和建構效能，以便了解哪些內容
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "same thing twice."
-msgstr "同樣的事情兩次。"
+msgstr "同樣的事情重複兩次。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Compare features across plans"
-msgstr "比較不同方案的機能"
+msgstr "比較不同方案的產品功能"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:47
 #, elixir-autogen, elixir-format
@@ -1853,7 +1853,7 @@ msgstr "目前方案"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Explore what is making your builds slow and speed up your builds."
-msgstr "探索導致構建緩慢的原因並加速你的構建。"
+msgstr "探索導致構建緩慢的原因並加快構建速度。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:487
 #, elixir-autogen, elixir-format
@@ -1868,12 +1868,12 @@ msgstr "常見問題解答"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Get started with Tuist at no cost, and only invest more when you're ready for higher limits or personalized support."
-msgstr "免費開始使用 Tuist，僅在你需要更高限制或個人化支援時才增加投資。"
+msgstr "免費開始使用 Tuist，僅在需要更高限制或個人化支援時才增加投入。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
-msgstr "立即開始，無需信用卡"
+msgstr "立即開始，無需提供信用卡"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:292
 #, elixir-autogen, elixir-format
@@ -1888,7 +1888,7 @@ msgstr "熱門"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "Preview your project apps in simulator or devices with one click/command."
-msgstr "一鍵或輸入指令即可在模擬器或裝置上預覽你的專案應用程式。"
+msgstr "一鍵或一行指令即可在模擬器或裝置上預覽你的項目應用程式。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:294
 #, elixir-autogen, elixir-format
@@ -1898,7 +1898,7 @@ msgstr "定價方案"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
-msgstr "透過跳過未受變更影響的測試套件（測試目標），加快測試執行速度。"
+msgstr "跳過未受變更影響的測試套件（測試目標），以加快測試執行速度。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:279
 #, elixir-autogen, elixir-format
@@ -1923,7 +1923,7 @@ msgstr "隨時隨地升級"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
-msgstr "免費用量後按使用量定價"
+msgstr "免費額度後按使用量計費"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:259
 #, elixir-autogen, elixir-format
@@ -1934,7 +1934,7 @@ msgstr "透過 Discourse 論壇"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "via Slack and email"
-msgstr "透過 Slack 和電子郵件"
+msgstr "透過 Slack 和電郵"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:322
 #, elixir-autogen, elixir-format
@@ -1949,12 +1949,12 @@ msgstr "預設支援快取"
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Compute without the infrastructure work"
-msgstr "無需基礎設施工作的運算能力"
+msgstr "無需基礎設施工作的運算資源"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:609
 #, elixir-autogen, elixir-format
 msgid "Connect to a running machine through your terminal or VNC and investigate failures in the environment where they actually happened."
-msgstr "透過終端機或 VNC 連線至正在運行的機器，並在實際發生故障的環境中調查問題。"
+msgstr "透過終端機或 VNC 連線至正在運行的機器，並在問題實際發生的環境中調查失敗原因。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:607
 #, elixir-autogen, elixir-format
@@ -1964,27 +1964,27 @@ msgstr "在失敗處進行除錯"
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:494
 #, elixir-autogen, elixir-format
 msgid "Everything else, built in"
-msgstr "其他一切，內建整合"
+msgstr "其他功能，一應俱全"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Fast macOS and Linux runners that scale with your workloads and plug directly into the rest of the Tuist platform."
-msgstr "快速的 macOS 和 Linux 執行器，可隨你的工作負載擴展，並直接插入 Tuist 平台的其他部分。"
+msgstr "快速的 macOS 和 Linux runner，可根據你的工作負載進行擴展，並直接與 Tuist 平台的其他部分整合。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1048
 #, elixir-autogen, elixir-format
 msgid "Fast macOS and Linux runners that spin up in seconds and scale with your team and your agents."
-msgstr "快速的 macOS 和 Linux 執行器，可在數秒內啟動，並隨你的團隊和代理程式擴展。"
+msgstr "快速的 macOS 和 Linux runner，可在數秒內啟動，並隨著你的團隊和 agent 數量進行擴展。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:324
 #, elixir-autogen, elixir-format
 msgid "Go from a CI job to the Xcode or Gradle build behind it, with build performance, cache activity, and machine metrics connected in one place."
-msgstr "從 CI 工作直接進入背後的 Xcode 或 Gradle 建置，將建置效能、快取活動和機器指標集中在一個地方。"
+msgstr "從 CI 工作直接追蹤到背後的 Xcode 或 Gradle 建構，將建構效能、快取活動和機器指標集中在同一個地方。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:483
 #, elixir-autogen, elixir-format
 msgid "Persistent volumes and colocated caching keep build data close to your runners for faster reads, writes, and repeat jobs."
-msgstr "持久化儲存卷和本地快取讓建置資料靠近執行器，以加快讀取、寫入和重複作業的速度。"
+msgstr "持久化儲存空間和共置快取讓建構資料更靠近你的 runner，以加快讀取、寫入和重複工作的速度。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:566
 #, elixir-autogen, elixir-format
@@ -1994,17 +1994,17 @@ msgstr "強大的運算能力，隨時待命"
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:568
 #, elixir-autogen, elixir-format
 msgid "Run CI and agent workloads on M4 Pro Macs today, with M5 Pro coming soon, or choose Linux machines sized for the job."
-msgstr "立即在 M4 Pro Mac 上執行 CI 和代理工作負載，M5 Pro 即將推出，或選擇為工作量身定製的 Linux 機器。"
+msgstr "立即在 M4 Pro Mac 上執行 CI 和代理工作負載，M5 Pro 即將推出，或選擇為工作量身打造的 Linux 機器。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:657
 #, elixir-autogen, elixir-format
 msgid "Run your workflows on current Xcode and macOS versions without maintaining images or installing toolchains yourself."
-msgstr "在最新的 Xcode 和 macOS 版本上執行你的工作流程，無需自行維護映像或安裝工具鏈。"
+msgstr "在最新的 Xcode 和 macOS 版本上執行你的工作流程，無需自行維護映像檔或安裝工具鏈。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:526
 #, elixir-autogen, elixir-format
 msgid "Scale without the queue"
-msgstr "無縫擴展，無需排隊"
+msgstr "無需排隊即可擴展"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:528
 #, elixir-autogen, elixir-format
@@ -2019,17 +2019,17 @@ msgstr "緊貼 Apple 最新動態"
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Stop waiting on the"
-msgstr "不再等待"
+msgstr "不再需要等待"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "queue."
-msgstr "排隊。"
+msgstr "佇列。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Automatically detect flaky tests, track them over time, and quarantine them so unreliable tests don't keep blocking CI while you fix them."
-msgstr "自動檢測不穩定測試，隨時間追蹤並隔離它們，讓不可靠的測試不會在你修復期間持續阻礙 CI。"
+msgstr "自動檢測不穩定測試，隨時間追蹤並將它們隔離，讓不可靠的測試在你修復期間不會持續阻礙 CI。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:281
 #, elixir-autogen, elixir-format
@@ -2044,12 +2044,12 @@ msgstr "加快你的測試速度"
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "Faster tests, fewer surprises"
-msgstr "更快嘅測試，更少意外"
+msgstr "更快的測試，更少的意外"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "Know what's slowing you down"
-msgstr "了解拖慢你進度嘅原因"
+msgstr "了解拖慢你進度的原因"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:323
 #, elixir-autogen, elixir-format
@@ -2059,22 +2059,22 @@ msgstr "隔離測試"
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "Run large test suites across multiple CI runners without creating one slow shard. Tuist uses historical test timings to balance tests so each runner finishes at roughly the same time."
-msgstr "無需創建一個緩慢嘅分片，即可跨多個 CI 運行器運行大型測試套件。Tuist 使用歷史測試時間來平衡測試，使每個運行器大致在同一時間完成。"
+msgstr "在多個 CI 執行器上運行大型測試套件，而無需創建一個緩慢的分片。Tuist 使用歷史測試時間來平衡測試，使每個執行器大致在同一時間完成。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Run only what changed"
-msgstr "只運行更改過嘅部分"
+msgstr "僅運行更改的內容"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Skip tests that don't need to run. Tuist uses project hashing to identify what changed since the last successful run and executes only the affected tests."
-msgstr "跳過不需要運行嘅測試。Tuist 使用項目哈希來識別自上次成功運行以來發生嘅變化，並僅執行受影響嘅測試。"
+msgstr "跳過不需要運行的測試。Tuist 使用項目哈希來識別自上次成功運行以來發生的更改，並僅執行受影響的測試。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Skip unnecessary tests, distribute the rest efficiently, and keep your test suite healthy with built-in insights."
-msgstr "跳過不必要的測試，高效分配其餘測試，並透過內建洞察保持測試套件的健康狀態。"
+msgstr "跳過不必要的測試，有效分配其餘測試，並透過內建洞察保持測試套件健康。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:274
 #, elixir-autogen, elixir-format
@@ -2084,7 +2084,7 @@ msgstr "已跳過的測試"
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "Split tests intelligently"
-msgstr "智能分割測試"
+msgstr "智能拆分測試"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:327
 #, elixir-autogen, elixir-format
@@ -2094,22 +2094,22 @@ msgstr "防止不穩定測試阻礙 CI"
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Test runs"
-msgstr "測試執行次數"
+msgstr "測試運行"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:308
 #, elixir-autogen, elixir-format
 msgid "Track test performance over time, uncover slow tests, and understand failed runs without digging through CI logs."
-msgstr "追蹤隨時間變化的測試表現，找出緩慢的測試，並在不需翻查 CI 日誌的情況下了解失敗的測試執行。"
+msgstr "追蹤測試效能隨時間的變化，找出緩慢的測試，並無需翻閱 CI 日誌即可了解失敗的運行。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "actually trust."
-msgstr "真正值得信賴。"
+msgstr "真正可信賴。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "p90 test run duration"
-msgstr "p90 測試執行持續時間"
+msgstr "p90 測試運行持續時間"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:9
 #, elixir-autogen, elixir-format
@@ -2119,7 +2119,7 @@ msgstr "適用於 macOS 和 iOS，助你更快構建和發佈。"
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Brings your latest previews together,"
-msgstr "將你最新的預覽集中在一起，"
+msgstr "將你最新的預覽整合在一起，"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:39
 #, elixir-autogen, elixir-format
@@ -2151,7 +2151,7 @@ msgstr "在 iPhone 上下載"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:551
 #, elixir-autogen, elixir-format
 msgid "Download the Tuist apps for macOS and iOS to launch, manage, and run Tuist Previews from your Mac and iPhone."
-msgstr "下載適用於 macOS 和 iOS 的 Tuist 應用程式，從你的 Mac 和 iPhone 啟動、管理和運行 Tuist Previews。"
+msgstr "下載適用於 macOS 和 iOS 的 Tuist 應用程式，從你的 Mac 和 iPhone 啟動、管理及運行 Tuist Previews。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:488
 #, elixir-autogen, elixir-format
@@ -2171,7 +2171,7 @@ msgstr "Tuist macOS 選單列應用程式讓你輕鬆啟動和管理"
 #: lib/tuist_web/controllers/error_html.ex:161
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
-msgstr "你正在尋找的頁面不存在或已移動。"
+msgstr "你正在尋找的頁面不存在或已被移動。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:47
 #, elixir-autogen, elixir-format
@@ -2186,7 +2186,7 @@ msgstr "版本 %{version}"
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:531
 #, elixir-autogen, elixir-format
 msgid "and runs them directly on your device"
-msgstr "並直接在你的裝置上執行"
+msgstr "並直接在你的裝置上執行它們"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:489
 #, elixir-autogen, elixir-format
@@ -2196,7 +2196,7 @@ msgstr "iOS 應用程式"
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:529
 #, elixir-autogen, elixir-format
 msgid "lets you inspect them in detail,"
-msgstr "讓你可以詳細檢查它們，"
+msgstr "讓你可以詳細檢視它們，"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:40
 #, elixir-autogen, elixir-format
@@ -2206,7 +2206,7 @@ msgstr "macOS 應用程式"
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "on simulators and real devices directly from your Mac."
-msgstr "直接在 Mac 上於模擬器和真實裝置中執行。"
+msgstr "直接從你的 Mac 在模擬器和真實裝置上執行。"
 
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:25
 #, elixir-autogen, elixir-format
@@ -2221,7 +2221,7 @@ msgstr "每次變更，隨時可試"
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "Everything you need to share what you build"
-msgstr "分享建構成果所需的一切功能"
+msgstr "分享你建構成果所需的一切"
 
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:349
 #, elixir-autogen, elixir-format
@@ -2231,12 +2231,12 @@ msgstr "探索 macOS 和 iOS 的 %{companion_apps}。"
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Group previews by branch, release, or team so stakeholders always find the build meant for them."
-msgstr "按分支、版本或團隊分組預覽，讓利害關係人輕鬆找到對應的建構版本。"
+msgstr "按分支、發布或團隊將預覽分組，讓利害關係人隨時找到專為他們準備的建構版本。"
 
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Keep everyone on the latest build"
-msgstr "讓所有人使用最新構建版本"
+msgstr "讓所有人使用最新版本"
 
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:36
 #, elixir-autogen, elixir-format
@@ -2251,7 +2251,7 @@ msgstr "分享構建，而非設定"
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Tuist automatically posts Preview links to pull requests, so reviewers can try changes instead of relying on code or images."
-msgstr "Tuist 會自動將 Preview 連結發佈到拉取請求，讓審查者可以直接試用變更，而無需依賴程式碼或圖片。"
+msgstr "Tuist 會自動將 Preview 連結發佈到拉取請求，讓審查者可以試用變更，而無需依賴程式碼或圖片。"
 
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:43
 #, elixir-autogen, elixir-format
@@ -2278,7 +2278,7 @@ msgstr "錯誤 404"
 #: lib/tuist_web/marketing/controllers/marketing_html/not_found.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Page not found"
-msgstr "找不到頁面"
+msgstr "搵唔到頁面"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/not_found.html.heex:24
 #, elixir-autogen, elixir-format
@@ -2288,17 +2288,17 @@ msgstr "顯示頁面的大綱"
 #: lib/tuist_web/marketing/controllers/marketing_html/not_found.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "The page you were looking for doesn't exist or may have moved"
-msgstr "您尋找的頁面不存在或可能已移動"
+msgstr "你尋找的頁面不存在或可能已移動"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/not_found.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "Error 404. Toggle the page's outline view"
-msgstr "錯誤 404。切換頁面大綱檢視"
+msgstr "錯誤 404。切換頁面的大綱檢視"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Email"
-msgstr "電郵地址"
+msgstr "電郵"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_stack.html.heex:37
 #, elixir-autogen, elixir-format
@@ -2313,7 +2313,7 @@ msgstr "過往電子報期數"
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Sort issues newest first"
-msgstr "按最新排序"
+msgstr "按最新排序期數"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:76
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:77
@@ -2346,7 +2346,7 @@ msgstr "動畫：Tuist 選單列應用程式會列出最新的預覽；選擇其
 #: lib/tuist_web/marketing/controllers/marketing_html/brand.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Brand assets"
-msgstr "品牌資產"
+msgstr "品牌資源"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:926
 #, elixir-autogen, elixir-format
@@ -2362,7 +2362,7 @@ msgstr "深色主題"
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Footer navigation"
-msgstr "頁腳導航"
+msgstr "頁尾導覽"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:275
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:654
@@ -2373,12 +2373,12 @@ msgstr "淺色主題"
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Main navigation"
-msgstr "主要導航"
+msgstr "主要導覽"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:533
 #, elixir-autogen, elixir-format
 msgid "Mobile navigation"
-msgstr "流動裝置導航"
+msgstr "流動裝置導覽"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:64
 #, elixir-autogen, elixir-format
@@ -2389,7 +2389,7 @@ msgstr "使用 Tuist 的組織"
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:191
 #, elixir-autogen, elixir-format
 msgid "SOC 2 Type II certified"
-msgstr "通過 SOC 2 Type II 認證"
+msgstr "SOC 2 Type II 認證"
 
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:55
 #, elixir-autogen, elixir-format
@@ -2410,12 +2410,12 @@ msgstr "所有期數"
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "Food for thought"
-msgstr "值得深思"
+msgstr "值得思考的內容"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Get the next issue in your inbox"
-msgstr "在收件箱中獲取下一期"
+msgstr "將下一期內容直接發送到您的收件箱"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:223
 #, elixir-autogen, elixir-format
@@ -2445,7 +2445,7 @@ msgstr "這是第一期"
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:503
 #, elixir-autogen, elixir-format
 msgid "This is the latest issue"
-msgstr "這是最新的議題"
+msgstr "這是最後一期"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:319
 #, elixir-autogen, elixir-format
@@ -2455,7 +2455,7 @@ msgstr "工具與網站"
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:287
 #, elixir-autogen, elixir-format
 msgid "Welcome to issue %{number}"
-msgstr "歡迎來到第 %{number} 期議題"
+msgstr "歡迎來到第 %{number} 期"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:360
 #, elixir-autogen, elixir-format
@@ -2470,7 +2470,7 @@ msgstr "Worthy Five：%{name}"
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:636
 #, elixir-autogen, elixir-format
 msgid "Supercharge your development"
-msgstr "為你的開發工作加速"
+msgstr "為你的開發工作注入強大動力"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:359
 #, elixir-autogen, elixir-format
@@ -2485,18 +2485,18 @@ msgstr "方案"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:354
 #, elixir-autogen, elixir-format
 msgid "Tuist is an amazing tool for iOS developers. Since adopting this tool, I haven't had to face conflicts in Xcode projects. Overall, Tuist has reduced build time, so I can use more time on meaningful tasks. Thankfully, Tuist is receiving feedback from Korean users in local social communities. They are always there for you."
-msgstr "Tuist 是 iOS 開發者的出色工具。自從採用這個工具後，我不再需要面對 Xcode 專案中的衝突。整體而言，Tuist 縮短了建置時間，讓我能將更多時間投入於重要任務。值得慶幸的是，Tuist 在韓國本地社群中持續收到用戶的反饋。他們隨時為你提供支持。"
+msgstr "Tuist 是 iOS 開發人員的出色工具。自從採用這個工具以來，我不再需要面對 Xcode 專案中的衝突。總體而言，Tuist 減少了建置時間，讓我可以將更多時間花在重要的任務上。值得慶幸的是，Tuist 正在韓國本地社群中接收用戶的反饋。他們隨時為你提供支援。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:136
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "5M passing test cases"
-msgstr "500萬個通過的測試用例"
+msgstr "500萬個通過的測試案例"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Cache egress"
-msgstr "快取流出量"
+msgstr "快取出站流量"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:105
 #, elixir-autogen, elixir-format
@@ -2511,42 +2511,42 @@ msgstr "從 Module、Xcode、Gradle 和 Bazel 快取下載的數據。上傳和�
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Downloads served from any of your caches."
-msgstr "從任何快取提供的下載。"
+msgstr "從你的任何快取提供的下載。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Each download from a cache is one request. Every cache shares one allowance each billing period, and requests from Tuist Runners count at half."
-msgstr "每次從快取下載算作一次請求。每個計費週期所有快取共享同一個配額，而來自 Tuist Runners 的請求按半數計算。"
+msgstr "每次從快取下載算作一次請求。每個計費週期所有快取共享一個配額，而來自 Tuist Runners 的請求按半數計算。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:996
 #, elixir-autogen, elixir-format
 msgid "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
-msgstr "流出量是指你的建構從 Tuist 的快取（包括 Module、Xcode、Gradle 和 Bazel 快取）下載的數據，每次下載算作一次請求。所有快取在每個計費週期共享同一個免費配額。上傳和儲存免費。"
+msgstr "出站流量是指你的構建從 Tuist 的快取（包括 Module、Xcode、Gradle 和 Bazel 快取）下載的數據，每次下載算作一次請求。它們在每個計費週期共享一個免費配額。上傳和儲存免費。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Every cache shares one allowance each billing period, and traffic from Tuist Runners counts at half."
-msgstr "每個計費週期所有快取共享同一個配額，而來自 Tuist Runners 的流量按半數計算。"
+msgstr "每個計費週期所有快取共享一個配額，而來自 Tuist Runners 的流量按半數計算。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "How are requests counted?"
-msgstr "如何計算請求次數？"
+msgstr "點樣計算請求次數？"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "How is egress measured?"
-msgstr "如何計量出站流量？"
+msgstr "點樣量度出站流量？"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
 #, elixir-autogen, elixir-format
 msgid "Is usage on Tuist Runners billed differently?"
-msgstr "Tuist Runners 的使用量是否採用不同的計費方式？"
+msgstr "Tuist Runners 嘅用量計費方式會唔會唔同？"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Only passing test cases are billed. Failed and skipped test cases, and tests run on Tuist Runners, are free."
-msgstr "只有通過的測試用例會計費。失敗和跳過的測試用例，以及在 Tuist Runners 上運行的測試均免費。"
+msgstr "只有通過嘅測試用例先會收費。失敗、跳過嘅測試用例，以及喺 Tuist Runners 上運行嘅測試，一律免費。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:145
 #, elixir-autogen, elixir-format
@@ -2561,12 +2561,12 @@ msgstr "測試洞察"
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Track test results over time and catch flaky tests before they slow your team down."
-msgstr "追蹤隨時間變化的測試結果，並在不穩定的測試拖慢團隊進度之前將其找出。"
+msgstr "追蹤一段時間內嘅測試結果，喺不穩定測試拖慢團隊進度之前及早發現。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:995
 #, elixir-autogen, elixir-format
 msgid "What counts as cache egress and requests?"
-msgstr "什麼算作快取出站流量和請求？"
+msgstr "乜嘢會被計入快取出站流量同請求？"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:129
 #, elixir-autogen, elixir-format
@@ -2576,7 +2576,7 @@ msgstr "哪些測試用例会計費？"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1001
 #, elixir-autogen, elixir-format
 msgid "Yes. Cache egress and requests from Tuist Runners count at half, and test cases run on Tuist Runners are free."
-msgstr "是的。來自 Tuist Runners 的快取流出和請求按半價計算，而在 Tuist Runners 上運行的測試用例則是免費的。"
+msgstr "是的。來自 Tuist Runners 的快取流出和請求按半價計算，而在 Tuist Runners 上運行的測試用例則免費。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:117
 #, elixir-autogen, elixir-format
@@ -2622,7 +2622,7 @@ msgstr "今日快取下載請求次數"
 #: lib/tuist_web/marketing/live/marketing_globe_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Cache globe"
-msgstr "快取全球圖示"
+msgstr "快取全球分佈"
 
 #: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:131
 #, elixir-autogen, elixir-format
@@ -2677,7 +2677,7 @@ msgstr "地區"
 #: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:255
 #, elixir-autogen, elixir-format
 msgid "Requests"
-msgstr "請求"
+msgstr "請求數"
 
 #: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:67
 #, elixir-autogen, elixir-format
@@ -2707,7 +2707,7 @@ msgstr "等待新的快取活動"
 #: lib/tuist_web/marketing/live/marketing_globe_live.ex:28
 #, elixir-autogen, elixir-format
 msgid "Watch Tuist's global cache turn compiled code into faster builds."
-msgstr "觀看 Tuist 的全球快取如何將編譯後的代碼轉化為更快的構建。"
+msgstr "觀看 Tuist 的全域快取如何將編譯後的程式碼轉化為更快的建構速度。"
 
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:48
 #, elixir-autogen, elixir-format
@@ -2722,7 +2722,7 @@ msgstr "Xcode"
 #: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "of cache data delivered today"
-msgstr "今日已交付的快取數據量"
+msgstr "今日已傳遞的快取資料"
 
 #: lib/tuist_web/marketing/live/marketing_globe_live.html.heex:123
 #, elixir-autogen, elixir-format
@@ -2748,12 +2748,12 @@ msgstr "為快速發展的團隊提供動力"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:114
 #, elixir-autogen, elixir-format
 msgid "Delivery Hero scaled its iOS rider app to around 115 modules with Tuist, cutting clean builds from 2.5 to 0.5 minutes and CI build and test time by 2.5x. Its Logistics team uses Tuist to keep modularization manageable and local builds fast."
-msgstr "Delivery Hero 使用 Tuist 將其 iOS 騎手應用程式擴展至約 115 個模組，將完整建構時間從 2.5 分鐘縮短至 0.5 分鐘，並將 CI 建構和測試時間減少 2.5 倍。其物流團隊使用 Tuist 保持模組化易於管理，並加快本機建構速度。"
+msgstr "Delivery Hero 使用 Tuist 將其 iOS 騎手應用程式擴展至約 115 個模組，將完整建構時間從 2.5 分鐘縮短至 0.5 分鐘，並將 CI 建構和測試時間減少 2.5 倍。其物流團隊使用 Tuist 保持模組化易於管理並加快本機建構速度。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:94
 #, elixir-autogen, elixir-format
 msgid "Monzo reduced its pull request CI times by 71%, from 52 minutes to just 15 minutes, using Tuist's binary caching and selective testing. By eliminating redundant builds and running only relevant tests, Monzo improved development efficiency for its 45+ iOS engineers working across nearly 200 modules."
-msgstr "Monzo 使用 Tuist 的二進制快取和選擇性測試，將其拉取請求的 CI 時間減少了 71%，從 52 分鐘縮短至僅 15 分鐘。透過消除冗餘建構並僅運行相關測試，Monoz 提高了其 45 多名 iOS 工程師在近 200 個模組上工作的開發效率。"
+msgstr "Monzo 使用 Tuist 的二進制快取和選擇性測試，將其拉取請求的 CI 時間減少了 71%，從 52 分鐘縮短至僅 15 分鐘。透過消除冗餘建構並僅運行相關測試，Monzo 提高了其 45 多名 iOS 工程師在近 200 個模組上工作的開發效率。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:695
 #, elixir-autogen, elixir-format
@@ -2763,17 +2763,17 @@ msgstr "閱讀更多"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:99
 #, elixir-autogen, elixir-format
 msgid "Toss, Korea's leading financial super-app, more than tripled the share of local builds that finish within a minute using Tuist's binary cache. Across close to 1,000 modules, product developers now build only the modules they own, with most of the graph served from cache."
-msgstr "韓國領先的金融超級應用程式 Toss，使用 Tuist 的二進制快取，將一分鐘內完成的本機構建比例增加了兩倍以上。在近 1,000 個模組中，產品開發人員現在只建構他們擁有的模組，大部分依賴圖都從快取中提供。"
+msgstr "韓國領先的金融超級應用程式 Toss 使用 Tuist 的二進制快取，將在一分鐘內完成的本機構建比例增加了兩倍以上。在接近 1,000 個模組中，產品開發人員現在只建構他們擁有的模組，大部分圖表均由快取提供。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:104
 #, elixir-autogen, elixir-format
 msgid "Trendyol reduced build times by 65% with Tuist's caching, cutting CI builds to 10 minutes and local UI test setup to 30 seconds. Running a self-hosted Tuist instance, it keeps feedback loops fast for 170+ developers across more than 10 domain teams."
-msgstr "Trendyol 透過 Tuist 的快取功能將建構時間減少了 65%，將 CI 建構時間縮短至 10 分鐘，並將本機 UI 測試設置時間縮短至 30 秒。透過運行自託管的 Tuist 實例，它為超過 10 個領域團隊的 170 多名開發人員保持了快速的回饋循環。"
+msgstr "Trendyol 透過 Tuist 的快取功能將建構時間減少了 65%，將 CI 建構時間縮短至 10 分鐘，並將本機 UI 測試設置時間縮短至 30 秒。透過運行自託管的 Tuist 實例，它為跨越 10 多個領域團隊的 170 多名開發人員保持了快速的反饋循環。"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:109
 #, elixir-autogen, elixir-format
 msgid "monday.com's CI merge workflow dropped from more than 20 minutes to about 9, with Tuist's module cache playing a significant role. Its team of almost 20 iOS engineers now maintains around 200 modules, and creating a new one is simple enough for anyone on the team."
-msgstr "monday.com 的 CI 合併工作流程從超過 20 分鐘縮短至約 9 分鐘，Tuist 的模組快取在其中發揮了重要作用。其近 20 人的 iOS 工程師團隊現在維護著約 200 個模組，建立新模組非常簡單，團隊中任何人都能輕鬆上手。"
+msgstr "monday.com 的 CI 合併工作流程從超過 20 分鐘縮短至約 9 分鐘，其中 Tuist 的模組快取發揮了重要作用。其近 20 人的 iOS 工程師團隊現在維護著約 200 個模組，而且建立新模組非常簡單，團隊中的任何人都可以做到。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:37
 #, elixir-autogen, elixir-format
@@ -2783,9 +2783,9 @@ msgstr "減少等待。"
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "More shipping."
-msgstr "加快發佈。"
+msgstr "加快交付。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Build, test, and ship software on infrastructure that continuously optimizes performance, removes bottlenecks, and scales with your team."
-msgstr "在持續優化效能、消除瓶頸並隨團隊規模擴展的基礎設施上，建構、測試及發佈軟體。"
+msgstr "在持續優化效能、消除瓶頸並隨團隊擴展的基礎設施上建構、測試及交付軟體。"

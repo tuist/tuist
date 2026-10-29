@@ -261,7 +261,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             cacheProfile: CacheProfile,
             cacheSources: Set<TargetQuery>,
             configuration: String?,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            sdkSelection: BinaryCacheSDKSelection = .all
         ) -> [GraphMapping] {
             let includedTargets = GraphMapperFactory.cacheKeepSourceTargets(config: config) ? [] : cacheSources
             let shouldPreserveHashingGraph = cacheProfile != .none && !includedTargets.isEmpty
@@ -291,7 +292,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     ),
                     configuration: configuration,
                     cacheStorage: cacheStorage,
-                    coverage: BinaryCacheCoverage(config: config)
+                    coverage: BinaryCacheCoverage(config: config),
+                    sdkSelection: sdkSelection
                 )
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
@@ -324,7 +326,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             cacheSources: Set<TargetQuery>,
             configuration: String,
             cacheStorage: CacheStoring,
-            targetHashes: [TargetReference: TargetContentHash] = [:]
+            targetHashes: [TargetReference: TargetContentHash] = [:],
+            sdkSelection: BinaryCacheSDKSelection = .all
         ) -> [GraphMapping] {
             let coverage = BinaryCacheCoverage(config: config)
             var mappers = self.default(
@@ -342,7 +345,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 configuration: configuration,
                 cacheStorage: cacheStorage,
                 coverage: coverage,
-                precomputedTargetHashes: targetHashes
+                precomputedTargetHashes: targetHashes,
+                sdkSelection: sdkSelection
             )
             mappers.append(focusTargetsGraphMapper)
             if coverage != .off { mappers.append(InstrumentedBinaryCacheWarmGraphMapper()) }

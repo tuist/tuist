@@ -130,6 +130,15 @@ struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
         )
         let unitTargets = try #require(unitPlanJSON["testTargets"] as? [[String: Any]])
         #expect(unitTargets.compactMap { ($0["target"] as? [String: Any])?["name"] as? String } == ["AppTests"])
+
+        // And: the snapshot plan pins the language and region it was declared with
+        let snapshotPlanData = try Data(contentsOf: snapshotPlanPath.url)
+        let snapshotPlanJSON = try #require(
+            try JSONSerialization.jsonObject(with: snapshotPlanData) as? [String: Any]
+        )
+        let snapshotOptions = try #require(snapshotPlanJSON["defaultOptions"] as? [String: Any])
+        #expect(snapshotOptions["language"] as? String == "en")
+        #expect(snapshotOptions["region"] as? String == "US")
     }
 }
 

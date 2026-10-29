@@ -8,6 +8,7 @@ final class AtlasEnvironmentPreviewData: ObservableObject {
     private let environment = "00000000-0000-4000-8000-000000000002"
     private let project = "00000000-0000-4000-8000-000000000003"
     private var selected = false
+    private var hosted = ProcessInfo.processInfo.arguments.contains("--hosted-environment")
     private var stopping = false
 
     #if os(macOS)
@@ -26,15 +27,25 @@ final class AtlasEnvironmentPreviewData: ObservableObject {
         let value: [String: Any]
         switch action["action"] as? String {
         case "list":
-            value = ["owner_id": owner, "environments": [[
+            var environments: [[String: Any]] = [[
                 "id": environment, "name": "Demo Mac", "enabled": true, "online": true,
                 "terminal": true, "display": false, "projects": [["id": project, "name": "Example project"]]
-            ]].filter { _ in !ProcessInfo.processInfo.arguments.contains("--empty-environments") }]
-        case "selection", "select":
-            if action["action"] as? String == "select" { selected = action["environment_id"] as? String == environment }
-            value = ["thread": ["id": action["thread_id"] as? String ?? "", "environment_id": selected ? environment as Any : NSNull(),
-                                "environment_name": selected ? "Demo Mac" as Any : NSNull(),
-                                "project_id": selected ? project as Any : NSNull()]]
+            ]].filter { _ in !ProcessInfo.processInfo.arguments.contains("--empty-environments") }
+            if hosted {
+                environments.append(["id": owner, "name": "Tuist", "enabled": true, "online": true,
+                                     "terminal": true, "display": false, "provider": "tuist", "provider_state": "ready",
+                                     "projects": [["id": project, "name": "Workspace"]]])
+            }
+            value = ["owner_id": owner, "providers": [["id": "tuist", "name": "Tuist"]], "environments": environments]
+        case "selection", "select", "start_provider":
+            if action["action"] as? String == "select" {
+                selected = action["environment_id"] as? String == environment
+                hosted = false
+            }
+            if action["action"] as? String == "start_provider" { hosted = true; selected = false }
+            value = ["thread": ["id": action["thread_id"] as? String ?? "", "environment_id": hosted ? owner : selected ? environment as Any : NSNull(),
+                                "environment_name": hosted ? "Tuist" : selected ? "Demo Mac" as Any : NSNull(),
+                                "project_id": selected || hosted ? project as Any : NSNull()]]
         case "thread_commands":
             value = ["commands": ProcessInfo.processInfo.arguments.contains("--environment-jobs") ? [job()] : []]
         case "cancel_command":

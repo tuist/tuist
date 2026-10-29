@@ -21,13 +21,18 @@ defmodule Tuist.Ops.FeatureFlags do
   alias Tuist.Repo
 
   @catalog [
-    {:immutable_shard_reports, "account", "Opt-in immutable shard plans; coverage-enabled accounts remain excluded."},
+    {:immutable_shard_reports, "account",
+     "Opt-in immutable shard plans; Mix projects and coverage-enabled accounts remain excluded."},
     {:kura_positive_fence, "account",
      "Opt-in managed positive-fence serving authority. Activation is sticky; disabling cannot restore legacy serving."},
     {:kura_placement_served_signal, "account", "Opt-in placement using served-region signals."},
     {:kura_stable_hostname, "account", "Stable cache hostname opt-in; canary enables automatically."},
     {:runners, "account", "Managed runners opt-in on canary/production; enabled elsewhere."},
     {:runner_site_cache, "account", "Opt-in site-local runner caches."},
+    {:runner_site_cache_pinned, "account",
+     "Gives a site account its site-local runner cache without site cache traffic; capacity still applies."},
+    {:runner_site_cache_excluded, "account",
+     "Tears down an account's site-local runner caches; its jobs still run at the site."},
     {:runner_site, "account", "Opt-in site runners; staging/canary enable automatically."},
     {:xcode_coverage, "account", "Coverage opt-in on canary/production; enabled elsewhere."},
     {:kura_account_endpoint_migration, "account",
@@ -53,6 +58,8 @@ defmodule Tuist.Ops.FeatureFlags do
     kura_stable_hostname: {FeatureFlags, :kura_stable_hostname_enabled?},
     runners: {FeatureFlags, :runners_enabled?},
     runner_site_cache: {FeatureFlags, :runner_site_cache_enabled?},
+    runner_site_cache_pinned: {FeatureFlags, :runner_site_cache_pinned?},
+    runner_site_cache_excluded: {FeatureFlags, :runner_site_cache_excluded?},
     runner_site: {FeatureFlags, :runner_site_enabled?},
     xcode_coverage: {FeatureFlags, :xcode_coverage_enabled?},
     kura_account_endpoint_migration: {Identity, :endpoint_migration_enabled?},

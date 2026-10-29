@@ -4,6 +4,7 @@ import SwiftUI
 struct AtlasVoiceInputPreview: View {
     @State private var phase: AtlasVoiceInput.Phase
     @State private var draft = "Existing draft."
+    @FocusState private var editing: Bool
     private let transcript = "Compare the latest build timings."
     private let levels: [CGFloat] = [0.1, 0.2, 0.4, 0.8, 0.6, 0.3, 0.2, 0.5, 0.9, 0.8, 0.4, 0.2,
                                      0.1, 0.3, 0.7, 0.5, 0.4, 0.2, 0.6, 0.9, 0.5, 0.3, 0.2, 0.1]
@@ -28,8 +29,8 @@ struct AtlasVoiceInputPreview: View {
             .navigationTitle("Pip").navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 VStack {
-                    AtlasThreadComposer(draft: $draft, placeholder: "Ask Pip", saving: false,
-                                        phase: phase, levels: levels,
+                    AtlasThreadComposer(draft: $draft, placeholder: "Message", saving: false,
+                                        phase: phase, levels: levels, editing: $editing,
                                         start: { phase = .recording }, stop: {
                         guard phase == .recording else { return }
                         draft = AtlasVoiceInput.appending(transcript, to: draft)

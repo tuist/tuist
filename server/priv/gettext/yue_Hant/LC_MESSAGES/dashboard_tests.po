@@ -90,7 +90,7 @@ msgstr "由 Tuist 自動執行"
 #: lib/tuist_web/live/tests_live.html.heex:779
 #, elixir-autogen, elixir-format
 msgid "Average"
-msgstr "平均值"
+msgstr "平均"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:165
 #: lib/tuist_web/live/test_run_live.html.heex:419
@@ -101,12 +101,12 @@ msgstr "所有測試案例的平均持續時間。"
 #: lib/tuist_web/live/test_cases_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Average duration of individual test case executions during a given period."
-msgstr "指定期間內個別測試案例執行的平均持續時間。"
+msgstr "在給定期間內，個別測試案例執行的平均持續時間。"
 
 #: lib/tuist_web/live/test_runs_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Average duration of test runs during a given period."
-msgstr "指定期間內測試運行的平均持續時間。"
+msgstr "在給定期間內，測試運行的平均持續時間。"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:164
 #: lib/tuist_web/live/test_run_live.ex:1293
@@ -162,12 +162,12 @@ msgstr "分支"
 #: lib/tuist_web/live/test_run_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Build: %{name}"
-msgstr "建構：%{name}"
+msgstr "構建：%{name}"
 
 #: lib/tuist_web/live/test_run_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Build: %{scheme}"
-msgstr "建構：%{scheme}"
+msgstr "構建：%{scheme}"
 
 #: lib/tuist_web/live/flaky_tests_live.ex:293
 #: lib/tuist_web/live/flaky_tests_live.html.heex:26
@@ -187,7 +187,7 @@ msgstr "CI"
 #: lib/tuist_web/live/test_run_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "CI Run"
-msgstr "CI 執行"
+msgstr "CI 運行"
 
 #: lib/tuist_web/live/coverage/components.ex:716
 #: lib/tuist_web/live/flaky_tests_live.html.heex:66
@@ -323,14 +323,14 @@ msgstr "事件"
 #: lib/tuist_web/live/test_case_live.html.heex:1119
 #, elixir-autogen, elixir-format
 msgid "Events will appear here when the test case status changes."
-msgstr "當測試案例狀態變更時，事件將顯示於此。"
+msgstr "當測試用例狀態變更時，事件將顯示在此處。"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:534
 #: lib/tuist_web/live/test_run_live.html.heex:880
 #: lib/tuist_web/live/test_run_live.html.heex:1969
 #, elixir-autogen, elixir-format
 msgid "Exception"
-msgstr "例外狀況"
+msgstr "異常"
 
 #: lib/tuist_web/helpers/failure_message.ex:30
 #, elixir-autogen, elixir-format
@@ -340,12 +340,12 @@ msgstr "預期失敗"
 #: lib/tuist_web/helpers/failure_message.ex:50
 #, elixir-autogen, elixir-format
 msgid "Expectation failed at %{location}"
-msgstr "預期失敗於 %{location}"
+msgstr "於 %{location} 預期失敗"
 
 #: lib/tuist_web/helpers/failure_message.ex:53
 #, elixir-autogen, elixir-format
 msgid "Expectation failed at %{location}: %{message}"
-msgstr "預期失敗於 %{location}：%{message}"
+msgstr "於 %{location} 預期失敗：%{message}"
 
 #: lib/tuist_web/helpers/failure_message.ex:33
 #, elixir-autogen, elixir-format
@@ -415,7 +415,7 @@ msgstr "失敗執行次數"
 #: lib/tuist_web/live/test_runs_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
-msgstr "失敗執行次數代表在指定期間內有多少次測試執行失敗。測試執行可透過運行 'tuist test' 或 'tuist xcodebuild test' 來進行。"
+msgstr "失敗執行次數代表在指定期間內測試執行失敗的次數。測試執行可透過執行 'tuist test' 或 'tuist xcodebuild test' 來進行。"
 
 #: lib/tuist_web/live/once_tests_live.html.heex:450
 #: lib/tuist_web/live/tests_live.html.heex:917
@@ -532,13 +532,13 @@ msgstr "不穩定測試"
 #: lib/tuist_web/live/flaky_tests_live.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Flaky runs"
-msgstr "不穩定運行次數"
+msgstr "不穩定執行次數"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:156
 #: lib/tuist_web/live/test_run_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "Flaky test cases"
-msgstr "不穩定測試用例"
+msgstr "不穩定測試案例"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:163
 #: lib/tuist_web/live/flaky_tests_live.html.heex:313
@@ -547,12 +547,12 @@ msgstr "不穩定測試用例"
 #: lib/tuist_web/live/tests_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "Flaky test runs"
-msgstr "不穩定測試運行次數"
+msgstr "不穩定測試執行次數"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:159
 #, elixir-autogen, elixir-format
 msgid "Hash"
-msgstr "哈希值"
+msgstr "雜湊值"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:139
 #: lib/tuist_web/live/test_run_live.ex:1437
@@ -563,7 +563,7 @@ msgstr "命中"
 #: lib/tuist_web/helpers/attachment_helpers.ex:22
 #, elixir-autogen, elixir-format
 msgid "Image"
-msgstr "圖片"
+msgstr "映像檔"
 
 #: lib/tuist_web/helpers/failure_message.ex:40
 #, elixir-autogen, elixir-format
@@ -573,17 +573,17 @@ msgstr "已記錄問題"
 #: lib/tuist_web/helpers/failure_message.ex:70
 #, elixir-autogen, elixir-format
 msgid "Issue recorded at %{location}"
-msgstr "問題已記錄於 %{location}"
+msgstr "於 %{location} 記錄問題"
 
 #: lib/tuist_web/helpers/failure_message.ex:73
 #, elixir-autogen, elixir-format
 msgid "Issue recorded at %{location}: %{message}"
-msgstr "問題已記錄於 %{location}：%{message}"
+msgstr "於 %{location} 記錄問題：%{message}"
 
 #: lib/tuist_web/helpers/failure_message.ex:43
 #, elixir-autogen, elixir-format
 msgid "Issue recorded: %{message}"
-msgstr "問題已記錄：%{message}"
+msgstr "已記錄問題：%{message}"
 
 #: lib/tuist_web/live/coverage/components.ex:704
 #: lib/tuist_web/live/flaky_tests_live.html.heex:54
@@ -646,7 +646,7 @@ msgstr "最後狀態"
 #: lib/tuist_web/live/flaky_tests_live.html.heex:489
 #, elixir-autogen, elixir-format
 msgid "Last flaky run"
-msgstr "上次不穩定測試"
+msgstr "上次不穩定測試執行"
 
 #: lib/tuist_web/live/test_cases_live.html.heex:528
 #: lib/tuist_web/live/test_cases_live.html.heex:535
@@ -666,7 +666,7 @@ msgstr "上次執行"
 #: lib/tuist_web/live/test_cases_live.html.heex:730
 #, elixir-autogen, elixir-format
 msgid "Last status"
-msgstr "上次狀態"
+msgstr "最後狀態"
 
 #: lib/tuist_web/live/test_case_live.html.heex:1129
 #, elixir-autogen, elixir-format
@@ -697,7 +697,7 @@ msgstr "本機"
 #: lib/tuist_web/helpers/attachment_helpers.ex:24
 #, elixir-autogen, elixir-format
 msgid "Log File"
-msgstr "日誌檔案"
+msgstr "記錄檔"
 
 #: lib/tuist_web/live/test_run_live.html.heex:351
 #, elixir-autogen, elixir-format
@@ -707,7 +707,7 @@ msgstr "Mac 裝置"
 #: lib/tuist_web/live/test_case_live.ex:859
 #, elixir-autogen, elixir-format
 msgid "Manually by @%{name}"
-msgstr "由 @%{name} 手動執行"
+msgstr "由 @%{name} 手動標記"
 
 #: lib/tuist_web/live/test_case_live.html.heex:137
 #, elixir-autogen, elixir-format
@@ -723,7 +723,7 @@ msgstr "已標記為不穩定"
 #: lib/tuist_web/live/test_run_live.ex:1443
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "遺漏"
+msgstr "錯過"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:128
 #: lib/tuist_web/helpers/test_labels.ex:17
@@ -779,14 +779,14 @@ msgstr "沒有數據"
 #: lib/tuist_web/live/tests_live.html.heex:1030
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "尚未有數據"
+msgstr "暫無數據"
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:157
 #: lib/tuist_web/live/test_case_run_live.html.heex:1171
 #: lib/tuist_web/live/test_run_live.html.heex:2025
 #, elixir-autogen, elixir-format
 msgid "No failures detected"
-msgstr "未偵測到失敗"
+msgstr "未檢測到失敗"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:524
 #, elixir-autogen, elixir-format
@@ -801,12 +801,12 @@ msgstr "沒有可用歷史記錄"
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:174
 #, elixir-autogen, elixir-format
 msgid "No modules found"
-msgstr "找不到模組"
+msgstr "未找到模組"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "No quarantined tests"
-msgstr "沒有隔離的測試"
+msgstr "沒有被隔離的測試"
 
 #: lib/tuist_web/live/test_case_live.html.heex:1064
 #, elixir-autogen, elixir-format
@@ -907,12 +907,12 @@ msgstr "通過"
 #: lib/tuist_web/live/tests_live.html.heex:912
 #, elixir-autogen, elixir-format
 msgid "Passed runs"
-msgstr "通過次數"
+msgstr "通過的運行次數"
 
 #: lib/tuist_web/helpers/test_labels.ex:41
 #, elixir-autogen, elixir-format
 msgid "Project"
-msgstr "專案"
+msgstr "項目"
 
 #: lib/tuist_web/live/test_case_live.ex:279
 #: lib/tuist_web/live/test_case_run_live.html.heex:58
@@ -930,7 +930,7 @@ msgstr "隔離"
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
-msgstr "已隔離測試"
+msgstr "已隔離的測試"
 
 #: lib/tuist_web/live/quarantined_tests_live.ex:82
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:378
@@ -942,7 +942,7 @@ msgstr "隔離者"
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Quarantined tests"
-msgstr "已隔離測試"
+msgstr "已隔離的測試"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:542
 #: lib/tuist_web/live/coverage_live.html.heex:140
@@ -1049,7 +1049,7 @@ msgstr "選擇性測試未命中次數"
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:65
 #, elixir-autogen, elixir-format
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-msgstr "選擇性測試未命中次數代表因之前未成功運行而執行的測試模組數量。"
+msgstr "選擇性測試未命中次數代表因之前未成功執行而執行的測試模組數量。"
 
 #: lib/tuist_web/live/tests_live.html.heex:854
 #, elixir-autogen, elixir-format
@@ -1110,7 +1110,7 @@ msgstr "最慢測試案例"
 #: lib/tuist_web/live/test_run_live.html.heex:1590
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
-msgstr "排序方式："
+msgstr "排序依據："
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:435
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:78
@@ -1302,7 +1302,7 @@ msgstr "測試案例"
 #: lib/tuist_web/live/test_case_live.html.heex:746
 #, elixir-autogen, elixir-format
 msgid "Test history"
-msgstr "測試歷史"
+msgstr "測試歷史記錄"
 
 #: lib/tuist_web/live/test_case_live.ex:209
 #: lib/tuist_web/live/test_case_live.html.heex:369
@@ -1320,7 +1320,7 @@ msgstr "測試執行次數"
 #: lib/tuist_web/live/test_runs_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
-msgstr "測試執行次數代表在給定期間內執行的測試運行次數。測試運行是透過執行 'tuist test' 或 'tuist xcodebuild test' 來執行。"
+msgstr "測試執行次數代表在指定期間內執行的測試運行次數。測試運行可透過執行 'tuist test' 或 'tuist xcodebuild test' 來進行。"
 
 #: lib/tuist_web/live/test_run_live.ex:60
 #: lib/tuist_web/live/test_run_live.ex:64
@@ -1355,27 +1355,27 @@ msgstr "文字檔案"
 #: lib/tuist_web/live/tests_live.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "The average test run duration with individual percentile intervals."
-msgstr "平均測試執行時間，包含個別百分位數區間。"
+msgstr "平均測試運行時間，包含個別百分位數區間。"
 
 #: lib/tuist_web/live/once_runs_live.ex:465
 #: lib/tuist_web/live/once_tests_live.html.heex:104
 #: lib/tuist_web/live/tests_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "The number of test runs that failed."
-msgstr "測試執行失敗的次數。"
+msgstr "測試運行失敗的次數。"
 
 #: lib/tuist_web/live/once_tests_live.html.heex:89
 #: lib/tuist_web/live/tests_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "The number of test runs with flaky tests."
-msgstr "包含不穩定測試的測試執行次數。"
+msgstr "包含不穩定測試的測試運行次數。"
 
 #: lib/tuist_web/live/once_runs_live.ex:422
 #: lib/tuist_web/live/once_tests_live.html.heex:74
 #: lib/tuist_web/live/tests_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "The total number of test runs."
-msgstr "測試執行的總次數。"
+msgstr "測試運行的總次數。"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:38
 #, elixir-autogen, elixir-format
@@ -1396,7 +1396,7 @@ msgstr "已執行的測試案例總數。"
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:175
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "嘗試更改搜尋詞"
+msgstr "嘗試更改你的搜尋詞彙"
 
 #: lib/tuist_web/live/coverage/components.ex:672
 #: lib/tuist_web/live/coverage_detail_live.html.heex:248
@@ -1408,7 +1408,7 @@ msgstr "嘗試更改搜尋詞"
 #: lib/tuist_web/live/test_run_live.html.heex:1753
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
-msgstr "嘗試更新搜尋"
+msgstr "嘗試更新你的搜尋"
 
 #: lib/tuist_web/live/quarantined_tests_live.ex:87
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:381
@@ -1554,7 +1554,7 @@ msgstr "p99"
 #: lib/tuist_web/live/test_cases_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "p99 test case run duration"
-msgstr "p99 測試案例執行時間"
+msgstr "p99 測試案例執行時長"
 
 #: lib/tuist_web/live/once_runs_live.ex:1086
 #: lib/tuist_web/live/once_tests_live.ex:227
@@ -1563,7 +1563,7 @@ msgstr "p99 測試案例執行時間"
 #: lib/tuist_web/live/tests_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "p99 test run duration"
-msgstr "p99 測試運行時間"
+msgstr "p99 測試運行時長"
 
 #: lib/tuist_web/live/flaky_tests_live.ex:289
 #: lib/tuist_web/live/quarantined_tests_live.ex:287
@@ -1648,7 +1648,7 @@ msgstr "粒度"
 #: lib/tuist_web/live/shards_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "How evenly test duration is distributed across shards. 100% means perfectly balanced."
-msgstr "測試時長在各分片間的分布均勻程度。100% 表示完全平衡。"
+msgstr "測試時長在各分片之間的分布均勻程度。100% 表示完全均衡。"
 
 #: lib/tuist_web/live/coverage/components.ex:416
 #: lib/tuist_web/live/coverage_detail_live.ex:341
@@ -1671,17 +1671,17 @@ msgstr "進行中"
 #: lib/tuist_web/live/shards_live.html.heex:638
 #, elixir-autogen, elixir-format
 msgid "No sharded runs"
-msgstr "無分片運行"
+msgstr "沒有分片運行"
 
 #: lib/tuist_web/live/shards_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Number of shards used per sharded run during a given period."
-msgstr "在指定期間內，每次分片運行所使用的分片數量。"
+msgstr "指定期間內，每次分片運行所使用的分片數量。"
 
 #: lib/tuist_web/live/test_run_live.html.heex:559
 #, elixir-autogen, elixir-format
 msgid "Pending"
-msgstr "待處理"
+msgstr "待定"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:201
 #: lib/tuist_web/live/test_run_live.ex:1404
@@ -1720,18 +1720,18 @@ msgstr "分片"
 #: lib/tuist_web/live/test_run_live.html.heex:504
 #, elixir-autogen, elixir-format
 msgid "The shards are in progress..."
-msgstr "分片正在進行中..."
+msgstr "分片正在處理中..."
 
 #: lib/tuist_web/live/shards_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Total sharded runs"
-msgstr "分片運行總數"
+msgstr "總分片運行次數"
 
 #: lib/tuist_web/live/shards_live.ex:327
 #: lib/tuist_web/live/shards_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "p50 shard balance"
-msgstr "p50 分片負載平衡"
+msgstr "p50 分片平衡"
 
 #: lib/tuist_web/live/shards_live.ex:304
 #: lib/tuist_web/live/shards_live.html.heex:85
@@ -1743,7 +1743,7 @@ msgstr "p50 分片數量"
 #: lib/tuist_web/live/shards_live.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "p90 shard balance"
-msgstr "p90 分片負載平衡"
+msgstr "p90 分片平衡"
 
 #: lib/tuist_web/live/shards_live.ex:301
 #: lib/tuist_web/live/shards_live.html.heex:84
@@ -1755,7 +1755,7 @@ msgstr "p90 分片數量"
 #: lib/tuist_web/live/shards_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "p99 shard balance"
-msgstr "p99 分片負載平衡"
+msgstr "p99 分片平衡"
 
 #: lib/tuist_web/live/shards_live.ex:298
 #: lib/tuist_web/live/shards_live.html.heex:83
@@ -1823,12 +1823,12 @@ msgstr "通過（不穩定）"
 #: lib/tuist_web/live/tests_live.html.heex:430
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme or other properties to narrow down the dataset."
-msgstr "已達到 10,000 條記錄上限，數據僅包含至 %{date}。請嘗試按方案或其他屬性進行篩選，以縮小數據集範圍。"
+msgstr "已達到 10,000 條記錄上限，僅包含截至 %{date} 的數據。請嘗試按 scheme 或其他屬性篩選以縮小數據集範圍。"
 
 #: lib/tuist_web/live/tests_live.html.heex:844
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "已達到 10,000 條記錄上限，數據僅包含至 %{date}。請嘗試進行篩選以縮小數據集範圍。"
+msgstr "已達到 10,000 條記錄上限，僅包含截至 %{date} 的數據。請嘗試篩選以縮小數據集範圍。"
 
 #: lib/tuist_web/live/test_case_live.ex:815
 #: lib/tuist_web/live/test_case_live.ex:847
@@ -1841,7 +1841,7 @@ msgstr "已啟用"
 #: lib/tuist_web/live/test_cases_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Number of distinct test cases with at least one run in the 14 days ending on each date."
-msgstr "在截至每個日期的過去 14 天內，至少運行過一次的不同測試用例數量。"
+msgstr "在每個日期結束的過去 14 天內，至少執行過一次的不同測試用例數量。"
 
 #: lib/tuist_web/live/quarantined_tests_live.ex:66
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:362
@@ -1858,29 +1858,29 @@ msgstr "模式"
 #: lib/tuist_web/live/test_cases_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Muted"
-msgstr "已靜音"
+msgstr "靜音"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:133
 #: lib/tuist_web/live/flaky_tests_live.html.heex:310
 #: lib/tuist_web/live/test_case_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Flaky test case runs"
-msgstr "不穩定的測試用例運行"
+msgstr "不穩定的測試用例執行"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Number of test runs (build-level test invocations) that contained at least one flaky test case. Each test run is counted once even if it contained many flaky executions."
-msgstr "包含至少一個不穩定測試案例的測試執行次數（構建層級的測試調用）。即使包含多個不穩定執行，每個測試執行只計算一次。"
+msgstr "包含至少一個不穩定測試案例的測試運行次數（構建層級的測試調用）。即使包含多個不穩定執行，每個測試運行也只計算一次。"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Number of unique test cases currently flagged as flaky at the end of the period. Each test case is counted at most once, regardless of how often it flaked."
-msgstr "在該期間結束時被標記為不穩定的獨特測試案例數量。無論測試案例出現不穩定的頻率如何，每個測試案例最多只計算一次。"
+msgstr "在週期結束時被標記為不穩定的獨特測試案例數量。無論測試案例出現不穩定的頻率如何，每個測試案例最多只計算一次。"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Total number of individual test case executions marked as flaky in the period. A single test case can be counted many times if it flaked across multiple runs."
-msgstr "在該期間內被標記為不穩定的個別測試案例執行總數。如果單一測試案例在多次執行中出現不穩定，則會被多次計算。"
+msgstr "在週期內被標記為不穩定的個別測試案例執行總數。如果單一測試案例在多次運行中出現不穩定，則會被多次計算。"
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:102
 #: lib/tuist_web/live/flaky_tests_live.html.heex:307
@@ -1918,7 +1918,7 @@ msgstr "期間結束時靜音測試案例的數量。靜音測試仍會執行，
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Number of skipped test cases at the end of the period. Skipped tests are not executed at all."
-msgstr "期間結束時跳過的測試案例數量。跳過的測試完全不會執行。"
+msgstr "期間結束時跳過測試案例的數量。跳過的測試完全不會執行。"
 
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:68
 #, elixir-autogen, elixir-format
@@ -1972,7 +1972,7 @@ msgstr "隔離時間"
 #: lib/tuist_web/live/test_case_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Number of times this test case has been executed in the selected period."
-msgstr "在選定期間內，此測試案例的執行次數。"
+msgstr "此測試案例在選定期間內的執行次數。"
 
 #: lib/tuist_web/live/test_case_live.html.heex:343
 #, elixir-autogen, elixir-format
@@ -1982,7 +1982,7 @@ msgstr "在選定期間內，測試運行中出現不穩定的百分比。"
 #: lib/tuist_web/live/test_case_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Success rate in the selected period, based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}."
-msgstr "基於 %{branch} 分支的運行結果，計算選定期間內的成功率。如果 %{branch} 上沒有運行記錄，則回退至所有分支。"
+msgstr "根據 %{branch} 分支的運行結果，計算選定期間內的成功率。如果 %{branch} 上沒有運行記錄，則回退至所有分支。"
 
 #: lib/tuist_web/live/test_case_live.html.heex:298
 #: lib/tuist_web/live/test_case_live.html.heex:315
@@ -2006,7 +2006,7 @@ msgstr "當測試案例在過去 %{days} 天內至少運行 %{count} 次時顯�
 #: lib/tuist_web/live/test_case_live.html.heex:416
 #, elixir-autogen, elixir-format
 msgid "Duration of this test case across the runs in the selected period."
-msgstr "所選期間內所有運行中此測試案例的持續時間。"
+msgstr "所選期間內所有運行中此測試用例的持續時間。"
 
 #: lib/tuist_web/live/test_cases_live.ex:490
 #, elixir-autogen, elixir-format
@@ -2016,7 +2016,7 @@ msgstr "平均"
 #: lib/tuist_web/live/test_case_live.html.heex:741
 #, elixir-autogen, elixir-format
 msgid "No runs in this period"
-msgstr "此期間沒有運行記錄"
+msgstr "本期間沒有運行"
 
 #: lib/tuist_web/live/test_case_live.ex:264
 #, elixir-autogen, elixir-format
@@ -2037,7 +2037,7 @@ msgstr "未報告"
 #: lib/tuist_web/live/test_case_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to update this test case."
-msgstr "你無權更新此測試案例。"
+msgstr "您無權更新此測試用例。"
 
 #: lib/tuist_web/live/test_run_live.html.heex:248
 #, elixir-autogen, elixir-format
@@ -2047,7 +2047,7 @@ msgstr "日誌"
 #: lib/tuist_web/live/test_run_live.html.heex:2232
 #, elixir-autogen, elixir-format
 msgid "No logs were captured for this Bazel invocation."
-msgstr "此次 Bazel 調用未捕獲任何日誌。"
+msgstr "今次 Bazel 呼叫並無擷取到任何日誌。"
 
 #: lib/tuist_web/helpers/test_labels.ex:15
 #, elixir-autogen, elixir-format
@@ -2066,7 +2066,7 @@ msgstr "測試目標"
 #: lib/tuist_web/helpers/test_labels.ex:40
 #, elixir-autogen, elixir-format
 msgid "Invocation"
-msgstr "調用"
+msgstr "呼叫"
 
 #: lib/tuist_web/live/test_run_live.ex:191
 #, elixir-autogen, elixir-format
@@ -2080,12 +2080,12 @@ msgstr[1] "%{count} 次重複"
 msgid "%{count} repetition passed"
 msgid_plural "All %{count} repetitions passed"
 msgstr[0] "%{count} 次重複通過"
-msgstr[1] "所有 %{count} 次重複均通過"
+msgstr[1] "全部 %{count} 次重複均通過"
 
 #: lib/tuist_web/live/test_run_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "%{failed} of %{total} repetitions failed"
-msgstr "%{total} 次重複中有 %{failed} 次失敗"
+msgstr "%{failed} 次重複測試中有 %{total} 次失敗"
 
 #: lib/tuist_web/live/test_run_live.ex:203
 #, elixir-autogen, elixir-format
@@ -2095,12 +2095,12 @@ msgstr "超出候選上限"
 #: lib/tuist_web/live/test_run_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Not stressed"
-msgstr "無壓力測試"
+msgstr "未施加壓力"
 
 #: lib/tuist_web/live/test_run_live.html.heex:409
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that both passed and failed in this run, whether across retries or under the stress gate's repetitions."
-msgstr "此運行中通過和失敗的測試用例數量，包括重試或壓力閘門重複執行的情況。"
+msgstr "在此運行中通過和失敗的測試用例數量，無論是在重試期間還是在壓力閘的重複測試期間。"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:280
 #, elixir-autogen, elixir-format
@@ -2115,7 +2115,7 @@ msgstr "重複次數"
 #: lib/tuist_web/live/test_run_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "Too slow to stress"
-msgstr "過慢無法進行壓力測試"
+msgstr "速度過慢無法進行壓力測試"
 
 #: lib/tuist_web/live/test_case_live.html.heex:115
 #, elixir-autogen, elixir-format
@@ -2135,7 +2135,7 @@ msgstr "Bazel 目標，沒有 JUnit 報告"
 #: lib/tuist_web/live/test_cases_live.html.heex:633
 #, elixir-autogen, elixir-format
 msgid "The runner for this target didn't emit test.xml, so per-case detail isn't available. Open a recent run to view the raw test.log."
-msgstr "此目標的執行器未發出 test.xml，因此無法提供每個測試案例的詳細資訊。開啟最近的執行記錄以查看原始的 test.log。"
+msgstr "此目標的執行器未發出 test.xml，因此無法提供每個測試案例的詳細資訊。開啟最近的執行記錄以查看原始 test.log。"
 
 #: lib/tuist_web/live/coverage/components.ex:342
 #: lib/tuist_web/live/coverage/components.ex:554
@@ -2249,7 +2249,7 @@ msgstr "目標"
 #: lib/tuist_web/live/coverage_file_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
-msgstr "不可用"
+msgstr "無法使用"
 
 #: lib/tuist_web/live/coverage/components.ex:275
 #: lib/tuist_web/live/coverage_detail_live.ex:519
@@ -2319,7 +2319,7 @@ msgstr "運行中"
 #: lib/tuist_web/live/once_runs_live.ex:482
 #, elixir-autogen, elixir-format
 msgid "Test coverage isn't reported yet."
-msgstr "尚未報告測試覆蓋率。"
+msgstr "測試覆蓋率尚未報告。"
 
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:132
 #, elixir-autogen, elixir-format
@@ -2360,7 +2360,7 @@ msgstr "變更"
 #: lib/tuist_web/live/coverage_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Code coverage is not enabled for this account."
-msgstr "此帳戶未啟用程式碼覆蓋率。"
+msgstr "此帳戶未啟用代碼覆蓋率。"
 
 #: lib/tuist_web/live/coverage/components.ex:341
 #: lib/tuist_web/live/coverage_detail_live.ex:571
@@ -2405,7 +2405,7 @@ msgstr "覆蓋率變更"
 #: lib/tuist_web/live/coverage/components.ex:286
 #, elixir-autogen, elixir-format
 msgid "Every test of the run's scheme ran, so it measured the scheme in full."
-msgstr "執行配置中的所有測試均已執行，因此完整測量了該配置。"
+msgstr "已執行該運行方案的所有測試，因此完整測量了該方案。"
 
 #: lib/tuist_web/live/coverage/components.ex:662
 #: lib/tuist_web/live/coverage_detail_live.ex:465
@@ -2422,18 +2422,18 @@ msgstr "檔案：%{name}"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Lines that commit's tests ran at least once."
-msgstr "該提交的測試至少執行過一次的程式碼行數。"
+msgstr "該提交測試至少執行過一次的程式碼行數。"
 
 #: lib/tuist_web/live/coverage/components.ex:801
 #: lib/tuist_web/live/coverage_detail_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Lines the compiler instrumented for coverage at that commit."
-msgstr "在該提交中，編譯器為覆蓋率檢測而插樁的程式碼行數。"
+msgstr "編譯器在該提交時為覆蓋率檢測所插樁的程式碼行數。"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "No commit gathered coverage in this period"
-msgstr "在此期間沒有提交收集到覆蓋率數據"
+msgstr "此期間沒有提交收集到覆蓋率資料"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:461
 #, elixir-autogen, elixir-format
@@ -2443,7 +2443,7 @@ msgstr "沒有符合這些篩選條件的提交"
 #: lib/tuist_web/live/coverage_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "No complete commits on %{branch} in this period"
-msgstr "在此期間，%{branch} 上沒有完整的提交"
+msgstr "%{branch} 在此期間沒有完整的提交"
 
 #: lib/tuist_web/live/coverage/components.ex:143
 #, elixir-autogen, elixir-format
@@ -2463,22 +2463,22 @@ msgstr "沒有檔案符合此搜尋條件"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "No file was measured at this commit"
-msgstr "此提交中沒有測量任何檔案"
+msgstr "此提交沒有測量任何檔案"
 
 #: lib/tuist_web/live/coverage_file_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "No function matches this search"
-msgstr "沒有函數符合此搜尋條件"
+msgstr "沒有函式符合此搜尋條件"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage here"
-msgstr "沒有運行在此處收集覆蓋率"
+msgstr "沒有運行在此收集到覆蓋率數據"
 
 #: lib/tuist_web/live/coverage_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage on %{branch} in this period"
-msgstr "在此期間，沒有運行在 %{branch} 分支上收集覆蓋率"
+msgstr "在此期間，沒有運行在 %{branch} 分支上收集到覆蓋率數據"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:548
 #, elixir-autogen, elixir-format
@@ -2488,17 +2488,17 @@ msgstr "沒有運行符合這些篩選條件"
 #: lib/tuist_web/live/coverage_detail_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "No run of commit %{sha} gathered coverage."
-msgstr "提交 %{sha} 的運行沒有收集到覆蓋率。"
+msgstr "提交 %{sha} 的運行沒有收集到覆蓋率數據。"
 
 #: lib/tuist_web/live/coverage/components.ex:426
 #, elixir-autogen, elixir-format
 msgid "No run of this commit gathered coverage, so it has no figure of its own."
-msgstr "此提交嘅運行未收集到覆蓋率數據，因此冇自己嘅數值。"
+msgstr "此提交嘅運行無收集到覆蓋率數據，所以佢冇自己嘅數值。"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "No run on branch %{branch} gathered coverage."
-msgstr "%{branch} 分支上嘅運行未收集到覆蓋率數據。"
+msgstr "分支 %{branch} 上嘅運行無收集到覆蓋率數據。"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:247
 #, elixir-autogen, elixir-format
@@ -2508,7 +2508,7 @@ msgstr "冇目標符合呢啲篩選條件"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "No target was measured at this commit"
-msgstr "此提交未測量任何目標"
+msgstr "喺呢個提交中無測量任何目標"
 
 #: lib/tuist_web/live/coverage/components.ex:415
 #: lib/tuist_web/live/coverage_detail_live.ex:342
@@ -2525,12 +2525,12 @@ msgstr "最近提交"
 #: lib/tuist_web/live/coverage/components.ex:281
 #, elixir-autogen, elixir-format
 msgid "Selective testing, or a filter, left some of the run's tests out, so it measured part of the scheme."
-msgstr "由於選擇性測試或篩選器排除咗部分測試，因此只測量咗方案嘅一部分。"
+msgstr "由於選擇性測試或篩選器，部分測試未被包含在運行中，因此只測量咗方案嘅一部分。"
 
 #: lib/tuist_web/live/coverage/components.ex:765
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it."
-msgstr "%{branch} 分支最新已測量提交 %{sha} 所覆蓋嘅可執行代碼行比例，係根據測量過它嘅方案匯總得出。"
+msgstr "喺 %{branch}、%{sha} 最新測量提交中，涵蓋可執行代碼行嘅比例，係根據測量過佢嘅方案匯總得出。"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:109
 #, elixir-autogen, elixir-format
@@ -2550,29 +2550,29 @@ msgstr "目標名稱"
 #: lib/tuist_web/live/coverage_file_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "The latest complete commit on %{branch} in this period has no coverage for this file"
-msgstr "在此期間，%{branch} 上最新的完整提交對此檔案沒有覆蓋率資料"
+msgstr "在此期間，%{branch} 上最新的完整提交對此檔案沒有涵蓋率資料"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "These commits are listed in the order they were measured, not the order the repository's history puts them in."
-msgstr "這些提交按照測量順序列出，而非儲存庫歷史記錄中的順序。"
+msgstr "這些提交是按照測量順序列出，而非按照版本庫歷史記錄的順序。"
 
 #: lib/tuist_web/live/coverage/components.ex:429
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
-msgstr "此提交的覆蓋率管道尚未發出完成訊號，因此可能仍有更多執行結果匯入，其閘道仍在等待中。"
+msgstr "此提交的涵蓋率流程尚未發出完成訊號，因此可能仍有更多執行結果加入，其閘道仍在等待。"
 
 #: lib/tuist_web/live/coverage/components.ex:438
 #, elixir-autogen, elixir-format
 msgid "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
-msgstr "此提交的覆蓋率管道已發出完成訊號，因此其數值為最終結果，閘道狀態已確定。"
+msgstr "此提交的涵蓋率流程已發出完成訊號，因此其數值為最終結果，閘道狀態也已確定。"
 
 #: lib/tuist_web/live/coverage/components.ex:775
 #: lib/tuist_web/live/coverage/components.ex:792
 #: lib/tuist_web/live/coverage/components.ex:810
 #, elixir-autogen, elixir-format
 msgid "over the period"
-msgstr "於該期間內"
+msgstr "在此期間"
 
 #: lib/tuist_web/live/coverage/components.ex:417
 #: lib/tuist_web/live/coverage_detail_live.ex:340
@@ -2584,23 +2584,23 @@ msgstr "未完成"
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
 msgid_plural "Some tests were skipped, and the coverage of %{count} of them couldn't be determined, so the actual coverage may be higher."
-msgstr[0] "部分測試被跳過，且其中 %{count} 個的覆蓋率無法確定，因此實際覆蓋率可能更高。"
-msgstr[1] "部分測試被跳過，且其中 %{count} 個的覆蓋率無法確定，因此實際覆蓋率可能更高。"
+msgstr[0] "部分測試已跳過，且無法確定其中 %{count} 個的覆蓋率，因此實際覆蓋率可能更高。"
+msgstr[1] "部分測試已跳過，且無法確定其中 %{count} 個的覆蓋率，因此實際覆蓋率可能更高。"
 
 #: lib/tuist_web/live/coverage/components.ex:404
 #, elixir-autogen, elixir-format
 msgid "Some tests were skipped, and their coverage couldn't be fully determined, so the actual coverage may be higher."
-msgstr "部分測試被跳過，且其覆蓋率無法完全確定，因此實際覆蓋率可能更高。"
+msgstr "部分測試已跳過，且無法完全確定其覆蓋率，因此實際覆蓋率可能更高。"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Interrupted"
-msgstr "已中斷"
+msgstr "中斷"
 
 #: lib/tuist_web/live/once_test_run_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "Once stopped reporting before this run finished"
-msgstr "在此運行完成前已停止報告"
+msgstr "在此執行完成前已停止回報"
 
 #: lib/tuist_web/live/once_test_run_live.html.heex:69
 #, elixir-autogen, elixir-format
@@ -2610,12 +2610,12 @@ msgstr "已取消"
 #: lib/tuist_web/live/once_test_run_live.ex:147
 #, elixir-autogen, elixir-format
 msgid "The run was cancelled before it reported any test cases"
-msgstr "運行在報告任何測試用例之前已被取消"
+msgstr "執行在回報任何測試案例前已被取消"
 
 #: lib/tuist_web/live/coverage/components.ex:375
 #, elixir-autogen, elixir-format
 msgid "Some coverage only came from runs on a checkout with uncommitted changes, which don't count, so the actual coverage may be higher."
-msgstr "部分覆蓋率僅來自含有未提交變更的檢出版本運行，這些運行不會被計算在內，因此實際覆蓋率可能更高。"
+msgstr "部分覆蓋率數據僅來自含有未提交變更的檢出版本運行，這些運行不會被計算在內，因此實際覆蓋率可能更高。"
 
 #: lib/tuist_web/live/coverage/components.ex:260
 #, elixir-autogen, elixir-format
@@ -2625,7 +2625,7 @@ msgstr "已捨棄"
 #: lib/tuist_web/live/coverage/components.ex:263
 #, elixir-autogen, elixir-format
 msgid "The run came from a checkout with uncommitted changes, so it measured code that isn't the commit's and its coverage was discarded."
-msgstr "該運行來自含有未提交變更的檢出版本，因此測量了不屬於該提交的代碼，其覆蓋率已被捨棄。"
+msgstr "該次運行來自含有未提交變更的檢出版本，因此測量的是非當前提交的代碼，其覆蓋率數據已被捨棄。"
 
 #: lib/tuist_web/helpers/test_labels.ex:49
 #, elixir-autogen, elixir-format
@@ -2646,18 +2646,18 @@ msgstr "應用程式"
 #, elixir-autogen, elixir-format
 msgid "%{count} of them belongs to no function, such as code a macro generates."
 msgid_plural "%{count} of them belong to no function, such as code a macro generates."
-msgstr[0] "其中有 %{count} 個不屬於任何函數，例如由宏產生的代碼。"
-msgstr[1] "其中有 %{count} 個不屬於任何函數，例如由宏產生的代碼。"
+msgstr[0] "當中有 %{count} 個不屬於任何函數，例如由宏生成的代碼。"
+msgstr[1] "當中有 %{count} 個不屬於任何函數，例如由宏生成的代碼。"
 
 #: lib/tuist_web/live/coverage_detail_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Every run that executed this target's tests took it from the binary cache as a binary built without coverage counters, so what they covered in it is unknown."
-msgstr "每次執行此目標測試的運行都從二進制緩存中獲取沒有覆蓋率計數器的二進制文件，因此它們涵蓋的內容未知。"
+msgstr "每次執行此目標測試的運行都從二進制緩存中獲取未包含覆蓋率計數器的二進制文件，因此無法確定其涵蓋範圍。"
 
 #: lib/tuist_web/live/coverage/components.ex:381
 #, elixir-autogen, elixir-format
 msgid "Some of the code the tests ran came from the binary cache as binaries built without coverage counters, so what they covered in it is unknown and the actual coverage may be higher. The Targets tab lists them as not measured."
-msgstr "部分測試運行的代碼來自二進制緩存，這些二進制文件是在沒有覆蓋率計數器的情況下構建的，因此它們涵蓋的內容未知，實際覆蓋率可能更高。「Targets」標籤將其列為未測量。"
+msgstr "部分測試運行的代碼來自二進制緩存中未包含覆蓋率計數器的二進制文件，因此無法確定其涵蓋範圍，實際覆蓋率可能更高。「目標」標籤頁將它們列為未測量。"
 
 #: lib/tuist_web/live/coverage/components.ex:833
 #, elixir-autogen, elixir-format

@@ -11,6 +11,14 @@ import TuistREAPI
 /// A command-session relay. Admission, artifact validation, and ownership of blob files remain with the compiler.
 struct CargoRemoteCache: REAPICacheStoring, Sendable {
     static let metadataTimeout: Duration = .seconds(1)
+
+    struct Timing: Sendable {
+        let now: @Sendable () -> ContinuousClock.Instant
+        let sleep: @Sendable (Duration) async throws -> Void
+    }
+
+    @TaskLocal static var timing = Timing(now: { .now }, sleep: { try await Task.sleep(for: $0) })
+
     private let directory: URL
 
     init(directory: URL) {
@@ -167,7 +175,8 @@ struct CargoRemoteCache: REAPICacheStoring, Sendable {
     private func call(_ message: Request) async throws -> Response {
         _ = try message.validate()
         try CargoCacheIPC.validateDirectory(directory)
-        let startupDeadline = ContinuousClock.now + .seconds(1)
+        let timing = Self.timing
+        let startupDeadline = timing.now() + .seconds(1)
         let marker = directory.appendingPathComponent("server.json")
         var server: Server?
         while server == nil {
@@ -175,10 +184,10 @@ struct CargoRemoteCache: REAPICacheStoring, Sendable {
             if let candidate = try? CargoCacheIPC.read(Server.self, from: marker) {
                 guard Self.alive(candidate.process) else { throw BrokerError.unavailable }
                 if candidate.ready != false { server = candidate }
-            } else if ContinuousClock.now >= startupDeadline {
+            } else if timing.now() >= startupDeadline {
                 throw BrokerError.unavailable
             }
-            if server == nil { try await Task.sleep(for: .milliseconds(5)) }
+            if server == nil { try await timing.sleep(.milliseconds(5)) }
         }
         guard let server, Self.alive(server.process) else { throw BrokerError.unavailable }
         let id = UUID().uuidString
@@ -186,7 +195,7 @@ struct CargoRemoteCache: REAPICacheStoring, Sendable {
         let response = directory.appendingPathComponent(id + ".response")
         defer { CargoCacheIPC.remove(request, response) }
         try await publish(message, to: request, server: server)
-        let acceptanceDeadline = ContinuousClock.now + .seconds(1)
+        let acceptanceDeadline = timing.now() + .seconds(1)
         var deadline: ContinuousClock.Instant?
         while true {
             try Task.checkCancellation()
@@ -201,19 +210,19 @@ struct CargoRemoteCache: REAPICacheStoring, Sendable {
                 return reply
             }
             if let deadline {
-                guard ContinuousClock.now < deadline else { throw BrokerError.timedOut }
+                guard timing.now() < deadline else { throw BrokerError.timedOut }
             } else if (try? CargoCacheIPC.read(
                 CargoCacheIPC.Operation.self, from: directory.appendingPathComponent(id + ".active")
             )) == message.operation {
                 // The backend owns its operation timeout; allow local response delivery separately.
-                deadline = ContinuousClock.now + message.allowance + .seconds(1)
-            } else if ContinuousClock.now >= acceptanceDeadline {
+                deadline = timing.now() + message.allowance + .seconds(1)
+            } else if timing.now() >= acceptanceDeadline {
                 throw BrokerError.busy
             }
             guard Self.alive(server.process), (try? CargoCacheIPC.read(Server.self, from: marker)) == server
             else { throw BrokerError.unavailable }
             guard FileManager.default.fileExists(atPath: request.path) else { throw BrokerError.busy }
-            try await Task.sleep(for: .milliseconds(5))
+            try await timing.sleep(.milliseconds(5))
         }
     }
 

@@ -1,0 +1,294 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "86c57644db83e4e1253018d87628bc5126ffc0f45b7101cd0e5f5de576fd45d2",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# (default: 90, or 600 for whole-file transfers such as test-product shard artifacts)": {
+                  "content_hash": "65bf6410350227175667da2cb33c97f1a4ac4d06cf01e70c2d139f9f8204ad4d"
+                },
+                "# Debugging {#debugging}": {
+                  "content_hash": "dea6cb218fac4f8419a5ace2ecabe3167e0046af88cc5d74d4a2aafac1474d02"
+                },
+                "# Initial exponential backoff delay in milliseconds (default: 100, maximum: 30000)": {
+                  "content_hash": "2e5178c0ba6edec59b05b178b39bb3acc7b6c24d2ba3a59fe4d4fbbf1066054f"
+                },
+                "# Maximum number of simultaneous connections per host (default: 20)": {
+                  "content_hash": "836a1edc2539594476e142eabccb6b77e7813f3f83d84e8490575e905c295ac7"
+                },
+                "# Maximum retries after the initial attempt (default: 3, maximum: 10)": {
+                  "content_hash": "c38475d951e5688151010c2aa69867fad171053bbf1879b7b977d6670eee9805"
+                },
+                "# Maximum time (in seconds) a single resource transfer can take before it's cancelled": {
+                  "content_hash": "5b7160d11870383a70a9587658b66e0976f583f2890d3e7b29370f06064c6109"
+                },
+                "# Maximum time (in seconds) to wait for new data on an existing request (default: 120)": {
+                  "content_hash": "705ba3377ecab746279c490361f0cd28d964041596a01cf3229fd59559eb25fe"
+                },
+                "# Path to a PEM/DER CA bundle to trust on top of the system root store (default: unset)": {
+                  "content_hash": "be6a032a5fda1be0a61e9365591f0538dabc773a3fc70d3a08b8bf8c4863961f"
+                },
+                "## Session data {#session-data}": {
+                  "content_hash": "1d7bcd7aac25ec720f1b8cb7aa6a321427c676a9ab80717898ab41678db08df7"
+                },
+                "## Trusting a custom CA certificate {#trusting-a-custom-ca-certificate}": {
+                  "content_hash": "1c8eb7add819142c73b173ddc557462c3de108ba87dff7958003ef6834101414"
+                },
+                "## Tuning network timeouts and retries {#tuning-network-timeouts}": {
+                  "content_hash": "8a93e120e7735d9e4f33d736888343f75f953d142f8b93d7e1a4b14d4d2fac77"
+                },
+                "### Continuous integration {#diagnose-issues-using-logs-ci}": {
+                  "content_hash": "8e46af5e70c3152b8926be78bcdaba9d5005a57776e74a9e565cd05899e1805f"
+                },
+                "### Visualizing HAR files {#visualizing-har-files}": {
+                  "content_hash": "90a3f2cbde27386653dac165b4857a67b45c3525e5eca2b1af87fa403119bdb6"
+                },
+                "### Xcode cache debugging {#cache-daemon-debugging}": {
+                  "content_hash": "e82bf5226bdd435e3f47ffb3d6a82830760c3305de823cf51df2d8c766be799c"
+                },
+                "Preamble": {
+                  "content_hash": "8eb84c54c8aee5d3c92a7645b121aab32af841b66150e4bceb653e5454f4ebe3"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "af6dce1ebb2e14e2b8fe98f3b99e92f717bbe92e3f94bca086803af7ecb4a6f2",
+          "kind": "source",
+          "label": "server/priv/docs/en/cli/debugging.md",
+          "metadata": {
+            "content_hash": "4c6b392ac4a11feced95e8af63c225a0ec5ac9dacccd775dbf2082574d3a410d"
+          }
+        },
+        {
+          "children": [],
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "cb3ef38f26dd230a44a10b9a9a205124a471a1da26752a9e97f549353a95590b",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "translate",
+            "language": "Chinese (Simplified)",
+            "locale": "zh_Hans",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+              }
+            },
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "server/L10N/zh_Hans.md": {
+                    "content_hash": "102548dff6bf0ad155a6b3106da4c8e0a903d3ef539613ee36b63084599f502f",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "da2fa5209be9830744d8bb8c03f6673e3a0acdcc6ad367d9e3522862cc901862"
+                      },
+                      "## Simplified Chinese-specific translation rules": {
+                        "content_hash": "f01479e5b111a861c24c2e0d4a76ab9f71137d66b58489db3f91e96f28132e49"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "017c0a6d9740ff194260d707188252a7f67bceb0ccf6e5c4402da52039ae9bf7"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "2bab184a3c432c61df3f5670ae5e6bd28d4586152ba9cf2c38a5048ee26f6c19",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "d804fdcf2155e6a669b9be9abfbd793a0808076c496e3aaa02d6dc36915138d2"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {
+                      "entry:f6977d4134bbe756e3aef4854d9ae407992551711ab5839ab61f114d6812132c": {
+                        "case_sensitive": false,
+                        "definition_hash": "9aac3cff7abfbe0b8aeea38965ad9095c891253fe2e76e7e584ee6ba8218a4c7",
+                        "term_hash": "c03dac40bf52cb692381200e184b33074a9b26e2fe0985463bd31f00c52a52c6",
+                        "translation_hash": "85008f79394679c74589245546106c25e46043a3ad8d598bae71462a3cd5cd8c"
+                      }
+                    }
+                  },
+                  "hash": "ba84546c8619c373ab9f4bdc8ae149551b770d7bcd08bac3988ae65c7e582bfc",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "b77ee237386c9646ae8987bd0ab4a2fa882beec6fe876dc6d942357299f9d579"
+                  }
+                }
+              ],
+              "details": {},
+              "hash": "cc84978617e6b522b05b3b541b38e0a730f385702a26ab97094c3c56911ddde3",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "details": {},
+          "hash": "87b5029517b4cff91f816b59b8c0d6bea52f1ffa4588f294b894dbb18b660031",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "details": {},
+      "hash": "86c57644db83e4e1253018d87628bc5126ffc0f45b7101cd0e5f5de576fd45d2",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/cli/debugging.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "8a6ba9bae9cae95bbcd934ce8182921a34287caedbff7d304ec47709ff0430e1",
+  "output_path": "server/priv/docs/zh_Hans/cli/debugging.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [
+        "repo:cache-hit"
+      ],
+      "content_hash": "b77ee237386c9646ae8987bd0ab4a2fa882beec6fe876dc6d942357299f9d579",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "d17d9c47bb2fe17fcff1a1b9bcd31440151719cb",
+  "source_path": "server/priv/docs/en/cli/debugging.md",
+  "translated_at": "2026-10-29T12:00:01.228120Z",
+  "translation_session_id": "01a18781-4e36-7825-8de9-6935d4b68dcd"
+}
