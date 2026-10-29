@@ -122,6 +122,10 @@ fleet's CI Tart binary. Eviction saves a checkpoint, fsyncs it with an instance
 marker, then asks that same paused process to exit. The host verifies exit and
 suspended state before releasing its Pod. Both resident and evicted resume
 invalidate previous checkpoint proof before the guest can modify disk again.
+Creation and evicted restore wait for a successful ping through the guest bridge,
+including its shared executable. A built-in command can succeed before this
+bridge is executable after restoration. Readiness retries remain bounded by the
+lifecycle context and process lifetime; failure keeps capacity charged.
 
 Guest execs and managed workers retain completion proof. Process groups are
 terminated and reaped at completion or timeout. Uncertain completion remains
