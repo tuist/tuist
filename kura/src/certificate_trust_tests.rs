@@ -1,11 +1,12 @@
 use super::*;
 use rcgen::{
     BasicConstraints, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
-    KeyUsagePurpose,
+    KeyUsagePurpose, PublicKeyData, SigningKey,
 };
 
 struct Fixture {
     root: CertificateDer<'static>,
+    root_spki_hash: String,
     #[cfg(target_os = "linux")]
     root_pem: String,
     spare: CertificateDer<'static>,
@@ -20,6 +21,14 @@ impl Fixture {
     }
 
     fn with_leaf(customize: impl FnOnce(&mut CertificateParams)) -> Self {
+        Self::build(customize, None)
+    }
+
+    fn with_root_version(version: u8) -> Self {
+        Self::build(|_| {}, Some(version))
+    }
+
+    fn build(customize: impl FnOnce(&mut CertificateParams), version: Option<u8>) -> Self {
         let mut root = CertificateParams::new(Vec::<String>::new()).unwrap();
         root.not_before = rcgen::date_time_ymd(2020, 1, 1);
         root.not_after = rcgen::date_time_ymd(2040, 1, 1);
@@ -29,7 +38,12 @@ impl Fixture {
         root.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
         let root_key = KeyPair::generate().unwrap();
         let root_cert = root.self_signed(&root_key).unwrap();
-        let root_der = root_cert.der().clone();
+        // Derive the expected policy key independently from certificate parsing.
+        let root_spki_hash = format!("{:x}", Sha256::digest(root_key.subject_public_key_info()));
+        let root_der = version.map_or_else(
+            || root_cert.der().clone(),
+            |version| versioned_root(root_cert.der(), &root_key, version),
+        );
         #[cfg(target_os = "linux")]
         let root_pem = root_cert.pem();
         let root = Issuer::new(root, root_key);
@@ -69,6 +83,7 @@ impl Fixture {
             .clone();
         Self {
             root: root_der,
+            root_spki_hash,
             #[cfg(target_os = "linux")]
             root_pem,
             spare,
@@ -85,6 +100,103 @@ impl Fixture {
         } else {
             Roots::Explicit(roots)
         }
+    }
+}
+
+// Re-sign rcgen's P-256 root without extensions, with genuine v1/v2/v3 TBS
+// encodings. These fixture-only DER helpers do not use the production parser.
+fn versioned_root(certificate: &[u8], key: &KeyPair, version: u8) -> CertificateDer<'static> {
+    fn take<'a>(input: &mut &'a [u8]) -> &'a [u8] {
+        let width = if input[1] < 128 {
+            0
+        } else {
+            usize::from(input[1] & 127)
+        };
+        let length = if width == 0 {
+            usize::from(input[1])
+        } else {
+            input[2..2 + width]
+                .iter()
+                .fold(0, |n, byte| n * 256 + usize::from(*byte))
+        };
+        let (field, rest) = input.split_at(2 + width + length);
+        *input = rest;
+        field
+    }
+    fn contents(field: &[u8]) -> &[u8] {
+        &field[2 + if field[1] < 128 {
+            0
+        } else {
+            usize::from(field[1] & 127)
+        }..]
+    }
+    fn wrap(tag: u8, contents: &[u8]) -> Vec<u8> {
+        let length = contents.len();
+        assert!(length < 65536);
+        let mut out = if length < 128 {
+            vec![tag, length as u8]
+        } else if length < 256 {
+            vec![tag, 0x81, length as u8]
+        } else {
+            vec![tag, 0x82, (length >> 8) as u8, length as u8]
+        };
+        out.extend_from_slice(contents);
+        out
+    }
+    let mut certificate = contents(certificate);
+    let mut original_tbs = contents(take(&mut certificate));
+    assert_eq!(take(&mut original_tbs), [0xa0, 3, 2, 1, 2]);
+    let mut fields = if version == 1 {
+        Vec::new()
+    } else {
+        vec![0xa0, 3, 2, 1, version - 1]
+    };
+    for _ in 0..6 {
+        fields.extend_from_slice(take(&mut original_tbs));
+    }
+    let tbs = wrap(0x30, &fields);
+    let signature = key.sign(&tbs).unwrap();
+    let mut signed = tbs;
+    signed.extend_from_slice(take(&mut certificate));
+    signed.extend(wrap(3, &[&[0], signature.as_slice()].concat()));
+    CertificateDer::from(wrap(0x30, &signed))
+}
+
+#[test]
+fn policy_preserves_versioned_root_keys_and_refuses_malformed_der() {
+    for version in [1, 2, 3] {
+        let fixture = Fixture::with_root_version(version);
+        Policy::default().check(&fixture.root).unwrap();
+        assert!(matches!(
+            Policy::new(vec![fixture.root_spki_hash]).check(&fixture.root),
+            Err(Error::InvalidCertificate(
+                CertificateError::ApplicationVerificationFailure
+            ))
+        ));
+        for length in 0..fixture.root.len() {
+            assert!(matches!(
+                Policy::default().check(&CertificateDer::from(&fixture.root[..length])),
+                Err(Error::InvalidCertificate(CertificateError::BadEncoding))
+            ));
+        }
+        let mut trailing = fixture.root.to_vec();
+        trailing.push(0);
+        assert!(
+            Policy::default()
+                .check(&CertificateDer::from(trailing))
+                .is_err()
+        );
+    }
+    for malformed in [
+        vec![0x30, 0x80, 0, 0],
+        vec![0x30, 0xff],
+        vec![0x30, 0x82, 0, 1, 0],
+    ] {
+        assert!(
+            Policy::default()
+                .check(&CertificateDer::from(malformed))
+                .is_err()
+        );
     }
 }
 
@@ -354,27 +466,44 @@ fn native_and_explicit_paths_restrict_accepted_leaf_intermediate_and_absent_root
 #[test]
 fn native_evaluated_chain_deny_checks_an_anchor_absent_from_peers() {
     use security_framework::certificate::SecCertificate;
-    let fixture = Fixture::new();
-    // Deliberately leave the private test anchor unfiltered to prove the native
-    // evaluated-chain check, independently of candidate-anchor filtering.
-    for certificate in [&fixture.leaf, &fixture.intermediate, &fixture.root] {
-        let verifier = apple::NativeVerifier {
-            extra: vec![SecCertificate::from_der(&fixture.root).unwrap()],
-            policy: Arc::new(Policy::new(vec![spki_hash(certificate).unwrap()])),
-            provider: provider(),
-        };
-        assert!(matches!(
-            verifier.verify_server_cert(
+    for fixture in [
+        Fixture::new(),
+        Fixture::with_root_version(1),
+        Fixture::with_root_version(2),
+        Fixture::with_root_version(3),
+    ] {
+        let ordinary =
+            verifier(fixture.roots(true), Arc::new(Policy::default()), provider()).unwrap();
+        ordinary
+            .verify_server_cert(
                 &fixture.leaf,
                 std::slice::from_ref(&fixture.intermediate),
                 &ServerName::try_from("localhost").unwrap(),
                 &[],
-                UnixTime::now()
-            ),
-            Err(Error::InvalidCertificate(
-                CertificateError::ApplicationVerificationFailure
-            ))
-        ));
+                UnixTime::now(),
+            )
+            .unwrap();
+        // Deliberately leave the private test anchor unfiltered to prove the native
+        // evaluated-chain check, independently of candidate-anchor filtering.
+        for certificate in [&fixture.leaf, &fixture.intermediate, &fixture.root] {
+            let verifier = apple::NativeVerifier {
+                extra: vec![SecCertificate::from_der(&fixture.root).unwrap()],
+                policy: Arc::new(Policy::new(vec![spki_hash(certificate).unwrap()])),
+                provider: provider(),
+            };
+            assert!(matches!(
+                verifier.verify_server_cert(
+                    &fixture.leaf,
+                    std::slice::from_ref(&fixture.intermediate),
+                    &ServerName::try_from("localhost").unwrap(),
+                    &[],
+                    UnixTime::now()
+                ),
+                Err(Error::InvalidCertificate(
+                    CertificateError::ApplicationVerificationFailure
+                ))
+            ));
+        }
     }
 }
 

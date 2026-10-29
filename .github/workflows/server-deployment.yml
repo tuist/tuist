@@ -603,6 +603,7 @@ jobs:
           # bin/${TARGETARCH}/kura staged above and performs no compilation.
           context: ./kura
           file: ./kura/Dockerfile.release
+          build-contexts: certificate-trust=./infra/certificate-trust
           platforms: linux/amd64
           push: true
           tags: |

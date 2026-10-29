@@ -424,6 +424,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ./kura
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
 

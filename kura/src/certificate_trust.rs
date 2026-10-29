@@ -71,9 +71,76 @@ fn spki_contents_hash(contents: &[u8]) -> String {
 }
 
 pub fn spki_hash(certificate: &CertificateDer<'_>) -> Result<String, Error> {
-    let anchor = webpki::anchor_from_trusted_cert(certificate)
-        .map_err(|_| Error::InvalidCertificate(CertificateError::BadEncoding))?;
-    Ok(spki_contents_hash(anchor.subject_public_key_info.as_ref()))
+    // Authentication belongs to the native/explicit verifier. WebPKI's anchor
+    // parser is not an SPKI extractor: it rejects native-accepted v2 roots.
+    // Walk only the bounded DER envelope and X.509 fields, without allocating.
+    fn field<'a>(input: &mut &'a [u8], tag: u8) -> Option<&'a [u8]> {
+        let (header, mut rest) = input.split_at_checked(2)?;
+        if header[0] != tag {
+            return None;
+        }
+        let length = if header[1] < 128 {
+            usize::from(header[1])
+        } else {
+            let width = usize::from(header[1] & 127);
+            if width == 0 || width > size_of::<usize>() {
+                return None;
+            }
+            let (bytes, tail) = rest.split_at_checked(width)?;
+            if bytes[0] == 0 {
+                return None;
+            }
+            rest = tail;
+            let length = bytes.iter().try_fold(0usize, |n, byte| {
+                n.checked_mul(256)?.checked_add(usize::from(*byte))
+            })?;
+            if length < 128 {
+                return None;
+            }
+            length
+        };
+        let (value, tail) = rest.split_at_checked(length)?;
+        *input = tail;
+        Some(value)
+    }
+    let extract = || {
+        let mut input = certificate.as_ref();
+        let mut certificate = field(&mut input, 0x30)?;
+        let mut tbs = field(&mut certificate, 0x30)?;
+        field(&mut certificate, 0x30)?; // signatureAlgorithm
+        field(&mut certificate, 0x03)?; // signatureValue
+        if !input.is_empty() || !certificate.is_empty() {
+            return None;
+        }
+        if tbs.first() == Some(&0xa0) {
+            let mut version = field(&mut tbs, 0xa0)?;
+            if !matches!(field(&mut version, 0x02)?, [0] | [1] | [2]) || !version.is_empty() {
+                return None;
+            }
+        }
+        field(&mut tbs, 0x02)?; // serialNumber
+        for _ in 0..4 {
+            // signature, issuer, validity, subject
+            field(&mut tbs, 0x30)?;
+        }
+        let spki = field(&mut tbs, 0x30)?;
+        let mut key = spki;
+        field(&mut key, 0x30)?; // algorithm
+        let bits = field(&mut key, 0x03)?;
+        if !key.is_empty() || bits.first().is_none_or(|unused| *unused > 7) {
+            return None;
+        }
+        for tag in [0x81, 0x82, 0xa3] {
+            // optional unique IDs and extensions
+            if tbs.first() == Some(&tag) {
+                field(&mut tbs, tag)?;
+            }
+        }
+        tbs.is_empty().then_some(spki)
+    };
+    extract()
+        .map(spki_contents_hash)
+        .ok_or(Error::InvalidCertificate(CertificateError::BadEncoding))
 }
 
 pub enum Roots {
