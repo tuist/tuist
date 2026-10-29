@@ -7,6 +7,7 @@ struct AtlasDesktopSettings: View {
     let server: URL?
     let accounts: AtlasAIAccounts
     let profileRequest: AtlasWorkstation.Request?
+    let profileModel: AtlasProfile
     let notifications: AtlasPushNotifications?
     let signOut: () -> Void
     let workstation: AtlasWorkstation?
@@ -17,7 +18,8 @@ struct AtlasDesktopSettings: View {
             NavigationStack {
                 if let server {
                     AtlasSettingsView(server: server, accounts: accounts, signOut: signOut,
-                                      profileRequest: profileRequest, notifications: notifications)
+                                      profileRequest: profileRequest, profileModel: profileModel,
+                                      notifications: notifications)
                 } else {
                     ContentUnavailableView("Sign in to Atlas", systemImage: "person.crop.circle",
                                            description: Text("Open the Atlas window to sign in."))

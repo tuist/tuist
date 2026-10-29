@@ -25,7 +25,8 @@ struct AtlasApp: App {
         .commands { AtlasUpdateCommands(updater: updater) }
         Settings {
             AtlasDesktopSettings(server: authentication.server, accounts: authentication.accountSettings,
-                                 profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications,
+                                 profileRequest: authentication.businessRequest, profileModel: authentication.profileSettings,
+                                 notifications: authentication.pushNotifications,
                                  signOut: authentication.signOut, workstation: authentication.workstation, updater: updater)
                 .modifier(AtlasThemeScope(appearance: appearance, server: authentication.server))
                 .environment(\.atlasReadCache, authentication.cachedRead)
@@ -115,11 +116,13 @@ struct AtlasApp: App {
                                automation: authentication) {
                 #if os(iOS)
                 AtlasSettingsView(server: server, accounts: authentication.accountSettings, signOut: authentication.signOut,
-                                  profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications,
+                                  profileRequest: authentication.businessRequest, profileModel: authentication.profileSettings,
+                                  notifications: authentication.pushNotifications,
                                   sharedItems: authentication.sharedItems, connections: authentication.connectionSettings)
                 #else
                 AtlasSettingsView(server: server, accounts: authentication.accountSettings, signOut: authentication.signOut,
-                                  profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications,
+                                  profileRequest: authentication.businessRequest, profileModel: authentication.profileSettings,
+                                  notifications: authentication.pushNotifications,
                                   connections: authentication.connectionSettings)
                 #endif
             }

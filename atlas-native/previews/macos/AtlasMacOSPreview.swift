@@ -10,6 +10,7 @@ struct AtlasMacOSPreview: App {
     @StateObject private var navigation = AtlasNavigation()
     @StateObject private var updater = AtlasUpdater(startingUpdater: false)
     @StateObject private var authentication = AtlasAuthentication()
+    @StateObject private var profile = AtlasProfile()
     @State private var showingRepository = true
     @StateObject private var appearance = AtlasAppearance(request: { action in
         if action["operation"] as? String == "themes" { throw CancellationError() }
@@ -39,7 +40,8 @@ struct AtlasMacOSPreview: App {
                                                         request: environments.request, changed: {})
                         }
                 } else if settings {
-                    AtlasDesktopSettings(server: server, accounts: accounts, profileRequest: business.request, notifications: nil,
+                    AtlasDesktopSettings(server: server, accounts: accounts, profileRequest: business.request,
+                                         profileModel: profile, notifications: nil,
                                          signOut: {}, workstation: environments.workstation, updater: updater)
                 } else if updates {
                     AtlasUpdateSettingsView(updater: updater)
@@ -49,7 +51,8 @@ struct AtlasMacOSPreview: App {
                     AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request,
                                        orbitRequest: threads.request, orbitLocalRequest: threads.local,
                                        presence: presence.model, navigation: navigation) {
-                        AtlasSettingsView(server: server, accounts: accounts, signOut: {}, profileRequest: business.request)
+                        AtlasSettingsView(server: server, accounts: accounts, signOut: {}, profileRequest: business.request,
+                                          profileModel: profile)
                     }
                     .frame(minWidth: 820, minHeight: 580)
                 }

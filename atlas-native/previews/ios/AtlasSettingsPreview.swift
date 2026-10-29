@@ -8,6 +8,7 @@ struct AtlasSettingsPreview: App {
     @State private var backgrounded = false
     @StateObject private var holidays = AtlasTimeOffPreviewData()
     @StateObject private var business = AtlasBusinessPreviewData()
+    @StateObject private var profile = AtlasProfile()
     @StateObject private var threads = AtlasOrbitPreviewData()
     @StateObject private var environments = AtlasEnvironmentPreviewData()
     @StateObject private var presence = AtlasPresencePreviewData()
@@ -90,7 +91,7 @@ struct AtlasSettingsPreview: App {
                                        orbitRequest: threads.request, orbitLocalRequest: threads.local, presence: presence.model,
                                        navigation: navigation) {
                         AtlasSettingsView(server: previewServer, accounts: accounts,
-                                          signOut: {}, profileRequest: business.request, connections: connections)
+                                          signOut: {}, profileRequest: business.request, profileModel: profile, connections: connections)
                     }
                 } else {
                     NavigationStack {
@@ -102,7 +103,8 @@ struct AtlasSettingsPreview: App {
                                 request: holidays.request
                             )
                         } else {
-                            AtlasSettingsView(server: previewServer, accounts: accounts, signOut: {}, connections: connections)
+                            AtlasSettingsView(server: previewServer, accounts: accounts, signOut: {},
+                                              profileModel: profile, connections: connections)
                         }
                     }
                 }
