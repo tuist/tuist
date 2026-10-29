@@ -1,0 +1,59 @@
+name: Server Backport Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Qualified final merged releases/server-X.Y.x tip (full SHA)"
+        required: true
+        type: string
+      base_tag:
+        description: "Current stable server@X.Y.Z tag; the next patch is derived"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+
+concurrency:
+  group: server-publish
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate stable patch source
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      sha: ${{ steps.plan.outputs.sha }}
+      base_tag: ${{ steps.plan.outputs.base_tag }}
+      base_sha: ${{ steps.plan.outputs.base_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+      - id: plan
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          BASE_TAG: ${{ inputs.base_tag }}
+        run: python3 .github/scripts/stable-image-patch.py server "$SOURCE_SHA" "$BASE_TAG"
+
+  build-publish:
+    name: Build and publish stable patch
+    needs: prepare
+    uses: ./.github/workflows/server-build-publish.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ needs.prepare.outputs.sha }}
+      changelog_from: ${{ needs.prepare.outputs.base_tag }}
+      stable_base_tag: ${{ needs.prepare.outputs.base_tag }}
+      stable_base_sha: ${{ needs.prepare.outputs.base_sha }}
+      make_latest: false
+      prerelease: false
+    secrets: inherit

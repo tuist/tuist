@@ -32,6 +32,16 @@ on:
         required: false
         type: string
         default: ""
+      stable_base_tag:
+        description: "Backport-only stable base; revalidated before image and GitHub publication"
+        required: false
+        type: string
+        default: ""
+      stable_base_sha:
+        description: "Resolved stable base approved during backport planning"
+        required: false
+        type: string
+        default: ""
       make_latest:
         description: "Whether GitHub marks this release as 'Latest' and whether the Docker manifest also pushes the :latest tag"
         required: false
@@ -176,6 +186,14 @@ jobs:
     env:
       IMAGE: ghcr.io/tuist/tuist
     steps:
+      - name: Check out trusted patch controls
+        if: inputs.stable_base_tag != '' || inputs.stable_base_sha != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .release-controls
+          sparse-checkout: .github/scripts
+          fetch-depth: 0
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -185,6 +203,16 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Revalidate stable patch before image publication
+        if: inputs.stable_base_tag != '' || inputs.stable_base_sha != ''
+        working-directory: .release-controls
+        env:
+          SOURCE_SHA: ${{ inputs.ref }}
+          BASE_TAG: ${{ inputs.stable_base_tag }}
+          APPROVED_BASE_SHA: ${{ inputs.stable_base_sha }}
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: python3 .github/scripts/stable-image-patch.py server "$SOURCE_SHA" "$BASE_TAG"
 
       - name: Publish multi-arch manifest
         env:
@@ -224,6 +252,23 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Check out trusted patch controls
+        if: inputs.stable_base_tag != '' || inputs.stable_base_sha != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .release-controls
+          sparse-checkout: .github/scripts
+          fetch-depth: 0
+      - name: Revalidate stable patch before GitHub publication
+        if: inputs.stable_base_tag != '' || inputs.stable_base_sha != ''
+        working-directory: .release-controls
+        env:
+          SOURCE_SHA: ${{ inputs.ref }}
+          BASE_TAG: ${{ inputs.stable_base_tag }}
+          APPROVED_BASE_SHA: ${{ inputs.stable_base_sha }}
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: python3 .github/scripts/stable-image-patch.py server "$SOURCE_SHA" "$BASE_TAG"
       - name: Create Server GitHub Release
         uses: softprops/action-gh-release@v2
         with:
