@@ -6,6 +6,11 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 
 ## Files
 
+- [Dedicated local-NVMe proposal](local-nvme.md) — October 2026 architecture,
+  failure domains, costs, rollout gates, migration/rollback and disaster recovery.
+- [Benchmark plan and local tooling](benchmarks/README.md) — qualification matrix
+  and a disposable local PostgreSQL smoke test; no production operations.
+
 - Web runtime grants are applied automatically by `Tuist.Release.migrate/0` when `TUIST_DATABASE_RUNTIME_ROLE` is set (the Helm chart sets it to `postgresql.cnpg.roles.web.name` for managed CNPG migration jobs). The migration role keeps owning schema changes, and the web role gets DML on application tables plus read-only access to `schema_migrations`.
 - [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — per-table grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`. **These grants are now applied automatically by `Tuist.Release.migrate/0` (`do_grant_processor_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `do_grant_processor_role`. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
 - [`tuist-swift-registry-sync-grants.sql`](./tuist-swift-registry-sync-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_swift_registry_sync` role used by the Swift registry sync worker. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the narrower per-table privileges the worker needs. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
@@ -16,7 +21,7 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 ## When to run
 
 - **Once per env, immediately after the CNPG `Cluster` reports `phase: Cluster in healthy state`** — the cluster has bootstrapped its primary, ESO has synced the managed-role password Secrets, and CNPG has created the roles themselves. Web runtime grants are part of the managed CNPG migration Job; the processor's `oban_jobs` grants only make sense after the first Ecto migration, so run the SQL files *after* the migration Job ran for the first time too.
-- **After a fresh cluster restore from a backup** — `pg_basebackup`-style restores re-create role objects but not the per-table GRANT state, so the SQL re-runs are needed.
+- **After a fresh cluster restore from a backup** — physical restores preserve roles and per-table GRANTs. Verify them against the intended managed roles and current application schema, and re-run the grant SQL when reconciliation is needed before the first migration run.
 
 The files use `GRANT … TO <role>` against pre-existing tables and roles, so re-running them on an existing cluster is a no-op outside of explicit grant changes.
 
@@ -215,8 +220,12 @@ validation queries, then `kubectl delete cluster` it. Backup state shows in the
 ## Operator version & upgrade path
 
 The CNPG operator version is pinned by the `cloudnative-pg` dependency in
-[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml). Production runs
-operator **1.29.1** (chart `0.28.3`), the latest supported line. The chart
+[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml). The repository pins
+operator **1.29.1** (chart `0.28.3`), also observed in the October 27 incident.
+As checked on 2026-10-27, the [1.29 release notes](https://cloudnative-pg.io/docs/1.29/release_notes/v1.29/)
+identify 1.29.3 as the final release and the line as unsupported; a supported
+upgrade needs separate qualification, as described in the
+[local-NVMe proposal](local-nvme.md). The chart
 version and the operator `appVersion` are separate numbers; the authoritative
 map is the upstream Helm index (<https://cloudnative-pg.io/charts/index.yaml>,
 or `helm search repo cloudnative-pg --versions`). The platform chart is
