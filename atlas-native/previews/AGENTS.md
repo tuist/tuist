@@ -67,7 +67,8 @@ with `--fail-orbit-refresh` to catch accidental model recreation.
 data and in-memory environment storage. `--press settings-this-mac` selects the
 native This Mac tab; `--scroll-content bottom` exposes the lower permissions and
 save controls. `--press orbit-environment` opens the production tool-environment
-popover for the selected private fixture thread. These fixtures neither enroll
+menu for the selected private fixture thread. `--hosted-environment` starts
+with the fictional Tuist workspace selected. These fixtures neither enroll
 this Mac nor access a real Keychain, microphone, display or live Atlas session.
 
 `--environment-jobs` adds a fictional queued job to the selected private conversation

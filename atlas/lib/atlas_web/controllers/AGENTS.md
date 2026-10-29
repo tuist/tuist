@@ -80,10 +80,17 @@ Coverage lives in `test/atlas_web/controllers/native_orbit_controller_test.exs` 
 ## Personal execution environments
 
 All endpoints are bearer-only and `no-store`; browser sessions are not accepted.
-`GET /api/me/environments` returns exactly `{owner_id: UUID, environments: [{id,
-name, enabled, online, terminal, display, projects: [{id, name}]}]}` for the caller.
+`GET /api/me/environments` returns `{owner_id: UUID, providers: [{id, name}], environments: [{id,
+name, enabled, online, terminal, display, provider, provider_state, projects: [{id, name}]}]}` for the caller.
 There is no server environment row: null/absent selection means server execution.
 The Orbit list's additive `assistant.environments: true` advertises support.
+Hosted selection accepts exactly `{provider: configured_id}` at the existing
+private-thread environment PATCH route. It starts/resumes asynchronously;
+deselection/archive queues a pause. Native-ID selection cannot select hosted rows.
+Hosted registration uses an inaccessible synthetic OAuth binding, so native
+claim/poll/result routes cannot impersonate it. The owner catalog/selection and
+terminal activity retain their ordinary authorization. See
+[`docs/environment-providers.md`](../../../docs/environment-providers.md).
 
 All following `/api/me/environments/:id` operations additionally require the
 existing native OAuth callback-shape gate (`native_client_required`, 403).

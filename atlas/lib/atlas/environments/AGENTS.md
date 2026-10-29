@@ -1,6 +1,10 @@
 # Personal execution environments
 
-`Atlas.Environments` registers opt-in owner-private native installations. Models,
+`Atlas.Environments` registers opt-in owner-private native installations and
+deployment-configured hosted providers. The hosted contract, Tuist OIDC setup,
+generation fencing and retention are in [environment providers](../../../docs/environment-providers.md).
+Hosted commands use the same ledger and privacy boundaries; terminal execution is
+limited to 600 seconds, with no native credentials installed. Models,
 provider credentials, sessions, checkpoints and all orchestration remain on the
 server. The device receives only the three explicit tool calls. File tools are
 contained in the selected project. Terminal starts there but runs as the macOS

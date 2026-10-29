@@ -18,7 +18,7 @@ enum AtlasMacOSCapture {
                                          height: settings ? 640 : (updates ? 220 : 800)))
             window.center()
             if arguments.contains("orbit-environment"), let screen = window.screen {
-                // Keep the popover over this window, not uncaptured desktop pixels.
+                // Keep the menu over this window, not uncaptured desktop pixels.
                 window.setFrameOrigin(NSPoint(x: screen.visibleFrame.maxX - window.frame.width, y: window.frame.minY))
             }
             NSApplication.shared.setActivationPolicy(.regular)
@@ -32,8 +32,10 @@ enum AtlasMacOSCapture {
             if let index = arguments.firstIndex(of: "--measure-interactions"), arguments.indices.contains(index + 1) {
                 try await measureInteractions(window: window, output: arguments[index + 1])
             }
-            window.makeKeyAndOrderFront(nil)
-            NSApplication.shared.activate(ignoringOtherApps: true)
+            if !arguments.contains("orbit-environment") {
+                window.makeKeyAndOrderFront(nil)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
             try await Task.sleep(for: .milliseconds(300))
             guard #available(macOS 14.4, *),
                   let target = try await SCShareableContent.currentProcess.windows.first(where: {
