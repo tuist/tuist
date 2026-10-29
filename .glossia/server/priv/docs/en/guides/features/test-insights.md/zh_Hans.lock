@@ -1,12 +1,26 @@
 {
   "baseline_schema_version": 1,
-  "hash": "e4f5ef96ce8ea0481e2d1f556e063317170110c8051cd5e076cdbb57c6cf3f55",
+  "hash": "a9393e749ddd8653e7fdb3d84289b37663a643280515b265f8ad465a45ddaf3c",
   "hash_tree": {
     "root": {
       "children": [
         {
           "children": [],
-          "hash": "52c58927addf3c1ec4189a3d87c4e7f89fb9a7a56debc79b788c039d661f6312",
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Test Insights {#test-insights}": {
+                  "content_hash": "6c2e61d2571dab4512f87bba992b494f16908661a605dd1f754b557bdf47c046"
+                },
+                "Preamble": {
+                  "content_hash": "f4b965eb4565f658590e6db5fa9ecd8002dca9b27c8861d9ce968051c8f728c2"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "dacfba9619eaf7b9ba3cb943c5a4fb7a1d147338788ffe3a4e7a484137168a86",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights.md",
           "metadata": {
@@ -15,13 +29,21 @@
         },
         {
           "children": [],
-          "hash": "6c6bad117d62161d83370410949e55fe4144b9ed5d76922d01e754e3ac6306f5",
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "cb3ef38f26dd230a44a10b9a9a205124a471a1da26752a9e97f549353a95590b",
           "kind": "translation_config",
           "label": "generation",
           "metadata": {
             "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "format": "markdown",
-            "frontmatter_mode": "preserve",
+            "frontmatter_mode": "translate",
             "language": "Chinese (Simplified)",
             "locale": "zh_Hans",
             "model": "",
@@ -31,34 +53,130 @@
             "retries": 3,
             "segmentation_version": 1,
             "source_language": "en",
-            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
           }
         },
         {
           "children": [
             {
               "children": [],
-              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
               }
             },
             {
               "children": [],
-              "hash": "a92a1d3a18c1e1be86e613b194613064b411b73893253185405d19abfb685e7d",
+              "details": {
+                "content_hash": {
+                  "server/L10N/zh_Hans.md": {
+                    "content_hash": "102548dff6bf0ad155a6b3106da4c8e0a903d3ef539613ee36b63084599f502f",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "da2fa5209be9830744d8bb8c03f6673e3a0acdcc6ad367d9e3522862cc901862"
+                      },
+                      "## Simplified Chinese-specific translation rules": {
+                        "content_hash": "f01479e5b111a861c24c2e0d4a76ab9f71137d66b58489db3f91e96f28132e49"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "017c0a6d9740ff194260d707188252a7f67bceb0ccf6e5c4402da52039ae9bf7"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "2bab184a3c432c61df3f5670ae5e6bd28d4586152ba9cf2c38a5048ee26f6c19",
               "kind": "context",
               "label": "locale",
               "metadata": {
-                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                "content_hash": "d804fdcf2155e6a669b9be9abfbd793a0808076c496e3aaa02d6dc36915138d2"
               }
             },
             {
               "children": [
                 {
                   "children": [],
-                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
                   "kind": "context",
                   "label": "voice",
                   "metadata": {
@@ -67,15 +185,38 @@
                 },
                 {
                   "children": [],
-                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "details": {
+                    "content_hash": {
+                      "entry:3a2da093921d236b394ec82ea1bb3d2ac8661d0f1f72a4a43b9294c2b8385a86": {
+                        "case_sensitive": false,
+                        "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
+                        "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
+                        "translation_hash": "b73fa1d6b0527d9196fdf4ab930b236df78a8482c0d06ddf7abc08691c6a0e10"
+                      },
+                      "entry:3b51d63ccbd9cb0f30f7122a3b6e4e2de542eb64f8c66c336eeb30a2a5e68ee6": {
+                        "case_sensitive": false,
+                        "definition_hash": "5bfbcbe7115309c7054f4ae731dc8cd026280eceb239c69c75cadc7aa2512479",
+                        "term_hash": "c2af27b2919bbf3d9320486d2b9f21315d59ed40d6666f0eb9efef7db35f8855",
+                        "translation_hash": "2036b9c4f77767487b222fcf6744fa1ef2e9d84313d0a44ba77ad111440b6246"
+                      },
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "a2a24843a769fbec02fe1d2b48949350d6baf7c8a86bafe3e5cb2dac81f7fb27"
+                      }
+                    }
+                  },
+                  "hash": "ad9362082d39da953fde0adb3073a35d3abad2845f6f9bad84ba1b9e750389a2",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                    "content_hash": "4d356354f90a57208c8e9bdff8d89831560b2fe72408c70a431a1c1033880018"
                   }
                 }
               ],
-              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "details": {},
+              "hash": "b34c1950c6de95f27bf1e504142974c0cc07d423eb782b573bfc40ed1190da80",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -84,28 +225,34 @@
               }
             }
           ],
-          "hash": "b74fa45a0097171fdb2584d5a433da09c1ce902e92abf102a94a11dfeb9bd077",
+          "details": {},
+          "hash": "024c858bee60b04101558baaa25f3f8a9dab419da47e138c062b4305b20ec88f",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
-      "hash": "e4f5ef96ce8ea0481e2d1f556e063317170110c8051cd5e076cdbb57c6cf3f55",
+      "details": {},
+      "hash": "a9393e749ddd8653e7fdb3d84289b37663a643280515b265f8ad465a45ddaf3c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "5ed18b38f5cff03e75b74a624dcd97c3aa2e6854ede5b8202a2ebdcf7bf4af63",
+  "output_hash": "7dc2f94b8770d29899a6c9b0352944fbb1301b443cfdf88250525e33edffd12d",
   "output_path": "server/priv/docs/zh_Hans/guides/features/test-insights.md",
   "protection_state": "recorded",
   "provider": "",
   "server_context": {
     "compiler_version": 3,
     "glossary": {
-      "applied": [],
-      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "applied": [
+        "repo:features",
+        "repo:flaky-tests",
+        "repo:tests"
+      ],
+      "content_hash": "4d356354f90a57208c8e9bdff8d89831560b2fe72408c70a431a1c1033880018",
       "shadowed": [],
       "version": null
     },
@@ -115,8 +262,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "a341b43cd8ffe0d4f30bc492fbdde41215d99451",
+  "source_commit_sha": "5194a69b4dbfe82c362c81b342afe8a0ffedfa8e",
   "source_path": "server/priv/docs/en/guides/features/test-insights.md",
-  "translated_at": "2026-10-28T10:33:02.911363Z",
-  "translation_session_id": "01a18206-c5b9-7fa7-8475-f16a8b4263cd"
+  "translated_at": "2026-10-29T15:39:09.650397Z",
+  "translation_session_id": "01a1881c-d899-7149-b175-89bc763ce534"
 }

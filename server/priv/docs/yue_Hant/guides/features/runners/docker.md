@@ -1,13 +1,13 @@
 ---
 {
   "title": "Docker",
-  "titleTemplate": ":title · Runners · Features · Guides · Tuist",
-  "description": "Use Docker on Tuist Runners: build and run containers, container jobs, service containers, and private registries."
+  "titleTemplate": ":title · Runners · 功能 · 指南 · Tuist",
+  "description": "喺 Tuist Runners 上使用 Docker：構建同運行容器、容器工作、服務容器，以及私人註冊表。"
 }
 ---
 # Docker {#docker}
 
-Linux runner 已預備好 Docker 供即時使用。每個 job 都會在其虛擬機器內擁有專屬的 Docker daemon，而 `docker` CLI、Buildx 和 Compose 均已預先安裝。你無須執行設定 action，亦無須使用 `sudo`。
+Linux runner 已預備好 Docker。每個 job 都會喺自己嘅虛擬機內擁有獨立嘅 Docker daemon，而 `docker` CLI、Buildx 同 Compose 亦已預先安裝。你唔需要執行 setup action，亦唔需要 `sudo`。
 
 ```yaml
 jobs:
@@ -20,13 +20,13 @@ jobs:
 ```
 
 > [!NOTE]
-> **僅限 Linux**
+> **只限 Linux**
 >
-> macOS runner 不提供 Docker daemon。如需 Docker daemon，請為相關 job 使用 Linux <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>。
+> macOS runner 不提供 Docker daemon。如果 job 需要 Docker daemon，請使用 Linux <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>。
 
-## 在容器中執行 job {#running-a-job-in-a-container}
+## 喺容器內運行 job {#running-a-job-in-a-container}
 
-將 `container` 指向你的 job 應執行的映像檔。Tuist 會拉取該映像檔，並在其中執行每一個步驟：
+將 `container` 指向 job 應該運行嘅映像。Tuist 會拉取該映像，並喺其中運行每個步驟：
 
 ```yaml
 jobs:
@@ -44,7 +44,7 @@ jobs:
 
 ## 服務容器 {#service-containers}
 
-`services` 的運作方式與在 GitHub-hosted runner 上相同。你可以透過對應的連接埠在 `localhost` 上存取這些服務：
+`services` 嘅運作方式與 GitHub-hosted runner 相同。你可以透過映射嘅端口喺 `localhost` 上存取服務：
 
 ```yaml
 jobs:
@@ -62,9 +62,9 @@ jobs:
       - run: mix test
 ```
 
-## 私人註冊表 {#private-registries}
+## 私人 Registry {#private-registries}
 
-在拉取或推送之前，請使用註冊表本身的登入 action 或 `docker login` 進行驗證：
+喺拉取或推送之前，請使用 registry 專屬嘅 login action 或 `docker login` 進行驗證：
 
 ```yaml
       - uses: docker/login-action@v3
@@ -75,13 +75,13 @@ jobs:
       - run: docker pull ghcr.io/my-org/android-ci:latest
 ```
 
-對於 job 層級的 `container`，請改為透過 `credentials` 金鑰傳遞相同的憑證，如上例所示。
+對於 job 層級嘅 `container`，請改為透過 `credentials` 金鑰傳遞相同嘅憑證，如上例所示。
 
-## 映像檔拉取 {#image-pulls}
+## 映像拉取 {#image-pulls}
 
-Docker Hub 的拉取請求會透過 Tuist 運作的穿透式快取提供，因此 job 不會消耗 Docker Hub 的匿名速率限制。來自其他註冊表的映像檔則會直接拉取。
+Docker Hub 拉取請求會透過 Tuist 營運嘅 pull-through cache 提供，因此 job 唔會消耗 Docker Hub 嘅匿名速率限制。來自其他 registry 嘅映像則會直接拉取。
 
-每個 job 啟動時都具備空的映像檔儲存區，因此你的工作流程所使用的映像檔會在每個 job 中拉取一次，而不會在不同 job 之間重複使用。如果某個 job 需要拉取大型自訂映像檔，請盡量保持映像檔小巧，或在工作流程中使用已快取的 Buildx builder 來建構它：
+每個 job 開始時都係一個空白嘅映像儲存區，因此你嘅 workflow 所用嘅映像會喺每個 job 中拉取一次，而唔會喺不同 job 之間重用。如果 job 拉取大型自訂映像，請保持映像細小，或者喺 workflow 中使用帶有快取嘅 Buildx builder 來構建：
 
 ```yaml
       - uses: docker/setup-buildx-action@v3
@@ -94,4 +94,4 @@ Docker Hub 的拉取請求會透過 Tuist 運作的穿透式快取提供，因�
           cache-to: type=gha,mode=max
 ```
 
-如要在原生 job 或容器 job 中使用持久化的依賴項目目錄，請參閱 <.localized_link href="/guides/features/runners/cache-volumes">快取磁碟區指南</.localized_link>。
+如需喺原生 job 或容器 job 中使用持久依賴目錄，請參閱 <.localized_link href="/guides/features/runners/cache-volumes">cache volumes 指南</.localized_link>。

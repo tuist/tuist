@@ -2,12 +2,12 @@
 {
   "title": "Docker",
   "titleTemplate": ":title · Runners · Features · Guides · Tuist",
-  "description": "Use Docker on Tuist Runners: build and run containers, container jobs, service containers, and private registries."
+  "description": "Tuist RunnersでDockerを使用: コンテナのビルドと実行、コンテナジョブ、サービスコンテナ、プライベートレジストリ。"
 }
 ---
 # Docker {#docker}
 
-Linuxランナーには、すぐに使用できるDockerが搭載されています。各ジョブはジョブの仮想マシン内で独自のDockerデーモンを持ち、`docker` CLI、Buildx、Composeが事前インストールされています。セットアップアクションや`sudo`は不要です。
+Linuxランナーには、すぐに使えるDockerが用意されています。各ジョブは仮想マシン内で独自のDockerデーモンを持ち、`docker` CLI、Buildx、Composeがあらかじめインストールされています。セットアップアクションや`sudo`は不要です。
 
 ```yaml
 jobs:
@@ -24,9 +24,9 @@ jobs:
 >
 > macOSランナーはDockerデーモンを提供しません。Dockerデーモンが必要なジョブには、Linuxの<.localized_link href="/guides/features/runners/profiles">プロファイル</.localized_link>を使用してください。
 
-## コンテナ内でジョブを実行する {#running-a-job-in-a-container}
+## コンテナ内でのジョブ実行 {#running-a-job-in-a-container}
 
-ジョブを実行するイメージを`container`で指定します。Tuistがそれをプルし、その内部ですべてのステップを実行します。
+ジョブを実行するイメージを`container`で指定します。Tuistがそのイメージをプルし、すべてのステップをその中で実行します。
 
 ```yaml
 jobs:
@@ -44,7 +44,7 @@ jobs:
 
 ## サービスコンテナ {#service-containers}
 
-`services`はGitHubホスト型ランナーと同じように動作します。サービスはマップされたポートで`localhost`からアクセスできます。
+`services`はGitHubホスト型ランナーと同じように動作します。サービスはマッピングされたポートで`localhost`からアクセスできます。
 
 ```yaml
 jobs:
@@ -64,7 +64,7 @@ jobs:
 
 ## プライベートレジストリ {#private-registries}
 
-プルまたはプッシュを行う前に、レジストリ独自のログインアクションまたは`docker login`を使用して認証してください。
+プルまたはプッシュの前に、レジストリ固有のログインアクションまたは`docker login`を使用して認証してください。
 
 ```yaml
       - uses: docker/login-action@v3
@@ -79,9 +79,9 @@ jobs:
 
 ## イメージのプル {#image-pulls}
 
-Docker Hubからのプルは、Tuistが運用するプルースルーキャッシュ経由で提供されるため、ジョブはDocker Hubの匿名レート制限を消費しません。他のレジストリのイメージは直接プルされます。
+Docker Hubからのプルは、Tuistが運用するプルスルーキャッシュ経由で提供されるため、ジョブはDocker Hubの匿名レート制限を消費しません。他のレジストリのイメージは直接プルされます。
 
-すべてのジョブは空のイメージストアで開始されるため、ワークフローで使用するイメージはジョブ間で再利用されず、ジョブごとに1回プルされます。ジョブが大きなカスタムイメージをプルする場合、イメージを小さくするか、キャッシュされたBuildxビルダーを使用してワークフロー内でビルドしてください。
+すべてのジョブは空のイメージストアから開始されるため、ワークフローで使用されるイメージはジョブ間で再利用されず、ジョブごとに1回プルされます。ジョブが大きなカスタムイメージをプルする場合は、イメージを小さくするか、キャッシュされたBuildxビルダーを使用してワークフロー内でビルドしてください。
 
 ```yaml
       - uses: docker/setup-buildx-action@v3
@@ -94,4 +94,4 @@ Docker Hubからのプルは、Tuistが運用するプルースルーキャッ�
           cache-to: type=gha,mode=max
 ```
 
-ネイティブジョブまたはコンテナジョブにおける永続的な依存ディレクトリについては、<.localized_link href="/guides/features/runners/cache-volumes">キャッシュボリュームガイド</.localized_link>を参照してください。
+ネイティブジョブまたはコンテナジョブで永続的な依存関係ディレクトリを使用するには、<.localized_link href="/guides/features/runners/cache-volumes">キャッシュボリュームガイド</.localized_link>をご覧ください。
