@@ -17,6 +17,7 @@ final class AtlasWorkstation: ObservableObject {
     private let live: Request
     private let keychain: any AtlasKeychainAccess
     private let origin: String
+    private let worktrees = AtlasWorkstationWorktrees()
     private var roots: [String: URL] = [:]
     private var generation = UUID()
     private var listener: Task<Void, Never>?
@@ -51,9 +52,10 @@ final class AtlasWorkstation: ObservableObject {
                 }
             }
             let selected = try await AtlasWorkstationProjects.discover(configuration)
+            let discoveredProjects = await AtlasWorkstationProjects.metadata(selected)
             guard generation == current else { return }
             roots = selected
-            projects = metadata(roots)
+            projects = discoveredProjects
             available = true
             message = nil
             if configuration.enabled { start() }
@@ -80,6 +82,7 @@ final class AtlasWorkstation: ObservableObject {
             configuration = disabled
             try persist(disabled, ownerId: ownerId)
             let selected = try await AtlasWorkstationProjects.discover(next)
+            let discoveredProjects = await AtlasWorkstationProjects.metadata(selected)
             guard generation == current else { return }
             if next.enabled && selected.isEmpty {
                 throw AtlasAuthenticationError(
@@ -87,12 +90,16 @@ final class AtlasWorkstation: ObservableObject {
                 )
             }
             roots = selected
-            projects = metadata(selected)
+            projects = discoveredProjects
             if next.enabled {
                 _ = try await request([
                     "action": "register", "id": next.id, "name": next.name, "enabled": true,
                     "terminal": next.terminal, "display": false,
-                    "projects": projects.map { ["id": $0.id, "name": $0.name] }
+                    "projects": projects.map {
+                        var project: [String: Any] = ["id": $0.id, "name": $0.name, "coding": $0.coding == true]
+                        if let repository = $0.repository { project["repository"] = repository }
+                        return project
+                    }
                 ])
             } else {
                 _ = try await request(["action": "disable", "id": next.id])
@@ -213,9 +220,9 @@ extension AtlasWorkstation {
     }
 
     private func execute(_ pending: AtlasWorkstationCommand, current: UUID) async {
-        guard let root = roots[pending.arguments.projectId],
-              pending.tool != "environment_terminal" ||
-              (configuration.terminal && pending.executionTimeoutSeconds == 1800) else { return }
+        guard let root = roots[pending.arguments.projectId], let ownerId,
+              (!pending.coding && !pending.terminal) || configuration.terminal,
+              !pending.terminal || pending.executionTimeoutSeconds == 1800 else { return }
         do {
             guard generation == current, configuration.enabled, !Task.isCancelled else { return }
             let data = try await request([
@@ -229,9 +236,21 @@ extension AtlasWorkstation {
                 return
             }
             let progress = AtlasWorkstationProgress()
-            let execution = Task { await AtlasWorkstationExecution.perform(command, root: root, progress: progress) }
+            let scope = storageKey(ownerId) + ":" + configuration.id
+            let execution = Task {
+                do {
+                    let directory = command.coding
+                        ? try await worktrees.directory(for: command, repository: root, scope: scope) : root
+                    try Task.checkCancellation()
+                    return await AtlasWorkstationExecution.perform(command, root: directory, progress: progress)
+                } catch {
+                    return AtlasWorkstationResult(
+                        success: false, output: "Could not prepare this thread's Git worktree. No tool was executed."
+                    )
+                }
+            }
             let reporter = Task {
-                if command.tool == "environment_terminal" {
+                if command.terminal {
                     await report(command, progress: progress, current: current, cancel: { execution.cancel() })
                 }
             }
@@ -299,9 +318,5 @@ extension AtlasWorkstation {
         try AtlasSecureStorage.save(storageKey(ownerId), value: text, keychain: keychain)
     }
 
-    private func metadata(_ roots: [String: URL]) -> [AtlasEnvironmentProject] {
-        roots.map { AtlasEnvironmentProject(id: $0.key, name: $0.value.lastPathComponent) }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-    }
 }
 #endif

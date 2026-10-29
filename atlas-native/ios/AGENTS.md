@@ -98,10 +98,12 @@ Push settings disclose that completion alerts contain a title and reply preview.
 host. `AtlasEnvironmentActivity` reconciles the bounded owner-private terminal-job
 projection while foregrounded. Stop polling on departure/background without
 cancelling remote work. Fence late reads/actions and clear revoked projections.
-Show the exact persisted command, Mac, project and its queued/running state without
-a per-command review. The Mac's explicit terminal opt-in authorizes execution;
+Show the exact persisted command, environment, project and its queued/running state
+without a per-command review. Explicit terminal opt-in authorizes execution;
 Stop sends the unchanged command digest. Show cancellation as
-requested until device acknowledgement and unknown outcomes as never retried.
+requested until executor acknowledgement and unknown outcomes as never retried.
+Keep environment selection/presentation independent of its provider; This Mac
+setup instructions describe the first implemented executor, not all environments.
 
 `AtlasPushNotifications` shares notification payloads, actions, origin-scoped secure
 bookkeeping and serialized registration across iOS and macOS. The shell installs

@@ -135,7 +135,8 @@ defmodule AtlasWeb.SignalEventControllerTest do
     event = event()
     assert deliver(path, secret, event, signed_body: "{}") |> json_response(401)
     assert deliver(path, secret, event, timestamp: System.system_time(:second) - 301) |> json_response(401)
-    assert deliver(path, secret, event, timestamp: System.system_time(:second) + 301) |> json_response(401)
+    # Request processing must not move a future timestamp into the five-minute acceptance window.
+    assert deliver(path, secret, event, timestamp: System.system_time(:second) + 3600) |> json_response(401)
     assert deliver("/api/signals/#{Ecto.UUID.generate()}/mcp-events", secret, event) |> json_response(401)
     assert deliver(path, secret, event, message_id: "a-different-id") |> json_response(422)
 
