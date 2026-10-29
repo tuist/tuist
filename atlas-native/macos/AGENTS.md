@@ -50,8 +50,9 @@ Orbit displays its private/shared audience in the native window toolbar subtitle
 outside the scrolling transcript, so following the latest message cannot clip it.
 
 APNs uses the shared push coordinator with the AppKit application delegate,
-macOS-only topic/platform and explicit server capability. Profile consent, token
-rotation, origin-bound navigation and logout cleanup follow the same contract as
+shared iOS/macOS topic `dev.tuist.atlas`, distinct `macos` platform and explicit
+server capability. Profile consent, token rotation, origin-bound navigation and
+logout cleanup follow the same contract as
 iOS. Notification actions reopen the workspace before routing. Only signed
 Developer ID delivery copies receive profile-authorized macOS push entitlements
 and an environment stamp; ordinary local builds remain unconfigured. Live

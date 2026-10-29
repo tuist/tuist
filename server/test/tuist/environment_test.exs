@@ -3,6 +3,17 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "network_trusted_cache_access_enabled?/2" do
+    test "only an explicit boolean on a self-hosted instance enables cache access" do
+      assert Environment.network_trusted_cache_access_enabled?(false, true)
+      refute Environment.network_trusted_cache_access_enabled?(true, true)
+
+      for disabled <- [false, nil, "true", "false", "1", 1] do
+        refute Environment.network_trusted_cache_access_enabled?(false, disabled)
+      end
+    end
+  end
+
   describe "network_trusted_report_publishing_enabled?/2" do
     test "self-hosted publishing requires an explicitly enabled runtime boolean" do
       assert Environment.network_trusted_report_publishing_enabled?(false, true)

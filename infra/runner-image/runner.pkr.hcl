@@ -229,10 +229,80 @@ source "tart-cli" "runner" {
   ssh_timeout        = "15m"
   headless           = true
   recovery_partition = var.stacked ? "keep" : "delete"
+  # The job VM's disk, grown from the base's 140 GB. A clone stores only
+  # what its job writes, so the size costs host disk only when a job fills
+  # it; the rack's disk plan (`rackFleet.machine` in
+  # values-managed-production.yaml) counts two guests at this size.
+  disk_size_gb = 200
 }
 
 build {
   sources = ["source.tart-cli.runner"]
+
+  # Claim the space `disk_size_gb` added for the APFS container. The
+  # plugin only does this after deleting a recovery partition, and the
+  # base has none left to delete, so it never does here. The live resize
+  # intermittently fails with -69606 while growing the APFS structures and
+  # undoes its changes, so it is retried.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "store=$(diskutil info / | awk -F': *' '/APFS Physical Store/ { print $2 }')",
+      "printf 'y\\n' | sudo diskutil repairDisk \"$${store%s*}\"",
+      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 && break; [ \"$attempt\" -lt 5 ] || exit 1; echo \"resizeContainer attempt $attempt failed, retrying in 15 s\" >&2; sleep 15; done"
+    ]
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/pem-store.sh"
+    destination = "/tmp/tuist-pem-store.sh"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/policy.json"
+    destination = "/tmp/policy.json"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/aaa-cross-signed-intermediate.pem"
+    destination = "/tmp/tuist-negative-intermediate.pem"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/issuer-roots.pem"
+    destination = "/tmp/tuist-issuer-roots.pem"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/positive-isrg-root-x1.pem"
+    destination = "/tmp/tuist-positive-root.pem"
+  }
+
+  # Keychain clients and curl use independent stores. Do not rely on Apple's
+  # asynchronous revocation updates or silently matching certificate filenames.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > /tmp/tuist-system-roots.pem",
+      "bash /tmp/tuist-pem-store.sh extract-blocked /tmp/tuist-system-roots.pem /tmp/tuist-blocked-cas",
+      "openssl verify -CAfile /tmp/tuist-issuer-roots.pem /tmp/tuist-negative-intermediate.pem",
+      "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native negative-chain baseline: trusted before containment'; else echo 'Native negative-chain baseline: already rejected; no differential containment claim'; fi",
+      "echo 'admin' | sudo -S true",
+      # SIP protects this authorization rule on current macOS. Authenticate
+      # the disposable guest's admin instead of rewriting the rule to allow.
+      "echo 'admin' | security authorize -C admin com.apple.trust-settings.admin",
+      "for cert in /tmp/tuist-blocked-cas/*.pem; do [ -e \"$cert\" ] || continue; sudo security add-trusted-cert -d -r deny -k /Library/Keychains/System.keychain \"$cert\"; if security verify-cert -c \"$cert\" -p basic >/dev/null 2>&1; then echo 'Native verifier accepted a denied root' >&2; exit 1; fi; done",
+      "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native verifier accepted a compromised intermediate chain' >&2; exit 1; fi",
+      "security verify-cert -c /tmp/tuist-positive-root.pem -p basic -R offline",
+      "bash /tmp/tuist-pem-store.sh filter /etc/ssl/cert.pem /tmp/tuist-cacerts.pem",
+      "bash /tmp/tuist-pem-store.sh check /tmp/tuist-cacerts.pem",
+      "echo 'admin' | sudo -S install -m 0644 /tmp/tuist-cacerts.pem /etc/ssl/cert.pem",
+      "rm /tmp/tuist-cacerts.pem",
+      "/opt/homebrew/bin/brew update",
+      "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 /opt/homebrew/bin/brew upgrade ca-certificates",
+      "bash /tmp/tuist-pem-store.sh filter /opt/homebrew/etc/ca-certificates/cert.pem /tmp/tuist-homebrew-roots.pem",
+      "sudo install -m 0644 /tmp/tuist-homebrew-roots.pem /opt/homebrew/etc/ca-certificates/cert.pem",
+      "bash /tmp/tuist-pem-store.sh check /etc/ssl/cert.pem /opt/homebrew/etc/ca-certificates/cert.pem",
+      "rm -f /tmp/tuist-negative-intermediate.pem /tmp/tuist-issuer-roots.pem /tmp/tuist-positive-root.pem /tmp/tuist-system-roots.pem /tmp/tuist-homebrew-roots.pem",
+      "rm -rf /tmp/tuist-blocked-cas"
+    ]
+  }
 
   # Create the `runner` user. macos-tahoe-base (inherited via
   # the macos-tahoe-xcode base) ships with `admin` as its working
@@ -465,7 +535,7 @@ build {
   }
 
   provisioner "file" {
-    source = "${path.root}/build/tuist-cache-volume"
+    source      = "${path.root}/build/tuist-cache-volume"
     destination = "/tmp/tuist-cache-volume"
   }
 
@@ -731,6 +801,25 @@ build {
       "set -euo pipefail",
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
+    ]
+  }
+
+  # Disk budget. Every job VM is a fresh clone of this image, so the
+  # space free here is the space a job starts with. Tuist commits to at
+  # least 45 GiB of it, and the build fails below 100 GiB so every job
+  # keeps that much room to write before the disk fills (a single job has
+  # written 66 GiB). Avail, not Size - Used: the System, Preboot, VM and
+  # Recovery volumes share the APFS container with the Data volume the
+  # job writes to. Runs last, after everything above has written to the
+  # disk.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "df -h -t apfs",
+      "avail_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 { print $4 }')",
+      "avail_gib=$((avail_kib / 1048576))",
+      "echo \"disk budget: $${avail_gib} GiB available to a job, floor 100 GiB\"",
+      "[ \"$${avail_gib}\" -ge 100 ] || { echo \"disk budget: only $${avail_gib} GiB available, below the 100 GiB floor; shrink the image or raise disk_size_gb\" >&2; exit 1; }"
     ]
   }
 }

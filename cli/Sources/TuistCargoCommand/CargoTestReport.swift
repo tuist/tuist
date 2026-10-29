@@ -34,7 +34,7 @@ struct CargoTestTarget {
         }
     }
 
-    private static func selectedPackages(_ arguments: [String]) -> [String] {
+    static func selectedPackages(_ arguments: [String]) -> [String] {
         let arguments = Array(arguments.prefix(while: { $0 != "--" }))
         var packages: [String] = []
         var index = 0
@@ -139,7 +139,7 @@ struct CargoTestReport {
         return (1 ..< match.numberOfRanges).compactMap { Range(match.range(at: $0), in: line).map { String(line[$0]) } }
     }
 
-    private static func heading(_ line: String, targets: [CargoTestTarget], directory _: String) -> Heading? {
+    static func heading(_ line: String, targets: [CargoTestTarget], directory _: String) -> Heading? {
         if line.hasPrefix("Doc-tests ") {
             let name = String(line.dropFirst("Doc-tests ".count))
             let matches = targets.filter { $0.isLibrary && $0.name.replacingOccurrences(of: "-", with: "_") == name }

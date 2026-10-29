@@ -50,17 +50,20 @@
 
     public struct CacheStorableItemMetadata: Hashable, Equatable, Codable {
         public var binaryCacheFingerprints: [String: String]
+        public var requiresSDKSlices: Bool
 
-        public init(binaryCacheFingerprints: [String: String] = [:]) {
+        public init(binaryCacheFingerprints: [String: String] = [:], requiresSDKSlices: Bool = false) {
             self.binaryCacheFingerprints = binaryCacheFingerprints
+            self.requiresSDKSlices = requiresSDKSlices
         }
 
-        private enum CodingKeys: String, CodingKey { case binaryCacheFingerprints }
+        private enum CodingKeys: String, CodingKey { case binaryCacheFingerprints, requiresSDKSlices }
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             binaryCacheFingerprints = try container
                 .decodeIfPresent([String: String].self, forKey: .binaryCacheFingerprints) ?? [:]
+            requiresSDKSlices = try container.decodeIfPresent(Bool.self, forKey: .requiresSDKSlices) ?? false
         }
     }
 

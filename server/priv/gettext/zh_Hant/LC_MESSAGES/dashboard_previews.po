@@ -36,7 +36,7 @@ msgstr "建置時間"
 #: lib/tuist_web/live/preview_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
-msgstr "Bundle Identifier"
+msgstr "Bundle 識別碼"
 
 #: lib/tuist_web/live/preview_live.html.heex:161
 #: lib/tuist_web/live/previews_live.html.heex:91
@@ -78,7 +78,7 @@ msgstr "安裝應用程式"
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "最新應用程式預覽"
+msgstr "最新的應用程式預覽"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -145,7 +145,7 @@ msgstr "掃描 QR 碼"
 #: lib/tuist_web/live/preview_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "在 iOS 裝置上掃描此 QR Code 以安裝此版本的應用程式"
+msgstr "在您的 iOS 裝置上掃描此 QR Code 以安裝此版本的應用程式"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -160,7 +160,7 @@ msgstr "支援的平台"
 #: lib/tuist_web/live/preview_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "此預覽僅支援模擬器，無法安裝於實體裝置"
+msgstr "此預覽僅支援模擬器，無法安裝在實體裝置上"
 
 #: lib/tuist_web/live/preview_live.html.heex:285
 #, elixir-autogen, elixir-format
@@ -227,4 +227,4 @@ msgstr "預覽"
 #: lib/tuist_web/live/preview_live.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Release notes"
-msgstr "版本資訊"
+msgstr "版本說明"

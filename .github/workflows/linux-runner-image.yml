@@ -9,7 +9,7 @@ name: Linux Runner Image
 #     branch can be validated against a real cluster before merging.
 #
 # The semver / `:latest` / chart-digest-rewrite flow lives in
-# server-production-deployment.yml's `release-linux-runner-image` job — pushed on main.
+# linux-runner-image-release.yml — pushed on main.
 # This workflow deliberately doesn't touch `:latest` or any semver
 # tag; only the release job does.
 #
@@ -24,6 +24,9 @@ on:
       - infra/linux-runner-image/**
       - infra/runner-image/bitrise-hooks/**
       - .github/actions/setup-docker-builder/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/java-store.sh
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/linux-runner-image.yml
       - .github/workflows/server-production-deployment.yml
       - .github/scripts/linux-runner-image-*
@@ -191,6 +194,7 @@ jobs:
         with:
           context: infra/linux-runner-image
           file: infra/linux-runner-image/Dockerfile
+          build-contexts: certificate-trust=infra/certificate-trust
           # Linux runners run on Hetzner Robot bare-metal x86 boxes
           # at v1. arm64 is a future option (Ampere-based SKUs) and
           # can land as an additive `platforms:` entry.

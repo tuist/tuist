@@ -88,7 +88,7 @@ defmodule Tuist.Shards do
       gradle_build_id: Map.get(params, :gradle_build_id),
       inserted_at: now,
       reporting_version:
-        if(FeatureFlags.immutable_shard_reports_enabled?(Repo.preload(project, :account).account), do: 1, else: 0)
+        if(FeatureFlags.immutable_shard_reports_enabled?(Repo.preload(project, :account)), do: 1, else: 0)
     }
 
     plan = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> Ecto.Changeset.apply_action!(:insert)

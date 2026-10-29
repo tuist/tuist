@@ -223,4 +223,42 @@ for operation in read apply; do
     echo "Canary ignored $operation failure" >&2; exit 1
   fi
 done
-echo 'Linux staging: background holds and bounded, fail-closed canary preparation checks passed.'
+
+# Release staging retargets this release's live digest pools, and the
+# deploy's own check then adopts its helper and moves them.
+stage() {
+  NOW=1793059800 LINUX_IMAGE_STAGING_WAIT_SECONDS="${1:-10}" bash "$root/.github/scripts/linux-runner-image-stage.sh" "$image" tuist staging 2> "$work/log"
+}
+jq --arg old "$old" '.items |= (map(.metadata.annotations = {"meta.helm.sh/release-name":"tuist","meta.helm.sh/release-namespace":"staging"})
+  + [.[0] | .metadata.name = "tag-pinned" | .spec.image = "ghcr.io/tuist/tuist-linux-runner:sha-0123"]
+  + [.[0] | .metadata.name = "other-release" | .metadata.annotations["meta.helm.sh/release-name"] = "other"])' "$work/old.json" > "$work/live.json"
+reset
+cp "$work/live.json" "$work/current.json"
+jq '.items[].status.phase="Pending"' "$work/ready-pods.json" > "$work/pods.json"
+IMAGE_TEST_EVENTUALLY_READY=true stage
+test "$(grep -c 'apply -f' "$work/calls")" = 1
+jq -e --arg image "$image" '.spec.template.spec.containers[0].image == $image' "$work/applied.json" >/dev/null
+staged="$(ls "$work/daemonsets/")"
+: > "$work/calls"
+run
+moving
+test "$(ls "$work/daemonsets/")" = "$staged"
+# Hosts not ready in time fail for the caller to warn; the deploy then holds.
+reset
+cp "$work/live.json" "$work/current.json"
+jq '.items[].status.phase="Pending"' "$work/ready-pods.json" > "$work/pods.json"
+if stage 1; then echo 'Staging accepted unready hosts' >&2; exit 1; fi
+run
+held
+# Fleets without serving hosts and releases without digest pools stage nothing.
+for case in no-hosts no-pools; do
+  reset
+  cp "$work/live.json" "$work/current.json"
+  case "$case" in
+    no-hosts) echo '{"items":[]}' > "$work/nodes.json" ;;
+    no-pools) jq '.items |= map(.metadata.annotations["meta.helm.sh/release-name"] = "other")' "$work/live.json" > "$work/current.json" ;;
+  esac
+  stage
+  if grep -q 'apply -f' "$work/calls"; then echo "Staged with $case" >&2; exit 1; fi
+done
+echo 'Linux staging: background holds, release staging and bounded, fail-closed canary preparation checks passed.'

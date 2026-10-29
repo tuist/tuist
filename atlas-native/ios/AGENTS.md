@@ -74,8 +74,10 @@ WebView, remote images, custom-scheme links or executable fenced content.
 Orbit's welcome and empty private thread use the bundled `AtlasPipView` mascot and
 draft suggestions. Touch duration and tap cadence vary its expressions; never claim
 pressure sensing. Reduce Motion preserves expression changes without movement.
-Orbit lists authorized private and shared conversations in a native plain inbox with
-Today/Yesterday/Earlier sections, title, available summary and private/shared metadata.
+Orbit uses a native Messages-style inbox with conversation icons, titles and short previews.
+Signal priorities appear inline as Now/Today/Later, without one-row sections or repeated
+Shared/Signal badges; ordinary conversations retain Today/Yesterday/Earlier sections.
+Keep private/shared audience information accessible and available in thread details.
 Use static localized times/dates, not a ticking relative-time label. Active/Archived is a
 native segmented picker; eligible owners get swipe/context Archive and Restore actions.
 Confirm shared archive because it makes the conversation read-only for everyone. Archived
@@ -83,7 +85,12 @@ details preserve readable history and replace the composer with an owner-only Re
 restoring does not ask Pip to resume. Server ownership and status remain authoritative.
 Dates accept server microseconds and legacy whole seconds. Navbar compose opens a distinct
 private conversation with welcome/suggestions, rather than a fixed bottom Ask bar. Suggestions
-append to the existing draft and never send. Notification links select an authorized
+sit in a horizontally scrolling Liquid Glass row above the composer, with blue leading icons,
+full prompt text, 44pt targets and wrapping accessibility text. Respect Reduce Transparency
+and increased contrast with opaque system surfaces. Welcome starters yield to the latest
+agent reply's optional server follow-ups; a newer human turn, active run, draft, file or
+dictation hides them. Never reuse an older reply's suggestions when the latest omits them.
+Selection appends to the editable draft and never sends. Notification links select an authorized
 thread by UUID through Rust before showing its detail; tab returns must not replay them.
 Push settings disclose that completion alerts contain a title and reply preview.
 
@@ -149,7 +156,10 @@ Show loading feedback before the first protected history
 request completes. Approaching the top automatically loads one earlier page, retaining the
 current visible message through the lazy stack's native anchoring, not a forced jump to the
 old first row after the response. The scroll content has one lazy stack with stable group IDs;
-do not wrap the entire transcript in another scroll target.
+do not wrap the entire transcript in another scroll target. On iOS, each group has a native
+hosting boundary that measures its natural height at the proposed width; keep the outer
+environment and let the transcript own safe-area insets. Preserve this isolation for tall
+Dynamic Type content rather than eagerly rendering the entire history.
 Keep manual retry and never loop failed requests.
 Keep the latest-message action beside the index
 and reserve transcript space so these controls do not cover message content.
@@ -175,3 +185,12 @@ Add new Swift sources to explicit Once source lists where needed, particularly t
 unhosted test bundle. Run `once build AtlasIOS`, `once test AtlasIOSTests` and
 `once lint AtlasSwiftLint` through Mise with local caching. Tests use Swift Testing
 and per-test storage adapters, not global credential/environment mutation.
+
+Favicon networking uses `AtlasCertificateTrust`'s protected URLSession, retaining
+ordinary SecTrust/hostname and OS/enterprise trust before denying keys across the
+constructed path, including anchors. Keep credential-free HTTPS-only redirects,
+bounded off-main image loading and cancellation; never retry through AsyncImage
+or an unprotected session. Tests bundle independent real DER fixtures; set
+`ATLAS_TRUST_LIVE=1` in the test process for native accepted-path key differentials.
+Keep preview source lists aligned. Simulator/host tests do not qualify devices,
+older supported OS versions, external OAuth browsers or signed releases.

@@ -164,6 +164,7 @@ abstract class TuistBuildInsightsService :
     abstract val objects: ObjectFactory
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
+    private val jobSummary by lazy { GitHubActionsJobSummary() }
 
     private val machineMetricsService = parameters.machineMetrics.get().also { it.attachReporter() }
 
@@ -294,7 +295,8 @@ abstract class TuistBuildInsightsService :
         val machineMetrics = downsample(machineMetricsService.finish(), maxCount = 3600)
         if (executionTelemetry.tasks.isEmpty() && !executionTelemetry.failures.buildFailed) return
 
-        val shouldUploadInBackground = uploadInBackground ?: parameters.backgroundUpload.getOrElse(!ciDetector.isCi())
+        // GitHub uploads the summary when the step ends, so it must be written before Gradle returns.
+        val shouldUploadInBackground = (uploadInBackground ?: parameters.backgroundUpload.getOrElse(!ciDetector.isCi())) && !jobSummary.isEnabled
         val observations = try {
             withoutMetadataInputTracking(objects.newInstance(MetricsInputTracking::class.java).state) {
                 val maxWorkers = try {
@@ -409,7 +411,12 @@ abstract class TuistBuildInsightsService :
                     when (val status = connection.responseCode) {
                         HttpURLConnection.HTTP_CREATED -> {
                             BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                                Gson().fromJson(reader, BuildReportResponse::class.java)
+                                Gson().fromJson(reader, BuildReportResponse::class.java).also { response ->
+                                    val dashboardUrl = URI(resolvedUrl).resolve(
+                                        "/${config.accountHandle}/${config.projectHandle}/builds/build-runs/${response.id}"
+                                    )
+                                    jobSummary.writeBuild(report, dashboardUrl.toString())
+                                }
                             }
                         }
                         HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()

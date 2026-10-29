@@ -100,6 +100,8 @@ actionlint on the three workflows. PR image validation has read-only permissions
 release checks. Documentation captures use `atlas/deploy/capture-docs.mjs` with
 bounded Chrome page and process waits, rather than waiting indefinitely for
 external resources. Its regression suite includes a local never-finishing image.
+Run Chrome-bearing steps under `dbus-run-session` so Linux startup has an isolated
+session bus instead of spending the capture budget on desktop-service discovery.
 Retain screenshot PNGs and Chrome diagnostic logs on failures, but keep browser
 profiles in the disposable validation directory, outside uploaded artifacts.
 
@@ -197,8 +199,11 @@ caching for those same paths; keep Go test result reuse disabled with `-count=1`
 `tuist-ex.yml` runs separate compilation, documentation, test, formatting,
 and package jobs. Compilation covers the minimum and current supported Elixir
 versions; the minimum-version job also runs the cache suite, including a real
-cold remote round trip, to catch Mix/OTP artifact-layout differences. The workflow
-is reused by `tuist-ex-release.yml` before publication.
+cold remote round trip, to catch Mix/OTP artifact-layout differences. It also
+runs the package's self-contained certificate-trust suite on minimum OTP; the
+ordinary full-suite job exercises current OTP. Keep native alternate-path
+validation and real-key fixtures covered without a separate shared harness.
+The workflow is reused by `tuist-ex-release.yml` before publication.
 Releases run only from `main`, serialize publishing, and use the shared
 `release:check` registry with the `tuist-ex@` tag prefix. The existing
 `HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
@@ -647,6 +652,14 @@ covered only by the production schedule.
   The pattern must match `errExecutionPending` in
   `infra/linux-runner-image/cmd/tuist-cache-volume/main.go`.
   `macos-cache-volumes-smoke.yml` covers the released `tuist/cache-volume`.
+- Canary qualifies runner image releases on both platforms. Its deploy waits for
+  host staging and fails closed (Linux 300 s, macOS 30 minutes, never accepting
+  an announcement's age), and the cascade passes the deployed images to the
+  probes: Linux checks `EXPECTED_LINUX_IMAGE`, the macOS probe requires its
+  `TUIST_RUNNER_IMAGE` to be one of `EXPECTED_MACOS_IMAGES`.
+- Linux runner images release from `linux-runner-image-release.yml`, outside the
+  cascade, like macOS's `runner-image-release.yml`: build, tag, stage on canary
+  and production (up to an hour), then dispatch the deployment.
 - To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
   wrong URL; it skips the expected-host check and overrides what dispatch hands
   each job.

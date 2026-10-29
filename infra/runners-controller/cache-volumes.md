@@ -513,7 +513,11 @@ The agent:
   local clone of the head assigned at allocation), it offers that HEAD's clone as
   `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
   at a time), so the guest merges the job's images with it before publishing;
-  otherwise it answers no merge.
+  otherwise it answers no merge. While another job of the lineage on this host
+  has finished with a changed, clean data root that is not yet published, it
+  first waits up to two minutes for that publication, since HEAD moves only once
+  the upload completes. Jobs on other hosts, or ones still tearing down, can
+  still supersede it.
 
 An older local clone cannot publish without merging its assigned head: comparing
 only the allocation's base would allow a successful CAS to erase content absent
@@ -539,16 +543,18 @@ above the guest target for metadata/shutdown writes; it never mounts or parses
 the guest filesystem. Roll out the controller/agent and runner images together.
 
 Staging enables it on every Linux pool (`values-managed-staging.yaml`). The
-server gates it per account with `:runner_docker_cache` on canary and
-production, and each runner profile can turn it off.
+server gates it per account with `:runner_docker_cache` in production. Non-production
+environments enable the server rollout policy by default. Each runner profile
+can still turn it off.
 
 ### Canary qualification before production enablement
 
-Production's Docker cache pool flag remains off during recovery. Canary enables
-cache volumes and Docker caching only for its default `2vcpu-8gb` pool, using a
-bounded 200 GB host store with the 40 GB admission reserve. The server's
-`runner_docker_cache` account flag and runner-profile opt-out still apply; the
-acceptance probe fails if either prevents mounting. Do not bypass that failure.
+Managed production enables Docker caching on its Linux pools through the normal
+canary-gated deployment cascade. Canary enables cache volumes and Docker caching
+only for its default `2vcpu-8gb` pool, using a bounded 200 GB host store with the
+40 GB admission reserve. Runner-profile opt-outs still apply; the acceptance
+probe fails if authorization or a profile opt-out prevents mounting. Do not
+bypass that failure.
 
 The normal production cascade runs native and actual job-container Linux probes,
 then five separate jobs on that canary pool: cold, warm layers, changed source,
@@ -570,6 +576,23 @@ or the production allocated-byte publication cap under realistic pressure.
 The cascade passes the intended runner-image digest before staging holds to the
 probe, which compares it with the Pod's declared image. Running on a held older
 image cannot qualify a candidate. Hotfix deployment still bypasses acceptance;
-use the normal cascade for this recovery. After canary passes, separately qualify
-one production pool and its host publication/allocation evidence before widening
-enablement. Keeping the production pool flag off is the immediate rollback.
+use the normal cascade for enablement. After production deploys, verify actual
+new Pod images, DinD readiness/restarts, ordinary native/container jobs, cache
+attachment, host publication and subsequent reuse. Canary's single-host results
+do not replace production publication/allocation and cross-host observations.
+
+### Production off switches
+
+The server `runner_docker_cache` flag controls new allocations. Disabling it
+does not remove the DinD supervisor or undo a cache already attached to a job.
+For a supervisor/startup regression, set the affected Linux RunnerPools'
+`spec.dockerCache` to false through human-authorized production JIT access. The
+controller replaces idle Pods with ordinary DinD; running jobs finish on their
+existing configuration. This is a quick mitigation, not an instantaneous change
+to every Pod.
+
+Persist that rollback by setting
+`runnersFleetLinux.cacheVolumes.dockerCache.enabled: false` in the production
+overlay and deploying it; a live-only patch can be overwritten by a subsequent
+deployment. Verify new Pods have the flag off, DinD is Ready, and native and
+container jobs complete. Clearing saved volumes is not required for rollback.

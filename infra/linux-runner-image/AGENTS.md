@@ -172,7 +172,7 @@ root, or trimming externals from the image, breaks job containers
 From this directory:
 
 ```bash
-docker build --pull -t ghcr.io/tuist/tuist-linux-runner:dev .
+docker build --pull --build-context certificate-trust=../certificate-trust -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```
 
 `RUNNER_VERSION` is a `--build-arg` (default lives in the
@@ -182,17 +182,21 @@ release-pipeline digest rewrite, same shape as the macOS image.
 
 ## CI
 
-The release pipeline mirrors the macOS runner image release but
-runs on a standard cloud Linux runner (no Tart / GUI session
-needed). Steady-state: `feat(linux-runner-image)` /
+The release pipeline mirrors the macOS runner image release
+(`runner-image-release.yml`) but runs on a standard cloud Linux runner (no
+Tart / GUI session needed). Steady-state: `feat(linux-runner-image)` /
 `fix(linux-runner-image)` conventional commits on `main` trigger
-a `release-linux-runner-image` job that builds, pushes
-`ghcr.io/tuist/tuist-linux-runner:<semver>` + `:latest`. Deploy resolves
-the selected tag to a digest for `runnersFleetLinux.shapeRunnerImage`
-and prepares it before pool promotion. Canary waits for the candidate and fails
-closed so acceptance cannot qualify an old image. Other environments check once
-and hold unprepared pools, with the same one-hour/error fallback policy as macOS;
-later deployments reevaluate those holds. The release job alone writes
+`.github/workflows/linux-runner-image-release.yml`, which builds and pushes
+`ghcr.io/tuist/tuist-linux-runner:<semver>` + `:latest`, tags
+`linux-runner-image@<semver>`, stages the image on canary and production hosts
+(`linux-runner-image-stage.sh`, up to an hour, like macOS's announce job) and
+then dispatches Server Production Deployment. It is not part of the deploy
+cascade. Deploy resolves the latest tag to a digest for
+`runnersFleetLinux.shapeRunnerImage` and checks staging before pool promotion.
+Canary waits for the candidate and fails closed so acceptance cannot qualify an
+old image. Other environments check once and hold unprepared pools, with the
+same one-hour/error fallback policy as macOS; later deployments reevaluate those
+holds. The release job alone writes
 the registry build cache; PR/manual builds may read it. Preserve the
 large dependency layers before release-specific inputs and keep the
 script-only layer-delta CI check. See [image rollout](image-rollout.md)

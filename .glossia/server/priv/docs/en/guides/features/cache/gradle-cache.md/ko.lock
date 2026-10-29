@@ -1,0 +1,122 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "100cdd7f792194ff8694d21eae496accb3cf6a3d099598f7897dcf3e2162d139",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "hash": "0abeb9636a77e1da38a337a1c6eb0445b5a546e0658bc71b122acf3bd53af08c",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/features/cache/gradle-cache.md",
+          "metadata": {
+            "content_hash": "59fcc9a98692df45f9762ef1a1fadac34b9f99fbb8b70cddfda829c20036e7b7"
+          }
+        },
+        {
+          "children": [],
+          "hash": "3f16b8914d585c52f3a750026a156273e223a74240f3eae972dde37bd1e0e5b0",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "preserve",
+            "language": "Korean",
+            "locale": "ko",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+              }
+            },
+            {
+              "children": [],
+              "hash": "11fc978d9700fdbd045538c6c2c8f5670a045e29fd697ea84635a6f5511c23ca",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "5f9caeb82e74b87e633f84e456ee4b1dd537d0ac859e3cd98372827782a0427f"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "hash": "b4ee33045ed4dd2a171c82e378be3998e10f07c215633cf9aed27c00899034d1",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "hash": "100cdd7f792194ff8694d21eae496accb3cf6a3d099598f7897dcf3e2162d139",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/features/cache/gradle-cache.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "1fe0429123226f0fc5e1aec7057884d4505ded148ff938f52fb8b5aeb63d1085",
+  "output_path": "server/priv/docs/ko/guides/features/cache/gradle-cache.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "ac5621d6fc381019e365d14d8a4ad0f1f71d5d1b",
+  "source_path": "server/priv/docs/en/guides/features/cache/gradle-cache.md",
+  "translated_at": "2026-10-27T17:59:04.575304Z",
+  "translation_session_id": "01a17e82-ed11-7ef4-8bba-9f2a3d22f8ab"
+}

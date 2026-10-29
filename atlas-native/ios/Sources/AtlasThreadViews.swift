@@ -14,6 +14,7 @@ struct AtlasOrbitView: View {
     @State private var selfId: String?
     @State private var confirmingArchive: AtlasThread?
     @State private var showingThreadInfo = false
+    @State private var search = ""
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
     @Environment(\.atlasNavigation) private var workspaceNavigation
@@ -21,7 +22,6 @@ struct AtlasOrbitView: View {
     @Environment(\.atlasLiveActivity) private var liveActivity
     #elseif os(macOS)
     @Environment(\.atlasEnvironmentRequest) private var environmentRequest
-    @State private var showingEnvironment = false
     #endif
 
     init(recordID: String? = nil, revision: UUID? = nil, request: @escaping ([String: Any]) async throws -> Data,
@@ -108,14 +108,13 @@ struct AtlasOrbitView: View {
                 statusPicker.labelsHidden().frame(width: 170)
             }
             ToolbarItem(id: "orbit-create", placement: .primaryAction) { composeButton }
+            ToolbarItem(placement: .primaryAction) { AtlasOrbitDomainFilter(model: model) }
             ToolbarItem(id: "orbit-environment", placement: .primaryAction) {
-                Button("Tool environment", systemImage: "desktopcomputer") { showingEnvironment.toggle() }
-                    .disabled(desktopThread?.kind != "private" || environmentRequest == nil)
-                    .popover(isPresented: $showingEnvironment) {
-                        if let thread = desktopThread, let environmentRequest {
-                            AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
-                        }
-                    }
+                if let thread = desktopThread, thread.kind == "private", thread.status == "active", let environmentRequest {
+                    AtlasEnvironmentPicker(threadId: thread.id, request: environmentRequest).id(thread.id)
+                } else {
+                    Button("Tool environment", systemImage: "desktopcomputer") {}.disabled(true)
+                }
             }
             ToolbarItem(id: "thread-info", placement: .primaryAction) {
                 Button("Thread details", systemImage: "info.circle") { showingThreadInfo = true }
@@ -145,20 +144,32 @@ struct AtlasOrbitView: View {
             List { inboxRows }.listStyle(.plain)
             #endif
         }
+        #if os(iOS)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            statusPicker.padding(.horizontal, 16).padding(.vertical, 8)
+        }
+        #endif
         .modifier(AtlasThemedContent())
         .overlay {
             if model.loading, model.assistant == nil { ProgressView("Loading threads") }
         }
         .defaultScrollAnchor(.top)
+        .searchable(text: $search, prompt: "Search titles and summaries")
+        .task(id: search) {
+            guard model.assistant?.searchable == true, !model.cached, search != model.query else { return }
+            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+            await model.load(query: search)
+        }
         #if os(iOS)
         .navigationTitle("Orbit")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            ToolbarItem(placement: .primaryAction) { AtlasOrbitDomainFilter(model: model) }
             ToolbarItem(placement: .primaryAction) { composeButton }
         }
         #endif
         .refreshable { await model.load() }
-        .onAppear { presence?.show() }
+        .onAppear { presence?.show(); search = model.query }
     }
 
     private var composeButton: some View {
@@ -175,13 +186,6 @@ struct AtlasOrbitView: View {
 
 extension AtlasOrbitView {
     @ViewBuilder private var inboxRows: some View {
-        #if os(iOS)
-        Section {
-            statusPicker
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-        }
-        #endif
         if model.cached, model.errorMessage != nil, linkedThreadID == nil {
             HStack {
                 Text("Couldn’t refresh").foregroundStyle(.secondary)
@@ -210,15 +214,20 @@ extension AtlasOrbitView {
             }
         }
         ForEach(conversationSections, id: \.title) { section in
-            Section(section.title) {
+            Section {
                 ForEach(section.threads) { thread in conversationRow(thread) }
+            } header: {
+                if !section.title.isEmpty { Text(section.title) }
             }
             .textCase(nil)
         }
         if model.threads.isEmpty, !model.loading, model.assistant != nil {
-            ContentUnavailableView(model.statusFilter == "archived" ? "No archived conversations" : "Your conversations with Pip",
+            ContentUnavailableView(!model.query.isEmpty || !model.domainFilter.isEmpty ? "No matching conversations"
+                                       : model.statusFilter == "archived" ? "No archived conversations" : "Your conversations with Pip",
                                    systemImage: model.statusFilter == "archived" ? "archivebox" : "bubble.left.and.bubble.right",
-                                   description: Text(model.statusFilter == "archived"
+                                   description: Text(!model.query.isEmpty || !model.domainFilter.isEmpty
+                                       ? "Try another search or choose All domains."
+                                       : model.statusFilter == "archived"
                                        ? "Archived conversations stay here until you restore them."
                                        : "Start a conversation using the compose button above."))
                 .listRowBackground(Color.clear)
@@ -264,12 +273,21 @@ extension AtlasOrbitView {
 
     private var conversationSections: [(title: String, threads: [AtlasThread])] {
         let calendar = Calendar.current
-        let groups = Dictionary(grouping: model.threads) { thread in
+        #if os(iOS)
+        let signals = model.threads.filter { $0.priorityTitle != nil }
+        let attention: [(title: String, threads: [AtlasThread])] = signals.isEmpty ? [] : [(title: "", threads: signals)]
+        #else
+        let attention = ["Now", "Today", "Later"].compactMap { priority -> (title: String, threads: [AtlasThread])? in
+            let threads = model.threads.filter { $0.priorityTitle == priority }
+            return threads.isEmpty ? nil : (title: "\(priority) · Signals", threads: threads)
+        }
+        #endif
+        let groups = Dictionary(grouping: model.threads.filter { $0.priorityTitle == nil }) { thread in
             guard let date = thread.updatedDate else { return "Earlier" }
             if calendar.isDateInToday(date) { return "Today" }
             return calendar.isDateInYesterday(date) ? "Yesterday" : "Earlier"
         }
-        return ["Today", "Yesterday", "Earlier"].compactMap { title in
+        return attention + ["Today", "Yesterday", "Earlier"].compactMap { title in
             groups[title].map { (title: title, threads: $0) }
         }
     }
@@ -279,8 +297,7 @@ extension AtlasOrbitView {
             #if os(macOS)
             AtlasDesktopConversationRow(thread: thread)
             #else
-            Button { path.append(thread) } label: { AtlasMobileConversationRow(thread: thread) }
-                .buttonStyle(.plain)
+            NavigationLink(value: thread) { AtlasMobileConversationRow(thread: thread, domainTitle: model.domainTitle(thread.domain)) }
             #endif
         }
         #if os(macOS)
@@ -288,6 +305,7 @@ extension AtlasOrbitView {
         .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
         .listRowSeparator(.hidden)
         #else
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         .listRowBackground(Color.clear)
         #endif
         .accessibilityIdentifier("thread-\(thread.id)")
@@ -359,36 +377,3 @@ extension AtlasOrbitView {
     }
     #endif
 }
-
-#if os(iOS)
-private struct AtlasMobileConversationRow: View {
-    let thread: AtlasThread
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(thread.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
-            if !thread.summary.isEmpty {
-                Text(thread.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-            }
-            HStack(spacing: 10) {
-                Label(thread.kind == "private" ? "Private" : "Shared", systemImage: thread.kind == "private" ? "lock" : "person.2")
-                if ["queued", "running", "compacting"].contains(thread.agentStatus ?? "") {
-                    Label("Working", systemImage: "sparkles")
-                }
-                Spacer(minLength: 0)
-                if let date = thread.updatedDate {
-                    if Calendar.current.isDateInToday(date) {
-                        Text(date, format: .dateTime.hour().minute())
-                    } else {
-                        Text(date, format: .dateTime.month(.abbreviated).day().year())
-                    }
-                }
-            }
-            .font(.caption).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
-    }
-}
-#endif

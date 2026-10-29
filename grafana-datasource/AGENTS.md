@@ -13,6 +13,10 @@ Run from `grafana-datasource/`:
   `npm run test:ci`, and `npm run build`.
 - Keep the plugin's own `go.work` separate from the root infra workspace; its
   Grafana SDK dependency graph must not force upgrades on the infra controllers.
+- Qualify TLS changes with the genuine pinned Go SDK and the commands/limits in
+  [README.md](README.md#qualifying-backend-tls-changes). Refresh Go's `mise.lock`
+  entries with `mise lock go` on pin changes. Use the public Compose entry point
+  for its `GO_VERSION` override, not the generated Dockerfile's default.
 - `.config/` is managed by `@grafana/create-plugin`; update with
   `npx @grafana/create-plugin@latest update` rather than editing it manually.
 - `CHANGELOG.md` is generated and gitignored. The prebuild hook supplies a local
@@ -30,6 +34,11 @@ Run from `grafana-datasource/`:
 - Keep plugin ID `tuist-metrics-datasource` and executable
   `gpx_tuist_datasource` aligned with packaging. Release automation lives in
   `.github/workflows/grafana-datasource-release.yml`.
+- Keep the embedded twelve-key deny and local real DER fixtures synchronized.
+  Preserve ordinary/native verification, original callbacks, private roots and
+  typed privacy-safe errors. Refuse supplied-but-unused blocked peers and HTTPS
+  downgrades; do not add a weaker TLS-failure fallback. See the README's backend
+  certificate-trust policy and supported-platform release gates.
 
 ## Build-health compatibility
 

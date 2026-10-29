@@ -34,7 +34,7 @@ msgstr "已有账户？"
 #: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
-msgstr "已经配置好 Tuist 项目了？跳过设置，直接进入仪表盘。"
+msgstr "已经设置好 Tuist 项目了？跳过设置并前往仪表板。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:92
 #: lib/tuist_web/live/user_forgot_password_live.ex:71
@@ -98,14 +98,14 @@ msgstr "连接您的项目"
 #: lib/tuist_web/live/connect_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Connect your project to the dashboard"
-msgstr "将您的项目连接到仪表板"
+msgstr "将你的项目连接到仪表板"
 
 #: lib/tuist_web/live/connect_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Connection successful"
 msgstr "连接成功"
 
-#: lib/tuist_web/live/sso_login_live.ex:101
+#: lib/tuist_web/live/sso_login_live.ex:112
 #, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr "联系我们"
@@ -125,14 +125,14 @@ msgstr "仪表板"
 #: lib/tuist_web/live/user_registration_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Discover how selective testing is reducing your test time."
-msgstr "了解选择性测试如何缩短您的测试时间。"
+msgstr "了解选择性测试如何缩短你的测试时间。"
 
 #: lib/tuist_web/live/user_login_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
-msgstr "还没有账号？"
+msgstr "没有账号？"
 
-#: lib/tuist_web/live/sso_login_live.ex:84
+#: lib/tuist_web/live/sso_login_live.ex:95
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:72
 #: lib/tuist_web/live/user_forgot_password_live.ex:51
 #: lib/tuist_web/live/user_login_live.ex:144
@@ -149,12 +149,12 @@ msgstr "该邮箱已被注册"
 #: lib/tuist_web/live/connect_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "探索 Tuist 的功能，如二进制缓存和选择性测试，以加快开发速度。"
+msgstr "探索 Tuist 的功能，如二进制缓存和选择性测试，以加快您的开发速度。"
 
 #: lib/tuist_web/live/user_registration_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Explore how binary caching is enhancing your build times."
-msgstr "了解二进制缓存如何提升你的构建速度。"
+msgstr "了解二进制缓存如何提升您的构建速度。"
 
 #: lib/tuist_web/live/user_login_live.ex:176
 #, elixir-autogen, elixir-format
@@ -169,7 +169,7 @@ msgstr "忘记密码了吗？"
 #: lib/tuist_web/live/user_forgot_password_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "如果我们的记录中存在你的邮箱，你将很快收到重置说明。"
+msgstr "如果您的邮箱存在于我们的记录中，您将很快收到重置说明。"
 
 #: lib/tuist_web/live/connect_live.ex:104
 #: lib/tuist_web/live/connect_live.ex:166
@@ -180,9 +180,9 @@ msgstr "安装 Tuist CLI"
 #: lib/tuist_web/live/user_registration_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "Instantly share your app using a URL."
-msgstr "通过 URL 即时分享你的应用。"
+msgstr "通过 URL 即时分享您的应用。"
 
-#: lib/tuist_web/live/sso_login_live.ex:96
+#: lib/tuist_web/live/sso_login_live.ex:107
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr "对 SSO 感兴趣？"
@@ -192,7 +192,7 @@ msgstr "对 SSO 感兴趣？"
 msgid "Keep me logged in"
 msgstr "保持登录状态"
 
-#: lib/tuist_web/live/sso_login_live.ex:92
+#: lib/tuist_web/live/sso_login_live.ex:103
 #: lib/tuist_web/live/user_login_live.ex:20
 #: lib/tuist_web/live/user_login_live.ex:192
 #: lib/tuist_web/live/user_registration_live.ex:226
@@ -200,13 +200,13 @@ msgstr "保持登录状态"
 msgid "Log in"
 msgstr "登录"
 
-#: lib/tuist_web/live/sso_login_live.ex:67
+#: lib/tuist_web/live/sso_login_live.ex:78
 #: lib/tuist_web/live/user_login_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr "登录 Tuist"
 
-#: lib/tuist_web/live/sso_login_live.ex:69
+#: lib/tuist_web/live/sso_login_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via SSO"
 msgstr "通过 SSO 登录您的企业账户"
@@ -294,7 +294,7 @@ msgstr "Tuist CLI 已连接！"
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
 #: lib/tuist_web/live/device_codes_success_live.ex:26
-#: lib/tuist_web/live/sso_login_live.ex:61
+#: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
 #: lib/tuist_web/live/user_forgot_password_live.ex:22
@@ -304,7 +304,7 @@ msgstr "Tuist CLI 已连接！"
 #: lib/tuist_web/live/user_reset_password_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
-msgstr "Tuist 徽标"
+msgstr "Tuist Logo"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:35
 #, elixir-autogen, elixir-format
@@ -343,7 +343,7 @@ msgstr "用户名"
 #: lib/tuist_web/live/user_registration_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Username may only contain alphanumeric characters"
-msgstr "用户名只能包含字母数字字符"
+msgstr "用户名只能包含字母和数字字符"
 
 #: lib/tuist_web/live/connect_live.ex:38
 #, elixir-autogen, elixir-format
@@ -393,7 +393,7 @@ msgstr "您的账户已确认。"
 #: lib/tuist_web/live/user_confirmation_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Your account has been confirmed. You will be redirected shortly..."
-msgstr "您的账户已确认。即将重定向..."
+msgstr "您的账户已确认。即将为您跳转..."
 
 #: lib/tuist_web/live/user_reset_password_live.ex:32
 #, elixir-autogen, elixir-format
@@ -420,7 +420,7 @@ msgstr "使用 CLI"
 #: lib/tuist_web/components/app_auth_components.ex:13
 #, elixir-autogen, elixir-format
 msgid "By continuing, you agree to Tuist's"
-msgstr "继续操作即表示您同意 Tuist 的"
+msgstr "继续即表示您同意 Tuist 的"
 
 #: lib/tuist_web/components/app_auth_components.ex:19
 #, elixir-autogen, elixir-format
@@ -452,59 +452,59 @@ msgstr "为您的账户选择用户名"
 msgid "Log in with SSO"
 msgstr "使用 SSO 登录"
 
-#: lib/tuist_web/live/sso_login_live.ex:46
+#: lib/tuist_web/live/sso_login_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
-msgstr "此电子邮件未配置 SSO 组织。请检查地址，并联系您的组织管理员验证 SSO 域设置。"
+msgstr "此邮箱未配置 SSO 组织。请检查地址，并联系您的组织管理员验证 SSO 域设置。"
 
-#: lib/tuist_web/controllers/auth_controller.ex:581
+#: lib/tuist_web/controllers/auth_controller.ex:576
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
-msgstr "具有此电子邮件的帐户已存在。请直接登录。"
+msgstr "该邮箱已存在账户。请直接登录。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:22
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
-msgstr "确认您的电子邮件"
+msgstr "确认您的邮箱"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "Confirm your email address to finish signing in"
-msgstr "确认您的电子邮件地址以完成登录"
+msgstr "确认您的邮箱地址以完成登录"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "If your email is registered and not yet confirmed, you'll receive a confirmation link shortly."
-msgstr "如果您的电子邮件已注册但尚未确认，您很快就会收到一封包含确认链接的邮件。"
+msgstr "如果您的邮箱已注册但尚未确认，您将很快收到确认链接。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:60
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Resend confirmation email"
-msgstr "重新发送确认电子邮件"
+msgstr "重新发送确认邮件"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "We'll send a new confirmation link to %{email}."
-msgstr "我们将向 %{email} 发送一个新的确认链接。"
+msgstr "我们将向 %{email} 发送新的确认链接。"
 
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Your email isn't confirmed yet"
-msgstr "您的邮箱尚未验证"
+msgstr "您的电子邮件尚未验证"
 
 #: lib/tuist_web/controllers/user_session_controller.ex:65
 #: lib/tuist_web/live/choose_username_live.ex:162
 #: lib/tuist_web/live/user_registration_live.ex:373
 #, elixir-autogen, elixir-format
 msgid "Please complete the security check and try again."
-msgstr "请完成安全检查并重试。"
+msgstr "请完成安全检查，然后重试。"
 
 #: lib/tuist_web/live/choose_username_live.ex:177
 #: lib/tuist_web/live/user_registration_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
-msgstr "安全检查无法加载。请检查是否拦截了 challenges.cloudflare.com，然后重新加载页面。"
+msgstr "无法加载安全检查。请检查 challenges.cloudflare.com 是否被拦截，然后重新加载页面。"
 
 #: lib/tuist_web/live/choose_username_live.ex:191
 #: lib/tuist_web/live/user_registration_live.ex:402
@@ -545,7 +545,7 @@ msgstr "快速检查"
 #: lib/tuist_web/controllers/public_page_challenge_html.ex:89
 #, elixir-autogen, elixir-format
 msgid "Public dashboards are protected against automated scraping. Confirm you're human to continue."
-msgstr "公共仪表盘受到保护，防止自动抓取。请确认您是人类以继续。"
+msgstr "公共仪表板受到保护，防止自动抓取。请确认您是人类以继续。"
 
 #: lib/tuist_web/controllers/public_page_challenge_controller.ex:137
 #, elixir-autogen, elixir-format
@@ -606,9 +606,9 @@ msgstr "关联单点登录 · Tuist"
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on?"
-msgstr "关联单点登录？"
+msgstr "是否关联单点登录？"
 
-#: lib/tuist_web/controllers/auth_controller.ex:440
+#: lib/tuist_web/controllers/auth_controller.ex:435
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
 msgstr "登录您的 Tuist 账户，将其与您组织的单点登录关联。"
@@ -656,7 +656,7 @@ msgstr "添加 Tuist 包"
 #: lib/tuist_web/live/connect_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Add this to the project options in the same file."
-msgstr "将此添加到同一文件中的项目选项中。"
+msgstr "在同一文件的项目选项中添加此项。"
 
 #: lib/tuist_web/live/connect_live.ex:182
 #: lib/tuist_web/live/connect_live.ex:230
@@ -673,7 +673,7 @@ msgstr "将其指向此项目"
 #: lib/tuist_web/live/connect_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Report your builds, catch flaky tests, and split your tests across machines."
-msgstr "报告构建结果，捕捉不稳定的测试，并在多台机器上拆分测试。"
+msgstr "报告构建结果，捕捉不稳定测试，并将测试拆分到多台机器上执行。"
 
 #: lib/tuist_web/live/connect_live.ex:232
 #, elixir-autogen, elixir-format
@@ -724,3 +724,8 @@ msgstr "选择要连接到 %{provider} 的 Tuist 组织。"
 #, elixir-autogen, elixir-format
 msgid "You need administrator access to connect an integration."
 msgstr "您需要管理员权限才能连接集成。"
+
+#: lib/tuist_web/live/sso_login_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
+msgstr "多个组织使用此登录域。请使用您组织的 SSO 登录链接，或联系管理员通过 DNS 验证该域。"

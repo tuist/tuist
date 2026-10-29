@@ -55,6 +55,8 @@ these schemas persist volume identities and per-job uses.
   An unbound session also enqueues `ExecutionLookupWorker`, which reads the
   job GitHub's API names the runner on and records it through
   `Dispatch.record_execution/3`, because webhook delivery can lag by minutes.
+  The API lags too, so a miss snoozes and asks again every two seconds for 20
+  seconds; keep that window inside the agent's wait.
   The API's job status can still read `queued` for minutes after the job
   started, so a `queued` job carrying the runner's name binds too; the log line
   `recorded execution from GitHub API` says which status bound it.

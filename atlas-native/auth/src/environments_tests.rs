@@ -21,6 +21,42 @@ fn action(mut value: Value) -> Action {
 }
 
 #[test]
+fn hosted_provider_selection_uses_the_existing_private_selection_route() {
+    let network = MockTransport::new(vec![json!({"thread":{
+        "id":ID,"environment_id":CALL,"environment_name":"Tuist","project_id":PROJECT
+    }})]);
+    let result = execute_using(
+        &network,
+        action(json!({
+            "action":"start_provider","thread_id":ID,"provider":"tuist"
+        })),
+    )
+    .unwrap();
+    assert_eq!(result["thread"]["environment_id"], CALL);
+    let requests = network.requests.borrow();
+    assert_eq!(
+        requests[0].0,
+        format!("https://atlas.example/api/native/orbit/threads/{ID}/environment")
+    );
+    assert_eq!(requests[0].1["method"], "PATCH");
+    assert_eq!(requests[0].1["payload"], json!({"provider":"tuist"}));
+    drop(requests);
+    let network = MockTransport::new(vec![]);
+    for provider in ["../tuist", "https://evil.example", "", "Tuist"] {
+        assert!(
+            execute_using(
+                &network,
+                action(json!({
+                    "action":"start_provider","thread_id":ID,"provider":provider
+                }))
+            )
+            .is_err()
+        );
+    }
+    assert!(network.requests.borrow().is_empty());
+}
+
+#[test]
 fn native_bridge_decodes_environment_actions_without_networking_for_expired_sessions() {
     let mut expired = session();
     expired.expires_at = 0;
@@ -37,6 +73,7 @@ fn native_bridge_decodes_environment_actions_without_networking_for_expired_sess
         json!({"action":"complete","id":ID,"command_id":CALL,"claim_token":ID,"success":true,"output":"done"}),
         json!({"action":"selection","thread_id":ID}),
         json!({"action":"select","thread_id":ID,"environment_id":ID,"project_id":PROJECT}),
+        json!({"action":"start_provider","thread_id":ID,"provider":"tuist"}),
         json!({"action":"open","id":ID}),
     ] {
         request["operation"] = json!("environment");

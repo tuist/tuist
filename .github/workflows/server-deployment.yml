@@ -112,6 +112,9 @@ on:
       linux_runner_image:
         description: Intended Linux runner image before per-pool staging holds
         value: ${{ jobs.deploy.outputs.linux_runner_image }}
+      macos_runner_images:
+        description: JSON array of the macOS catalog runner images this deploy targets
+        value: ${{ jobs.deploy.outputs.macos_runner_images }}
     inputs:
       sandbox_template_image_tag:
         description: Published sandbox template tag; fresh deploys build it, pre-built server deploys preserve the live template when unset
@@ -600,6 +603,7 @@ jobs:
           # bin/${TARGETARCH}/kura staged above and performs no compilation.
           context: ./kura
           file: ./kura/Dockerfile.release
+          build-contexts: certificate-trust=./infra/certificate-trust
           platforms: linux/amd64
           push: true
           tags: |
@@ -877,6 +881,7 @@ jobs:
   deploy:
     outputs:
       linux_runner_image: ${{ steps.deploy-chart.outputs.linux_runner_image }}
+      macos_runner_images: ${{ steps.macos-images.outputs.macos_runner_images }}
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
     needs: [build, build-images, build-sandbox-template, build-kura-runtime, build-xcresult-processor-release, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
@@ -1104,26 +1109,49 @@ jobs:
         # announcement, the pool keeps the digest it runs now, so no job
         # waits on the pull. A gate that cannot read the cluster moves the
         # pools as before, and a checkout predating the gate has none.
+        # Canary qualifies the release, as for Linux: it waits for staging,
+        # never accepts the announcement's age, and fails closed, so runners
+        # acceptance runs on the images production will move to.
+        id: macos-images
         if: env.RUNNER_IMAGE_DIGESTS != ''
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
         run: |
           set -euo pipefail
           gate=.github/scripts/runner-image-staging-gate.sh
+          stacked="${RUNNER_IMAGE_STACKED_DIGESTS:-"{}"}"
+          echo "macos_runner_images=$(jq -cn --argjson a "$RUNNER_IMAGE_DIGESTS" --argjson b "$stacked" \
+            '[$a, $b | .[] | "ghcr.io/tuist/tuist-runner@" + .] | unique')" >> "$GITHUB_OUTPUT"
           [ -x "$gate" ] || exit 0
-          if ! gated="$("$gate" "$RUNNER_IMAGE_DIGESTS" "${RUNNER_IMAGE_STACKED_DIGESTS:-"{}"}")"; then
+          if [ "$TARGET_ENVIRONMENT" = canary ]; then
+            want="$(jq -cn --argjson digests "$RUNNER_IMAGE_DIGESTS" --argjson stacked "$stacked" '{digests: $digests, stacked: $stacked}')"
+            deadline=$((SECONDS + 1800))
+            until gated="$(RUNNER_IMAGE_STAGING_TIMEOUT_SECONDS=31536000 "$gate" "$RUNNER_IMAGE_DIGESTS" "$stacked")" && [ "$gated" = "$want" ]; do
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::Canary's macOS hosts have not staged the release's runner images within 30 minutes; refusing to qualify old images."
+                exit 1
+              fi
+              sleep 30
+            done
+            exit 0
+          fi
+          if ! gated="$("$gate" "$RUNNER_IMAGE_DIGESTS" "$stacked")"; then
             echo "::warning::Could not check which runner images the hosts have staged; moving the pools to the release's images."
             exit 0
           fi
           echo "RUNNER_IMAGE_DIGESTS=$(jq -c .digests <<< "$gated")" >> "$GITHUB_ENV"
           echo "RUNNER_IMAGE_STACKED_DIGESTS=$(jq -c .stacked <<< "$gated")" >> "$GITHUB_ENV"
-      - name: Pre-pull the server image
+      - name: Render the server image pre-pull
         # The migration Job and every server Pod the rollout replaces one at a
         # time otherwise start by pulling the new image on their node (22-40s
         # each). A throwaway DaemonSet on the nodes server Pods schedule to
-        # pulls it now, while the steps before the Helm upgrade run, and
-        # "Remove the server image pre-pull" deletes it afterwards. Nothing
-        # waits on it: a node that has not finished pulling just pulls for
-        # the Pod as before. Only the server Deployment's node placement is
-        # copied; its pod anti-affinity would keep these Pods off its nodes.
+        # pulls it while the waits before the Helm upgrade run, and "Remove
+        # the server image pre-pull" deletes it afterwards. Nothing waits on
+        # it: a node that has not finished pulling just pulls for the Pod as
+        # before. Only the server Deployment's node placement is copied; its
+        # pod anti-affinity would keep these Pods off its nodes. The Helm step
+        # applies it after the CAPI provider rollout, because the kubelet
+        # pulls one image at a time and the provider shares these nodes.
         run: |
           set -euo pipefail
           if ! scheduling="$(
@@ -1138,6 +1166,7 @@ jobs:
             exit 0
           fi
           image="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+          manifest="$RUNNER_TEMP/server-image-prepull.json"
           jq -n --arg namespace "$NAMESPACE" --arg image "$image" --argjson scheduling "$scheduling" '{
             apiVersion: "apps/v1",
             kind: "DaemonSet",
@@ -1168,8 +1197,9 @@ jobs:
                 })
               }
             }
-          }' | kubectl apply -f -
-          echo "Pre-pulling ${image} on the nodes server Pods schedule to: ${scheduling}"
+          }' > "$manifest"
+          echo "SERVER_IMAGE_PREPULL_MANIFEST=$manifest" >> "$GITHUB_ENV"
+          echo "Will pre-pull ${image} on the nodes server Pods schedule to: ${scheduling}"
       - name: Resolve Kura controller image tag
         run: |
           set -euo pipefail
@@ -1803,6 +1833,20 @@ jobs:
           # not there, and --create-namespace does not create one during a dry
           # run. That case is a first install, where there is no live release
           # for a rollback to damage.
+          echo "::group::Adopt release objects missing Helm's label"
+          adopt_render="$(mktemp)"
+          helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            "${helm_values_args[@]}" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+            --set registry.image.tag="$registry_image_tag" \
+            --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+            "${image_sets[@]}" | yq -o=json -I=0 'select(.kind != null)' | jq -s . > "$adopt_render"
+          bash .github/scripts/helm-adopt-release-objects.sh "$adopt_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+          rm -f "$adopt_render"
+          echo "::endgroup::"
+
           echo "::group::helm upgrade --dry-run=server (preflight)"
           if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
             preflight_log="$(mktemp)"
@@ -1833,6 +1877,13 @@ jobs:
             echo "::endgroup::"
           fi
 
+          start_server_image_prepull() {
+            if [ -f "${SERVER_IMAGE_PREPULL_MANIFEST:-}" ]; then
+              kubectl apply -f "$SERVER_IMAGE_PREPULL_MANIFEST"
+              rm -f "$SERVER_IMAGE_PREPULL_MANIFEST"
+            fi
+          }
+
           # Prepare KVM without switching existing pools until every available
           # Linux host has the kernel and enough device allocations. Uses the
           # same resolved images and values as the final release below.
@@ -1849,6 +1900,9 @@ jobs:
             if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
               bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
             fi
+            # Queued ahead of the provider image, the server image held its
+            # rollout above for the whole pull.
+            start_server_image_prepull
             # Canary must qualify the candidate in this deployment, so wait for
             # preparation and fail closed. Other environments retain background
             # staging with per-pool holds and the existing warning-only fallback.
@@ -1870,6 +1924,7 @@ jobs:
             fi
             rm -f "$kvm_render"
           fi
+          start_server_image_prepull
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
@@ -2043,14 +2098,12 @@ jobs:
             echo "Swift registry component disabled; skipping registry smoke test."
           fi
       - name: xcresult processor rollout
-        # Reports the processor release's rollout without gating the deploy:
-        # the server release is out by now and stays out whatever the
-        # processor does. A processor that never turns Ready (a shared
-        # Postgres or ClickHouse outage, or a Mac mini that cannot reach its
-        # Tart guest) fails this step, which annotates the run, and the job
-        # still succeeds. `:process_xcresult` jobs queue until a processor is
-        # Ready. 30m matches the Deployment's progressDeadlineSeconds: one
-        # Tart VM cycle per replica.
+        # Canary must have a Ready processor before acceptance and production
+        # promotion. A failed rollout fails the canary job, but does not roll
+        # back the already-deployed server release. Staging only reports the
+        # failure. `:process_xcresult` jobs queue until a processor is Ready.
+        # 30m matches the Deployment's progressDeadlineSeconds: one Tart VM
+        # cycle per replica.
         #
         # Production does not wait: its replicas cycle one Tart VM at a time
         # and nothing after this step depends on them, so the wait only held
@@ -2059,7 +2112,7 @@ jobs:
         # infra/helm/k8s-monitoring/alerts.md. Canary keeps waiting because
         # its acceptance tests need a Ready processor.
         if: env.XCRESULT_PROCESSOR_DEPLOYMENT != '' && inputs.environment != 'production'
-        continue-on-error: true
+        continue-on-error: ${{ inputs.environment != 'canary' }}
         timeout-minutes: 35
         run: |
           set -uo pipefail

@@ -151,7 +151,9 @@ spec:
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 1
+      # Each host pulls the template image before it is Ready (6-11 min in
+      # production), so one host at a time outlasts the deploy's Helm wait.
+      maxUnavailable: 3
   template:
     metadata:
       labels:

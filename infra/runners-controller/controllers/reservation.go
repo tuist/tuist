@@ -172,17 +172,31 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 	starved := starvedFor >= reservationGrace
 
 	if held != nil {
-		switch {
-		case starvedFor == 0:
+		if starvedFor == 0 {
 			logger.Info("releasing node reservation; pool is served", "node", held.Name, "pool", pool.Name)
 			return r.releaseReservation(ctx, held, time.Time{})
-		case reservationAge(held, now) > reservationTimeout:
-			logger.Info("releasing node reservation; timed out waiting for jobs to finish",
-				"node", held.Name, "pool", pool.Name, "timeout", reservationTimeout,
-				"cooldown", reservationCooldown)
-			return r.releaseReservation(ctx, held, now.Add(reservationCooldown))
-		default:
+		}
+		// A shape that seats once per host is served one host at a time, so
+		// the host goes back as soon as it has seated all of this pool's
+		// Pods it can, and the next reservation is taken below in the same
+		// pass. No cooldown: the host did what it was reserved for.
+		seated, err := r.reservedHostSeated(ctx, pool, held, pods)
+		if err != nil {
+			return err
+		}
+		if !seated {
+			if reservationAge(held, now) > reservationTimeout {
+				logger.Info("releasing node reservation; timed out waiting for jobs to finish",
+					"node", held.Name, "pool", pool.Name, "timeout", reservationTimeout,
+					"cooldown", reservationCooldown)
+				return r.releaseReservation(ctx, held, now.Add(reservationCooldown))
+			}
 			return r.retireIdlePodsOnReservedNode(ctx, held, pool, now)
+		}
+		logger.Info("releasing node reservation; host has seated what it can for the pool",
+			"node", held.Name, "pool", pool.Name)
+		if err := r.releaseReservation(ctx, held, time.Time{}); err != nil {
+			return err
 		}
 	}
 
@@ -521,6 +535,7 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		retirable[pod.Spec.NodeName]++
 	}
 
+	permanent := permanentFootprints(fleetPods.Items, pool, r.SandboxesNamespace)
 	need := unplacedFootprint(pool, pods)
 	clearsAtOnce := func(node *corev1.Node) bool {
 		available := nodeWithoutSandboxes(node, daemons)
@@ -543,7 +558,11 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 			continue
 		}
 		available := nodeWithoutSandboxes(node, daemons)
-		if !fitsBeside(available, nil, need) {
+		// The host has to seat the Pod beside what a reservation never
+		// clears: this pool's own Pods and the Pods that are not runners.
+		// The release below uses the same test, so a host it hands back is
+		// never the next one reserved.
+		if !fitsBeside(available, permanent[node.Name], need) {
 			continue
 		}
 		seats := nodeSeatsForShape(available, shape)
@@ -608,6 +627,47 @@ func (r *RunnerPoolReconciler) reservationSandboxDaemons(ctx context.Context, po
 // namespace also holds the cache-volume agent DaemonSet.
 func isRunnerPod(pod *corev1.Pod) bool {
 	return pod.Labels["tuist.dev/runner-pool"] != ""
+}
+
+// reservedHostSeated reports whether the held host has no room left for
+// another of this pool's Pods, even once every other pool's Pod is gone.
+func (r *RunnerPoolReconciler) reservedHostSeated(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	node *corev1.Node,
+	pods []corev1.Pod,
+) (bool, error) {
+	daemons, err := r.reservationSandboxDaemons(ctx, pool)
+	if err != nil {
+		return false, err
+	}
+	var fleetPods corev1.PodList
+	if err := r.List(ctx, &fleetPods, client.InNamespace(pool.Namespace)); err != nil {
+		return false, fmt.Errorf("list pods on reserved node %s: %w", node.Name, err)
+	}
+	permanent := permanentFootprints(fleetPods.Items, pool, r.SandboxesNamespace)
+	return !fitsBeside(nodeWithoutSandboxes(node, daemons), permanent[node.Name], unplacedFootprint(pool, pods)), nil
+}
+
+// permanentFootprints is, per node, what a reservation for `pool` can never
+// clear: the pool's own bound Pods and every Pod that is not a runner.
+// Sandbox daemons are left out because callers subtract them from the node.
+func permanentFootprints(pods []corev1.Pod, pool *tuistv1.RunnerPool, sandboxesNamespace string) map[string]corev1.ResourceList {
+	permanent := map[string]corev1.ResourceList{}
+	for i := range pods {
+		pod := &pods[i]
+		if pod.Namespace == sandboxesNamespace && pod.Labels[sandboxdLabel] == "true" {
+			continue
+		}
+		if !isAlive(pod) || pod.Spec.NodeName == "" {
+			continue
+		}
+		if isRunnerPod(pod) && pod.Labels["tuist.dev/runner-pool"] != pool.Name {
+			continue
+		}
+		addResources(permanent, pod.Spec.NodeName, podFootprint(pod))
+	}
+	return permanent
 }
 
 // unplacedFootprint is what the starved Pod asks the scheduler for,
@@ -824,9 +884,10 @@ func (r *RunnerPoolReconciler) reserveNode(
 	return nil
 }
 
-// releaseReservation lifts the taint. A non-zero `cooldownUntil` rests
-// the host until that time, which is what a timed-out release wants; the
-// zero value releases it straight back into circulation.
+// releaseReservation lifts the taint and updates `node` to match. A
+// non-zero `cooldownUntil` rests the host until that time, which is what a
+// timed-out release wants; the zero value releases it straight back into
+// circulation.
 func (r *RunnerPoolReconciler) releaseReservation(
 	ctx context.Context,
 	node *corev1.Node,
@@ -852,6 +913,7 @@ func (r *RunnerPoolReconciler) releaseReservation(
 	if err := r.Patch(ctx, patched, optimisticPatch(node)); err != nil {
 		return fmt.Errorf("release reservation on node %s: %w", node.Name, err)
 	}
+	patched.DeepCopyInto(node)
 	return nil
 }
 

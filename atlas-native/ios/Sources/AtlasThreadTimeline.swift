@@ -8,7 +8,7 @@ struct AtlasThreadTimeline: View {
 
     var body: some View {
         ForEach(timeline.groups) { group in
-            VStack(spacing: 14) {
+            AtlasThreadRow(content: VStack(spacing: 14) {
                 if let first = group.messages.first {
                     if let date = group.date {
                         Text(date, format: .dateTime.month(.abbreviated).day().year())
@@ -24,11 +24,40 @@ struct AtlasThreadTimeline: View {
                         }
                     }
                 }
-            }
+            })
             .id(group.id)
         }
     }
 }
+
+#if os(iOS)
+private struct AtlasThreadRow<Content: View>: UIViewControllerRepresentable {
+    let content: Content
+
+    func makeUIViewController(context: Context) -> UIHostingController<AnyView> {
+        let controller = UIHostingController(rootView: AnyView(content.environment(\.self, context.environment)))
+        controller.sizingOptions = .intrinsicContentSize
+        controller.safeAreaRegions = []
+        controller.view.backgroundColor = .clear
+        return controller
+    }
+
+    func updateUIViewController(_ controller: UIHostingController<AnyView>, context: Context) {
+        controller.rootView = AnyView(content.environment(\.self, context.environment))
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiViewController: UIHostingController<AnyView>, context: Context) -> CGSize? {
+        guard let width = proposal.width else { return nil }
+        // Measure natural row height independently of the lazy stack's vertical estimates.
+        return uiViewController.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+    }
+}
+#else
+private struct AtlasThreadRow<Content: View>: View {
+    let content: Content
+    var body: some View { content }
+}
+#endif
 
 struct AtlasThreadNavigation: View {
     let messages: [AtlasThreadMessage]

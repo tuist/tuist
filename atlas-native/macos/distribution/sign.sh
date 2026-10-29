@@ -27,7 +27,7 @@ if [[ $# = 3 ]]; then args+=(--keychain "$3"); fi
 
 bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")
 executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
-if [[ "$identity" = - && "$bundle_id" = dev.tuist.atlas.macos ]]; then
+if [[ "$identity" = - && "$bundle_id" = dev.tuist.atlas ]]; then
     bash "$scripts/validate.sh" "$app"
 elif [[ "$identity" = - ]]; then
     [[ "$bundle_id" = dev.tuist.atlas.macos.preview && "$executable" = AtlasMacOSPreview ]] || { echo 'Only the isolated preview may bypass production validation' >&2; exit 1; }

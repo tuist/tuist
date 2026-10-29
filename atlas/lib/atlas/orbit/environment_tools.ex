@@ -14,7 +14,8 @@ defmodule Atlas.Orbit.EnvironmentTools do
 
     if is_nil(parent_message_id) and thread.kind == "private" and thread.owner_id == run.acting_user_id and
          project_available?(environment, thread.owner_id, run.project_id) do
-      Enum.filter(@names, &(&1 != "environment_terminal" or environment.terminal)) |> Enum.map(&descriptor/1)
+      Enum.filter(@names, &(&1 != "environment_terminal" or environment.terminal))
+      |> Enum.map(&descriptor(&1, environment))
     else
       []
     end
@@ -36,7 +37,7 @@ defmodule Atlas.Orbit.EnvironmentTools do
       byte_size(args[key]) in 1..limit and not String.contains?(args[key], <<0>>)
   end
 
-  defp descriptor(name) do
+  defp descriptor(name, environment) do
     {key, description} =
       case name do
         "environment_list_directory" ->
@@ -46,8 +47,7 @@ defmodule Atlas.Orbit.EnvironmentTools do
           {"path", "Read bounded UTF-8 text inside the selected personal project. Use a project-relative path."}
 
         "environment_terminal" ->
-          {"command",
-           "Queue a durable terminal job and promptly return its ticket. Terminal access is explicitly enabled on the selected Mac; no per-command approval is required. A confirmed result automatically continues the conversation; do not poll, retry or reserve another job while waiting. Runs as the macOS user starting in the selected project, without a folder sandbox. Maximum 8,000 UTF-8 bytes; execution limit 1,800 seconds. Never retry an unknown outcome."}
+          {"command", terminal_description(environment)}
       end
 
     %{
@@ -60,5 +60,13 @@ defmodule Atlas.Orbit.EnvironmentTools do
         "additionalProperties" => false
       }
     }
+  end
+
+  defp terminal_description(%{provider: "native"}) do
+    "Queue a durable terminal job and promptly return its ticket. Terminal access is explicitly enabled on the selected Mac; no per-command approval is required. A confirmed result automatically continues the conversation; do not poll, retry or reserve another job while waiting. Runs as the macOS user starting in the selected project, without a folder sandbox. Maximum 8,000 UTF-8 bytes; execution limit 1,800 seconds. Never retry an unknown outcome."
+  end
+
+  defp terminal_description(_environment) do
+    "Queue a terminal job in the selected hosted Linux environment, starting in /workspace. You may clone public repositories with git clone and edit/build files there. No Atlas, model, or repository credentials are installed. Commands need no additional approval after environment selection. Maximum 8,000 UTF-8 bytes and 600 seconds. A confirmed result continues this conversation automatically; do not poll or retry an unknown outcome."
   end
 end

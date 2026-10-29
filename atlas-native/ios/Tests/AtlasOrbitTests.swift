@@ -139,9 +139,9 @@ extension AtlasOrbitTests {
                 fields["mention_candidates"] = [["id": personId, "name": "Alex Morgan"]]
             }
             if command["action"] as? String == "send" {
-                #expect(command["mention_ids"] as? [String] == [personId])
+                #expect(command["mention_ids"] as? [String] == [personId] && command["address_agent"] as? Bool == true)
             }
-            return try snapshot(sequence: sequence, selected: true, draft: body, fields: fields)
+            return try snapshot(sequence: sequence, selected: true, draft: body, kind: "shared", fields: fields)
         }, localRequest: { action in
             sequence += 1
             if action["action"] as? String == "draft" { body = action["body"] as? String ?? "" }
@@ -152,7 +152,7 @@ extension AtlasOrbitTests {
                 body = "Please review @Alex Morgan "
                 fields["draft_mentions"] = [["id": personId, "name": "Alex Morgan"]]
             }
-            return try snapshot(sequence: sequence, selected: true, draft: body, fields: fields)
+            return try snapshot(sequence: sequence, selected: true, draft: body, kind: "shared", fields: fields)
         })
         _ = await model.open(id: id)
         model.draft = "Please review @Al"
@@ -161,7 +161,7 @@ extension AtlasOrbitTests {
         await model.mention(person)
         #expect(model.draft == "Please review @Alex Morgan ")
         #expect(model.draftMentions.map(\.id) == [personId])
-        await model.send(addressAgent: false)
+        await model.send()
     }
 }
 
@@ -317,7 +317,7 @@ extension AtlasOrbitTests {
         })
         _ = await model.privateThread()
         model.draft = "A thought"
-        await model.send(addressAgent: true)
+        await model.send()
         #expect(commands == ["private", "send"])
         #expect(model.draft.isEmpty)
     }
@@ -382,10 +382,10 @@ extension AtlasOrbitTests {
     private func snapshot(
         sequence: Int, selected: Bool = false, draft: String = "", messages: [[String: Any]] = [],
         agentStatus: String? = nil, liveMessage: String? = nil, updatedAt: String = "2027-06-07T10:00:00Z",
-        fields: [String: Any] = [:]
+        kind: String = "private", fields: [String: Any] = [:]
     ) throws -> Data {
         let thread: [String: Any] = [
-            "id": id, "title": "Private thread", "kind": "private", "status": "idle",
+            "id": id, "title": "Private thread", "kind": kind, "status": "idle",
             "summary": "", "origin": "manual", "participants": [], "updated_at": updatedAt,
             "agent_status": agentStatus as Any? ?? NSNull()
         ]

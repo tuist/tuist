@@ -116,6 +116,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.LearnedWarmFloors
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Sites
   alias Tuist.Runners.Telemetry
@@ -679,6 +680,10 @@ defmodule Tuist.Runners do
       occupied runner sessions over active one-minute buckets in
       the last hour (Postgres). Keeps sparse but real bursts warm
       and includes post-job cache and teardown time.
+    * `learned_warm_floor` — the burst this fleet's jobs arrive in, or 0
+      when it had no job in the last day (`LearnedWarmFloors`). The
+      controller keeps up to that many runners idle above load, capped per
+      pool by `maxLearnedWarmPoolFloor`.
     * `preferred_nodes` — for a macOS fleet, one Node per oldest queued
       job, most imminent first, that holds the custom volumes the job is
       predicted to attach and has cache room for them
@@ -704,6 +709,7 @@ defmodule Tuist.Runners do
       queued: queued,
       withheld: withheld,
       p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
+      learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
       preferred_nodes: preferred_nodes(fleet_name)
     }
   end
