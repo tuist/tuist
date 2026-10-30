@@ -8,6 +8,7 @@ defmodule Tuist.Release do
   alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.Workers.BackfillWorkflowJobsWorker
   alias Tuist.Tests.Coverage
 
   require Logger
@@ -170,6 +171,19 @@ defmodule Tuist.Release do
     else
       Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
     end
+  end
+
+  @doc """
+  Brings runner jobs that predate `runner_workflow_jobs` into it from
+  ClickHouse (`Tuist.Runners.Workers.BackfillWorkflowJobsWorker`). The
+  migration that ships the worker queues it on its own; this runs it
+  again by hand, on a live node, and rewrites nothing that is current:
+
+      bin/tuist rpc "Tuist.Release.backfill_runner_workflow_jobs()"
+  """
+  def backfill_runner_workflow_jobs do
+    %{inserted: inserted, archive_markers: archive_markers} = BackfillWorkflowJobsWorker.backfill(1_000)
+    Logger.info("Backfilled #{inserted} runner lifecycle rows and #{archive_markers} archive markers")
   end
 
   @doc """
