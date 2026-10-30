@@ -73,6 +73,41 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 >
 > Uploading a preview with the same binary (build) and the same `CFBundleVersion` will fail.
 
+## Desktop apps and CLIs {#desktop-apps-and-clis}
+
+Share a built macOS application bundle and launch it on another Mac without rebuilding:
+
+```bash
+tuist share path/to/MyApp.app
+tuist run {preview-url}
+```
+
+You can also share a standalone executable on macOS or Linux:
+
+```bash
+tuist share path/to/my-tool
+tuist run {preview-url} -- --help
+```
+
+If the CLI needs resource bundles, dynamic libraries, or helper executables, assemble a distribution directory and specify its entry point relative to that directory:
+
+```bash
+tuist share path/to/distribution --executable bin/my-tool
+tuist run {preview-url} -- build --configuration Release
+```
+
+The entire distribution directory is uploaded, including executable permissions and directory structure. The preview runs with the recipient's working directory, environment, and terminal input/output, and returns the executable's exit status. It does not replace an installed CLI or add it to `PATH`. CLI distributions remain in Tuist's local `previews` cache after execution so generated projects can continue to reference them; deleting that cache also removes those references' targets.
+
+Use `--` to separate Tuist options from the preview's arguments. Everything after it is forwarded literally, including `--verbose`, `--quiet`, and `--path`. Child arguments are excluded from Tuist command analytics.
+
+Previews are not a cross-compilation or dependency-bundling service. Include non-system dependencies and use relocatable library/resource paths. Tuist reads the executable's Mach-O or ELF header to identify its OS and CPU architectures, including universal macOS binaries, and selects a compatible build. Linux binaries still need compatible system libraries (for example, glibc and the Swift runtime); prefer self-contained distributions targeting your recipients' oldest supported OS. Scripts must have a shebang and require their interpreter on the recipient's system; they use the publisher's OS as their target.
+
+A preview does not provide a sandbox: it runs as the current user with access to their files and environment. Only run builds from authors and pull requests you trust. Signing and notarization requirements still apply to macOS applications.
+
+To share the Tuist CLI from CI, include its `ProjectDescription` library/module and resource bundles alongside the executable, rather than uploading the binary alone. The preview retains the commit and branch metadata used by the existing pull-request integration.
+
+In the Tuist repository, `mise run cli:preview build/cli-preview` assembles a native macOS distribution with `ProjectDescription.framework`, templates, resource bundles, Swift runtime libraries, and the CAS plugin/proxy. Upload it with `build/cli-preview/tuist share build/cli-preview --executable tuist`. The CLI Previews workflow publishes non-fork PRs once the repository variable `TUIST_CLI_PREVIEWS_ENABLED` is enabled, after deploying server support and releasing a recipient CLI with preview support. These development builds are ad-hoc signed, not notarized releases.
+
 ## Tracks {#tracks}
 
 Tracks allow you to organize your previews into named groups. For example, you might have a `beta` track for internal testers and a `nightly` track for automated builds. Tracks are lazily created — simply specify a track name when sharing, and it will be created automatically if it doesn't exist.

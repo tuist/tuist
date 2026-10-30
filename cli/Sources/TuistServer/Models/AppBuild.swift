@@ -43,7 +43,7 @@
     }
 
     public enum AppBuildType: Sendable, Equatable, Codable {
-        case appBundle, ipa, apk
+        case appBundle, ipa, apk, executable
 
         init(_ appBuildType: Components.Schemas.AppBuild._typePayload) {
             switch appBuildType {
@@ -53,6 +53,8 @@
                 self = .ipa
             case .apk:
                 self = .apk
+            case .executable:
+                self = .executable
             }
         }
     }

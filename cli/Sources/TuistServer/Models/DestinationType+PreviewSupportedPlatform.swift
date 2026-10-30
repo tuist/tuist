@@ -25,6 +25,8 @@
                 self = .device(.macOS)
             case .android:
                 self = .android
+            case .linux:
+                return nil
             }
         }
     }

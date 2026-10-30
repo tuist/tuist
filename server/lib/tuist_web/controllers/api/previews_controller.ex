@@ -58,7 +58,7 @@ defmodule TuistWeb.API.PreviewsController do
          properties: %{
            display_name: %Schema{type: :string, description: "The display name of the preview."},
            type: %Schema{
-             enum: ["app_bundle", "ipa", "apk"],
+             enum: ["app_bundle", "ipa", "apk", "executable"],
              type: :string,
              description: "The type of the preview to upload.",
              default: "app_bundle"

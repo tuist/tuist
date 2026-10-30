@@ -27,7 +27,7 @@ defmodule TuistWeb.API.Schemas.AppBuild do
       },
       binary_id: %Schema{
         type: :string,
-        description: "The Mach-O UUID of the build's main binary."
+        description: "The Mach-O UUID or SHA-256 content hash of the build."
       }
     },
     required: [:id, :url, :type, :supported_platforms]

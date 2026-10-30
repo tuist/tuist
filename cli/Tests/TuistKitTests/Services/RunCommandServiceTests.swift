@@ -1,4 +1,6 @@
+import ArgumentParser
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -7,6 +9,7 @@ import TuistAndroid
 import TuistAutomation
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironmentTesting
 import TuistGenerator
 import TuistLoader
 import TuistServer
@@ -100,8 +103,152 @@ struct RunCommandServiceTests {
             listPreviewsService: listPreviewsService,
             appBundleLoader: appBundleLoader,
             deviceController: deviceController,
-            simulatorController: simulatorController
+            simulatorController: simulatorController,
+            execute: { executable, arguments in
+                let process = Process()
+                process.executableURL = executable.url
+                process.arguments = arguments
+                try process.run()
+                process.waitUntilExit()
+                let code = process.terminationReason == .uncaughtSignal ? 128 + process.terminationStatus : process
+                    .terminationStatus
+                if code != 0 { throw ExitCode(code) }
+            }
         )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [Int32(0), Int32(42), Int32(143)])
+    func runs_executable_preview_with_resources_arguments_and_exit_status(exitStatus: Int32) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let distribution = directory.appending(component: "distribution")
+        let tool = distribution.appending(components: "libexec", "main")
+        try await fileSystem.makeDirectory(at: tool.parentDirectory)
+        try Data("""
+        #!/bin/sh
+        printf '%s\\n' "$PWD" "$2" "$(basename "$0")" > "$1"
+        cat "$(dirname "$0")/resource.txt" >> "$1"
+        if [ "$3" = 143 ]; then kill -TERM $$; fi
+        exit "$3"
+        """.utf8).write(to: tool.url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.pathString)
+        try FileManager.default.createSymbolicLink(
+            atPath: distribution.appending(component: "tool").pathString, withDestinationPath: "libexec/main"
+        )
+        try Data("bundled resource".utf8).write(to: distribution.appending(component: "resource.txt").url)
+        let manifestPath = directory.appending(component: ExecutablePreviewManifest.filename)
+        try JSONEncoder().encode(ExecutablePreviewManifest(
+            executable: RelativePath(validating: "distribution/tool")
+        ))
+        .write(to: manifestPath.url)
+        let archive = try await FileArchivingFactory().makeFileArchiver(for: [distribution, manifestPath]).zip(name: "preview")
+        given(remoteArtifactDownloader).download(url: .any).willReturn(archive)
+        given(getPreviewService).getPreview(.any, fullHandle: .any, serverURL: .any).willReturn(.test(
+            builds: [.test(supportedPlatforms: [.macos], type: .executable)],
+            supportedPlatforms: [.macos]
+        ))
+        let output = directory.appending(component: "output.txt")
+        let arguments = [
+            "--",
+            output.pathString,
+            "argument with spaces; $(not-a-command)",
+            String(exitStatus),
+            "-destination",
+            "child",
+        ]
+        let runnable = Runnable.url(URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id")!)
+        if exitStatus == 0 {
+            try await subject.run(runnable: runnable, arguments: arguments)
+        } else {
+            await #expect(throws: ExitCode(exitStatus)) {
+                try await subject.run(runnable: runnable, arguments: arguments)
+            }
+        }
+        let result = try String(contentsOf: output.url, encoding: .utf8)
+        #expect(result ==
+            "\(FileManager.default.currentDirectoryPath)\nargument with spaces; $(not-a-command)\ntool\nbundled resource")
+        #expect(try await !fileSystem.exists(archive))
+        if exitStatus == 0 {
+            // The downloaded ZIP is gone, but generated projects can still invoke the cached tool.
+            try await subject.run(runnable: runnable, arguments: arguments)
+            #expect(try String(contentsOf: output.url, encoding: .utf8) == result)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func skipsIncompatibleArchitectureBeforeRunningMatchingBuild() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let wrongTool = directory.appending(component: "wrong-tool")
+        #if arch(arm64)
+            let cpu: UInt8 = 7
+        #else
+            let cpu: UInt8 = 12
+        #endif
+        try Data([0xCF, 0xFA, 0xED, 0xFE, cpu, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0]).write(to: wrongTool.url)
+        let tool = directory.appending(component: "tool")
+        try Data("#!/bin/sh\nprintf 'right build' > \"$1\"\n".utf8).write(to: tool.url)
+        for executable in [wrongTool, tool] {
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.pathString)
+        }
+        let manifest = directory.appending(component: ExecutablePreviewManifest.filename)
+        var builds: [Components.Schemas.AppBuild] = []
+        for executable in [wrongTool, tool] {
+            try JSONEncoder().encode(ExecutablePreviewManifest(
+                executable: RelativePath(validating: executable.basename)
+            ))
+            .write(to: manifest.url)
+            let archive = try await FileArchivingFactory().makeFileArchiver(for: [executable, manifest])
+                .zip(name: executable.basename)
+            let url = URL(string: "https://tuist.dev/\(executable.basename).zip")!
+            given(remoteArtifactDownloader).download(url: .value(url)).willReturn(archive)
+            builds.append(.test(id: executable.basename, supportedPlatforms: [.macos], type: .executable, url: url))
+        }
+        given(getPreviewService).getPreview(.any, fullHandle: .any, serverURL: .any).willReturn(.test(
+            builds: builds, supportedPlatforms: [.macos]
+        ))
+        let output = directory.appending(component: "output.txt")
+        try await subject.run(
+            runnable: .url(URL(string: "https://tuist.dev/tuist/tuist/previews/id")!), arguments: [output.pathString]
+        )
+        #expect(try String(contentsOf: output.url, encoding: .utf8) == "right build")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [
+        "../outside", "/bin/sh", "tool-link", "sibling/tool", "ancestor/tool", "chain/tool",
+    ])
+    func rejects_executable_entry_points_outside_the_archive(entryPoint: String) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let unpacked = directory.appending(component: "unpacked")
+        try await fileSystem.makeDirectory(at: unpacked)
+        let manifest = ["executable": entryPoint]
+        try JSONSerialization.data(withJSONObject: manifest)
+            .write(to: unpacked.appending(component: ExecutablePreviewManifest.filename).url)
+        let sibling = directory.appending(component: "unpacked-sibling")
+        try await fileSystem.makeDirectory(at: sibling)
+        try FileManager.default.copyItem(atPath: "/bin/sh", toPath: sibling.appending(component: "tool").pathString)
+        let links: [(String, String)]
+        switch entryPoint {
+        case "tool-link": links = [("tool-link", "/bin/sh")]
+        case "sibling/tool": links = [("sibling", "../unpacked-sibling")]
+        case "ancestor/tool": links = [("ancestor", sibling.pathString)]
+        case "chain/tool": links = [("chain", "ancestor"), ("ancestor", sibling.pathString)]
+        default: links = []
+        }
+        for (name, destination) in links {
+            try FileManager.default.createSymbolicLink(
+                atPath: unpacked.appending(component: name).pathString, withDestinationPath: destination
+            )
+        }
+        let contents = try FileManager.default.contentsOfDirectory(atPath: unpacked.pathString)
+            .map { unpacked.appending(component: $0) }
+        let archive = try await FileArchivingFactory().makeFileArchiver(for: contents).zip(name: "preview")
+        given(remoteArtifactDownloader).download(url: .any).willReturn(archive)
+        given(getPreviewService).getPreview(.any, fullHandle: .any, serverURL: .any).willReturn(.test(
+            builds: [.test(supportedPlatforms: [.macos], type: .executable)],
+            supportedPlatforms: [.macos]
+        ))
+        await #expect(throws: (any Error).self) {
+            try await subject.run(runnable: .url(URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id")!))
+        }
     }
 
     @Test
@@ -901,7 +1048,10 @@ struct RunCommandServiceTests {
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn(.test())
+            .willReturn(.test(
+                builds: [.test(supportedPlatforms: [.macos]), .test(supportedPlatforms: [.ios_simulator])],
+                supportedPlatforms: [.macos, .ios_simulator]
+            ))
 
         let downloadedArchive = temporaryDirectory.appending(component: "archive")
 

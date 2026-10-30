@@ -348,6 +348,12 @@ defmodule Tuist.AppBuilds do
     "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{preview_id}/icon.png"
   end
 
+  def desktop_preview?(%Preview{supported_platforms: [_ | _] = platforms}) do
+    Enum.all?(platforms, &(&1 in [:macos, :linux]))
+  end
+
+  def desktop_preview?(_preview), do: false
+
   def supported_platforms_case_values(%Preview{supported_platforms: supported_platforms}) do
     if is_nil(supported_platforms) do
       []
@@ -369,6 +375,7 @@ defmodule Tuist.AppBuilds do
       :visionos_simulator -> "visionOS Simulator"
       :macos -> "macOS"
       :android -> "Android"
+      :linux -> "Linux"
     end
   end
 

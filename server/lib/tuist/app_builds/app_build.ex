@@ -16,7 +16,8 @@ defmodule Tuist.AppBuilds.AppBuild do
       values: [
         app_bundle: 0,
         ipa: 1,
-        apk: 2
+        apk: 2,
+        executable: 3
       ]
 
     field :supported_platforms, {:array, Ecto.Enum},
@@ -30,7 +31,8 @@ defmodule Tuist.AppBuilds.AppBuild do
         visionos: 6,
         visionos_simulator: 7,
         macos: 8,
-        android: 9
+        android: 9,
+        linux: 10
       ]
 
     field :binary_id, :string

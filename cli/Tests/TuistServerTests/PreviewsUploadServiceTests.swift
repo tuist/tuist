@@ -101,6 +101,60 @@ struct PreviewsUploadServiceTests {
             )
     }
 
+    @Test(.inTemporaryDirectory)
+    func uploads_a_distribution_with_its_entry_point_and_resources() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let distribution = directory.appending(component: "Tool Distribution")
+        let entryPoint = try RelativePath(validating: "bin/tool")
+        let executable = distribution.appending(entryPoint)
+        try await fileSystem.makeDirectory(at: executable.parentDirectory)
+        try await fileSystem.writeText("#!/bin/sh\nexit 0\n", at: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.pathString)
+        try await fileSystem.writeText("bundled resource", at: distribution.appending(component: "resource.txt"))
+        try FileManager.default.createSymbolicLink(
+            atPath: distribution.appending(components: "bin", "resource-link").pathString, withDestinationPath: "../resource.txt"
+        )
+        let archiverFactory = FileArchivingFactory()
+        let subject = PreviewsUploadService(
+            fileSystem: fileSystem,
+            fileArchiver: archiverFactory,
+            multipartUploadStartPreviewsService: multipartUploadStartPreviewsService,
+            multipartUploadGenerateURLPreviewsService: multipartUploadGenerateURLPreviewsService,
+            multipartUploadArtifactService: multipartUploadArtifactService,
+            multipartUploadCompletePreviewsService: multipartUploadCompletePreviewsService,
+            uploadPreviewIconService: uploadPreviewIconService,
+            commandRunner: commandRunner,
+            precompiledMetadataProvider: precompiledMetadataProvider
+        )
+        let uploadedArchive = directory.appending(component: "uploaded.zip")
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(artifactPath: .any, generateUploadURL: .any, updateProgress: .any)
+            .willProduce { archive, _, _ in
+                try FileManager.default.copyItem(at: archive.url, to: uploadedArchive.url)
+                return [(etag: "etag", partNumber: 1)]
+            }
+
+        let preview = try await subject.uploadPreview(
+            .executable(path: distribution, entryPoint: entryPoint),
+            fullHandle: "tuist/tuist", serverURL: serverURL,
+            gitBranch: nil, gitCommitSHA: nil, gitRef: nil, track: nil, updateProgress: { _ in }
+        )
+        #expect(preview.url == shareURL.absoluteString)
+        let unarchiver = try FileUnarchiver(path: uploadedArchive)
+        let unpacked = try await unarchiver.unzipSelfContained()
+        let manifest: ExecutablePreviewManifest = try await fileSystem.readJSONFile(
+            at: unpacked.appending(component: ExecutablePreviewManifest.filename)
+        )
+        #expect(try manifest.executable == RelativePath(validating: "Tool Distribution/bin/tool"))
+        let uploadedExecutable = unpacked.appending(manifest.executable)
+        #expect(FileManager.default.isExecutableFile(atPath: uploadedExecutable.pathString))
+        #expect(try await fileSystem.readTextFile(at: uploadedExecutable) == "#!/bin/sh\nexit 0\n")
+        let resourceLink = unpacked.appending(components: "Tool Distribution", "bin", "resource-link")
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: resourceLink.pathString) == "../resource.txt")
+        #expect(try await fileSystem.readTextFile(at: resourceLink) == "bundled resource")
+        try await unarchiver.delete()
+    }
+
     @Test func upload_single_app_bundle() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
             temporaryDirectory in

@@ -98,6 +98,36 @@ struct ShareCommandServiceTests {
             .willReturn(.test(url: shareURL))
     }
 
+    @Test(.withMockedDependencies(), .inTemporaryDirectory)
+    func shares_a_distribution_with_a_symlinked_entry_point() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let distribution = directory.appending(components: "releases", "v1")
+        let executable = distribution.appending(components: "libexec", "main")
+        try await fileSystem.makeDirectory(at: executable.parentDirectory)
+        try await fileSystem.makeDirectory(at: distribution.appending(component: "bin"))
+        try await fileSystem.writeText("#!/bin/sh\nexit 0\n", at: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.pathString)
+        try FileManager.default.createSymbolicLink(
+            atPath: distribution.appending(components: "bin", "tool").pathString,
+            withDestinationPath: "../libexec/main"
+        )
+        let current = directory.appending(component: "current")
+        try FileManager.default.createSymbolicLink(at: current.url, withDestinationURL: distribution.url)
+
+        try await subject.run(
+            path: directory.pathString,
+            apps: [current.pathString],
+            configuration: nil,
+            platforms: [],
+            derivedDataPath: nil,
+            json: false,
+            track: nil,
+            executable: "bin/tool"
+        )
+
+        #expect(ui().contains(shareURL.absoluteString))
+    }
+
     @Test func share_tuist_project_when_multiple_apps_specified() async throws {
         // Given
         given(configLoader)
@@ -743,6 +773,7 @@ struct ShareCommandServiceTests {
 
         let ipaPath = tempPath.appending(components: "App.ipa")
         try await fileSystem.touch(ipaPath)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ipaPath.pathString)
 
         given(appBundleLoader)
             .load(ipa: .value(ipaPath))
@@ -960,6 +991,7 @@ struct ShareCommandServiceTests {
 
         let apkPath = tempPath.appending(component: "app.apk")
         try await fileSystem.touch(apkPath)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: apkPath.pathString)
 
         let metadata = APKMetadata(
             packageName: "com.example.app",

@@ -81,6 +81,8 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
             .ipa
         case .apk:
             .apk
+        case .executable:
+            .executable
         }
         let response = try await client.startPreviewsMultipartUpload(
             .init(

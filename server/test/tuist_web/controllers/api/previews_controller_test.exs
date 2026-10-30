@@ -228,6 +228,37 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert app_build.type == :ipa
     end
 
+    for platform <- ["macos", "linux"] do
+      @platform platform
+      test "starts multipart upload of an executable preview for #{platform}", %{
+        conn: conn,
+        user: user,
+        project: project,
+        account: account
+      } do
+        expect(Storage, :multipart_start, fn object_key, _actor ->
+          assert String.ends_with?(object_key, ".zip")
+          "upload-id"
+        end)
+
+        conn =
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+            type: "executable",
+            display_name: "tuist",
+            git_commit_sha: "commit-sha",
+            supported_platforms: [@platform]
+          )
+
+        response = json_response(conn, :ok)
+        {:ok, build} = AppBuilds.app_build_by_id(response["data"]["app_build_id"])
+        assert build.type == :executable
+        assert build.supported_platforms == [String.to_existing_atom(@platform)]
+      end
+    end
+
     test "starts multipart upload of an apk preview", %{
       conn: conn,
       user: user,

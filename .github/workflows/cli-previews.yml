@@ -1,0 +1,47 @@
+name: CLI Previews
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "cli/**"
+      - "cas-plugin/**"
+      - "Tuist/**"
+      - "*.swift"
+      - "Package.resolved"
+      - ".github/workflows/cli-previews.yml"
+      - "mise/tasks/cli/preview.sh"
+
+permissions:
+  contents: read
+
+env:
+  TUIST_DEV_INSTANCE: "1"
+
+concurrency:
+  group: cli-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    # Enable after the server and recipient CLI support executable previews.
+    # Never expose publishing credentials to fork pull requests.
+    if: vars.TUIST_CLI_PREVIEWS_ENABLED == 'true' && github.event.pull_request.head.repo.fork == false && github.event.pull_request.draft == false
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+      - run: tuist auth login
+      - uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}
+      - run: mise run --skip-tools cli:preview build/cli-preview
+      # Use the new client because the installed release may not support CLI previews yet.
+      - run: build/cli-preview/tuist share build/cli-preview --executable tuist

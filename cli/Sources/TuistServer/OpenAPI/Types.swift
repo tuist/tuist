@@ -23864,6 +23864,7 @@ public enum Components {
             case visionos_simulator = "visionos_simulator"
             case macos = "macos"
             case android = "android"
+            case linux = "linux"
         }
         /// The URL to upload a multipart part
         ///
@@ -24038,7 +24039,7 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/AppBuild`.
         public struct AppBuild: Codable, Hashable, Sendable {
-            /// The Mach-O UUID of the build's main binary.
+            /// The Mach-O UUID or SHA-256 content hash of the build.
             ///
             /// - Remark: Generated from `#/components/schemas/AppBuild/binary_id`.
             public var binary_id: Swift.String?
@@ -24055,6 +24056,7 @@ public enum Components {
                 case app_bundle = "app_bundle"
                 case ipa = "ipa"
                 case apk = "apk"
+                case executable = "executable"
             }
             /// The type of the build
             ///
@@ -24067,7 +24069,7 @@ public enum Components {
             /// Creates a new `AppBuild`.
             ///
             /// - Parameters:
-            ///   - binary_id: The Mach-O UUID of the build's main binary.
+            ///   - binary_id: The Mach-O UUID or SHA-256 content hash of the build.
             ///   - id: Unique identifier of the build.
             ///   - supported_platforms:
             ///   - _type: The type of the build
@@ -78525,6 +78527,7 @@ public enum Operations {
                         case app_bundle = "app_bundle"
                         case ipa = "ipa"
                         case apk = "apk"
+                        case executable = "executable"
                     }
                     /// The type of the preview to upload.
                     ///

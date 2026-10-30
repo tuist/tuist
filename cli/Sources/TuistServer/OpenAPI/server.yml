@@ -13890,6 +13890,7 @@ components:
         - visionos_simulator
         - macos
         - android
+        - linux
       title: PreviewSupportedPlatform
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
@@ -14045,7 +14046,7 @@ components:
     AppBuild:
       properties:
         binary_id:
-          description: The Mach-O UUID of the build's main binary.
+          description: The Mach-O UUID or SHA-256 content hash of the build.
           type: string
           x-struct:
           x-validate:
@@ -14066,6 +14067,7 @@ components:
             - app_bundle
             - ipa
             - apk
+            - executable
           type: string
           x-struct:
           x-validate:
@@ -33783,6 +33785,7 @@ paths:
                     - app_bundle
                     - ipa
                     - apk
+                    - executable
                   type: string
                   x-struct:
                   x-validate:
