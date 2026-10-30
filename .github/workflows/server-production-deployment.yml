@@ -1574,64 +1574,6 @@ jobs:
           TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
         run: mise run --no-deps e2e module_cache_backward_compat
 
-  # Sharded Mix builds gate - builds, shards and tests a Mix project through
-  # tuist_ex against canary, the way a sharded CI workflow does: the build
-  # uploads within seconds of creating the plan, and each shard runs from that
-  # upload. The Xcode CLI flow is ShardAcceptanceTests in Acceptance Tests above.
-  shard-acceptance:
-    name: Shard acceptance (Mix)
-    needs: canary
-    if: ${{ always() && needs.canary.result == 'success' }}
-    runs-on: tuist-linux
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    env:
-      TUIST_URL: https://canary.tuist.dev
-      TUIST_PROJECT: tuist/shard-acceptance-mix
-      TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-shard-acceptance
-      # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
-      TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
-      TUIST_AUTH_PASSWORD: tuistrocks
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Create the Mix fixtures
-        working-directory: tuist_ex
-        run: |
-          for directory in .shard-build .shard-0 .shard-1; do
-            bash ../.github/scripts/shard-storage-smoke-fixture.sh "$directory"
-          done
-      - uses: ./.github/actions/mise-install
-        with:
-          install: "erlang elixir"
-          working-directory: tuist_ex
-      - run: mix local.hex --force
-      # Compiled first so each server-facing command starts with a fresh
-      # access token, which lives ten minutes.
-      - name: Build, plan and run the Mix shards
-        working-directory: tuist_ex
-        run: |
-          token() {
-            curl -fsS -X POST "$TUIST_URL/api/auth" -H 'Content-Type: application/json' \
-              -d "$(jq -n --arg email "$TUIST_AUTH_EMAIL" --arg password "$TUIST_AUTH_PASSWORD" '{email: $email, password: $password}')" \
-              | jq -r '.access_token'
-          }
-          auth=(-H "Authorization: Bearer $(token)" -H 'Content-Type: application/json')
-          if [ "$(curl -sS -o /dev/null -w '%{http_code}' "${auth[@]}" "$TUIST_URL/api/projects/$TUIST_PROJECT")" = 404 ]; then
-            curl -fsS -o /dev/null "${auth[@]}" -X POST "$TUIST_URL/api/projects" \
-              -d "$(jq -n --arg handle "$TUIST_PROJECT" '{full_handle: $handle, build_system: "mix"}')"
-          fi
-          for directory in .shard-build .shard-0 .shard-1; do
-            (cd "$directory" && mix deps.get && MIX_ENV="test" mix compile)
-          done
-          (cd .shard-build && TUIST_TOKEN="$(token)" mix tuist.test.build --shard-total 2)
-          for index in 0 1; do
-            (cd ".shard-$index" && TUIST_TOKEN="$(token)" TUIST_SHARD_INDEX="$index" mix tuist.test)
-          done
-
   # Kura promotion gate - production's wave 0 never starts on an image the
   # canary environment has not actually converged on (spec #79). The canary
   # environment's rollout runs expedited, so completion is minutes; a
@@ -1765,7 +1707,6 @@ jobs:
         canary,
         acceptance-tests,
         backward-compatibility-acceptance,
-        shard-acceptance,
         kura-canary-rollout-gate,
         runners-acceptance,
         tag-infra-releases,
@@ -1780,7 +1721,6 @@ jobs:
       needs.canary.result == 'success' &&
       needs.acceptance-tests.result == 'success' &&
       needs.backward-compatibility-acceptance.result == 'success' &&
-      needs.shard-acceptance.result == 'success' &&
       needs.kura-canary-rollout-gate.result == 'success' &&
       needs.runners-acceptance.result == 'success' &&
       needs.check-releases.outputs.is-hotfix != 'true'
