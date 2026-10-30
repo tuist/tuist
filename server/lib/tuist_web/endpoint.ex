@@ -35,6 +35,8 @@ defmodule TuistWeb.Endpoint do
     websocket: true,
     longpoll: false
 
+  plug TuistWeb.Plugs.DrainingPlug
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # You should set gzip to true if you are running phx.digest
@@ -167,6 +169,6 @@ defmodule TuistWeb.Endpoint do
   def scrub_sentry_headers(conn) do
     conn
     |> Sentry.PlugContext.default_header_scrubber()
-    |> Map.drop(["x-tuist-actor-id" | TuistWeb.OperatorGrant.credential_headers()])
+    |> Map.drop(["x-tuist-actor-id", "x-tuist-runner-grant" | TuistWeb.OperatorGrant.credential_headers()])
   end
 end

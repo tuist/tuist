@@ -1,0 +1,42 @@
+name: Kura Qualification Contracts
+
+on:
+  pull_request:
+    paths:
+      - kura/test/e2e/provider-topology/**
+      - kura/test/e2e/certificate-trust/**
+      - kura/src/metrics.rs
+      - .github/workflows/kura-qualification.yml
+      - .github/workflows/kura-runtime-image.yml
+  push:
+    branches: [main]
+    paths:
+      - kura/test/e2e/provider-topology/**
+      - kura/test/e2e/certificate-trust/**
+      - kura/src/metrics.rs
+      - .github/workflows/kura-qualification.yml
+      - .github/workflows/kura-runtime-image.yml
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: node
+          working_directory: kura
+          env: false
+      - name: Check workload and measurement contracts
+        working-directory: kura
+        run: mise exec -- node --test test/e2e/provider-topology/{compare,corpus,metric-schema,summarize}.test.mjs
+      - name: Check build-only script
+        run: |
+          bash -n kura/test/e2e/certificate-trust/qualify-linux.sh
+          shellcheck kura/test/e2e/certificate-trust/qualify-linux.sh

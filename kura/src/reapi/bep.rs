@@ -1083,15 +1083,38 @@ impl BuildEventService {
         }
 
         if let Some(action) = event.action {
-            if !action.success
-                && let Some(start) = self.invocations.lock().await.get_mut(&key)
-            {
-                record_failure_category(
-                    start,
-                    action.failure_detail.as_ref(),
-                    Some(&action.action_type),
-                );
-            }
+            // Reuse one invocation lock for the existing summary and inventory context.
+            let (git_branch, git_commit_sha, is_ci) = {
+                let mut invocations = self.invocations.lock().await;
+                if let Some(start) = invocations.get_mut(&key) {
+                    if !action.success {
+                        record_failure_category(
+                            start,
+                            action.failure_detail.as_ref(),
+                            Some(&action.action_type),
+                        );
+                    }
+                    if let Some(span) = action_span(event.id.as_ref(), &action) {
+                        start.first_action_started_at_ms = Some(
+                            start
+                                .first_action_started_at_ms
+                                .map_or(span.started_at_ms, |first| first.min(span.started_at_ms)),
+                        );
+                        retain_action_span(start, span);
+                    }
+                    if !network_trusted && self.state.bazel_test_artifacts.is_some() {
+                        (
+                            start.git_branch.clone(),
+                            start.git_commit_sha.clone(),
+                            Some(start.is_ci),
+                        )
+                    } else {
+                        Default::default()
+                    }
+                } else {
+                    Default::default()
+                }
+            };
             if !network_trusted
                 && let Some(delivery) = self.state.bazel_test_artifacts.as_ref()
                 && let Some(id) = event
@@ -1109,31 +1132,36 @@ impl BuildEventService {
                         digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit())
                     })
                     .collect();
+                let started_at_ms = action
+                    .start_time
+                    .as_ref()
+                    .and_then(strict_timestamp_millis)
+                    .unwrap_or_default();
+                let duration_ms = action_duration_ms(&action);
                 delivery.enqueue_action(BazelAction {
                     account_handle: account_handle.to_owned(),
                     project_handle: project_handle.to_owned(),
                     invocation_id: invocation_id.clone(),
                     primary_output: id.primary_output.clone(),
-                    started_at_ms: action
-                        .start_time
-                        .as_ref()
-                        .and_then(strict_timestamp_millis)
-                        .unwrap_or_default(),
+                    // Never truncate identity fields: prefixes can merge unrelated actions.
+                    target_label: if id.label.len() <= MAX_TARGET_LABEL_BYTES {
+                        id.label.clone()
+                    } else {
+                        String::new()
+                    },
+                    mnemonic: if action.action_type.len() <= 128 {
+                        action.action_type.clone()
+                    } else {
+                        String::new()
+                    },
+                    duration_ms,
+                    git_branch,
+                    git_commit_sha,
+                    is_ci,
+                    started_at_ms,
                     success: action.success,
                     logs,
                 });
-            }
-            if let Some(start) = self.invocations.lock().await.get_mut(&key)
-                && let Some(action_span) = action_span(event.id.as_ref(), &action)
-            {
-                start.first_action_started_at_ms = Some(
-                    start
-                        .first_action_started_at_ms
-                        .map_or(action_span.started_at_ms, |first| {
-                            first.min(action_span.started_at_ms)
-                        }),
-                );
-                retain_action_span(start, action_span);
             }
             return;
         }
@@ -1516,6 +1544,13 @@ fn apply_build_metrics(invocation: &mut InvocationStart, metrics: &BazelBuildMet
 
 fn non_negative_u64(value: i64) -> u64 {
     u64::try_from(value).unwrap_or_default()
+}
+
+// Inventory measurements must not inherit the summary timeline's 1 ms floor.
+fn action_duration_ms(action: &BazelActionExecuted) -> Option<u64> {
+    let start = strict_timestamp_millis(action.start_time.as_ref()?)?;
+    let end = strict_timestamp_millis(action.end_time.as_ref()?)?;
+    end.checked_sub(start)
 }
 
 fn action_span(
@@ -2076,6 +2111,41 @@ mod tests {
     use super::*;
 
     use crate::test_support::test_context;
+
+    #[test]
+    fn inventory_action_duration_preserves_zero_and_omits_missing_or_invalid_timing() {
+        let mut action = BazelActionExecuted {
+            start_time: Some(Timestamp {
+                seconds: 100,
+                nanos: 0,
+            }),
+            end_time: Some(Timestamp {
+                seconds: 100,
+                nanos: 0,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(action_duration_ms(&action), Some(0));
+        action.end_time = Some(Timestamp {
+            seconds: 100,
+            nanos: 5_000_000,
+        });
+        assert_eq!(action_duration_ms(&action), Some(5));
+        action.end_time = Some(Timestamp {
+            seconds: 99,
+            nanos: 0,
+        });
+        assert_eq!(action_duration_ms(&action), None);
+        action.end_time = Some(Timestamp {
+            seconds: 101,
+            nanos: -1,
+        });
+        assert_eq!(action_duration_ms(&action), None);
+        action.end_time = None;
+        assert_eq!(action_duration_ms(&action), None);
+        action.start_time = None;
+        assert_eq!(action_duration_ms(&action), None);
+    }
 
     #[tokio::test]
     async fn accepts_generated_bazel_cjk_output_chunks_over_the_wire() {

@@ -64,3 +64,64 @@ build_autoinstall_iso() {
   }
   rm -rf "$workdir"
 }
+
+# Bakes the preinstall image: the deploy seed in /nocloud, the resident seed
+# and rack-node under /tuist, the kernel's console on the serial port a BMC's
+# serial-over-LAN reads as well as the screen, and no casper persistence. The
+# deploy step checks its copy against md5sum.txt, so the files changed or
+# added here are listed in it again. Ubuntu's signed boot chain is untouched.
+# Sourced: build_preinstall_iso <base-iso> <out-iso> <seeds-dir> <rack-node>
+build_preinstall_iso() {
+  local base_iso="$1" out_iso="$2" seeds="$3" node="$4"
+  local workdir tree label boot_args grub f
+
+  if ! command -v xorriso >/dev/null; then
+    echo "error: xorriso is needed to build the image (brew install xorriso)" >&2
+    return 1
+  fi
+  workdir="$(mktemp -d)"
+  tree="$workdir/iso"
+  echo "unpacking $(basename "$base_iso")" >&2
+  xorriso -osirrox on -indev "$base_iso" -extract / "$tree" >/dev/null 2>&1
+  chmod -R u+w "$tree"
+  mkdir -p "$tree/nocloud" "$tree/tuist/resident"
+  cp "$seeds"/deploy/* "$tree/nocloud/"
+  cp "$seeds"/resident/* "$tree/tuist/resident/"
+  cp "$node" "$tree/tuist/rack-node"
+  chmod 755 "$tree/tuist/rack-node"
+
+  grub="$tree/boot/grub/grub.cfg"
+  awk -v args='autoinstall "ds=nocloud;s=/cdrom/nocloud/" console=ttyS1,115200n8 console=tty0 nopersistent' '
+    /linux[[:space:]]+\/casper\/(hwe-)?vmlinuz/ { sub(/---/, args " ---") }
+    /^set timeout=/ { $0 = "set timeout=3" }
+    { print }
+  ' "$grub" >"$grub.new" && mv "$grub.new" "$grub"
+  if ! grep -q "nopersistent" "$grub"; then
+    echo "error: could not add the boot options to grub.cfg" >&2
+    rm -rf "$workdir"
+    return 1
+  fi
+  (
+    cd "$tree" || exit 1
+    grep -v -e ' \./boot/grub/grub\.cfg$' md5sum.txt >md5sum.new
+    for f in ./boot/grub/grub.cfg $(find ./nocloud ./tuist -type f | sort); do
+      printf '%s  %s\n' "$(md5 -q "$f" 2>/dev/null || md5sum "$f" | cut -d' ' -f1)" "$f"
+    done >>md5sum.new
+    mv md5sum.new md5sum.txt
+  )
+
+  boot_args="$(xorriso -indev "$base_iso" -report_el_torito as_mkisofs 2>/dev/null | tr '\n' ' ')"
+  label="$(xorriso -indev "$base_iso" -pvd_info 2>/dev/null | awk -F"'" '/Volume Id/{print $2}')"
+  [ -n "$label" ] || label="Ubuntu preinstall"
+  echo "building $(basename "$out_iso")" >&2
+  (
+    cd "$(dirname "$base_iso")" || exit 1
+    eval xorriso -as mkisofs -r -V "'${label}'" "$boot_args" \
+      -o "'$out_iso'" "'$tree'" >/dev/null 2>&1
+  ) || {
+    echo "error: building the image failed" >&2
+    rm -rf "$workdir"
+    return 1
+  }
+  rm -rf "$workdir"
+}

@@ -2,6 +2,7 @@ package linux
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"regexp"
 	"strings"
@@ -21,6 +22,7 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/tailnet"
 )
 
@@ -977,4 +979,55 @@ func TestRackInstallTrustsAHostItsOwnStickInstalledOnFirstUse(t *testing.T) {
 func handedOut(host *infrav1.RackLinuxHost, at time.Time) {
 	served := metav1.NewTime(at)
 	host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: host.Status.Install.KeyID, ServedTo: host.Spec.BootMAC, ServedAt: &served}
+}
+
+// The first edge of a site has no other edge to serve its netboot, but a
+// preinstalled one asks the internet boot server, which hands its seed only
+// to its pinned TPM: its install is published once the TPM is pinned.
+func TestRackInstallPublishesAPinnedFirstEdgeForTheInternetBootServer(t *testing.T) {
+	ek := testEK(t)
+	pinned := installableEdge()
+	pinned.Status.TPM = pinnedTPM(base64.StdEncoding.EncodeToString(ek), installEpoch)
+	for name, tc := range map[string]struct {
+		host     *infrav1.RackLinuxHost
+		internet string
+		publish  bool
+	}{
+		"pinned, with an internet boot server":     {pinned, "https://rack-boot.example.dev", true},
+		"not pinned, with an internet boot server": {installableEdge(), "https://rack-boot.example.dev", false},
+		"pinned, without one":                      {pinned, "", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newInstallHarness(t, tc.host.DeepCopy())
+			h.r.Install.InternetServerURL = tc.internet
+			got := h.reconcile(t, edgeUUID)
+			if published := got.Status.Install != nil && h.boot(t) != nil; published != tc.publish {
+				t.Fatalf("published %t, want %t: install %+v", published, tc.publish, got.Status.Install)
+			}
+		})
+	}
+}
+
+// A host of a model that arrives preinstalled is installed beside the
+// installer partition on its boot drive, which its install keeps; any other
+// takes the role's layout.
+func TestRackInstallKeepsAPreinstalledHostsInstaller(t *testing.T) {
+	const asus = "ASUSTeK COMPUTER INC. RS501A-E12-RS12U"
+	for product, keeps := range map[string]bool{asus: true, "Micro Computer (HK) Tech Limited Venus Series": false} {
+		t.Run(product, func(t *testing.T) {
+			host := svcHost()
+			pinned := metav1.NewTime(installEpoch)
+			host.Status.Hardware = &infrav1.RackLinuxHostHardware{Product: product, BootMAC: svcMAC, PinnedAt: &pinned}
+			h := newInstallHarness(t, host)
+			h.r.Install.PreinstalledProducts = []string{asus}
+			h.reconcile(t, svcUUID)
+			userData := string(h.boot(t)[svcMACPath+".user-data"])
+			if userData == "" {
+				t.Fatal("no install published")
+			}
+			if got := strings.Contains(userData, rackinstall.InstallerRestPlaceholder); got != keeps {
+				t.Fatalf("keeps the installer partition: %t, want %t", got, keeps)
+			}
+		})
+	}
 }

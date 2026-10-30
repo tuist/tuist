@@ -3,7 +3,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
   use Mimic
 
   alias Tuist.Accounts
-  alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Cache
   alias Tuist.OAuth.Introspection
   alias Tuist.Projects
@@ -517,7 +517,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
       AccountsFixtures.organization_fixture(
         name: "refused-tenant",
         creator: user,
-        current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits]
+        current_month_cache_requests: UsagePricing.included_requests()
       )
 
     Accounts.add_user_to_organization(user, refused, role: :admin)

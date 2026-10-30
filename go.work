@@ -16,7 +16,7 @@
 // the fleet. macos-host-sensors takes one small dependency, purego, which
 // is what lets it call IOKit without cgo; it builds to about 2 MB.
 
-go 1.25.0
+go 1.26.10
 
 use (
 	./infra/cloudflare-operator
@@ -30,10 +30,15 @@ use (
 	./infra/macos-log-shipper
 	./infra/mdm/enroller
 	./infra/rack-switch-controller
+	./infra/rack-switch-fleet/edge/tor-console
 	./infra/runner-cache
 	./infra/runner-image
 	./infra/runners-controller
+	./infra/sandbox-image
+	./infra/sandboxd
 	./infra/stable-egress-controller
 	./infra/tart-kubelet
 	./kube-impersonator
 )
+
+godebug default=go1.25

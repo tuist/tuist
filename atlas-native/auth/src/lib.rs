@@ -1,7 +1,27 @@
 mod accounts;
+mod api;
 mod bridge;
+mod business;
+mod cache;
+mod certificate_trust;
+#[cfg(test)]
+mod certificate_trust_tests;
+mod connections;
+mod environments;
+pub mod form;
+mod moodboard;
+mod orbit;
+mod orbit_activity;
+mod orbit_components;
+mod orbit_live;
+mod orbit_session;
+mod presence;
+mod push;
+mod themes;
 mod time_off;
 mod transport;
+
+pub use certificate_trust::POLICY_ID as CERTIFICATE_TRUST_POLICY;
 
 use transport::{Body, Network, Transport};
 
@@ -30,12 +50,14 @@ pub struct PendingLogin {
     created_at: u64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Session {
     registration: Registration,
     access_token: String,
     refresh_token: String,
     expires_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cache_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -249,18 +271,28 @@ fn callback_code(pending: &PendingLogin, callback: &str) -> Result<String> {
     let expected = Url::parse(REDIRECT_URI).unwrap();
     if url.scheme() != expected.scheme()
         || url.host_str() != expected.host_str()
-        || url.path() != expected.path()
         || url.port().is_some()
         || !url.username().is_empty()
         || url.password().is_some()
-        || url.fragment().is_some()
-        || now().saturating_sub(pending.created_at) > 600
     {
         return Err(error(
             "invalid_callback",
-            "The sign-in callback is invalid or expired.",
+            "The sign-in callback used an unexpected destination. Start a new sign-in and try again.",
         ));
     }
+    if url.path() != expected.path() {
+        return Err(error(
+            "invalid_callback",
+            "The sign-in callback used an unexpected path. Start a new sign-in and try again.",
+        ));
+    }
+    if now().saturating_sub(pending.created_at) > 600 {
+        return Err(error(
+            "invalid_callback",
+            "Sign-in expired after ten minutes. Start a new sign-in and try again.",
+        ));
+    }
+    // Code-flow responses use only the query; ignore browser-supplied fragments.
     let pairs: Vec<_> = url.query_pairs().collect();
     let values = |key: &str| -> Vec<String> {
         pairs
@@ -310,6 +342,7 @@ fn session(
         access_token: tokens.access_token,
         refresh_token,
         expires_at: now() + tokens.expires_in,
+        cache_id: Some(random_string()?),
     })
 }
 
@@ -341,11 +374,22 @@ pub fn restore(saved: Session) -> Result<Session> {
     restore_using(&Network, saved)
 }
 
-fn restore_using(network: &impl Transport, saved: Session) -> Result<Session> {
+// Local-only bootstrap: native storage must persist the namespace before exposing
+// cached UI. This validates saved structure, not current server authorization.
+fn bootstrap(mut saved: Session) -> Result<Session> {
     validate_registration(&saved.registration)?;
     if saved.access_token.is_empty() || saved.refresh_token.is_empty() {
         return Err(invalid());
     }
+    saved.registration.server = server_url(&saved.registration.server)?.to_string();
+    if saved.cache_id.is_none() {
+        saved.cache_id = Some(random_string()?);
+    }
+    Ok(saved)
+}
+
+fn restore_using(network: &impl Transport, saved: Session) -> Result<Session> {
+    let saved = bootstrap(saved)?;
     if saved.expires_at > now() + 60 {
         return Ok(saved);
     }
@@ -357,7 +401,9 @@ fn restore_using(network: &impl Transport, saved: Session) -> Result<Session> {
             ("refresh_token", &saved.refresh_token),
         ]),
     )?;
-    session(saved.registration, tokens, Some(saved.refresh_token))
+    let mut restored = session(saved.registration, tokens, Some(saved.refresh_token))?;
+    restored.cache_id = saved.cache_id;
+    Ok(restored)
 }
 
 #[cfg(test)]

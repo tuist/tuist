@@ -7,6 +7,7 @@ defmodule Tuist.KeyValueStore do
   """
 
   alias Tuist.Environment
+  alias Tuist.KeyValueStore.Invalidator
 
   @doc ~S"""
   This function returns a value from the cache using the given key without updating it.
@@ -60,6 +61,30 @@ defmodule Tuist.KeyValueStore do
     end
   end
 
+  @doc """
+  Evicts the selected local key. `cache: :display` also invalidates connected
+  display copies. Persistent invalidation returns an error if Redis deletion
+  fails, after evicting and broadcasting local fallback copies.
+  """
+  def invalidate(cache_key, opts \\ []) do
+    key = cache_key(cache_key)
+    cache = cachex_cache(opts)
+    Cachex.del(cache, key)
+
+    if cache == :display, do: Invalidator.broadcast(key)
+
+    if use_redis?(opts) do
+      case redis_command(Environment.redis_conn_name(), ["DEL", key]) do
+        {:ok, _count} -> :ok
+        {:error, _reason} = error -> error
+      end
+    else
+      :ok
+    end
+  rescue
+    error in Redix.ConnectionError -> {:error, error}
+  end
+
   defp get_from_redis(cache_key) do
     case redis_command(Environment.redis_conn_name(), ["GET", cache_key(cache_key)]) do
       {:ok, nil} ->
@@ -81,6 +106,9 @@ defmodule Tuist.KeyValueStore do
   This function returns a value from the cache using the given key and locking the access.
   If the key is accessed concurrently, the first caller will execute the function and cache the result,
   while the others suspend until the first caller completes.
+  With `cache_errors: false`, callback results matching `{:error, reason}` are
+  returned without storing them, including unlocked and persistent lookups.
+  With Cachex, callback exceptions retain their original type and stacktrace and are never cached.
 
   ## Opts
 
@@ -115,32 +143,12 @@ defmodule Tuist.KeyValueStore do
     read_or_update = fn ->
       case Redix.command(Environment.redis_conn_name(), ["GET", cache_key]) do
         {:ok, nil} ->
-          value = func.()
-
-          Redix.command(Environment.redis_conn_name(), [
-            "SET",
-            cache_key,
-            :erlang.term_to_binary(value),
-            "EX",
-            div(cache_ttl, 1000)
-          ])
-
-          value
+          update_redis(cache_key, cache_ttl, opts, func)
 
         {:ok, value} ->
           case deserialize(value) do
             :error ->
-              value = func.()
-
-              Redix.command(Environment.redis_conn_name(), [
-                "SET",
-                cache_key,
-                :erlang.term_to_binary(value),
-                "EX",
-                div(cache_ttl, 1000)
-              ])
-
-              value
+              update_redis(cache_key, cache_ttl, opts, func)
 
             {:ok, value} ->
               value
@@ -170,9 +178,9 @@ defmodule Tuist.KeyValueStore do
         if Keyword.get(opts, :locking, true) do
           fetch_from_cachex(cache, cache_key, opts, func)
         else
-          value = func.()
-          Cachex.put(cache, cache_key, value, expire: cachex_cache_ttl(opts))
-          value
+          store_callback_value(func.(), opts, fn value ->
+            Cachex.put(cache, cache_key, value, expire: cachex_cache_ttl(opts))
+          end)
         end
 
       value ->
@@ -186,22 +194,68 @@ defmodule Tuist.KeyValueStore do
   # miss would stall every locked lookup on the node, including authentication on API requests.
   defp fetch_from_cachex(cache, cache_key, opts, func) do
     result =
-      Cachex.fetch(cache, cache_key, fn ->
-        case func.() do
-          nil -> {:ignore, nil}
-          value -> {:commit, value, expire: cachex_cache_ttl(opts)}
-        end
-      end)
+      try do
+        Cachex.fetch(cache, {__MODULE__, cache_key}, fn -> load_from_cachex(cache, cache_key, opts, func) end)
+      rescue
+        _error in ArgumentError -> :cache_unavailable
+      end
 
     case result do
-      {:commit, value} -> value
-      {:ignore, nil} -> nil
-      {:error, %Cachex.Error{message: message}} -> {:error, message}
-      value -> value
+      {:ignore, {:ok, value}} ->
+        value
+
+      {:ignore, {:raise, exception, stacktrace}} ->
+        reraise exception, stacktrace
+
+      :cache_unavailable ->
+        func.()
+
+      {:error, %Cachex.Error{message: message}} ->
+        {:error, message}
+
+      value ->
+        value
     end
-  rescue
-    _error in ArgumentError -> func.()
   end
+
+  # The coordination key never stores values: every waiter receives the same envelope,
+  # without confusing literal cache values with exceptions or Cachex control tuples.
+  defp load_from_cachex(cache, cache_key, opts, func) do
+    value =
+      case read_from_cachex(cache, cache_key) do
+        nil ->
+          store_callback_value(func.(), opts, fn value ->
+            if !is_nil(value), do: Cachex.put(cache, cache_key, value, expire: cachex_cache_ttl(opts))
+          end)
+
+        value ->
+          value
+      end
+
+    {:ignore, {:ok, value}}
+  rescue
+    exception -> {:ignore, {:raise, exception, __STACKTRACE__}}
+  end
+
+  defp update_redis(key, ttl, opts, func) do
+    store_callback_value(func.(), opts, fn value ->
+      Redix.command(Environment.redis_conn_name(), [
+        "SET",
+        key,
+        :erlang.term_to_binary(value),
+        "EX",
+        div(ttl, 1000)
+      ])
+    end)
+  end
+
+  defp store_callback_value(value, opts, store) do
+    if cache_result?(value, opts), do: store.(value)
+    value
+  end
+
+  defp cache_result?({:error, _reason}, opts), do: Keyword.get(opts, :cache_errors, true)
+  defp cache_result?(_value, _opts), do: true
 
   defp put_in_redis(cache_key, value, opts) do
     cache_key = cache_key(cache_key)

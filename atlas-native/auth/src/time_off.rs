@@ -137,7 +137,7 @@ pub(super) fn execute_using(
     .map_err(|_| invalid())
 }
 
-fn validate_id(id: &str) -> Result<()> {
+pub(super) fn validate_id(id: &str) -> Result<()> {
     if id.split('-').map(str::len).collect::<Vec<_>>() != [8, 4, 4, 4, 12]
         || !id
             .bytes()
@@ -148,7 +148,7 @@ fn validate_id(id: &str) -> Result<()> {
     Ok(())
 }
 
-fn valid_date(date: &str) -> bool {
+pub(super) fn valid_date(date: &str) -> bool {
     let bytes = date.as_bytes();
     if bytes.len() != 10
         || bytes[4] != b'-'

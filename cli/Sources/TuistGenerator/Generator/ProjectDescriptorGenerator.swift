@@ -161,6 +161,8 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             pbxProject: pbxProject
         )
 
+        try fileElements.finalizeBuildFileReferences(in: pbxproj, mainGroup: groups.sortedMain)
+
         Logger.current.debug("Creating GeneratedProject for project \(project.name)")
         let generatedProject = GeneratedProject(
             pbxproj: pbxproj,

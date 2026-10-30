@@ -103,18 +103,21 @@ while :; do
     # count. The line is diagnostics with no delivery guarantee, so a missing
     # one only warns; a broken cache also fails the round trip and the
     # cache-error scan.
+    # The first line for a store can predate its lookups (`resolves=0`), so
+    # only a line that counted some counts.
+    counter() { sed -n "s/^[^|]* $1=\([0-9]*\).*/\1/p" <<< "${stats}"; }
     stats=""
     for _ in $(seq 1 15); do
       stats="$(grep -F "proxy stats: ${work}/cas-warm-${attempt}/" "${state_dir}/cas.log" 2>/dev/null | tail -n 1 || true)"
-      [ -n "${stats}" ] && break
+      [ "$(counter resolves)" -gt 0 ] 2>/dev/null && break
+      stats=""
       sleep 2
     done
     if [ -z "${stats}" ]; then
-      echo "::warning title=Cache hits::the cache proxy logged no counters for the rebuild's store, so the hits could not be confirmed as remote"
+      echo "::warning title=Cache hits::the cache proxy logged no counters for the rebuild's lookups, so the hits could not be confirmed as remote"
       pass "Rebuild from an empty local CAS: ${hits} hits / ${cacheable} cacheable tasks (attempt ${attempt}); remote share not confirmed"
       exit 0
     fi
-    counter() { sed -n "s/^[^|]* $1=\([0-9]*\).*/\1/p" <<< "${stats}"; }
     remote_hits="$(counter remote_hits)"
     snapshot_hits="$(counter snapshot_hits)"
     if [ "$((${remote_hits:-0} + ${snapshot_hits:-0}))" -eq 0 ]; then

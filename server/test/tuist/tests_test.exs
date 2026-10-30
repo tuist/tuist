@@ -48,7 +48,57 @@ defmodule Tuist.TestsTest do
       assert run.id == test_case_run.id
     end
 
+    test "same-month UUIDv7 lookups keep the partition-pruned single query" do
+      row = RunsFixtures.test_case_run_fixture()
+
+      expect(ClickHouseRepo, :one, fn query ->
+        assert Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
+      assert {:ok, %{id: id}} = Tests.get_test_case_run_by_id(row.id, project_id: row.project_id)
+      assert id == row.id
+    end
+
+    test "a stable UUIDv7 from another month falls back without losing the project scope" do
+      timestamp = NaiveDateTime.add(NaiveDateTime.utc_now(), -40, :day)
+      id = Tuist.UUIDv7.deterministic(timestamp, Ecto.UUID.generate())
+      row = RunsFixtures.test_case_run_fixture(id: id)
+      assert {:error, :not_found} = Tests.get_test_case_run_by_id(id, project_id: row.project_id + 1)
+
+      expect(ClickHouseRepo, :one, fn query ->
+        assert Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        assert is_nil(Mimic.call_original(ClickHouseRepo, :one, [query]))
+        nil
+      end)
+
+      expect(ClickHouseRepo, :one, fn query ->
+        refute Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        assert Enum.any?(query.wheres, &(inspect(&1.expr) =~ "project_id"))
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
+      assert {:ok, %{id: ^id}} = Tests.get_test_case_run_by_id(id, project_id: row.project_id)
+    end
+
+    test "historical UUIDv8 facts retain their unpruned lookup" do
+      <<prefix::binary-size(14), _::binary-size(1), rest::binary>> = Ecto.UUID.generate()
+      row = RunsFixtures.test_case_run_fixture(id: prefix <> "8" <> rest)
+
+      expect(ClickHouseRepo, :one, fn query ->
+        refute Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
+      assert {:ok, %{id: id}} = Tests.get_test_case_run_by_id(row.id, project_id: row.project_id)
+      assert id == row.id
+    end
+
     test "returns error when test case run does not exist" do
+      expect(ClickHouseRepo, :one, 2, fn query ->
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
       # When
       result = Tests.get_test_case_run_by_id(UUIDv7.generate())
 
@@ -382,7 +432,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "get_latest_test_by_build_run_id/1" do
+  describe "get_latest_test_by_build_run_id/2" do
     test "returns test when it exists for build" do
       # Given
       {:ok, build} = RunsFixtures.build_fixture()
@@ -394,7 +444,7 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      result = Tests.get_latest_test_by_build_run_id(build.id)
+      result = Tests.get_latest_test_by_build_run_id(build.id, test.project_id)
 
       # Then
       assert {:ok, found_test} = result
@@ -419,7 +469,7 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      result = Tests.get_latest_test_by_build_run_id(build.id)
+      result = Tests.get_latest_test_by_build_run_id(build.id, latest_test.project_id)
 
       # Then
       assert {:ok, found_test} = result
@@ -431,14 +481,14 @@ defmodule Tuist.TestsTest do
       {:ok, build} = RunsFixtures.build_fixture()
 
       # When
-      result = Tests.get_latest_test_by_build_run_id(build.id)
+      result = Tests.get_latest_test_by_build_run_id(build.id, build.project_id)
 
       # Then
       assert result == {:error, :not_found}
     end
   end
 
-  describe "get_latest_test_by_gradle_build_id/1" do
+  describe "get_latest_test_by_gradle_build_id/2" do
     test "returns test when it exists for gradle build" do
       # Given
       gradle_build_id = UUIDv7.generate()
@@ -451,7 +501,7 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id)
+      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id, test.project_id)
 
       # Then
       assert {:ok, found_test} = result
@@ -478,7 +528,7 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id)
+      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id, latest_test.project_id)
 
       # Then
       assert {:ok, found_test} = result
@@ -487,7 +537,7 @@ defmodule Tuist.TestsTest do
 
     test "returns error when no test exists for gradle build" do
       # When
-      result = Tests.get_latest_test_by_gradle_build_id(UUIDv7.generate())
+      result = Tests.get_latest_test_by_gradle_build_id(UUIDv7.generate(), -1)
 
       # Then
       assert result == {:error, :not_found}
@@ -5768,6 +5818,105 @@ defmodule Tuist.TestsTest do
              ) == test_case_count
     end
 
+    test "corrects every matching case when a passing cohort exceeds one historical lookup" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "many_passing_cases_#{System.unique_integer([:positive])}"
+
+      run_with_status = fn status, count ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: status,
+          test_modules: [
+            %{
+              name: "Tests",
+              status: status,
+              duration: 500,
+              test_cases: for(index <- 1..count, do: %{name: "test#{index}", status: status, duration: 1})
+            }
+          ]
+        )
+      end
+
+      {:ok, failed_test} = run_with_status.("failure", 5_002)
+      {:ok, _successful_test} = run_with_status.("success", 5_001)
+
+      expected_ids =
+        ClickHouseRepo.all(
+          from(tcr in TestCaseRun, where: tcr.test_run_id == ^failed_test.id and tcr.name != "test5002", select: tcr.id)
+        )
+
+      corrections = Repo.all(TestCaseRunFlakyCorrection)
+      assert length(corrections) == 5_001
+      assert MapSet.new(corrections, & &1.test_case_run_id) == MapSet.new(expected_ids)
+
+      jobs = all_enqueued(worker: CorrectTestCaseRunFlakyStateWorker)
+      enqueued_ids = Enum.flat_map(jobs, & &1.args["test_case_run_ids"])
+      assert length(enqueued_ids) == 5_001
+      assert MapSet.new(enqueued_ids) == MapSet.new(expected_ids)
+    end
+
+    test "enqueues every historical failure when corrections exceed PostgreSQL's parameter limit" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "many_corrections_#{System.unique_integer([:positive])}"
+
+      run_with_status = fn status ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: status,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: [%{name: "testSomething", status: status, duration: 250}]
+            }
+          ]
+        )
+      end
+
+      {:ok, failed_test} = run_with_status.("failure")
+
+      failed_run =
+        ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^failed_test.id))
+
+      historical_runs =
+        for _ <- 1..11_489 do
+          failed_run
+          |> Map.take(TestCaseRun.__schema__(:fields))
+          |> Map.merge(%{id: UUIDv7.generate(), test_run_id: UUIDv7.generate(), test_module_run_id: UUIDv7.generate()})
+        end
+
+      TestCaseRun.Buffer.insert_all(historical_runs)
+      expected_run_ids = MapSet.new([failed_run.id | Enum.map(historical_runs, & &1.id)])
+
+      assert {:ok, _successful_test} = run_with_status.("success")
+
+      corrections = Repo.all(TestCaseRunFlakyCorrection)
+      assert MapSet.new(corrections, & &1.test_case_run_id) == expected_run_ids
+
+      assert Enum.all?(corrections, fn correction ->
+               correction.project_id == project.id and correction.test_case_id == failed_run.test_case_id and
+                 correction.git_commit_sha == commit_sha and correction.state == "pending"
+             end)
+
+      jobs = all_enqueued(worker: CorrectTestCaseRunFlakyStateWorker)
+      enqueued_run_ids = Enum.flat_map(jobs, & &1.args["test_case_run_ids"])
+      assert length(enqueued_run_ids) == MapSet.size(expected_run_ids)
+      assert MapSet.new(enqueued_run_ids) == expected_run_ids
+
+      assert {:ok, _another_successful_test} = run_with_status.("success")
+      assert Repo.aggregate(TestCaseRunFlakyCorrection, :count) == MapSet.size(expected_run_ids)
+      assert all_enqueued(worker: CorrectTestCaseRunFlakyStateWorker) == jobs
+    end
+
     test "does not compare unrelated Bazel runs without commit metadata" do
       project = ProjectsFixtures.project_fixture(build_system: :bazel)
 
@@ -8877,6 +9026,8 @@ defmodule Tuist.TestsTest do
             git_commit_sha: commit_sha,
             status: if(rem(i, 2) == 0, do: "success", else: "failure"),
             is_flaky: true,
+            is_flakiness_excluded: false,
+            test_run_destination_id: nil,
             is_new: false,
             is_quarantined: false,
             coverage_evidence: "none",

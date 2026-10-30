@@ -43,6 +43,7 @@ defmodule Tuist.Bazel.Workers.ProcessTestInvocationWorker do
 
     with project when not is_nil(project) <- Projects.get_project_by_id(project_id),
          {:ok, invocation} <- Bazel.get_invocation(project_id, invocation_id) do
+      Tuist.Observability.set_selection(%{selected_project: project})
       test_results = Bazel.list_test_results(project_id, invocation_id)
       test_summaries = Bazel.list_test_summaries(project_id, invocation_id)
 

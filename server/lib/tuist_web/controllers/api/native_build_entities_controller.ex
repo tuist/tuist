@@ -1,3 +1,8 @@
+defmodule TuistWeb.API.BazelActionsController do
+  @moduledoc false
+  use TuistWeb.API.BuildEntityController, resource: :bazel_actions
+end
+
 defmodule TuistWeb.API.GradleTaskDetailsController do
   @moduledoc false
   use TuistWeb.API.BuildEntityController, resource: :gradle_tasks

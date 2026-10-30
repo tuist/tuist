@@ -86,7 +86,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
              :test,
              "Test run not found: #{test_run_id}"
            ) do
-      metrics = Analytics.get_test_run_metrics(run.id)
+      metrics = Analytics.get_test_run_metrics(run)
 
       {:ok,
        %{

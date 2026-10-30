@@ -104,6 +104,7 @@ defmodule Tuist.Gradle do
       started_at: to_naive_datetime(Map.get(attrs, :started_at)),
       gradle_version: value_or(attrs, :gradle_version, ""),
       java_version: value_or(attrs, :java_version, ""),
+      tuist_version: Map.get(attrs, :tuist_version) || "",
       is_ci: Map.get(attrs, :is_ci, false),
       status: attrs.status,
       git_branch: Map.get(attrs, :git_branch) || "",

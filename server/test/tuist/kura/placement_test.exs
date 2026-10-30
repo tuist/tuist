@@ -702,14 +702,14 @@ defmodule Tuist.Kura.PlacementTest do
       assert Placement.evaluate(context) == :none
     end
 
-    test "gives a new secondary the whole window before judging it" do
+    test "gives a secondary with nonzero hits the whole low-traffic window before judging it" do
       context =
         context(
           plan: :enterprise,
           primary: "us-west",
           serving: ["us-west", "eu-east"],
           held_since: %{"eu-east" => Date.add(@today, -10)},
-          served: %{"us-west" => served_daily(28, 100_000)},
+          served: %{"us-west" => served_daily(28, 100_000), "eu-east" => served_daily(28, 1)},
           reported: reported(["us-west", "eu-east"], 28),
           reserved_gib: %{"us-west" => 64, "eu-east" => 64}
         )
@@ -932,6 +932,96 @@ defmodule Tuist.Kura.PlacementTest do
 
       assert {:relocate, "us-east", "eu-west", _evidence} =
                Placement.evaluate(Map.put(context, :given_up, %{"eu-west" => Date.add(@today, -91)}))
+    end
+  end
+
+  describe "zero-hit secondary retirement" do
+    setup do
+      context =
+        context(
+          plan: :enterprise,
+          primary: "us-east",
+          serving: ["us-east", "us-west"],
+          held_since: %{"us-west" => Date.add(@today, -10)},
+          served: %{"us-east" => served_daily(11, 1_000)},
+          reported: %{"us-west" => for(offset <- 1..10, do: Date.add(@today, -offset))},
+          reserved_gib: %{"us-east" => 128, "us-west" => 128}
+        )
+
+      %{context: context}
+    end
+
+    test "retires after ten complete reported days without hits", %{context: context} do
+      assert {:retire, "us-west", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "zero_hits"
+      assert evidence["window_days"] == 10
+      assert evidence["reported_days"] == 10
+      assert evidence["region_hits"] == 0
+      assert evidence["reserved_gib"] == 128
+    end
+
+    test "does not count today as a complete reporting day", %{context: context} do
+      context = put_in(context.reported["us-west"], reported_dates(10))
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "does not treat a telemetry gap or duplicate report as a zero-hit day", %{
+      context: context
+    } do
+      dates = context.reported["us-west"]
+      dates = [hd(dates) | List.delete(dates, Date.add(@today, -5))]
+      context = put_in(context.reported["us-west"], dates)
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "a hit on any day in the window blocks early retirement", %{context: context} do
+      for offset <- 1..10 do
+        context = put_in(context.served["us-west"], [{Date.add(@today, -offset), 1}])
+        assert Placement.evaluate(context) == :none
+      end
+    end
+
+    test "a hit today blocks early retirement", %{context: context} do
+      context = put_in(context.served["us-west"], [{@today, 1}])
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "older hits do not extend the zero-hit window", %{context: context} do
+      context = put_in(context.served["us-west"], [{Date.add(@today, -11), 1}])
+      assert {:retire, "us-west", _evidence} = Placement.evaluate(context)
+    end
+
+    test "does not retire an instance younger than ten days", %{context: context} do
+      context = put_in(context.held_since["us-west"], Date.add(@today, -9))
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "requires a known instance age", %{context: context} do
+      assert Placement.evaluate(%{context | held_since: %{}}) == :none
+    end
+
+    test "never retires the primary or the only serving instance", %{context: context} do
+      assert Placement.evaluate(%{context | primary: "us-west"}) == :none
+      context = %{context | primary: "us-west", serving: ["us-west"]}
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "loads enough history for a complete-day retirement window" do
+      policy = put_in(Placement.served_policy().retire_zero_hits.window_days, 35)
+      assert Placement.served_window_days(policy) == 36
+    end
+
+    test "does not retire a region already retiring", %{context: context} do
+      assert Placement.evaluate(%{context | retiring: ["us-west"]}) == :none
+    end
+
+    test "requires hits in another region that is staying", %{context: context} do
+      assert Placement.evaluate(%{context | served: %{}}) == :none
+      assert Placement.evaluate(%{context | retiring: ["us-east"]}) == :none
+    end
+
+    test "requires the served-hits rollout context", %{context: context} do
+      assert context |> Map.delete(:served) |> Placement.evaluate() == :none
     end
   end
 

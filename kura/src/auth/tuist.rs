@@ -3,6 +3,8 @@
 
 use std::time::{Duration, Instant};
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use reqwest::{Client, Method, header::HeaderMap};
 use serde_json::{Value, json};
@@ -168,6 +170,7 @@ pub struct Response {
 #[derive(Clone)]
 pub struct TuistBackend {
     base_url: String,
+    server_address: String,
     client: Client,
     verifier: Option<JwtVerifier>,
     introspection: Option<IntrospectionCredentials>,
@@ -183,14 +186,20 @@ impl TuistBackend {
         introspection: Option<IntrospectionCredentials>,
         metrics: Metrics,
     ) -> Result<Self, String> {
-        let client = Client::builder()
+        let client = crate::certificate_trust::client_builder()?
             .connect_timeout(connect_timeout)
             .timeout(request_timeout)
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|error| format!("failed to build the Tuist HTTP client: {error}"))?;
 
+        let server_address = reqwest::Url::parse(&base_url)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .unwrap_or_else(|| "invalid-host".to_string());
         Ok(Self {
             base_url,
+            server_address,
             client,
             verifier,
             introspection,
@@ -259,6 +268,49 @@ impl TuistBackend {
         .await
     }
 
+    pub async fn network_cache_access(&self, tenant: &str) -> Result<bool, String> {
+        let mut url = reqwest::Url::parse(&self.base_url).map_err(|error| error.to_string())?;
+        let host = url
+            .host_str()
+            .unwrap_or_default()
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        if matches!(host.as_str(), "tuist.dev" | "tuist.io")
+            || host.ends_with(".tuist.dev")
+            || host.ends_with(".tuist.io")
+        {
+            return Ok(false);
+        }
+        let credentials = self
+            .introspection
+            .as_ref()
+            .ok_or("control-plane credentials are not configured")?;
+        let authorization = format!(
+            "Basic {}",
+            STANDARD.encode(format!(
+                "{}:{}",
+                credentials.client_id, credentials.client_secret
+            ))
+        );
+        url.set_query(None);
+        url.query_pairs_mut().append_pair("tenant_id", tenant);
+        let response = self
+            .request(
+                Method::GET,
+                &format!(
+                    "/_internal/kura/cache-policy?{}",
+                    url.query().unwrap_or_default()
+                ),
+                "cache_policy",
+                &[("authorization", &authorization)],
+                None,
+            )
+            .await?;
+        Ok(response.status == 200
+            && response.body["tenant_id"].as_str() == Some(tenant)
+            && response.body["network_trusted_cache_access"] == true)
+    }
+
     pub async fn network_build_event_access(
         &self,
         account_handle: &str,
@@ -319,7 +371,7 @@ impl TuistBackend {
                     "kura.auth.backend_request",
                     http.request.method = %method,
                     http.route = route,
-                    server.address = %self.base_url,
+                    server.address = %self.server_address,
                     kura.request.attempt = attempt,
                     http.response.status_code = field::Empty,
                     kura.auth.result = field::Empty,
@@ -374,7 +426,10 @@ impl TuistBackend {
                     );
                     // One retry, and only for the errors where the request
                     // provably never reached the server.
-                    if attempt < 2 && retryable_reqwest_error(error_kind) {
+                    if attempt < 2
+                        && !crate::certificate_trust::terminal_transport_failure(&error)
+                        && retryable_reqwest_error(error_kind)
+                    {
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         continue;
                     }
@@ -417,6 +472,11 @@ fn status_class(status: u16) -> &'static str {
 }
 
 fn classify_reqwest_error(error: &reqwest::Error) -> &'static str {
+    match crate::certificate_trust::failure_category(error) {
+        Some("error_chain_limit") => return "unknown",
+        Some(_) => return "tls",
+        None => {}
+    }
     let chain = error_chain_string(error);
     if error.is_timeout() {
         "timeout"
@@ -453,7 +513,9 @@ fn error_chain_string(error: &reqwest::Error) -> String {
 }
 
 /// Everything except a response that arrived but could not be read: both calls
-/// are reads, so a second attempt is safe and covers a slow first one.
+/// are reads, so a second attempt is safe and covers a slow first one. The
+/// caller separately excludes typed TLS failures; transient handshake EOF/reset
+/// strings retain their existing retry behavior.
 fn retryable_reqwest_error(error_kind: &str) -> bool {
     matches!(
         error_kind,
@@ -462,13 +524,11 @@ fn retryable_reqwest_error(error_kind: &str) -> bool {
 }
 
 fn format_reqwest_error(error: &reqwest::Error) -> String {
-    let mut chain = vec![error.to_string()];
-    let mut source = std::error::Error::source(error);
-    while let Some(cause) = source {
-        chain.push(cause.to_string());
-        source = cause.source();
-    }
-    chain.join(": ")
+    let category = crate::certificate_trust::failure_category(error).unwrap_or("transport");
+    format!(
+        "Tuist HTTP transport failed ({}): {category}",
+        classify_reqwest_error(error)
+    )
 }
 
 #[cfg(test)]
@@ -482,6 +542,124 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[tokio::test]
+    async fn certificate_failure_is_terminal_private_and_precedes_credentials() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let fixture = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let server = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(
+            vec![fixture.cert.der().clone()],
+            rustls::pki_types::PrivateKeyDer::Pkcs8(fixture.signing_key.serialize_der().into()),
+        )
+        .unwrap();
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let requests = Arc::new(AtomicUsize::new(0));
+        let server_attempts = attempts.clone();
+        let server_requests = requests.clone();
+        let task = tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                server_attempts.fetch_add(1, Ordering::SeqCst);
+                let acceptor = acceptor.clone();
+                let requests = server_requests.clone();
+                tokio::spawn(async move {
+                    if let Ok(mut tls) = acceptor.accept(stream).await {
+                        let mut buffer = [0; 4096];
+                        if tls.read(&mut buffer).await.unwrap_or(0) > 0 {
+                            requests.fetch_add(1, Ordering::SeqCst);
+                            tls.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
+                                .await
+                                .unwrap();
+                        }
+                    }
+                });
+            }
+        });
+        let backend = TuistBackend::new(
+            format!(
+                "https://fixture-user:fixture-password@localhost:{}/?fixture-query=fixture-value",
+                address.port()
+            ),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            None,
+            Some(IntrospectionCredentials {
+                client_id: "fixture-id".into(),
+                client_secret: "fixture-client-secret".into(),
+            }),
+            Metrics::new("test".into(), "test".into()),
+        )
+        .unwrap();
+        assert_eq!(backend.server_address, "localhost");
+        for error in [
+            backend.introspect("fixture-token").await.unwrap_err(),
+            backend
+                .cache_access("Bearer fixture-token")
+                .await
+                .unwrap_err(),
+        ] {
+            assert!(error.contains("1 attempt(s)") && error.contains("(tls)"));
+            for private in [
+                "fixture-user",
+                "fixture-password",
+                "fixture-query",
+                "fixture-value",
+                "fixture-client-secret",
+                "fixture-token",
+                "https://",
+            ] {
+                assert!(!error.contains(private));
+            }
+        }
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
+        task.abort();
+        let _ = task.await;
+    }
+
+    #[tokio::test]
+    async fn transient_handshake_eof_retains_one_retry() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let observed = attempts.clone();
+        let task = tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                observed.fetch_add(1, Ordering::SeqCst);
+                drop(stream);
+            }
+        });
+        let backend = TuistBackend::new(
+            format!("https://localhost:{}", address.port()),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            None,
+            None,
+            Metrics::new("test".into(), "test".into()),
+        )
+        .unwrap();
+        assert!(retryable_reqwest_error("tls"));
+        assert!(
+            backend
+                .cache_access("Bearer fixture-token")
+                .await
+                .unwrap_err()
+                .contains("2 attempt(s)")
+        );
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        task.abort();
+        let _ = task.await;
+    }
 
     fn cache_token(signing_key: &str) -> String {
         encode(

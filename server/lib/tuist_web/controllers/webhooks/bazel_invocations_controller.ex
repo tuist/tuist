@@ -21,7 +21,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsController do
   @max_invocation_logs 32
   @max_invocation_log_message_bytes 2 * 1_024
   @max_invocation_log_total_bytes 32 * 1_024
-  @max_custom_metadata_entries 20
+  @max_custom_metadata_entries 64
   @max_custom_metadata_key_bytes 50
   @max_custom_metadata_value_bytes 500
 

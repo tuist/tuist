@@ -6,6 +6,38 @@ defmodule TuistEx.Analytics.HTTPTest do
   alias TuistEx.Auth
   alias TuistEx.HTTP
 
+  setup do
+    stub(Auth, :reporting_token, fn options -> Auth.token(options) end)
+    :ok
+  end
+
+  test "sends a dispatch grant to shard requests but never reports" do
+    environment = fn
+      "TUIST_URL" -> "https://tuist.example"
+      "TUIST_PROJECT" -> "acme/widgets"
+      "TUIST_CACHE_SIGNING_GRANT" -> "signed.runner.grant"
+      _ -> nil
+    end
+
+    stub(Auth, :token, fn _ -> {:ok, "access-token"} end)
+
+    expect(HTTP, :request, fn :post, _, _, headers ->
+      assert {"x-tuist-runner-grant", "signed.runner.grant"} in headers
+      assert {"authorization", "Bearer access-token"} in headers
+      {:ok, 200, %{}}
+    end)
+
+    assert {:ok, %{}} =
+             AnalyticsHTTP.project_request(:post, "/tests/shards", %{}, environment: environment)
+
+    expect(HTTP, :request, fn :post, _, _, headers ->
+      refute List.keymember?(headers, "x-tuist-runner-grant", 0)
+      {:ok, 200, %{}}
+    end)
+
+    assert :ok = AnalyticsHTTP.submit_test_run(%{}, environment: environment)
+  end
+
   test "POSTs the payload to /api/projects/:acc/:proj/tests with a bearer token" do
     environment = fn
       "TUIST_URL" -> "https://tuist.example"
@@ -47,7 +79,13 @@ defmodule TuistEx.Analytics.HTTPTest do
 
     expect(HTTP, :request, 2, fn :post, _url, body, headers ->
       assert body == %{id: "report-id"}
-      assert headers == [{"authorization", "Bearer existing-token"}]
+
+      assert Enum.sort(headers) ==
+               Enum.sort([
+                 {"authorization", "Bearer existing-token"},
+                 {"x-tuist-ex-version", to_string(Application.spec(:tuist_ex, :vsn))}
+               ])
+
       {:ok, 200, %{"id" => "report-id"}}
     end)
 
@@ -395,6 +433,7 @@ defmodule TuistEx.Analytics.HTTPTest do
     expect(HTTP, :request, fn :post, url, body, headers ->
       assert url == "https://tuist.example/api/projects/acme/widgets/mix/builds"
       assert body == %{id: "build-id"}
+      assert {"x-tuist-ex-version", to_string(Application.spec(:tuist_ex, :vsn))} in headers
       assert {"authorization", "Bearer token"} in headers
       assert {"x-tuist-actor-id", "developer-123"} in headers
       {:ok, 201, %{"id" => "build-id"}}

@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
+
+// spareScope is the scope the held background prefetch restores.
+var spareScope = strings.Repeat("d", 64)
 
 // holdSparePrefetch starts a background prefetch that reserves its space and
 // then downloads until it is cancelled, and returns its eventual error.
@@ -16,7 +20,7 @@ func holdSparePrefetch(t *testing.T, c *CustomVolumes) <-chan error {
 	reserved := make(chan error, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- c.prefetchSpare(context.Background(), func(ctx context.Context) error {
+		done <- c.prefetchSpare(context.Background(), spareScope, func(ctx context.Context) error {
 			finish, err := c.reserve(ctx, cachevolumes.Slot{Identity: cachevolumes.Identity{ID: cachevolumes.PrefetchReservation, BaseGeneration: 1}})
 			reserved <- err
 			if err != nil {
@@ -38,9 +42,9 @@ func holdSparePrefetch(t *testing.T, c *CustomVolumes) <-chan error {
 
 func requireDisplaced(t *testing.T, c *CustomVolumes, done <-chan error) {
 	t.Helper()
-	c.Builtins.mu.Lock()
+	c.Space.mu.Lock()
 	_, held := c.reservations[cachevolumes.PrefetchReservation]
-	c.Builtins.mu.Unlock()
+	c.Space.mu.Unlock()
 	if held {
 		t.Fatal("admission left the background prefetch's reservation counting")
 	}
@@ -50,56 +54,33 @@ func requireDisplaced(t *testing.T, c *CustomVolumes, done <-chan error) {
 	}
 }
 
-// On an M2-L with one 25 GiB master, a job's 30 GiB branch fits beside the
-// master but not beside a background prefetch's 40 GB as well. The prefetch is
-// speculative, so it gives way; the master jobs clone from stays.
-func TestBuiltinAdmissionCancelsABackgroundPrefetchBeforeEvicting(t *testing.T) {
-	m, _ := m2L(t)
-	seedMaster(t, m, "3")
-	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
-	m.CustomReserved = c.reservedBytes
-	m.DisplaceCustom = c.displaceSpareLocked
-	done := holdSparePrefetch(t, c)
-
-	att := mustAllocate(t, m, "vm-7")
-	if _, _, err := m.Materialize(att, "7"); err != nil {
-		t.Fatal(err)
-	}
-	if !masterExists(m, "3") {
-		t.Fatal("evicted a master to keep a background prefetch's reservation")
-	}
-	requireDisplaced(t, c, done)
-}
-
 func TestCustomAdmissionCancelsABackgroundPrefetch(t *testing.T) {
-	m, _ := m2L(t)
-	seedMaster(t, m, "3")
-	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+	logs := captureLogs(t)
+	m, be := m2L(t)
+	be.inUse = 25 * gib
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Space: m}
 	done := holdSparePrefetch(t, c)
 
-	finish, err := c.reserve(context.Background(), cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111"}})
+	finish, err := c.reserve(context.Background(), cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", HeadSizeBytes: customCapacity}})
 	if err != nil {
 		t.Fatalf("job declined beside a background prefetch: %v", err)
 	}
 	defer finish(false)
 	requireDisplaced(t, c, done)
-	if !masterExists(m, "3") {
-		t.Fatal("custom admission removed a built-in master")
-	}
+	requireLogged(t, logs(), "admission cancelled a background prefetch", "scope="+spareScope, "for_use=11111111-1111-4111-8111-111111111111", "for_kind=custom")
 }
 
 // A job that fits beside the prefetch leaves it running.
 func TestAdmissionLeavesABackgroundPrefetchThatFits(t *testing.T) {
 	m, _ := m2L(t)
-	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
-	m.CustomReserved = c.reservedBytes
-	m.DisplaceCustom = c.displaceSpareLocked
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Space: m}
 	done := holdSparePrefetch(t, c)
 
-	att := mustAllocate(t, m, "vm-7")
-	if _, _, err := m.Materialize(att, "7"); err != nil {
+	finish, err := c.reserve(context.Background(), cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", HeadSizeBytes: customCapacity}})
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer finish(false)
 	m.mu.Lock()
 	running := c.spare != nil
 	cancel := c.spare
@@ -111,4 +92,19 @@ func TestAdmissionLeavesABackgroundPrefetchThatFits(t *testing.T) {
 	if err := <-done; errors.Is(err, errSpareDisplaced) {
 		t.Fatal(err)
 	}
+}
+
+// requireLogged fails unless one line holds every part.
+func requireLogged(t *testing.T, lines []string, parts ...string) {
+	t.Helper()
+	for _, line := range lines {
+		found := true
+		for _, part := range parts {
+			found = found && strings.Contains(line, part)
+		}
+		if found {
+			return
+		}
+	}
+	t.Fatalf("no line with %q in %q", parts, lines)
 }

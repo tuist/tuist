@@ -10,9 +10,11 @@ defmodule Tuist.BuildEntities.ProducersTest do
   alias Once.Events.V1.RunEvent
   alias Once.Events.V1.TargetInstance
   alias Once.Events.V1.TargetQueued
+  alias Tuist.Bazel.Action, as: BazelAction
   alias Tuist.BuildEntities
   alias Tuist.BuildEntities.Identity
   alias Tuist.BuildEntities.Observation
+  alias Tuist.BuildEntities.Producers
   alias Tuist.ClickHouseRepo
   alias Tuist.FeatureFlags
   alias Tuist.Gradle
@@ -29,6 +31,7 @@ defmodule Tuist.BuildEntities.ProducersTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -42,6 +45,79 @@ defmodule Tuist.BuildEntities.ProducersTest do
     now = DateTime.utc_now()
     window = [start_datetime: DateTime.add(now, -1, :day), end_datetime: DateTime.add(now, 2, :hour)]
     %{project: project, disabled: disabled, account: user.account, window: window}
+  end
+
+  test "Bazel BEP executions preserve stable identity, retries, true zeros and missing timing", %{
+    project: project,
+    window: window
+  } do
+    started = System.system_time(:millisecond) - 60_000
+
+    base = %{
+      "invocation_id" => "bazel-invocation",
+      "target_label" => "//app:lib",
+      "mnemonic" => "CppCompile",
+      "primary_output" => "bazel-out/debug/app/lib.o",
+      "started_at_ms" => started,
+      "success" => true,
+      "duration_ms" => 0,
+      "log" => "",
+      "log_truncated" => false,
+      "is_ci" => true,
+      "git_branch" => "main"
+    }
+
+    untimed = Map.merge(base, %{"started_at_ms" => started + 1000, "duration_ms" => nil, "success" => false})
+    legacy = Map.drop(base, ["target_label", "mnemonic"])
+    assert :ok = BazelAction.ingest(project, %{"actions" => [base, untimed, legacy]})
+    Observation.Buffer.flush()
+    identity = Map.take(base, ~w(target_label mnemonic primary_output))
+    rows = history(project, :bazel, "action", identity, window)
+    assert length(rows) == 2
+    assert Enum.any?(rows, &(&1.duration_ms == 0 and &1.status == "success"))
+    assert Enum.any?(rows, &(is_nil(&1.duration_ms) and &1.status == "failure"))
+    assert Enum.all?(rows, &(&1.is_ci == true and &1.git_branch == "main"))
+    assert :ok = BazelAction.ingest(project, %{"actions" => [base, untimed]})
+    Observation.Buffer.flush()
+    assert length(history(project, :bazel, "action", identity, window)) == 2
+    analytics = BuildEntities.inventory_analytics(project.id, :bazel, "action", window)
+    assert analytics.total.executions == 2
+    assert analytics.total.duration_samples == 1
+    assert analytics.total.avg_duration_ms == 0
+    assert analytics.total.failures == 1
+    assert analytics.total.entities == 1
+  end
+
+  test "Bazel malformed native batches are atomic and disabled derivation leaves native diagnostics available", %{
+    project: project,
+    disabled: disabled
+  } do
+    base = %{
+      "invocation_id" => "native-only",
+      "target_label" => "//app:lib",
+      "mnemonic" => "CppCompile",
+      "primary_output" => "lib.o",
+      "started_at_ms" => System.system_time(:millisecond),
+      "success" => true,
+      "duration_ms" => 2,
+      "log" => "compiler output",
+      "log_truncated" => false
+    }
+
+    assert {:error, :invalid_action} =
+             BazelAction.ingest(project, %{"actions" => [base, Map.put(base, "success", "true")]})
+
+    assert :ok = BazelAction.ingest(disabled, base)
+    BazelAction.Buffer.flush()
+    Observation.Buffer.flush()
+    assert stored_observations(project) == 0
+    assert stored_observations(disabled) == 0
+
+    assert ClickHouseRepo.exists?(
+             from(a in BazelAction, where: a.project_id == ^disabled.id and a.invocation_id == "native-only")
+           )
+
+    refute ClickHouseRepo.exists?(from(a in BazelAction, where: a.project_id == ^project.id))
   end
 
   # Physical rows, without FINAL, so a duplicate write would be visible until a
@@ -303,6 +379,121 @@ defmodule Tuist.BuildEntities.ProducersTest do
 
       {entries, _meta} = BuildEntities.list(project.id, :xcode, "module", window)
       assert entries |> Enum.map(& &1.name) |> Enum.sort() == ["Core", "Feature"]
+    end
+  end
+
+  describe "Xcode compilation observations" do
+    test "records actual compilation work, shares graph identities, and preserves replay and parent context", %{
+      project: project,
+      account: account,
+      window: window
+    } do
+      event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "generate")
+
+      Xcode.create_xcode_graph(%{
+        command_event: event,
+        xcode_graph: %{
+          name: "Graph",
+          projects: [
+            %{
+              "name" => "App",
+              "path" => ".",
+              "targets" => [
+                %{
+                  "name" => "Core",
+                  "binary_cache_metadata" => %{"hash" => "h1", "hit" => "remote", "build_duration" => 9999}
+                }
+              ]
+            }
+          ]
+        }
+      })
+
+      targets = [
+        %{name: "Core", project: "App", build_duration: 500, compilation_duration: 120, status: "success"},
+        %{name: "Resources", project: "App", build_duration: 100, compilation_duration: 0, status: "success"},
+        %{name: "MissingProject", project: "", build_duration: 100, compilation_duration: 10, status: "success"}
+      ]
+
+      id = UUIDv7.generate()
+      started_at = DateTime.add(DateTime.utc_now(), -60, :second)
+
+      attrs = [
+        id: id,
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "AppScheme",
+        targets: targets,
+        started_at: started_at,
+        is_ci: true,
+        git_branch: "main",
+        git_commit_sha: "abc"
+      ]
+
+      assert {:ok, _} = RunsFixtures.build_fixture(attrs)
+      assert {:ok, _} = RunsFixtures.build_fixture(attrs)
+
+      identity = %{"project" => "App", "target" => "Core"}
+      observations = history(project, :xcode, "module", identity, window)
+      assert length(observations) == 2
+      compilation = Enum.find(observations, &(&1.parent_id == id))
+
+      assert %{duration_ms: 120, status: "success", cache_status: "none", execution_id: "build_target:0", is_ci: true} =
+               compilation
+
+      assert compilation.observed_at == started_at
+
+      assert %{^id => %{label: "AppScheme", ran_by_name: name, source: :xcode_build}} =
+               BuildEntities.parent_contexts(project.id, :xcode, "module", [id])
+
+      assert name == account.name
+      assert BuildEntities.parent_contexts(project.id + 1, :xcode, "module", [id]) == %{}
+
+      {[%{name: "Core", duration_samples: 1, p90_duration_ms: 120}], _} =
+        BuildEntities.list(project.id, :xcode, "module", window)
+    end
+
+    test "legacy missing timing or identity is omitted and missing outcomes stay unknown", %{
+      project: project,
+      window: window
+    } do
+      build = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        git_branch: "main",
+        git_commit_sha: "abc",
+        is_ci: false,
+        started_at: nil,
+        inserted_at: DateTime.utc_now()
+      }
+
+      :ok =
+        Producers.xcode_build(build, [
+          %{name: "Core", project: "App", compilation_duration: 10},
+          %{name: "Absent", project: "App"},
+          %{name: "Null", project: "App", compilation_duration: nil},
+          %{name: "Zero", project: "App", compilation_duration: 0},
+          %{name: "Negative", project: "App", compilation_duration: -1},
+          %{name: "UnknownProject", compilation_duration: 10}
+        ])
+
+      assert [%{status: "unknown", duration_ms: 10, cache_status: "none"}] =
+               history(project, :xcode, "module", %{"project" => "App", "target" => "Core"}, window)
+
+      assert {[_], %{total_count: 1}} = BuildEntities.list(project.id, :xcode, "module", window)
+    end
+
+    test "disabled projects keep native targets without deriving compilation observations", %{disabled: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          targets: [
+            %{name: "Core", project: "App", build_duration: 500, compilation_duration: 120, status: "success"}
+          ]
+        )
+
+      assert build.project_id == project.id
+      assert stored_observations(project) == 0
     end
   end
 

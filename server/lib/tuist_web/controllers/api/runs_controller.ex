@@ -103,7 +103,7 @@ defmodule TuistWeb.API.RunsController do
           type: :integer,
           default: 20,
           minimum: 1,
-          maximum: 100
+          maximum: 1000
         }
       ],
       page: [

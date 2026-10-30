@@ -150,6 +150,8 @@ defmodule Tuist.XcodeTest do
 
       assert graph_ch.name == "TestGraph"
       assert graph_ch.command_event_id == command_event.id
+      assert graph_ch.modules_count == 3
+      assert graph_ch.project_id == command_event.project_id
 
       [project_ch] =
         ClickHouseRepo.all(from(p in XcodeProject, where: p.xcode_graph_id == ^graph_ch.id))

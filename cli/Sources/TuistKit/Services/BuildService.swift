@@ -88,7 +88,8 @@ public struct BuildService {
             config: config,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
-            cacheStorage: cacheStorage
+            cacheStorage: cacheStorage,
+            coverage: .resolved(config: config)
         )
         let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
         if generate || workspacePath == nil {

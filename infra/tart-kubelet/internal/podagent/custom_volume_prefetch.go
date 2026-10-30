@@ -15,6 +15,10 @@ const (
 	// that does not arrive in time is downloaded in the background instead.
 	customAcquireBudget  = 25 * time.Second
 	customAuthorizeRetry = time.Second
+	// customSettleInterval and customSettleWindow pace reconciliation after a
+	// runner Pod stops, until its VM is gone and its branch can be published.
+	customSettleInterval = 5 * time.Second
+	customSettleWindow   = 2 * time.Minute
 	customPrefetchBudget = 5 * time.Minute
 	customPrefetchQueue  = 16
 	// customPrefetchRetry spaces out attempts at a master whose download failed.
@@ -31,7 +35,7 @@ func (c *CustomVolumes) PrefetchMaster(identity cachevolumes.Identity) bool {
 }
 
 // customPrefetcher restores immutable masters in the background, one at a time
-// so a single 40 GB disk reservation covers the work. Jobs never wait on it. A
+// so a single disk reservation covers the work. Jobs never wait on it. A
 // master a job asked for but did not get in time goes ahead of masters the
 // server listed for this host, and only the former may evict local masters. A
 // master already queued or downloading is joined rather than fetched twice.
@@ -136,8 +140,14 @@ func (p *customPrefetcher) work() {
 			return
 		}
 		ctx, cancel := context.WithTimeout(p.ctx, p.budget)
-		done := cachevolumes.Observer(observeCustomCache).Start("prefetch", "remote")
-		err := p.restore(ctx, cachevolumes.Slot{Identity: job.identity}, job.requested)
+		slot := cachevolumes.Slot{Identity: job.identity}
+		subject := cachevolumes.SubjectOf(slot)
+		if !job.requested && subject.Key == "" {
+			// A HEAD from the fleet listing does not say whether its volume is managed.
+			subject.Kind = ""
+		}
+		done := cachevolumes.Observer(observeCustomCache).With(subject).Start("prefetch", "remote")
+		err := p.restore(ctx, slot, job.requested)
 		done(err)
 		cancel()
 		if errors.Is(err, cachevolumes.ErrDownloadIncomplete) && p.requeue(job) {

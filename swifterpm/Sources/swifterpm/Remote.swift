@@ -32,7 +32,9 @@ enum RemoteMetadata {
     private static func fetchRemoteVersions(location: String) async throws -> [RemoteVersion] {
         let repo = try? GitHubRepo(location: location)
         if let repo, await GitHubAuth.hasSession() {
-            let apiVersions = (try? await githubRemoteVersions(repo: repo)) ?? []
+            let apiVersions = try await HTTPClient.optionalResult {
+                try await githubRemoteVersions(repo: repo)
+            } ?? []
             if !apiVersions.isEmpty {
                 return apiVersions
             }
@@ -40,13 +42,17 @@ enum RemoteMetadata {
 
         let gitLabRepo = try? GitLabRepo(location: location)
         if let gitLabRepo, await GitLabAuth.hasSession(for: gitLabRepo) {
-            let apiVersions = (try? await GitLabAPI.remoteVersions(repo: gitLabRepo)) ?? []
+            let apiVersions = try await HTTPClient.optionalResult {
+                try await GitLabAPI.remoteVersions(repo: gitLabRepo)
+            } ?? []
             if !apiVersions.isEmpty {
                 return apiVersions
             }
         }
 
-        let gitVersions = (try? await gitRemoteVersions(location: location)) ?? []
+        let gitVersions = try await HTTPClient.optionalResult {
+            try await gitRemoteVersions(location: location)
+        } ?? []
         if !gitVersions.isEmpty {
             return gitVersions
         }
@@ -63,6 +69,7 @@ enum RemoteMetadata {
                 )
                 return parseGitRemoteVersions(output)
             } catch {
+                try HTTPClient.requireFallbackAllowed(after: error)
                 attempts.append((candidate, error))
             }
         }
@@ -158,6 +165,7 @@ enum RemoteMetadata {
                 }
                 return String(revision)
             } catch {
+                try HTTPClient.requireFallbackAllowed(after: error)
                 attempts.append((candidate, error))
             }
         }

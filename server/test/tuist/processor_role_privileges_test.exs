@@ -9,6 +9,7 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   alias Tuist.Bazel.TestInvocation
   alias Tuist.Bazel.Workers.ProcessProfileWorker
   alias Tuist.Bazel.Workers.ProcessTestInvocationWorker
+  alias Tuist.BuildEntities
   alias Tuist.Builds.Workers.ProcessBuildWorker
   alias Tuist.GitHistory
   alias Tuist.MCP.Events.Subscription
@@ -42,6 +43,25 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
 
   test "the build ingestion path only reads and writes granted tables", context do
     assert :ok == process_build_as_processor(context, "success")
+  end
+
+  test "opted-in build ingestion derives module timings with processor privileges", context do
+    FunWithFlags.enable(:build_entities, for_actor: context.project)
+
+    targets = [
+      %{
+        "name" => "Core",
+        "project" => "App",
+        "compilation_duration" => 120,
+        "build_duration" => 500,
+        "status" => "success"
+      }
+    ]
+
+    assert :ok == process_build_as_processor(context, "success", targets)
+
+    assert {[%{name: "Core", duration_samples: 1, p90_duration_ms: 120}], _} =
+             BuildEntities.list(context.project.id, :xcode, "module")
   end
 
   test "a failed build publishes its event to a subscribed agent with processor privileges", context do
@@ -232,14 +252,14 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
              end)
   end
 
-  defp process_build_as_processor(%{account: account, project: project, build: build}, status) do
+  defp process_build_as_processor(%{account: account, project: project, build: build}, status, targets \\ []) do
     stub(Tuist.Storage, :download_to_file, fn @storage_key, _path, _account -> {:ok, :done} end)
 
     stub(BuildProcessor, :process_build, fn _path, _upload_enabled, consume ->
       consume.(%{
         "duration" => 1200,
         "status" => status,
-        "targets" => [],
+        "targets" => targets,
         "issues" => [],
         "files" => [],
         "cacheable_tasks" => [],

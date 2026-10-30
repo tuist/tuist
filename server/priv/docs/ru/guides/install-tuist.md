@@ -1,21 +1,21 @@
 ---
 {
-  "title": "Install Tuist",
-  "titleTemplate": ":title · Guides · Tuist",
-  "description": "Learn how to install Tuist in your environment."
+  "title": "Установка Tuist",
+  "titleTemplate": ":title · Руководства · Tuist",
+  "description": "Установите интерфейс командной строки Tuist на macOS или Linux с помощью mise или Homebrew и зафиксируйте версию для команд и непрерывной интеграции."
 }
 ---
-# Install Tuist {#install-tuist}
+# Установка Tuist {#install-tuist}
 
-Tuist runs on **macOS** and **Linux**. Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
+Интерфейс командной строки Tuist работает на **macOS** и **Linux** и подключает ваши проекты Xcode, сгенерированные проекты, проекты Gradle и Bazel к инфраструктуре кэширования, аналитики и раннеров Tuist. Хотя вы можете собрать Tuist из [исходного кода](https://github.com/tuist/tuist), мы рекомендуем один из приведенных ниже способов установки, чтобы гарантировать корректную и проверяемую установку.
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 > [!NOTE]
-> If you don't have Mise installed, follow the [getting started guide](https://mise.jdx.dev/getting-started.html) first. Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
+> Если у вас не установлен Mise, сначала ознакомьтесь с [руководством по началу работы](https://mise.jdx.dev/getting-started.html). Mise — рекомендуемая альтернатива [Homebrew](https://brew.sh), если вы команда или организация, которой нужно обеспечить детерминированные версии инструментов в разных окружениях.
 
 
-Unlike tools like Homebrew, which install and activate a single version of the tool globally, **Mise pins a version** either globally or scoped to a project. Run `mise use` to install and activate Tuist:
+В отличие от таких инструментов, как Homebrew, которые устанавливают и активируют одну версию инструмента глобально, **Mise фиксирует версию** либо глобально, либо в рамках проекта. Выполните `mise use`, чтобы установить и активировать Tuist:
 
 ```bash
 mise use tuist@x.y.z          # Install and pin tuist-x.y.z in the current project
@@ -24,19 +24,22 @@ mise use -g tuist@x.y.z       # Install and pin tuist-x.y.z as the global defaul
 mise use -g tuist@system       # Use the system's tuist as the global default
 ```
 
-If you clone a project that already has a Tuist version pinned in `mise.toml`, run `mise install` to install it.
+Если вы клонируете проект, в котором версия Tuist уже зафиксирована в `mise.toml`, выполните `mise install`, чтобы установить её.
+
+> [!TIP]
+> `tuist@latest` разрешается до последней **стабильной** версии. Tuist также публикует предварительные сборки (canary) и кандидаты в релизы; они доступны только по явному выбору и никогда не выбираются через `latest`. См. <.localized_link href="/cli/release-channels">Каналы релизов</.localized_link>, чтобы узнать, как зафиксировать стабильную ветку, которой можно доверять, и как подключить предварительные релизы.
 
 <details>
-<summary>Linux support</summary>
+<summary>Поддержка Linux</summary>
 
-On Linux, Tuist is available exclusively via Mise. Commands that depend on Xcode (such as `tuist generate`) are not available on Linux, but platform-independent commands like `tuist inspect bundle` work as expected.
+На Linux Tuist доступен исключительно через Mise. Команды, зависящие от Xcode (например, `tuist generate`), недоступны на Linux, но платформенно-независимые команды, такие как `tuist inspect bundle`, работают как ожидается.
 
 </details>
 
 
-### <a href="https://brew.sh">Homebrew</a> (macOS only) {#recommended-homebrew}
+### <a href="https://brew.sh">Homebrew</a> (только macOS) {#recommended-homebrew}
 
-You can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
+Вы можете установить Tuist с помощью [Homebrew](https://brew.sh) и [наших формул](https://github.com/tuist/homebrew-tuist):
 
 ```bash
 brew tap tuist/tuist
@@ -45,14 +48,14 @@ brew install --formula tuist@x.y.z
 ```
 
 > [!TIP]
-> **Verifying The Authenticity Of The Binaries**
+> **Проверка подлинности бинарных файлов**
 >
-> You can verify that your installation's binaries have been built by us by running the following command, which checks if the certificate's team is `U6LC622NKF`:
+> Вы можете убедиться, что бинарные файлы вашей установки собраны нами, выполнив следующую команду, которая проверяет, принадлежит ли сертификат команде `U6LC622NKF`:
 >
 > ```bash
 > curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 > ```
 
-## HTTP proxy {#http-proxy}
+## HTTP-прокси {#http-proxy}
 
-If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>.
+Если ваша сеть направляет исходящий трафик через HTTP-прокси, см. <.localized_link href="/guides/integrations/http-proxy">Руководство по HTTP-прокси</.localized_link>.

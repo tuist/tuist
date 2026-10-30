@@ -20,28 +20,30 @@ type checkoutGrant struct {
 	DefaultBranch    string `json:"default_branch"`
 	Commit           string `json:"commit"`
 	DefaultBranchJob bool   `json:"default_branch_job"`
+	MayStartMaster   bool   `json:"may_start_master"`
 	VolumeKey        string `json:"volume_key"`
 }
 
 // checkout answers a guest's request for its job's checkout volume. The server
 // decides the repository from the executed job; the guest only asks. It returns
-// a nil response while the server is still waiting for GitHub's execution binding.
-func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int) map[string]any {
+// a nil response while the server is still waiting for GitHub's execution binding
+// and the Pod's wait for it (`cachevolumes.ExecutionWaits`) has not ended.
+func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int, asked time.Time) map[string]any {
 	// Without working git the host builds nothing, so the guest should not export.
 	if !c.Checkouts.Ready() {
 		return map[string]any{"error": "unavailable", "reason": "denied"}
 	}
 	var grant checkoutGrant
 	status, err := c.request(ctx, "checkout", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "architecture": "arm64", "uid": uid}, &grant)
-	if status == http.StatusTooEarly && ctx.Err() == nil {
+	if status == http.StatusTooEarly && ctx.Err() == nil && time.Now().Before(c.executionWaits.Deadline(string(pod.UID), asked)) {
 		return nil
 	}
 	if err != nil {
 		return map[string]any{"error": "unavailable", "reason": "denied"}
 	}
-	task := checkoutTask{
+	task := cachevolumes.CheckoutTask{
 		Scope: grant.Scope, Generation: grant.Generation, CloneURL: grant.CloneURL, DefaultBranch: grant.DefaultBranch,
-		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, Use: grant.ID, VolumeKey: grant.VolumeKey,
+		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, MayStartMaster: grant.MayStartMaster, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
 		BaseGeneration: grant.BaseGeneration, ImageDigest: grant.ImageDigest, ContentDigest: grant.ContentDigest,
 	}
 	// The job's branch is a clone of this host's master; the HEAD only restores it.
@@ -78,11 +80,11 @@ func (c *CustomVolumes) endUse(ctx context.Context, id string) {
 	_, _ = c.request(ctx, "report", map[string]any{"id": id, "node_name": c.Node, "state": "deleted", "gone": true, "warm": false, "size_bytes": 0, "capacity_bytes": 0, "attach_ms": nil}, &struct{}{})
 }
 
-func (c *CustomVolumes) rememberCheckout(podUID string, task checkoutTask) {
+func (c *CustomVolumes) rememberCheckout(podUID string, task cachevolumes.CheckoutTask) {
 	c.checkoutMu.Lock()
 	defer c.checkoutMu.Unlock()
 	if c.checkoutJobs == nil {
-		c.checkoutJobs = map[string]checkoutTask{}
+		c.checkoutJobs = map[string]cachevolumes.CheckoutTask{}
 	}
 	c.checkoutJobs[podUID] = task
 }
@@ -98,7 +100,7 @@ func (c *CustomVolumes) collectCheckout(podUID string) {
 	if !ok || !c.Checkouts.Ready() {
 		return
 	}
-	src := filepath.Join(c.Root, "pods", podUID, checkoutExportDir)
+	src := filepath.Join(c.Root, "pods", podUID, cachevolumes.CheckoutExportDir)
 	if info, err := os.Lstat(src); err != nil || !info.IsDir() {
 		return
 	}
@@ -127,7 +129,7 @@ func (c *CustomVolumes) reserveCheckout(ctx context.Context, bytes uint64) (func
 		return nil, err
 	}
 	// Evict only when it can make the room: a refused build retries every reconcile.
-	if free < bytes && free+c.Checkouts.Evictable(c.Builtins.backend.allocatedBytes) >= bytes {
+	if free < bytes && free+c.Checkouts.Evictable(c.Space.backend.allocatedBytes) >= bytes {
 		c.Checkouts.Evict(func() bool {
 			free, err = c.freeBytesLocked()
 			return err == nil && free >= bytes
@@ -141,8 +143,8 @@ func (c *CustomVolumes) reserveCheckout(ctx context.Context, bytes uint64) (func
 	}
 	c.checkoutReserved += bytes
 	return func() {
-		c.Builtins.mu.Lock()
-		defer c.Builtins.mu.Unlock()
+		c.Space.mu.Lock()
+		defer c.Space.mu.Unlock()
 		c.checkoutReserved -= bytes
 	}, nil
 }

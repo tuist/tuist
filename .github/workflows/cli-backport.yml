@@ -24,9 +24,11 @@ name: CLI Backport Release
 #
 # What runs from where: this workflow YAML and the reusable build/publish
 # workflow resolve from main (current tooling), while the source and build
-# scripts (cli:bundle, bundle-linux.sh, .xcode-version-releases,
-# Package.resolved, the TuistCacheEE submodule pointer) come from the checked-out
-# branch — i.e. the version being patched builds with its own scripts. If the
+# scripts (cli:bundle, .xcode-version-releases, Package.resolved, the
+# TuistCacheEE submodule pointer) come from the checked-out branch — i.e. the
+# version being patched builds with its own scripts. The Linux bundler
+# (bundle-linux.sh and its static SDK setup) is the exception: it comes from
+# main, because the Linux matrix cross-compiles aarch64. If the
 # line's pinned Xcode is not on the macos-26 runner image (or the submodule
 # pointer no longer resolves), the build fails; that means the line is too old
 # to build on current infra.

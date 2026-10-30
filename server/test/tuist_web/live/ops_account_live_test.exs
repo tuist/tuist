@@ -7,6 +7,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Kura
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
@@ -77,6 +78,32 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     assert Concurrency.limits_for(user.account, :linux) == %{vcpus: 48, memory_gb: 96}
     assert Concurrency.limits_for(user.account, :macos) == %{vcpus: 18, memory_gb: 42}
+  end
+
+  test "updates sandbox limits independently and rejects invalid limits", %{conn: conn, user: user} do
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    ci_limits = Concurrency.limits_for(user.account, :linux)
+
+    lv
+    |> form("#sandbox-concurrency-form", %{
+      "account" => %{"sandbox_vcpus_limit" => "8", "sandbox_memory_gb_limit" => "24"}
+    })
+    |> render_submit()
+
+    account = Repo.reload!(user.account)
+    assert account.sandbox_vcpus_limit == 8
+    assert account.sandbox_memory_gb_limit == 24
+    assert Concurrency.limits_for(account, :linux) == ci_limits
+
+    html =
+      lv
+      |> form("#sandbox-concurrency-form", %{
+        "account" => %{"sandbox_vcpus_limit" => "0", "sandbox_memory_gb_limit" => "-1"}
+      })
+      |> render_submit()
+
+    assert html =~ "must be greater than"
+    assert Repo.reload!(account).sandbox_vcpus_limit == 8
   end
 
   test "links Kura servers to their latest deployment", %{conn: conn, user: user} do
@@ -1310,15 +1337,19 @@ defmodule TuistWeb.OpsAccountLiveTest do
   end
 
   describe "free tier" do
-    test "shows the usage against the limit and when it was last reset", %{conn: conn, user: user} do
+    test "shows the usage against the limits and when it was last reset", %{conn: conn, user: user} do
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: 42)
+      |> Ecto.Changeset.change(
+        current_month_cache_egress_megabytes: 1_500,
+        current_month_cache_requests: 2_500
+      )
       |> Repo.update!()
 
-      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       assert html =~ "Free tier"
-      assert html =~ "42 of 200"
+      assert lv |> element("[data-part='free-tier-egress']") |> render() =~ "1.5 GB of 100.0 GB"
+      assert lv |> element("[data-part='free-tier-requests']") |> render() =~ "2,500 of 1M"
       assert html =~ "Never"
     end
 
@@ -1326,10 +1357,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
       refute has_element?(lv, "#free-tier-blocked-alert")
 
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold)
+      |> Ecto.Changeset.change(current_month_cache_requests: UsagePricing.included_requests())
       |> Repo.update!()
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
@@ -1337,10 +1366,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
     end
 
     test "resetting unblocks the account and clears the warning", %{conn: conn, user: user} do
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold * 2)
+      |> Ecto.Changeset.change(current_month_cache_requests: UsagePricing.included_requests() * 2)
       |> Repo.update!()
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
@@ -1352,7 +1379,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "starts over from now"
 
       account = Repo.reload!(user.account)
-      assert account.current_month_remote_cache_hits_count == 0
+      assert account.current_month_cache_requests == 0
       assert account.free_tier_reset_at
     end
 

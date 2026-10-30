@@ -15,12 +15,14 @@ const _: () = assert!(CONNECT_TIMEOUT_SECS < REQUEST_TIMEOUT_SECS);
 /// used to hardcode could not be met from outside the control plane's own
 /// region: a remote node failed every batch at connect while its control-plane
 /// client, pointed at the same host, kept succeeding.
-pub(crate) fn analytics_client_builder(request_timeout_ms: u64) -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
+pub(crate) fn analytics_client_builder(
+    request_timeout_ms: u64,
+) -> Result<reqwest::ClientBuilder, String> {
+    Ok(crate::certificate_trust::client_builder()?
         .connect_timeout(Duration::from_millis(analytics_connect_timeout_ms(
             request_timeout_ms,
         )))
-        .timeout(Duration::from_millis(request_timeout_ms))
+        .timeout(Duration::from_millis(request_timeout_ms)))
 }
 
 /// The connect budget above, lowered to a request timeout set below it.
@@ -38,13 +40,13 @@ fn analytics_connect_timeout_ms(request_timeout_ms: u64) -> u64 {
     request_timeout_ms
 }
 
-pub(crate) fn client_builder() -> reqwest::ClientBuilder {
+pub(crate) fn client_builder() -> Result<reqwest::ClientBuilder, String> {
     // Connection setup includes DNS. A remote region can spend more than one
     // second resolving Kubernetes search domains before starting TCP. Match
     // the managed auth client's connect budget, keeping the total request bounded.
-    reqwest::Client::builder()
+    Ok(crate::certificate_trust::client_builder()?
         .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT_SECS))
-        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS)))
 }
 
 #[cfg(test)]
@@ -87,6 +89,7 @@ mod tests {
             .await
         });
         let client = client_builder()
+            .unwrap()
             .no_proxy()
             .dns_resolver(Arc::new(DelayedResolver {
                 address,
@@ -148,6 +151,7 @@ mod tests {
             .await
         });
         let client = analytics_client_builder(5_000)
+            .unwrap()
             .no_proxy()
             .dns_resolver(Arc::new(DelayedResolver {
                 address,
@@ -168,6 +172,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn stalled_dns_still_exhausts_the_connect_budget() {
         let client = client_builder()
+            .unwrap()
             .no_proxy()
             .dns_resolver(Arc::new(DelayedResolver {
                 address: "127.0.0.1:1".parse().unwrap(),

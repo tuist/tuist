@@ -62,6 +62,8 @@ x-kura-node: &kura_node
   build:
     context: .
     dockerfile: Dockerfile
+    additional_contexts:
+      certificate-trust: ../infra/certificate-trust
   domainname: kura.internal
   stop_grace_period: ${KURA_E2E_SYNC_STOP_GRACE:-90s}
   healthcheck:

@@ -173,7 +173,9 @@ defmodule Tuist.Runners.CacheVolumes.Query do
       used_bytes: used,
       capacity_bytes: capacity,
       unmeasured_copies: stats[:unmeasured_copies] || 0,
-      unmeasured_capacity_copies: stats[:unmeasured_capacity_copies] || 0
+      unmeasured_capacity_copies: stats[:unmeasured_capacity_copies] || 0,
+      volume_bytes: CacheVolumes.volume_bytes(volume, stats[:head_volume_bytes]),
+      pending_volume_bytes: CacheVolumes.pending_volume_bytes(volume, stats[:head_volume_bytes])
     }
   end
 

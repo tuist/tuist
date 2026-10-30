@@ -11,6 +11,7 @@ struct CargoExecutionContext {
     let arguments: [String]
     let environment: [String: String]
     let reporting: CargoReporting
+    var shardOptions: [String: Int] = [:]
 }
 
 public struct CargoCommandService {
@@ -24,13 +25,16 @@ public struct CargoCommandService {
     ) async throws {
         var environment = environment
         let directory = try directory ?? AbsolutePath(validating: FileManager.default.currentDirectoryPath)
-        let invocation = CargoInvocation(arguments)
+        let parsed = ["test", "t"].contains(CargoInvocation(arguments).command ?? "")
+            ? try CargoTestSelection.planning(arguments) : (arguments: arguments, options: [:])
+        let invocation = CargoInvocation(parsed.arguments)
         if let toolchain = invocation.toolchain { environment["RUSTUP_TOOLCHAIN"] = toolchain }
-        if arguments.first == "__compiler" {
+        if arguments.first == "__compiler" || arguments.first == "__native" {
             try await CargoCompilerObserver(runner: runner).run(
                 Array(arguments.dropFirst()),
                 environment: environment,
-                directory: directory
+                directory: directory,
+                native: arguments.first == "__native"
             )
             return
         }
@@ -40,23 +44,26 @@ public struct CargoCommandService {
         // A rustup proxy pins its selection before Cargo changes directories to compile workspace members.
         if let toolchain = resolved.toolchain { environment["RUSTUP_TOOLCHAIN"] = toolchain }
         try Task.checkCancellation()
-        let isSharding = invocation.command == "test-build" || environment["TUIST_SHARD_INDEX"] != nil
+        let isSharding = invocation.command == "test-build" || environment["TUIST_SHARD_INDEX"] != nil || !parsed.options.isEmpty
         try validateShardingDirectory(invocation: invocation, isSharding: isSharding)
         if environment["TUIST_CARGO_ACTIVE"] == nil, invocation.observesBuild {
             do {
-                if let context = try await context(
+                if var context = try await context(
                     executable: executable,
                     invocation: invocation,
                     directory: directory,
-                    environment: environment
+                    environment: environment,
+                    isSharding: isSharding
                 ) {
+                    context.shardOptions = parsed.options
                     try await decorate(context)
                     return
                 }
             } catch let error as CommandError {
                 throw error
             } catch {
-                if isSharding || Task.isCancelled || error is CancellationError { throw error }
+                if isSharding || Task
+                    .isCancelled || error is CancellationError || error is CargoTestSelectionError { throw error }
                 if environment["TUIST_DEBUG"] ==
                     "1"
                 {
@@ -74,7 +81,7 @@ public struct CargoCommandService {
     }
 
     private func validateShardingDirectory(invocation: CargoInvocation, isSharding: Bool) throws {
-        if invocation.changesDirectory, invocation.command == "test-build" || (invocation.isNextestRun && isSharding),
+        if invocation.changesDirectory, isSharding,
            !invocation.arguments.contains("--help"), !invocation.arguments.contains("-h")
         {
             throw CargoReportError(
@@ -87,11 +94,12 @@ public struct CargoCommandService {
         executable: String,
         invocation: CargoInvocation,
         directory: AbsolutePath,
-        environment: [String: String]
+        environment: [String: String],
+        isSharding: Bool
     ) async throws -> CargoExecutionContext? {
         let config = try? await ConfigLoader().loadCargoConfig(path: directory)
         guard let handle = environment["TUIST_PROJECT"] ?? config?.fullHandle else {
-            if invocation.command == "test-build" || environment["TUIST_SHARD_INDEX"] != nil {
+            if isSharding {
                 throw CargoReportError(
                     message: "Configure a project in tuist.toml or TUIST_PROJECT before planning or executing shards."
                 )
@@ -129,11 +137,9 @@ public struct CargoCommandService {
         )
         try await FileSystem().runInTemporaryDirectory(prefix: "tuist-cargo") { temporary in
             let root = URL(fileURLWithPath: temporary.pathString)
-            let started = Date()
             var environment = context.environment
             environment["TUIST_CARGO_ACTIVE"] = "1"
             environment["TUIST_CARGO_SESSION"] = root.path
-            environment["TUIST_CARGO_STARTED"] = String(started.timeIntervalSince1970)
             environment["TUIST_CARGO_INNER_WRAPPER"] = innerWrapper
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
             let configured = CargoExecutionContext(
@@ -142,7 +148,11 @@ public struct CargoCommandService {
             )
             let cache = await CargoCacheSetup().prepare(configured, root: root)
             defer { cache?.refresh?.cancel() }
-            if let cache { environment = cache.environment }
+            if let cache {
+                environment = (try? await CargoClangInvocation.configure(
+                    environment: cache.environment, directory: context.directory, process: CargoProcess(runner: runner)
+                )) ?? cache.environment
+            }
             if innerWrapper == nil {
                 let wrapper = root.appendingPathComponent("rustc-observer")
                 try "#!/bin/sh\nexec \(CargoInvocation.shellQuote(try CargoProcess.ownExecutable())) cargo __compiler \"$@\"\n"
@@ -155,14 +165,40 @@ public struct CargoCommandService {
                 environment["RUSTC_WRAPPER"] = wrapper.path
                 environment["CARGO_BUILD_RUSTC_WRAPPER"] = nil
             }
+            let remoteEnvironment = environment
+            let broker = root.appendingPathComponent("cache-broker")
+            var brokerReady = false
+            if environment["TUIST_CARGO_CACHE_REMOTE_URL"] != nil {
+                do {
+                    try FileManager.default.createDirectory(
+                        at: broker, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
+                    )
+                    environment["TUIST_CARGO_CACHE_BROKER"] = broker.path
+                    brokerReady = true
+                } catch { environment["TUIST_CARGO_CACHE_REMOTE_URL"] = nil }
+            }
+            let started = Date()
+            environment["TUIST_CARGO_STARTED"] = String(started.timeIntervalSince1970)
             let child = CargoExecutionContext(
                 executable: context.executable,
                 directory: context.directory,
                 arguments: context.arguments,
                 environment: environment,
-                reporting: context.reporting
+                reporting: context.reporting,
+                shardOptions: context.shardOptions
             )
-            try await executeSession(child, root: root, started: started, metadata: metadata)
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                if brokerReady {
+                    group.addTask {
+                        try? await CargoRemoteCache.serve(directory: broker, prepare: {
+                            try await CargoCompilerObserver.remote(remoteEnvironment, connectionCount: 4)
+                        })
+                    }
+                }
+                defer { group.cancelAll() }
+                try Task.checkCancellation()
+                try await executeSession(child, root: root, started: started, metadata: metadata)
+            }
         }
     }
 
@@ -175,9 +211,15 @@ public struct CargoCommandService {
         let invocation = CargoInvocation(context.arguments)
         var executionError: Error?
         var nextest: CargoNextestRun?
-        var cargoTests: CargoTestReport?
+        var cargoTests: CargoTestResult?
+        var selectsCargoTests = false
         do {
-            if invocation.command == "test-build" {
+            if !context.shardOptions.isEmpty {
+                guard context.environment["TUIST_SHARD_INDEX"] == nil else {
+                    throw CargoTestSelectionError(message: "Cannot plan and execute a Cargo shard in the same command.")
+                }
+                try await CargoTestSelection(runner: runner).plan(context, options: context.shardOptions)
+            } else if invocation.command == "test-build" {
                 try await CargoShardService(runner: runner).plan(
                     arguments: context.arguments,
                     executable: context.executable,
@@ -189,11 +231,24 @@ public struct CargoCommandService {
             } else {
                 if invocation.isNextestRun {
                     nextest = try await CargoNextestService(runner: runner).prepare(context, root: root)
-                } else if context.environment["TUIST_SHARD_INDEX"] != nil {
-                    throw CargoReportError(message: "Rust shards require 'tuist cargo nextest run'.")
+                } else if context.environment["TUIST_SHARD_INDEX"] != nil, !invocation.executesTests {
+                    throw CargoTestSelectionError(message: "Execute plain Cargo shards with 'tuist cargo test'.")
                 }
-                if CargoTestService.observes(invocation, environment: context.environment) {
-                    try await CargoTestService(runner: runner).execute(context) { cargoTests = $0 }
+                if invocation.executesTests {
+                    let quarantine = await CargoTestQuarantine.fetch(context)
+                    if context.environment["TUIST_SHARD_INDEX"] != nil || !quarantine.muted.isEmpty || !quarantine.skipped
+                        .isEmpty
+                    {
+                        selectsCargoTests = true
+                        try await CargoTestSelection(runner: runner).execute(context, quarantine: quarantine) { cargoTests = $0 }
+                    } else if CargoTestService.observes(invocation, environment: context.environment) {
+                        try await CargoTestService(runner: runner).execute(context) { cargoTests = $0 }
+                    } else {
+                        try await context.reporting.process.execute(
+                            context.executable, arguments: context.arguments,
+                            environment: context.environment, directory: context.directory
+                        )
+                    }
                 } else {
                     try await context.reporting.process.execute(
                         context.executable,
@@ -204,18 +259,31 @@ public struct CargoCommandService {
                 }
             }
         } catch { executionError = error }
-        if invocation.reportsBuild {
+        let finished = Date()
+        if context.shardOptions.isEmpty, invocation.reportsBuild, !invocation.executesTests || cargoTests != nil {
             await context.reporting.build(
                 root: root,
                 started: started,
+                finished: finished,
                 command: invocation.command ?? "",
                 metadata: metadata,
-                failed: executionError != nil
+                failed: executionError != nil,
+                testResult: cargoTests
             )
         }
         if let nextest { await context.reporting.tests(run: nextest, metadata: metadata, failed: executionError != nil) }
-        if let cargoTests { await context.reporting.tests(report: cargoTests, metadata: metadata, failed: executionError != nil) }
-        if let executionError { throw executionError }
+        if let report = cargoTests?.report {
+            await context.reporting.tests(
+                report: report, metadata: metadata, failed: executionError != nil,
+                shardID: cargoTests?.shardID, shardIndex: cargoTests?.shardIndex
+            )
+        }
+        if let executionError {
+            if selectsCargoTests, !(executionError is CommandError), !(executionError is CancellationError) {
+                throw CargoTestSelectionError(message: executionError.localizedDescription)
+            }
+            throw executionError
+        }
     }
 
     static func milliseconds(_ seconds: Double) -> Int { Int(min(max((seconds * 1000).rounded(), 0), Double(UInt32.max))) }

@@ -184,10 +184,7 @@
 
             <.line_divider />
 
-            <div
-              :if={@cached_checkouts_enabled? and @form_platform == "macos"}
-              data-part="cached-checkouts"
-            >
+            <div data-part="cached-checkouts">
               <.toggle
                 id={"runner-profile-cached-checkouts-#{@form_cached_checkouts}"}
                 label={dgettext("dashboard_runners", "Cached checkouts")}
@@ -202,7 +199,22 @@
               />
             </div>
 
-            <.line_divider :if={@cached_checkouts_enabled? and @form_platform == "macos"} />
+            <div :if={@form_platform == "linux"} data-part="docker-cache">
+              <.toggle
+                id={"runner-profile-docker-cache-#{@form_docker_cache}"}
+                label={dgettext("dashboard_runners", "Image cache")}
+                description={
+                  dgettext(
+                    "dashboard_runners",
+                    "Starts each job with the container images and build cache its repository's earlier jobs pulled and built, for job containers, services and Docker commands in steps."
+                  )
+                }
+                checked={@form_docker_cache}
+                phx-click="toggle_docker_cache"
+              />
+            </div>
+
+            <.line_divider />
 
             <section data-part="cache-saving-section">
               <button

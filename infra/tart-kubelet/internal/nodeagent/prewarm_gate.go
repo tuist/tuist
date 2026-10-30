@@ -18,11 +18,19 @@ import (
 const PrewarmTaintKey = "tuist.dev/prewarming"
 
 // PrewarmGate holds a Node out of scheduling while its runner images are
-// pulled. Only a Node this process had to create is held: a host joining (or
-// rejoining) the cluster. A tart-kubelet restart on a registered host is not,
-// because that host is already serving, and a deploy that rolls both the
-// runner images and tart-kubelet would otherwise take every host out at once.
+// pulled. A Node this process had to create is held: a host joining (or
+// rejoining) the cluster. So is a registered Node whose host disk has never
+// held a runner image, such as a host reinstalled in place, which keeps its
+// Node but comes back erased. A tart-kubelet restart on any other host is not
+// held, even one holding no image right now, because that host is already
+// serving, and a deploy that rolls both the runner images and tart-kubelet
+// would otherwise take every host out at once.
 type PrewarmGate struct {
+	// FreshDisk, when set, reports whether the host disk has never held a
+	// runner image. An error counts as not fresh, so a failed probe never takes
+	// a serving host out of scheduling.
+	FreshDisk func(context.Context) (bool, error)
+
 	decided     chan struct{}
 	decidedOnce sync.Once
 
@@ -35,12 +43,14 @@ func NewPrewarmGate() *PrewarmGate {
 	return &PrewarmGate{decided: make(chan struct{})}
 }
 
-// decide records whether the Node was just created. Only the first call
-// counts, and a gate already released is never held.
-func (g *PrewarmGate) decide(created bool) {
+// decide records whether the Node was just created, or else whether the host
+// disk has never held a runner image. Only the first call counts, and a gate already
+// released is never held.
+func (g *PrewarmGate) decide(ctx context.Context, created bool) {
 	g.decidedOnce.Do(func() {
+		hold := created || g.freshDisk(ctx)
 		g.mu.Lock()
-		g.held = created && !g.released
+		g.held = hold && !g.released
 		g.mu.Unlock()
 		close(g.decided)
 	})
@@ -95,4 +105,12 @@ func applyPrewarmTaint(node *corev1.Node, held bool) {
 		}
 	}
 	node.Spec.Taints = kept
+}
+
+func (g *PrewarmGate) freshDisk(ctx context.Context) bool {
+	if g.FreshDisk == nil {
+		return false
+	}
+	fresh, err := g.FreshDisk(ctx)
+	return err == nil && fresh
 }

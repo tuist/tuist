@@ -106,6 +106,10 @@ defmodule Tuist.Tests.Coverage.Commits do
   @publish_attempts 3
   @pending_completions "coverage_commit_completions"
 
+  # Paths bind as 63-bit hashes (at most 19 digits), so a chunk's size doesn't
+  # depend on how long the paths are; 5,000 stay under 128 KiB.
+  @path_hashes_per_query 5_000
+
   @doc """
   Republishes the commit's totals from its runs' retained reports and
   returns the row published, or nil when no run measured the commit.
@@ -290,7 +294,7 @@ defmodule Tuist.Tests.Coverage.Commits do
 
     dirty =
       ClickHouseRepo.all(
-        from(t in Test,
+        from(t in Test.query(),
           where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.is_ci and t.id in subquery(covered),
           group_by: t.id,
           having:
@@ -394,7 +398,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   # collect coverage are left out, as `Reported` leaves them out.
   defp clean_runs(project_id, sha) do
     ClickHouseRepo.all(
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id and t.git_commit_sha == ^sha,
         group_by: t.id,
         having:
@@ -794,7 +798,7 @@ defmodule Tuist.Tests.Coverage.Commits do
     totals = Coverage.run_totals_query(project_id, shas: shas)
 
     runs =
-      from(t in Test,
+      from(t in Test.query(),
         where:
           t.project_id == ^project_id and t.git_commit_sha in ^shas and
             t.id in subquery(from(c in subquery(totals), select: c.test_run_id)),
@@ -917,7 +921,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   # One row per run, however many times it was written; the period and the
   # subject narrow the rows before they are grouped, along the table's order.
   defp run_page_query(project_id, scope, opts) do
-    from(t in Test,
+    from(t in Test.query(),
       where: t.project_id == ^project_id and t.id in subquery(covered_runs_query(project_id, scope, opts)),
       group_by: t.id,
       select: %{id: t.id, ran_at: min(t.ran_at), git_dirty: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at)}
@@ -1468,7 +1472,10 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   The merged per-line execution counts of the given paths at the commit,
-  keyed by path, as `{line, count}` pairs in line order.
+  keyed by path, as `{line, count}` pairs in line order. The paths are bound
+  as hashes, in chunks: a list travels as one parameter, which ClickHouse
+  refuses past `http_max_field_value_size` (128 KiB by default), and a hash's
+  size doesn't depend on the path's length.
   """
   def line_counts(project_id, sha, paths, opts \\ [])
 
@@ -1480,15 +1487,25 @@ defmodule Tuist.Tests.Coverage.Commits do
         %{}
 
       ids ->
-        from(
-          f in Coverage.without_excluded(
-            Coverage.report_files_for_runs(project_id, ids),
-            Coverage.excluded(project_id, opts)
-          ),
-          where: f.path in ^paths and not f.is_test,
-          select: {f.path, f.line_numbers, f.execution_counts}
-        )
-        |> ClickHouseRepo.all()
+        files =
+          Coverage.without_excluded(Coverage.report_files_for_runs(project_id, ids), Coverage.excluded(project_id, opts))
+
+        wanted = MapSet.new(paths)
+
+        wanted
+        |> Enum.map(&path_hash/1)
+        |> Enum.chunk_every(@path_hashes_per_query)
+        |> Enum.flat_map(fn hashes ->
+          ClickHouseRepo.all(
+            from(f in files,
+              where:
+                fragment("bitShiftRight(halfMD5(?), 1) IN (?)", f.path, type(^hashes, {:array, :integer})) and
+                  not f.is_test,
+              select: {f.path, f.line_numbers, f.execution_counts}
+            )
+          )
+        end)
+        |> Enum.filter(&MapSet.member?(wanted, elem(&1, 0)))
         |> Enum.group_by(&elem(&1, 0), fn {_path, lines, counts} -> Enum.zip(lines, counts) end)
         |> Map.new(fn {path, rows} ->
           {path,
@@ -1498,6 +1515,13 @@ defmodule Tuist.Tests.Coverage.Commits do
            |> Enum.sort()}
         end)
     end
+  end
+
+  # `halfMD5` in ClickHouse: the first 8 bytes of the MD5, big-endian, shifted
+  # into a non-negative Int64.
+  defp path_hash(path) do
+    <<hash::unsigned-big-64, _::binary>> = :crypto.hash(:md5, path)
+    Bitwise.bsr(hash, 1)
   end
 
   @doc """

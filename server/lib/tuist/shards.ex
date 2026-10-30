@@ -11,12 +11,15 @@ defmodule Tuist.Shards do
   alias Tuist.Accounts.Account
   alias Tuist.Builds
   alias Tuist.ClickHouseRepo
+  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
+  alias Tuist.Repo
   alias Tuist.Shards.BinPacker
   alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardPlanModule
   alias Tuist.Shards.ShardPlanTestSuite
+  alias Tuist.Shards.Storage, as: ShardStorage
   alias Tuist.Storage
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestModuleRun
@@ -32,7 +35,7 @@ defmodule Tuist.Shards do
   @concurrency_shard_runs 50
   @nested_jvm_class_regex ~r/^(?<class>[\p{L}_][\p{L}\p{N}_.]*)\$[\p{L}\p{N}_$]+$/u
 
-  def create_shard_plan(%Project{} = project, params) do
+  def create_shard_plan(%Project{} = project, params, opts \\ []) do
     granularity = Map.get(params, :granularity, "module")
     reference = Map.fetch!(params, :reference)
 
@@ -84,19 +87,34 @@ defmodule Tuist.Shards do
       granularity: granularity,
       build_run_id: Map.get(params, :build_run_id),
       gradle_build_id: Map.get(params, :gradle_build_id),
-      inserted_at: now
+      inserted_at: now,
+      storage_target:
+        ShardStorage.select(project, Repo.preload(project, :account).account, Keyword.get(opts, :runner_grant)),
+      reporting_version:
+        if(FeatureFlags.immutable_shard_reports_enabled?(Repo.preload(project, :account)), do: 1, else: 0)
     }
 
-    {:ok, plan} = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert()
+    plan = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> Ecto.Changeset.apply_action!(:insert)
 
-    insert_shard_targets(
-      plan,
-      project.id,
-      assignment_shards,
-      granularity,
-      now,
-      module_inventory(params, units, granularity)
-    )
+    {modules, suites} =
+      shard_targets(plan, project.id, assignment_shards, granularity, now, module_inventory(params, units, granularity))
+
+    plan =
+      if plan.reporting_version == 1 do
+        assignments =
+          JSON.encode!(%{
+            modules: Enum.map(modules, &Map.delete(&1, :inserted_at)),
+            test_suites: Enum.map(suites, &Map.delete(&1, :inserted_at))
+          })
+
+        %{plan | assignments: assignments}
+      else
+        plan
+      end
+
+    {:ok, plan} = IngestRepo.insert(plan)
+    if modules != [], do: IngestRepo.insert_all(ShardPlanModule, modules)
+    if suites != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suites)
 
     %{
       plan: plan,
@@ -112,22 +130,24 @@ defmodule Tuist.Shards do
     end
   end
 
-  def start_upload(%Project{} = project, %Account{} = account, reference, artifact \\ nil) do
+  def start_upload(%Project{} = project, %Account{} = account, reference, artifact \\ nil, opts \\ []) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        start_upload_for_plan(project, account, plan, artifact)
+        start_upload_for_plan(project, account, plan, artifact, opts)
     end
   end
 
-  def start_upload_for_plan(%Project{} = project, %Account{} = account, %ShardPlan{} = plan, artifact \\ nil) do
-    start_upload_for_plan_id(project, account, plan.id, artifact)
+  def start_upload_for_plan(%Project{} = project, %Account{} = account, %ShardPlan{} = plan, artifact \\ nil, opts \\ []) do
+    start_upload_for_plan_id(project, account, plan.id, artifact, opts)
   end
 
-  def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id, artifact \\ nil) do
-    Storage.multipart_start(artifact_object_key(account, project, plan_id, artifact), account)
+  def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id, artifact \\ nil, opts \\ []) do
+    with {:ok, actor} <- plan_storage(project, account, plan_id, opts) do
+      Storage.multipart_start(artifact_object_key(account, project, plan_id, artifact), actor)
+    end
   end
 
   def get_shard(%Project{} = project, %Account{} = account, reference, shard_index, opts \\ []) do
@@ -150,32 +170,58 @@ defmodule Tuist.Shards do
     end
   end
 
-  def complete_upload(%Project{} = project, %Account{} = account, reference, upload_id, parts, artifact \\ nil) do
+  def complete_upload(
+        %Project{} = project,
+        %Account{} = account,
+        reference,
+        upload_id,
+        parts,
+        artifact \\ nil,
+        opts \\ []
+      ) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        complete_upload_for_plan(project, account, plan.id, upload_id, parts, artifact)
+        complete_upload_for_plan(project, account, plan.id, upload_id, parts, artifact, opts)
     end
   end
 
-  def complete_upload_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, parts, artifact \\ nil) do
-    Storage.multipart_complete_upload(
-      artifact_object_key(account, project, plan_id, artifact),
-      upload_id,
-      parts,
-      account
-    )
+  def complete_upload_for_plan(
+        %Project{} = project,
+        %Account{} = account,
+        plan_id,
+        upload_id,
+        parts,
+        artifact \\ nil,
+        opts \\ []
+      ) do
+    with {:ok, actor} <- plan_storage(project, account, plan_id, opts) do
+      Storage.multipart_complete_upload(
+        artifact_object_key(account, project, plan_id, artifact),
+        upload_id,
+        parts,
+        actor
+      )
+    end
   end
 
-  def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number, artifact \\ nil) do
+  def generate_upload_url(
+        %Project{} = project,
+        %Account{} = account,
+        reference,
+        upload_id,
+        part_number,
+        artifact \\ nil,
+        opts \\ []
+      ) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number, artifact)
+        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number, artifact, opts)
     end
   end
 
@@ -185,36 +231,46 @@ defmodule Tuist.Shards do
         plan_id,
         upload_id,
         part_number,
-        artifact \\ nil
+        artifact \\ nil,
+        opts \\ []
       ) do
-    url =
-      Storage.multipart_generate_url(
-        artifact_object_key(account, project, plan_id, artifact),
-        upload_id,
-        part_number,
-        account
-      )
+    with {:ok, actor} <- plan_storage(project, account, plan_id, opts) do
+      url =
+        Storage.multipart_generate_url(
+          artifact_object_key(account, project, plan_id, artifact),
+          upload_id,
+          part_number,
+          actor
+        )
 
-    {:ok, url}
+      {:ok, url}
+    end
+  end
+
+  defp plan_storage(project, account, plan_id, opts) do
+    case get_plan_by_id(project.id, plan_id) do
+      nil -> {:error, :not_found}
+      plan -> ShardStorage.resolve_for_request(plan, account, Keyword.get(opts, :runner_grant))
+    end
   end
 
   # Each shard downloads only the products it needs: a single `shared` artifact (frameworks,
   # dylibs, the xctestrun, etc.) plus one per-module artifact for each module assigned to the
   # shard. Falls back to the legacy single per-plan bundle when split artifacts weren't uploaded.
-  defp shard_download_urls(account, project, plan_id, modules) do
+  defp shard_download_urls(account, project, %{id: plan_id} = plan, modules, actor) do
     shared_key = artifact_object_key(account, project, plan_id, "shared")
 
-    if Storage.object_exists?(shared_key, account) do
-      shared_url = Storage.generate_download_url(shared_key, account)
+    if plan.storage_target in [nil, ""] and Storage.object_exists?(shared_key, actor) do
+      shared_url = Storage.generate_download_url(shared_key, actor)
 
       module_urls =
         Enum.map(modules, fn module ->
-          Storage.generate_download_url(artifact_object_key(account, project, plan_id, "module:" <> module), account)
+          Storage.generate_download_url(artifact_object_key(account, project, plan_id, "module:" <> module), actor)
         end)
 
       {nil, [shared_url | module_urls]}
     else
-      bundle_url = Storage.generate_download_url(bundle_object_key(account, project, plan_id), account)
+      bundle_url = Storage.generate_download_url(bundle_object_key(account, project, plan_id), actor)
       {bundle_url, [bundle_url]}
     end
   end
@@ -238,7 +294,7 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp insert_shard_targets(plan, project_id, shards, "module", now, _module_inventory) do
+  defp shard_targets(plan, project_id, shards, "module", now, _module_inventory) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
@@ -253,10 +309,10 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
+    {rows, []}
   end
 
-  defp insert_shard_targets(plan, project_id, shards, "suite", now, module_inventory) do
+  defp shard_targets(plan, project_id, shards, "suite", now, module_inventory) do
     suite_rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
@@ -278,15 +334,13 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if suite_rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suite_rows)
-
     # Record the products each shard must download. Regular shards need only their assigned suites'
     # modules; the catch-all shard runs everything not skipped, so it downloads the full built-module
     # inventory (which includes targets that have no suite history and therefore no planned suites).
-    insert_suite_download_modules(plan, project_id, shards, module_inventory, now)
+    {suite_download_modules(plan, project_id, shards, module_inventory, now), suite_rows}
   end
 
-  defp insert_suite_download_modules(plan, project_id, shards, module_inventory, now) do
+  defp suite_download_modules(plan, project_id, shards, module_inventory, now) do
     catch_all_index = plan.shard_count - 1
 
     rows =
@@ -310,11 +364,11 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
+    rows
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "module"} = plan, shard_index, _opts) do
-    plan = read_plan(fn -> IngestRepo.preload(plan, :modules) end)
+    plan = preload_assignments(plan, :modules)
 
     modules =
       plan.modules
@@ -325,7 +379,7 @@ defmodule Tuist.Shards do
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index, opts) do
-    plan = read_plan(fn -> IngestRepo.preload(plan, [:test_suites, :modules]) end)
+    plan = preload_assignments(plan, [:test_suites, :modules])
     suite_catch_all? = Keyword.get(opts, :suite_catch_all?, false)
 
     results =
@@ -408,10 +462,22 @@ defmodule Tuist.Shards do
     end)
   end
 
+  defp preload_assignments(%ShardPlan{reporting_version: 1, assignments: assignments} = plan, _preloads) do
+    data = JSON.decode!(assignments)
+    modules = Enum.map(data["modules"], &assignment_struct(ShardPlanModule, &1))
+    suites = Enum.map(data["test_suites"], &assignment_struct(ShardPlanTestSuite, &1))
+    %{plan | modules: modules, test_suites: suites}
+  end
+
+  defp preload_assignments(plan, preloads), do: read_plan(fn -> IngestRepo.preload(plan, preloads) end)
+
+  defp assignment_struct(schema, attrs) do
+    fields = Map.new(schema.__schema__(:fields), fn field -> {field, Map.get(attrs, Atom.to_string(field))} end)
+    struct(schema, fields)
+  end
+
   # The CLI uploads a plan's build seconds after creating it, so plans are read from the repository
-  # that took the write. `ClickHouseRepo` can route reads to the in-cluster ClickHouse
-  # (`Tuist.ClickHouse.ReadRoute`), which only has the rows once `IngestRepo`'s detached mirror
-  # (`Tuist.IngestRepo.ShadowWrite`) has written them there.
+  # that took the write.
   defp read_plan(fun), do: IngestRepo.with_retry(fun)
 
   defp get_shard_for_plan(project, account, plan, shard_index, opts) do
@@ -424,17 +490,20 @@ defmodule Tuist.Shards do
         # still run every un-skipped target, so it downloads the plan's whole module inventory
         # rather than only its selection modules.
         download_modules = Map.get(shard_data, :download_modules, modules)
-        {download_url, download_urls} = shard_download_urls(account, project, plan.id, download_modules)
 
-        {:ok,
-         %{
-           shard_plan_id: plan.id,
-           modules: modules,
-           suites: suites,
-           skip: skip,
-           download_url: download_url,
-           download_urls: download_urls
-         }}
+        with {:ok, actor} <- ShardStorage.resolve_for_request(plan, account, Keyword.get(opts, :runner_grant)) do
+          {download_url, download_urls} = shard_download_urls(account, project, plan, download_modules, actor)
+
+          {:ok,
+           %{
+             shard_plan_id: plan.id,
+             modules: modules,
+             suites: suites,
+             skip: skip,
+             download_url: download_url,
+             download_urls: download_urls
+           }}
+        end
     end
   end
 
@@ -662,7 +731,7 @@ defmodule Tuist.Shards do
   # evidence: the union across runs covers what it skipped.
   defp unrestricted_runs_join(:excluded) do
     """
-    INNER JOIN test_runs AS runs
+    INNER JOIN test_run_summaries AS runs
       ON runs.id = module_runs.test_run_id
       AND runs.project_id = {project_id:Int64}
       AND empty(runs.only_test_identifiers)
@@ -968,7 +1037,7 @@ defmodule Tuist.Shards do
         toUUIDOrZero(test_run_id) AS test_run_id,
         toInt32(shard_index) AS shard_index,
         argMax(duration, inserted_at) AS duration
-      FROM shard_runs
+      FROM shard_run_summaries
       WHERE project_id = {project_id:Int64}
         AND ran_at >= {cutoff:DateTime64(6)}
       GROUP BY shard_plan_id, test_run_id, shard_index

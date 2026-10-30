@@ -70,6 +70,18 @@ var (
 		Help: "Configured minWarmPoolFloor per pool (spec.autoscaling.minWarmPoolFloor).",
 	}, []string{poolLabel})
 
+	// learnedWarmFloor is the server's learned floor for the pool before
+	// the pool's cap; learnedWarmSpare is what the pool keeps from it.
+	// The gap between them is the cap binding.
+	learnedWarmFloor = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_autoscaler_learned_warm_floor_replicas",
+		Help: "Warm floor the server learned from the pool's job bursts, before spec.autoscaling.maxLearnedWarmPoolFloor.",
+	}, []string{poolLabel})
+	learnedWarmSpare = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_autoscaler_learned_warm_spare_replicas",
+		Help: "Idle replicas the pool keeps above load from its learned floor, after spec.autoscaling.maxLearnedWarmPoolFloor.",
+	}, []string{poolLabel})
+
 	// rollingPods is how much of a pool's serving capacity is unavailable
 	// during a roll: drain-eligible stale-image Pods plus current-template
 	// idle Pods that are not warm. The latter deliberately includes
@@ -205,19 +217,27 @@ var (
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, fleetProvisioningCeiling, podStartTimeoutsTotal, stuckTerminationsTotal, preemptedPodsTotal)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, learnedWarmFloor, learnedWarmSpare, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, fleetProvisioningCeiling, podStartTimeoutsTotal, stuckTerminationsTotal, preemptedPodsTotal)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
 // reconcile tick. `load` is occupied+queued, `floor` is
-// minWarmPoolFloor, `targetReplicas` is the pre-allocation
-// DesiredReplicas, `allocatedReplicas` is the post-allocation value
-// patched to spec.replicas.
-func RecordAllocation(pool string, load, floor, targetReplicas, allocatedReplicas int32) {
+// minWarmPoolFloor, `warmSpare` is the idle runners the pool keeps above
+// load (the larger of `floor` and the learned spare), `targetReplicas` is
+// the pre-allocation DesiredReplicas, `allocatedReplicas` is the
+// post-allocation value patched to spec.replicas.
+func RecordAllocation(pool string, load, floor, warmSpare, targetReplicas, allocatedReplicas int32) {
 	target.WithLabelValues(pool).Set(float64(targetReplicas))
 	allocated.WithLabelValues(pool).Set(float64(allocatedReplicas))
 	minWarmFloor.WithLabelValues(pool).Set(float64(floor))
-	warmDeficitReplicas.WithLabelValues(pool).Set(float64(warmDeficit(load, floor, targetReplicas, allocatedReplicas)))
+	warmDeficitReplicas.WithLabelValues(pool).Set(float64(warmDeficit(load, warmSpare, targetReplicas, allocatedReplicas)))
+}
+
+// RecordLearnedWarmFloor publishes the server's learned floor for a pool
+// and the spare the pool keeps from it after `maxLearnedWarmPoolFloor`.
+func RecordLearnedWarmFloor(pool string, learned, spare int32) {
+	learnedWarmFloor.WithLabelValues(pool).Set(float64(learned))
+	learnedWarmSpare.WithLabelValues(pool).Set(float64(spare))
 }
 
 // RecordDemand publishes the server's demand signals for a pool as
@@ -326,6 +346,8 @@ func ClearAutoscaler(pool string) {
 	allocated.DeleteLabelValues(pool)
 	warmDeficitReplicas.DeleteLabelValues(pool)
 	minWarmFloor.DeleteLabelValues(pool)
+	learnedWarmFloor.DeleteLabelValues(pool)
+	learnedWarmSpare.DeleteLabelValues(pool)
 	claimedJobs.DeleteLabelValues(pool)
 	occupiedRunners.DeleteLabelValues(pool)
 	queuedJobs.DeleteLabelValues(pool)

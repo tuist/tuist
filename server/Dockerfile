@@ -11,8 +11,27 @@ ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
 ARG DEBIAN_RUNNER_VERSION=bookworm-slim
 ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
 ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:${DEBIAN_RUNNER_VERSION}"
-ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.2-bookworm"
+# Swift 6.4 includes the FoundationNetworking fix for concurrent registry
+# redirects on Bookworm (swiftlang/swift-corelibs-foundation#5448).
+ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.4.1-bookworm"
 ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
+
+FROM scratch AS certificate-trust
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /
+
+# Keep Aube 1.6.2's esbuild behavior, but rebuild its embedded TLS verifier/roots.
+FROM rust:1.94-bookworm AS aube-builder
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates cmake \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
+WORKDIR /aube
+RUN git init . && git remote add origin https://github.com/endevco/aube.git \
+    && git fetch --depth 1 origin e7b898917c43ba72da002d12f2588f7bfa7e6890 \
+    && git checkout --detach FETCH_HEAD \
+    && cargo update -p rustls-webpki --precise 0.103.16 \
+    && cargo update -p webpki-roots --precise 1.0.10 \
+    && cargo build --release --locked --bin aube
 
 # ========================================
 # Stage: Swift parser builder
@@ -23,8 +42,11 @@ ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
 # ========================================
 FROM ${SWIFT_IMAGE} AS swift-builder
 
-RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
+RUN apt-get update -qq && apt-get install -y -qq unzip ca-certificates > /dev/null 2>&1 \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 WORKDIR /nif
 
@@ -39,13 +61,26 @@ RUN swift build -c release --replace-scm-with-registry --product xcactivitylog-p
     mkdir -p /nif/swift-libs && \
     cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
 
+# Isolate the shipped artifacts so downstream COPYs do not materialize the
+# Swift toolchain and .build tree on a fresh BuildKit worker.
+FROM scratch AS swift-artifacts
+COPY --from=swift-builder /nif/xcactivitylog-parser /xcactivitylog-parser
+COPY --from=swift-builder /nif/swift-libs/ /swift-libs/
+
 # ========================================
 # Stage 1: NPM dependencies
 # ========================================
 FROM ${NODE_IMAGE} AS npm-deps
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
-RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
+# Replace Node's bundled roots; --use-system-ca would only add the OS roots.
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 COPY server/package.json /app/package.json
 COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
@@ -59,14 +94,24 @@ COPY noora /noora
 RUN aube run build
 WORKDIR /app
 
+# Empty by default. CI can supply production project builds with
+# --build-context mix-cache=<directory>, without replacing fetched dependencies.
+FROM ${BUILDER_IMAGE} AS mix-cache
+RUN mkdir /_build
+
 # ========================================
 # Stage 2: Base dependencies builder
 # ========================================
 FROM ${BUILDER_IMAGE} AS deps-builder
 
 RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential ca-certificates curl git \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
+ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
+ENV REBAR_OFFLINE=1
 WORKDIR /app
 
 RUN mix local.hex --force && \
@@ -145,7 +190,7 @@ RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
 # ========================================
 # Stage 3: Main application builder
 # ========================================
-FROM deps-builder AS builder
+FROM deps-builder AS compiled
 
 COPY tuist_common /tuist_common
 COPY tuist_ex /tuist_ex
@@ -161,7 +206,21 @@ COPY examples/xcode priv/examples/xcode
 
 COPY server/lib lib
 
-RUN mix compile --warnings-as-errors
+RUN --mount=type=bind,from=mix-cache,source=/_build,target=/mix-cache \
+    mkdir -p "_build/${MIX_ENV}/lib" && \
+    cp -a /mix-cache/. "_build/${MIX_ENV}/lib/" && \
+    mix compile --warnings-as-errors
+
+# Keep fetched dependencies layer-cached; retain only the four local projects.
+# Export before assets/release so the snapshot never contains an old release.
+FROM scratch AS mix-cache-export
+ARG MIX_ENV=prod
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist/ /_build/tuist/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_common/ /_build/tuist_common/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_ex/ /_build/tuist_ex/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/noora/ /_build/noora/
+
+FROM compiled AS builder
 
 COPY server/config/runtime.exs config/
 COPY server/rel rel
@@ -180,7 +239,7 @@ RUN mix release
 # ========================================
 FROM builder AS release-with-parser
 
-COPY --from=swift-builder /nif/xcactivitylog-parser /tmp/nif/xcactivitylog-parser
+COPY --from=swift-artifacts /xcactivitylog-parser /tmp/nif/xcactivitylog-parser
 
 RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
     mkdir -p "$TUIST_REL_DIR/priv/native" && \
@@ -200,7 +259,10 @@ RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get upgrade -y && \
   apt-get install -y curl build-essential chromium fonts-noto-cjk fonts-noto-core gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
@@ -230,7 +292,7 @@ ENV TUIST_VERSION=$TUIST_VERSION
 # Swift runtime libs the parser links against. Small (~20 MB) but carried by
 # every release image because any pod may run in processor mode
 # (TUIST_PROCESSOR_MODE=true) and spawn the xcactivitylog parser.
-COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
+COPY --from=swift-artifacts /swift-libs/ /usr/local/lib/
 RUN ldconfig
 
 # Release taken from release-with-parser so xcactivitylog-parser is already

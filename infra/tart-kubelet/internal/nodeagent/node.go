@@ -71,8 +71,8 @@ type Maintainer struct {
 	// DynamicLabels are the agent-owned label sets that change at runtime,
 	// each evaluated every heartbeat: the `tuist.dev/golden-<hash>`
 	// advertisements of which golden base VMs this host holds, and the
-	// `tuist.dev/cache-master-<account>` advertisements of which per-account
-	// cache masters are resident. They're merged alongside NodeLabels and
+	// `tuist.dev/cache-volume-<scope>` advertisements of which custom cache
+	// masters are resident. They're merged alongside NodeLabels and
 	// pruned the same way — a key that stops being returned (golden GC'd, or
 	// master evicted) is dropped on the next heartbeat.
 	//
@@ -151,7 +151,7 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	node := &corev1.Node{}
 	err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node)
 	if apierrors.IsNotFound(err) {
-		m.decidePrewarm(true)
+		m.decidePrewarm(ctx, true)
 		node.Name = m.NodeName
 		if m.ProviderID != "" {
 			node.Spec.ProviderID = m.ProviderID
@@ -163,7 +163,7 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	m.decidePrewarm(false)
+	m.decidePrewarm(ctx, false)
 	// Node already exists (kubelet restart). spec.providerID is immutable
 	// once set, so only fill it when empty — this binds nodes that
 	// registered before tart-kubelet learned to set it. refresh() below
@@ -455,9 +455,9 @@ func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s c
 	})
 }
 
-func (m *Maintainer) decidePrewarm(created bool) {
+func (m *Maintainer) decidePrewarm(ctx context.Context, created bool) {
 	if m.PrewarmGate != nil {
-		m.PrewarmGate.decide(created)
+		m.PrewarmGate.decide(ctx, created)
 	}
 }
 

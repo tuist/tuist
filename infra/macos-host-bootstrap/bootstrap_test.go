@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -364,44 +365,25 @@ func TestRenderLaunchdPlist_OmitsRunnerCacheWhenDisabled(t *testing.T) {
 }
 
 func TestRenderLaunchdPlist_RendersRunnerCacheRoot(t *testing.T) {
-	out := renderLaunchdPlist(Config{
-		NodeName:                "n1",
-		SSHUser:                 "m1",
-		RunnerCacheVolumeGiB:    400,
-		CacheVolumeMasterCapGiB: 25,
-		CacheVolumeCASGiB:       8,
-	})
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", RunnerCacheVolumeGiB: 400})
 	if !strings.Contains(out, "<string>--runner-cache-root="+runnerCacheMountPoint+"</string>") {
 		t.Fatalf("expected --runner-cache-root in plist\n%s", out)
 	}
-	if !strings.Contains(out, "<string>--cache-volume-cap-gib=25</string>") {
-		t.Fatalf("expected --cache-volume-cap-gib in plist\n%s", out)
+	if !strings.Contains(out, "<string>--runner-cache-budget-gib=400</string>") {
+		t.Fatalf("expected --runner-cache-budget-gib in plist\n%s", out)
 	}
-	if !strings.Contains(out, "<string>--cache-volume-cas-gib=8</string>") {
-		t.Fatalf("expected --cache-volume-cas-gib in plist\n%s", out)
-	}
-}
-
-func TestRenderLaunchdPlist_OmitsCapGiBWhenDefault(t *testing.T) {
-	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", RunnerCacheVolumeGiB: 400})
-	if !strings.Contains(out, "--runner-cache-root=") {
-		t.Fatalf("expected --runner-cache-root when volume enabled\n%s", out)
-	}
-	if strings.Contains(out, "--cache-volume-cap-gib") {
-		t.Fatalf("expected --cache-volume-cap-gib omitted when cap is 0 (tart-kubelet default)\n%s", out)
-	}
-	if strings.Contains(out, "--cache-volume-cas-gib") {
-		t.Fatalf("expected --cache-volume-cas-gib omitted when CAS budget is 0 (compilation cache VM-local)\n%s", out)
+	if strings.Contains(out, "--cache-volume-cap-gib") || strings.Contains(out, "--cache-volume-cas-gib") {
+		t.Fatalf("expected no built-in cache image flags in plist\n%s", out)
 	}
 }
 
-func TestRenderRunnerCacheVolumeScript_CarriesQuotaAndVolume(t *testing.T) {
+func TestRenderRunnerCacheVolumeScript_CarriesBudgetAndVolume(t *testing.T) {
 	out := renderRunnerCacheVolumeScript(Config{RunnerCacheVolumeGiB: 400})
 	if !strings.Contains(out, "VOL="+runnerCacheVolumeName) {
 		t.Fatalf("expected volume name in script\n%s", out)
 	}
-	if !strings.Contains(out, "QUOTA_GIB=400") {
-		t.Fatalf("expected quota GiB in script\n%s", out)
+	if !strings.Contains(out, "BUDGET_GIB=400") {
+		t.Fatalf("expected budget GiB in script\n%s", out)
 	}
 	if !strings.Contains(out, `-quota "${QUOTA_GIB}GiB"`) {
 		t.Fatalf("expected -quota flag in script\n%s", out)
@@ -414,19 +396,6 @@ func TestHostConfigHash_ChangesWithRunnerCacheVolume(t *testing.T) {
 	changed.RunnerCacheVolumeGiB = 400
 	if HostConfigHash(base) == HostConfigHash(changed) {
 		t.Fatalf("HostConfigHash must change when the runner-cache volume is enabled")
-	}
-}
-
-// The CAS budget must be part of the fleet fingerprint: if it were omitted, a
-// roll that enables the compilation cache would leave the canonical hash
-// unchanged, so hosts would look already-applied and never re-push the launchd
-// config that turns the CAS on.
-func TestHostConfigHash_ChangesWithCASGiB(t *testing.T) {
-	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin"), RunnerCacheVolumeGiB: 400}
-	changed := base
-	changed.CacheVolumeCASGiB = 8
-	if HostConfigHash(base) == HostConfigHash(changed) {
-		t.Fatalf("HostConfigHash must change when the CAS budget is set")
 	}
 }
 
@@ -1373,6 +1342,7 @@ var hashPartInstaller = map[string]string{
 	"log-shipper":             "installLogShipper",
 	"host-sensors":            "installHostSensors",
 	"tart-kubelet-install":    "installTartKubelet",
+	"tart-kubelet-probe":      "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",
 	"ssh-ingress-guard":       "installSSHIngressGuard",
 	"tart-install":            "installTart",
@@ -2004,5 +1974,45 @@ func TestRenderCommandLineToolsScript_ProbesWithoutPromptingForTheTools(t *testi
 	probe := strings.Index(script, "xcode-select -p")
 	if probe < 0 || probe > strings.Index(script, "/usr/bin/git --version") {
 		t.Fatal("the git stub asks a GUI to install the tools unless xcode-select finds them first")
+	}
+}
+
+// APFS fixes a volume's quota when it is created, so on a disk of 1 TiB or
+// more the script sizes it from the disk rather than the budget: a later budget
+// within it needs no new volume. A smaller disk keeps the quota at the budget,
+// because its other half does not hold the goldens and job VMs. Runs the quota
+// lines of the rendered script against a fake df.
+func TestRenderRunnerCacheVolumeScript_QuotaFollowsTheDisk(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		diskKiB   uint64
+		budgetGiB int
+		want      string
+	}{
+		{"half of a 1858 GiB disk", 1858 * 1024 * 1024, 512, "929"},
+		{"budget above half a 1858 GiB disk", 1858 * 1024 * 1024, 1000, "1000"},
+		{"half of a 1 TiB disk", 1024 * 1024 * 1024, 80, "512"},
+		{"budget on a disk just under 1 TiB", 1023 * 1024 * 1024, 80, "80"},
+		{"budget on a 460 GiB disk", 460 * 1024 * 1024, 80, "80"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			script := renderRunnerCacheVolumeScript(Config{RunnerCacheVolumeGiB: tc.budgetGiB, SSHUser: "m1"})
+			start := strings.Index(script, "BUDGET_GIB=")
+			quota := strings.Index(script, "  DISK_GIB=")
+			if start < 0 || quota < 0 {
+				t.Fatalf("quota lines not found in script\n%s", script)
+			}
+			end := quota + strings.Index(script[quota:], "\n  fi\n") + len("\n  fi\n")
+			budget := script[start : start+strings.Index(script[start:], "\n")]
+			snippet := budget + "\n" + strings.ReplaceAll(script[quota:end], "/bin/df", "fake_df") + "echo \"$QUOTA_GIB\"\n"
+			fakeDF := fmt.Sprintf("fake_df() { printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\\n/dev/disk3s5 %d 1 1 1 /System/Volumes/Data\\n'; }\n", tc.diskKiB)
+			out, err := exec.Command("/bin/sh", "-c", "set -eu\n"+fakeDF+snippet).CombinedOutput()
+			if err != nil {
+				t.Fatalf("run quota lines: %v\n%s", err, out)
+			}
+			if got := strings.TrimSpace(string(out)); got != tc.want {
+				t.Fatalf("quota = %s GiB, want %s", got, tc.want)
+			}
+		})
 	}
 }

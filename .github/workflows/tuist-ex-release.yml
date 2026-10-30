@@ -9,6 +9,19 @@ on:
       - .github/workflows/tuist-ex-release.yml
       - .github/workflows/tuist-ex.yml
   workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Stable patch source: full SHA of the merged release branch tip (blank for main)"
+        type: string
+        default: ""
+      base_tag:
+        description: "Latest stable SDK tag, for example tuist-ex@0.10.0 (required with source_sha)"
+        type: string
+        default: ""
+      patch_version:
+        description: "Exact next patch, for example 0.10.1 (required with source_sha)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -30,6 +43,9 @@ jobs:
       should-release: ${{ steps.check.outputs.tuist-ex-should-release }}
       next-version: ${{ steps.check.outputs.tuist-ex-next-version }}
       next-version-number: ${{ steps.check.outputs.tuist-ex-next-version-number }}
+      source-sha: ${{ steps.check.outputs.source-sha }}
+      base-tag: ${{ steps.check.outputs.base-tag }}
+      base-sha: ${{ steps.check.outputs.base-sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,12 +56,25 @@ jobs:
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
-        run: mise run --skip-tools release:check tuist-ex
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          BASE_TAG: ${{ inputs.base_tag }}
+          PATCH_VERSION: ${{ inputs.patch_version }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$SOURCE_SHA$BASE_TAG$PATCH_VERSION" ]]; then
+            bash .github/scripts/tuist-ex-stable-release.sh "$SOURCE_SHA" "$BASE_TAG" "$PATCH_VERSION"
+          else
+            mise run --skip-tools release:check tuist-ex
+            echo "source-sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          fi
 
   validate:
     needs: check
     if: needs.check.outputs.should-release == 'true'
     uses: ./.github/workflows/tuist-ex.yml
+    with:
+      source-sha: ${{ needs.check.outputs.source-sha }}
 
   publish:
     name: Publish Tuist Elixir
@@ -62,6 +91,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ needs.check.outputs.source-sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: needs.check.outputs.base-tag != ''
+        with:
+          ref: ${{ github.sha }}
+          path: .release-control
+          persist-credentials: false
       - uses: ./.github/actions/mise-install
         with:
           install: "erlang elixir git-cliff"
@@ -71,10 +108,11 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.check.outputs.next-version-number }}
           RELEASE_TAG: ${{ needs.check.outputs.next-version }}
+          BASE_TAG: ${{ needs.check.outputs.base-tag }}
         run: |
           set -euo pipefail
           sed -i "s/version: \".*\"/version: \"$RELEASE_VERSION\"/" mix.exs
-          latest=$(git tag -l 'tuist-ex@*' | sort -V | tail -n1)
+          latest=${BASE_TAG:-$(git tag -l 'tuist-ex@*' | sort -V | tail -n1)}
           range=()
           if [ -n "$latest" ]; then
             range=("$latest..HEAD")
@@ -86,6 +124,18 @@ jobs:
       - run: mix deps.get --check-locked
       - run: mix hex.build
       - run: mix docs --warnings-as-errors
+      - name: Recheck stable source and tag boundaries before publishing
+        if: needs.check.outputs.base-tag != ''
+        working-directory: .
+        env:
+          SOURCE_SHA: ${{ needs.check.outputs.source-sha }}
+          BASE_TAG: ${{ needs.check.outputs.base-tag }}
+          PATCH_VERSION: ${{ needs.check.outputs.next-version-number }}
+          APPROVED_BASE_SHA: ${{ needs.check.outputs.base-sha }}
+        run: |
+          set -euo pipefail
+          git fetch --prune --force origin '+refs/heads/releases/tuist-ex-*:refs/remotes/origin/releases/tuist-ex-*' '+refs/tags/*:refs/tags/*'
+          bash .release-control/.github/scripts/tuist-ex-stable-release.sh "$SOURCE_SHA" "$BASE_TAG" "$PATCH_VERSION"
       - name: Publish package and documentation
         run: |
           set -euo pipefail
@@ -118,7 +168,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.check.outputs.source-sha }}
           tag_name: ${{ needs.check.outputs.next-version }}
           name: Tuist Elixir ${{ needs.check.outputs.next-version-number }}
           body_path: ${{ runner.temp }}/tuist-ex-release.md

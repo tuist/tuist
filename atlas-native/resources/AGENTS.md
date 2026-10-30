@@ -30,3 +30,18 @@ resolves `CFBundleIconFiles` to those PNGs. Do not rely only on an icon in
 `Assets.car`. `python3 resources/app_icons_test.py` (Python 3.11+) validates catalog
 sizes/opacity, both targets' resource declarations and Android references without
 image-tool dependencies.
+
+`generate_pip_assets.py` derives `PipBody`, `PipEyes`, `PipArm`, `PipLeftFoot`
+and `PipRightFoot` from the existing 513px neutral/wave paintings. Run
+`python3 atlas-native/resources/generate_pip_assets.py` with Pillow and NumPy installed and
+commit the generated 171/342/513px imagesets. The six original expression sets
+are source artwork and still provide motion-free feedback with Reduce Motion;
+do not overwrite them with rig parts. The generator removes disconnected haze,
+traces the torso/arm/ankle boundaries and heals the eye backing for continuous
+blinks. New parts must be reviewed on both light and dark backgrounds.
+
+`AtlasPipView` owns the matching 513px joint coordinates, smooth joint keyframes
+and foreground-only timeline. Keep the soles planted, articulate the arm/torso
+separately, and never stretch, spin or float the entire mascot or swap pose PNGs
+during regular motion. Interrupted greetings start at their current joint angles.
+Native builds consume the checked-in catalog and must not invoke this generator.

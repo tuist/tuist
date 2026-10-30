@@ -45,9 +45,25 @@ defmodule Tuist.BuildEntities.IdentityTest do
     assert :error == Identity.resolve(:gradle, :task)
   end
 
+  test "Bazel output and mnemonic distinguish actions within one target and retain configured paths" do
+    identity = %{"target_label" => "//app:lib", "mnemonic" => "CppCompile", "primary_output" => "bazel-out/debug/lib.o"}
+    id = Identity.id(1, :bazel, "action", identity)
+
+    for changes <- [
+          %{"target_label" => "//other:lib"},
+          %{"mnemonic" => "CppLink"},
+          %{"primary_output" => "bazel-out/release/lib.o"},
+          %{"primary_output" => "bazel-out/debug/other.o"}
+        ] do
+      refute id == Identity.id(1, :bazel, "action", Map.merge(identity, changes))
+    end
+
+    assert id == Identity.id(1, :bazel, "action", Map.put(identity, "action_digest", "changing-input-hash"))
+  end
+
   test "exact-key Xcode and Bazel cache actions have no identity contract" do
     assert :error == Identity.resolve(:xcode, "cache_action")
     assert :error == Identity.resolve(:bazel, "cache_action")
-    refute Map.has_key?(Identity.contracts(), :bazel)
+    assert Identity.fields(:bazel, "action") == ["target_label", "mnemonic", "primary_output"]
   end
 end

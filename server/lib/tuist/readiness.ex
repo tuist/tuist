@@ -12,8 +12,6 @@ defmodule Tuist.Readiness do
   answers within roughly that timeout even when a dependency hangs.
   """
 
-  alias Tuist.Environment
-
   require Logger
 
   @port 9092
@@ -26,8 +24,7 @@ defmodule Tuist.Readiness do
   probed this way.
   """
   def checks(:xcresult_processor) do
-    shadow = if Environment.clickhouse_bare_metal_url(), do: [:clickhouse_shadow], else: []
-    [:postgres, :clickhouse] ++ shadow ++ [{:oban_queue, :process_xcresult}]
+    [:postgres, :clickhouse, {:oban_queue, :process_xcresult}]
   end
 
   def checks(_mode), do: []
@@ -73,7 +70,6 @@ defmodule Tuist.Readiness do
 
   defp run_check(:postgres), do: select_one(Tuist.Repo)
   defp run_check(:clickhouse), do: select_one(Tuist.IngestRepo)
-  defp run_check(:clickhouse_shadow), do: select_one(Tuist.ShadowIngestRepo)
 
   defp run_check({:oban_queue, queue}) do
     case Oban.check_queue(queue: queue) do

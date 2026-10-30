@@ -10,8 +10,7 @@ defmodule Tuist.ClickHouse.ArrayInParams do
 
   Every ClickHouse repository `use`s this module after `use Ecto.Repo`. Ecto
   calls `prepare_query/3` on the repository that serves a query, which for
-  `Tuist.ClickHouseRepo` is its dynamic repository: `Tuist.ShadowClickHouseRepo`
-  once reads move to the in-cluster server, and `Tuist.IngestRepo` in tests.
+  `Tuist.ClickHouseRepo` in tests is its dynamic repository, `Tuist.IngestRepo`.
 
   Only lists of integers and binaries are rewritten. `ecto_ch` derives an
   array parameter's type from its first element, which is exact for those but

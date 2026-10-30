@@ -113,8 +113,6 @@ struct UploadBuildRunServiceTests {
     func publishesLocallyParsedBuildWithoutUploadingAnArchive() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let path = directory.appending(component: "build.xcactivitylog")
-        let environment = try #require(Environment.mocked)
-        environment.variables["TUIST_NETWORK_TRUSTED_PUBLISHING"] = "true"
         serverEnvironmentService.reset()
         given(serverEnvironmentService).url(configServerURL: .any)
             .willReturn(try #require(URL(string: "https://tuist.example")))
@@ -123,10 +121,12 @@ struct UploadBuildRunServiceTests {
             mainSection: .test(timeStartedRecording: 10, timeStoppedRecording: 12),
             buildStep: .test(errorCount: 1)
         ))
-        _ = try await subject.uploadBuildRun(
-            activityLogPath: path, projectPath: directory,
-            config: .test(fullHandle: "acme/widgets"), scheme: "App", configuration: "Debug"
-        )
+        _ = try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
+            try await subject.uploadBuildRun(
+                activityLogPath: path, projectPath: directory,
+                config: .test(fullHandle: "acme/widgets"), scheme: "App", configuration: "Debug"
+            )
+        }
         verify(xcActivityLogController).parse(.value(path)).called(1)
         verify(uploadBuildService).uploadBuild(buildId: .any, fullHandle: .any, serverURL: .any, filePath: .any).called(0)
         verify(createBuildService).createBuild(
@@ -147,7 +147,6 @@ struct UploadBuildRunServiceTests {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let path = directory.appending(component: "build.xcactivitylog")
         let environment = try #require(Environment.mocked)
-        environment.variables["TUIST_NETWORK_TRUSTED_PUBLISHING"] = "true"
         environment.variables["TUIST_XDG_CONFIG_HOME"] = directory.pathString
         serverEnvironmentService.reset()
         given(serverEnvironmentService).url(configServerURL: .any)
@@ -165,11 +164,13 @@ struct UploadBuildRunServiceTests {
             xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator,
             xcActivityLogController: xcActivityLogController, serverAuthenticationController: authentication
         )
-        try await Client.$additionalMiddlewares.withValue([NetworkBuildWireInspector()]) {
-            let url = try await service.uploadBuildRun(
-                activityLogPath: path, projectPath: directory, config: .test(fullHandle: "acme/widgets")
-            )
-            #expect(url.absoluteString == "https://tuist.example/builds/server-id")
+        try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
+            try await Client.$additionalMiddlewares.withValue([NetworkBuildWireInspector()]) {
+                let url = try await service.uploadBuildRun(
+                    activityLogPath: path, projectPath: directory, config: .test(fullHandle: "acme/widgets")
+                )
+                #expect(url.absoluteString == "https://tuist.example/builds/server-id")
+            }
         }
     }
 

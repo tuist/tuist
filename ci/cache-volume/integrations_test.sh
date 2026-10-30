@@ -7,12 +7,21 @@ trap 'rm -rf "$fixture"' EXIT
 export CALL_LOG="$fixture/calls" PATH="$fixture:$PATH"
 cat > "$fixture/tuist-cache-volume" <<'CLIENT'
 #!/bin/bash
+if [ "$1" = -h ]; then
+  echo 'Usage of tuist-cache-volume:' >&2
+  echo '  -key string' >&2
+  echo '  -path value' >&2
+  if [ -n "${CLIENT_SUPPORTS_SIZE-1}" ]; then
+    echo '  -size string' >&2
+    exit 0
+  fi
+  exit 2
+fi
 jq -cn --args '$ARGS.positional' -- "$@" >> "$CALL_LOG"
 exit "${CLIENT_EXIT:-0}"
 CLIENT
 chmod +x "$fixture/tuist-cache-volume"
 cd "$fixture"
-
 export BUILDKITE_PLUGIN_CONFIGURATION='{"volumes":[{"key":"gradle;$(touch should-not-exist)","path":"cache directory"},{"key":"npm","path":".npm"}]}'
 bash "$source_dir/buildkite/hooks/pre-command"
 jq -se '.[0] == ["--key","gradle;$(touch should-not-exist)","--path","cache directory"] and .[1] == ["--key","npm","--path",".npm"] and length == 2' "$CALL_LOG" >/dev/null
@@ -26,13 +35,35 @@ jq -se '.[0] == ["--key","shared","--path",".npm","--path","cache $(literal)","-
 echo 'ok: Buildkite passes every path of a volume to one client call'
 
 rm "$CALL_LOG"
-for config in '{}' '{"volumes":[]}' '{"volumes":[{"key":"ok","path":".ok"},{"key":"bad"}]}' '{"volumes":[{"key":"x","path":"a\nb"}]}' '{"volumes":[{"key":"x","path":[]}]}' '{"volumes":[{"key":"x","path":["a",""]}]}' '{"volumes":[{"key":"x","path":["a","b\nc"]}]}' '{"volumes":[{"key":"x","path":[1]}]}' '{"volumes":[{"key":"x","path":{"a":"b"}}]}' "$(jq -cn '{volumes: [range(9) | {key:"x",path:"p"}]}')"; do
+for config in '{}' '{"volumes":[]}' '{"volumes":[{"path":"p"}]}' '{"volumes":[{"key":"ok","path":".ok"},{"key":"bad"}]}' '{"volumes":[{"key":"x","path":"a\nb"}]}' '{"volumes":[{"key":"x","path":[]}]}' '{"volumes":[{"key":"x","path":["a",""]}]}' '{"volumes":[{"key":"x","path":["a","b\nc"]}]}' '{"volumes":[{"key":"x","path":[1]}]}' '{"volumes":[{"key":"x","path":{"a":"b"}}]}' "$(jq -cn '{volumes: [range(9) | {key:"x",path:"p"}]}')" '{"volumes":[{"key":"ok","path":".ok"},{"key":"","path":"p"}]}' '{"volumes":[{"key":"ok","path":".ok"},{"path":"p","cache":"x"}]}' "$(jq -cn '{volumes: [{path: [range(17) | "p\(.)"]}]}')" '{"volumes":[{"key":"ok","path":".ok"},{"path":"p","size":50}]}' '{"volumes":[{"key":"ok","path":".ok"},{"key":"tuist-gradle","path":"p"}]}' '{"volumes":[{"key":"ok","path":".ok"},{"key":"Tuist-Mine","path":"p"}]}' '{"volumes":[{"key":"ok","path":".ok"},{"path":"p","size":"0gb"}]}' '{"volumes":[{"key":"ok","path":".ok"},{"path":"p","size":"101gb"}]}' '{"volumes":[{"key":"ok","path":".ok"},{"path":"p","size":"50"}]}' '{"volumes":[{"key":"ok","path":".ok"},{"path":"p","size":"50gib"}]}' '{"volumes":[{"key":"ok","path":".ok"},{"path":"p","size":"2.5gb"}]}'; do
   if BUILDKITE_PLUGIN_CONFIGURATION="$config" bash "$source_dir/buildkite/hooks/pre-command" > "$fixture/error" 2>&1; then
     echo 'FAIL: accepted invalid Buildkite configuration' >&2; exit 1
   fi
   [[ ! -e "$CALL_LOG" ]]
 done
 echo 'ok: Buildkite validates every entry before attachment'
+
+for key in tuist-gradle Tuist-Mine; do
+  BUILDKITE_PLUGIN_CONFIGURATION="{\"volumes\":[{\"key\":\"$key\",\"path\":\"p\"}]}" bash "$source_dir/buildkite/hooks/pre-command" > "$fixture/error" 2>&1 && exit 1
+  grep -q 'reserved for Tuist' "$fixture/error"
+done
+BUILDKITE_PLUGIN_CONFIGURATION='{"volumes":[{"key":"k","path":"p","size":"50"}]}' bash "$source_dir/buildkite/hooks/pre-command" > "$fixture/error" 2>&1 && exit 1
+grep -q 'invalid cache volume size "50": use a whole number of GB from 1gb to 100gb, such as 50gb' "$fixture/error"
+[[ ! -e "$CALL_LOG" ]]
+echo 'ok: Buildkite explains reserved keys and invalid sizes'
+
+export BUILDKITE_PLUGIN_CONFIGURATION="$(jq -cn '{volumes: [{key: "deps", path: [range(16) | "p\(.)"], size: "50GB"}, {key: "npm", path: ".npm", size: "5gb"}, {key: "pip", path: "pip"}]}')"
+bash "$source_dir/buildkite/hooks/pre-command" > "$fixture/log" 2>&1
+jq -se '.[0] == (["--key","deps"] + [range(16) | "--path", "p\(.)"] + ["--size","50GB"]) and .[1] == ["--key","npm","--path",".npm","--size","5gb"] and .[2] == ["--key","pip","--path","pip"] and length == 3' "$CALL_LOG" >/dev/null
+if grep -q 'does not support size' "$fixture/log"; then echo 'FAIL: unexpected warning' >&2; exit 1; fi
+echo 'ok: Buildkite passes each volume size'
+
+rm "$CALL_LOG"
+CLIENT_SUPPORTS_SIZE= bash "$source_dir/buildkite/hooks/pre-command" > "$fixture/log" 2>&1
+jq -se '.[0] == (["--key","deps"] + [range(16) | "--path", "p\(.)"]) and .[1] == ["--key","npm","--path",".npm"] and length == 3' "$CALL_LOG" >/dev/null
+[[ $(grep -c 'does not support size' "$fixture/log") == 1 ]]
+echo 'ok: Buildkite warns once and attaches without sizes on an older client'
+rm "$CALL_LOG"
 
 export BUILDKITE_PLUGIN_CONFIGURATION='{"volumes":[{"key":"one","path":".one"},{"key":"two","path":".two"}]}'
 status=0
@@ -57,11 +88,38 @@ jq -se 'length == 1 and .[0] == ["--key","cache","--path","cache $(literal)"]' "
 echo 'ok: GitLab passes literal key and path arguments'
 
 rm "$CALL_LOG"
-if TUIST_VOLUME_KEY='' TUIST_VOLUME_PATH=cache bash -e "$fixture/gitlab.sh" > "$fixture/error" 2>&1; then
+if TUIST_VOLUME_KEY=cache TUIST_VOLUME_PATH='' bash -e "$fixture/gitlab.sh" > "$fixture/error" 2>&1; then
   echo 'FAIL: GitLab accepted missing inputs' >&2; exit 1
 fi
 [[ ! -e "$CALL_LOG" ]]
 echo 'ok: GitLab rejects missing inputs before calling the client'
+
+for key in '' ' '; do
+  if TUIST_VOLUME_KEY="$key" TUIST_VOLUME_PATH=cache bash -e "$fixture/gitlab.sh" > "$fixture/error" 2>&1; then
+    echo 'FAIL: GitLab accepted a missing key' >&2; exit 1
+  fi
+  grep -q 'Set TUIST_VOLUME_KEY' "$fixture/error"
+done
+if (unset TUIST_VOLUME_KEY; TUIST_VOLUME_PATH=cache bash -e "$fixture/gitlab.sh") > "$fixture/error" 2>&1; then
+  echo 'FAIL: GitLab accepted an unset key' >&2; exit 1
+fi
+[[ ! -e "$CALL_LOG" ]]
+echo 'ok: GitLab requires a key'
+
+for key in tuist-gradle TUIST-mine; do
+  if TUIST_VOLUME_KEY="$key" TUIST_VOLUME_PATH=cache bash -e "$fixture/gitlab.sh" > "$fixture/error" 2>&1; then
+    echo 'FAIL: GitLab accepted a reserved key' >&2; exit 1
+  fi
+  grep -q 'reserved for Tuist' "$fixture/error"
+done
+[[ ! -e "$CALL_LOG" ]]
+echo 'ok: GitLab rejects reserved keys before calling the client'
+
+TUIST_VOLUME_KEY=cache TUIST_VOLUME_PATH=cache TUIST_VOLUME_SIZE=' 50gb ' bash -e "$fixture/gitlab.sh" > "$fixture/log" 2>&1
+CLIENT_SUPPORTS_SIZE= TUIST_VOLUME_KEY=cache TUIST_VOLUME_PATH=cache TUIST_VOLUME_SIZE=50gb bash -e "$fixture/gitlab.sh" > "$fixture/log" 2>&1
+jq -se 'length == 2 and .[0] == ["--key","cache","--path","cache","--size","50gb"] and .[1] == ["--key","cache","--path","cache"]' "$CALL_LOG" >/dev/null
+grep -q 'does not support size' "$fixture/log"
+echo 'ok: GitLab passes the size only to a client that supports it'
 
 rm -f "$CALL_LOG"
 TUIST_VOLUME_KEY=shared TUIST_VOLUME_PATH=$'  .npm\n\n\t~/.cache/pip  \r\n   \n cache $(literal) \n' bash -e "$fixture/gitlab.sh"

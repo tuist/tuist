@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
 
@@ -23,5 +24,16 @@ func TestCustomCachePhaseLogsTheFailure(t *testing.T) {
 	}
 	if strings.Contains(got[1], "error=") {
 		t.Fatalf("success logged an error: %s", got[1])
+	}
+}
+
+// Per-host investigations need the volume a phase ran for; metrics must not.
+func TestCustomCachePhaseLogsItsVolume(t *testing.T) {
+	logs := captureLogs(t)
+	slot := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Scope: strings.Repeat("e", 64), BaseGeneration: 4, ManagedKey: "tuist-module"}, PodName: "runner-1", MountedGeneration: 3}
+	cachevolumes.Observer(observeCustomCache).For(slot).Start("attach", "older")(nil)
+	requireLogged(t, logs(), "cache phase", "scope="+slot.Scope, "use="+slot.ID, "kind=managed", "key=tuist-module", "generation=4", "mounted_generation=3", "pod=runner-1")
+	if got := testutil.ToFloat64(customCacheOperations.WithLabelValues("attach", "older", "success")); got < 1 {
+		t.Fatal("phase not counted under its bounded labels", got)
 	}
 }

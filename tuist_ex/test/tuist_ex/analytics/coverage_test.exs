@@ -34,6 +34,34 @@ defmodule TuistEx.Analytics.CoverageTest do
     end
   end
 
+  test "excluded_tags/1 names the tags the run's own --exclude options filter on" do
+    assert Coverage.excluded_tags(["--exclude", "slow", "--exclude=test:test a b", "--seed", "0"]) ==
+             ["slow", "test"]
+
+    assert Coverage.excluded_tags(["--only", "slow", "--cover"]) == []
+  end
+
+  test "narrowed?/1 is true only for arguments that pick the tests to run" do
+    for args <- [
+          ["--only", "integration"],
+          ["--failed"],
+          ["--stale"],
+          ["--name-pattern=foo"],
+          ["test/a_test.exs:12"]
+        ] do
+      assert Coverage.narrowed?(args), "expected #{inspect(args)} to be narrowed"
+    end
+
+    for args <- [
+          [],
+          ["--exclude", "slow"],
+          ["--max-failures", "1"],
+          ["--include", "slow", "--cover"]
+        ] do
+      refute Coverage.narrowed?(args), "expected #{inspect(args)} not to be narrowed"
+    end
+  end
+
   describe "report/4" do
     test "keeps the repository's files, relative to its root, with their blobs and lines" do
       snapshot = [
@@ -428,14 +456,17 @@ defmodule TuistEx.Analytics.CoverageTest do
              ] = functions
     end
 
-    # In a runtime of its own: the swaps outlive the test, and Mimic swaps the
-    # modules back after the suite from a build the test removes.
-    test "cover compiles and swaps every module Mimic copies before a test runs", %{
+    # In a runtime of its own, started without `+JPcover` as a user's is: the
+    # swaps outlive the test, and Mimic swaps the modules back after the suite
+    # from a build the test removes.
+    test "swaps every module Mimic copies before a test runs and counts them natively", %{
       directory: directory,
       config: config,
       ebin: ebin,
       source: source
     } do
+      if :erlang.system_info(:emu_flavor) != :jit, do: flunk("native coverage needs the JIT")
+
       doubler = Path.join(directory, "lib/doubler.ex")
 
       File.write!(doubler, """
@@ -455,6 +486,7 @@ defmodule TuistEx.Analytics.CoverageTest do
       Code.compiler_options(previous)
       :code.purge(TuistExNativeFixture.Doubler)
       :code.delete(TuistExNativeFixture.Doubler)
+      Coverage.instrument(ebin)
 
       paths =
         Enum.map(
@@ -465,13 +497,17 @@ defmodule TuistEx.Analytics.CoverageTest do
       script = """
       Mix.start()
       Enum.each(#{inspect([ebin | paths])}, &Code.prepend_path/1)
+      true = TuistEx.Analytics.Coverage.enable_native(#{inspect(ebin)})
       :ok = Application.load(:ex_unit)
       {:ok, _} = Application.ensure_all_started(:mimic)
       Mimic.copy(TuistExNativeFixture.Calc)
       Mimic.copy(TuistExNativeFixture.Doubler)
+      # As the application does while it starts, before the swap.
+      3 = TuistExNativeFixture.Calc.add(1, 2)
       TuistEx.Analytics.Coverage.prepare_native(#{inspect(config)})
       true = Mimic.Module.copied?(TuistExNativeFixture.Calc)
       true = Mimic.Module.copied?(TuistExNativeFixture.Doubler)
+      [] = :cover.modules()
       3 = TuistExNativeFixture.Calc.add(1, 2)
       4 = TuistExNativeFixture.Doubler.double(2)
       snapshot = TuistEx.Analytics.Coverage.snapshot(#{inspect(directory)}, #{inspect(config)})
@@ -492,7 +528,7 @@ defmodule TuistEx.Analytics.CoverageTest do
         |> :erlang.binary_to_term()
         |> Map.new(&{&1.path, &1.lines})
 
-      assert snapshot == %{source => %{5 => 1, 9 => 0, 12 => 0}, doubler => %{3 => 1}}
+      assert snapshot == %{source => %{5 => 2, 9 => 0, 12 => 0}, doubler => %{3 => 1}}
     end
   end
 

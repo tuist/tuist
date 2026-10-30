@@ -3,7 +3,7 @@
 Keep tasks thin: parse strict options, delegate behavior, and provide useful Mix errors.
 Do not start the customer application just to perform setup or authentication.
 
-- `tuist.test` publishes authenticated CI/coverage commits and branch heads before submitting runs, and coverage-only file listings afterward. Credential-free reporting skips both collection and uploads, including deferred and retry paths. Exercise task-level isolation in a child VM so task configuration never mutates the test VM's shared application environment.
+- `tuist.test` publishes authenticated CI/coverage commits and branch heads before submitting runs, and coverage-only file listings afterward. Credential-free reporting skips both collection and uploads, including deferred and retry paths. Resolve its side-effect-free mode probe once per invocation inside a bounded isolated process; a probe failure or deadline must never prevent local tests, refresh credentials, or change submission-time authentication/stripping. Exercise task-level isolation in a child VM so task configuration never mutates the test VM's shared application environment.
 
 ## Prebuilt test execution
 

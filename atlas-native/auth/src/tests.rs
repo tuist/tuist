@@ -20,8 +20,11 @@ impl MockTransport {
 impl Transport for MockTransport {
     fn request<T: serde::de::DeserializeOwned>(&self, url: &Url, body: Body<'_>) -> Result<T> {
         let value = match body {
-            Body::Get => Value::Null,
+            Body::Get | Body::Public { .. } => Value::Null,
             Body::Json(value) => value,
+            Body::Attachment { token, .. } => {
+                json!({"method":"GET","token":token,"attachment":true})
+            }
             Body::Api {
                 method,
                 token,
@@ -177,6 +180,7 @@ fn invalid_callbacks_and_fresh_sessions_do_not_use_the_network() {
         access_token: "access".into(),
         refresh_token: "refresh".into(),
         expires_at: now() + 3600,
+        cache_id: None,
     };
     assert!(restore_using(&network, session).is_ok());
     assert!(network.requests.borrow().is_empty());
@@ -232,24 +236,112 @@ fn reused_registration_builds_unique_pkce_logins_without_network() {
 }
 
 #[test]
+fn authorization_code_exchange_ignores_browser_fragments() {
+    for fragment in [
+        "",
+        "#",
+        "#_=_",
+        "#state=fragment-state&code=fragment-code&error=access_denied&access_token=fragment-token",
+    ] {
+        let network = MockTransport::new(vec![json!({
+            "access_token": "token-endpoint-access",
+            "refresh_token": "token-endpoint-refresh",
+            "token_type": "bearer",
+            "expires_in": 3600
+        })]);
+        let login = begin_using(&network, "https://atlas.example", Some(registration())).unwrap();
+        let verifier = login.pending.verifier.clone();
+        let callback = format!(
+            "{REDIRECT_URI}?state={}&code=query%2B%26%23code{fragment}",
+            login.pending.state
+        );
+        let session = complete_using(&network, login.pending, &callback).unwrap();
+        assert_eq!(session.access_token, "token-endpoint-access");
+        assert_eq!(session.refresh_token, "token-endpoint-refresh");
+        assert_eq!(
+            *network.requests.borrow(),
+            vec![(
+                "https://atlas.example/oauth2/token".into(),
+                json!({
+                    "grant_type": "authorization_code",
+                    "client_id": "native-client",
+                    "redirect_uri": REDIRECT_URI,
+                    "code": "query+&#code",
+                    "code_verifier": verifier
+                })
+            )]
+        );
+    }
+}
+
+#[test]
 fn callback_checks_origin_state_duplicates_expiry_and_denial() {
     let login = begin("https://atlas.example", Some(registration()), None).unwrap();
     let mut pending = login.pending;
     let callback = format!("{REDIRECT_URI}?state={}&code=a%2Bb%26c", pending.state);
     assert_eq!(callback_code(&pending, &callback).unwrap(), "a+b&c");
+    let fragment = format!("#state={}&code=fragment-code", pending.state);
     for callback in [
         callback.replace("oauth-callback", "other"),
         callback.replace("dev.tuist.atlas:", "evil:"),
+        callback.replace("oauth-callback?", "oauth-callback/other?"),
+        callback.replace("oauth-callback?", "oauth-callback:443?"),
+        callback.replace("oauth-callback", "user:password@oauth-callback"),
         callback.replace(&pending.state, "wrong"),
         format!("{callback}&code=second"),
         format!("{callback}&state={}", pending.state),
-        format!("{callback}#fragment"),
         format!("{callback}&error=access_denied"),
+        REDIRECT_URI.into(),
+        format!("{REDIRECT_URI}?code=query-code"),
+        format!("{REDIRECT_URI}?state={}", pending.state),
     ] {
         assert!(callback_code(&pending, &callback).is_err());
+        assert!(callback_code(&pending, &format!("{callback}{fragment}")).is_err());
     }
     pending.created_at = now() - 601;
     assert!(callback_code(&pending, &callback).is_err());
+    assert!(callback_code(&pending, &format!("{callback}{fragment}")).is_err());
+}
+
+#[test]
+fn callback_failures_identify_the_check_without_exposing_login_parameters() {
+    let login = begin("https://atlas.example", Some(registration()), None).unwrap();
+    let callback = format!(
+        "{REDIRECT_URI}?state={}&code=secret-code",
+        login.pending.state
+    );
+    let pending = json!(login.pending);
+    for (callback, expired, message) in [
+        (
+            callback.replace("oauth-callback", "unexpected-host"),
+            false,
+            "The sign-in callback used an unexpected destination. Start a new sign-in and try again.",
+        ),
+        (
+            callback.replace("oauth-callback?", "oauth-callback/?"),
+            false,
+            "The sign-in callback used an unexpected path. Start a new sign-in and try again.",
+        ),
+        (
+            callback,
+            true,
+            "Sign-in expired after ten minutes. Start a new sign-in and try again.",
+        ),
+    ] {
+        let mut request = json!({
+            "operation": "complete",
+            "pending": pending,
+            "callback": callback
+        });
+        if expired {
+            request["pending"]["created_at"] = json!(0);
+        }
+        let response: Value = serde_json::from_str(&bridge::execute(&request.to_string())).unwrap();
+        assert_eq!(
+            response,
+            json!({"error": {"kind": "invalid_callback", "message": message}})
+        );
+    }
 }
 
 #[test]
@@ -328,4 +420,48 @@ fn invalid_commands_return_sanitized_errors_and_owned_strings() {
         bridge::atlas_auth_free(output);
         bridge::atlas_auth_free(std::ptr::null_mut());
     }
+}
+
+pub(crate) struct TestDirectory(std::path::PathBuf);
+
+impl TestDirectory {
+    pub(crate) fn new() -> Self {
+        let path = std::env::temp_dir().join(format!("atlas-cache-{}", random_string().unwrap()));
+        std::fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+
+    pub(crate) fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+    pub(crate) fn as_str(&self) -> &str {
+        self.0.to_str().unwrap()
+    }
+}
+
+impl Drop for TestDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn local_bootstrap_upgrades_legacy_sessions_and_rotation_preserves_cache_identity() {
+    let legacy = serde_json::json!({
+        "registration": registration(), "access_token":"expired", "refresh_token":"refresh", "expires_at":1
+    });
+    let request = json!({"operation":"bootstrap", "session":legacy});
+    let response: Value = serde_json::from_str(&bridge::execute(&request.to_string())).unwrap();
+    let saved: Session = serde_json::from_value(response["ok"].clone()).unwrap();
+    assert_eq!(saved.cache_id.as_ref().unwrap().len(), 43);
+    assert_eq!(saved.expires_at, 1); // Bootstrap must not claim renewed authorization.
+    let network = MockTransport::new(vec![
+        json!({"access_token":"rotated", "token_type":"Bearer", "expires_in":3600}),
+    ]);
+    let restored = restore_using(&network, saved.clone()).unwrap();
+    assert_eq!(restored.cache_id, saved.cache_id);
+    assert_eq!(restored.refresh_token, "refresh");
+    assert_eq!(restored.access_token, "rotated");
+    let another = bootstrap(serde_json::from_value(legacy).unwrap()).unwrap();
+    assert_ne!(another.cache_id, saved.cache_id);
 }

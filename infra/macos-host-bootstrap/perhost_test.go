@@ -38,8 +38,6 @@ var fleetWideConfigFields = map[string]bool{
 	"CustomCacheURL":            true,
 	"CustomCacheNamespace":      true,
 	"CustomCacheServiceAccount": true,
-	"CacheVolumeMasterCapGiB":   true,
-	"CacheVolumeCASGiB":         true,
 	"VNCRelayPort":              true,
 	"VNCRelayPortCount":         true,
 	"MinGoldensKept":            true,

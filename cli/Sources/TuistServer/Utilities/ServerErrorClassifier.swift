@@ -7,14 +7,7 @@ public enum ServerErrorClassifier {
     /// Errors that do not carry a status code are retryable, so a failure this classifier does
     /// not model keeps the retries it has today.
     public static func isRetryable(_ error: Error) -> Bool {
-        switch error {
-        case let error as any HTTPStatusCodeError:
-            return error.isRetryable
-        case let error as ClientError:
-            return isRetryable(error.underlyingError)
-        default:
-            return true
-        }
+        HTTPRetryPolicy.isRetryable(error)
     }
 
     public static func isTransient(_ error: Error) -> Bool {

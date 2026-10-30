@@ -298,16 +298,20 @@ struct CargoTestReportTests {
                 environment: environment,
                 reporting: reporting
             )
-            var report: CargoTestReport?
+            var result: CargoTestResult?
             do {
-                try await CargoTestService(runner: runner).execute(context) { report = $0 }
+                try await CargoTestService(runner: runner).execute(context) { result = $0 }
                 #expect(!fails)
             } catch let CommandError.terminated(code, stderr, _) {
                 #expect(fails)
                 #expect(code == 101)
                 #expect(stderr.isEmpty)
             }
-            let modules = try #require(report?.modules)
+            let execution = try #require(result)
+            let buildFinished = try #require(execution.buildFinished)
+            #expect(buildFinished <= execution.finished)
+            #expect(CargoBuildOutcome.test(execution, compilations: [])?.failed == false)
+            let modules = try #require(execution.report?.modules)
             let cases = modules.flatMap { $0["test_cases"] as? [[String: Any]] ?? [] }
             #expect(cases.count == count)
             #expect(cases.contains { $0["status"] as? String == "failure" } == fails)

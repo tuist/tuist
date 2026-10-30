@@ -33,7 +33,15 @@ defmodule TuistWeb.API.Schemas.CargoBuild do
       properties: %{
         id: %Schema{type: :string, format: :uuid},
         actor: %Reference{"$ref": "#/components/schemas/ReportActor"},
+        custom_metadata: %Schema{
+          type: :object,
+          properties: %{
+            tags: %Schema{type: :array, items: %Schema{type: :string}},
+            values: %Schema{type: :object, additionalProperties: %Schema{type: :string}}
+          }
+        },
         command: nullable_string("The Cargo subcommand, for example build or check."),
+        tuist_version: nullable_string("The reporting Tuist CLI version."),
         rust_version: nullable_string("The rustc version."),
         status: %Schema{type: :string, enum: ["success", "failure"]},
         duration_ms: %Schema{type: :integer},

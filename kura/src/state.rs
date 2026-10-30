@@ -757,8 +757,13 @@ impl AppState {
                 self.config.backfill_ready_ring_percent
             ));
         }
+        let awaiting_exit_resume = self.runtime.authority.awaiting_exit_resume();
+        if awaiting_exit_resume {
+            reasons.push("unclean primary volume awaiting its exit resume".to_string());
+        }
 
-        let ready = writer_lock_owned && !draining && self.runtime.is_serving();
+        let ready =
+            writer_lock_owned && !draining && self.runtime.is_serving() && !awaiting_exit_resume;
         ReadinessReport {
             generation: snapshot.generation,
             ready,
@@ -779,7 +784,10 @@ impl AppState {
         let snapshot = self.readiness_snapshot().await;
         let draining = self.runtime.is_draining();
         let writer_lock_owned = self.runtime.writer_lock_owned();
-        let ready = writer_lock_owned && !draining && self.runtime.is_serving();
+        let ready = writer_lock_owned
+            && !draining
+            && self.runtime.is_serving()
+            && !self.runtime.authority.awaiting_exit_resume();
         let metrics = self.metrics.rollout_metrics_snapshot();
 
         let mut ring: Vec<String> = snapshot.known_peers.clone();

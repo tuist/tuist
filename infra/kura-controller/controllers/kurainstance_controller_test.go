@@ -37,6 +37,87 @@ import (
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
 
+func TestKuraInstanceReconcileDeletionStopsPodsOnTeardownGrace(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	replicas := int32(2)
+	now := metav1.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "kura-tuist-eu-1",
+			Namespace:         "kura",
+			Finalizers:        []string{KuraInstanceFinalizer},
+			DeletionTimestamp: &now,
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+			Replicas:      &replicas,
+			StorageSize:   "20Gi",
+		},
+	}
+	sibling := instance.DeepCopy()
+	sibling.Name = "kura-tuist-eu-2"
+	statefulSet := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	pod := func(owner *kurav1alpha1.KuraInstance, ordinal int) *corev1.Pod {
+		return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%d", owner.Name, ordinal),
+			Namespace: owner.Namespace,
+			Labels:    selectorLabels(owner),
+		}}
+	}
+
+	graces := map[string]int64{}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, statefulSet, pod(instance, 0), pod(instance, 1), pod(sibling, 0)).
+			WithStatusSubresource(instance).
+			WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+					if _, ok := obj.(*corev1.Pod); ok {
+						options := &client.DeleteOptions{}
+						options.ApplyOptions(opts)
+						if options.GracePeriodSeconds == nil {
+							t.Fatalf("pod %s deleted without a grace period", obj.GetName())
+						}
+						graces[obj.GetName()] = *options.GracePeriodSeconds
+					}
+					return c.Delete(ctx, obj, opts...)
+				},
+			}).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconciler.Get(ctx, client.ObjectKeyFromObject(statefulSet), &appsv1.StatefulSet{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the StatefulSet to be deleted before its pods, got %v", err)
+	}
+	want := map[string]int64{
+		"kura-tuist-eu-1-0": teardownTerminationGraceSeconds,
+		"kura-tuist-eu-1-1": teardownTerminationGraceSeconds,
+	}
+	if !reflect.DeepEqual(graces, want) {
+		t.Fatalf("expected only the deleted instance's pods on the teardown grace, got %v", graces)
+	}
+	if err := reconciler.Get(ctx, client.ObjectKeyFromObject(pod(sibling, 0)), &corev1.Pod{}); err != nil {
+		t.Fatalf("expected the sibling instance's pod to survive, got %v", err)
+	}
+}
+
 func TestKuraInstanceDesiredStateChangedPredicate(t *testing.T) {
 	p := kuraInstanceDesiredStateChangedPredicate()
 	oldInstance := &kurav1alpha1.KuraInstance{ObjectMeta: metav1.ObjectMeta{Generation: 4}}

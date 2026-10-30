@@ -73,7 +73,7 @@ test('root package and default key survive checkout moves, lock changes and CI m
   f.pkg();
   const first = success(f.prepare());
   assert.equal(first['cache-path'], `${f.workspace}/.build/dependency-cache`);
-  assert.equal(first.key, 'tuist-install-v1-generate');
+  assert.equal(first.key, 'install-v1-generate');
   f.write(path.join(f.workspace, 'Package.resolved'), 'changed pins');
   assert.equal(success(f.prepare({ GITHUB_REF: 'another-branch', GITHUB_RUN_ID: '999' })).key, first.key);
   const moved = path.join(f.root, 'other-checkout');
@@ -85,16 +85,31 @@ test('keys separate jobs and package locations, not toolchains or manifest conte
   const f = fixture(t);
   f.pkg();
   const key = success(f.prepare()).key;
-  assert.equal(success(f.prepare({ GITHUB_JOB: 'test' })).key, 'tuist-install-v1-test');
+  assert.equal(success(f.prepare({ GITHUB_JOB: 'test' })).key, 'install-v1-test');
   assert.equal(success(f.prepare({ FAKE_SWIFT_VERSION: 'Swift 7', FAKE_XCODE_VERSION: 'Xcode 28' })).key, key);
   f.write(path.join(f.workspace, 'Package.swift'), 'changed package structure');
   assert.equal(success(f.prepare()).key, key);
   f.pkg('apps/ios app');
   f.write(path.join(f.workspace, 'apps/ios app', 'Tuist.swift'));
-  assert.equal(success(f.prepare({ TUIST_INSTALL_PATH: 'apps/ios app' })).key, 'tuist-install-v1-generate-apps/ios-app');
+  assert.equal(success(f.prepare({ TUIST_INSTALL_PATH: 'apps/ios app' })).key, 'install-v1-generate-apps/ios-app');
   f.pkg('Tuist');
-  assert.equal(success(f.prepare()).key, 'tuist-install-v1-generate-Tuist');
+  assert.equal(success(f.prepare()).key, 'install-v1-generate-Tuist');
   assert.notEqual(f.prepare({ GITHUB_JOB: 'j'.repeat(200) }).status, 0);
+});
+
+test('default keys pass the tuist/cache-volume key contract', t => {
+  const f = fixture(t);
+  f.pkg();
+  f.pkg('Tuist');
+  const attach = path.join(action, '../cache-volume/attach.sh');
+  for (const job of ['generate', 'build']) {
+    const outputs = success(f.prepare({ GITHUB_JOB: job }));
+    const result = spawnSync('bash', [attach], {
+      cwd: f.root, encoding: 'utf8',
+      env: { ...f.env, TUIST_VOLUME_KEY: outputs.key, TUIST_VOLUME_PATH: outputs['scratch-path'], TUIST_VOLUME_SIZE: '' },
+    });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  }
 });
 
 test('Tuist package takes precedence; nested input locates the project root', t => {
@@ -235,4 +250,12 @@ test('archive paths escape glob characters in literal package directories', t =>
   f.write(path.join(f.workspace, 'app[1]*?/Tuist.swift'));
   fs.rmSync(path.join(f.bin, 'tuist-cache-volume'));
   assert.equal(success(f.prepare({ TUIST_INSTALL_PATH: 'app[1]*?' }))['archive-path'], './app[[]1[]][*][?]/.build');
+});
+
+test('size reaches the cache volume and never the GitHub archive', () => {
+  const definition = fs.readFileSync(path.join(action, 'action.yml'), 'utf8');
+  const step = id => definition.split(/\n    - /).find(s => s.startsWith(`id: ${id}\n`));
+  assert.match(definition, /\n  size:\n    description: [^\n]+\n    default: ""\n/);
+  assert.match(step('volume'), /^        size: \$\{\{ inputs\.size \}\}$/m);
+  assert.doesNotMatch(step('archive'), /size/);
 });

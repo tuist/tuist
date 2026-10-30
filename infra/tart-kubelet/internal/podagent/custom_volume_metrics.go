@@ -1,6 +1,9 @@
 package podagent
 
 import (
+	"log/slog"
+
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -16,15 +19,21 @@ var customCacheDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 
 func init() { metrics.Registry.MustRegister(customCacheOperations, customCacheDuration) }
 
-// The result category bounds the metric. The log line also carries the error,
-// which runner-cache keeps free of signed URLs and command output.
+// The result category bounds the metric. The log line also carries the volume's
+// subject and the error, which runner-cache keeps free of signed URLs and
+// command output; the subject never becomes a label.
 func observeCustomCache(o cachevolumes.Observation) {
 	result := cachevolumes.Result(o.Err)
 	customCacheOperations.WithLabelValues(o.Operation, o.Source, result).Inc()
 	customCacheDuration.WithLabelValues(o.Operation, o.Source).Observe(o.Duration.Seconds())
-	values := []any{"operation", o.Operation, "source", o.Source, "result", result, "duration", o.Duration}
+	values := append([]any{"operation", o.Operation, "source", o.Source, "result", result, "duration", o.Duration}, o.Subject.Fields()...)
 	if o.Err != nil {
 		values = append(values, "error", o.Err.Error())
 	}
 	log.Log.WithName("custom-cache-volumes").Info("cache phase", values...)
+}
+
+// customCacheLog is the custom-cache-volumes logger for runner-cache's own lines.
+func customCacheLog() *slog.Logger {
+	return slog.New(logr.ToSlogHandler(log.Log.WithName("custom-cache-volumes")))
 }
