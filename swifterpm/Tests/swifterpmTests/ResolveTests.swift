@@ -1332,8 +1332,8 @@ struct ResolveTests {
         }
     }
 
-    @Test
-    func pruningDropsUnreachableRegistryPinWithoutItsManifest() async throws {
+    @Test(arguments: ["", "registry.example-12345678/"])
+    func pruningDropsUnreachableRegistryPinWithoutItsManifest(registryPrefix: String) async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("App")
             try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
@@ -1361,12 +1361,27 @@ struct ResolveTests {
                 state: .init(branch: nil, revision: "abc", version: "1.0.0")
             )
             let scratch = root.appendingPathComponent("scratch")
-            let directSource = scratch.appendingPathComponent("registry/downloads/example/direct/1.0.0")
+            let subpath = "\(registryPrefix)example/direct/1.0.0"
+            let directSource = scratch.appendingPathComponent("registry/downloads/\(subpath)")
             try await writeMinimalPackageManifest(at: directSource, name: "Direct")
             try await ResolvedFile.write(
                 packageDir: package,
                 resolved: .init(originHash: "stale", pins: [direct, orphan, sourceOrphan], version: 3),
                 mirrors: MirrorConfig()
+            )
+            try await fileSystem.atomicWrite(
+                JSONFormatter.prettyData([
+                    "version": 7,
+                    "object": [
+                        "dependencies": [[
+                            "packageRef": ["identity": "example.direct", "kind": "registry"],
+                            "state": ["name": "registryDownload", "version": "1.0.0"],
+                            "subpath": subpath,
+                        ]],
+                        "artifacts": [],
+                    ],
+                ]),
+                to: scratch.appendingPathComponent("workspace-state.json")
             )
 
             try await PackageResolver.pruneStalePinsIfNeeded(

@@ -3,6 +3,65 @@ import Testing
 @testable import SwifterPMCore
 
 struct PackageInfoCacheTests {
+    @Test(
+        arguments: ["example/package/1.1.4", "registry.example-12345678/example/package/1.1.4"],
+        ["1.1.4", "2.0.0"]
+    )
+    func writePackageInfoCacheUsesTheRecordedRegistryDownload(subpath: String, version: String) async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            let cacheDir = root.appendingPathComponent("package-info")
+            let expectedSubpath = version == "1.1.4" ? subpath : "example/package/2.0.0"
+            let download = scratch.appendingPathComponent("registry/downloads/\(expectedSubpath)")
+            try await writeMinimalPackageManifest(at: package, name: "Root")
+            try await writeMinimalPackageManifest(
+                at: scratch.appendingPathComponent("registry/downloads/\(subpath)"), name: "StaleDependency"
+            )
+            try await writeMinimalPackageManifest(at: download, name: "RegistryDependency")
+            try await fileSystem.atomicWrite(
+                JSONFormatter.prettyData([
+                    "version": 7,
+                    "object": [
+                        "dependencies": [[
+                            "packageRef": ["identity": "Example.Package", "kind": "registry"],
+                            "state": ["name": "registryDownload", "version": "1.1.4"],
+                            "subpath": subpath,
+                        ]],
+                        "artifacts": [],
+                    ],
+                ]),
+                to: scratch.appendingPathComponent("workspace-state.json")
+            )
+            let pin = ResolvedPin(
+                identity: "example.package", kind: "registry", location: "",
+                state: .init(branch: nil, revision: nil, version: version)
+            )
+
+            try await PackageInfoCacheWriter.write(
+                packageDir: package, scratchDir: scratch,
+                resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3),
+                mirrors: MirrorConfig(), cacheDir: cacheDir, disableSandbox: true, quiet: true
+            )
+
+            let index = try #require(
+                JSONSerialization.jsonObject(
+                    with: try await fileSystem.readFile(at: cacheDir.appendingPathComponent("index.json").absolutePath)
+                ) as? [String: Any]
+            )
+            let entries = try #require(index["packages"] as? [[String: Any]])
+            let entry = try #require(entries.first)
+            #expect(entry["package_path"] as? String == download.path)
+            let infoPath = try #require(entry["package_info_path"] as? String)
+            let info = try #require(
+                JSONSerialization.jsonObject(
+                    with: try await fileSystem.readFile(at: URL(fileURLWithPath: infoPath).absolutePath)
+                ) as? [String: Any]
+            )
+            #expect(info["name"] as? String == "RegistryDependency")
+        }
+    }
+
     @Test
     func writePackageInfoCacheWritesRootIndexFromCachedManifest() async throws {
         try await withTemporaryDirectory { root in
