@@ -73,6 +73,70 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 >
 > Uploading a preview with the same binary (build) and the same `CFBundleVersion` will fail.
 
+## Publish from Once {#publish-from-once}
+
+[Once](https://buildonce.dev/docs/guide/infrastructure/tuist#publish-application-previews)
+can publish immutable artifacts to the same Tuist project using existing Tuist
+authentication. This flow requires Once 0.74.0 or later and a Tuist server with
+the artifact receiver. Once 0.73.x uses the legacy single-payload adapter instead.
+Configure the provider in the workspace's `once.toml`:
+
+```toml
+[infrastructures.tuist]
+kind = "tuist"
+account = "acme"
+project = "app"
+
+[infrastructure.artifacts]
+name = "tuist"
+```
+
+```sh
+once auth login --provider tuist
+once artifact publish MyApplication --track review
+```
+
+Tuist's authenticated artifact receiver retains the complete set, member
+manifests and payloads, including unknown interfaces. Supported native interfaces
+are projected asynchronously into previews with the project's default visibility,
+using existing project access and preview distribution. Generic artifact contents
+stay private, even in public projects. A publication receipt confirms artifact storage,
+not completion of preview processing; its URL opens the project's previews list.
+
+Apple projection accepts `dev.once.apple-install.v2` metadata for ad-hoc signed
+macOS and simulator applications exported on macOS. Physical-device applications
+are not eligible for this flow. Android projection accepts
+`dev.once.android-install.v1` metadata with a verified signature. Once approves
+automatic publication only for debug-signed, non-instrumentation APKs. Unknown
+interfaces remain downloadable as artifacts without creating previews.
+Android installation links preserve an `.apk` filename even though artifact
+payloads are stored under content digests.
+
+To publish from builds, opt in and explicitly authorize the destination:
+
+```toml
+[infrastructure]
+publish_on_build = ["MyApplication"]
+```
+
+```sh
+once artifact publish MyApplication --allow-on-build
+once build MyApplication
+```
+
+All requested builds must succeed. Automatic publication also requires producer
+approval of the entire closure and local authorization for this machine,
+workspace, exact endpoint, target and stable Tuist project destination. Without
+policy or authorization there are no artifact-publication network requests.
+Replaying the same retained publication verifies the remote receipt and avoids
+another upload. This differs from the duplicate-build behavior of `tuist share`.
+
+Artifact publications expire after 30 days on hosted Tuist. Self-hosted instances
+use `TUIST_APP_PREVIEW_RETENTION_DAYS`; leaving it unset disables expiry for this
+family. Expired publication records remain as tombstones and cannot be reactivated
+by replaying the same intent. The existing `tuist share` signing, visibility and
+distribution workflows remain unchanged.
+
 ## Tracks {#tracks}
 
 Tracks allow you to organize your previews into named groups. For example, you might have a `beta` track for internal testers and a `nightly` track for automated builds. Tracks are lazily created — simply specify a track name when sharing, and it will be created automatically if it doesn't exist.

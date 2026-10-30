@@ -214,7 +214,7 @@ alive in suspended apps or claim real-device activity validation.
   Build/test tasks depend on it; run it before invoking Once directly on a clean checkout.
   Run vendor preparation serially, not concurrently with builds that read that directory.
   Vendoring uses HTTP/1.1 to avoid repeated crates.io HTTP/2 framing failures on macOS runners.
-  Once 0.71.2 does not yet include the source-materialization fix in tuist/once#390;
+  Once 0.74.0 does not yet include the source-materialization fix in tuist/once#390;
   keep this required workaround until a published Once version includes that fix.
   The Android task exposes API-26 NDK clang and LLVM tools to Cargo build scripts through
   declared `build_script_tools`, so their contents participate in cache identity.
@@ -239,6 +239,10 @@ alive in suspended apps or claim real-device activity validation.
   production signing credentials, or service account credentials in source or
   cached actions. Android debug signing uses the standard public `android`
   password; never commit or upload the generated keystore.
+- Local build publication selects only `AtlasIOS` and `AtlasAndroid`; see the
+  README's automatic-build-previews setup. Keep Once's destination authorization
+  machine-local and out of CI caches. Do not grant it in PR/fork build jobs or
+  confuse debug previews with protected, stable-identity nightly distribution.
 - The single `.github/workflows/atlas-mobile.yml` pipeline triggers automatically
   only for `atlas-native/**` changes and skips draft PRs. Keep building, testing
   and each language's linting in distinct jobs. There is no unconditional merge

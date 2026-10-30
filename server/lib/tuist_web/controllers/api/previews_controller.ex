@@ -285,6 +285,9 @@ defmodule TuistWeb.API.PreviewsController do
     content_length = Map.get(multipart_upload_part, :content_length)
 
     case AppBuilds.app_build_by_id(app_build_id, project_id: selected_project.id) do
+      {:ok, %{artifact_storage_key: key}} when is_binary(key) ->
+        conn |> put_status(:conflict) |> json(%{message: "Published artifact content is immutable."})
+
       {:ok, app_build} ->
         object_key =
           AppBuilds.storage_key(%{
@@ -379,6 +382,9 @@ defmodule TuistWeb.API.PreviewsController do
     app_build_id = Map.get(body_params, :app_build_id, preview_id)
 
     case AppBuilds.app_build_by_id(app_build_id, project_id: selected_project.id, preload: [:preview]) do
+      {:ok, %{artifact_storage_key: key}} when is_binary(key) ->
+        conn |> put_status(:conflict) |> json(%{message: "Published artifact content is immutable."})
+
       {:ok, app_build} ->
         object_key =
           AppBuilds.storage_key(%{

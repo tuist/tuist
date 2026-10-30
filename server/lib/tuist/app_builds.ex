@@ -339,6 +339,8 @@ defmodule Tuist.AppBuilds do
     end
   end
 
+  def storage_key(%{app_build: %{artifact_storage_key: key}}) when is_binary(key), do: key
+
   def storage_key(%{account_handle: account_handle, project_handle: project_handle, app_build: app_build}) do
     extension = if app_build.type == :apk, do: "apk", else: "zip"
     "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{app_build.id}.#{extension}"
