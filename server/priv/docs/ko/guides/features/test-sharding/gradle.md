@@ -1,23 +1,23 @@
 ---
 {
-  "title": "Gradle Test Sharding",
-  "titleTemplate": ":title · Test Sharding · Features · Guides · Tuist",
-  "description": "Distribute Gradle tests across multiple CI runners with Tuist Test Sharding."
+  "title": "Gradle 테스트 샤딩",
+  "titleTemplate": ":title · 테스트 샤딩 · 기능 · 가이드 · Tuist",
+  "description": "Tuist 테스트 샤딩으로 여러 CI 러너에 Gradle 테스트를 분산하세요."
 }
 ---
 # Gradle 테스트 샤딩 {#gradle-test-sharding}
 
-Tuist Gradle 플러그인에는 테스트 샤딩에 대한 기본 지원이 포함되어 있습니다. 이 플러그인은 프로젝트의 테스트 작업에서 이전 CI 실행 시 Tuist가 기록한 테스트 스위트들을 계획하고, 과거 타이밍 데이터를 기반으로 균형 잡힌 샤드 계획을 생성하기 위해 Tuist 서버를 사용합니다.
+Tuist Gradle 플러그인에는 테스트 샤딩을 위한 기본 지원이 포함되어 있습니다. 이전 CI 실행에서 Tuist가 기록한 프로젝트의 테스트 작업에 대한 테스트 스위트 계획을 수립하고, Tuist 서버를 사용하여 과거 타이밍 데이터를 기반으로 균형 잡힌 샤드 계획을 생성합니다.
 
 > [!IMPORTANT] REQUIREMENTS
 > - <.localized_link href="/guides/features/test-insights/gradle">테스트 인사이트</.localized_link>를 구성해야 합니다
 
 ## 작동 방식 {#how-it-works}
 
-테스트 샤딩은 두 단계 워크플로우를 따릅니다:
+테스트 샤딩은 두 단계 워크플로를 따릅니다:
 
-1. **빌드 단계:** Tuist는 프로젝트에 대해 기록된 테스트 스위트를 바탕으로 서버에서 **샤드 계획**을 생성합니다. 서버는 지난 30일간의 과거 테스트 타이밍 데이터를 사용하여 각 샤드가 대략 동일한 시간이 소요되도록 테스트를 샤드에 분배합니다. 빌드 단계는 CI 시스템이 병렬 러너를 생성하는 데 사용하는 **샤드 매트릭스**를 출력합니다.
-2. **테스트 단계:** 각 CI 러너는 **샤드 인덱스**를 받아 해당 샤드에 할당된 테스트만 실행합니다. 마지막 샤드는 다른 샤드에 할당되지 않은 모든 테스트 스위트도 실행합니다.
+1. **빌드 단계:** Tuist는 서버에서 프로젝트에 대해 기록된 테스트 스위트를 기반으로 **샤드 계획**을 생성합니다. 서버는 지난 30일간의 과거 테스트 타이밍 데이터를 사용하여 각 샤드가 대략 동일한 시간이 소요되도록 테스트를 샤드에 분배합니다. 빌드 단계는 CI 시스템이 병렬 러너를 생성하는 데 사용하는 **샤드 매트릭스**를 출력합니다.
+2. **테스트 단계:** 각 CI 러너는 **샤드 인덱스**를 수신하고 해당 샤드에 할당된 테스트만 실행합니다. 마지막 샤드는 다른 샤드에 할당되지 않은 모든 테스트 스위트도 실행합니다.
 
 ## 빌드 단계 {#build-phase}
 
@@ -28,12 +28,12 @@ Tuist Gradle 플러그인에는 테스트 샤딩에 대한 기본 지원이 포�
   -PtuistShardMax=5
 ```
 
-이 작업은 다음과 같습니다:
+이 작업은 다음을 수행합니다:
 1. 컴파일하지 않고 샤딩할 테스트 작업이 있는 프로젝트를 찾습니다
 2. 지난 30일 동안 해당 프로젝트에 대해 기록된 테스트 스위트와 타이밍을 바탕으로 Tuist 서버에서 샤드 계획을 생성합니다
 3. CI 시스템을 위한 샤드 매트릭스를 출력합니다
 
-아직 기록된 테스트 스위트가 없는 경우(예: 첫 번째 실행 시), 계획에는 모든 테스트를 실행하는 단일 샤드가 포함됩니다.
+아직 테스트 스위트가 기록되지 않은 경우(예: 첫 번째 실행 시), 계획은 모든 테스트를 실행하는 단일 샤드로 구성됩니다.
 
 ### 빌드 옵션 {#build-options}
 
@@ -43,10 +43,10 @@ Gradle 프로젝트 속성을 통해 샤딩을 구성하세요:
 |----------|-------------|
 | `-PtuistShardMax=<N>` | 최대 샤드 수(기본값: 2) |
 | `-PtuistShardMin=<N>` | 최소 샤드 수 |
-| `-PtuistShardMaxDuration=<MS>` | 샤드당 목표 최대 지속 시간(밀리초) |
+| `-PtuistShardMaxDuration=<MS>` | 샤드당 목표 최대 지속 시간(밀리초 단위) |
 | `-PtuistShardTestTask=<NAME>` | 테스트가 샤딩되는 테스트 작업(예: `testDebugUnitTest`). 기본적으로 빌드의 모든 테스트 작업이 대상입니다 |
 
-여러 빌드 변형을 가진 Android 프로젝트는 변형당 하나의 단위 테스트 작업을 가집니다. 샤드가 실행될 변형에 `-PtuistShardTestTask`를 설정하여 해당 변형이 있는 프로젝트만 계획되도록 하세요:
+여러 빌드 변형(variant)이 있는 Android 프로젝트는 변형당 하나의 단위 테스트 작업을 가집니다. 샤드가 실행할 변형에 `-PtuistShardTestTask`를 설정하여 해당 변형이 있는 프로젝트만 계획에 포함되도록 하세요:
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -66,9 +66,9 @@ Gradle 프로젝트 속성을 통해 샤딩을 구성하세요:
 TUIST_SHARD_INDEX=0 ./gradlew test
 ```
 
-빌드 단계에서 `-PtuistShardTestTask`를 설정했다면, 각 샤드에서 동일한 작업을 실행하세요(예: `./gradlew testDebugUnitTest`).
+빌드 단계에서 `-PtuistShardTestTask`를 설정했다면, 각 샤드에서도 동일한 작업을 실행하세요(예: `./gradlew testDebugUnitTest`).
 
-## 지속적 통합 {#continuous-integration}
+## 지속적 통합(CI) {#continuous-integration}
 
 Tuist는 다음 CI 제공자를 자동으로 감지합니다:
 
@@ -129,7 +129,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist는 [하위 파이프라인](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines)으로 트리거할 수 있는 `.tuist-shard-child-pipeline.yml`을 생성합니다. 생성된 샤드 작업이 확장하는 `.tuist-shard` 템플릿 작업을 정의하세요:
+Tuist는 [하위 파이프라인](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines)으로 트리거할 수 있는 `.tuist-shard-child-pipeline.yml`을 생성합니다. 생성된 샤드 작업이 확장할 `.tuist-shard` 템플릿 작업을 정의하세요:
 
 ```yaml
 # .gitlab-ci.yml
@@ -250,7 +250,7 @@ steps:
       buildkite-agent pipeline upload .tuist-shard-pipeline.yml
 ```
 
-생성된 각 단계에는 환경에 `TUIST_SHARD_INDEX`가 설정되어 있습니다. 공유 스크립트를 사용하여 각 샤드 단계에 테스트 명령을 추가하세요:
+각 생성된 단계에는 환경에 `TUIST_SHARD_INDEX`가 설정되어 있습니다. 공유 스크립트를 사용하여 각 샤드 단계에 테스트 명령을 추가하세요:
 
 ```bash
 # .buildkite/shard-step.sh
@@ -261,7 +261,7 @@ tuist auth login
 
 ### Codemagic {#codemagic}
 
-Codemagic은 동적 매트릭스 작업을 지원하지 않으므로 샤드별로 별도의 워크플로를 정의하세요. Tuist는 각 워크플로 내에서 사용할 수 있도록 `CM_ENV` 파일에 `TUIST_SHARD_MATRIX`와 `TUIST_SHARD_COUNT`를 기록합니다:
+Codemagic은 동적 매트릭스 작업을 지원하지 않으므로 샤드별로 별도의 워크플로를 정의해야 합니다. Tuist는 각 워크플로 내에서 사용할 수 있도록 `CM_ENV` 파일에 `TUIST_SHARD_MATRIX`와 `TUIST_SHARD_COUNT`를 기록합니다:
 
 ```yaml
 # codemagic.yaml
@@ -325,7 +325,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-Bitrise에서는 Tuist가 `BITRISE_DEPLOY_DIR`에 `.tuist-shard-matrix.json`를 작성하여 하위 파이프라인 단계에서 빌드 아티팩트로 사용할 수 있게 합니다. 미리 정의된 병렬 워크플로와 함께 Bitrise Pipelines를 사용하세요:
+Bitrise에서는 Tuist가 `BITRISE_DEPLOY_DIR`에 `.tuist-shard-matrix.json`를 작성하여 다운스트림 파이프라인 단계에서 빌드 아티팩트로 사용할 수 있게 합니다. 미리 정의된 병렬 워크플로와 함께 Bitrise Pipelines를 사용하세요:
 
 ```yaml
 # bitrise.yml

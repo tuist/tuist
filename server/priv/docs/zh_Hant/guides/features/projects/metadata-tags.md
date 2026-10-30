@@ -1,29 +1,28 @@
 ---
 {
-  "title": "Metadata tags",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how to use target metadata tags to organize and focus on specific parts of your project"
+  "title": "中繼資料標籤",
+  "titleTemplate": ":title · 專案 · 功能 · 指南 · Tuist",
+  "description": "了解如何使用目標中繼資料標籤來組織並專注於專案的特定部分"
 }
 ---
-# 元資料標籤{#metadata-tags}
+# 中繼資料標籤 {#metadata-tags}
 
-隨著專案規模與複雜度的增加，一次處理整個程式碼庫可能會變得沒有效率。Tuist 提供**metadata 標籤**
-，作為一種將目標組織為邏輯群組的方式，並在開發過程中專注於專案的特定部分。
+隨著專案規模與複雜度增加，一次性處理整個程式碼庫會變得效率低下。Tuist 提供**中繼資料標籤**，讓你將目標組織成邏輯群組，並在開發期間專注於專案的特定部分。
 
-## 什麼是元資料標籤？{#what-are-metadata-tags}
+## 什麼是的中繼資料標籤？ {#what-are-metadata-tags}
 
-Metadata 標籤是您可以附加到專案中目標的字串標籤。它們作為標記，可讓您
+中繼資料標籤是可以附加到專案中目標的字串標籤。它們作為標記，讓你能夠：
 
-- **群組相關目標** - 標記屬於相同功能、團隊或架構層的目標
-- **集中您的工作區** - 產生僅包含特定標籤的目標的專案
-- **優化您的工作流程** - 在特定功能上工作，而無需載入程式碼庫中不相關的部分
-- **選擇要保留為來源的目標** - 選擇要在快取時將哪組目標保留為來源
+- **群組相關目標** - 為屬於相同功能、團隊或架構層級的目標加上標籤
+- **聚焦工作區** - 產生僅包含具有特定標籤之目標的專案
+- **最佳化工作流程** - 專注於特定功能，無需載入程式碼庫中不相關的部分
+- **選擇要保留為原始碼的目標** - 在快取時選擇要保留為原始碼的目標群組
 
-標籤是使用目標上的`metadata` 屬性定義，並儲存為字串陣列。
+標籤是使用目標上的 `metadata` 屬性定義，並以字串陣列的形式儲存。
 
-## 定義元資料標籤{#defining-metadata-tags}
+## 定義中繼資料標籤 {#defining-metadata-tags}
 
-您可以為專案清單中的任何目標新增標籤：
+你可以在專案清單中的任何目標上加入標籤：
 
 ```swift
 import ProjectDescription
@@ -62,13 +61,13 @@ let project = Project(
 )
 ```
 
-## 專注於標記的目標{#focusing-on-tagged-targets}
+## 聚焦於已加標籤的目標 {#focusing-on-tagged-targets}
 
-一旦您標記了目標，就可以使用`tuist generate` 指令建立只包含特定目標的專案：
+為目標加上標籤後，你可以使用 `tuist generate` 指令來建立一個聚焦專案，其中僅包含特定的目標：
 
 ### 依標籤聚焦
 
-使用`tag:` 前綴，可產生包含所有符合特定標籤的目標的專案：
+使用 `tag:` 前綴來產生包含所有符合特定標籤之目標的專案：
 
 ```bash
 # Generate project with all authentication-related targets
@@ -78,29 +77,29 @@ tuist generate tag:feature:auth
 tuist generate tag:team:identity
 ```
 
-### 按名稱聚焦
+### 依名稱聚焦
 
-您也可以依名稱針對特定目標：
+你也可以依名稱聚焦於特定目標：
 
 ```bash
 # Generate project with the Authentication target
 tuist generate Authentication
 ```
 
-### 焦點如何運作
+### 聚焦的運作方式
 
-當您專注於目標時：
+當你聚焦於目標時：
 
-1. **包含的目標** - 在產生的專案中包含符合您查詢的目標
-2. **相依性** - 自動包含重點目標的所有相依性
-3. **測試目標** - 包括重點目標的測試目標
-4. **排除** - 工作區排除所有其他目標
+1. **包含的目標** - 符合你查詢條件的目標會被包含在產生的專案中
+2. **相依性** - 聚焦目標的所有相依性會自動被包含
+3. **測試目標** - 聚焦目標的測試目標會被包含
+4. **排除** - 所有其他目標都會從工作區中排除
 
-這表示您可以獲得更小、更容易管理的工作空間，其中只包含您在功能上工作所需的內容。
+這表示你會獲得一個更小、更易於管理的工作區，其中僅包含開發功能所需的內容。
 
-## 標籤命名慣例{#tag-naming-conventions}
+## 標籤命名慣例 {#tag-naming-conventions}
 
-雖然您可以使用任何字串作為標籤，但遵循一致的命名慣例有助於保持您的標籤井井有條：
+雖然你可以使用任何字串作為標籤，但遵循一致的命名慣例有助於保持標籤的組織性：
 
 ```swift
 // Organize by feature
@@ -119,11 +118,51 @@ metadata: .metadata(tags: ["platform:ios", "platform:macos"])
 metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ```
 
-使用前綴，例如`feature:`,`team:`, 或`layer:` ，可以讓您更容易了解每個標籤的目的，並避免命名衝突。
+使用如 `feature:`、`team:` 或 `layer:` 等前綴，能更容易理解每個標籤的用途並避免命名衝突。
 
-## 使用專案描述輔助標籤{#using-tags-with-helpers}
+## 系統標籤 {#system-tags}
 
-您可以利用 <LocalizedLink href="/guides/features/projects/code-sharing"> 專案描述輔助工具</LocalizedLink>，將標籤在專案中的應用方式標準化：
+Tuist 使用 `tuist:` 前綴來標示由系統管理的標籤。這些標籤由 Tuist 自動套用，並可在快取設定檔中使用，以針對特定類型的產生內容。
+
+### 可用的系統標籤
+
+| 標籤 | 說明 |
+| --- | --- |
+| `tuist:synthesized` | 套用到 Tuist 為靜態函式庫和靜態框架中的資源處理所建立的合成套件目標。這些套件基於歷史原因而存在，旨在提供資源存取 API。 |
+
+### 在快取設定檔中使用系統標籤
+
+你可以在快取設定檔中使用系統標籤，以包含或排除合成目標：
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+> [!TIP]
+> **合成套件繼承父目標標籤**
+>
+> 合成套件目標除了接收 `tuist:synthesized` 標籤外，還會繼承其父目標的所有標籤。這表示如果你為靜態函式庫加上 `feature:auth` 標籤，其合成的資源套件將同時擁有 `feature:auth` 和 `tuist:synthesized` 標籤。
+
+
+## 搭配專案描述輔助工具使用標籤 {#using-tags-with-helpers}
+
+你可以利用<.localized_link href="/guides/features/projects/code-sharing">專案描述輔助工具</.localized_link>，將標籤的套用方式標準化：
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -151,7 +190,7 @@ extension Target {
 }
 ```
 
-然後在您的艙單中使用它：
+接著在你的清單中使用它：
 
 ```swift
 import ProjectDescription
@@ -166,28 +205,28 @@ let project = Project(
 )
 ```
 
-## 使用元數據標籤的好處{#benefits}
+## 使用元資料標籤的好處 {#benefits}
 
-### 改善開發體驗
+### 提升開發體驗
 
-透過專注於專案的特定部分，您可以
+透過聚焦於專案的特定部分，你可以：
 
-- **減少 Xcode 專案大小** - 使用較小的專案工作，開啟和瀏覽速度更快
-- **加速建置** - 只建置目前工作所需的內容
-- **提高專注力** - 避免不相關的程式碼分散您的注意力
-- **最佳化索引** - Xcode 索引較少的程式碼，使自動完成的速度更快
+- **縮減 Xcode 專案規模** - 處理較小的專案，開啟與導覽速度更快
+- **加速建置** - 僅建置目前工作所需的內容
+- **提升專注度** - 避免無關程式碼的干擾
+- **最佳化索引** - Xcode 索引的程式碼較少，讓自動完成功能更快速
 
 ### 更好的專案組織
 
-標籤提供靈活的方式來組織您的程式碼庫：
+標籤提供了一種靈活的方式來組織你的程式碼庫：
 
-- **多重維度** - 依功能、團隊、層級、平台或任何其他維度標記目標
-- **不變更結構** - 新增組織結構，但不變更目錄配置
-- **跨領域關注** - 一個目標可以屬於多個邏輯群組
+- **多個維度** - 依功能、團隊、層級、平台或任何其他維度為目標加上標籤
+- **無需結構變更** - 在不改變目錄結構的情況下新增組織架構
+- **跨領域關注點** - 單一目標可以屬於多個邏輯群組
 
 ### 與快取整合
 
-Metadata 標籤可與 <LocalizedLink href="/guides/features/cache">Tuist 的快取功能</LocalizedLink>無縫配合：
+元資料標籤可與<.localized_link href="/guides/features/cache">Tuist 的快取功能</.localized_link>無縫協作：
 
 ```bash
 # Cache all targets
@@ -197,16 +236,16 @@ tuist cache
 tuist generate tag:feature:payment
 ```
 
-## 最佳實踐{#best-practices}
+## 最佳實踐 {#best-practices}
 
-1. **從簡單的** - 從單一標籤維度 (例如特徵) 開始，然後視需要擴展
-2. **保持一致** - 在所有艙單中使用相同的命名慣例
-3. **記錄您的標籤** - 在專案文件中記錄可用的標籤清單及其含義
-4. **使用輔助工具** - 利用專案描述輔助工具來標準化標籤應用
-5. **定期檢閱** - 隨著專案的演進，檢閱並更新您的標籤策略
+1. **從簡單開始** - 從單一的標籤維度（例如功能）開始，並視需要擴展
+2. **保持一致性** - 在所有清單中使用相同的命名慣例
+3. **記錄你的標籤** - 在專案文件中維護可用標籤及其含義的清單
+4. **使用輔助工具** - 利用專案描述輔助工具來標準化標籤的套用
+5. **定期檢視** - 隨著專案演進，檢視並更新你的標籤策略
 
 ## 相關功能 {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">程式碼分享</LocalizedLink> - 使用專案描述輔助工具標準化標籤使用
-- <LocalizedLink href="/guides/features/cache">快取</LocalizedLink> - 結合標籤與快取以獲得最佳建置效能
-- <LocalizedLink href="/guides/features/selective-testing">選擇性測試</LocalizedLink> - 僅針對已變更的目標執行測試
+- <.localized_link href="/guides/features/projects/code-sharing">程式碼共用</.localized_link> - 使用專案描述輔助工具來標準化標籤的使用方式
+- <.localized_link href="/guides/features/cache">快取</.localized_link> - 將標籤與快取結合，以達到最佳的建置效能
+- <.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link> - 僅針對已變更的目標執行測試

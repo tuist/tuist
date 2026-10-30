@@ -1,77 +1,51 @@
 ---
 {
-  "title": "Issue reporting",
-  "titleTemplate": ":title · Contributors · Tuist",
-  "description": "Learn how to contribute to Tuist by reporting bugs"
+  "title": "問題回報",
+  "titleTemplate": ":title · 貢獻者 · Tuist",
+  "description": "了解如何透過回報錯誤來為 Tuist 作出貢獻"
 }
 ---
-# Issue reporting {#issue-reporting}
+# 回報問題 {#issue-reporting}
 
-As user of Tuist, you might come across bugs or unexpected behaviors. If you do,
-we encourage you to report them so that we can fix them.
+作為 Tuist 用戶，你可能會遇到錯誤或預期之外的行為。如果發生這種情況，我們鼓勵你回報問題，讓我們可以修復。
 
-## GitHub issues is our ticketing platform {#github-issues-is-our-ticketing-platform}
+## GitHub issues 是我哋嘅問題追蹤平台 {#github-issues-is-our-ticketing-platform}
 
-Issues should be reported on GitHub as [GitHub
-issues](https://github.com/tuist/tuist/issues) and not on Slack or other
-platforms. GitHub is better for tracing and managing issues, is closer to the
-codebase, and allows us to track the progress of the issue. Moreover, it
-encourages a long-form description of the problem, which forces the reporter to
-think about the problem and provide more context.
+請喺 GitHub 以 [GitHub issues](https://github.com/tuist/tuist/issues) 形式回報問題，而唔係喺 Slack 或其他平台。GitHub 更適合追蹤同管理問題、更接近代碼庫，亦讓我哋可以追蹤問題進度。此外，佢鼓勵提供較詳細嘅問題描述，促使回報者深入思考問題並提供更多背景資訊。
 
-## Context is crucial {#context-is-crucial}
+## 背景資訊至關重要 {#context-is-crucial}
 
-An issue without enough context will be deemed incomplete and the author will be
-asked for additional context. If not provided, the issue will be closed. Think
-about it this way: the more context you provide, the easier it is for us to
-understand the problem and fix it. So if you want your issue to be fixed,
-provide as much context as possible. Try to answer the following questions:
+如果問題缺少足夠背景資訊，會被視為不完整，作者將被要求補充。如果未有提供，該問題將會關閉。你可以咁諗：你提供嘅背景資訊越多，我哋就越容易理解問題並修復。所以，如果你希望問題得到修復，請盡量提供最多背景資訊。嘗試回答以下問題：
 
-- What were you trying to do?
-- How does your graph look?
-- What version of Tuist are you using?
-- Is this blocking you?
+- 你當時想做什麼？
+- 你嘅依賴圖係點樣？
+- 你使用緊邊個版本嘅 Tuist？
+- 這會阻礙你工作嗎？
 
-We also require you to provide a minimal **reproducible project**.
+我哋亦要求你提供一個最小化嘅 **可重現項目**。
 
-## Reproducible project {#reproducible-project}
+## 可重現項目 {#reproducible-project}
 
-### What is a reproducible project? {#what-is-a-reproducible-project}
+### 什麼是可重現項目？ {#what-is-a-reproducible-project}
 
-A reproducible project is a small Tuist project to demonstrate a problem - often
-this problem is caused by a bug in Tuist. Your reproducible project should
-contain the bare minimum features needed to clearly demonstrate the bug.
+可重現項目是一個小型 Tuist 項目，用於示範問題——通常這個問題是由 Tuist 中的錯誤引起。你嘅可重現項目應該只包含清晰展示該錯誤所需嘅最少功能。
 
-### Why should you create a reproducible test case? {#why-should-you-create-a-reproducible-test-case}
+### 為什麼你要創建可重現測試案例？ {#why-should-you-create-a-reproducible-test-case}
 
-A reproducible projects lets us isolate the cause of a problem, which is the
-first step towards fixing it! The most important part of any bug report is to
-describe the exact steps needed to reproduce the bug.
+可重現項目讓我哋隔離問題成因，這是修復問題嘅第一步！任何錯誤報告中最重要嘅部分，是描述重現錯誤所需嘅確切步驟。
 
-A reproducible project is a great way to share a specific environment that
-causes a bug. Your reproducible project is the best way to help people that want
-to help you.
+可重現項目是分享導致錯誤嘅特定環境嘅好方法。你嘅可重現項目是幫助那些想幫助你的人嘅最佳方式。
 
-### Steps to create a reproducible project {#steps-to-create-a-reproducible-project}
+### 創建可重現項目的步驟 {#steps-to-create-a-reproducible-project}
 
-- Create a new git repository.
-- Initialize a project using `tuist init` in the repository directory.
-- Add the code needed to recreate the error you’ve seen.
-- Publish the code (your GitHub account is a good place to do this) and then
-  link to it when creating an issue.
+- 創建一個新嘅 git 倉庫。
+- 喺倉庫目錄中使用 `tuist init` 初始化項目。
+- 加入重現你所見錯誤所需嘅代碼。
+- 發布代碼（你嘅 GitHub 帳戶係一個好地方），然後喺創建問題時連結到它。
 
-### Benefits of reproducible projects {#benefits-of-reproducible-projects}
+### 可重現項目嘅好處 {#benefits-of-reproducible-projects}
 
-- **Smaller surface area:** By removing everything but the error, you don’t have
-  to dig to find the bug.
-- **No need to publish secret code:** You might not be able to publish your main
-  site (for many reasons). Remaking a small part of it as a reproducible test
-  case allows you to publicly demonstrate a problem without exposing any secret
-  code.
-- **Proof of the bug:** Sometimes a bug is caused by some combination of
-  settings on your machine. A reproducible test case allows contributors to pull
-  down your build and test it on their machines as well. This helps verify and
-  narrow down the cause of a problem.
-- **Get help with fixing your bug:** If someone else can reproduce your problem,
-  they often have a good chance of fixing the problem. It’s almost impossible to
-  fix a bug without first being able to reproduce it.
+- **縮小影響範圍：** 透過移除除錯誤以外嘅一切，你無須費力尋找錯誤。
+- **無需發布機密代碼：** 你可能無法發布你嘅主要項目（出於多種原因）。將其一小部分重製為可重現測試案例，讓你可以在不暴露任何機密代碼嘅情況下公開示範問題。
+- **證明錯誤存在：** 有時錯誤係由你機器上某些設定組合引起。可重現測試案例讓貢獻者可以下載你嘅構建並喺他們嘅機器上測試。這有助於驗證並縮小問題成因。
+- **獲得修復錯誤嘅幫助：** 如果其他人可以重現你嘅問題，他們往往有好大機會修復問題。如果無法首先重現錯誤，幾乎不可能修復它。

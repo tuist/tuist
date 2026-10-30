@@ -1,12 +1,47 @@
 {
   "baseline_schema_version": 1,
-  "hash": "c4c99e0b55a829856457e75b4dd3b0970f7f8442333d5fa57a703d421857ef7e",
+  "hash": "18674d5734aa84ce888b9a1da2e40497b647a5d69bf85de649bf265cd608db15",
   "hash_tree": {
     "root": {
       "children": [
         {
           "children": [],
-          "hash": "33c451b468dd75b9ca90856ea5f2b2d0916092aac8e0e8bc3f8fbff3e822dced",
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Install the Gradle plugin {#install-the-gradle-plugin}": {
+                  "content_hash": "1724bc5e362ae6f282e1b90676af698bdc1a6a4a31bc794471527969c63c2f5d"
+                },
+                "## 1. Initialize Tuist {#initialize-tuist}": {
+                  "content_hash": "c07d963975366594579f0cce7a77b0cc671982bc5e59ce2d96dc79982b831849"
+                },
+                "## 2. Apply the plugin {#apply-the-plugin}": {
+                  "content_hash": "dbf32027c4d233ea707e2ac3447e103c4ae47f303944927dc42e0696459f174f"
+                },
+                "## 3. Authenticate your team and continuous integration {#authenticate}": {
+                  "content_hash": "8b8728fcf50a69fdbd7a06f483d55476f7b2cbe7d04740abef2c9438b8f65a71"
+                },
+                "## Configuration cache and Isolated Projects {#configuration-cache-and-isolated-projects}": {
+                  "content_hash": "11baaef6e88f6fcc3b520c0eb7c31a48eb64ed654d62b3f6d365d34090daf9e4"
+                },
+                "## Configuration reference {#configuration-reference}": {
+                  "content_hash": "3e713d3118fde8ae87ecc336f652aa57d59df3759c5356a0070e5fc7dc115518"
+                },
+                "## HTTP proxy {#http-proxy}": {
+                  "content_hash": "09594ede03ef2120eddcac78e59bdfcff30a06484306210097d117c9a8a40eae"
+                },
+                "## Next steps {#next-steps}": {
+                  "content_hash": "988fdaef318e4c26ab3083179e674d2d8efb08ce7178825796b8764a42a15357"
+                },
+                "Preamble": {
+                  "content_hash": "018813d4a3977a354f6fcbad520c57722a016b93f81e881ed7f75fd7d1e55dd0"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "13161174983995b01d1eaf312eeb4c4712f7e362868d604d546afe94d92cd60f",
           "kind": "source",
           "label": "server/priv/docs/en/guides/install-gradle-plugin.md",
           "metadata": {
@@ -15,13 +50,21 @@
         },
         {
           "children": [],
-          "hash": "615a01284f564143398adb36852712ea5be8937f06793dccf0b6cad1c5972997",
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "e933eddf942fbf5f2e921689f3e655bfd542827dddfc906eb81c5b1b73e7e5ec",
           "kind": "translation_config",
           "label": "generation",
           "metadata": {
             "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "format": "markdown",
-            "frontmatter_mode": "preserve",
+            "frontmatter_mode": "translate",
             "language": "Cantonese (Traditional Chinese characters)",
             "locale": "yue_Hant",
             "model": "",
@@ -31,34 +74,130 @@
             "retries": 3,
             "segmentation_version": 1,
             "source_language": "en",
-            "validation_hash": "064760dc472b525acbc80c5ce08973a94fc7a5b06ba42cfab835324c7c048924"
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
           }
         },
         {
           "children": [
             {
               "children": [],
-              "hash": "46e84bd7737c255be37e5ac1a1cb3816c62436a2fa1501e82fc90a60b1e984cd",
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "16ff641816fedd290ab30707644d2fe5a5b1e3e819a2e9ac8851478046b6dbb5"
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
               }
             },
             {
               "children": [],
-              "hash": "a92a1d3a18c1e1be86e613b194613064b411b73893253185405d19abfb685e7d",
+              "details": {
+                "content_hash": {
+                  "server/L10N/yue_Hant.md": {
+                    "content_hash": "a9f5de65e3df6568126c246af714d87b90c51701ce29f891a1c639178a35675a",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Cantonese-specific translation rules": {
+                        "content_hash": "b79034e38e7ae5b416325171841992d8f8eb36bca99d027472a78b4000adbe71"
+                      },
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "d1efbacf0b1133d96a12e1d2123485201c5894834efe99654f823b16cbf0f45d"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "e5dd367ba8638588b26a285bbc1eeb89e6a21538ff3b4f0eaabbf3f0b874387f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "acfc1e2b23eb84871683d43e1e798ab52804583919bb8651a4b7e6ca95ea30c3",
               "kind": "context",
               "label": "locale",
               "metadata": {
-                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                "content_hash": "3265808ed360b23ae68c93c873245d191314e6a027af2a9354034e62f4204749"
               }
             },
             {
               "children": [
                 {
                   "children": [],
-                  "hash": "1ce1060bb675f8cc75ef107e56162abcff4ca3e6f9f3adcd41022326a1dff73e",
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
                   "kind": "context",
                   "label": "voice",
                   "metadata": {
@@ -67,15 +206,38 @@
                 },
                 {
                   "children": [],
-                  "hash": "70a46d36422990ac658b3e9615b5a3ec8c9ab24e53c20ac6e06aaafb9ac57183",
+                  "details": {
+                    "content_hash": {
+                      "entry:3a2da093921d236b394ec82ea1bb3d2ac8661d0f1f72a4a43b9294c2b8385a86": {
+                        "case_sensitive": false,
+                        "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
+                        "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
+                        "translation_hash": "c61d77b3d299b85e6ad0e49bf581ad011d76ce86d6bd2d05222fa874aa50b85f"
+                      },
+                      "entry:3b51d63ccbd9cb0f30f7122a3b6e4e2de542eb64f8c66c336eeb30a2a5e68ee6": {
+                        "case_sensitive": false,
+                        "definition_hash": "5bfbcbe7115309c7054f4ae731dc8cd026280eceb239c69c75cadc7aa2512479",
+                        "term_hash": "c2af27b2919bbf3d9320486d2b9f21315d59ed40d6666f0eb9efef7db35f8855",
+                        "translation_hash": "bb4f90c69f3d21b92684d2c6ac7db67fdd3d7d4c59989d23a76e0af3aa7ae0a1"
+                      },
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "a2a24843a769fbec02fe1d2b48949350d6baf7c8a86bafe3e5cb2dac81f7fb27"
+                      }
+                    }
+                  },
+                  "hash": "8a3cb9f8ad06b7d1cb2583ea56c2dbda65cabe2fdbd3c246d781a75bf0ffbccc",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                    "content_hash": "bf4ba64db338596b8d47ff474d60c9e5c3bc4d2c3e5239e0ef5809dee96266ce"
                   }
                 }
               ],
-              "hash": "dcebe04e5b7d13287ceb7e484de7b00a697c7ae291f406ec32563e84ccfe7c11",
+              "details": {},
+              "hash": "55fbc0186dda01fb38bcbf16aa7ca6b1e58c768a91820cc5a651cbe56a3b7be9",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -84,28 +246,34 @@
               }
             }
           ],
-          "hash": "b74fa45a0097171fdb2584d5a433da09c1ce902e92abf102a94a11dfeb9bd077",
+          "details": {},
+          "hash": "242118a0d347999ef89adbcc5d0e1d487f3eee66ad1de268dc6fc90ad0e0a434",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
-      "hash": "c4c99e0b55a829856457e75b4dd3b0970f7f8442333d5fa57a703d421857ef7e",
+      "details": {},
+      "hash": "18674d5734aa84ce888b9a1da2e40497b647a5d69bf85de649bf265cd608db15",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/install-gradle-plugin.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "de69295eb94b583c1bd4d7800d91385dd742be1a81f1a67e6edc74b7bff78b42",
+  "output_hash": "d19251da369011d1eb08833025b4d1c454e48746ff197a00dfa66b05b39b0420",
   "output_path": "server/priv/docs/yue_Hant/guides/install-gradle-plugin.md",
   "protection_state": "recorded",
   "provider": "",
   "server_context": {
     "compiler_version": 3,
     "glossary": {
-      "applied": [],
-      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "applied": [
+        "repo:features",
+        "repo:flaky-tests",
+        "repo:tests"
+      ],
+      "content_hash": "bf4ba64db338596b8d47ff474d60c9e5c3bc4d2c3e5239e0ef5809dee96266ce",
       "shadowed": [],
       "version": null
     },
@@ -115,8 +283,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "a341b43cd8ffe0d4f30bc492fbdde41215d99451",
+  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
   "source_path": "server/priv/docs/en/guides/install-gradle-plugin.md",
-  "translated_at": "2026-10-28T11:11:40.688471Z",
-  "translation_session_id": "01a18206-c5b9-7fa7-8475-f16a8b4263cd"
+  "translated_at": "2026-10-29T16:27:58.118473Z",
+  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
 }

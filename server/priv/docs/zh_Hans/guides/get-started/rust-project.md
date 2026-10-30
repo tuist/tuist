@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Rust project",
-  "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Connect your Rust project to Tuist to track builds and tests, including doctests, and find flaky tests."
+  "title": "Rust 项目",
+  "titleTemplate": ":title · 入门指南 · 教程 · Tuist",
+  "description": "将你的 Rust 项目连接到 Tuist，以跟踪构建和测试（包括文档测试），并发现不稳定测试。"
 }
 ---
 # Rust 项目 {#rust-project}
@@ -16,23 +16,23 @@ https://tuist.dev/en/docs/guides/get-started/rust-project
 
 :::
 
-## 前置条件
+## 前提条件
 
 - 一个使用 Cargo 构建的 Rust 项目。
 - Tuist CLI 和一个 Tuist 账户。
 
-Tuist 可与现有的 Cargo 项目配合使用。你无需添加 Rust 依赖项，也无需更改项目的构建方式。
+Tuist 可与你现有的 Cargo 项目配合使用。你无需添加 Rust 依赖，也无需更改项目的构建方式。
 
 ## 连接项目
 
-安装 <.localized_link href="/guides/install-tuist">Tuist CLI</.localized_link> 和 Rust。在仪表板中创建一个项目，并将其构建系统设置为 **Cargo (Rust)**。在仓库根目录添加一个 `tuist.toml`：
+安装 <.localized_link href="/guides/install-tuist">Tuist CLI</.localized_link> 和 Rust。在仪表盘中创建一个项目，并将其构建系统设置为 **Cargo (Rust)**。在你的仓库根目录添加一个 `tuist.toml`：
 
 ```toml
 project = "account/project"
 # url = "https://your-tuist-server.example.com"
 ```
 
-使用 `tuist auth login` 登录，然后通过 Tuist 运行你常用的 Cargo 命令。在 CI 中，将 `TUIST_TOKEN` 设置为项目令牌。你也可以设置 `TUIST_PROJECT` 来代替添加配置文件，如果使用的是自托管服务器，还可以设置 `TUIST_URL`。
+使用 `tuist auth login` 登录，然后通过 Tuist 运行你常用的 Cargo 命令。在 CI 中，将 `TUIST_TOKEN` 设置为项目令牌。你也可以设置 `TUIST_PROJECT` 而无需添加配置文件，如果使用的是自托管服务器，还可以设置 `TUIST_URL`。
 
 ```sh
 tuist cargo build --workspace
@@ -40,7 +40,7 @@ tuist cargo check --all-targets
 tuist cargo test --workspace
 ```
 
-使用你通常传递给 Cargo 的相同参数，包括特性、工具链和测试过滤器。即使 Tuist 无法上传报告，Cargo 仍会保持其常规输出和退出代码。
+使用你通常传递给 Cargo 的相同参数，包括功能特性、工具链和测试过滤器。即使 Tuist 无法上传报告，Cargo 仍会保持其常规输出和退出码。
 
 ## 继续输入 Cargo
 
@@ -52,10 +52,10 @@ command = "tuist"
 args = ["cargo"]
 ```
 
-添加包装器后运行 `mise reshim`。然后你可以像往常一样使用 `cargo build`、`cargo check` 和 `cargo test`。Mise 会通过 Tuist 为你运行它们。
+添加包装器后运行 `mise reshim`。然后你可以照常使用 `cargo build`、`cargo check` 和 `cargo test`。Mise 会通过 Tuist 为你运行这些命令。
 
 > [!TIP] Coding agents
-> 这在与编码代理配合使用时非常有用：它们可以持续运行 `cargo build` 和 `cargo test`，而无需提醒它们添加 `tuist` 前缀。
+> 这在使用编码代理时非常有用：它们可以持续运行 `cargo build` 和 `cargo test`，而无需提醒它们添加 `tuist` 前缀。
 
 ## 编译缓存
 
@@ -63,19 +63,19 @@ args = ["cargo"]
 
 ## 构建洞察
 
-在仪表板中打开 **Builds**，查看构建耗时并将本地构建与 CI 进行对比。选择一个构建以找出编译耗时最长的 crate，并检查其警告和错误。
+在仪表盘中打开 **构建**，查看构建耗时并将本地构建与 CI 构建进行比较。选择一个构建以找出编译耗时最长的 crate，并检查其警告和错误。
 
-编译器计时针对的是 crate，而非单个源文件。有关如何阅读构建报告的更多信息，请参阅 <.localized_link href="/guides/features/build-insights/rust">Rust 构建洞察</.localized_link>。
+编译器计时针对的是 crate，而非单个源文件。请参阅 <.localized_link href="/guides/features/build-insights/rust">Rust 构建洞察</.localized_link> 了解更多关于如何阅读构建报告的信息。
 
 ## 测试洞察
 
-像往常一样运行测试：
+照常运行你的测试：
 
 ```sh
 tuist cargo test --workspace
 ```
 
-在仪表板中打开 **Tests**，查看通过、失败和忽略的测试，包括文档测试。Cargo 会报告套件持续时间，但稳定的 libtest 不会暴露每个测试的计时信息。
+在仪表盘中打开 **测试**，查看通过、失败和忽略的测试，包括文档测试。Cargo 会报告套件持续时间，但稳定的 libtest 不暴露每个测试的计时信息。
 
 仅运行文档测试：
 

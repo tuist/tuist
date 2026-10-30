@@ -1,13 +1,13 @@
 ---
 {
   "title": "Docker",
-  "titleTemplate": ":title · Runners · Features · Guides · Tuist",
-  "description": "Use Docker on Tuist Runners: build and run containers, container jobs, service containers, and private registries."
+  "titleTemplate": ":title · Runners · Funcionalidades · Guías · Tuist",
+  "description": "Usa Docker en los runners de Tuist: compila y ejecuta contenedores, trabajos en contenedores, contenedores de servicio y registros privados."
 }
 ---
 # Docker {#docker}
 
-Los runners de Linux vienen con Docker listo para usar. Cada trabajo obtiene su propio daemon de Docker dentro de la máquina virtual del trabajo, y la CLI de `docker`, Buildx y Compose están preinstalados. No necesitas una acción de configuración ni `sudo`.
+Los runners de Linux vienen con Docker listo para usar. Cada trabajo obtiene su propio daemon de Docker dentro de la máquina virtual del trabajo, y la CLI de `docker`, Buildx y Compose están preinstaladas. No necesitas una acción de configuración ni `sudo`.
 
 ```yaml
 jobs:
@@ -20,13 +20,13 @@ jobs:
 ```
 
 > [!NOTE]
-> **Solo Linux**
+> **Solo en Linux**
 >
 > Los runners de macOS no proporcionan un daemon de Docker. Usa un <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> de Linux para los trabajos que lo necesiten.
 
 ## Ejecutar un trabajo en un contenedor {#running-a-job-in-a-container}
 
-Apunta `container` a la imagen en la que debe ejecutarse tu trabajo. Tuist la extrae y ejecuta cada paso dentro de ella:
+Apunta `container` a la imagen en la que debe ejecutarse tu trabajo. Tuist la descarga y ejecuta cada paso dentro de ella:
 
 ```yaml
 jobs:
@@ -44,7 +44,7 @@ jobs:
 
 ## Contenedores de servicio {#service-containers}
 
-`services` funciona de la misma manera que en los runners alojados en GitHub. Los servicios son accesibles en `localhost` en sus puertos asignados:
+`services` funciona igual que en los runners alojados en GitHub. Los servicios son accesibles en `localhost` en sus puertos mapeados:
 
 ```yaml
 jobs:
@@ -64,7 +64,7 @@ jobs:
 
 ## Registros privados {#private-registries}
 
-Autentícate con la acción de inicio de sesión propia del registro o con `docker login` antes de extraer o enviar imágenes:
+Autentícate con la acción de inicio de sesión propia del registro o con `docker login` antes de hacer pull o push:
 
 ```yaml
       - uses: docker/login-action@v3
@@ -77,11 +77,11 @@ Autentícate con la acción de inicio de sesión propia del registro o con `dock
 
 Para un `container` a nivel de trabajo, pasa las mismas credenciales a través de la clave `credentials`, como en el ejemplo anterior.
 
-## Extracción de imágenes {#image-pulls}
+## Descargas de imágenes {#image-pulls}
 
-Las extracciones de Docker Hub se sirven a través de una caché pull-through operada por Tuist, por lo que los trabajos no consumen el límite de tasa anónimo de Docker Hub. Las imágenes de otros registros se extraen directamente.
+Las descargas desde Docker Hub se sirven a través de una caché pull-through operada por Tuist, por lo que los trabajos no consumen el límite de tasa anónimo de Docker Hub. Las imágenes de otros registros se descargan directamente.
 
-Cada trabajo comienza con un almacén de imágenes vacío, por lo que una imagen que usa tu flujo de trabajo se extrae una vez por trabajo en lugar de reutilizarse entre trabajos. Si un trabajo extrae una imagen personalizada grande, mantén la imagen pequeña o constrúyela en el flujo de trabajo con un builder de Buildx en caché:
+Cada trabajo comienza con un almacén de imágenes vacío, por lo que una imagen que usa tu flujo de trabajo se descarga una vez por trabajo en lugar de reutilizarse entre trabajos. Si un trabajo descarga una imagen personalizada grande, mantén la imagen pequeña o constrúyela en el flujo de trabajo con un constructor Buildx con caché:
 
 ```yaml
       - uses: docker/setup-buildx-action@v3

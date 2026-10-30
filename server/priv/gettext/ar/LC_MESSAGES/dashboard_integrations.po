@@ -42,7 +42,7 @@ msgstr "اختيار مستودع"
 #: lib/tuist_web/live/integrations_live.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
-msgstr "اختر المستودع للاتصال به"
+msgstr "اختيار المستودع للاتصال به"
 
 #: lib/tuist_web/live/integrations_live.html.heex:16
 #, elixir-autogen, elixir-format
@@ -100,19 +100,19 @@ msgstr "إزالة الاتصال"
 #: lib/tuist_web/live/integrations_live.ex:349
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr "أنت غير مخوّل لتنفيذ هذا الإجراء."
+msgstr "غير مصرح لك بتنفيذ هذا الإجراء."
 
 #: lib/tuist_web/live/integrations_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "يعتمد وصولك إلى المستودعات على إعداد تكامل GitHub وTuist."
+msgstr "يعتمد وصولك إلى المستودعات على إعدادات التكامل بين GitHub وTuist."
 
 #: lib/tuist_web/live/integrations_live.ex:361
 #: lib/tuist_web/live/integrations_live.ex:759
 #: lib/tuist_web/live/integrations_live.ex:780
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
-msgstr "عنوان URL غير صالح"
+msgstr "رابط غير صالح"
 
 #: lib/tuist_web/live/integrations_live.ex:795
 #, elixir-autogen, elixir-format
@@ -123,12 +123,12 @@ msgstr "مؤسسة غير صالحة"
 #: lib/tuist_web/live/integrations_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Server URL"
-msgstr "عنوان URL للخادم"
+msgstr "رابط الخادم"
 
 #: lib/tuist_web/live/integrations_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Enterprise server"
-msgstr "خادم المؤسسة"
+msgstr "خادم Enterprise"
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:212
 #, elixir-autogen, elixir-format
@@ -169,7 +169,7 @@ msgstr "اقرأ دليل الإعداد"
 #: lib/tuist_web/live/integrations_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
-msgstr "يحتاج خادم Tuist هذا إلى تطبيق GitHub خاص به على github.com قبل أن يتمكن من تثبيت واحد. سجّل التطبيق، ثم اضبط TUIST_GITHUB_APP_NAME وTUIST_GITHUB_APP_CLIENT_ID وTUIST_GITHUB_APP_CLIENT_SECRET وTUIST_GITHUB_APP_PRIVATE_KEY_BASE64 وأعد تشغيل الخادم."
+msgstr "يحتاج خادم Tuist هذا إلى تطبيق GitHub خاص به على github.com قبل أن يتمكن من تثبيت واحد. سجّل التطبيق، ثم اضبط المتغيرات TUIST_GITHUB_APP_NAME وTUIST_GITHUB_APP_CLIENT_ID وTUIST_GITHUB_APP_CLIENT_SECRET وTUIST_GITHUB_APP_PRIVATE_KEY_BASE64 وأعد تشغيل الخادم."
 
 #: lib/tuist_web/live/integrations_live.ex:834
 #, elixir-autogen, elixir-format
@@ -200,7 +200,7 @@ msgstr "ربط Buildkite"
 #: lib/tuist_web/live/integrations_live.html.heex:739
 #, elixir-autogen, elixir-format
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
-msgstr "أنشئ رمز وكيل (Agent Token) ضمن رموز الوكلاء الخاصة بعنقودك في Buildkite. يتم التقاط المهام من قوائم الانتظار المستضافة ذاتيًا والمسمّاة بأسماء ملفات تعريف المشغّل لديك."
+msgstr "أنشئ رمز وكيل (Agent Token) ضمن رموز الوكلاء الخاصة بعنقودك في Buildkite. يتم التقاط المهام من قوائم الانتظار المستضافة ذاتيًا والمُسمّاة بأسماء ملفات تعريف المشغّل لديك."
 
 #: lib/tuist_web/components/amp_integration.ex:121
 #: lib/tuist_web/components/amp_integration.ex:249
@@ -209,28 +209,28 @@ msgstr "أنشئ رمز وكيل (Agent Token) ضمن رموز الوكلاء ا
 #: lib/tuist_web/live/integrations_live.html.heex:678
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
-msgstr "فصل الربط"
+msgstr "فصل الاتصال"
 
 #: lib/tuist_web/live/integrations_live.html.heex:767
 #, elixir-autogen, elixir-format
 msgid "Organization slug"
-msgstr "اختصار المؤسسة"
+msgstr "اختصار المنظمة"
 
 #: lib/tuist_web/live/integrations_live.ex:836
 #, elixir-autogen, elixir-format
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
-msgstr "تشغيل مهام Buildkite على مشغّلات Tuist. يراقب Tuist قوائم الانتظار المستضافة ذاتيًا في عنقودك ويشغّل ما يجده هناك."
+msgstr "نفّذ مهام Buildkite على مشغّلات Tuist. يراقب Tuist قوائم الانتظار المستضافة ذاتيًا في عنقودك وينفّذ ما يجده هناك."
 
 #: lib/tuist_web/components/amp_integration.ex:224
 #: lib/tuist_web/live/integrations_live.html.heex:781
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
-msgstr "مخزّن بشكل مشفّر ولا يُعرض مرة أخرى."
+msgstr "يُخزّن مُشفّرًا ولا يُعرض مرة أخرى."
 
 #: lib/tuist_web/live/integrations_live.html.heex:703
 #, elixir-autogen, elixir-format
 msgid "Organization"
-msgstr "المؤسسة"
+msgstr "المنظمة"
 
 #: lib/tuist_web/live/integrations_live.ex:292
 #, elixir-autogen, elixir-format
@@ -252,7 +252,7 @@ msgstr "ربط GitLab CI"
 #: lib/tuist_web/live/integrations_live.html.heex:611
 #, elixir-autogen, elixir-format
 msgid "Disconnecting: waiting for GitLab to settle queued assignments."
-msgstr "جارٍ فصل الاتصال: في انتظار انتهاء GitLab من معالجة المهام المعلقة."
+msgstr "جارٍ قطع الاتصال: بانتظار استقرار التعيينات في قائمة الانتظار لدى GitLab."
 
 #: lib/tuist_web/live/integrations_live.html.heex:494
 #, elixir-autogen, elixir-format
@@ -279,12 +279,12 @@ msgstr "تحقق من رابط GitLab ورمز مصادقة المشغّل."
 #: lib/tuist_web/live/integrations_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
-msgstr "أنشئ مشغّلاً لـ GitLab باستخدام وسوم ملفك الشخصي في Tuist، وعطّل المهام غير الموسومة، ثم الصق رمزه هنا. اختر الآلة في خط الأنابيب الخاص بك باستخدام وسوم مثل [tuist-macos]."
+msgstr "أنشئ مشغّل GitLab باستخدام وسوم ملفك الشخصي في Tuist، وعطّل الوظائف غير الموسومة، ثم الصق رمزه هنا. اختر الآلة في خط الأنابيب الخاص بك باستخدام وسوم مثل [tuist-macos]."
 
 #: lib/tuist_web/live/integrations_live.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
-msgstr "شغّل مهام GitLab CI على مشغّلات Tuist. اختر جهازًا لكل مهمة باستخدام وسوم خط الأنابيب."
+msgstr "شغّل وظائف GitLab CI على مشغّلات Tuist. اختر جهازًا لكل وظيفة باستخدام وسوم خط الأنابيب."
 
 #: lib/tuist_web/live/integrations_live.ex:464
 #, elixir-autogen, elixir-format
@@ -304,7 +304,7 @@ msgstr "تم تحديث عنوان URL لواجهة برمجة تطبيقات Gi
 #: lib/tuist_web/live/integrations_live.ex:365
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise integration not found."
-msgstr "لم يتم العثور على تكامل GitHub Enterprise."
+msgstr "لم يُعثَر على تكامل GitHub Enterprise."
 
 #: lib/tuist_web/live/integrations_live.html.heex:122
 #, elixir-autogen, elixir-format
@@ -314,7 +314,7 @@ msgstr "حفظ عنوان URL لواجهة برمجة التطبيقات"
 #: lib/tuist_web/live/integrations_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "The GitHub URL your browser can access."
-msgstr "عنوان URL الخاص بـ GitHub الذي يمكن للمتصفح الوصول إليه."
+msgstr "عنوان URL لـ GitHub الذي يمكن للمتصفح الوصول إليه."
 
 #: lib/tuist_web/live/integrations_live.html.heex:63
 #: lib/tuist_web/live/integrations_live.html.heex:109
@@ -325,18 +325,18 @@ msgstr "عنوان URL لواجهة برمجة التطبيقات"
 #: lib/tuist_web/live/integrations_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server"
-msgstr "خادم GitHub Enterprise"
+msgstr "GitHub Enterprise Server"
 
 #: lib/tuist_web/live/integrations_live.html.heex:66
 #: lib/tuist_web/live/integrations_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "The REST API base URL Tuist servers can access, including /api/v3. Leave empty to use the Server URL followed by /api/v3."
-msgstr "عنوان URL الأساسي لواجهة برمجة التطبيقات REST الذي يمكن لخوادم Tuist الوصول إليه، بما في ذلك /api/v3. اتركه فارغًا لاستخدام عنوان URL للخادم متبوعًا بـ /api/v3."
+msgstr "عنوان URL الأساسي لواجهة REST API الذي يمكن لخوادم Tuist الوصول إليه، بما في ذلك /api/v3. اتركه فارغًا لاستخدام عنوان URL للخادم متبوعًا بـ /api/v3."
 
 #: lib/tuist_web/live/integrations_live.ex:170
 #, elixir-autogen, elixir-format
 msgid "Could not connect this Origin repository. Check the installation's access and choose an unconnected project."
-msgstr "تعذر الاتصال بمستودع Origin هذا. تحقق من وصول التثبيت واختر مشروعًا غير متصل."
+msgstr "تعذر الاتصال بمستودع Origin هذا. تحقق من صلاحية الوصول للتثبيت واختر مشروعًا غير متصل."
 
 #: lib/tuist_web/live/integrations_live.html.heex:317
 #, elixir-autogen, elixir-format
@@ -346,7 +346,7 @@ msgstr "لم يتم تكوين تطبيق Origin"
 #: lib/tuist_web/live/integrations_live.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "Register an Origin app, then configure TUIST_ORIGIN_APP_ID and TUIST_ORIGIN_APP_PRIVATE_KEY on this Tuist server to enable installation."
-msgstr "سجّل تطبيق Origin، ثم قم بتكوين TUIST_ORIGIN_APP_ID وTUIST_ORIGIN_APP_PRIVATE_KEY على خادم Tuist هذا لتمكين التثبيت."
+msgstr "سجّل تطبيق Origin، ثم اضبط المتغيرين TUIST_ORIGIN_APP_ID وTUIST_ORIGIN_APP_PRIVATE_KEY على خادم Tuist هذا لتمكين التثبيت."
 
 #: lib/tuist_web/live/integrations_live.html.heex:355
 #, elixir-autogen, elixir-format
@@ -366,7 +366,7 @@ msgstr "جارٍ تحميل المستودعات..."
 #: lib/tuist_web/live/integrations_live.html.heex:389
 #, elixir-autogen, elixir-format
 msgid "Manage the integration to grant access to a native repository, then retry loading repositories."
-msgstr "أدر التكامل لمنح الوصول إلى مستودع أصلي، ثم حاول إعادة تحميل المستودعات."
+msgstr "أدر التكامل لمنح الوصول إلى مستودع أصلي، ثم أعد محاولة تحميل المستودعات."
 
 #: lib/tuist_web/live/integrations_live.html.heex:387
 #, elixir-autogen, elixir-format
@@ -392,7 +392,7 @@ msgstr "حاول مرة أخرى أو أدر التكامل للتحقق من و
 #: lib/tuist_web/live/integrations_live.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "Connect any of your Origin repositories to a project"
-msgstr "ربط أي من مستودعات Origin الخاصة بك بمشروع"
+msgstr "اربط أيًا من مستودعات Origin الخاصة بك بمشروع"
 
 #: lib/tuist_web/live/integrations_live.html.heex:332
 #, elixir-autogen, elixir-format
@@ -409,7 +409,7 @@ msgstr "رمز وصول API"
 #: lib/tuist_web/live/integrations_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "Lets merge request pipelines save cache volumes. Needs the read_api scope."
-msgstr "دع أنابيب طلبات الدمج تحفظ أحجام ذاكرة التخزين المؤقت. يتطلب نطاق read_api."
+msgstr "دع خطوط أنابيب طلبات الدمج تحفظ أحجام ذاكرة التخزين المؤقت. يتطلب نطاق read_api."
 
 #: lib/tuist_web/components/amp_integration.ex:178
 #, elixir-autogen, elixir-format
@@ -419,40 +419,40 @@ msgstr "ربط Amp"
 #: lib/tuist_web/components/amp_integration.ex:207
 #, elixir-autogen, elixir-format
 msgid "Copy the provider token and paste it below. Tuist will run the provider for this account."
-msgstr "انسخ رمز الموفر والصقه أدناه. سيقوم Tuist بتشغيل الموفر لهذا الحساب."
+msgstr "انسخ رمز المزوّد والصقه أدناه. ستشغّل Tuist المزوّد لهذا الحساب."
 
 #: lib/tuist_web/components/amp_integration.ex:51
 #, elixir-autogen, elixir-format
 msgid "Could not save the connection. Check your provider token, account permissions, and whether this provider is already connected to another account."
-msgstr "لم نتمكن من حفظ الاتصال. تحقق من رمز الموفر، وصلاحيات الحساب، وما إذا كان هذا الموفر متصلاً بالفعل بحساب آخر."
+msgstr "تعذّر حفظ الاتصال. تحقق من رمز المزوّد، وصلاحيات الحساب، وما إذا كان هذا المزوّد متصلاً بالفعل بحساب آخر."
 
 #: lib/tuist_web/components/amp_integration.ex:201
 #, elixir-autogen, elixir-format
 msgid "In Amp, open Workspace Settings → Orbs and add an Orb provider."
-msgstr "في Amp، افتح إعدادات مساحة العمل → Orbs وأضف موفر Orb."
+msgstr "في Amp، افتح إعدادات مساحة العمل → Orbs وأضف مزوّد Orb."
 
 #: lib/tuist_web/components/amp_integration.ex:161
 #: lib/tuist_web/components/amp_integration.ex:218
 #, elixir-autogen, elixir-format
 msgid "Orb provider token"
-msgstr "رمز موفر Orb"
+msgstr "رمز مزوّد Orb"
 
 #: lib/tuist_web/components/amp_integration.ex:72
 #, elixir-autogen, elixir-format
 msgid "You no longer have permission to disconnect this integration."
-msgstr "لم يعد لديك إذن لفصل هذا التكامل."
+msgstr "لم تعد لديك صلاحية لفصل هذه التكاملة."
 
 #: lib/tuist_web/components/amp_integration.ex:114
 #, elixir-autogen, elixir-format
 msgid "Run your Amp workspace’s Orbs on Tuist sandboxes."
-msgstr "شغّل Orbs لمساحة عمل Amp الخاصة بك على بيئات Tuist المعزولة."
+msgstr "نفّذ Orbs الخاصة بمساحة عمل Amp على بيئات معزولة في Tuist."
 
 #: lib/tuist_web/components/amp_integration.ex:149
 #, elixir-autogen, elixir-format
 msgid "Tuist could not prepare or stop the provider. Retrying automatically."
-msgstr "لم يتمكن Tuist من إعداد أو إيقاف المزود. ستتم إعادة المحاولة تلقائيًا."
+msgstr "لم يتمكن Tuist من إعداد أو إيقاف الموفر. ستتم إعادة المحاولة تلقائيًا."
 
 #: lib/tuist_web/components/amp_integration.ex:251
 #, elixir-autogen, elixir-format
 msgid "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
-msgstr "يؤدي هذا إلى إيقاف الأعمال الجديدة وإيقاف تشغيل Orbs قيد التشغيل لهذه التكاملات. تبقى الأقراص المحفوظة حتى تقوم بحذفها. سيتم إزالة الرمز المخزن في Tuist."
+msgstr "يؤدي هذا إلى إيقاف الأعمال الجديدة وإيقاف تشغيل Orbs النشطة لهذا التكامل. تبقى الأقراص المحفوظة حتى تحذفها. سيتم إزالة الرمز المخزن في Tuist."

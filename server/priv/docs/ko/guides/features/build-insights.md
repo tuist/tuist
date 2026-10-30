@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Build Insights",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Track build performance for Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist Build Insights."
+  "title": "빌드 인사이트",
+  "titleTemplate": ":title · 기능 · 가이드 · Tuist",
+  "description": "Tuist 빌드 인사이트로 Xcode, Gradle, Bazel, Elixir 및 Rust 프로젝트의 빌드 성능을 추적하세요."
 }
 ---
 # 빌드 인사이트 {#build-insights}
@@ -22,22 +22,22 @@
 />
   <.home_card
     title="Gradle"
-    details="Tuist Gradle 플러그인을 사용하여 Gradle 작업 시간과 캐시 효율성을 추적합니다."
+    details="Tuist Gradle 플러그인으로 Gradle 작업 시간과 캐시 효율성을 추적합니다."
     link="/guides/features/build-insights/gradle"
 />
   <.home_card
     title="Bazel"
-    details="Build Event Protocol을 통해 Bazel 명령어 실행 시간, 캐시 총량 및 크리티컬 패스 진단 정보를 추적합니다."
+    details="Build Event Protocol을 통해 Bazel 명령 실행 시간, 캐시 총합 및 크리티컬 패스 진단 정보를 추적합니다."
     link="/guides/features/build-insights/bazel"
 />
   <.home_card
     title="Elixir"
-    details="Elixir 프로젝트의 컴파일 소요 시간, 경고 메시지 및 빌드를 지연시키는 파일을 추적합니다."
+    details="Elixir 프로젝트의 컴파일 소요 시간, 경고 및 빌드를 지연시키는 파일을 추적합니다."
     link="/guides/features/build-insights/elixir"
 />
   <.home_card
     title="Rust"
-    details="Tuist CLI를 사용하여 Cargo 명령어 실행 시간, 관찰된 rustc 호출 및 컴파일러 진단 정보를 추적합니다."
+    details="Tuist CLI로 Cargo 명령 실행 시간, 관찰된 rustc 호출 및 컴파일러 진단 정보를 추적합니다."
     link="/guides/features/build-insights/rust"
 />
 </.home_cards>
