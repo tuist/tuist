@@ -2678,10 +2678,13 @@ sum by (platform) (increase(
 ))
 ```
 
-- C: `1 - $A / $B`, the share of jobs over 10 s. It is above 10% exactly
-  when the p90 is over 10 s, because 10 s is a bucket boundary.
-- Condition: `$C > 0.1 && $B >= 20`; pending period 30 minutes; severity
-  warning; policy tree (`#notifications`)
+- C: `1 - $A / $B`, the share of jobs over 10 s, shown in the
+  notification. It is above 10% exactly when the p90 is over 10 s, because
+  10 s is a bucket boundary.
+- Condition: `$B - $A > 0.1 * $B && $B >= 20`, which is C over 10% without
+  the division. When B is 0, C is NaN, and Grafana treats a NaN condition
+  as firing. Pending period 30 minutes; severity warning; policy tree
+  (`#notifications`)
 - No `affected_service`: jobs still start.
 - `test-runner-queue-time-alert.sh` checks the expression with promtool.
 

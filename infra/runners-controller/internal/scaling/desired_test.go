@@ -212,3 +212,40 @@ func TestWarmFloor(t *testing.T) {
 		})
 	}
 }
+
+func TestInUse(t *testing.T) {
+	tests := []struct {
+		name    string
+		signals Signals
+		want    bool
+	}{
+		{
+			name:    "a learned floor alone is not use",
+			signals: Signals{LearnedWarmFloor: 3},
+			want:    false,
+		},
+		{
+			name:    "a runner session in the last hour",
+			signals: Signals{P95ConcurrentLastHour: 1},
+			want:    true,
+		},
+		{
+			name:    "a queued job",
+			signals: Signals{Queued: 1},
+			want:    true,
+		},
+		{
+			name:    "a job blocked on its account's limit",
+			signals: Signals{Withheld: 2},
+			want:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.signals.InUse(); got != tc.want {
+				t.Errorf("InUse(%+v) = %v, want %v", tc.signals, got, tc.want)
+			}
+		})
+	}
+}
