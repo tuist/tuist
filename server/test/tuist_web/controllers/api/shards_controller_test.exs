@@ -394,9 +394,41 @@ defmodule TuistWeb.API.ShardsControllerTest do
       response = json_response(conn, :bad_request)
       assert response["message"] =~ "shard_plan_id or reference"
     end
+
+    test "explains that a runner-local plan needs a runner at its site", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :start_upload_for_plan_id, fn _project, _account, ^plan_id, _artifact, _opts ->
+        {:error, :shard_storage_site_required}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start",
+          %{shard_plan_id: plan_id}
+        )
+
+      assert json_response(conn, :forbidden)["message"] =~ "runner-local storage"
+    end
   end
 
   describe "GET /api/projects/:account/:project/tests/shards/:reference/:shard_index" do
+    test "explains that a runner-local plan needs a runner at its site", %{conn: conn, user: user, project: project} do
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, _opts ->
+        {:error, :shard_storage_site_required}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/0")
+
+      assert json_response(conn, :forbidden)["message"] =~ "runner-local storage"
+    end
+
     test "rejects a malformed shard plan id", %{conn: conn, user: user, project: project} do
       conn =
         conn

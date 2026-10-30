@@ -54,7 +54,7 @@ defmodule Tuist.Shards.Storage do
 
         case CacheGrant.linux_site(grant, account.id) do
           {:ok, ^site} -> {:ok, actor}
-          _ -> {:error, :shard_storage_unavailable}
+          _ -> {:error, :shard_storage_site_required}
         end
       end
     end
