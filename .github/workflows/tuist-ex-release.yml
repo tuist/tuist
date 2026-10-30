@@ -63,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -n "$SOURCE_SHA$BASE_TAG$PATCH_VERSION" ]]; then
-            python3 .github/scripts/tuist-ex-stable-release.py "$SOURCE_SHA" "$BASE_TAG" "$PATCH_VERSION"
+            bash .github/scripts/tuist-ex-stable-release.sh "$SOURCE_SHA" "$BASE_TAG" "$PATCH_VERSION"
           else
             mise run --skip-tools release:check tuist-ex
             echo "source-sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
@@ -135,7 +135,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --prune --force origin '+refs/heads/releases/tuist-ex-*:refs/remotes/origin/releases/tuist-ex-*' '+refs/tags/*:refs/tags/*'
-          python3 .release-control/.github/scripts/tuist-ex-stable-release.py "$SOURCE_SHA" "$BASE_TAG" "$PATCH_VERSION"
+          bash .release-control/.github/scripts/tuist-ex-stable-release.sh "$SOURCE_SHA" "$BASE_TAG" "$PATCH_VERSION"
       - name: Publish package and documentation
         run: |
           set -euo pipefail

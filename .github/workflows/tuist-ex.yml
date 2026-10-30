@@ -7,14 +7,14 @@ on:
       - tuist_ex/**
       - .github/workflows/tuist-ex.yml
       - .github/workflows/tuist-ex-release.yml
-      - .github/scripts/tuist-ex-stable-release*.py
+      - .github/scripts/tuist-ex-stable-release*.sh
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - tuist_ex/**
       - .github/workflows/tuist-ex.yml
       - .github/workflows/tuist-ex-release.yml
-      - .github/scripts/tuist-ex-stable-release*.py
+      - .github/scripts/tuist-ex-stable-release*.sh
   merge_group: {}
   workflow_call:
     inputs:
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: python3 .github/scripts/tuist-ex-stable-release.test.py
+      - run: bash .github/scripts/tuist-ex-stable-release.test.sh
 
   compile:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false

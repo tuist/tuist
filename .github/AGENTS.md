@@ -208,7 +208,7 @@ stable dispatch validates an immutable release-branch tip and exact next patch,
 then reuses validation and publishing with that source. Keep control code on
 main and recheck source/tag boundaries before publication. See the stable hotfix
 procedure in `tuist_ex/README.md`; validate the guard with
-`python3 .github/scripts/tuist-ex-stable-release.test.py`. The existing
+`bash .github/scripts/tuist-ex-stable-release.test.sh`. The existing
 `HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
 
 The optional `custom_cache_apfs` staging smoke input runs the candidate shared
