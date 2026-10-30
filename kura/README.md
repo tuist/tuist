@@ -242,6 +242,16 @@ When peer mTLS is enabled:
 - 🪪 the certificate configured through `KURA_INTERNAL_TLS_CERT_PATH` should be valid for both server and client auth
 - 🏷️ the certificate SANs must cover the hostname used in `KURA_NODE_URL`
 
+Outbound HTTPS retains native system/enterprise trust; peer mTLS retains its explicit
+account CA bundle and identity. Both outbound verification and inbound peer client
+authentication additionally reject the twelve eMudhra incident keys in
+[`policy.json`](../infra/certificate-trust/policy.json), including intermediate
+and trust-anchor keys. Certificate rejection is terminal for authentication
+requests and occurs before HTTP credentials are delivered. This containment does
+not replace platform trust updates. Docker builds require the named context
+`--build-context certificate-trust=../infra/certificate-trust` when run from
+`kura/`; the Compose fixtures supply it automatically.
+
 ## ⚙️ Runtime Model And Limits
 
 Kura is designed around explicit resource budgets instead of relying on ambient process limits.

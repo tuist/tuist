@@ -168,6 +168,7 @@ pub struct Response {
 #[derive(Clone)]
 pub struct TuistBackend {
     base_url: String,
+    server_address: String,
     client: Client,
     verifier: Option<JwtVerifier>,
     introspection: Option<IntrospectionCredentials>,
@@ -183,14 +184,19 @@ impl TuistBackend {
         introspection: Option<IntrospectionCredentials>,
         metrics: Metrics,
     ) -> Result<Self, String> {
-        let client = Client::builder()
+        let client = crate::certificate_trust::client_builder()?
             .connect_timeout(connect_timeout)
             .timeout(request_timeout)
             .build()
             .map_err(|error| format!("failed to build the Tuist HTTP client: {error}"))?;
 
+        let server_address = reqwest::Url::parse(&base_url)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .unwrap_or_else(|| "invalid-host".to_string());
         Ok(Self {
             base_url,
+            server_address,
             client,
             verifier,
             introspection,
@@ -279,7 +285,7 @@ impl TuistBackend {
                     "kura.auth.backend_request",
                     http.request.method = %method,
                     http.route = route,
-                    server.address = %self.base_url,
+                    server.address = %self.server_address,
                     kura.request.attempt = attempt,
                     http.response.status_code = field::Empty,
                     kura.auth.result = field::Empty,
@@ -334,7 +340,10 @@ impl TuistBackend {
                     );
                     // One retry, and only for the errors where the request
                     // provably never reached the server.
-                    if attempt < 2 && retryable_reqwest_error(error_kind) {
+                    if attempt < 2
+                        && !crate::certificate_trust::terminal_transport_failure(&error)
+                        && retryable_reqwest_error(error_kind)
+                    {
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         continue;
                     }
@@ -377,6 +386,11 @@ fn status_class(status: u16) -> &'static str {
 }
 
 fn classify_reqwest_error(error: &reqwest::Error) -> &'static str {
+    match crate::certificate_trust::failure_category(error) {
+        Some("error_chain_limit") => return "unknown",
+        Some(_) => return "tls",
+        None => {}
+    }
     let chain = error_chain_string(error);
     if error.is_timeout() {
         "timeout"
@@ -413,7 +427,9 @@ fn error_chain_string(error: &reqwest::Error) -> String {
 }
 
 /// Everything except a response that arrived but could not be read: both calls
-/// are reads, so a second attempt is safe and covers a slow first one.
+/// are reads, so a second attempt is safe and covers a slow first one. The
+/// caller separately excludes typed TLS failures; transient handshake EOF/reset
+/// strings retain their existing retry behavior.
 fn retryable_reqwest_error(error_kind: &str) -> bool {
     matches!(
         error_kind,
@@ -422,13 +438,11 @@ fn retryable_reqwest_error(error_kind: &str) -> bool {
 }
 
 fn format_reqwest_error(error: &reqwest::Error) -> String {
-    let mut chain = vec![error.to_string()];
-    let mut source = std::error::Error::source(error);
-    while let Some(cause) = source {
-        chain.push(cause.to_string());
-        source = cause.source();
-    }
-    chain.join(": ")
+    let category = crate::certificate_trust::failure_category(error).unwrap_or("transport");
+    format!(
+        "Tuist HTTP transport failed ({}): {category}",
+        classify_reqwest_error(error)
+    )
 }
 
 #[cfg(test)]
@@ -442,6 +456,124 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[tokio::test]
+    async fn certificate_failure_is_terminal_private_and_precedes_credentials() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let fixture = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let server = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(
+            vec![fixture.cert.der().clone()],
+            rustls::pki_types::PrivateKeyDer::Pkcs8(fixture.signing_key.serialize_der().into()),
+        )
+        .unwrap();
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let requests = Arc::new(AtomicUsize::new(0));
+        let server_attempts = attempts.clone();
+        let server_requests = requests.clone();
+        let task = tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                server_attempts.fetch_add(1, Ordering::SeqCst);
+                let acceptor = acceptor.clone();
+                let requests = server_requests.clone();
+                tokio::spawn(async move {
+                    if let Ok(mut tls) = acceptor.accept(stream).await {
+                        let mut buffer = [0; 4096];
+                        if tls.read(&mut buffer).await.unwrap_or(0) > 0 {
+                            requests.fetch_add(1, Ordering::SeqCst);
+                            tls.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
+                                .await
+                                .unwrap();
+                        }
+                    }
+                });
+            }
+        });
+        let backend = TuistBackend::new(
+            format!(
+                "https://fixture-user:fixture-password@localhost:{}/?fixture-query=fixture-value",
+                address.port()
+            ),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            None,
+            Some(IntrospectionCredentials {
+                client_id: "fixture-id".into(),
+                client_secret: "fixture-client-secret".into(),
+            }),
+            Metrics::new("test".into(), "test".into()),
+        )
+        .unwrap();
+        assert_eq!(backend.server_address, "localhost");
+        for error in [
+            backend.introspect("fixture-token").await.unwrap_err(),
+            backend
+                .cache_access("Bearer fixture-token")
+                .await
+                .unwrap_err(),
+        ] {
+            assert!(error.contains("1 attempt(s)") && error.contains("(tls)"));
+            for private in [
+                "fixture-user",
+                "fixture-password",
+                "fixture-query",
+                "fixture-value",
+                "fixture-client-secret",
+                "fixture-token",
+                "https://",
+            ] {
+                assert!(!error.contains(private));
+            }
+        }
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
+        task.abort();
+        let _ = task.await;
+    }
+
+    #[tokio::test]
+    async fn transient_handshake_eof_retains_one_retry() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let observed = attempts.clone();
+        let task = tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                observed.fetch_add(1, Ordering::SeqCst);
+                drop(stream);
+            }
+        });
+        let backend = TuistBackend::new(
+            format!("https://localhost:{}", address.port()),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            None,
+            None,
+            Metrics::new("test".into(), "test".into()),
+        )
+        .unwrap();
+        assert!(retryable_reqwest_error("tls"));
+        assert!(
+            backend
+                .cache_access("Bearer fixture-token")
+                .await
+                .unwrap_err()
+                .contains("2 attempt(s)")
+        );
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        task.abort();
+        let _ = task.await;
+    }
 
     fn cache_token(signing_key: &str) -> String {
         encode(
@@ -474,6 +606,90 @@ mod tests {
             .expect("the token to verify");
 
         assert_eq!(claims["cache_grants"]["project"]["write"][0], "acme/ios");
+    }
+
+    #[test]
+    fn verifies_cross_provider_tokens_and_rejects_invalid_credentials() {
+        // Minted with jsonwebtoken 10.3.0's RustCrypto provider at 15b391f3,
+        // using SIGNING_KEY for ES256 and this throwaway secret for HMAC.
+        let tokens: Value =
+            serde_json::from_str(include_str!("../../test/jwt/rustcrypto.json")).unwrap();
+        let secret = "qualification-only-hmac-secret-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        for algorithm in [
+            Algorithm::HS256,
+            Algorithm::HS384,
+            Algorithm::HS512,
+            Algorithm::ES256,
+        ] {
+            let keys = if algorithm == Algorithm::ES256 {
+                JwtVerifier::public_keys(PUBLIC_KEY).unwrap()
+            } else {
+                JwtVerifier::secret_keys(secret)
+            };
+            let verifier = JwtVerifier {
+                algorithm,
+                keys,
+                issuer: Some("tuist".into()),
+                audiences: vec!["kura".into()],
+            };
+            let token = tokens[format!("{algorithm:?}")].as_str().unwrap();
+            assert_eq!(verifier.verify(token).unwrap()["sub"], "jwt-cross-provider");
+
+            let mut wrong = verifier.clone();
+            wrong.keys = if algorithm == Algorithm::ES256 {
+                JwtVerifier::public_keys(ROTATED_PUBLIC_KEY).unwrap()
+            } else {
+                JwtVerifier::secret_keys("another-qualification-secret")
+            };
+            assert!(wrong.verify(token).is_err(), "{algorithm:?}: wrong key");
+
+            let mut wrong = verifier.clone();
+            wrong.algorithm = if algorithm == Algorithm::HS256 {
+                Algorithm::HS512
+            } else {
+                Algorithm::HS256
+            };
+            assert!(
+                wrong.verify(token).is_err(),
+                "{algorithm:?}: wrong algorithm"
+            );
+
+            let signature_start = token.rfind('.').unwrap() + 1;
+            let mut tampered = token.to_owned();
+            let replacement = if token.as_bytes()[signature_start] == b'A' {
+                "B"
+            } else {
+                "A"
+            };
+            tampered.replace_range(signature_start..signature_start + 1, replacement);
+            assert!(
+                verifier.verify(&tampered).is_err(),
+                "{algorithm:?}: signature"
+            );
+
+            let mut wrong = verifier.clone();
+            wrong.issuer = Some("another-issuer".into());
+            assert!(wrong.verify(token).is_err(), "{algorithm:?}: wrong issuer");
+            let mut wrong = verifier.clone();
+            wrong.audiences = vec!["another-audience".into()];
+            assert!(
+                wrong.verify(token).is_err(),
+                "{algorithm:?}: wrong audience"
+            );
+
+            let signing_key = if algorithm == Algorithm::ES256 {
+                EncodingKey::from_ec_pem(SIGNING_KEY.as_bytes()).unwrap()
+            } else {
+                EncodingKey::from_secret(secret.as_bytes())
+            };
+            let expired = encode(
+                &Header::new(algorithm),
+                &json!({"sub": "expired", "iss": "tuist", "aud": "kura", "exp": 1}),
+                &signing_key,
+            )
+            .unwrap();
+            assert!(verifier.verify(&expired).is_err(), "{algorithm:?}: expired");
+        }
     }
 
     // The point of the bundle: the server and the nodes roll independently, so
@@ -514,6 +730,12 @@ mod tests {
     fn refuses_a_bundle_that_carries_no_key() {
         assert!(JwtVerifier::public_keys("not a pem").is_err());
         assert!(JwtVerifier::public_keys("").is_err());
+        assert!(
+            JwtVerifier::public_keys(
+                "-----BEGIN PUBLIC KEY-----\ninvalid\n-----END PUBLIC KEY-----"
+            )
+            .is_err()
+        );
     }
 
     #[tokio::test]
