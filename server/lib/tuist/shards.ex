@@ -247,10 +247,17 @@ defmodule Tuist.Shards do
     end
   end
 
+  # Uploads start right after the plan is written, before every ClickHouse replica has it. Only
+  # projects that can route to runner-local storage need the plan's target; the rest always use
+  # the account's storage.
   defp plan_storage(project, account, plan_id, opts) do
-    case get_plan_by_id(project.id, plan_id) do
-      nil -> {:error, :not_found}
-      plan -> ShardStorage.resolve_for_request(plan, account, Keyword.get(opts, :runner_grant))
+    if ShardStorage.routable?(project) do
+      case get_plan_by_id(project.id, plan_id) do
+        nil -> {:error, :not_found}
+        plan -> ShardStorage.resolve_for_request(plan, account, Keyword.get(opts, :runner_grant))
+      end
+    else
+      {:ok, account}
     end
   end
 

@@ -10,8 +10,10 @@ defmodule Tuist.Shards.Storage do
   alias Tuist.Storage
   alias Tuist.Storage.S3Target
 
+  def routable?(project), do: project.build_system in [:mix, :cargo]
+
   def select(project, account, grant) do
-    with true <- project.build_system in [:mix, :cargo],
+    with true <- routable?(project),
          false <- Account.custom_s3_storage_configured?(account),
          true <- FeatureFlags.runner_shard_storage_enabled?(account),
          {:ok, site} <- CacheGrant.linux_site(grant, account.id) do
