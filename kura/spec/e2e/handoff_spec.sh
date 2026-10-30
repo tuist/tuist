@@ -12,7 +12,9 @@ Describe 'singleton handoff to joined nodes'
       TEMPO_PORT OTLP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
-    dc build kura-us kura-eu kura-ap >/dev/null 2>&1
+    if [ "${KURA_E2E_SKIP_BUILD:-0}" != "1" ]; then
+      dc build kura-us kura-eu kura-ap || return 1
+    fi
     dc up -d kura-us >/dev/null 2>&1
 
     resolve_http_node KURA_US kura-us

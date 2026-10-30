@@ -14,7 +14,9 @@ Describe 'DNS discovery and catch-up'
     ephemeral_ports KURA_US_PORT KURA_US_2_PORT TEMPO_PORT OTLP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
-    dc build kura-us kura-us-2 >/dev/null 2>&1
+    if [ "${KURA_E2E_SKIP_BUILD:-0}" != "1" ]; then
+      dc build kura-us kura-us-2 || return 1
+    fi
     dc up -d kura-us >/dev/null 2>&1
 
     resolve_http_node KURA_US kura-us
