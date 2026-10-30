@@ -96,7 +96,7 @@ rust_junit_test(
 # module) run under `bazel test`.
 rust_junit_test(
     name = "kura_lib_test",
-    compile_data = glob(["test/certificate-trust/*.pem"]),
+    compile_data = glob(["test/certificate-trust/*.pem", "test/jwt/*.json"]),
     aliases = aliases(),
     crate = ":kura_lib",
     edition = "2024",

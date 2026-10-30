@@ -608,6 +608,90 @@ mod tests {
         assert_eq!(claims["cache_grants"]["project"]["write"][0], "acme/ios");
     }
 
+    #[test]
+    fn verifies_cross_provider_tokens_and_rejects_invalid_credentials() {
+        // Minted with jsonwebtoken 10.3.0's RustCrypto provider at 15b391f3,
+        // using SIGNING_KEY for ES256 and this throwaway secret for HMAC.
+        let tokens: Value =
+            serde_json::from_str(include_str!("../../test/jwt/rustcrypto.json")).unwrap();
+        let secret = "qualification-only-hmac-secret-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        for algorithm in [
+            Algorithm::HS256,
+            Algorithm::HS384,
+            Algorithm::HS512,
+            Algorithm::ES256,
+        ] {
+            let keys = if algorithm == Algorithm::ES256 {
+                JwtVerifier::public_keys(PUBLIC_KEY).unwrap()
+            } else {
+                JwtVerifier::secret_keys(secret)
+            };
+            let verifier = JwtVerifier {
+                algorithm,
+                keys,
+                issuer: Some("tuist".into()),
+                audiences: vec!["kura".into()],
+            };
+            let token = tokens[format!("{algorithm:?}")].as_str().unwrap();
+            assert_eq!(verifier.verify(token).unwrap()["sub"], "jwt-cross-provider");
+
+            let mut wrong = verifier.clone();
+            wrong.keys = if algorithm == Algorithm::ES256 {
+                JwtVerifier::public_keys(ROTATED_PUBLIC_KEY).unwrap()
+            } else {
+                JwtVerifier::secret_keys("another-qualification-secret")
+            };
+            assert!(wrong.verify(token).is_err(), "{algorithm:?}: wrong key");
+
+            let mut wrong = verifier.clone();
+            wrong.algorithm = if algorithm == Algorithm::HS256 {
+                Algorithm::HS512
+            } else {
+                Algorithm::HS256
+            };
+            assert!(
+                wrong.verify(token).is_err(),
+                "{algorithm:?}: wrong algorithm"
+            );
+
+            let signature_start = token.rfind('.').unwrap() + 1;
+            let mut tampered = token.to_owned();
+            let replacement = if token.as_bytes()[signature_start] == b'A' {
+                "B"
+            } else {
+                "A"
+            };
+            tampered.replace_range(signature_start..signature_start + 1, replacement);
+            assert!(
+                verifier.verify(&tampered).is_err(),
+                "{algorithm:?}: signature"
+            );
+
+            let mut wrong = verifier.clone();
+            wrong.issuer = Some("another-issuer".into());
+            assert!(wrong.verify(token).is_err(), "{algorithm:?}: wrong issuer");
+            let mut wrong = verifier.clone();
+            wrong.audiences = vec!["another-audience".into()];
+            assert!(
+                wrong.verify(token).is_err(),
+                "{algorithm:?}: wrong audience"
+            );
+
+            let signing_key = if algorithm == Algorithm::ES256 {
+                EncodingKey::from_ec_pem(SIGNING_KEY.as_bytes()).unwrap()
+            } else {
+                EncodingKey::from_secret(secret.as_bytes())
+            };
+            let expired = encode(
+                &Header::new(algorithm),
+                &json!({"sub": "expired", "iss": "tuist", "aud": "kura", "exp": 1}),
+                &signing_key,
+            )
+            .unwrap();
+            assert!(verifier.verify(&expired).is_err(), "{algorithm:?}: expired");
+        }
+    }
+
     // The point of the bundle: the server and the nodes roll independently, so
     // for a window tokens signed by either key are in flight.
     #[test]
@@ -646,6 +730,12 @@ mod tests {
     fn refuses_a_bundle_that_carries_no_key() {
         assert!(JwtVerifier::public_keys("not a pem").is_err());
         assert!(JwtVerifier::public_keys("").is_err());
+        assert!(
+            JwtVerifier::public_keys(
+                "-----BEGIN PUBLIC KEY-----\ninvalid\n-----END PUBLIC KEY-----"
+            )
+            .is_err()
+        );
     }
 
     #[tokio::test]
