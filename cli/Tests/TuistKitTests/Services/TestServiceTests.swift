@@ -6582,70 +6582,60 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_run_testWithoutBuilding_fromBundle_collects_coverage_under_the_passthrough_derived_data() async throws {
-        // Given
-        let path = try temporaryPath()
-        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
-        try await fileSystem.makeDirectory(at: testProductsPath)
-        try JSONEncoder().encode(SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"]))
-            .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
-        try givenFailingMutedTest(path: path, onlyMutedTestsFailed: false)
-        let resultBundlePath = path.appending(component: "Shard.xcresult")
-        let derivedDataPath = path.appending(component: "DerivedData")
-        let session = TestCoverageEvidenceSession(directory: path.appending(component: "evidence"), environment: [:])
-        let testCoverageEvidenceService = MockTestCoverageEvidenceServicing()
-        let coverageExportService = MockCoverageExportServicing()
-        given(testCoverageEvidenceService)
-            .prepare(platform: .any, config: .any)
-            .willReturn(session)
-        given(testCoverageEvidenceService)
-            .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .any)
-            .willReturn(nil)
-        given(coverageExportService)
-            .export(resultBundlePath: .any, derivedDataDirectory: .any, config: .any, runStartedAt: .any)
-            .willReturn(nil)
-        subject = subjectCollectingCoverage(
-            testCoverageEvidenceService: testCoverageEvidenceService,
-            coverageExportService: coverageExportService
-        )
-        xcodebuildController.reset()
-        given(xcodebuildController)
-            .run(arguments: .any)
-            .willReturn(())
+        try await withMockedEnvironment {
+            Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+            Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
+            // Given
+            let path = try temporaryPath()
+            let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+            try await fileSystem.makeDirectory(at: testProductsPath)
+            try JSONEncoder().encode(SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"]))
+                .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+            try givenFailingMutedTest(path: path, onlyMutedTestsFailed: false)
+            let resultBundlePath = path.appending(component: "Shard.xcresult")
+            let derivedDataPath = path.appending(component: "DerivedData")
+            let session = TestCoverageEvidenceSession(directory: path.appending(component: "evidence"), environment: [:])
+            let (testCoverageEvidenceService, coverageExportService) = givenCoverageCollection(path: path)
+            let arguments = givenXcodebuildWritingDerivedData()
 
-        // When
-        try await AlertController.$current.withValue(AlertController()) {
-            try await testRun(
-                path: path,
-                action: .testWithoutBuilding,
-                resultBundlePath: resultBundlePath,
-                passthroughXcodeBuildArguments: [
-                    "-testProductsPath", testProductsPath.pathString,
-                    "-destination", "platform=iOS Simulator,id=device-id",
-                    "-derivedDataPath", derivedDataPath.pathString,
-                ],
-                mode: .remote
-            )
+            // When
+            try await AlertController.$current.withValue(AlertController()) {
+                try await testRun(
+                    path: path,
+                    action: .testWithoutBuilding,
+                    resultBundlePath: resultBundlePath,
+                    passthroughXcodeBuildArguments: [
+                        "-testProductsPath", testProductsPath.pathString,
+                        "-destination", "platform=iOS Simulator,id=device-id",
+                        "-derivedDataPath", derivedDataPath.pathString,
+                    ],
+                    mode: .remote
+                )
+            }
+
+            // Then
+            verify(testCoverageEvidenceService)
+                .prepare(platform: .value(.iOSSimulator), config: .any)
+                .called(1)
+            verify(testCoverageEvidenceService)
+                .record(
+                    session: .value(session),
+                    resultBundlePath: .value(resultBundlePath),
+                    derivedDataDirectory: .value(derivedDataPath)
+                )
+                .called(1)
+            verify(coverageExportService)
+                .export(
+                    resultBundlePath: .value(resultBundlePath),
+                    derivedDataDirectory: .value(derivedDataPath),
+                    config: .any,
+                    runStartedAt: .any
+                )
+                .called(1)
+            XCTAssertEqual(arguments.value.filter { $0 == "-derivedDataPath" }.count, 1)
+            let derivedDataPathExists = try await fileSystem.exists(derivedDataPath)
+            XCTAssertTrue(derivedDataPathExists)
         }
-
-        // Then
-        verify(testCoverageEvidenceService)
-            .prepare(platform: .value(.iOSSimulator), config: .any)
-            .called(1)
-        verify(testCoverageEvidenceService)
-            .record(
-                session: .value(session),
-                resultBundlePath: .value(resultBundlePath),
-                derivedDataDirectory: .value(derivedDataPath)
-            )
-            .called(1)
-        verify(coverageExportService)
-            .export(
-                resultBundlePath: .value(resultBundlePath),
-                derivedDataDirectory: .value(derivedDataPath),
-                config: .any,
-                runStartedAt: .any
-            )
-            .called(1)
     }
 
     func test_run_shard_collects_coverage_under_a_run_scoped_derived_data_when_none_is_passed() async throws {
