@@ -11,7 +11,9 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +24,24 @@ import (
 // Kata VM. Passing descriptors avoids PID namespace assumptions and path races;
 // neither the runner nor an ordinary Docker job container needs mount privileges.
 func bindDirectory(socket, source, target string) error {
+	data, _ := json.Marshal(source)
+	return sendMount(socket, data, target)
+}
+
+// bindCheckout binds a checkout's working tree at the workspace, which is
+// workspace relative to the work directory, in this namespace and the broker's.
+// dockerd runs beside the broker, so container jobs see the same tree.
+func bindCheckout(socket, source, workspace, target string) error {
+	data, _ := json.Marshal(mountMessage{Source: source, Workspace: workspace})
+	return sendMount(socket, data, target)
+}
+
+type mountMessage struct {
+	Source    string `json:"source"`
+	Workspace string `json:"workspace"`
+}
+
+func sendMount(socket string, data []byte, target string) error {
 	ns, err := os.Open("/proc/self/ns/mnt")
 	if err != nil {
 		return err
@@ -38,7 +58,6 @@ func bindDirectory(socket, source, target string) error {
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
-	data, _ := json.Marshal(source)
 	if _, _, err = conn.WriteMsgUnix(data, unix.UnixRights(int(ns.Fd()), fd), nil); err != nil {
 		return err
 	}
@@ -53,7 +72,8 @@ func bindDirectory(socket, source, target string) error {
 	return nil
 }
 
-func serveMounts(socket, root string) error {
+// docker, when set, serves the sidecar supervisor's Docker volume requests.
+func serveMounts(socket, root string, docker func(dockerMessage) (string, error)) error {
 	if os.Geteuid() != 0 {
 		return errors.New("mount helper must run as root inside the job VM")
 	}
@@ -62,6 +82,12 @@ func serveMounts(socket, root string) error {
 		return err
 	}
 	defer sourceRoot.Close()
+	// The work directory the cache root sits in, as this container mounts it.
+	work, err := os.OpenRoot(filepath.Dir(root))
+	if err != nil {
+		return err
+	}
+	defer work.Close()
 	listener, err := net.ListenUnix("unixpacket", &net.UnixAddr{Name: socket, Net: "unixpacket"})
 	if err != nil {
 		return err
@@ -81,11 +107,7 @@ func serveMounts(socket, root string) error {
 			go func() {
 				defer func() { <-slots; conn.Close() }()
 				_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
-				if err := mountRequest(conn, sourceRoot); err != nil {
-					_, _ = conn.Write([]byte(err.Error()))
-				} else {
-					_, _ = conn.Write([]byte("ok"))
-				}
+				_, _ = conn.Write([]byte(mountReply(conn, sourceRoot, work, docker)))
 			}()
 		default:
 			_, _ = conn.Write([]byte("mount helper busy"))
@@ -94,7 +116,24 @@ func serveMounts(socket, root string) error {
 	}
 }
 
-func mountRequest(conn *net.UnixConn, root *os.Root) error {
+// mountReply serves one request and returns the broker's answer: ok, the
+// supervisor's status for a Docker request, or the error.
+func mountReply(conn *net.UnixConn, root, work *os.Root, docker func(dockerMessage) (string, error)) string {
+	reply := "ok"
+	var handle func(dockerMessage) error
+	if docker != nil {
+		handle = func(message dockerMessage) (err error) {
+			reply, err = docker(message)
+			return err
+		}
+	}
+	if err := mountRequest(conn, root, work, handle); err != nil {
+		return err.Error()
+	}
+	return reply
+}
+
+func mountRequest(conn *net.UnixConn, root, work *os.Root, docker func(dockerMessage) error) error {
 	data, control := make([]byte, 4096), make([]byte, unix.CmsgSpace(8*4))
 	n, oobn, flags, _, err := conn.ReadMsgUnix(data, control)
 	if err != nil {
@@ -120,16 +159,20 @@ func mountRequest(conn *net.UnixConn, root *os.Root) error {
 		}
 		fds = append(fds, rights...)
 	}
+	if message, ok := parseDockerMessage(data[:n]); ok && len(fds) == 0 && flags&unix.MSG_TRUNC == 0 {
+		if docker == nil {
+			return errors.New("docker cache unavailable in this sidecar")
+		}
+		// A teardown cleans and unmounts a whole data root.
+		_ = conn.SetDeadline(time.Now().Add(12 * time.Minute))
+		return docker(message)
+	}
 	if flags&(unix.MSG_TRUNC|unix.MSG_CTRUNC) != 0 || len(fds) != 2 {
 		return errors.New("expected mount namespace and target directory descriptors")
 	}
-	var source string
-	if err = json.Unmarshal(data[:n], &source); err != nil {
-		return errors.New("invalid mount request")
-	}
-	parts := strings.Split(source, "/")
-	if len(parts) != 2 || !directoryPattern.MatchString(parts[0]) || (parts[1] != "data" && !directoryPattern.MatchString(parts[1])) {
-		return errors.New("invalid volume source")
+	source, workspace, err := parseMountRequest(data[:n])
+	if err != nil {
+		return err
 	}
 	// os.Root bounds all resolution to this pod's UID-scoped cache subtree.
 	directory, err := root.OpenFile(source, os.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW, 0)
@@ -163,13 +206,29 @@ func mountRequest(conn *net.UnixConn, root *os.Root) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, executable, "mount-worker")
 	cmd.ExtraFiles = []*os.File{directory, targetCopy, ns}
+	if workspace != "" {
+		// The same directory as the client's target, as this container sees it.
+		local, err := work.OpenFile(workspace, os.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW, 0)
+		if err != nil {
+			return err
+		}
+		defer local.Close()
+		if !sameDirectory(int(local.Fd()), fds[1]) {
+			return errors.New("workspace is not the client's target")
+		}
+		cmd.Args = append(cmd.Args, "local")
+		cmd.ExtraFiles = append(cmd.ExtraFiles, local)
+	}
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("mount worker: %s (%w)", strings.TrimSpace(string(output)), err)
 	}
 	return nil
 }
 
-func mountWorker() error {
+// mountWorker binds fd 3 at fd 4 in the namespace of fd 5. With local, it first
+// binds it at fd 6 in its own namespace too, and undoes that if the client's
+// bind fails.
+func mountWorker(local bool) error {
 	runtime.LockOSThread()
 	// This subprocess exits immediately afterward: never return its switched
 	// thread to Go's thread pool or switch the long-lived broker's namespace.
@@ -184,14 +243,82 @@ func mountWorker() error {
 		return fmt.Errorf("clone mount tree: %w", err)
 	}
 	defer unix.Close(tree)
+	undo := func() {}
+	if local {
+		own, err := os.Open("/proc/self/ns/mnt")
+		if err != nil {
+			return err
+		}
+		defer own.Close()
+		localTree, err := unix.OpenTree(3, "", unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC|unix.AT_EMPTY_PATH)
+		if err != nil {
+			return fmt.Errorf("clone mount tree: %w", err)
+		}
+		defer unix.Close(localTree)
+		if err := emptyDirectory(6); err != nil {
+			return err
+		}
+		if err := unix.MoveMount(localTree, "", 6, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH); err != nil {
+			return fmt.Errorf("attach local mount tree: %w", err)
+		}
+		undo = func() {
+			if unix.Setns(int(own.Fd()), unix.CLONE_NEWNS) == nil {
+				_ = unix.Unmount("/proc/self/fd/"+strconv.Itoa(localTree), unix.MNT_DETACH)
+			}
+		}
+	}
 	if err := unix.Setns(5, unix.CLONE_NEWNS); err != nil {
+		undo()
 		return fmt.Errorf("enter mount namespace: %w", err)
 	}
-	fd, err := unix.Openat(4, ".", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err := emptyDirectory(4); err != nil {
+		undo()
+		return err
+	}
+	if err := unix.MoveMount(tree, "", 4, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH); err != nil {
+		undo()
+		return fmt.Errorf("attach mount tree: %w", err)
+	}
+	return nil
+}
+
+// parseMountRequest accepts a volume source (a JSON string) or a checkout: its
+// working tree and the workspace, relative to the work directory, to bind it at.
+func parseMountRequest(data []byte) (string, string, error) {
+	var source string
+	if err := json.Unmarshal(data, &source); err == nil {
+		parts := strings.Split(source, "/")
+		if len(parts) != 2 || !directoryPattern.MatchString(parts[0]) || (parts[1] != "data" && !directoryPattern.MatchString(parts[1])) {
+			return "", "", errors.New("invalid volume source")
+		}
+		return source, "", nil
+	}
+	var message mountMessage
+	if err := json.Unmarshal(data, &message); err != nil {
+		return "", "", errors.New("invalid mount request")
+	}
+	parts := strings.Split(message.Source, "/")
+	if len(parts) != 2 || !directoryPattern.MatchString(parts[0]) || parts[1] != "checkout" {
+		return "", "", errors.New("invalid checkout source")
+	}
+	first := strings.Split(message.Workspace, "/")[0]
+	if !filepath.IsLocal(message.Workspace) || filepath.Clean(message.Workspace) != message.Workspace || strings.HasPrefix(first, ".") || first == "_tuist_cache" {
+		return "", "", errors.New("invalid checkout workspace")
+	}
+	return message.Source, message.Workspace, nil
+}
+
+func sameDirectory(a, b int) bool {
+	var first, second unix.Stat_t
+	return unix.Fstat(a, &first) == nil && unix.Fstat(b, &second) == nil && first.Dev == second.Dev && first.Ino == second.Ino
+}
+
+func emptyDirectory(fd int) error {
+	dup, err := unix.Openat(fd, ".", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return fmt.Errorf("open mount target: %w", err)
 	}
-	target := os.NewFile(uintptr(fd), "target")
+	target := os.NewFile(uintptr(dup), "target")
 	entries, err := target.Readdirnames(1)
 	target.Close()
 	if len(entries) != 0 {
@@ -200,8 +327,18 @@ func mountWorker() error {
 	if err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
-	if err := unix.MoveMount(tree, "", 4, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH); err != nil {
-		return fmt.Errorf("attach mount tree: %w", err)
-	}
 	return nil
+}
+
+// parseDockerMessage accepts a supervisor request: an object naming a Docker
+// operation, which never carries descriptors.
+func parseDockerMessage(data []byte) (dockerMessage, bool) {
+	var message dockerMessage
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&message); err != nil || (message.Docker != "switch" && message.Docker != "teardown") ||
+		((message.Merge != "" || message.Generation != 0) && (message.Docker != "teardown" || message.Merge == "" || message.Generation <= 0)) {
+		return dockerMessage{}, false
+	}
+	return message, true
 }

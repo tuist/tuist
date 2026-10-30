@@ -30,6 +30,8 @@ defmodule Tuist.OnceEvents.Projector do
   @target_id_max_length 1024
   @configuration_digest_max_length 256
   @max_int32 2_147_483_647
+  @test_context_id_max_bytes 512
+  @max_uint32 4_294_967_295
 
   @doc """
   Project one `RunEvent` under the resolved project. Returns `:ok` on any
@@ -266,6 +268,7 @@ defmodule Tuist.OnceEvents.Projector do
       cwd_relative: started.cwd_relative,
       env_fingerprint: started.env_fingerprint,
       command_display: render_argv(started.argv_normalized),
+      test_context: test_context_to_map(Map.get(started, :test_context)),
       kind: infer_kind(started),
       started_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
     })
@@ -274,6 +277,37 @@ defmodule Tuist.OnceEvents.Projector do
   end
 
   def project(event, project_id, run_id, _account_id), do: project(event, project_id, run_id)
+
+  # Only these bounded diagnostic fields belong in the run. They are not in
+  # upsert_run's conflict updates, so even an empty first context is immutable.
+  defp test_context_to_map(context) when is_map(context) do
+    partition_index =
+      case Map.get(context, :partition_index) do
+        index when is_integer(index) and index >= 0 and index <= @max_uint32 -> index
+        _ -> 0
+      end
+
+    %{
+      "external_group_id" => test_context_id(Map.get(context, :external_group_id)),
+      "partition_index" => partition_index,
+      "plan_id" => test_context_id(Map.get(context, :plan_id)),
+      "batch_id" => test_context_id(Map.get(context, :batch_id))
+    }
+  end
+
+  defp test_context_to_map(_context), do: %{}
+
+  # Byte-bound before scanning UTF-8, including unbounded combining sequences.
+  # Replacing invalid/NUL bytes keeps JSONB storable and nonempty group IDs
+  # nonempty, so sanitization cannot accidentally enable native publication.
+  defp test_context_id(value) when is_binary(value) do
+    value
+    |> binary_part(0, min(byte_size(value), @test_context_id_max_bytes))
+    |> String.replace_invalid("?")
+    |> String.replace(<<0>>, "?")
+  end
+
+  defp test_context_id(_value), do: ""
 
   defp action_attrs(%ActionCompleted{} = action, %RunEvent{} = ev) do
     %{

@@ -1,0 +1,55 @@
+enabled: false
+image: dxflrs/garage:v2.5.0
+# Kura region whose capacity admission counts this store's reservation. Set it
+# only when the store shares that region's hosts; leave it empty on a dedicated
+# storage host, whose disk is not part of any region's allocatable.
+region: eu-west
+bucket: shards
+# Start with 1 in every environment; 3 is an optional future topology. Never change
+# this on an existing release: create a new store and immutable target instead.
+replicas: 1
+cluster:
+  # Public node IDs, not credentials. Populate after initial bootstrap with
+  # <node-id>@<release>-N.<release>-peers.kura.svc.cluster.local:3901.
+  bootstrapPeers: []
+storage:
+  className: scw-local-nvme
+  size: 200Gi
+nodeSelector:
+  # Historical label for the OVH EU-West cache fleet in Gravelines. The
+  # Dedibox machines are retired; existing PVs/gateways still use this label.
+  node.cluster.x-k8s.io/pool: kura-dedibox
+tolerations:
+  - key: tuist.dev/kura-cache
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+externalSecrets:
+  # Disable only when the release-named Secret is provisioned separately.
+  enabled: true
+  storeRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  # Fields: rpc-secret, access-key-id, secret-access-key.
+  item: ""
+# Generate the release-named Secret in-cluster once instead of reading it from
+# 1Password. It is never regenerated and survives uninstalling the release.
+generateCredentials: false
+# Publishes this store to the server as Secret <release>-targets (key
+# targets.json) in serverNamespace. The ID is immutable: never repoint it.
+target:
+  id: ""
+  site: gra
+  enabled: false
+  privateNetworkReady: false
+# OVH vRack the store's node must have joined, with private routes to every
+# peer, before the store can schedule.
+privateNetwork: ""
+serverNamespace: tuist
+runnerNamespace: tuist-runners
+# Preserve the existing staging experiment's policy. Fresh environment overlays
+# use a separate 3-day archive lifetime; plan/result retention is unchanged.
+lifecycle:
+  expirationDays: 31
+  abortMultipartDays: 1
+  image: public.ecr.aws/aws-cli/aws-cli:2.32.0

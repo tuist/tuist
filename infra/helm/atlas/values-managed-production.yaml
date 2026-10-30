@@ -88,6 +88,9 @@ env:
   # Explicitly retain Tuist's managed upstream discovery.
   MCP_PROXY_SERVERS: "tuist-managed"
   ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"
+  ATLAS_APPLE_APP_IDS: "U6LC622NKF.dev.tuist.atlas"
+  # Add ATLAS_ANDROID_APP_LINK_SHA256 only after provisioning the stable distribution key.
+  # Its public certificate must match atlas-mobile-previews signing configuration.
   POOL_SIZE: "10"
   DATABASE_SSL: "1"
   # Tags every Sentry event with the deploy environment. SENTRY_RELEASE
@@ -176,6 +179,17 @@ externalSecrets:
       remoteRef: "atlas-google-oauth/username"
     GOOGLE_CLIENT_SECRET:
       remoteRef: "atlas-google-oauth/credential"
+    ATLAS_CHATGPT_CLIENT_ID:
+      remoteRef: "atlas-chatgpt-oauth/client_id"
+    ATLAS_APNS_TEAM_ID:
+      remoteRef: "atlas-apns/team_id"
+    ATLAS_APNS_KEY_ID:
+      remoteRef: "atlas-apns/key_id"
+    ATLAS_APNS_PRIVATE_KEY:
+      remoteRef: "atlas-apns/private_key"
+      trim: false
+    ATLAS_APNS_ENVIRONMENT:
+      remoteRef: "atlas-apns/environment"
     SUPER_ADMIN_PASSWORD:
       remoteRef: "atlas-super-admin/password"
     STRIPE_API_KEY:
@@ -187,6 +201,13 @@ externalSecrets:
     # the same ingest pipeline external SDKs use — no HTTP hop, so an
     # ingest outage cannot loop back through the logger. This replaces the
     # previous route that posted envelopes to hive.tuist.dev.
+    # Personal OAuth needs client credentials, not the bot/signing credentials.
+    # Provision both fields before deployment; see the account-connections
+    # section in infra/k8s/atlas/onboarding.md.
+    ATLAS_SLACK_CLIENT_ID:
+      remoteRef: "atlas-slack-company/client_id"
+    ATLAS_SLACK_CLIENT_SECRET:
+      remoteRef: "atlas-slack-company/client_secret"
     ATLAS_SLACK_SIGNING_SECRET:
       remoteRef: "atlas-slack-company/password"
     SLACK_COMPANY_BOT_TOKEN:
@@ -219,6 +240,9 @@ externalSecrets:
       remoteRef: "atlas-github-app/app_name"
     ATLAS_GITHUB_APP_CLIENT_ID:
       remoteRef: "atlas-github-app/client_id"
+    # Provision the OAuth secret first; the App private key cannot replace it.
+    ATLAS_GITHUB_APP_CLIENT_SECRET:
+      remoteRef: "atlas-github-app/client_secret"
     ATLAS_GITHUB_APP_PRIVATE_KEY:
       remoteRef: "atlas-github-app/private_key"
     ATLAS_GITHUB_APP_WEBHOOK_SECRET:

@@ -123,7 +123,7 @@ missing_archive_id=$(<"$work/missing-archive-id")
 incompatible_plan_id=$(<"$work/incompatible-plan-id")
 expect_failure missing-archive env TUIST_SHARD_INDEX=0 TUIST_SHARD_PLAN_ID="$missing_archive_id" "$TUIST_E2E_CLI" cargo nextest run
 expect_failure incompatible-plan env TUIST_SHARD_INDEX=0 TUIST_SHARD_PLAN_ID="$incompatible_plan_id" "$TUIST_E2E_CLI" cargo nextest run
-grep -q 'Downloading the nextest shard archive failed' "$work/missing-archive.log"
+grep -q 'Downloading the Cargo shard archive failed' "$work/missing-archive.log"
 grep -q 'module-granularity shard plan' "$work/incompatible-plan.log"
 if test -s "$work/unexpected-execution.txt"; then
   echo 'FAIL: invalid shard configuration executed tests' >&2

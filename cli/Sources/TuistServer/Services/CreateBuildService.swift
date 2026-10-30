@@ -74,11 +74,20 @@ import TuistHTTP
 
     public struct CreateBuildService: CreateBuildServicing {
         private let fullHandleService: FullHandleServicing
+        private let makeClient: @Sendable (URL, Bool) -> Client
 
         public init(
             fullHandleService: FullHandleServicing = FullHandleService()
         ) {
+            self.init(fullHandleService: fullHandleService, makeClient: { Client.reporting(serverURL: $0, networkTrusted: $1) })
+        }
+
+        init(
+            fullHandleService: FullHandleServicing = FullHandleService(),
+            makeClient: @escaping @Sendable (URL, Bool) -> Client
+        ) {
             self.fullHandleService = fullHandleService
+            self.makeClient = makeClient
         }
 
         // swiftlint:disable:next function_body_length
@@ -113,7 +122,8 @@ import TuistHTTP
             casOutputs: [CASOutput],
             machineMetrics: [MachineMetricSample]
         ) async throws -> ServerBuild {
-            let client = Client.reporting(serverURL: serverURL)
+            let networkTrusted = try await ServerReportPublishingMode.usesNetworkTrust(serverURL: serverURL)
+            let client = makeClient(serverURL, networkTrusted)
             let handles = try fullHandleService.parse(fullHandle)
             let status: Operations.createBuild.Input.Body.jsonPayload.statusPayload? =
                 switch status {
@@ -175,11 +185,11 @@ import TuistHTTP
                             duration: duration,
                             files: files
                                 .map(Operations.createBuild.Input.Body.jsonPayload.filesPayloadPayload.init),
-                            generation_id: generationId,
+                            generation_id: networkTrusted ? nil : generationId,
                             git_branch: gitBranch,
                             git_commit_sha: gitCommitSHA,
                             git_ref: gitRef,
-                            git_remote_url_origin: gitRemoteURLOrigin,
+                            git_remote_url_origin: networkTrusted ? nil : gitRemoteURLOrigin,
                             id: id,
                             is_ci: isCI,
                             issues: issues
@@ -192,7 +202,7 @@ import TuistHTTP
                             status: status,
                             targets: targets
                                 .map(Operations.createBuild.Input.Body.jsonPayload.targetsPayloadPayload.init),
-                            xcode_cache_upload_enabled: xcodeCacheUploadEnabled,
+                            xcode_cache_upload_enabled: networkTrusted ? false : xcodeCacheUploadEnabled,
                             xcode_version: xcodeVersion
                         )
                     )

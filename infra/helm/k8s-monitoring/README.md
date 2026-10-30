@@ -114,6 +114,17 @@ node-exporter does not run on a rack's nodes (`node.cluster.x-k8s.io/instance-ty
 
 The Mac minis' temperatures, fan speeds, system power and thermal pressure come from [`macos-host-sensors`](../../macos-host-sensors/AGENTS.md) through node_exporter's textfile collector, as `macos_*` in `tuist-macos-node-exporter`. That prefix is outside the families the destination drops outside production, so every mini keeps them in every environment; it is a few dozen series per host.
 
+The collector also exposes `macos_host_info`, `macos_host_uptime_seconds`,
+`macos_host_tcp_time_wait` and `macos_host_health_collection_success`: four series
+per host for OS maintenance and TCP stall diagnostics. Preserve `instance`,
+`job`, `cluster`, `env`, `product_version` and `kernel_release` in downstream
+aggregation. `runner-macos-host-alert-rules.json` contains three Grafana rules
+for old Tahoe kernels approaching a TCP clock wrap, persistent TIME_WAIT
+accumulation and failed/stale collection. Provision that payload separately
+after releasing the collector and this chart; Helm does not install alert JSON.
+`bash test-runner-macos-host-alerts.sh` checks the shipped expressions with
+promtool. See the [incident and OS rollout runbook](../../cluster-api-provider-tuist/macos-tcp-clock.md).
+
 A rack can live in a non-production env (BER1 was in staging while it was built at home), and the destination drops almost every `node_*` metric outside production. So rack hardware is marked `rack_host="true"` (Linux hosts by `alloy-rack`, minis by their egress Service belonging to the rack fleet), and the destination keeps a marked host's `node_*` metrics in every environment. Other non-production nodes are filtered as before.
 
 The rack's switches report through the Omada controller rather than a scrape of their own: [`rack-switch-controller`](../../rack-switch-controller/AGENTS.md) exports `rack_switch_*` and carries the `prometheus.io/scrape` annotation.
@@ -206,6 +217,28 @@ recommendation that produced it stands until a query touches the metric again,
 and the next cycle reapplies it. Pair every deletion with the query that
 protects it, which for Kura page cache is the **Page cache by node** panel in
 `infra/grafana-dashboards/tuist-kura-region-scalability.json`.
+
+**Counters need `sum:counter`.** A rule's `aggregations` decide which queries the
+aggregated series answers. Plain `sum` stores the sum of the raw values, which
+drops whenever a source restarts, and `rate()` or `increase()` over it return
+an empty result rather than an error. `sum:counter` stores a counter-aware sum
+that `rate()` reads. The `tuist_` prefix rule (drops `pod`, `instance`,
+`pod_template_hash`; stores `sum`, `count`, `max`) catches every `tuist_*`
+metric without an exact rule, so a new counter under that prefix cannot be
+rated until it gets an exact rule with `sum:counter`. An exact rule takes
+precedence over a prefix rule, as `tuist_runners_dispatch_request_count`
+shows. `tuist_runner_cache_volume_operations_total` and
+`tuist_runner_cache_volume_operation_duration_seconds_{bucket,count,sum}` got
+theirs on 2026-10-22 at 16:50 UTC; samples stored before then still cannot be
+rated.
+
+`sum:counter` cannot count an increment it never saw. A counter series a
+source creates on its first increment (a label combination the code does not
+initialize to 0) appears already at 1, and that first 1 is lost. Over
+17:20 to 18:20 UTC on 2026-10-22 the cache volume counter read 12 to 31% below
+the host logs for successes, and showed none of the hour's single macOS publish
+error or Linux acquire error. Alert on a rare failure from logs, or initialize
+its series to 0 in the code first.
 
 `recommendations/config` also carries a global `keep_labels` list: a label named
 there is never proposed for aggregation on any metric. It is empty today.

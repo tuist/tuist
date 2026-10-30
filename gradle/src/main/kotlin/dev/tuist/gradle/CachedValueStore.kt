@@ -1,6 +1,10 @@
 package dev.tuist.gradle
 
+import com.sun.jna.Library
+import com.sun.jna.Native
+import com.sun.jna.Platform
 import java.io.File
+import java.io.IOException
 import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
 import java.nio.channels.OverlappingFileLockException
@@ -77,7 +81,7 @@ class CachedValueStore<T>(
             cached = CacheEntry(value, expiresAtMs)
             future.complete(value)
             return value
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             future.completeExceptionally(e)
             throw e
         } finally {
@@ -89,6 +93,26 @@ class CachedValueStore<T>(
         val lockFile = lockFilePath!!
         lockFile.parentFile.mkdirs()
 
+        if (!Platform.isWindows()) {
+            lockFile.createNewFile()
+            val fd = posix.open(lockFile.absolutePath, 1) // O_WRONLY
+            if (fd < 0) throw IOException("Cannot open refresh lock: ${Native.getLastError()}")
+            try {
+                // Use flock, like the Swift client; FileChannel.lock uses a different POSIX lock mechanism.
+                while (posix.flock(fd, 6) != 0) { // LOCK_EX | LOCK_NB
+                    val error = Native.getLastError()
+                    if (error != 4 && error != 11 && error != 35) { // EINTR, Linux/macOS EWOULDBLOCK
+                        throw IOException("Cannot acquire refresh lock: $error")
+                    }
+                    waitForLock(deadlineNanos)
+                }
+                cached?.let { if (!it.isExpired) return Pair(it.value, it.expiresAtMs) }
+                return action()
+            } finally {
+                posix.close(fd)
+            }
+        }
+
         val channel = FileChannel.open(
             lockFile.toPath(),
             StandardOpenOption.CREATE,
@@ -96,7 +120,7 @@ class CachedValueStore<T>(
         )
 
         try {
-            val fileLock = if (deadlineNanos == null) channel.lock() else lockBefore(channel, deadlineNanos)
+            val fileLock = lockBefore(channel, deadlineNanos)
 
             try {
                 // Double-check in-memory cache after acquiring lock
@@ -111,7 +135,13 @@ class CachedValueStore<T>(
         }
     }
 
-    private fun lockBefore(channel: FileChannel, deadlineNanos: Long): FileLock {
+    private interface Posix : Library {
+        fun open(path: String, flags: Int): Int
+        fun flock(fd: Int, operation: Int): Int
+        fun close(fd: Int): Int
+    }
+
+    private fun lockBefore(channel: FileChannel, deadlineNanos: Long?): FileLock {
         while (true) {
             // Another process holding the lock makes `tryLock` return null; another channel in
             // this JVM holding it makes it throw.
@@ -122,15 +152,23 @@ class CachedValueStore<T>(
             }
             if (fileLock != null) return fileLock
 
+            waitForLock(deadlineNanos)
+        }
+    }
+
+    private fun waitForLock(deadlineNanos: Long?) {
+        val waitMs = if (deadlineNanos == null) LOCK_POLL_INTERVAL_MS else {
             val remainingNanos = deadlineNanos - System.nanoTime()
             if (remainingNanos <= 0) {
                 throw TimeoutException("Timed out waiting for the lock at $lockFilePath")
             }
-            Thread.sleep(minOf(LOCK_POLL_INTERVAL_MS, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1))
+            minOf(LOCK_POLL_INTERVAL_MS, TimeUnit.NANOSECONDS.toMillis(remainingNanos) + 1)
         }
+        Thread.sleep(waitMs)
     }
 
     private companion object {
+        val posix: Posix by lazy { Native.load(Platform.C_LIBRARY_NAME, Posix::class.java) }
         const val LOCK_POLL_INTERVAL_MS = 50L
     }
 }

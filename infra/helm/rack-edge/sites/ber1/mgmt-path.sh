@@ -38,6 +38,15 @@ ip addr replace "$vrrp_address" dev vrrp0
 edge_vlan_bond machines0 10
 ip addr replace "$machines_address" dev machines0
 edge_vlan_bond wan0 4001
+if [ -s /run/rack-edge/first-wan ]; then
+  read -r first_wan </run/rack-edge/first-wan
+  case "$first_wan" in
+    wan0) ip route del default via 149.6.170.30 dev wan0 metric 50 2>/dev/null || true
+      ip addr del 149.6.170.31/31 dev wan0 2>/dev/null || true ;;
+    *) ip link del "$first_wan" 2>/dev/null || true ;;
+  esac
+  rm -f /run/rack-edge/first-wan
+fi
 ip route replace default via "$peer_address" dev vrrp0 metric 200 proto static
 nexthops=""; for uplink in $uplinks; do nexthops="$nexthops nexthop dev $uplink"; done
 ip route replace 192.168.0.12/32 $nexthops
@@ -51,15 +60,16 @@ table ip tuist_mgmt_path {
   chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
-    iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.15,192.168.0.16 } masquerade
+    iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.18,192.168.0.15,192.168.0.16,192.168.0.17 } masquerade
     oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade
+    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109, 10.10.0.110, 10.10.0.111, 10.10.0.112, 10.10.0.113, 10.10.0.114, 10.10.0.115, 10.10.0.116 } snat ip to 95.130.119.16-95.130.119.31 persistent
     oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade
     oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade
   }
   chain forward {
     type filter hook forward priority mangle;
     oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
-    oifname "tailscale0" ip saddr { 192.168.0.14,192.168.0.15,192.168.0.16 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
+    oifname "tailscale0" ip saddr { 192.168.0.14,192.168.0.18,192.168.0.15,192.168.0.16,192.168.0.17 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
   }
 }
 table netdev tuist_rack_dhcp

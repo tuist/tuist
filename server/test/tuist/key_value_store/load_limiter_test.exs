@@ -1,7 +1,13 @@
 defmodule Tuist.KeyValueStore.LoadLimiterTest do
   use ExUnit.Case, async: true
+  use Mimic
 
+  alias Tuist.Accounts.Account
+  alias Tuist.Environment
   alias Tuist.KeyValueStore.LoadLimiter
+  alias Tuist.Observability
+
+  setup :set_mimic_from_context
 
   test "coalesces in-flight calls but never retains completed values" do
     pool = start_pool()
@@ -149,6 +155,35 @@ defmodule Tuist.KeyValueStore.LoadLimiterTest do
     pool = start_pool()
     caller = self()
     assert LoadLimiter.run(pool, :key, fn -> Process.get(:"$callers") end) == {:ok, [caller]}
+  end
+
+  test "safe tenant context survives until error reporting and does not leak into the next load" do
+    stub(Environment, :error_tracking_enabled?, fn -> true end)
+    parent = self()
+
+    pool =
+      start_pool(
+        on_error: fn {:exception, exception, stacktrace} ->
+          send(parent, {:error_event, Sentry.Event.create_event(exception: exception, stacktrace: stacktrace)})
+        end
+      )
+
+    account = %Account{id: 42, name: "tenant"}
+    Observability.set_selection(%{selected_account: account})
+    Observability.feature_flag_evaluated(:runners, account, true)
+    Sentry.Context.set_request_context(%{headers: %{authorization: "not propagated"}})
+
+    assert {:error, {:exception, %RuntimeError{}, _}} = LoadLimiter.run(pool, :first, fn -> raise "failed" end)
+    assert_receive {:error_event, event}
+    assert event.tags.selected_account_id == 42
+    assert event.tags["feature_flag.runners"] == "true"
+    refute inspect(event.request) =~ "not propagated"
+
+    Observability.set_selection(%{selected_account: %Account{id: 43, name: "next"}})
+    assert {:ok, context} = LoadLimiter.run(pool, :next, fn -> Sentry.Context.get_all() end)
+    assert context.tags.selected_account_id == 43
+    refute Map.has_key?(context.tags, "feature_flag.runners")
+    assert Logger.metadata()[:selected_account_id] == 43
   end
 
   defp start_pool(opts \\ []) do

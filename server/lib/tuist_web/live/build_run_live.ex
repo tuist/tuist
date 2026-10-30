@@ -122,7 +122,7 @@ defmodule TuistWeb.BuildRunLive do
       end
 
     test_run =
-      case Tests.get_latest_test_by_build_run_id(run.id) do
+      case Tests.get_latest_test_by_build_run_id(run.id, run.project_id) do
         {:ok, test} -> test
         {:error, :not_found} -> nil
       end
@@ -138,6 +138,10 @@ defmodule TuistWeb.BuildRunLive do
 
     socket
     |> assign(:command_event, command_event)
+    |> assign(
+      :tuist_generation_version,
+      CommandEvents.get_generation_versions(run.project_id, [run.generation_id])[run.generation_id]
+    )
     |> assign(:binary_cache_command_event, binary_cache_command_event)
     |> assign(:has_binary_cache_data, has_binary_cache_data)
     |> assign(:ci_run_url, ci_run_url)
@@ -1597,15 +1601,6 @@ defmodule TuistWeb.BuildRunLive do
         [0, 0, 0, 0]
     end
   end
-
-  defp url?(value) when is_binary(value) do
-    case URI.parse(value) do
-      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
-      _ -> false
-    end
-  end
-
-  defp url?(_), do: false
 
   defp define_binary_cache_filters do
     [

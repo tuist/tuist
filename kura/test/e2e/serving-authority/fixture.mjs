@@ -294,6 +294,7 @@ export async function handover(
   {
     id = `resource-${process.pid}`,
     deadlineMs = 300000,
+    preparationDeadlineMs = 1200000,
     beforePromotion,
     prepare,
   } = {},
@@ -311,7 +312,12 @@ export async function handover(
       (await report(1)).serving_authority.preparation_supported,
       true,
     );
-    intent.deadline_ms = Date.now() + 1200000;
+    assert(
+      Number.isFinite(preparationDeadlineMs) &&
+        preparationDeadlineMs > 0 &&
+        preparationDeadlineMs <= 1200000,
+    );
+    intent.deadline_ms = Date.now() + preparationDeadlineMs;
     grant({
       epoch: 1,
       holder: identities[0],

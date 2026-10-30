@@ -413,6 +413,31 @@ defmodule Tuist.Runners.JobLogsTest do
       steps = [%{number: 1, name: "Set up job", started_at: ~U[2026-05-28 12:00:00.000000Z]}]
       assert JobLogs.step_line_ranges(90_006, steps) == %{1 => nil}
     end
+
+    test "list_step_lines/4 returns the lines from `:from`, numbered from the step's first line" do
+      job_id = 90_011
+
+      append_messages(job_id, [
+        "##[group]Run build.sh",
+        "##[endgroup]",
+        "one",
+        "two",
+        "##[group]Compile",
+        "three",
+        "##[endgroup]",
+        "four"
+      ])
+
+      lines = JobLogs.list_step_lines(job_id, 1, 8, from: 4)
+
+      assert Enum.map(lines, &{&1.line_number, &1.message}) == [
+               {3, "two"},
+               {4, "##[group]Compile"},
+               {5, "three"},
+               {nil, "##[endgroup]"},
+               {6, "four"}
+             ]
+    end
   end
 
   describe "count_for_job/1 + idempotency" do

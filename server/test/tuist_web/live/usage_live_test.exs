@@ -14,7 +14,6 @@ defmodule TuistWeb.UsageLiveTest do
   alias Tuist.Runners.Prepaid
   alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.UsageLive
 
   @render_async_timeout 1_000
@@ -197,22 +196,11 @@ defmodule TuistWeb.UsageLiveTest do
     }
   end
 
-  describe "usage-based pricing" do
-    test "is hidden for an account without the flag", %{conn: conn, account: account} do
-      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> false end)
-      reject(&UsagePricing.period_breakdown/2)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
-
-      refute has_element?(lv, "[data-part='cache-usage-card']")
-      refute has_element?(lv, "[data-part='test-insights-usage-card']")
-    end
-
+  describe "cache and test insights usage" do
     test "walks cache and test usage down to an estimate for an account with no subscription", %{
       conn: conn,
       account: account
     } do
-      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
       stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(false) end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
@@ -250,21 +238,7 @@ defmodule TuistWeb.UsageLiveTest do
       refute has_element?(lv, "[data-part='test-insights-usage-card']", "Billed this period")
     end
 
-    test "replaces the cache traffic cards with the cache usage card", %{conn: conn, account: account} do
-      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
-      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(false) end)
-      reject(&Tuist.Kura.Usage.totals/4)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
-      render_async(lv, @render_async_timeout)
-
-      assert has_element?(lv, "[data-part='cache-usage-card']")
-      refute has_element?(lv, "[data-part='kura-traffic']")
-      refute has_element?(lv, "[data-part='kura-traffic-by-region-card']")
-    end
-
     test "shows an empty state for a feature the account has not used", %{conn: conn, account: account} do
-      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
       stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
@@ -279,7 +253,6 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "switches the cache chart between the charge, egress, and requests", %{conn: conn, account: account} do
-      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
       stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(false) end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
@@ -307,7 +280,6 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "shows what is billed for an account with a subscription", %{conn: conn, account: account} do
-      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
       stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing_breakdown(true) end)
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
@@ -320,8 +292,6 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "reads the period's cache egress", %{conn: conn, account: account} do
-      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
-
       insert_event(%{
         account_id: account.id,
         artifact_kind: "module",
@@ -541,7 +511,7 @@ defmodule TuistWeb.UsageLiveTest do
   end
 
   describe "access" do
-    test "renders the cache traffic for an account with neither cache nor runner usage", %{
+    test "renders the cache and test insights usage for an account with neither cache nor runner usage", %{
       conn: conn,
       account: account
     } do
@@ -550,10 +520,8 @@ defmodule TuistWeb.UsageLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
 
       assert html =~ "Usage"
-      assert html =~ "Cache traffic"
-      assert html =~ "Egress"
-      assert html =~ "Ingress"
-      assert html =~ "Requests"
+      assert html =~ "Cache usage"
+      assert html =~ "Test insights usage"
     end
 
     test "renders on a hosted deployment without a feature flag", %{conn: conn, account: account} do
@@ -563,7 +531,7 @@ defmodule TuistWeb.UsageLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
 
       assert html =~ "Usage"
-      assert html =~ "Cache traffic"
+      assert html =~ "Cache usage"
     end
 
     test "raises 404 when the user cannot read the account dashboard", %{conn: conn} do
@@ -588,85 +556,6 @@ defmodule TuistWeb.UsageLiveTest do
       refute html =~ "Last 30 days"
       refute html =~ "Project:"
       assert has_element?(lv, "#usage-period-dropdown")
-    end
-
-    test "shows the empty state when there's no Kura traffic", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
-
-      html = render_async(lv, @render_async_timeout)
-
-      assert html =~ "No cache traffic in this window yet"
-    end
-
-    test "renders the per-region table when events exist", %{conn: conn, account: account} do
-      ProjectsFixtures.project_fixture(account: account, name: "ios")
-
-      insert_event(%{
-        account_id: account.id,
-        node_id: "kura-test-node",
-        bytes: 1_000_000,
-        request_count: 5,
-        window_start: NaiveDateTime.utc_now(:second)
-      })
-
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
-
-      html = render_async(lv, @render_async_timeout)
-
-      assert html =~ "Traffic by region"
-      assert html =~ "us-east-1"
-      refute html =~ "kura-test-node"
-      # 1 MB rendered through ByteFormatter
-      assert html =~ "MB"
-    end
-  end
-
-  describe "widget switching" do
-    # Each widget renders an `empty` variant (no `phx-value-widget` attribute)
-    # when its bytes/count is zero, so seed at least one event of each kind so
-    # the click wrappers always render in this describe block.
-    setup %{account: account} do
-      insert_event(%{account_id: account.id, direction: "egress", bytes: 1_000, request_count: 1})
-      insert_event(%{account_id: account.id, direction: "ingress", bytes: 500, request_count: 1})
-
-      :ok
-    end
-
-    test "egress is the default selected widget", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
-
-      _ = render_async(lv, @render_async_timeout)
-      assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
-    end
-
-    test "clicking a widget patches the URL with ?widget=ingress", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
-
-      _ = render_async(lv, @render_async_timeout)
-
-      lv
-      |> element(~s|[phx-value-widget="ingress"]|)
-      |> render_click()
-
-      assert_patch(lv, ~p"/#{account.name}/usage?widget=ingress")
-      assert has_element?(lv, ~s|[phx-value-widget="ingress"][data-selected]|)
-    end
-
-    test "honors widget=requests in the URL on initial mount", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage?widget=requests")
-
-      _ = render_async(lv, @render_async_timeout)
-      assert has_element?(lv, ~s|[phx-value-widget="requests"][data-selected]|)
-    end
-
-    test "ignores an unknown widget param and falls back to egress", %{
-      conn: conn,
-      account: account
-    } do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage?widget=bogus")
-
-      _ = render_async(lv, @render_async_timeout)
-      assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
     end
   end
 

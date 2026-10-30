@@ -51,6 +51,8 @@ pub const SYNC_META_ENABLED: &str = "enabled";
 /// Wire kind byte of a watermark row; record rows reuse
 /// [`BackfillRecordKind::as_byte`] (1..=3).
 const FEED_KIND_WATERMARK: u8 = 4;
+/// Wire kind byte of a promotion hint row.
+const FEED_KIND_REFRESH: u8 = 5;
 
 /// What a feed row describes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,6 +61,11 @@ pub enum SyncFeedKind {
     /// A region-watermark advance (design §4.3): `record_id` is the origin
     /// region, `version_ms` the watermark.
     Watermark,
+    /// A segmented artifact this node copied out of an Old segment to keep it
+    /// retained: `record_id` is the artifact id, `version_ms` its unchanged
+    /// version. A sibling holding the same version promotes its own copy, so
+    /// both rings age it out together. Carries no body.
+    Refresh,
 }
 
 impl SyncFeedKind {
@@ -66,28 +73,32 @@ impl SyncFeedKind {
         match self {
             Self::Record(kind) => kind.as_byte(),
             Self::Watermark => FEED_KIND_WATERMARK,
+            Self::Refresh => FEED_KIND_REFRESH,
         }
     }
 
     pub fn from_byte(byte: u8) -> Option<Self> {
-        if byte == FEED_KIND_WATERMARK {
-            return Some(Self::Watermark);
+        match byte {
+            FEED_KIND_WATERMARK => Some(Self::Watermark),
+            FEED_KIND_REFRESH => Some(Self::Refresh),
+            _ => BackfillRecordKind::from_byte(byte).map(Self::Record),
         }
-        BackfillRecordKind::from_byte(byte).map(Self::Record)
     }
 
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Record(kind) => kind.as_str(),
             Self::Watermark => "watermark",
+            Self::Refresh => "refresh",
         }
     }
 
     pub fn from_wire_name(name: &str) -> Option<Self> {
-        if name == "watermark" {
-            return Some(Self::Watermark);
+        match name {
+            "watermark" => Some(Self::Watermark),
+            "refresh" => Some(Self::Refresh),
+            _ => BackfillRecordKind::from_wire_name(name).map(Self::Record),
         }
-        BackfillRecordKind::from_wire_name(name).map(Self::Record)
     }
 }
 
@@ -270,6 +281,10 @@ pub struct SyncFeedState {
     enabled: AtomicBool,
     cap: u64,
     dropped_total: AtomicU64,
+    /// Rows committed by this process, raised under `inflight` as a ticket
+    /// commits. A released seq moves the head without landing a row, so this,
+    /// not the head, tells a barrier whether a row landed.
+    commits: AtomicU64,
     /// Fires on every commit (row or not) so a long-poll wakes promptly; a
     /// missed wake only costs the poll's re-check interval.
     notify: Notify,
@@ -298,14 +313,14 @@ impl SyncFeedTicket {
 
     pub fn commit(mut self) {
         self.committed = true;
-        self.feed.resolve(self.seq);
+        self.feed.resolve(self.seq, true);
     }
 }
 
 impl Drop for SyncFeedTicket {
     fn drop(&mut self) {
         if !self.committed {
-            self.feed.resolve(self.seq);
+            self.feed.resolve(self.seq, false);
         }
     }
 }
@@ -323,6 +338,7 @@ impl SyncFeedState {
             enabled: AtomicBool::new(enabled),
             cap,
             dropped_total: AtomicU64::new(0),
+            commits: AtomicU64::new(0),
             notify: Notify::new(),
             consumers: Mutex::new(HashMap::new()),
         }
@@ -424,12 +440,44 @@ impl SyncFeedState {
         }
     }
 
-    fn resolve(&self, seq: u64) {
-        self.inflight
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .remove(&seq);
+    fn resolve(&self, seq: u64, committed: bool) {
+        let mut inflight = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
+        if committed {
+            self.commits.fetch_add(1, Ordering::AcqRel);
+        }
+        inflight.remove(&seq);
+        drop(inflight);
         self.notify.notify_waiters();
+    }
+
+    /// The head, frontier and commit count read together, so a barrier's
+    /// recorded position and the count it later compares against agree about
+    /// every row that had landed.
+    pub fn barrier_position(&self) -> (u64, u64, u64) {
+        let inflight = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
+        let frontier = self.frontier_with_inflight(&inflight);
+        let head = Self::head_with_inflight(&inflight, self.next_seq.load(Ordering::Acquire));
+        (head, frontier, self.commits.load(Ordering::Acquire))
+    }
+
+    pub fn commits(&self) -> u64 {
+        let _inflight = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
+        self.commits.load(Ordering::Acquire)
+    }
+
+    /// Waits until every seq allocated before the call has committed or been
+    /// released.
+    pub async fn settle(&self) {
+        let allocated = self.next_seq.load(Ordering::Acquire) - 1;
+        loop {
+            let notified = self.notify.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            if self.head() >= allocated {
+                return;
+            }
+            notified.await;
+        }
     }
 
     /// Wakes long-polls; called on every commit whether or not it wrote a
@@ -566,6 +614,7 @@ mod tests {
                 None,
             ),
             (SyncFeedKind::Watermark, None),
+            (SyncFeedKind::Refresh, Some(64)),
         ] {
             let key = sync_feed_key(42);
             let value = encode_sync_feed_value(kind, "id-1", 1234, size, 9999);

@@ -97,6 +97,11 @@ defmodule Atlas.MCP.Tool do
     schema
   end
 
+  def audit_interface(%{assigns: assigns}), do: assigns[:audit_interface] || audit_interface(nil)
+  def audit_interface(_), do: Atlas.Audit.current_context()[:interface] || "mcp"
+
+  def agent_source(conn), do: if(audit_interface(conn) == "worker", do: "automation", else: "mcp")
+
   def current_user(%{assigns: assigns}), do: assigns[:current_user]
   def current_user(_conn), do: nil
 

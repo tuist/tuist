@@ -9,7 +9,6 @@ import org.gradle.caching.internal.operations.BuildCacheRemoteLoadBuildOperation
 import org.gradle.caching.internal.operations.BuildCacheRemoteStoreBuildOperationType
 import org.gradle.internal.operations.BuildOperationDescriptor
 import org.gradle.internal.operations.OperationFinishEvent
-import org.gradle.internal.taskgraph.CalculateTaskGraphBuildOperationType
 import java.time.Instant
 
 data class TaskExecutionTelemetry(
@@ -51,7 +50,6 @@ internal class BuildExecutionTelemetry {
     val failures = BuildFailureTelemetry()
     val cacheSavings = BuildCacheSavingsTelemetry()
     val tasks = mutableListOf<TaskOutcomeData>()
-    val requestedTasks = linkedSetOf<String>()
     var lastTaskAt: Long? = null
         private set
 
@@ -120,10 +118,6 @@ internal class BuildExecutionTelemetry {
             lastTaskAt = maxOf(lastTaskAt ?: event.endTime, event.endTime)
         } else if (work != CacheWork()) {
             operation.parentId?.id?.let { parent -> pending[parent] = (pending[parent] ?: CacheWork()).merge(work) }
-        }
-
-        if (result is CalculateTaskGraphBuildOperationType.Result) {
-            requestedTasks.addAll(result.requestedTaskPaths)
         }
     }
 }

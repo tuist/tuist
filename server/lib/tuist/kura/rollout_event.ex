@@ -1,8 +1,9 @@
 defmodule Tuist.Kura.RolloutEvent do
   @moduledoc """
   Audit trail entry for a rollout: automatic transitions (created, wave
-  completed, paused by the gate, completed, superseded) and operator verbs
-  (pause, resume, expedite, abort).
+  completed, paused by the gate, completed, superseded, a server entering or
+  leaving an operator image hold) and operator verbs (pause, resume,
+  expedite, abort).
 
   Operator verbs record their actor and reason; expedites additionally
   record the source and target tags and whether the target tag had
@@ -15,7 +16,7 @@ defmodule Tuist.Kura.RolloutEvent do
 
   alias Tuist.Kura.Rollout
 
-  @actions ~w(created wave_scheduled wave_completed paused resumed expedited aborted superseded completed)
+  @actions ~w(created wave_scheduled wave_completed paused resumed expedited aborted superseded completed server_held server_hold_released)
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "kura_rollout_events" do

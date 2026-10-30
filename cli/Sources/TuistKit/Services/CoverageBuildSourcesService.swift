@@ -43,8 +43,9 @@ struct CoverageBuildSourcesService {
     }
 
     /// Writes what `record` recorded, or the checkout alone when nothing was, into the test
-    /// products for a run elsewhere. Best effort, as `record` is.
-    func write(to testProductsPath: AbsolutePath, config: Tuist) async {
+    /// products for a run elsewhere, with the targets' prefix maps from the build's derived data:
+    /// a run elsewhere has none of the build's intermediates. Best effort, as `record` is.
+    func write(to testProductsPath: AbsolutePath, derivedDataDirectory: AbsolutePath?, config: Tuist) async {
         let sourcesPath = testProductsPath.appending(component: CoverageBuildSources.fileName)
         do {
             guard UploadResultBundleService.uploadsCoverage(config: config) else {
@@ -55,7 +56,15 @@ struct CoverageBuildSourcesService {
             var sources = await RunMetadataStorage.current.coverageBuildSources
             if sources == nil { sources = try await self.sources(targets: []) }
             guard let sources else { return }
-            try await fileSystem.writeAsJSON(sources, at: sourcesPath)
+            try await fileSystem.writeAsJSON(
+                CoverageBuildSources(
+                    rootDirectories: sources.rootDirectories,
+                    files: sources.files,
+                    targets: sources.targets,
+                    prefixMaps: CompilationPrefixMaps.maps(derivedDataDirectory: derivedDataDirectory)
+                ),
+                at: sourcesPath
+            )
         } catch {
             AlertController.current.warning(
                 .alert("Failed to record the build's sources for code coverage: \(error.localizedDescription)")

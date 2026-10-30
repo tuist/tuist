@@ -83,6 +83,21 @@ defmodule Atlas.TasksTest do
              )
   end
 
+  test "deleting a task leaves both scheduled notifications harmless" do
+    user = user!("deleted-owner")
+    past = DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.truncate(:second)
+
+    {:ok, task} =
+      Tasks.create_task(%{title: "Deleted task", assignee_id: user.id, remind_at: past, due_on: Date.utc_today()}, user)
+
+    assert {:ok, _deleted} = Tasks.delete_task(task, user, interface: "api")
+    assert Tasks.get_task(task.id) == nil
+
+    opts = [resolver: fn _, _ -> flunk("deleted tasks must not resolve a Slack user") end]
+    assert :ok = SendReminder.perform_task(task.id, task.reminder_version, opts)
+    assert :ok = SendDueDate.perform_task(task.id, task.due_version, opts)
+  end
+
   test "due dates send to the assignee and date or assignee edits invalidate older jobs" do
     creator = user!("due-creator")
     next_assignee = user!("due-next")

@@ -4,6 +4,7 @@ import Foundation
 #endif
 import Path
 import TuistCI
+import TuistHTTP
 import TuistProcess
 import TuistServer
 
@@ -47,7 +48,7 @@ struct CargoShardService {
             directory: directory
         )
         let inventory = try JSONDecoder().decode(NextestInventory.self, from: Data(listing.utf8))
-        guard !inventory.modules.isEmpty else { throw CargoReportError(message: "No enabled nextest test binaries were found.") }
+        guard !inventory.modules.isEmpty else { throw CargoReportError(message: "No enabled Cargo test binaries were found.") }
         let options = parsed.options
         let plan = try await CreateShardPlanService(concurrentModules: inventory.modules).createShardPlan(
             fullHandle: fullHandle, serverURL: serverURL, reference: reference, modules: inventory.modules,
@@ -119,7 +120,7 @@ struct CargoShardService {
         )
     }
 
-    private static func emit(_ plan: Components.Schemas.ShardPlan, environment: [String: String]) throws {
+    static func emit(_ plan: Components.Schemas.ShardPlan, environment: [String: String]) throws {
         let shards = Array(0 ..< plan.shard_count)
         let data = try JSONSerialization.data(
             withJSONObject: ["shard_plan_id": plan.id, "shards": shards],
@@ -162,20 +163,29 @@ struct CargoShardService {
         if let local = environment["TUIST_TEST_SHARD_ARCHIVE_PATH"] {
             let archive = URL(fileURLWithPath: local, relativeTo: URL(fileURLWithPath: directory.pathString)).standardizedFileURL
             guard FileManager.default.fileExists(atPath: archive.path)
-            else { throw CargoReportError(message: "The local nextest shard archive is missing.") }
+            else { throw CargoReportError(message: "The local Cargo shard archive is missing.") }
             return Shard(id: shard.shard_plan_id, modules: shard.modules, archive: archive)
         }
         guard shard.download_urls.count == 1, let url = URL(string: shard.download_urls[0]),
               ["https", "http"].contains(url.scheme ?? "")
         else {
-            throw CargoReportError(message: "The nextest shard archive is not available.")
-        }
-        let (file, response) = try await URLSession.shared.download(from: url)
-        guard let response = response as? HTTPURLResponse, (200 ..< 300).contains(response.statusCode) else {
-            throw CargoReportError(message: "Downloading the nextest shard archive failed.")
+            throw CargoReportError(message: "The Cargo shard archive is not available.")
         }
         let archive = temporary.appendingPathComponent("tests.tar.zst")
-        try FileManager.default.moveItem(at: file, to: archive)
+        try await Self.downloadArchive(from: url, to: archive)
         return Shard(id: shard.shard_plan_id, modules: shard.modules, archive: archive)
+    }
+
+    static func downloadArchive(
+        from url: URL,
+        to archive: URL,
+        transfer: RetryingURLTransfer = RetryingURLTransfer(urlSession: .tuistDefault)
+    ) async throws {
+        let (file, response) = try await transfer.download(URLRequest(url: url))
+        guard let response = response as? HTTPURLResponse, (200 ..< 300).contains(response.statusCode) else {
+            try? FileManager.default.removeItem(at: file)
+            throw CargoReportError(message: "Downloading the Cargo shard archive failed.")
+        }
+        try FileManager.default.moveItem(at: file, to: archive)
     }
 }

@@ -80,7 +80,8 @@ defmodule Tuist.MixProject do
       {:tower_opentelemetry, "~> 0.2.0"},
       {:hackney, "~> 4.5", override: true},
       {:httpoison, "~> 3.0", override: true},
-      {:castore, "~> 1.0.12"},
+      {:castore, "~> 1.0.22"},
+      {:certifi, "~> 2.18", override: true},
       {:uniq, "~> 0.6"},
       {:ex_aws, "~> 2.6"},
       {:ex_aws_s3,
@@ -239,11 +240,7 @@ defmodule Tuist.MixProject do
         "run priv/repo/timezone.exs",
         "ecto.migrate"
       ],
-      compile: [
-        "deps.compile tuist_ex --include-children",
-        "deps.loadpaths --no-compile --no-deps-check",
-        "tuist.compile"
-      ],
+      compile: &compile/1,
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "tuist.test"],
       "assets.setup": [
         "cmd --cd ../noora aube install",
@@ -264,6 +261,18 @@ defmodule Tuist.MixProject do
         "phx.digest"
       ]
     ]
+  end
+
+  # Mix forwards alias arguments only to the last task in a list. Keep the
+  # bootstrap in this project module so --no-compile also skips deps.compile,
+  # without requiring an SDK module before a cold worker has loaded it.
+  defp compile(args) do
+    if "--no-compile" not in args do
+      Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
+    end
+
+    Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
+    Mix.Task.run("tuist.compile", args)
   end
 
   defp releases do

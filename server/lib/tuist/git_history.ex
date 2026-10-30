@@ -427,7 +427,11 @@ defmodule Tuist.GitHistory do
   the default branch's first-parent history, or what another ref added above
   its fork. `:limit` caps them (200 by default); `:at_or_below`, `:below` and
   `:above` bound the positions and `:since`/`:until` when the commits were
-  made (`DateTime`); `order: :asc` reads them oldest first.
+  made (`DateTime`); `order: :asc` reads them oldest first. `:refine`
+  narrows the query further, and such a read is planned for its own values
+  each time (`prepare: :unnamed`): how many of the ref's commits a
+  refinement keeps varies by project, and a cached generic plan, which
+  can't know it, reads every commit in the period to sort them.
   """
   def ref_commits(ref_id, opts \\ []) do
     ref_id
@@ -435,11 +439,13 @@ defmodule Tuist.GitHistory do
     |> order_by([c], [{^Keyword.get(opts, :order, :desc), c.position}])
     |> limit(^Keyword.get(opts, :limit, 200))
     |> select([c], {c.sha, c.position, c.committed_at})
-    |> Repo.all()
+    |> Repo.all(ref_commits_repo_opts(opts))
   end
 
   @doc "Whether the ref owns a commit within the bounds `ref_commits/2` takes."
-  def ref_commits?(ref_id, opts), do: ref_id |> ref_commits_query(opts) |> Repo.exists?()
+  def ref_commits?(ref_id, opts), do: ref_id |> ref_commits_query(opts) |> Repo.exists?(ref_commits_repo_opts(opts))
+
+  defp ref_commits_repo_opts(opts), do: if(is_function(Keyword.get(opts, :refine), 1), do: [prepare: :unnamed], else: [])
 
   defp ref_commits_query(ref_id, opts) do
     Enum.reduce(opts, from(c in Commit, where: c.ref_id == ^ref_id), fn

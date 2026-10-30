@@ -32,6 +32,21 @@ env:
   IMAGE_NAME: tuist/rack-edge
 
 jobs:
+  tor-console:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/rack-switch-fleet/edge/tor-console/go.mod
+      - name: Test
+        working-directory: infra/rack-switch-fleet/edge/tor-console
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet .
+          go test .
+
   chart:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     runs-on: tuist-linux
@@ -56,7 +71,7 @@ jobs:
           done
 
   build:
-    needs: [chart]
+    needs: [chart, tor-console]
     if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:

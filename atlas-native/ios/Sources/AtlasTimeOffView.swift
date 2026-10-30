@@ -4,6 +4,7 @@ struct AtlasTimeOffView: View {
     let title: String
     @StateObject private var model: AtlasTimeOff
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.atlasReadCache) private var cachedRead
     private struct Editor: Identifiable {
         let id = UUID()
         let request: AtlasHolidayRequest?
@@ -23,6 +24,7 @@ struct AtlasTimeOffView: View {
                     Label("Request holiday", systemImage: "calendar.badge.plus")
                         .frame(minHeight: 44)
                 }
+                .disabled(model.overview?.cached == true)
                 Text("Dates are inclusive. Working-day counts exclude weekends and Berlin public holidays.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
@@ -50,7 +52,7 @@ struct AtlasTimeOffView: View {
                                 if booking.canCancel {
                                     Button("Cancel holiday", role: .destructive) { cancelling = booking }
                                 }
-                            }.buttonStyle(.bordered).controlSize(.large)
+                            }.buttonStyle(.bordered).controlSize(.large).disabled(overview.cached == true)
                         }.padding(.vertical, 6)
                     }
                     pagination(page: overview.requests, requests: true)
@@ -69,10 +71,27 @@ struct AtlasTimeOffView: View {
                 }
             } else if model.busy { ProgressView("Loading holidays…") }
         }
+        .modifier(AtlasThemedContent())
         .navigationTitle(title)
+        .toolbar {
+            AtlasPresenceToolbar()
+            ToolbarItem(placement: .primaryAction) { AtlasBrowserButton(screen: "time-off") }
+            #if os(macOS)
+            ToolbarItem(placement: .primaryAction) {
+                Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.load() } }.keyboardShortcut("r")
+            }
+            #endif
+        }
         .disabled(model.busy)
+        .protectsAtlasNavigation(model.mutating && editor == nil)
+        #if os(iOS)
+        .toolbar(model.mutating ? .hidden : .visible, for: .tabBar)
+        #endif
         .refreshable { await model.load() }
-        .task { await model.load() }
+        .task {
+            model.cachedRequest = AtlasReadCache.scoped(cachedRead, operation: "time_off")
+            await model.load()
+        }
         .sheet(item: $editor) {
             AtlasHolidayForm(model: model, editing: $0.request).dynamicTypeSize(dynamicTypeSize)
         }
@@ -146,8 +165,13 @@ private struct AtlasHolidayForm: View {
                 }.frame(minHeight: 44).disabled(model.busy)
                 if model.busy { ProgressView("Saving holiday…") }
             }
+            .modifier(AtlasThemedContent())
             .environment(\.calendar, AtlasHolidayDates.calendar)
             .navigationTitle(editing == nil ? "Request holiday" : "Edit request")
+            #if os(macOS)
+            .formStyle(.grouped)
+            .frame(width: 540, height: 480)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.disabled(model.busy)
@@ -157,6 +181,7 @@ private struct AtlasHolidayForm: View {
             .onChange(of: first) { _, value in if last < value { last = value } }
             .onAppear { model.errorMessage = nil }
         }
+        .protectsAtlasNavigation()
     }
 
     @ViewBuilder private func dateField(

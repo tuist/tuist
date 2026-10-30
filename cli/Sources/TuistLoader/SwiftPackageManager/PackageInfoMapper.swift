@@ -2,7 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ProjectDescription
+@_spi(TuistLoader) import ProjectDescription
 import TSCUtility
 import TuistConstants
 import TuistCore
@@ -948,7 +948,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 for: target,
                 moduleMap: moduleMap,
                 moduleName: moduleMapModuleName,
-                targetPath: targetPath
+                targetPath: targetPath,
+                publicHeadersPath: try await target.publicHeadersPath(packageFolder: path)
             )
         }
 
@@ -1114,148 +1115,43 @@ public struct PackageInfoMapper: PackageInfoMapping {
         )
     }
 
-    /// Surfaces every header in a C-family target in the generated project so they can be browsed and
-    /// indexed, matching the file discovery SwiftPM performs (including the recognized header extensions).
-    ///
-    /// How a header is classified depends on how the target's module is consumed:
-    ///
-    /// - `.custom` / `.header` targets carry an explicit or umbrella-header module map that defines the
-    ///   module, and are consumed as a Swift/Clang module (`import Module`). Tagging their headers `Public`
-    ///   is redundant and harmful: SwiftPM C targets generate as frameworks, and a `Public` header is copied
-    ///   into the framework bundle's `Headers` directory. That copy flips `__has_include(<Module/Header.h>)`
-    ///   checks in sibling shim targets (for example swift-nio-ssl's `CNIOBoringSSLShims.h`, which includes
-    ///   `<CNIOBoringSSL/CNIOBoringSSL.h>`), which re-homes the included declarations into the shim module and
-    ///   breaks consumers under the `MemberImportVisibility` upcoming feature. So they are surfaced as project
-    ///   headers only, which leaves the module composition untouched.
-    /// - `.directory` targets have no umbrella header; their public headers directory *is* the module's public
-    ///   surface, and consumers import individual headers as `<Module/Header.h>` (e.g. an ObjC framework). Those
-    ///   headers must stay `Public` so they are copied into the framework bundle and remain resolvable.
-    ///
-    /// Only targets with a module map (i.e. C-family targets) have headers. Swift targets resolve
-    /// to `ModuleMap.none` and keep `nil` headers.
+    /// SwiftPM headers remain compiler and cache inputs, but do not become Xcode header build files.
+    /// In particular, a directory module preserves its include hierarchy instead of flattening every
+    /// nested header into a framework. Custom and umbrella maps keep their original module composition.
+    /// `exclude` only removes project headers: everything under the public headers path stays includable
+    /// through its search path, as it does in SwiftPM.
     private func discoveredHeaders(
         for target: PackageInfo.Target,
         moduleMap: ModuleMap?,
         moduleName: String?,
-        targetPath: AbsolutePath
-    ) async throws -> ProjectDescription.Headers? {
-        guard let moduleMap else { return nil }
-
-        // Header extensions recognized by SwiftPM's `FileRuleDescription.header`.
-        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
-        // SwiftPM's `exclude` paths are relative to the target's directory; drop headers under them so
-        // the generated target matches SwiftPM's discovery. Mirrors `SourceFilesList.from`.
-        let excluding: [ProjectDescription.Path] = try target.exclude.map {
-            let excludePath = targetPath.appending(try RelativePath(validating: $0))
-            let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
-            return .path(excludeGlob.pathString)
-        }
-
-        switch moduleMap {
-        case .none:
-            return nil
-        case .custom, .header:
-            return .headers(
-                project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)])
-            )
-        case let .directory(_, publicHeadersPath):
-            let frameworkHeaders = try await frameworkPublicHeaders(
-                publicHeadersPath: publicHeadersPath,
-                targetPath: targetPath,
-                excluding: target.exclude,
-                moduleName: moduleName
-            )
-            return .headers(
-                public: frameworkHeaders.public,
-                project: .list([
-                    .glob(
-                        .path("\(targetPath.pathString)/\(headersGlob)"),
-                        excluding: excluding + frameworkHeaders.shadowedPublicHeaderExclusions
-                    ),
-                ]),
-                exclusionRule: .projectExcludesPrivateAndPublic
-            )
-        }
-    }
-
-    private struct FrameworkPublicHeaders {
-        let `public`: ProjectDescription.FileList?
-        let shadowedPublicHeaderExclusions: [ProjectDescription.Path]
-    }
-
-    private func frameworkPublicHeaders(
-        publicHeadersPath: AbsolutePath,
         targetPath: AbsolutePath,
-        excluding: [String],
-        moduleName: String?
-    ) async throws -> FrameworkPublicHeaders {
-        let headerExtensions = "h,hh,hpp,h++,hp,hxx,H,ipp,def"
-        let excludedPaths = try excluding.map {
-            targetPath.appending(try RelativePath(validating: $0))
+        publicHeadersPath: AbsolutePath
+    ) async throws -> ProjectDescription.Headers? {
+        guard let moduleMap, let moduleMapPath = moduleMap.moduleMapPath, let moduleName else { return nil }
+        let usesDirectoryModuleMap: Bool
+        switch moduleMap {
+        case .none: return nil
+        case .directory: usesDirectoryModuleMap = true
+        case .custom, .header: usesDirectoryModuleMap = false
         }
 
-        let headers = try await fileSystem
-            .glob(directory: publicHeadersPath, include: ["**/*.{\(headerExtensions)}", "*.{\(headerExtensions)}"])
-            .collect()
-            .uniqued()
-            .filter { header in
-                excludedPaths.allSatisfy { excludedPath in
-                    if excludedPath.extension == nil {
-                        !header.isDescendantOfOrEqual(to: excludedPath)
-                    } else {
-                        header != excludedPath
-                    }
-                }
-            }
-
-        let frameworkHeaders = uniqueFrameworkPublicHeaders(
-            headers,
-            publicHeadersPath: publicHeadersPath,
-            moduleName: moduleName
+        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        let excluding: [ProjectDescription.Path] = try await target.exclude.concurrentMap {
+            let path = targetPath.appending(try RelativePath(validating: $0))
+            let isDirectory = try await fileSystem.exists(path, isDirectory: true)
+            return .path(isDirectory ? path.appending(component: "**").pathString : path.pathString)
+        }
+        return .swiftPackageHeaders(
+            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"))]),
+            project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)]),
+            sourceLayout: .init(
+                root: .path(targetPath.pathString),
+                publicHeaders: .path(publicHeadersPath.pathString),
+                moduleMap: .path(moduleMapPath.pathString),
+                moduleName: moduleName.sanitizedModuleName,
+                usesDirectoryModuleMap: usesDirectoryModuleMap
+            )
         )
-
-        let frameworkHeaderSet = Set(frameworkHeaders)
-        let shadowedPublicHeaderExclusions = headers
-            .filter { !frameworkHeaderSet.contains($0) }
-            .sorted()
-            .map { ProjectDescription.Path.path($0.pathString) }
-
-        return FrameworkPublicHeaders(
-            public: frameworkHeaders.isEmpty ? nil : .list(frameworkHeaders.map { .glob(.path($0.pathString)) }),
-            shadowedPublicHeaderExclusions: shadowedPublicHeaderExclusions
-        )
-    }
-
-    private func uniqueFrameworkPublicHeaders(
-        _ headers: [AbsolutePath],
-        publicHeadersPath: AbsolutePath,
-        moduleName: String?
-    ) -> [AbsolutePath] {
-        let moduleDirectory = moduleName.map { publicHeadersPath.appending(component: $0.sanitizedModuleName) }
-
-        return Dictionary(grouping: headers, by: \.basename)
-            .values
-            .compactMap { headers in
-                headers.sorted { lhs, rhs in
-                    if let moduleDirectory {
-                        let lhsIsModuleNested = lhs.isDescendant(of: moduleDirectory)
-                        let rhsIsModuleNested = rhs.isDescendant(of: moduleDirectory)
-                        if lhsIsModuleNested != rhsIsModuleNested {
-                            return lhsIsModuleNested
-                        }
-                    }
-
-                    let lhsDepth = lhs.relative(to: publicHeadersPath).components.count
-                    let rhsDepth = rhs.relative(to: publicHeadersPath).components.count
-                    if lhsDepth != rhsDepth {
-                        return lhsDepth > rhsDepth
-                    }
-
-                    return lhs.pathString < rhs.pathString
-                }
-                .first
-            }
-            .sorted()
     }
 
     private func prebuiltDependency(

@@ -12,7 +12,8 @@ After an API interruption, the same live writer can resume in a new epoch only
 after explicitly fencing publication and draining admitted work; a restarted
 primary still requires quarantine and recovery. A preparation-capable standby first
 catches up while the primary continues accepting reads and writes. This bounded
-preparation grants no serving rights and holds no corpus; the subsequent five-minute
+preparation performs one complete retained walk, without waiting for live eviction
+to stop. It grants no serving rights and holds no corpus; the subsequent five-minute
 quiescing phase still repairs and verifies the complete retained set. Planned handover reconciles
 missing retained records on the named standby before freezing it, then verifies
 the complete corpus. Named repair copies old missing records even when ordinary
@@ -245,6 +246,44 @@ When peer mTLS is enabled:
 - 🪪 the certificate configured through `KURA_INTERNAL_TLS_CERT_PATH` should be valid for both server and client auth
 - 🏷️ the certificate SANs must cover the hostname used in `KURA_NODE_URL`
 
+### Outbound certificate distrust
+
+Kura embeds the twelve-key eMudhra incident policy independently of the OS PEM
+bundle. Ordinary clients retain native/enterprise trust, including configured
+extra CAs; peer mTLS retains explicit anchors and hot identity reload. Normal
+hostname, certificate, signature and native context checks remain authoritative,
+with an additional key deny over the constructed path and supplied peers.
+Inbound peer client authentication is restrictive too. Sentry's invalid-certificate
+override is not honored. An otherwise valid redundant blocked cross-sign can be
+rejected: repair the served chain rather than disable TLS or fall back insecurely.
+
+Run `bazel test //:certificate_trust_test --define=kura_deny_warnings=true`
+for independent native/explicit-anchor and real TLS controls without RocksDB.
+`node --test test/certificate-trust/wiring.test.mjs` checks policy/fixture
+synchronization and a bounded production-factory inventory, not arbitrary Rust
+data flow. The full Kura suite additionally covers auth, Sentry and peer rotation.
+Public endpoint and OpenSSL-3 identity-format tests are opt-in:
+
+```sh
+bazel test //:certificate_trust_test --define=kura_deny_warnings=true \
+  --nocache_test_results --test_output=all --test_arg=--ignored \
+  --test_arg=public_controls_fail_for_certificates \
+  --test_arg=valid_pkcs1_and_sec1_identities \
+  --test_env=TUIST_TRUST_LIVE=1 --test_env=KURA_TRUST_OPENSSL=/usr/bin/openssl
+```
+
+Linux success does not qualify Apple's complete evaluated SecTrust paths or
+minimum macOS runtime. Before merging behavior changes, compare current main
+on memory/headroom, disk/retention, CPU/work and egress/work, including recovery
+and native-client construction. Historical #14511 resource flags remain open:
+cooldown anonymous/allocator memory, transient headroom, logical disk and RX,
+plus an earlier unexplained peak-anonymous increase. Green tests or a completed
+ABBA run do not clear these budgets. Exact release images/macOS binaries and
+deployed Sentry/OTLP/enrollment/Kubernetes integrations require separate evidence.
+OTLP gRPC TLS is currently unavailable, not protected by the HTTP client and
+never downgraded to plaintext. Source changes do not patch existing processes
+or authorize publication or rollout.
+
 ## ⚙️ Runtime Model And Limits
 
 Kura is designed around explicit resource budgets instead of relying on ambient process limits.
@@ -301,10 +340,10 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_REGISTRATION_INTERVAL_MS` | How often the node sends a registration heartbeat. | Yes | `60000` |
 | `KURA_USAGE_WINDOW_SECS` | Usage rollup window size. Kura aggregates request traffic in memory by bounded dimensions before writing closed windows to the durable usage outbox. | Yes | `60` |
 | `KURA_USAGE_FLUSH_INTERVAL_MS` | How often closed usage windows are flushed from memory to RocksDB. | Yes | `60000` |
-| `KURA_USAGE_DELIVERY_INTERVAL_MS` | How often the usage outbox attempts delivery to the control plane. Delivery pauses under critical memory pressure. | Yes | `5000` |
+| `KURA_USAGE_DELIVERY_INTERVAL_MS` | Normal usage delivery interval and base for exponential retry backoff with jitter (normally capped at 60 seconds). Numeric Retry-After responses set a minimum delay. Delivery pauses under critical memory pressure. | Yes | `5000` |
 | `KURA_USAGE_BATCH_SIZE` | Maximum number of usage rollups sent in one control-plane request. | Yes | `1000` |
 | `KURA_USAGE_MAX_BUCKETS` | Maximum number of in-memory usage aggregation buckets. New buckets are rejected when this cap is reached. | Yes | `10000` |
-| `KURA_USAGE_OUTBOX_MAX_DEPTH` | Maximum number of durable usage rollups retained in RocksDB before closed windows stop flushing. | Yes | `100000` |
+| `KURA_USAGE_OUTBOX_MAX_DEPTH` | Soft depth threshold at which closed windows stop flushing to RocksDB. A graceful shutdown can append one final batch, bounded by `KURA_USAGE_MAX_BUCKETS`, beyond this threshold. | Yes | `100000` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before the janitor expires it. | Yes | `86400000` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often the multipart janitor scans for stale uploads. | Yes | `600000` |
 | `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` | Optional fixed cap on active multipart sessions, overriding memory-based sizing. Durable sessions survive restarts and reductions in the automatic limit. | Yes | auto |
@@ -440,6 +479,9 @@ observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts onl
 controller sets it only for deployment-selected instances. A dedicated thread
 and async runtime keep network waits and diagnostic failures out of startup and
 readiness decisions; this remains telemetry inside Kura's process resource budget.
+Each cycle includes four fixed server `/ready` checks and two Alloy OTLP HTTP
+header checks on port 4318, followed by a 60-second pause. Alloy checks use GET,
+not span submission; a 405 response measures reachability, not telemetry delivery.
 See the [connectivity runbook](../infra/kura-controller/connectivity-diagnostics.md)
 for fixed targets, sample interpretation, access boundaries, and rollout.
 
@@ -597,7 +639,32 @@ Both surfaces are metered: the HTTP cache path records rollups with `protocol = 
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
 
-The usage pipeline follows Kura's resource discipline: bucket count, durable outbox depth, and delivery batch size are capped; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
+The usage pipeline caps bucket count and delivery batch size, and applies a soft durable outbox depth threshold; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
+
+The server writes one complete batch at a time per replica, with a three-second
+budget shared by attribution and all usage/storage inserts. Up to two
+overlapping batches wait at most one second for that slot, inside the same
+budget; any further batch is rejected immediately. It returns 202 only after
+the required ClickHouse inserts complete; overload, timeout, and write failure
+return 503 with Retry-After. Kura retains the durable rows until a 2xx response
+and owns retries, including partial or ambiguous commits. Server ingestion has
+no second durable queue and disables both application and driver insert retries.
+The concurrency cap is replica-local, not a fleet-wide ClickHouse quota, and
+HTTP timeout does not prove that remote ClickHouse work has stopped.
+
+During graceful shutdown, Kura stops and joins periodic checkpoint and delivery
+tasks, drains traffic producers, then synchronously checkpoints remaining usage
+to RocksDB. It does not wait for remote delivery. Current-window partial rollups
+carry an incarnation suffix so successive deploys in the same window cannot
+overwrite each other's counters; those IDs remain stable across local retries.
+One final batch of at most KURA_USAGE_MAX_BUCKETS is allowed beyond the normal
+soft outbox depth. Repeated restarts during a prolonged outage can therefore
+grow the durable backlog beyond that soft threshold. A failed local fsync, an
+incomplete producer drain, SIGKILL before checkpoint, or loss of the local volume
+can still lose unpersisted usage. Storage evictions and snapshots remain
+best-effort in-memory telemetry. Shutdown reserves five seconds of scheduling
+headroom for the local checkpoint, not a hard fsync deadline: a stalled disk can
+still exhaust the orchestrator's termination grace.
 
 ## ☸️ Deployment Options
 
@@ -814,6 +881,29 @@ Core env vars:
 
 A node given none of these does not authorize at all, so leaving them unset
 serves the cache to anyone who can reach it.
+
+### Network-trusted self-hosted caches
+
+Keep authorization configured and set `TUIST_NETWORK_TRUSTED_CACHE_ACCESS=true`
+on the **Tuist server**, not Kura, to allow clients without credentials to read
+and write caches on a private office/VPN network. The default is off; hosted
+Tuist never enables it. Protect every public HTTP/gRPC listener with the network
+boundary. Anyone inside it can read outputs and poison or exhaust the cache.
+The dashboard, purges, Remote Asset downloads and BES reports remain protected;
+reporting has its own independent server policy.
+
+Kura uses its control-plane client ID/secret to fetch account-bound policy from
+`GET /_internal/kura/cache-policy?tenant_id=...`. Public client discovery is not
+authority. Concurrent checks coalesce in a separate bounded cache, with at most
+60 seconds of authority measured from request start and no stale-on-outage
+grace. An old/unreachable server, malformed response or missing node credentials
+fails closed. Only absent credentials qualify; present invalid, blank or
+duplicate credentials never downgrade. No peer or storage formats change.
+Restart every server replica to enable/disable; block ingress first for immediate
+revocation because in-flight transfers continue. Upgrade all server and Kura
+replicas before credential-free clients; older nodes refuse unsigned traffic.
+
+### Authenticated cache requests
 
 A token the node can verify itself, whose own claims prove the request, is
 answered from those claims and never reaches the server. What follows is about

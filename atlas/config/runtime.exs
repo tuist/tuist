@@ -2,11 +2,47 @@ import Config
 
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
+alias Atlas.Environments.Tuist
 alias Atlas.LLMs.ChatGPT
+alias Atlas.Push.Config
+alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
+
+# Keep first admission off until all HTTP and background workers support Signals.
+# See deploy/AGENTS.md for the compatibility rollout and rollback floor.
+signals_enabled =
+  case System.get_env("ATLAS_SIGNALS_ENABLED", if(config_env() == :test, do: "true", else: "false")) do
+    "true" -> true
+    "false" -> false
+    _ -> raise ArgumentError, "ATLAS_SIGNALS_ENABLED must be true or false"
+  end
+
+config :atlas, :automation_trace_url_template, System.get_env("ATLAS_AUTOMATION_TRACE_URL_TEMPLATE")
+config :atlas, :signals_enabled, signals_enabled
+
+# All replicas use the same dedicated signing key. Never reuse OAuth/session keys.
+if key = System.get_env("ATLAS_ENVIRONMENT_OIDC_PRIVATE_KEY") do
+  config :atlas, :environment_identity, private_key: key
+end
+
+if account = System.get_env("ATLAS_TUIST_ENVIRONMENT_ACCOUNT") do
+  url = System.get_env("ATLAS_TUIST_ENVIRONMENT_URL", "https://tuist.dev")
+  uri = URI.parse(url)
+
+  if !(uri.scheme == "https" and is_binary(uri.host) and uri.userinfo == nil and uri.query == nil and
+         uri.fragment == nil and uri.path in [nil, "", "/"]),
+     do: raise("ATLAS_TUIST_ENVIRONMENT_URL must be an HTTPS origin")
+
+  if !Regex.match?(~r/^[a-z0-9][a-z0-9-]{0,99}$/, account),
+    do: raise("ATLAS_TUIST_ENVIRONMENT_ACCOUNT must be an account handle")
+
+  config :atlas, :environment_providers, %{
+    "tuist" => %{module: Tuist, name: "Tuist", url: String.trim_trailing(url, "/"), account_handle: account}
+  }
+end
 
 # dev_instance.exs is only shipped in non-prod (it isn't copied into the
 # release tarball), so guard the require to keep prod boots clean.
@@ -146,6 +182,20 @@ support_chat_parent_origins =
 config :atlas, AtlasWeb.Endpoint, endpoint_config
 config :atlas, :demo_mode, demo_mode
 
+if native_themes = System.get_env("ATLAS_NATIVE_THEME_CATALOG") do
+  catalog =
+    case Jason.decode(native_themes) do
+      {:ok, catalog} -> catalog
+      {:error, _} -> nil
+    end
+
+  config :atlas, :native_theme_catalog, catalog
+end
+
+# Server-only push provider credentials. Unset providers make their platform
+# unavailable; partial or malformed credentials fail the boot.
+config :atlas, Atlas.Push, Config.parse!(System.get_env())
+
 config :atlas, :gtm_email,
   from_name: System.get_env("ATLAS_GTM_EMAIL_FROM_NAME", "Tuist"),
   from_email: System.get_env("ATLAS_GTM_EMAIL_FROM_EMAIL", "contact@tuist.dev"),
@@ -155,6 +205,10 @@ config :atlas, :gtm_email,
 # Bank-transfer footer printed at the bottom of every Stripe invoice. Kept
 # out of source so real IBAN/BIC/beneficiary details are never checked in.
 config :atlas, :invoice_footer, System.get_env("ATLAS_INVOICE_FOOTER", "")
+
+# Verified native app identities for universal and app links. Unset means the
+# association files are not served.
+config :atlas, :native_links, NativeLinksConfig.parse!(System.get_env())
 
 config :atlas, :support,
   from_name: System.get_env("ATLAS_SUPPORT_FROM_NAME", "Tuist Support"),
@@ -232,6 +286,23 @@ if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do
     client_id: google_client_id,
     client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
 end
+
+# Personal grants have separate callbacks from Google sign-in and the Slack bot
+# install. Register /connections/:provider/callback on each existing OAuth app.
+config :atlas, :account_connections, %{
+  "github" => %{
+    client_id: System.get_env("ATLAS_GITHUB_APP_CLIENT_ID"),
+    client_secret: System.get_env("ATLAS_GITHUB_APP_CLIENT_SECRET")
+  },
+  "slack" => %{
+    client_id: System.get_env("ATLAS_SLACK_CLIENT_ID"),
+    client_secret: System.get_env("ATLAS_SLACK_CLIENT_SECRET")
+  },
+  "google" => %{
+    client_id: System.get_env("GOOGLE_CLIENT_ID"),
+    client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
+  }
+}
 
 # ## Admin Dashboard
 #
@@ -588,11 +659,13 @@ end
 # `#errors` in the Tuist company workspace.
 default_alert_slack_channel = System.get_env("ATLAS_DEFAULT_ALERT_SLACK_CHANNEL", "C061VCZC2V8")
 
-config :atlas, :default_alert_slack_channel, default_alert_slack_channel
-
+# Display name of the thread assistant served to clients. Generic by
 # Slack app credentials. Atlas keeps one company Slack app. The signing
+# default so self-hosted deployments carry no organization-specific naming.
 # secret is app-wide; the bot token can be captured through the install
 # flow and persisted in `slack_installations`.
+config :atlas, :default_alert_slack_channel, default_alert_slack_channel
+
 config :atlas, :slack,
   client_id: System.get_env("ATLAS_SLACK_CLIENT_ID"),
   client_secret: System.get_env("ATLAS_SLACK_CLIENT_SECRET"),
@@ -636,9 +709,13 @@ end
 llm_mode = present_env.(["LLM_MODE"])
 llm_config = Application.get_env(:atlas, :llm, [])
 
-# Personal ChatGPT connections require an Atlas-authorized device OAuth client.
-# Do not substitute another application's public client ID.
+# Personal ChatGPT connections use an explicitly configured device OAuth client.
+# Client provisioning and temporary managed overrides belong to deployment configuration.
 config :atlas, ChatGPT, client_id: present_env.(["ATLAS_CHATGPT_CLIENT_ID"])
+
+# Relay aliases have no catalog metadata. Override their conservative 128k
+# compaction budget when the operator knows the effective provider window.
+config :atlas, :orbit_context_window, optional_positive_integer_env.("ATLAS_ORBIT_CONTEXT_WINDOW")
 
 cond do
   llm_mode == "local" ->

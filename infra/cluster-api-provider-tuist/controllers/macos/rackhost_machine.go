@@ -90,7 +90,7 @@ func (r *RackHostReconciler) reconcileMachine(ctx context.Context, host *infrav1
 		return ctrl.Result{}, nil
 	}
 
-	if machine != nil && host.Spec.NodeCluster == nil && ownerRemediationRequested(machine) {
+	if machine != nil && !nodeElsewhere(host) && ownerRemediationRequested(machine) {
 		if err := r.Delete(ctx, machine); err != nil && !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, fmt.Errorf("delete unhealthy Machine %s: %w", machine.Name, err)
 		}
@@ -186,7 +186,7 @@ const lentSkipRemediationAnnotation = "tuist.dev/lent-skip-remediation"
 // that Node, so the check would find it missing and remediate the Machine,
 // which re-bootstraps the host in a loop.
 func keepLentMachineOffRemediation(meta *metav1.ObjectMeta, host *infrav1.RackHost) {
-	if host.Spec.NodeCluster != nil {
+	if nodeElsewhere(host) {
 		if meta.Annotations == nil {
 			meta.Annotations = map[string]string{}
 		}
@@ -216,4 +216,10 @@ func setRackLabels(meta *metav1.ObjectMeta, labels map[string]string) {
 func ownerRemediationRequested(machine *clusterv1.Machine) bool {
 	return conditions.IsFalse(machine, clusterv1.MachineHealthCheckSucceededCondition) &&
 		conditions.IsFalse(machine, clusterv1.MachineOwnerRemediatedCondition)
+}
+
+// nodeElsewhere reports a host whose Node is, or may be, in another cluster:
+// lent by hand, being lent (lendTo), or lent and not yet back.
+func nodeElsewhere(host *infrav1.RackHost) bool {
+	return host.Spec.NodeCluster != nil || host.Spec.LendTo != "" || host.Status.Lease != nil
 }

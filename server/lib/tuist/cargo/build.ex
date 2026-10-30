@@ -17,8 +17,11 @@ defmodule Tuist.Cargo.Build do
     field :is_ci, Ch, type: "Bool"
     field :command, Ch, type: "String"
     field :rust_version, Ch, type: "String"
+    field :tuist_version, Ch, type: "String", default: ""
     field :contract_version, Ch, type: "String"
     field :cache_metrics, Ch, type: "String"
+    field :custom_tags, {:array, Ch}, type: "String", default: []
+    field :custom_values, Ch, type: "Map(String, String)", default: %{}
     field :git_branch, Ch, type: "String"
     field :git_commit_sha, Ch, type: "String"
     field :git_ref, Ch, type: "String"

@@ -2,116 +2,51 @@
 {
   "title": "Rust Test Sharding",
   "titleTemplate": ":title · Test Sharding · Features · Guides · Tuist",
-  "description": "Compile a nextest archive once and distribute Rust test binaries across compatible CI runners."
+  "description": "Distribute Cargo test targets across CI workers using historical test durations."
 }
 ---
 # Rust test sharding {#rust-test-sharding}
 
-Tuist compiles your tests once, uploads a nextest archive, and assigns whole test binaries to parallel workers. The workers download the archive and execute their assigned tests without recompiling. Their results merge into one test run in the dashboard.
+Tuist distributes Cargo test targets across CI workers using historical target durations. Unit-test targets, integration-test targets, and each library's doctests are separate modules. Tests within one target stay together.
 
 > [!IMPORTANT] Requirements
-> - Configure <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link>.
-> - Build and worker jobs need the Tuist CLI, Cargo, cargo-nextest, authentication, and the same project configuration.
-> - Workers must be compatible with the archive's OS, architecture, and runtime dependencies.
+> - Configure <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link> and authenticate the CLI on the planning job and workers.
+> - Select one package, using `-p <package>` in a workspace. Multi-package sharding is not supported.
+> - Use the same revision, Rust toolchain, package selection, features, and test filters in every job.
 
-## Build once {#build-phase}
+## Create a plan {#create-a-plan}
 
-Give each pipeline attempt a unique reference shared by the build and workers:
+Add a shard count to `--no-run` to compile and enumerate targets without executing tests:
 
 ```sh
-export TUIST_SHARD_REFERENCE="${CI_PIPELINE_ID}-${CI_JOB_ATTEMPT}"
-tuist cargo test-build --workspace --shard-total 4
+TUIST_SHARD_REFERENCE=my-ci-run tuist cargo test -p store --no-run --shard-max 4
 ```
 
-Replace the example variables with your provider's pipeline and attempt identifiers. Tuist can also derive a reference on supported CI providers. A commit SHA alone is not unique across reruns of the same commit.
+The command prints JSON containing `shard_plan_id` and a zero-based `shards` array. In GitHub Actions, it also writes `shard-plan-id` and `shards` to `GITHUB_OUTPUT`. Without an explicit reference, Tuist derives one from the supported CI environment.
 
-`test-build` runs `cargo nextest archive`, enumerates its binaries, creates a plan, and uploads the archive. Cargo compilation options such as features and target selection belong in this phase.
-
-| Option | Meaning |
+| Option | Description |
 | --- | --- |
-| `--shard-total <N>` | Request a fixed number of shards. |
-| `--shard-min <N>` | Minimum number of shards. |
-| `--shard-max <N>` | Maximum number of shards. |
-| `--shard-max-duration <MS>` | Target shard duration in **milliseconds**. |
+| `--shard-max N` | Maximum number of shards |
+| `--shard-min N` | Minimum number of shards |
+| `--shard-total N` | Exact count, up to the available targets |
+| `--shard-max-duration N` | Target maximum shard duration in milliseconds |
 
-The server caps the shard count at the available binary count. Always consume the emitted shard indexes rather than assuming your requested count was used.
+Use `--shard-total` alone or combine `--shard-min` and `--shard-max`. Without historical durations, the planner uses default target estimates. Ordinary `--no-run` without shard options remains a build-only command.
 
-The command prints JSON:
+## Execute each shard {#execute-each-shard}
 
-```json
-{"shard_plan_id":"<plan-uuid>","shards":[0,1,2,3]}
-```
-
-On GitHub Actions it also appends the `shard-plan-id` and `shards` step outputs to `GITHUB_OUTPUT`.
-
-## Execute workers {#test-phase}
-
-Each worker checks out the same revision and gets a distinct zero-based index:
+Set the plan ID and shard index on each worker, then use the same Cargo test arguments:
 
 ```sh
-TUIST_SHARD_PLAN_ID="$PLAN_ID" TUIST_SHARD_INDEX=0 \
-  tuist cargo nextest run --profile ci
+TUIST_SHARD_PLAN_ID=<plan-id> TUIST_SHARD_INDEX=0 tuist cargo test -p store
 ```
 
-The plan ID can identify the plan without a reference. Otherwise, provide the same `TUIST_SHARD_REFERENCE` as the build job. Worker options should configure nextest execution, not change the already archived compilation selection.
+Alternatively, set `TUIST_SHARD_REFERENCE` to the planning job's reference instead of passing the plan ID. Tuist fetches the assignment and asks Cargo to execute only those targets. Invalid or incompatible assignments fail the command rather than running all tests. Empty assignments execute no tests. Results from the workers are linked to the plan in Test Insights, and <.localized_link href="/guides/features/test-insights/flaky-tests/rust#quarantine">quarantine</.localized_link> applies within each shard.
 
-Tuist remaps the archive to the worker checkout. Workers still need test fixtures, native libraries, and any files the tests open at runtime. Check [nextest's archive constraints](https://nexte.st/docs/ci-features/archiving/) before distributing archives across machines, especially if your tests embed build-time absolute paths.
+## Limits {#limits}
 
-User filtersets narrow the assigned binaries; repeated `-E` expressions retain nextest's union semantics and are intersected with the assignment. An empty intersection succeeds without running tests. A missing or incompatible plan, missing local archive, or failed download fails the job instead of running the whole suite. Nightly Cargo `-C` is not supported for sharding; change into the workspace first.
+This is target-level sharding, not build-once distribution. Each worker needs the source checkout and builds its own targets; the <.localized_link href="/guides/features/cache/rust">Cargo compilation cache</.localized_link> can reuse eligible compilation outputs. Tuist does not upload test executables or require another Rust test runner.
 
-## Parallelism and estimates {#parallelism}
+Sharding requires one selected package. Narrowing a multi-package command can change Cargo's unified dependency features, so Tuist rejects it instead of running tests with a different feature graph. Plan each package separately until multi-package sharding is supported.
 
-Nextest can run tests both within a binary and across binaries concurrently. Summing all test durations would overstate a binary's elapsed time; summing binary durations would likewise overstate a worker's wall time.
-
-Tuist uses timestamped test execution windows for binary timings, declares the binaries as concurrent units, and uses the shared concurrency-aware shard planner. History measures the achieved concurrency from valid shard reports rather than assuming CPU count or `--test-threads` is fully utilized. The shard estimate has a floor at its longest binary.
-
-Without usable concurrency history, planning uses conservative summed estimates. New binaries get a historical/default duration estimate. Keep runner resources, nextest profiles, test groups, and thread settings consistent: estimates are not a guarantee, and changing them can invalidate historical assumptions. Binary-level sharding cannot split one very large binary across workers.
-
-## GitHub Actions {#github-actions}
-
-Install and pin Tuist, Rust, and cargo-nextest in your repository's mise configuration. Then use the build step's outputs for your worker matrix:
-
-```yaml
-name: Rust tests
-on: [pull_request]
-
-env:
-  TUIST_PROJECT: account/project
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
-  TUIST_SHARD_REFERENCE: ${{ github.run_id }}-${{ github.run_attempt }}
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    outputs:
-      plan: ${{ steps.plan.outputs.shard-plan-id }}
-      shards: ${{ steps.plan.outputs.shards }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3
-      - id: plan
-        run: tuist cargo test-build --workspace --shard-total 4
-
-  test:
-    needs: build
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: ${{ fromJson(needs.build.outputs.shards) }}
-    env:
-      TUIST_SHARD_PLAN_ID: ${{ needs.build.outputs.plan }}
-      TUIST_SHARD_INDEX: ${{ matrix.shard }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3
-      - run: tuist cargo nextest run
-```
-
-Outside GitHub Actions, capture the JSON output and pass its plan ID and indexes to your provider's parallel jobs.
-
-## Bring your own artifact storage {#local-archives}
-
-Set `TUIST_TEST_SHARD_ARCHIVE_PATH` on the build and workers to a path managed by your CI artifact mechanism. The build writes the archive there and skips Tuist's archive upload; each worker must download that file before starting nextest. Tuist still creates and authorizes the server-side binary assignments.
-
-Doctests remain a separate `tuist cargo test --doc` job. Cargo sharding does not apply dashboard quarantine or coverage-based test selection.
+Sharding requires standard libtest harnesses and captured default output. Quiet, verbose, alternate-format, uncaptured-output, and custom-harness commands are rejected. If Cargo cannot uniquely identify a target, select an exact workspace package with `-p <package>`. Dependency packages, version-qualified selectors, package/target-name globs, and Cargo's nightly `-C` option are unsupported for sharding. Keep test selection identical between planning and execution.

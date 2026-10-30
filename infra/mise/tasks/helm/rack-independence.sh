@@ -33,7 +33,7 @@ for chart in k8s-monitoring platform rack-cache-gateways; do
   helm dependency update "$HELM/$chart" >/dev/null
 done
 
-for env in staging production; do
+for env in staging canary production; do
   case "$env" in
     production) platform_overlay="values-tuist.yaml" ;;
     *) platform_overlay="values-tuist-$env.yaml" ;;

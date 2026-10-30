@@ -1,0 +1,20 @@
+{{- $rack := .Values.rackFleet.runners | default dict }}
+{{- if and .Values.runnersFleet.enabled $rack.enabled $rack.goldenBudget }}
+{{- /*
+How many runner images each host of a fleet keeps, keyed by fleet. tart-kubelet
+reads it on every staging and GC pass (`internal/podagent/budget.go`): it stages
+the catalog pools' images in rank order up to the budget and reaps the
+lowest-ranked goldens beyond it, so a change applies without touching the hosts.
+*/}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runner-golden-budgets") }}
+  namespace: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    tuist.dev/runner-golden-budgets: "true"
+data:
+  {{ include "tuist.rackFleetName" . }}: {{ int $rack.goldenBudget | toString | quote }}
+{{- end }}

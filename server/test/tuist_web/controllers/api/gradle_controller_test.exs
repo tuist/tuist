@@ -75,6 +75,31 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert hd(tasks["tasks"])["execution"]["build_path"] == ":included"
     end
 
+    test "expanded metadata survives ingestion, REST and MCP without registry filtering", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      values = Map.new(1..64, &{"future.key.#{&1}", "unicode ✓ #{&1}"})
+      path = "/api/projects/#{user.account.name}/#{project.name}/gradle/builds"
+      body = %{duration_ms: 10, status: "success", tasks: [], custom_metadata: %{tags: ["ci"], values: values}}
+
+      id =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(path, JSON.encode!(body))
+        |> json_response(201)
+        |> Map.fetch!("id")
+
+      Buffer.flush()
+      response = conn |> get(path <> "/" <> id) |> json_response(200)
+      assert response["custom_metadata"] == %{"tags" => ["ci"], "values" => values}
+      mcp = %Plug.Conn{assigns: %{current_user: user}}
+      args = %{"build_run_id" => id}
+      assert %{"structuredContent" => detail} = Tuist.MCP.Components.Tools.GetGradleBuild.call(mcp, args)
+      assert detail["custom_metadata"] == response["custom_metadata"]
+    end
+
     test "legacy task reports populate the persistent inventory without new fields", %{
       conn: conn,
       user: user,

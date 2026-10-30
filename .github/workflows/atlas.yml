@@ -35,6 +35,33 @@ defaults:
     working-directory: atlas
 
 jobs:
+  automation-contracts:
+    name: Automation compatibility
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/mise-install
+        with:
+          install: erlang elixir
+          working-directory: atlas
+      - name: Preserve published behavior contracts
+        env:
+          CONTRACT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          git rev-parse --verify "$CONTRACT_BASE_SHA^{commit}"
+          previous="$(mktemp)"
+          trap 'rm -f "$previous"' EXIT
+          path="atlas/priv/automation/contracts/v1.json"
+          if git cat-file -e "$CONTRACT_BASE_SHA:$path"; then
+            git show "$CONTRACT_BASE_SHA:$path" > "$previous"
+          else
+            printf '{"operations":[]}' > "$previous"
+          fi
+          elixir scripts/check_automation_contracts.exs "$previous"
+
   deployment:
     uses: ./.github/workflows/atlas-deployment-validation.yml
 

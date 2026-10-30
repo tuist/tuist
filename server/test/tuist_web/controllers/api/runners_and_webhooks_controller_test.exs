@@ -133,13 +133,18 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
 
       response = conn |> get(~p"/api/accounts/#{account.name}/runners/profiles") |> json_response(:ok)
 
-      assert %{"cache_writer_default_branch" => true, "cache_writer_branches" => []} =
+      assert %{
+               "cache_writer_all_branches" => true,
+               "cache_writer_default_branch" => true,
+               "cache_writer_branches" => []
+             } =
                Enum.find(response["profiles"], &(&1["name"] == "ci"))
 
       response =
         conn
         |> put_req_header("content-type", "application/json")
         |> patch(~p"/api/accounts/#{account.name}/runners/profiles/ci", %{
+          cache_writer_all_branches: false,
           cache_writer_default_branch: false,
           cache_writer_branches: ["develop", "release/*"]
         })
@@ -147,6 +152,7 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
 
       assert %{
                "name" => "ci",
+               "cache_writer_all_branches" => false,
                "cache_writer_default_branch" => false,
                "cache_writer_branches" => ["develop", "release/*"]
              } = response

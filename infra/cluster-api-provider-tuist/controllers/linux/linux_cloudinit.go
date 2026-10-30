@@ -11,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
 // linuxCloudInitOptions parameterizes the self-join bootstrap across the two
@@ -128,6 +130,13 @@ kernel.panic = 10
 RuntimeWatchdogSec=30s
 RebootWatchdogSec=5min
 `
+
+	// The sshd start-limit drop-ins (internal/sshd), which rack hosts' installs
+	// and converges write too.
+	sshServiceDropInPath    = sshd.ServiceDropInPath
+	sshServiceDropInContent = sshd.ServiceDropInContent
+	sshSocketDropInPath     = sshd.SocketDropInPath
+	sshSocketDropInContent  = sshd.SocketDropInContent
 
 	// dockerHubMirrorHostsContent is the containerd registry-host config that
 	// routes docker.io pulls through mirror.gcr.io, sidestepping Docker Hub's
@@ -351,7 +360,7 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[8]s
 %[2]ssysctl -p /etc/sysctl.d/99-tuist-hardening.conf 2>/dev/null || true
 %[9]s
-%[2]ssystemctl daemon-reexec || true
+%[12]s%[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
 %[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs
@@ -386,7 +395,18 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 %[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
 		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup, hardeningSysctl, watchdogDropIn,
-		containerdQuota, kataSetup)
+		containerdQuota, kataSetup, sshStartLimitDropIns(sudo, writeFile))
+}
+
+// sshStartLimitDropIns writes the sshd start-limit drop-ins. The caller reloads
+// systemd afterwards. Shared by the self-join and the kubelet config re-push,
+// which is how nodes joined before the drop-ins existed receive them.
+func sshStartLimitDropIns(sudo string, writeFile func(producer, path string) string) string {
+	return fmt.Sprintf("%[1]smkdir -p %[2]s %[3]s\n%[4]s\n%[5]s\n",
+		sudo, path.Dir(sshServiceDropInPath), path.Dir(sshSocketDropInPath),
+		writeFile("printf '%s' "+shellSingleQuote(sshServiceDropInContent), sshServiceDropInPath),
+		writeFile("printf '%s' "+shellSingleQuote(sshSocketDropInContent), sshSocketDropInPath),
+	)
 }
 
 // vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
@@ -961,7 +981,7 @@ ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
 # same block in infra/k8s/clusters/bare-metal.yaml for the measured detail.
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo))
+`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo))
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs

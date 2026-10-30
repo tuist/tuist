@@ -2,11 +2,12 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistConfig
 import TuistCore
 import TuistEnvironment
 import TuistLogging
 import TuistProcess
-import TuistServer
+import TuistXCResultService
 import XCResultParser
 
 /// A run that collects per-test coverage evidence: where the test processes write, and the
@@ -42,17 +43,20 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
 
 /// Collects which files each test executed (`TestCoverageEvidence`).
 ///
-/// Opt-in with `TUIST_COVERAGE_EVIDENCE=1`, behind the `COVERAGE` client flag. The test targets
-/// link the TestCoverageAttribution package (https://github.com/tuist/TestCoverageAttribution),
-/// which records the coverage counters each test moves; Swift Testing suites also need its
-/// `.coverageAttribution` trait. `prepare` hands back the environment that tells the test
-/// processes where to write; after the run `record` reduces what they wrote to source files,
-/// through the functions the counters belong to and `llvm-cov`'s function-to-file table, and
-/// writes the result into the result bundle. Evidence only enriches a run: nothing here throws,
-/// and a run whose targets don't link the package is a normal run.
+/// Collected whenever the run uploads coverage (`UploadResultBundleService.uploadsCoverage`,
+/// behind the `COVERAGE` client flag). Each test target's own evidence, everything its processes
+/// executed, comes from the raw profiles Xcode writes per test process
+/// (`TestTargetProcessCoverage`), so every target has it. Per-test and per-suite evidence needs
+/// the test targets to link the TestCoverageAttribution package
+/// (https://github.com/tuist/TestCoverageAttribution), which records the coverage counters each
+/// test moves; Swift Testing suites also need its `.coverageAttribution` trait. `prepare` hands
+/// back the environment that tells the test processes where to write; after the run `record`
+/// reduces what they wrote to source files, through the functions the counters belong to and
+/// `llvm-cov`'s function-to-file table, and writes the result into the result bundle. Evidence
+/// only enriches a run: nothing here throws, and a run without any is a normal run.
 @Mockable
 public protocol TestCoverageEvidenceServicing {
-    func prepare(platform: TestCoverageEvidencePlatform?) async -> TestCoverageEvidenceSession?
+    func prepare(platform: TestCoverageEvidencePlatform?, config: Tuist) async -> TestCoverageEvidenceSession?
 
     func record(
         session: TestCoverageEvidenceSession,
@@ -62,22 +66,26 @@ public protocol TestCoverageEvidenceServicing {
 }
 
 public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
-    static let enabledVariable = "TUIST_COVERAGE_EVIDENCE"
     /// Where TestCoverageAttribution writes; xcodebuild passes it to the test processes with the
     /// `TEST_RUNNER_` prefix.
     static let attributionDirectoryVariable = "TEST_COVERAGE_ATTRIBUTION_DIR"
 
     private let fileSystem: FileSysteming
     private let commandRunner: CommandRunning
+    private let xcResultService: XCResultServicing
 
-    public init(fileSystem: FileSysteming = FileSystem(), commandRunner: CommandRunning = CommandRunner()) {
+    public init(
+        fileSystem: FileSysteming = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner(),
+        xcResultService: XCResultServicing = XCResultService()
+    ) {
         self.fileSystem = fileSystem
         self.commandRunner = commandRunner
+        self.xcResultService = xcResultService
     }
 
-    public func prepare(platform: TestCoverageEvidencePlatform?) async -> TestCoverageEvidenceSession? {
-        guard ClientFeatureFlags.contains("COVERAGE"), Environment.current.isVariableTruthy(Self.enabledVariable)
-        else { return nil }
+    public func prepare(platform: TestCoverageEvidencePlatform?, config: Tuist) async -> TestCoverageEvidenceSession? {
+        guard UploadResultBundleService.uploadsCoverage(config: config) else { return nil }
         guard platform != nil else {
             Logger.current.debug("Coverage evidence is only collected on macOS and the iOS simulator")
             return nil
@@ -101,7 +109,11 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
     ) async -> TestCoverageEvidence? {
         defer { try? FileManager.default.removeItem(atPath: session.directory.pathString) }
         guard let resultBundlePath, (try? await fileSystem.exists(resultBundlePath)) == true else { return nil }
-        let evidence = await collect(session: session, derivedDataDirectory: derivedDataDirectory)
+        let evidence = await collect(
+            session: session,
+            resultBundlePath: resultBundlePath,
+            derivedDataDirectory: derivedDataDirectory
+        )
         do {
             try evidence.write(toResultBundle: URL(fileURLWithPath: resultBundlePath.pathString))
         } catch {
@@ -113,47 +125,89 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
 
     /// What the test processes recorded, reduced to files and lines; without scopes, its status
     /// says why there is none.
-    private func collect(session: TestCoverageEvidenceSession, derivedDataDirectory: AbsolutePath?) async
-        -> TestCoverageEvidence
-    {
+    private func collect(
+        session: TestCoverageEvidenceSession,
+        resultBundlePath: AbsolutePath,
+        derivedDataDirectory: AbsolutePath?
+    ) async -> TestCoverageEvidence {
         do {
             // TestCoverageAttribution makes a directory per test process as it loads, and removes
             // what it wrote there when recording fails.
             let processes = try FileManager.default
                 .contentsOfDirectory(at: URL(fileURLWithPath: session.directory.pathString), includingPropertiesForKeys: nil)
-            guard !processes.isEmpty else {
-                Logger.current.debug("No test process recorded coverage evidence: no test target links TestCoverageAttribution")
-                return TestCoverageEvidence(paths: [], scopes: [], status: .notLinked)
-            }
+            let productsDirectories = Self.productsDirectories(derivedDataDirectory: derivedDataDirectory)
             let outputs = processes
                 .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("images.tsv").path) }
                 .compactMap { try? CoverageObserverOutput(directory: $0) }
-            guard !outputs.isEmpty else {
-                Logger.current.debug("TestCoverageAttribution is linked, but no test process recorded coverage evidence")
-                return TestCoverageEvidence(paths: [], scopes: [], status: .failed)
-            }
+                .map { output in
+                    var output = output
+                    for (index, image) in output.images {
+                        output.images[index]?.path = Self.buildProduct(
+                            ofInstalledImage: image.path,
+                            productsDirectories: productsDirectories
+                        ) ?? image.path
+                    }
+                    return output
+                }
+            let launches = processes.flatMap { CoverageObserverOutput.launches(directory: $0) }
             guard let profile = try await profilePath(derivedDataDirectory: derivedDataDirectory) else {
                 Logger.current.debug("No Coverage.profdata under the derived data; no coverage evidence")
-                return TestCoverageEvidence(paths: [], scopes: [], status: .failed)
+                return TestCoverageEvidence(paths: [], scopes: [], status: processes.isEmpty ? .notLinked : .failed)
+            }
+            // Xcode's prefix mapping records `/^src/…` in the images and in llvm-cov's report
+            // alike; both are mapped back through the image's target before the files are tied
+            // to the repository, so the evidence names the same paths the coverage does.
+            let prefixMaps = await CompilationPrefixMaps.ofRun(derivedDataDirectory: derivedDataDirectory)
+            // Independent of the package's records, so it runs while they are reduced.
+            async let fromProcesses = processCoverage(
+                session: session,
+                profile: profile,
+                resultBundlePath: resultBundlePath,
+                derivedDataDirectory: derivedDataDirectory,
+                prefixMaps: prefixMaps,
+                launches: launches
+            )
+
+            guard !outputs.isEmpty else {
+                let processCoverage = await fromProcesses
+                guard !processCoverage.targets.isEmpty || !processCoverage.launched.isEmpty else {
+                    Logger.current.debug(processes.isEmpty
+                        ? "No test process recorded coverage evidence: no test target links TestCoverageAttribution"
+                        : "TestCoverageAttribution is linked, but no test process recorded coverage evidence")
+                    return TestCoverageEvidence(paths: [], scopes: [], status: processes.isEmpty ? .notLinked : .failed)
+                }
+                var evidence = Self.reduce(
+                    outputs: [],
+                    filesByFunction: [:],
+                    targets: processCoverage.targets,
+                    launched: processCoverage.launched
+                )
+                evidence.status = .collected
+                return evidence
             }
 
             var filesByFunction: [String: [String: Set<String>]] = [:]
             var mappings: [String: VerifiedCoverageMapping] = [:]
             let profileCounts = await profileCounts(profile: profile)
-            // Xcode's prefix mapping records `/^src/…` in the images and in llvm-cov's report
-            // alike; both are mapped back through the image's target before the files are tied
-            // to the repository, so the evidence names the same paths the coverage does.
-            let prefixMaps = CompilationPrefixMaps(derivedDataDirectory: derivedDataDirectory)
-            for image in Set(outputs.flatMap { $0.images.values.map(\.path) }) {
+            let images = Set(outputs.flatMap { $0.images.values.map(\.path) })
+            let architecture = CoverageExportService.architecture(ofImages: images.sorted())
+            for image in images {
                 let target = CompilationPrefixMaps.targetName(ofProduct: image)
                 let remap: (String) -> String = { prefixMaps.remap($0, target: target) }
-                let table = await lcovTable(image: image, profile: profile, remap: remap)
+                let table = await lcovTable(image: image, profile: profile, architecture: architecture, remap: remap)
                 filesByFunction[image] = table.filesByFunction
                 if let mapping = CoverageMapping(imagePath: image)?.remappingFiles(remap) {
                     mappings[image] = VerifiedCoverageMapping(mapping: mapping, report: table, profileCounts: profileCounts)
                 }
             }
-            var evidence = Self.reduce(outputs: outputs, filesByFunction: filesByFunction, mappings: mappings)
+            let processCoverage = await fromProcesses
+            var evidence = Self.reduce(
+                outputs: outputs,
+                filesByFunction: filesByFunction,
+                mappings: mappings,
+                targets: processCoverage.targets,
+                launched: processCoverage.launched
+            )
             evidence.status = evidence.scopes.isEmpty ? .failed : .collected
             return evidence
         } catch {
@@ -167,10 +221,17 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
     /// A test's files are those of every attributable record it has (a parameterized test has
     /// one per argument); a suite's are what ran in the gaps around its tests; a target's are
     /// everything its processes executed, overlapped tests included.
+    ///
+    /// `targets` holds a target's files and lines read from its processes' profiles; a target in
+    /// it takes those instead of the union of its records. `launched` holds what the processes a
+    /// scope launched executed, the app a UI test drives: it joins the test's scope (the suite's,
+    /// for a launch outside a test) and its target's.
     static func reduce(
         outputs: [CoverageObserverOutput],
         filesByFunction: [String: [String: Set<String>]],
-        mappings: [String: VerifiedCoverageMapping] = [:]
+        mappings: [String: VerifiedCoverageMapping] = [:],
+        targets: [String: [String: IndexSet]] = [:],
+        launched: [CoverageObserverOutput.Launch.Scope: [String: IndexSet]] = [:]
     ) -> TestCoverageEvidence {
         struct Key: Hashable {
             let kind: TestCoverageEvidence.Kind
@@ -199,7 +260,7 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                         recordFiles.formUnion(table[function] ?? [])
                     }
                 }
-                if !record.module.isEmpty {
+                if !record.module.isEmpty, targets[record.module] == nil {
                     add(recordFiles, recordLines, to: Key(kind: .target, module: record.module, suite: "", name: ""))
                 }
                 switch record.kind {
@@ -215,6 +276,21 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                         add(recordFiles, recordLines, to: key)
                     }
                 }
+            }
+        }
+
+        for (module, targetLines) in targets {
+            add(Set(targetLines.keys), targetLines, to: Key(kind: .target, module: module, suite: "", name: ""))
+        }
+        for (scope, scopeLines) in launched {
+            let scopeFiles = Set(scopeLines.keys)
+            add(scopeFiles, scopeLines, to: Key(kind: .target, module: scope.module, suite: "", name: ""))
+            if scope.name.isEmpty {
+                guard !scope.suite.isEmpty else { continue }
+                add(scopeFiles, scopeLines, to: Key(kind: .suite, module: scope.module, suite: scope.suite, name: ""))
+            } else {
+                let key = Key(kind: .test, module: scope.module, suite: scope.suite, name: testName(xctestSelector: scope.name))
+                add(scopeFiles, scopeLines, to: key)
             }
         }
 
@@ -288,7 +364,12 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
 
     // MARK: - Tools and files
 
-    private func lcovTable(image: String, profile: AbsolutePath, remap: @escaping (String) -> String) async -> LCOVFunctionTable {
+    private func lcovTable(
+        image: String,
+        profile: AbsolutePath,
+        architecture: String,
+        remap: @escaping (String) -> String
+    ) async -> LCOVFunctionTable {
         var table = LCOVFunctionTable()
         table.remap = remap
         do {
@@ -299,7 +380,7 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             let command = [
                 "/usr/bin/xcrun", "llvm-cov", "export", "-format=lcov",
                 "-ignore-filename-regex=/(\\.build|DerivedData|SourcePackages|Pods|Carthage)/",
-                "-instr-profile", profile.pathString, image,
+                "-instr-profile", profile.pathString, "-arch", architecture, image,
             ]
             for try await event in commandRunner.run(arguments: command, environment: Environment.current.variables) {
                 guard case let .standardOutput(bytes) = event else { continue }
@@ -370,5 +451,78 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
 
     private func modificationDate(_ path: AbsolutePath) -> Date {
         (try? FileManager.default.attributesOfItem(atPath: path.pathString)[.modificationDate] as? Date) ?? .distantPast
+    }
+}
+
+extension TestCoverageEvidenceService {
+    /// Each test target's files and lines from its processes' raw profiles, which sit beside the
+    /// merged profile Xcode wrote for the run, and those of the processes the tests launched;
+    /// empty when there are none, as on a device.
+    private func processCoverage(
+        session: TestCoverageEvidenceSession,
+        profile: AbsolutePath,
+        resultBundlePath: AbsolutePath,
+        derivedDataDirectory: AbsolutePath?,
+        prefixMaps: CompilationPrefixMaps,
+        launches: [CoverageObserverOutput.Launch]
+    ) async -> TestTargetProcessCoverage.Result {
+        guard let coverageTargets = try? await CoverageExportService.coverageTargets(
+            resultBundlePath: resultBundlePath,
+            derivedDataDirectory: derivedDataDirectory,
+            xcResultService: xcResultService
+        )?.targets else { return TestTargetProcessCoverage.Result() }
+        let images = CoverageExportService.products(of: coverageTargets).filter { $0.kind == .image }.map(\.path)
+        let bundles = coverageTargets.filter(\.isTest).compactMap { target -> TestTargetProcessCoverage.Bundle? in
+            guard let image = target.buildProductPath, let module = Self.testModule(ofImage: image) else { return nil }
+            return TestTargetProcessCoverage.Bundle(module: module, image: image)
+        }
+        // The session's directory is made right before the test action starts.
+        let createdAt = (try? FileManager.default.attributesOfItem(atPath: session.directory.pathString)[.creationDate] as? Date)
+            ?? .distantPast
+        let result = await TestTargetProcessCoverage(fileSystem: fileSystem, commandRunner: commandRunner).collect(
+            profileDirectory: profile.parentDirectory,
+            createdAfter: createdAt,
+            bundles: bundles,
+            images: images,
+            launches: launches,
+            remap: { prefixMaps.remap($0, target: CompilationPrefixMaps.targetName(ofProduct: $1)) }
+        )
+        Logger.current.debug("""
+        Target coverage from \(result.processes) process profiles: \(result.targets.count) targets, \(result
+            .launchedProcesses) processes launched by \(result.launched.count) scopes, \(result
+            .unmatchedProcesses) processes without a test bundle or a recorded launch, \(result
+            .ambiguousProcesses) with several test bundles, \(result.exports) llvm-cov exports
+        """)
+        return result
+    }
+
+    /// The build product an image was installed from, for an image in a simulator clone or one that
+    /// no longer exists: a parallel test run installs the bundles into clones (`XCTestDevices`) that
+    /// Xcode deletes after it, in the background, so a clone's image can vanish between a check and
+    /// the read. The product is found by the image's path from its outermost bundle on.
+    static func buildProduct(ofInstalledImage path: String, productsDirectories: [String]) -> String? {
+        guard path.contains("/XCTestDevices/") || !FileManager.default.fileExists(atPath: path) else { return nil }
+        let components = path.split(separator: "/")
+        guard let bundle = components.firstIndex(where: { $0.hasSuffix(".app") || $0.hasSuffix(".xctest") })
+        else { return nil }
+        let relativePath = components[bundle...].joined(separator: "/")
+        return productsDirectories
+            .map { ($0 as NSString).appendingPathComponent(relativePath) }
+            .first { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    private static func productsDirectories(derivedDataDirectory: AbsolutePath?) -> [String] {
+        guard let derivedDataDirectory else { return [] }
+        let products = derivedDataDirectory.appending(components: "Build", "Products").pathString
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: products)) ?? []
+        return names.sorted().map { (products as NSString).appendingPathComponent($0) }
+    }
+
+    /// The test module a bundle's executable belongs to: the bundle's name, as XCTest names it
+    /// (`CoreTests.xctest/Contents/MacOS/CoreTests` on macOS, `CoreTests.xctest/CoreTests` elsewhere).
+    static func testModule(ofImage path: String) -> String? {
+        let components = path.split(separator: "/")
+        guard let bundle = components.last(where: { $0.hasSuffix(".xctest") }) else { return nil }
+        return String(bundle.dropLast(".xctest".count))
     }
 }

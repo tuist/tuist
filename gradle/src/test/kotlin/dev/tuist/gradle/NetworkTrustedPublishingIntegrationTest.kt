@@ -10,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -23,6 +24,11 @@ class NetworkTrustedPublishingIntegrationTest {
         MockWebServer().use { server ->
             server.dispatcher = object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path == "/.well-known/tuist.json") {
+                        assertNull(request.getHeader("Authorization"))
+                        assertNull(request.getHeader("x-tuist-actor-id"))
+                        return MockResponse().setBody("{\"network_trusted_report_publishing\":true}")
+                    }
                     requests.add(request)
                     return MockResponse().setResponseCode(200).setBody("{\"id\":\"server-id\"}")
                 }
@@ -36,7 +42,6 @@ class NetworkTrustedPublishingIntegrationTest {
                     uploadInBackground = false
                     network { proxy = false }
                     buildCache { enabled = false }
-                    buildInsights { networkTrustedPublishing = true }
                 }
                 rootProject.name = 'network-tests'
             """.trimIndent())
@@ -85,11 +90,22 @@ class NetworkTrustedPublishingIntegrationTest {
 
     @Test fun `publishes without credentials or cache discovery and preserves configuration cache reuse`() {
         val requests = LinkedBlockingQueue<RecordedRequest>()
+        val requestCount = AtomicInteger()
         MockWebServer().use { server ->
             server.dispatcher = object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path == "/.well-known/tuist.json") {
+                        assertNull(request.getHeader("Authorization"))
+                        assertNull(request.getHeader("x-tuist-actor-id"))
+                        return MockResponse().setBody("{\"network_trusted_report_publishing\":true}")
+                    }
                     requests.add(request)
-                    return MockResponse().setResponseCode(201).setBody("{\"id\":\"server-assigned-id\"}")
+                    val response = if (requestCount.getAndIncrement() == 0) {
+                        "{\"id\":\"server-assigned-id\"}"
+                    } else {
+                        "{\"id\":\"server-assigned-id\",\"actor\":{\"source\":\"future\",\"submission_auth\":\"future\"},\"future\":{}}"
+                    }
+                    return MockResponse().setResponseCode(201).setBody(response)
                 }
             }
             server.start()
@@ -101,14 +117,17 @@ class NetworkTrustedPublishingIntegrationTest {
                     uploadInBackground = false
                     network { proxy = false }
                     buildCache { enabled = false }
-                    buildInsights { networkTrustedPublishing = true }
                 }
                 rootProject.name = 'network-trusted'
             """.trimIndent())
             File(directory, "build.gradle").writeText("tasks.register('example') { doLast { println 'example' } }")
+            val git = GitRepositoryFixture()
+            git.init(directory)
+            git.commit(directory, "unsigned build fixture")
+            git.git(directory, "remote", "add", "origin", "https://private-user:private-password@example.invalid/project.git")
             val environment = System.getenv().filterKeys {
-                it !in setOf("TUIST_TOKEN", "TUIST_URL", "TUIST_CACHE_ENDPOINT", "TUIST_ACTOR_ID")
-            } + mapOf(
+                it !in setOf("TUIST_TOKEN", "TUIST_URL", "TUIST_CACHE_ENDPOINT", "TUIST_ACTOR_ID", "TUIST_NETWORK_TRUSTED_PUBLISHING")
+            } + git.environment + mapOf(
                 "TUIST_XDG_CONFIG_HOME" to File(directory, "config").path,
                 "XDG_STATE_HOME" to File(directory, "state").path,
                 "TUIST_ACTOR_ID" to "employee-123"
@@ -122,6 +141,9 @@ class NetworkTrustedPublishingIntegrationTest {
                 assertEquals("/api/projects/test/network-trusted/gradle/builds", report.path)
                 assertNull(report.getHeader("Authorization"))
                 assertEquals("employee-123", report.getHeader("x-tuist-actor-id"))
+                val body = report.body.readUtf8()
+                assertTrue(!body.contains("git_remote_url_origin"), body)
+                assertTrue(!body.contains("private-user") && !body.contains("private-password"), body)
                 assertTrue(result.output.contains("server-assigned-id"), result.output)
                 assertNull(requests.poll(1, TimeUnit.SECONDS), "Reporting must not discover authenticated cache endpoints")
             }

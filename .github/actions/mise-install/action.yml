@@ -38,7 +38,8 @@ runs:
         core=""; locked=""
         for t in $MISE_INSTALL_TOOLS; do
           case "$t" in
-            erlang|elixir|ruby|rust|erlang@*|elixir@*|ruby@*|rust@*|npm:*|gem:*|asdf:*|pipx:*|cargo:*|vfox:*)
+            # Node downloads directly and must be available when npm tools install.
+            node|node@*|erlang|elixir|ruby|rust|erlang@*|elixir@*|ruby@*|rust@*|npm:*|gem:*|asdf:*|pipx:*|cargo:*|vfox:*)
               core="$core $t" ;;
             *)
               locked="$locked $t" ;;

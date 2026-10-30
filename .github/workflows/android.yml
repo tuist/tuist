@@ -60,7 +60,7 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      - run: ./gradlew testDebugUnitTest
+      - run: ./gradlew testDebugUnitTest assembleDebugAndroidTest
 
   test-fork:
     name: Test Fork
@@ -76,7 +76,7 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew testDebugUnitTest
+      - run: ./gradlew testDebugUnitTest assembleDebugAndroidTest
 
   build:
     name: Build

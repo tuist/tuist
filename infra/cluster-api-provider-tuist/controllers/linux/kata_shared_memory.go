@@ -7,7 +7,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-const kataSharedMemoryAnnotation = "tuist.dev/kata-shared-memory-config"
+// kataHostConfigAnnotation records that this boot verified the Kata host
+// configuration: the shared-memory ceiling and the virtiofsd file budget.
+const kataHostConfigAnnotation = "tuist.dev/kata-host-config"
 
 // Kata's virtio-fs backend puts guest RAM in /dev/shm. Its default half-RAM
 // tmpfs ceiling is invisible to kube-scheduler and can fail KVM_RUN with EFAULT
@@ -44,15 +46,17 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 `
 
-func kataSharedMemoryRevision(node *corev1.Node) string {
-	return fmt.Sprintf("%x:%s", sha256.Sum256([]byte(kataSharedMemoryScript+kataSharedMemoryUnit)), node.Status.NodeInfo.BootID)
+func kataHostConfigRevision(node *corev1.Node) string {
+	config := kataSharedMemoryScript + kataSharedMemoryUnit + kataVirtiofsSysctl + kataVirtiofsDropIn
+	return fmt.Sprintf("%x:%s", sha256.Sum256([]byte(config)), node.Status.NodeInfo.BootID)
 }
 
-// Runs at bootstrap and on existing Kata hosts. Restarting this oneshot only
-// verifies/grows the mount; it never restarts containerd, kubelet, or a VM.
-func renderKataSharedMemoryRepairScript(opts linuxCloudInitOptions) string {
+// Runs on existing Kata hosts. Restarting the shared-memory oneshot only
+// verifies/grows the mount, and the virtiofsd settings apply to pods started
+// afterwards; it never restarts containerd, kubelet, or a VM.
+func renderKataHostConfigRepairScript(opts linuxCloudInitOptions) string {
 	sudo, _ := escalation(opts.BootstrapUser)
-	return "#!/usr/bin/env bash\nset -euo pipefail\n" + kataSharedMemorySetup(sudo)
+	return "#!/usr/bin/env bash\nset -euo pipefail\n" + kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo)
 }
 
 func kataSharedMemorySetup(sudo string) string {

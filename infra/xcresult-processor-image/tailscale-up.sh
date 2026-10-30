@@ -206,12 +206,12 @@ sudo chown admin:staff "$(dirname "${DIAG_FILE}")"
     echo "DATABASE_URL not set"
   fi
   echo "-- in-cluster ClickHouse host probe --"
-  if [ -n "${TUIST_CLICKHOUSE_BARE_METAL_URL:-}" ]; then
-    CH_HOST=$(echo "${TUIST_CLICKHOUSE_BARE_METAL_URL}" | /usr/bin/sed -E 's|^[a-z]+://([^@]+@)?([^:/]+).*|\2|')
+  if [ -n "${TUIST_CLICKHOUSE_URL:-}" ]; then
+    CH_HOST=$(echo "${TUIST_CLICKHOUSE_URL}" | /usr/bin/sed -E 's|^[a-z]+://([^@]+@)?([^:/]+).*|\2|')
     echo "URL host=${CH_HOST}"
     /usr/bin/dscacheutil -q host -a name "${CH_HOST}" 2>&1 | /usr/bin/head -10 || true
     /usr/bin/nc -vz -w 10 "${CH_HOST}" 8123 2>&1 || true
   else
-    echo "TUIST_CLICKHOUSE_BARE_METAL_URL not set"
+    echo "TUIST_CLICKHOUSE_URL not set"
   fi
 } > "${DIAG_FILE}" 2>&1 || true

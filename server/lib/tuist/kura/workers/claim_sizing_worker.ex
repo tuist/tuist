@@ -1,9 +1,10 @@
 defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   @moduledoc """
-  Refreshes the rollups whose telemetry arrived recently, converges the
-  proposal set, and applies proposals within a fleet-wide budget. Ten-minute
-  cadence: the fastest growth rungs are satisfied by evicted volume, which a
-  thrashing account can produce in minutes.
+  Refreshes the rollups whose telemetry arrived recently (the storage rollups
+  and the hits each origin was served), converges the claim proposal set, and
+  applies proposals within a fleet-wide budget. Ten-minute cadence: the fastest
+  growth rungs are satisfied by evicted volume, which a thrashing account can
+  produce in minutes.
   """
 
   use Oban.Worker,
@@ -19,6 +20,7 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.ClaimSizing
+  alias Tuist.Kura.Origins
   alias Tuist.Kura.StorageRollups
   alias Tuist.Kura.StorageTelemetry
   alias Tuist.Kura.Telemetry
@@ -44,10 +46,15 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
     today = Date.utc_today()
-    {:ok, _count} = StorageRollups.refresh(dates_to_refresh(today))
+    dates = dates_to_refresh(today)
+    {:ok, _count} = StorageRollups.refresh(dates)
     {:ok, _summary} = ClaimProposals.sweep(today)
 
     apply_within_budget()
+
+    # Last, because only placement reads it: a refresh that fails here retries
+    # the job without having held claim sizing back.
+    {:ok, _count} = Origins.refresh_hits(dates)
 
     :ok
   end

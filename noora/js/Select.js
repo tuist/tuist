@@ -1,5 +1,6 @@
 import * as select from "@zag-js/select";
 import {
+  getBooleanOption,
   getOption,
   getPartSelector,
   normalizeProps,
@@ -66,11 +67,36 @@ class Select extends Component {
 
 export default {
   mounted() {
-    this.select = new Select(this.el, this.context());
+    this.serverValue = this.el.dataset.value || "";
+    const context = this.context();
+    this.configuration = JSON.stringify([
+      context.disabled,
+      context.collection.items,
+    ]);
+    this.select = new Select(this.el, context);
     this.select.init();
   },
 
   updated() {
+    const value = this.el.dataset.value || "";
+    const context = this.context();
+    const configuration = JSON.stringify([
+      context.disabled,
+      context.collection.items,
+    ]);
+    const selected =
+      value !== this.serverValue ? context.defaultValue : this.select.api.value;
+    if (configuration !== this.configuration) {
+      // VanillaMachine captures props at construction. Rebuild only when options
+      // or disabled state change, preserving choices not yet echoed by the server.
+      this.select.destroy();
+      this.select = new Select(this.el, { ...context, defaultValue: selected });
+      this.select.init();
+    } else if (this.select.api.value.join() !== selected.join()) {
+      this.select.api.setValue(selected);
+    }
+    this.configuration = configuration;
+    this.serverValue = value;
     this.select.render();
   },
 
@@ -83,7 +109,8 @@ export default {
       id: this.el.id,
       collection: this.collection(),
       name: getOption(this.el, "name"),
-      // Zag.js expects the controlled value to always be an array.
+      disabled: getBooleanOption(this.el, "disabled"),
+      defaultValue: this.el.dataset.value ? [this.el.dataset.value] : [],
       onValueChange: (details) => {
         if (this.el.dataset.onValueChange) {
           this.pushEvent(this.el.dataset.onValueChange, details);

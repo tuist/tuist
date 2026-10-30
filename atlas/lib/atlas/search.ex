@@ -18,9 +18,12 @@ defmodule Atlas.Search do
   alias Atlas.GTM.Opportunity
   alias Atlas.GTM.Signal
   alias Atlas.GTM.SocialChannelIdea
+  alias Atlas.Moodboard.Comment, as: MoodboardComment
+  alias Atlas.Moodboard.Resource, as: MoodboardResource
   alias Atlas.Notes.Note
   alias Atlas.Repo
   alias Atlas.Search.Record
+  alias Atlas.Search.VectorWorker
   alias Atlas.Vector
 
   require Logger
@@ -34,6 +37,36 @@ defmodule Atlas.Search do
   @rrf_k 60
 
   def source_types, do: Record.source_types()
+
+  def with_deferred_vectors(fun) do
+    previous = Process.get({__MODULE__, :defer_vectors})
+    Process.put({__MODULE__, :defer_vectors}, true)
+
+    try do
+      fun.()
+    after
+      if previous,
+        do: Process.put({__MODULE__, :defer_vectors}, previous),
+        else: Process.delete({__MODULE__, :defer_vectors})
+    end
+  end
+
+  def sync_record_vector(id) do
+    case Repo.get(Record, id) do
+      nil ->
+        :ok
+
+      record ->
+        index_record_vector(record, [])
+        :ok
+    end
+  end
+
+  def delete_record_vector(id), do: Vector.delete_vectors(["search_record:#{id}"])
+
+  defp enqueue_vector!(operation, id) do
+    %{"operation" => operation, "record_id" => id} |> VectorWorker.new() |> Oban.insert!()
+  end
 
   def index_account_event(%Event{} = event, opts \\ []) do
     upsert_record(
@@ -196,6 +229,45 @@ defmodule Atlas.Search do
     )
   end
 
+  def index_moodboard_resource(%MoodboardResource{} = resource, opts \\ []) do
+    host_terms = if resource.url, do: resource.url |> URI.parse() |> Map.fetch!(:host) |> String.replace(~r/[.\-]/, " ")
+
+    upsert_record(
+      %{
+        source_type: "moodboard_resource",
+        source_id: resource.id,
+        title: resource.title,
+        body:
+          join_text([
+            resource.description,
+            resource.content,
+            Enum.join(resource.tags, " "),
+            resource.source_description,
+            resource.source_text,
+            resource.url,
+            host_terms
+          ]),
+        path: "/library/moodboard/#{resource.id}",
+        metadata: %{"visibility" => "authenticated", "created_by_id" => resource.created_by_id, "kind" => resource.kind}
+      },
+      opts
+    )
+  end
+
+  def index_moodboard_comment(%MoodboardComment{} = comment, resource, opts \\ []) do
+    upsert_record(
+      %{
+        source_type: "moodboard_comment",
+        source_id: comment.id,
+        title: resource.title,
+        body: comment.body,
+        path: "/library/moodboard/#{resource.id}",
+        metadata: %{"visibility" => "authenticated", "resource_id" => resource.id, "author_id" => comment.author_id}
+      },
+      opts
+    )
+  end
+
   def index_social_channel_idea(%SocialChannelIdea{} = idea, opts \\ []) do
     upsert_record(
       %{
@@ -248,7 +320,12 @@ defmodule Atlas.Search do
         :ok
 
       record ->
-        _ = Vector.delete_vectors([vector_id(record)])
+        if Process.get({__MODULE__, :defer_vectors}) do
+          enqueue_vector!("delete", record.id)
+        else
+          _ = Vector.delete_vectors([vector_id(record)])
+        end
+
         Repo.delete(record)
         :ok
     end
@@ -276,7 +353,12 @@ defmodule Atlas.Search do
        gtm_signals: backfill(Signal, &index_gtm_signal(&1, opts)),
        blog_post_ideas: backfill(BlogPostIdea, &index_blog_post_idea(&1, opts)),
        social_channel_ideas: backfill(SocialChannelIdea, &index_social_channel_idea(&1, opts)),
-       notes: backfill(Note, &index_note(&1, opts))
+       notes: backfill(Note, &index_note(&1, opts)),
+       moodboard_resources: backfill(MoodboardResource, &index_moodboard_resource(&1, opts)),
+       moodboard_comments:
+         backfill(MoodboardComment, fn comment ->
+           index_moodboard_comment(comment, Repo.get!(MoodboardResource, comment.resource_id), opts)
+         end)
      }}
   end
 
@@ -311,7 +393,12 @@ defmodule Atlas.Search do
 
   defp maybe_index_record_vector(%Record{} = record, opts) do
     if Keyword.get(opts, :embed?, true) and Vector.configured?() do
-      index_record_vector(record, opts)
+      if Process.get({__MODULE__, :defer_vectors}) do
+        enqueue_vector!("upsert", record.id)
+        record
+      else
+        index_record_vector(record, opts)
+      end
     else
       record
     end
@@ -337,10 +424,8 @@ defmodule Atlas.Search do
       |> Record.embedding_changeset(model, DateTime.utc_now())
       |> Repo.update!()
     else
-      {:error, reason} ->
-        Logger.warning(
-          "Search record embedding skipped for #{record.source_type}:#{record.source_id}: #{inspect(reason)}"
-        )
+      {:error, _reason} ->
+        Logger.warning("Search record embedding skipped.", search_record_id: record.id)
 
         record
 

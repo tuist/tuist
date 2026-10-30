@@ -16,6 +16,11 @@ const fullRing = count === 2048;
 const repairOld = process.env.KURA_E2E_RETAINED_RECENCY === "1";
 const repairChurn = process.env.KURA_E2E_REPAIR_CHURN === "1";
 const prepare = process.env.KURA_E2E_LIVE_PREPARATION === "1";
+const liveChurn = process.env.KURA_E2E_LIVE_WRITE_CHURN === "1";
+assert(
+  !liveChurn || (fullRing && prepare),
+  "live churn requires full-ring preparation",
+);
 assert(
   !repairOld || fullRing,
   "recency repair requires the full-ring workload",
@@ -27,6 +32,7 @@ assert(
 const f = await fixture(image, "active", output);
 const retained = [];
 const preparationSessions = [];
+let preparationChannelsAt = 0;
 const preparationKey = "live-preparation";
 const preparationQuery = "?tenant_id=default&namespace_id=segmented-handover";
 const preparationWrite = (i) =>
@@ -42,6 +48,33 @@ const preparationWrite = (i) =>
 const body = Buffer.alloc(2 * 1024 * 1024, 73);
 const url = (replica, index) =>
   `${f.urls[replica]}/api/cache/cas/retained-${index}?tenant_id=default&namespace_id=segmented-handover`;
+let churn;
+let churnError;
+let churning = true;
+async function writeDuringPreparation() {
+  for (let written = 0; churning; written++) {
+    const index = (written * 17) % count;
+    const bytes = Buffer.alloc(body.length, 73);
+    bytes.writeUInt32BE(index);
+    const response = await fetch(url(0, index), {
+      method: "POST",
+      body: bytes,
+      signal: AbortSignal.timeout(30000),
+    });
+    await response.arrayBuffer();
+    if (response.status === 503) {
+      const authority = (await f.report(0)).serving_authority;
+      assert(
+        ["Quiescing", "Revoking"].includes(authority.observed?.phase),
+        "live writes may stop only when cutover quiesces the source",
+      );
+      return;
+    }
+    assert.equal(response.status, 204);
+    result.liveBodyWrites = written + 1;
+    await sleep(50);
+  }
+}
 const samples = [];
 let collecting = true;
 let collectorError;
@@ -188,19 +221,40 @@ try {
   }
   if (prepare) {
     // Seeding may outlive normal connection aging. Establish the channels for
-    // this transition now, prove writes while Serving, and never replace them.
+    // preparation now; keep the last proven set once Quiescing starts.
     for (const address of f.urls) {
       const session = http2.connect(address);
       session.on("error", () => {});
       preparationSessions.push(session);
     }
+    preparationChannelsAt = Date.now();
     assert.equal((await preparationWrite(0)).status, 204);
   }
   const startHandover = Date.now();
   result.barrier = await handover(f, {
     deadlineMs: 300000,
+    preparationDeadlineMs: Number(
+      process.env.KURA_E2E_PREPARATION_DEADLINE_MS ?? 1200000,
+    ),
     prepare: prepare
       ? async () => {
+          if (liveChurn && !churn)
+            churn = writeDuringPreparation().catch((error) => {
+              churnError = error;
+            });
+          assert.equal(churnError, undefined);
+          if (Date.now() - preparationChannelsAt > 45000) {
+            // The fixture still owns a Serving grant here. Prove these channels
+            // now and retain the last proven set through Quiescing and transfer.
+            for (const session of preparationSessions) session.destroy();
+            preparationSessions.length = 0;
+            for (const address of f.urls) {
+              const session = http2.connect(address);
+              session.on("error", () => {});
+              preparationSessions.push(session);
+            }
+            preparationChannelsAt = Date.now();
+          }
           for (const replica of [0, 1]) {
             assert.equal(
               (await preparationWrite(replica)).status,
@@ -213,6 +267,8 @@ try {
       : undefined,
     beforePromotion: fullRing
       ? async (barrier) => {
+          if (churn) await churn;
+          assert.equal(churnError, undefined);
           for (let i = 0; i < count; i++) {
             const response = await fetch(url(0, i), {
               signal: AbortSignal.timeout(30000),
@@ -271,10 +327,26 @@ try {
         "kura.handover.preparation_revisit",
       ].includes(event["event.name"]),
     ).length;
-    assert(
-      result.repairRevisits > 0,
-      "fixture must exercise repair eviction and a second walk",
-    );
+    result.repairWalks = events.filter(
+      (event) => event["event.name"] === "kura.handover.reconciled",
+    ).length;
+    result.reclaimedDestinationSegments = events.filter(
+      (event) =>
+        event.message ===
+        "Reclaimed destination-only segment before retained repair",
+    ).length;
+    if (prepare) {
+      assert(result.reclaimedDestinationSegments > 0, "must exercise eviction");
+      assert(
+        result.repairWalks >= 2,
+        "preparation must be followed by final repair",
+      );
+    } else {
+      assert(
+        result.repairRevisits > 0,
+        "fixture must exercise repair eviction and a second walk",
+      );
+    }
   }
   if (repairOld) {
     const response = await fetch(
@@ -321,6 +393,8 @@ try {
   result.error = error.message;
   throw error;
 } finally {
+  churning = false;
+  if (churn) await churn;
   preparationSessions.forEach((session) => session.destroy());
   collecting = false;
   await collector;

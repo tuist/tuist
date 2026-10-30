@@ -4,13 +4,16 @@ defmodule TuistWeb.API.GradleController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Gradle
+  alias Tuist.IdempotentRequests
   alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.GradleExecution
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.ReportActor
+  alias TuistWeb.Headers
   alias TuistWeb.Plugs.GradleReportPublishingPlug
+  alias TuistWeb.Plugs.ReportActorPlug
 
   plug(GradleReportPublishingPlug, :preflight when action == :create_build)
 
@@ -21,7 +24,7 @@ defmodule TuistWeb.API.GradleController do
 
   plug(TuistWeb.Plugs.LoaderPlug when action != :create_build)
   plug(GradleReportPublishingPlug when action == :create_build)
-  plug(TuistWeb.Plugs.ReportActorPlug when action == :create_build)
+  plug(ReportActorPlug when action == :create_build)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :build when action != :create_build)
 
   tags ["Gradle"]
@@ -96,7 +99,7 @@ defmodule TuistWeb.API.GradleController do
                values: %Schema{
                  type: :object,
                  additionalProperties: %Schema{type: :string, maxLength: 500},
-                 maxProperties: 20,
+                 maxProperties: 64,
                  description: "Key-value pairs for structured build data."
                }
              }
@@ -241,7 +244,8 @@ defmodule TuistWeb.API.GradleController do
          %Schema{
            type: :object,
            properties: %{
-             id: %Schema{type: :string, format: :uuid, description: "The build ID."}
+             id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+             actor: ReportActor
            },
            required: [:id]
          }},
@@ -251,14 +255,32 @@ defmodule TuistWeb.API.GradleController do
     }
   )
 
+  # A client retries a build whose response it lost. Builds and their tasks go to
+  # tables that don't deduplicate, so a request carrying an id claims it first and
+  # a retry gets the first request's response back without writing anything or
+  # publishing `build.failed` again. Only authenticated requests keep their id.
   def create_build(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
-    case Gradle.create_build(build_attributes(conn, project, body)) do
-      {:ok, build_id} ->
-        if TuistWeb.Authentication.authenticated?(conn), do: enqueue_vcs_pull_request_comment(body, project)
+    authenticated? = TuistWeb.Authentication.authenticated?(conn)
+    request_id = if authenticated?, do: body[:id]
 
+    create = fn ->
+      with {:ok, build_id} <- Gradle.create_build(build_attributes(conn, project, body)) do
+        if authenticated?, do: enqueue_vcs_pull_request_comment(body, project)
+        {:ok, %{id: build_id, actor: ReportActorPlug.actor(conn)}}
+      end
+    end
+
+    case IdempotentRequests.run("gradle_build", project.id, request_id, create) do
+      {result, response} when result in [:ok, :replayed] ->
         conn
         |> put_status(:created)
-        |> json(%{id: build_id})
+        |> json(response)
+
+      {:error, :in_progress} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> put_resp_header("retry-after", "1")
+        |> json(%{message: "A build with this id is still being created; retry this request"})
 
       {:error, _reason} ->
         conn
@@ -283,6 +305,7 @@ defmodule TuistWeb.API.GradleController do
       status: body.status,
       gradle_version: body[:gradle_version],
       java_version: body[:java_version],
+      tuist_version: Headers.get_build_integration_version(conn, :gradle),
       is_ci: body[:is_ci] || false,
       git_branch: body[:git_branch],
       git_commit_sha: body[:git_commit_sha],
@@ -410,6 +433,11 @@ defmodule TuistWeb.API.GradleController do
                    actor: ReportActor,
                    duration_ms: %Schema{type: :integer},
                    status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
+                   tuist_version: %Schema{
+                     type: :string,
+                     nullable: true,
+                     description: "The reporting Tuist Gradle plugin version."
+                   },
                    gradle_version: %Schema{type: :string, nullable: true},
                    java_version: %Schema{type: :string, nullable: true},
                    is_ci: %Schema{type: :boolean},
@@ -492,6 +520,7 @@ defmodule TuistWeb.API.GradleController do
             actor: Tuist.ReportActor.actor(build),
             duration_ms: build.duration_ms,
             status: build.status,
+            tuist_version: if(build.tuist_version != "", do: build.tuist_version),
             gradle_version: build.gradle_version,
             java_version: build.java_version,
             is_ci: build.is_ci,
@@ -558,6 +587,11 @@ defmodule TuistWeb.API.GradleController do
              actor: ReportActor,
              duration_ms: %Schema{type: :integer},
              status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
+             tuist_version: %Schema{
+               type: :string,
+               nullable: true,
+               description: "The reporting Tuist Gradle plugin version."
+             },
              gradle_version: %Schema{type: :string, nullable: true},
              java_version: %Schema{type: :string, nullable: true},
              is_ci: %Schema{type: :boolean},
@@ -644,6 +678,7 @@ defmodule TuistWeb.API.GradleController do
             actor: Tuist.ReportActor.actor(build),
             duration_ms: build.duration_ms,
             status: build.status,
+            tuist_version: if(build.tuist_version != "", do: build.tuist_version),
             gradle_version: build.gradle_version,
             java_version: build.java_version,
             is_ci: build.is_ci,

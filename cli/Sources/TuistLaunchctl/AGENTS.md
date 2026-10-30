@@ -1,18 +1,5 @@
-# TuistLaunchctl (CLI Module)
+# TuistLaunchctl
 
-This module provides launchctl integration helpers for macOS automation.
-
-## Responsibilities
-- Load/unload LaunchAgents and LaunchDaemons via `launchctl`.
-
-## Boundaries
-- Keep CLI command wiring in `cli/Sources/TuistKit`.
-- Keep shared low-level utilities in `cli/Sources/TuistSupport`.
-
-## Related Context
-- cli/Sources/TuistAutomation/AGENTS.md
-
-## Invariants
 - Uses `/bin/launchctl` and waits for command completion.
 - `LaunchAgentService(executablePath:)` can select a stable executable such as `/bin/sh` instead of the current CLI. Both plist creation and current-configuration checks must use that same explicit executable. Other callers retain the current-CLI default.
 - Select the GUI domain when it exists, otherwise the background user domain, based on launchd availability rather than CI environment variables.

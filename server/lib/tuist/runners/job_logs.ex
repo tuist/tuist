@@ -265,13 +265,21 @@ defmodule Tuist.Runners.JobLogs do
   Numbering matches GitHub's own step view: the `##[endgroup]` and
   `##[end-action …]` delimiters are never displayed, so they don't
   take a number and get `line_number: nil`.
+
+  Pass `from:` to load only the lines in `[from, last]`, numbered as
+  if the step had been loaded from `first`. A step can print hundreds
+  of thousands of lines, so the Steps card loads it a window at a time.
   """
-  def list_step_lines(workflow_job_id, first_line, last_line)
+  def list_step_lines(workflow_job_id, first_line, last_line, opts \\ [])
+
+  def list_step_lines(workflow_job_id, first_line, last_line, opts)
       when is_integer(workflow_job_id) and is_integer(first_line) and is_integer(last_line) and last_line >= first_line do
+    from_line = opts |> Keyword.get(:from, first_line) |> max(first_line)
+
     from(l in JobLog,
       where:
         l.workflow_job_id == ^workflow_job_id and
-          l.line_number >= ^first_line and
+          l.line_number >= ^from_line and
           l.line_number <= ^last_line,
       group_by: [l.workflow_job_id, l.line_number],
       order_by: [asc: l.line_number],
@@ -282,7 +290,7 @@ defmodule Tuist.Runners.JobLogs do
       }
     )
     |> ClickHouseRepo.all()
-    |> Enum.map_reduce(0, fn line, displayed ->
+    |> Enum.map_reduce(displayed_line_count(workflow_job_id, first_line, from_line - 1), fn line, displayed ->
       if delimiter_line?(line.message),
         do: {%{line | line_number: nil}, displayed},
         else: {%{line | line_number: displayed + 1}, displayed + 1}
@@ -290,7 +298,23 @@ defmodule Tuist.Runners.JobLogs do
     |> elem(0)
   end
 
-  def list_step_lines(_workflow_job_id, _first_line, _last_line), do: []
+  def list_step_lines(_workflow_job_id, _first_line, _last_line, _opts), do: []
+
+  defp displayed_line_count(_workflow_job_id, first_line, last_line) when last_line < first_line, do: 0
+
+  defp displayed_line_count(workflow_job_id, first_line, last_line) do
+    ClickHouseRepo.one(
+      from(l in JobLog,
+        where:
+          l.workflow_job_id == ^workflow_job_id and
+            l.line_number >= ^first_line and
+            l.line_number <= ^last_line and
+            not fragment("startsWith(?, '##[endgroup]')", l.message) and
+            not fragment("startsWith(?, '##[end-action ')", l.message),
+        select: fragment("uniqExact(?)", l.line_number)
+      )
+    )
+  end
 
   defp delimiter_line?("##[endgroup]" <> _), do: true
   defp delimiter_line?("##[end-action " <> _), do: true

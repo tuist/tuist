@@ -16,9 +16,7 @@
 # Renovate auto-bumps RUNNER_VERSION via `renovate.json` config
 # matching the same pattern as the macOS image.
 
-ARG GO_VERSION=1.25
-
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS runner-shell-agent-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS runner-shell-agent-builder
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -38,7 +36,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/tuist-cache-volume ./cmd/tuist-cache-volume
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS gitlab-runner-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS gitlab-runner-builder
 WORKDIR /src
 COPY gitlab-runner/go.mod gitlab-runner/go.sum ./
 RUN go mod download
@@ -62,7 +60,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # Gradle configuration exactly like a missing SDK. GitHub's hosted image
 # takes the same approach (`platform_min_version` / `build_tools_min_version`
 # in its toolset), which also means new platforms roll in on the next
-# image rebuild with no version bump anywhere.
+# SDK-stage rebuild with no platform version bump anywhere.
 #
 # The cmdline-tools archive is fetched straight from Google because
 # sdkmanager is what installs every other component (it cannot install
@@ -71,7 +69,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # package.xml, and current cmdline-tools writes v4 while AGP 8.7 parses
 # only up to v3 — which makes every Gradle invocation warn about the
 # skew. Keep it behind the AGP releases customers are likely to run.
-FROM eclipse-temurin:21-jdk-jammy AS android-sdk
+FROM eclipse-temurin:21-jdk-jammy@sha256:4e61d0b3471137e239397789661f6adeaf8db9adcfae45916b22f628c8a32dc0 AS android-sdk
 
 ARG ANDROID_CMDLINE_TOOLS_ARCHIVE=commandlinetools-linux-11076708_latest.zip
 ARG ANDROID_PLATFORM_MIN_VERSION=34
@@ -79,8 +77,14 @@ ARG ANDROID_BUILD_TOOLS_MIN_VERSION=34
 
 ENV ANDROID_SDK_ROOT=/opt/android-sdk
 
+COPY --from=certificate-trust /pem-store.sh /java-store.sh /policy.json /opt/tuist/certificate-trust/
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl unzip \
+    && apt-get install -y --no-install-recommends bash ca-certificates curl openssl unzip \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
+    && bash /opt/tuist/certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt \
+    && bash /opt/tuist/certificate-trust/java-store.sh filter "${JAVA_HOME}/lib/security/cacerts" \
+    && bash /opt/tuist/certificate-trust/java-store.sh check "${JAVA_HOME}/lib/security/cacerts" \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
@@ -122,7 +126,7 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
     # `runner`, not root.
     && chmod -R a+rwX "${ANDROID_SDK_ROOT}"
 
-FROM ubuntu:22.04
+FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b AS runner
 
 # GitHub-hosted runners set ImageOS, and setup actions such as
 # erlef/setup-beam read it to pick a prebuilt binary for the OS. Keep it
@@ -130,10 +134,6 @@ FROM ubuntu:22.04
 # is amd64-only (RUNNER_ARCH=x64); an arm64 build would need GitHub's
 # `ubuntu22-arm64`.
 ENV ImageOS=ubuntu22
-
-# renovate: datasource=github-releases depName=actions/runner
-ARG RUNNER_VERSION=2.337.0
-ARG RUNNER_ARCH=x64
 
 # Set runtime defaults so customer workflows see UTF-8 locales out
 # of the box and apt-driven installs in workflow steps don't trip
@@ -237,8 +237,16 @@ RUN apt-get update \
         python3 \
         python3-pip \
         python3-venv \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
+
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 # kubectl + helm + gh: GitHub's Ubuntu runner image pre-installs all
 # three (kubectl/helm via `install-kubernetes-tools.sh`, gh via
@@ -300,13 +308,11 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 # per job — and the path below matches theirs for workflows that
 # hardcode it.
 #
-# Deliberately narrower than the hosted image, which carries every
-# platform from android-34 up, six build-tools releases and three NDK
-# majors. We ship the single platform + build-tools pair `android/`
-# builds against and no NDK at all (the app has no native code), which
-# is what keeps this a few hundred MB rather than the ~10GB the hosted
-# image spends here.
-COPY --from=android-sdk /opt/android-sdk /usr/local/lib/android/sdk
+# Keep every platform/build-tools version above the configured floor,
+# but omit NDKs. --link preserves this large layer even when an unrelated
+# apt or CLI layer changes. SDK discovery runs again when its stage is
+# invalidated (for example by a Renovate base digest update).
+COPY --link --from=android-sdk /opt/android-sdk /usr/local/lib/android/sdk
 # The copied tree keeps the modes set in the builder stage, but COPY
 # creates the destination directory itself as 0755, so the SDK root
 # alone would be read-only for `runner`. Re-chmod just that directory —
@@ -326,21 +332,8 @@ RUN groupadd -g 123 docker \
     && useradd -m -d /home/runner -s /bin/bash -G docker runner \
     && echo "runner ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
     && mkdir -p /home/runner/actions-runner \
-    && chown -R runner:runner /home/runner
-
-USER runner
-WORKDIR /home/runner/actions-runner
-
-# Download + extract the actions/runner tarball. Sha checksum is
-# published by GitHub at the release URL; if the bump ever
-# desyncs we'll see a `tar: invalid magic` failure here rather
-# than a silent mis-install.
-RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz" \
-        -o /tmp/actions-runner.tar.gz \
-    && tar xzf /tmp/actions-runner.tar.gz \
-    && rm /tmp/actions-runner.tar.gz
-
-USER root
+    && chown -R runner:runner /home/runner \
+    && rm -f /home/runner/.bash_logout
 
 # The Buildkite agent lives alongside the GitHub one rather than in a
 # second image. Which of the two runs is a per-job decision the server
@@ -373,35 +366,37 @@ RUN set -eux; \
     rm -rf /tmp/buildkite-agent.tar.gz /tmp/buildkite-agent-dist; \
     buildkite-agent --version
 
-# Global agent hooks (`--hooks-path`), so they run for every job
-# regardless of what the customer's repository defines. `environment`
-# re-exports the cache settings the server sent; `pre-exit` posts the
-# job's log and window back, authenticating with the job-scoped report
-# token the poller staged — never the SA token, which this container
-# does not hold.
-COPY --from=gitlab-runner-builder /out/tuist-gitlab-runner /usr/local/bin/tuist-gitlab-runner
-COPY buildkite-hooks/ /usr/local/share/tuist/buildkite-hooks/
-RUN chmod +x /usr/local/share/tuist/buildkite-hooks/*
+USER runner
+WORKDIR /home/runner/actions-runner
 
-# dispatch-poll.sh runs in the `poller` init container (holds the SA
-# token, stages the JIT); run-job.sh runs in the `runner` main
-# container (no token, runs the staged JIT). The controller's
-# podtemplate wires which container runs which. See
-# infra/runners-controller/AGENTS.md for the split-credential shape.
-COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
-COPY run-job.sh /usr/local/bin/run-job.sh
-COPY vitals.sh /usr/local/bin/vitals.sh
+# renovate: datasource=github-releases depName=actions/runner
+ARG RUNNER_VERSION=2.337.0
+ARG RUNNER_ARCH=x64
+
+# Download + extract the actions/runner tarball. Sha checksum is
+# published by GitHub at the release URL; if the bump ever
+# desyncs we'll see a `tar: invalid magic` failure here rather
+# than a silent mis-install.
+RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz" \
+        -o /tmp/actions-runner.tar.gz \
+    && tar xzf /tmp/actions-runner.tar.gz \
+    && rm /tmp/actions-runner.tar.gz
+
+USER root
+
+# Compiled clients precede scripts so a shell-only release leaves their layers
+# untouched, including the copy exposed to Docker job containers via /__e.
+COPY --from=gitlab-runner-builder /out/tuist-gitlab-runner /usr/local/bin/tuist-gitlab-runner
 COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/runner-shell-agent
 COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /usr/local/bin/tuist-cache-volume
 COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /home/runner/actions-runner/externals/tuist-cache-volume
-# metrics-sampler.sh runs in the `metrics` native-sidecar container
-# (holds the SA token like the poller; never the runner container) and
-# POSTs the microVM's machine metrics for the job detail page.
-COPY metrics-sampler.sh /usr/local/bin/metrics-sampler.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/runner-shell-agent /usr/local/bin/metrics-sampler.sh
 
-# Ubuntu's logout script clears a console that GitLab's login shell does not have.
-RUN rm -f /home/runner/.bash_logout
+# Global Buildkite hooks execute with the job-scoped report token. The poller
+# and metrics sidecar hold the dispatch SA token; run-job.sh never receives it.
+# Set permissions during COPY: a later chmod would copy unchanged binaries
+# into another layer whenever a script changes.
+COPY --chmod=0755 buildkite-hooks/ /usr/local/share/tuist/buildkite-hooks/
+COPY --chmod=0755 dispatch-poll.sh run-job.sh vitals.sh metrics-sampler.sh /usr/local/bin/
 
 USER runner
 RUN printf 'set -e\necho login-shell-ready\nexit 0\n' | env SHLVL=0 /bin/bash --login

@@ -1,7 +1,7 @@
 defmodule Tuist.ClickHouseRepo.PromExPlugin do
   @moduledoc """
-  Prometheus metrics for Cloud and shadow ClickHouse reads: a count and a
-  duration histogram, both split by physical repository and outcome.
+  Prometheus metrics for ClickHouse reads: a count and a duration histogram,
+  both split by outcome.
 
   The `result` tag is `ok`, `clickhouse_<code>` for an error ClickHouse returned
   (159 is `TIMEOUT_EXCEEDED`, 241 the memory limit), `transport_<reason>` for a
@@ -11,7 +11,7 @@ defmodule Tuist.ClickHouseRepo.PromExPlugin do
   """
   use PromEx.Plugin
 
-  @query_events [[:tuist, :click_house_repo, :query], [:tuist, :shadow_click_house_repo, :query]]
+  @query_events [[:tuist, :click_house_repo, :query]]
   @query_event [:tuist, :clickhouse, :read, :query]
   @metric_prefix [:tuist, :clickhouse, :query]
 
@@ -23,10 +23,8 @@ defmodule Tuist.ClickHouseRepo.PromExPlugin do
     :telemetry.attach_many(__MODULE__, @query_events, &__MODULE__.handle_query/4, nil)
   end
 
-  def handle_query([:tuist, prefix, :query], measurements, %{result: result}, _config)
-      when prefix in [:click_house_repo, :shadow_click_house_repo] do
-    repo = if prefix == :shadow_click_house_repo, do: Tuist.ShadowClickHouseRepo, else: Tuist.ClickHouseRepo
-    :telemetry.execute(@query_event, measurements, tag_values(%{repo: repo, result: result}))
+  def handle_query([:tuist, :click_house_repo, :query], measurements, %{result: result}, _config) do
+    :telemetry.execute(@query_event, measurements, tag_values(%{result: result}))
   end
 
   def handle_query(_event, _measurements, _metadata, _config), do: :ok
@@ -55,10 +53,6 @@ defmodule Tuist.ClickHouseRepo.PromExPlugin do
         ]
       )
     ]
-  end
-
-  def tag_values(%{repo: Tuist.ShadowClickHouseRepo, result: result}) do
-    %{repo: "clickhouse_shadow_read", result: result_tag(result)}
   end
 
   def tag_values(%{result: result}) do
