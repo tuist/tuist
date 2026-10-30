@@ -32,6 +32,7 @@ defmodule TuistWeb.PreviewLive do
     current_user = Map.get(socket.assigns, :current_user)
 
     can_delete_preview = Authorization.authorize(:preview_delete, current_user, preview.project) == :ok
+    desktop_preview = AppBuilds.desktop_preview?(preview)
 
     {
       :ok,
@@ -44,6 +45,8 @@ defmodule TuistWeb.PreviewLive do
         :preview,
         preview
       )
+      |> assign(:desktop_preview, desktop_preview)
+      |> assign(:cli_preview, Enum.any?(preview.app_builds, &(&1.type == :executable)))
       |> assign(
         OpenGraph.project_image_assigns(selected_project,
           title: preview.display_name || dgettext("dashboard_previews", "Preview"),
@@ -62,7 +65,7 @@ defmodule TuistWeb.PreviewLive do
       )
       |> assign(
         :run_button_href,
-        run_button_href(preview, user_agent)
+        if(desktop_preview, do: nil, else: run_button_href(preview, user_agent))
       )
       |> assign(
         :preview_url,

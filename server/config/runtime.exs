@@ -168,7 +168,8 @@ case System.get_env("TUIST_RUNNER_MACOS_XCODE_VERSIONS") do
     end
 end
 
-if Tuist.Environment.web?() do
+# Outside releases the endpoint binds only under `mix phx.server`.
+if config_env() == :prod and Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
 

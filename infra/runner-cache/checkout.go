@@ -73,6 +73,9 @@ type Checkouts struct {
 	Run    func(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error)
 	// Room reserves disk for a build until the returned release is called.
 	Room func(context.Context, uint64) (func(), error)
+	// Spare reserves disk for a restore no job asked for (CheckoutTask.Spare)
+	// from free space only, never evicting a master. Without it, Room does.
+	Spare func(context.Context, uint64) (func(), error)
 	// InUse reports whether a job holds or is attaching a clone of a volume's
 	// master. Pressure eviction skips those: the clone shares the master's blocks,
 	// so removing it frees nothing, and an attaching job would lose its seed.
@@ -121,6 +124,9 @@ type CheckoutTask struct {
 	// Export holds what the job exported; a task without one restores the HEAD.
 	Export string
 	Since  time.Time
+	// Spare marks a restore the server listed for this host before any job asked
+	// for it. It takes free space only and never replaces a job's request.
+	Spare bool
 }
 
 // Subject names the task's volume by IDs.
@@ -345,6 +351,12 @@ func (c *Checkouts) Enqueue(task CheckoutTask) bool {
 	if c.pending == nil {
 		c.pending = map[string]CheckoutTask{}
 	}
+	if _, waiting := c.waiting[task.Scope]; waiting && task.Spare {
+		return true
+	}
+	if previous, queued := c.pending[task.Scope]; queued && !previous.Spare && task.Spare {
+		return true
+	}
 	if waiting, ok := c.waiting[task.Scope]; ok {
 		delete(c.waiting, task.Scope)
 		c.replace(waiting, task)
@@ -429,7 +441,7 @@ func (c *Checkouts) Process(ctx context.Context, task CheckoutTask) {
 		err = c.build(ctx, task, cold, meta, room)
 	}
 	done(err)
-	if errors.Is(err, ErrCapacity) && c.now().Sub(task.Since) < checkoutWaitFor {
+	if errors.Is(err, ErrCapacity) && !task.Spare && c.now().Sub(task.Since) < checkoutWaitFor {
 		// The requesting job usually holds the room; every reconcile retries for a while.
 		c.mu.Lock()
 		if c.waiting == nil {
@@ -791,8 +803,12 @@ func (c *Checkouts) restore(ctx context.Context, task CheckoutTask, room uint64)
 	}
 	c.setBusy(task.Scope, true)
 	defer c.setBusy(task.Scope, false)
-	if c.Room != nil {
-		release, err := c.Room(ctx, room)
+	reserve := c.Room
+	if task.Spare && c.Spare != nil {
+		reserve = c.Spare
+	}
+	if reserve != nil {
+		release, err := reserve(ctx, room)
 		if err != nil {
 			return err
 		}

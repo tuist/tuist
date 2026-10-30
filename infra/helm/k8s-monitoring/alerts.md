@@ -2678,10 +2678,13 @@ sum by (platform) (increase(
 ))
 ```
 
-- C: `1 - $A / $B`, the share of jobs over 10 s. It is above 10% exactly
-  when the p90 is over 10 s, because 10 s is a bucket boundary.
-- Condition: `$C > 0.1 && $B >= 20`; pending period 30 minutes; severity
-  warning; policy tree (`#notifications`)
+- C: `1 - $A / $B`, the share of jobs over 10 s, shown in the
+  notification. It is above 10% exactly when the p90 is over 10 s, because
+  10 s is a bucket boundary.
+- Condition: `$B - $A > 0.1 * $B && $B >= 20`, which is C over 10% without
+  the division. When B is 0, C is NaN, and Grafana treats a NaN condition
+  as firing. Pending period 30 minutes; severity warning; policy tree
+  (`#notifications`)
 - No `affected_service`: jobs still start.
 - `test-runner-queue-time-alert.sh` checks the expression with promtool.
 
@@ -3007,8 +3010,9 @@ that carries the same fields undercounts.
 `agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
 removed. Until 2026-10-22 16:50 UTC it stored only a plain `sum`, so `rate()`
 and `increase()` over it returned an empty result, as with the Oban counters
-in **Ingestion jobs being discarded**. It now has an exact `sum:counter` rule
-and rates, but both agents create each `(operation, source, result)` series
+in **Ingestion jobs being discarded**. Auto-apply removed the exact rule added
+for it; since 2026-10-30 18:16 UTC the `tuist_` prefix rule stores
+`sum:counter` and it rates, but both agents create each `(operation, source, result)` series
 on its first increment, and that first increment is never counted (see
 `README.md`, *Metrics aggregated downstream of this chart*). Compared with the
 host logs over 17:20 to 18:20 UTC that day, the metric read 12 to 31% low on
@@ -5051,15 +5055,15 @@ Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
 
 ```promql
 (max by (cluster, namespace, statefulset) (
-  kube_statefulset_replicas{namespace="kura"}
+  kube_statefulset_replicas{namespace="kura", statefulset=~"kura-.*"}
 ) > bool 0)
 * on (cluster, namespace, statefulset)
 (max by (cluster, namespace, statefulset) (
-  kube_statefulset_status_replicas_ready{namespace="kura"}
+  kube_statefulset_status_replicas_ready{namespace="kura", statefulset=~"kura-.*"}
 ) == bool 0)
 * on (cluster, namespace, statefulset)
 (max by (cluster, namespace, statefulset) (
-  time() - kube_statefulset_created{namespace="kura"}
+  time() - kube_statefulset_created{namespace="kura", statefulset=~"kura-.*"}
 ) > bool 600)
 ```
 
@@ -5070,6 +5074,11 @@ Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
   Ready until its initial region passes settle (about 2.5 minutes for a new
   ber1 instance on 2026-10-21, which paged as incident #130).
   A new or recreated instance still unready after ten minutes fires at twelve.
+- Only Kura instance StatefulSets, which the server names `kura-<handle>-<cluster>`,
+  are evaluated. Other StatefulSets in the namespace, such as `shard-storage`,
+  are not Kura instances and are excluded. Before this filter, `shard-storage`'s
+  first production deploy on 2026-10-30 paged as incident #137 while its new
+  host waited about 15 minutes for its private-network label.
 - Healthy samples remain an explicit zero. Missing readiness is unknown,
   not zero replicas: no-data and execution errors remain visible as Grafana
   `NoData` / `Error`, rather than silently reporting healthy service.
@@ -6958,6 +6967,38 @@ Backtest, two-hour window evaluated hourly, hours named by their end,
   13:30. That morning managed caches had just moved onto custom volumes and
   macOS volume use grew sevenfold. 85% would also catch 10:00 and 14:00, but
   sits a point and a half under the normal minimum.
+
+#### First attaches after idle
+
+The rule is dominated by busy volumes, which stay warm on the hosts that just
+used them. The attaches that need prewarming (`prefetch_heads/3` in
+`CacheVolumes`) are a volume's first after six hours without one, mostly an
+account's first jobs of the day. This query reads them from the same
+datasource and columns, per platform and day:
+
+```sql
+WITH uses AS (
+  SELECT v.platform, u.warm, u.base_generation, u.attached_at,
+    lag(u.attached_at) OVER (PARTITION BY u.volume_id ORDER BY u.attached_at) AS previous_attached_at
+  FROM runner_cache_volume_uses u JOIN runner_cache_volumes v ON v.id = u.volume_id
+  WHERE u.attached_at >= now() - interval '15 days' AND v.key NOT LIKE 'e2e-reuse-%'
+    AND v.key NOT IN ('runners-acceptance-probe', 'checkout')
+)
+SELECT platform, date_trunc('day', attached_at)::date AS day,
+  count(*) FILTER (WHERE warm) AS warm, count(*) AS total
+FROM uses
+WHERE attached_at >= now() - interval '8 days' AND base_generation > 0 AND warm IS NOT NULL
+  AND (previous_attached_at IS NULL OR previous_attached_at <= attached_at - interval '6 hours')
+GROUP BY 1, 2 ORDER BY 1, 2
+```
+
+macOS read 4 of 15 warm on 2026-10-21 and 14 of 21 on 10-22, and Linux 25
+of 28 on 10-22, before prewarming. What prewarming downloads, per host and reason (Linux agents report
+`job`, `prewarm` and `recent`; macOS hosts also `refresh`):
+
+```promql
+sum by (instance, reason) (increase(tuist_runner_cache_volume_prefetched_bytes_total{env="production"}[1d]))
+```
 
 ### Runner cache volume saves incomplete
 

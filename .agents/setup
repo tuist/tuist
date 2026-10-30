@@ -144,10 +144,11 @@ else
   time mise run --no-deps install
 fi
 
-# Stop ClickHouse cleanly so its data directory is consistent in the
-# snapshot; .agents/resume starts it again.
-step "Stopping ClickHouse"
+# Stop the databases cleanly so their data directories are consistent in
+# the snapshot; .agents/resume starts them again.
+step "Stopping ClickHouse and PostgreSQL"
 mise run --no-deps clickhouse:stop
+sudo pg_ctlcluster 16 main stop
 
 cd "$repo_root"
 ((${#clean_lockfiles[@]} == 0)) || git checkout -- "${clean_lockfiles[@]}"
@@ -162,8 +163,8 @@ if ! grep -Fqx "$guidance_marker" "$guidance" 2>/dev/null; then
 # Tuist orb environment
 
 - `.agents/setup` installed the root and `server/` mise toolchains (shims on PATH),
-  PostgreSQL 16 (systemd, trust auth) and bootstrapped the server databases.
-- `.agents/resume` starts ClickHouse; rerun `mise run clickhouse:start` from `server/` if it is down.
+  PostgreSQL 16 (pg_ctlcluster, trust auth) and bootstrapped the server databases.
+- `.agents/resume` starts PostgreSQL and ClickHouse; rerun `mise run clickhouse:start` from `server/` if ClickHouse is down.
 - This checkout's dev instance is 100: server on port 8180, databases `tuist_development_100`.
 - Start the server with `amp orb services ensure` (service `server`).
   Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.

@@ -57,6 +57,63 @@ Existing Once integrations have a separate <.localized_link href="/guides/featur
 
 See the <.localized_link href="/guides/features/previews/bazel">Bazel preview guide</.localized_link> for the application rules, runtime publication consent, and cache replay behavior.
 
+## Desktop apps and CLIs {#desktop-apps-and-clis}
+
+Share a built macOS application bundle and launch it on another Mac without rebuilding:
+
+```bash
+tuist share path/to/MyApp.app
+tuist run {preview-url}
+```
+
+You can also share a standalone executable on macOS or Linux:
+
+```bash
+tuist share path/to/my-tool
+tuist run {preview-url} -- --help
+```
+
+If the CLI needs resource bundles, dynamic libraries, or helper executables, assemble a distribution directory and specify its entry point relative to that directory:
+
+```bash
+tuist share path/to/distribution --executable bin/my-tool
+tuist run {preview-url} -- build --configuration Release
+```
+
+The entire distribution directory is uploaded, including executable permissions and directory structure. The preview runs with the recipient's working directory, environment, and terminal input/output, and returns the executable's exit status. It does not replace an installed CLI or add it to `PATH`. CLI distributions remain in Tuist's local `previews` cache after execution so generated projects can continue to reference them; deleting that cache also removes those references' targets.
+
+Use `--` to separate Tuist options from the preview's arguments. Everything after it is forwarded literally, including `--verbose`, `--quiet`, and `--path`. Child arguments are excluded from Tuist command analytics.
+
+### Multiple CLI targets {#multiple-cli-targets}
+
+A preview groups builds of the same CLI for one commit; each build contains a distribution for one operating system and one or more CPU architectures. For example, one preview can contain macOS arm64, macOS x86_64, and Linux x86_64 distributions. A universal macOS executable covers both Mac architectures in one build.
+
+Build each target separately, then publish the distributions sequentially from the same Git checkout using the same entry-point basename and track:
+
+```bash
+tuist share dist/macos-arm64 --executable bin/tuist --track pr
+tuist share dist/macos-x86_64 --executable bin/tuist --track pr
+tuist share dist/linux-x86_64 --executable bin/tuist --track pr
+```
+
+These uploads add builds to the same preview link. Keep the project, commit, publishing account, CLI name, and track identical across uploads. Build directory names do not determine compatibility: Tuist reads the executable headers at upload and selects the recipient's operating system and CPU architecture before downloading a build. Recipients use the same `tuist run {preview-url} -- …` command on either OS, without architecture flags. Tuist verifies the downloaded executable's target before execution; older previews without architecture metadata use this check to find a compatible build. An unavailable target produces a compatibility error rather than running another platform's build. The repository's automated Tuist CLI publisher currently builds only native macOS; Linux distributions can be published separately.
+
+### Client and server compatibility {#client-and-server-compatibility}
+
+Desktop execution requires an updated CLI and server. Existing clients continue to upload and run mobile previews against an updated server. New clients can still use mobile previews on older servers; an older server cannot accept the new CLI format.
+
+The CLI automatically sends `x-tuist-preview-capabilities: desktop` when reading or completing previews. Without that capability, the API returns only the original app formats and platforms, including for previews that contain both mobile and CLI builds. Update checks select the latest compatible build. Opening a CLI-only preview from an older client returns an upgrade message. Architecture metadata is optional, and clients ignore unknown future build formats and platforms rather than failing to decode the preview.
+
+For self-hosted upgrades, migrate and upgrade **all** server replicas and workers that read previews before publishing CLI previews. Canary and production require explicit `cli_previews` account or global feature-flag enrollment after that rollout; mobile uploads do not depend on this flag. Keep automated CLI publication disabled until enrollment. Once executable or Linux records exist, do not roll back to a server version that cannot read those stored enum values. Turning off the flag stops new CLI uploads, but does not make existing records readable by those older servers.
+
+Previews are not a cross-compilation or dependency-bundling service. Include non-system dependencies and use relocatable library/resource paths. Tuist reads the executable's Mach-O or ELF header to identify its OS and CPU architectures, including universal macOS binaries, and selects a compatible build. Linux binaries still need compatible system libraries (for example, glibc and the Swift runtime); prefer self-contained distributions targeting your recipients' oldest supported OS. Scripts must have a shebang and require their interpreter on the recipient's system; they use the publisher's OS as their target.
+
+A preview does not provide a sandbox: it runs as the current user with access to their files and environment. Only run builds from authors and pull requests you trust. Signing and notarization requirements still apply to macOS applications.
+
+To share the Tuist CLI from CI, include its `ProjectDescription` library/module and resource bundles alongside the executable, rather than uploading the binary alone. The preview retains the commit and branch metadata used by the existing pull-request integration.
+
+In the Tuist repository, `mise run cli:preview build/cli-preview` assembles a native macOS distribution with `ProjectDescription.framework`, templates, resource bundles, Swift runtime libraries, and the CAS plugin/proxy. Upload it with `build/cli-preview/tuist share build/cli-preview --executable tuist`. The CLI Previews workflow publishes non-fork PRs once the repository variable `TUIST_CLI_PREVIEWS_ENABLED` is enabled, after deploying server support and releasing a recipient CLI with preview support. These development builds are ad-hoc signed, not notarized releases.
+
 ## Tracks {#tracks}
 
 Tracks allow you to organize your previews into named groups. For example, you might have a `beta` track for internal testers and a `nightly` track for automated builds. Tracks are lazily created — simply specify a track name when sharing, and it will be created automatically if it doesn't exist.

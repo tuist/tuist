@@ -58,7 +58,7 @@ enum WorkspaceRestorer {
         )
         async let restoredRegistry = restoreRegistryPins(
             registryPins,
-            registryDownloads: registryDownloads,
+            scratchDir: scratchDir,
             cache: cache,
             registryConfig: registryConfig
         )
@@ -444,9 +444,12 @@ enum WorkspaceRestorer {
         let pinnedPackages = resolved.pins.filter {
             PinKind.isSourceControl($0.kind) || PinKind.isRegistry($0.kind)
         }
+        let registryPaths = try await RegistryDownloadPaths(pins: pinnedPackages, scratchDir: scratchDir)
         contexts.append(
             contentsOf: try await ConcurrentTasks.map(pinnedPackages) { pin in
-                let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin, mirrors: mirrors)
+                let packagePath = try packagePathForPin(
+                    scratchDir: scratchDir, pin: pin, mirrors: mirrors, registryPaths: registryPaths
+                )
                 return PackageContext(
                     packageRef: try await packageRef(
                         pin,
@@ -558,11 +561,16 @@ enum WorkspaceRestorer {
         return canonicalize ? PathCanonicalizer.realpath(artifactPath) : artifactPath
     }
 
-    private static func packagePathForPin(scratchDir: URL, pin: ResolvedPin, mirrors: MirrorConfig) throws -> URL {
+    private static func packagePathForPin(
+        scratchDir: URL,
+        pin: ResolvedPin,
+        mirrors: MirrorConfig,
+        registryPaths: RegistryDownloadPaths
+    ) throws -> URL {
         if PinKind.isRegistry(pin.kind) {
             return try scratchDir
                 .appendingPathComponent("registry/downloads")
-                .appendingPathComponent(PinKind.registryDownloadSubpath(pin))
+                .appendingPathComponent(registryPaths.subpath(for: pin))
         }
         return scratchDir
             .appendingPathComponent("checkouts")
@@ -888,17 +896,18 @@ enum WorkspaceRestorer {
 
     private static func restoreRegistryPins(
         _ pins: [ResolvedPin],
-        registryDownloads: URL,
+        scratchDir: URL,
         cache: Cache,
         registryConfig: RegistryConfig
     ) async throws -> [(String, URL)] {
+        let registryPaths = try await RegistryDownloadPaths(pins: pins, scratchDir: scratchDir)
         let results = try await ConcurrentTasks.map(pins) { pin in
             let source = try await ensureRegistrySource(
                 cache: cache, registryConfig: registryConfig, pin: pin
             )
-            let download = try registryDownloads.appendingPathComponent(
-                PinKind.registryDownloadSubpath(pin)
-            )
+            let download = try scratchDir
+                .appendingPathComponent("registry/downloads")
+                .appendingPathComponent(registryPaths.subpath(for: pin))
             try await fileSystem.replaceWithRegistryDownloadDirectory(
                 source: source, destination: download
             )
@@ -1088,9 +1097,11 @@ enum WorkspaceRestorer {
         resolved: ResolvedPins
     ) async throws {
         let downloads = scratchDir.appendingPathComponent("registry/downloads")
-        try await ConcurrentTasks.forEach(resolved.pins.filter { PinKind.isRegistry($0.kind) }) { pin in
+        let registryPins = resolved.pins.filter { PinKind.isRegistry($0.kind) }
+        let registryPaths = try await RegistryDownloadPaths(pins: registryPins, scratchDir: scratchDir)
+        try await ConcurrentTasks.forEach(registryPins) { pin in
             let download = try downloads.appendingPathComponent(
-                PinKind.registryDownloadSubpath(pin)
+                registryPaths.subpath(for: pin)
             )
             guard fileSystem.isDirectoryAndNotSymlink(download),
                   try await fileSystem.exists(
@@ -1425,6 +1436,7 @@ enum WorkspaceRestorer {
     ) async throws {
         try await assertNoEditedDependencies(scratchDir: scratchDir)
         var dependencies: [[String: Any]] = []
+        let registryPaths = try await RegistryDownloadPaths(pins: resolved.pins, scratchDir: scratchDir)
 
         for pin in resolved.pins {
             if PinKind.isSourceControl(pin.kind) {
@@ -1434,7 +1446,9 @@ enum WorkspaceRestorer {
                 let ref = try await packageRef(
                     pin,
                     mirrors: mirrors,
-                    packagePath: packagePathForPin(scratchDir: scratchDir, pin: pin, mirrors: mirrors),
+                    packagePath: packagePathForPin(
+                        scratchDir: scratchDir, pin: pin, mirrors: mirrors, registryPaths: registryPaths
+                    ),
                     disableSandbox: disableSandbox
                 )
                 dependencies.append([
@@ -1461,7 +1475,7 @@ enum WorkspaceRestorer {
                     "basedOn": NSNull(),
                     "packageRef": ref,
                     "state": state,
-                    "subpath": PinKind.registryDownloadSubpath(pin),
+                    "subpath": registryPaths.subpath(for: pin),
                 ])
             }
         }
@@ -1524,7 +1538,7 @@ enum WorkspaceRestorer {
             to: scratchDir.appendingPathComponent("workspace-state.json")
         )
         var retainedPackages = try resolved.pins.map {
-            try packagePathForPin(scratchDir: scratchDir, pin: $0, mirrors: mirrors)
+            try packagePathForPin(scratchDir: scratchDir, pin: $0, mirrors: mirrors, registryPaths: registryPaths)
         } + localPackages.map(\.packagePath)
         if let sourceCacheDirectory {
             retainedPackages += resolved.pins.compactMap { try? Cache.sourcePath(root: sourceCacheDirectory, pin: $0) }

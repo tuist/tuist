@@ -66,9 +66,12 @@ enum PackageInfoCacheWriter {
         let packagePins = resolved.pins
             .filter { PinKind.isSourceControl($0.kind) || PinKind.isRegistry($0.kind) }
             .sorted { $0.identity < $1.identity }
+        let registryPaths = try await RegistryDownloadPaths(pins: packagePins, scratchDir: scratchDir)
 
         let packages = try await ConcurrentTasks.map(packagePins) { pin in
-            let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin, mirrors: mirrors)
+            let packagePath = try packagePathForPin(
+                scratchDir: scratchDir, pin: pin, mirrors: mirrors, registryPaths: registryPaths
+            )
             let packageInfoPath =
                 cacheDir
                 .appendingPathComponent("packages")
@@ -166,13 +169,14 @@ enum PackageInfoCacheWriter {
     private static func packagePathForPin(
         scratchDir: URL,
         pin: ResolvedPin,
-        mirrors: MirrorConfig
+        mirrors: MirrorConfig,
+        registryPaths: RegistryDownloadPaths
     ) throws -> URL {
         if PinKind.isRegistry(pin.kind) {
             return
                 scratchDir
-                .appendingPathComponent("registry/downloads")
-                .appendingPathComponent(try PinKind.registryDownloadSubpath(pin))
+                    .appendingPathComponent("registry/downloads")
+                    .appendingPathComponent(try registryPaths.subpath(for: pin))
         }
         return
             scratchDir

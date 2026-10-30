@@ -13,7 +13,9 @@ on:
       - infra/helm/tuist/**
       - .github/workflows/sandbox-image.yml
       - .github/scripts/sandbox-image-*.sh
-      - .github/scripts/sandbox-template-tag.sh
+      - .github/scripts/sandbox-live-image-tag.sh
+      - .github/scripts/sandboxd-image-version.sh
+      - .github/workflows/sandboxd-image.yml
       - .github/scripts/sandbox-deployment.test.mjs
       - .github/workflows/server-deployment.yml
       - .github/workflows/server-production-deployment.yml

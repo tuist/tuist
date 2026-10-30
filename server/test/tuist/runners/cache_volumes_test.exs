@@ -21,6 +21,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.VolumePlacement
   alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.VCS
@@ -213,6 +214,53 @@ defmodule Tuist.Runners.CacheVolumesTest do
   defp set_policy(profile, attrs) do
     {:ok, profile} = Profiles.update(Repo.get!(Profile, profile.id), attrs)
     profile
+  end
+
+  defp published_mac_volumes(job, keys) do
+    uses =
+      for key <- keys do
+        {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), Map.merge(attrs(key), %{key: key, platform: "macos"}))
+        use
+      end
+
+    complete(job)
+
+    for use <- uses do
+      assert {:ok, %{action: "keep"}} = publish_report("node", use.id)
+      Repo.get!(Usage, use.id).volume_id
+    end
+  end
+
+  # Moves the volume's publishing use to the earliest of `hours` and adds a use by
+  # a job of another workflow run at each of the others.
+  defp used_hours_ago(volume_id, now, hours) do
+    [first | rest] =
+      hours |> Enum.sort(:desc) |> Enum.map(&(now |> DateTime.add(-&1 * 60 * 60, :second) |> DateTime.truncate(:second)))
+
+    Repo.update_all(from(u in Usage, where: u.volume_id == ^volume_id), set: [inserted_at: first])
+    Enum.each(rest, &insert_use(volume_id, &1))
+  end
+
+  defp insert_use(volume_id, at, workflow_run_id \\ System.unique_integer([:positive])) do
+    pod = "pod-#{System.unique_integer([:positive])}"
+
+    Repo.insert!(%Usage{
+      volume_id: volume_id,
+      generation: Repo.get!(Volume, volume_id).generation,
+      workflow_job_id: System.unique_integer([:positive]),
+      workflow_run_id: workflow_run_id,
+      pod_name: pod,
+      pod_uid: pod,
+      node_name: "node",
+      can_publish: false,
+      inserted_at: at,
+      updated_at: at
+    })
+  end
+
+  defp listed_volumes(node_names, now) do
+    for head <- CacheVolumes.prefetch_heads("macos", node_names, now),
+        do: {Repo.get!(Usage, head.id).volume_id, head.reason}
   end
 
   test "allocations carry the size the host creates the volume at", %{job: job} do
@@ -545,7 +593,10 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 2})
   end
 
-  test "lists the saved heads of macOS custom volumes used on the given hosts", %{job: job, account: account} do
+  test "lists the saved heads of the platform's custom volumes used on the given hosts in the last day", %{
+    job: job,
+    account: account
+  } do
     {:ok, linux} = CacheVolumes.allocate_for_job(job, identity(), attrs("linux"))
     {:ok, mac} = CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("mac"), :platform, "macos"))
 
@@ -555,7 +606,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     complete(job)
     assert {:ok, %{action: "keep"}} = publish_report("node", linux.id)
     assert {:ok, %{action: "keep"}} = publish_report("node", mac.id)
-    since = DateTime.add(DateTime.utc_now(), -60, :second)
+    now = DateTime.utc_now()
     published = Repo.get!(Usage, mac.id)
     mac_volume = Repo.get!(Volume, published.volume_id)
     scope = CacheVolumes.scope(mac_volume)
@@ -571,17 +622,125 @@ defmodule Tuist.Runners.CacheVolumesTest do
                image_digest: image_digest,
                content_digest: content_digest,
                volume_bytes: 20_000_000_000,
-               head_size_bytes: 1024
+               head_size_bytes: 1024,
+               reason: "recent"
              }
-           ] = CacheVolumes.recent_macos_heads(["other-node", "node"], since, 8)
+           ] = CacheVolumes.prefetch_heads("macos", ["other-node", "node"], now)
 
     assert {id, image_digest, content_digest} == {mac.id, published.image_digest, published.content_digest}
+    linux_id = linux.id
+    assert [%{id: ^linux_id, reason: "recent"}] = CacheVolumes.prefetch_heads("linux", ["node"], now)
     refute Repo.get!(Usage, unsaved.id).status == "published"
-    assert [] = CacheVolumes.recent_macos_heads(["other-node"], since, 8)
-    assert [] = CacheVolumes.recent_macos_heads(["node"], DateTime.add(DateTime.utc_now(), 60, :second), 8)
+    assert [] = CacheVolumes.prefetch_heads("macos", ["other-node"], now)
+    assert [] = CacheVolumes.prefetch_heads("macos", ["node"], DateTime.add(now, 25 * 60 * 60, :second))
 
     CacheVolumes.delete(account.id, mac_volume.id)
-    assert [] = CacheVolumes.recent_macos_heads(["node"], since, 8)
+    assert [] = CacheVolumes.prefetch_heads("macos", ["node"], now)
+  end
+
+  test "lists volumes two workflow runs used in the last week and idle for four hours to prewarm first", %{job: job} do
+    now = DateTime.utc_now()
+
+    [daily, once, one_run, busy, yesterday, last_week] =
+      published_mac_volumes(job, ~w(daily once one-run busy yesterday last-week))
+
+    used_hours_ago(daily, now, [5, 29])
+    used_hours_ago(once, now, [5])
+    used_hours_ago(one_run, now, [29])
+    insert_use(one_run, now |> DateTime.add(-6 * 60 * 60, :second) |> DateTime.truncate(:second), job.workflow_run_id)
+    used_hours_ago(busy, now, [1, 49])
+    used_hours_ago(yesterday, now, [30, 54])
+    used_hours_ago(last_week, now, [100, 150, 180])
+
+    assert listed_volumes(["node"], now) == [
+             {daily, "prewarm"},
+             {yesterday, "prewarm"},
+             {last_week, "prewarm"},
+             {busy, "recent"},
+             {once, "recent"},
+             {one_run, "recent"}
+           ]
+
+    assert listed_volumes(["node"], DateTime.add(now, 2 * 24 * 60 * 60, :second)) == [
+             {busy, "prewarm"},
+             {daily, "prewarm"},
+             {yesterday, "prewarm"}
+           ]
+  end
+
+  test "takes the accounts' volumes in turn, the most recently active account first", %{job: job} do
+    other = AccountsFixtures.account_fixture()
+    now = DateTime.utc_now()
+    [first, second, third] = published_mac_volumes(job, ~w(first second third))
+
+    [other_volume] =
+      published_mac_volumes(%{job | account_id: other.id, workflow_job_id: job.workflow_job_id + 1}, ~w(other))
+
+    used_hours_ago(first, now, [1])
+    used_hours_ago(second, now, [2])
+    used_hours_ago(third, now, [3])
+    used_hours_ago(other_volume, now, [4])
+
+    assert listed_volumes(["node"], now) == [
+             {first, "recent"},
+             {other_volume, "recent"},
+             {second, "recent"},
+             {third, "recent"}
+           ]
+  end
+
+  @peers ~w(node mac-02 mac-03 mac-04 mac-05 mac-06)
+
+  defp placed_volumes(node, now, weights \\ Map.new(@peers, &{&1, 1})) do
+    for head <- CacheVolumes.prefetch_heads("macos", @peers, now, node: node, weights: weights),
+        into: MapSet.new(),
+        do: Repo.get!(Usage, head.id).volume_id
+  end
+
+  test "lists a Node only the repositories placed on it, with every volume of one together", %{job: job} do
+    now = DateTime.utc_now()
+    app = published_mac_volumes(job, ~w(xcode module))
+    other_job = %{job | repository: "org/other", workflow_job_id: job.workflow_job_id + 1}
+    other = published_mac_volumes(other_job, ~w(other-xcode))
+    weights = Map.new(@peers, &{&1, 1})
+    app_holders = VolumePlacement.holders("#{job.account_id}/#{job.repository}", weights, 2)
+    other_holders = VolumePlacement.holders("#{job.account_id}/org/other", weights, 2)
+
+    for node <- @peers do
+      expected =
+        MapSet.union(
+          if(node in app_holders, do: MapSet.new(app), else: MapSet.new()),
+          if(node in other_holders, do: MapSet.new(other), else: MapSet.new())
+        )
+
+      assert placed_volumes(node, now) == expected
+    end
+  end
+
+  test "places a repository whose jobs ran concurrently on one more Node than they ran on", %{job: job} do
+    now = DateTime.utc_now()
+    [volume_id] = published_mac_volumes(job, ~w(xcode))
+    start = now |> DateTime.add(-3 * 60 * 60, :second) |> DateTime.truncate(:second)
+
+    for minute <- 0..2 do
+      at = DateTime.add(start, minute * 60, :second)
+
+      Repo.insert!(%Usage{
+        volume_id: volume_id,
+        generation: Repo.get!(Volume, volume_id).generation,
+        workflow_job_id: System.unique_integer([:positive]),
+        workflow_run_id: System.unique_integer([:positive]),
+        pod_name: "pod-#{minute}",
+        pod_uid: "pod-#{minute}",
+        node_name: "mac-0#{minute + 2}",
+        can_publish: false,
+        inserted_at: at,
+        updated_at: at,
+        finished_at: %{DateTime.add(at, 10 * 60, :second) | microsecond: {0, 6}}
+      })
+    end
+
+    assert Enum.count(@peers, &MapSet.member?(placed_volumes(&1, now), volume_id)) == 4
   end
 
   test "records the older generation a host mounted, and only that", %{job: job} do
@@ -2236,19 +2395,50 @@ defmodule Tuist.Runners.CacheVolumesTest do
                CacheVolumes.allocate_checkout(%{params | "pod_uid" => "next-uid"})
     end
 
-    test "a published checkout use releases its branch and is never prefetched", %{params: params} do
-      since = DateTime.add(DateTime.utc_now(), -60, :second)
+    test "a published checkout use releases its branch and is listed, beside the custom volumes' caps, with what a host restores it from",
+         %{account: account, job: job, params: params} do
       {:ok, checkout} = CacheVolumes.allocate_checkout(params)
-
-      publish = %{
-        "operation" => "publish",
-        "image_digest" => String.duplicate("b", 40),
-        "content_digest" => String.duplicate("c", 64)
-      }
+      digest = String.duplicate("b", 40)
+      content = String.duplicate("c", 64)
+      publish = %{"operation" => "publish", "image_digest" => digest, "content_digest" => content}
 
       assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", checkout.id, publish)
       assert {:ok, %{action: "delete"}} = CacheVolumes.report("mac-node", checkout.id, report())
-      assert [] = CacheVolumes.recent_macos_heads(["mac-node"], since, 8)
+      custom = published_mac_volumes(job, for(n <- 1..9, do: "custom-#{n}"))
+
+      account_id = account.id
+      checkout_id = checkout.id
+      scope = checkout.scope
+      volume_key = checkout.volume_key
+      checkout_generation = checkout.generation
+      heads = CacheVolumes.prefetch_heads("macos", ["node", "mac-node"], DateTime.utc_now())
+
+      listed_custom = for %{kind: "custom"} = head <- heads, do: Repo.get!(Usage, head.id).volume_id
+      assert length(listed_custom) == 8
+      assert MapSet.subset?(MapSet.new(listed_custom), MapSet.new(custom))
+
+      assert [
+               %{
+                 kind: "checkout",
+                 id: ^checkout_id,
+                 account_id: ^account_id,
+                 scope: ^scope,
+                 generation: 1,
+                 image_digest: ^digest,
+                 content_digest: ^content,
+                 reason: "recent",
+                 checkout_generation: ^checkout_generation,
+                 clone_url: "https://github.com/org/repo",
+                 default_branch: "main",
+                 uid: 501,
+                 volume_key: ^volume_key
+               }
+             ] = Enum.filter(heads, &(&1.kind == "checkout"))
+
+      stub(Runners, :volume_master_download_url, fn _, _, ^digest, ^content -> {:ok, "https://storage/head"} end)
+
+      assert {:ok, %{generation: 1, download_url: "https://storage/head"}} =
+               CacheVolumes.image("other-node", checkout_id, %{"operation" => "download", "generation" => 1})
     end
 
     test "follows the setting of the profile the job was dispatched to", %{account: account, job: job, params: params} do
