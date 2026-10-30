@@ -62,7 +62,7 @@ msgstr "詳情"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "尚未安裝 Tuist 應用程式？"
+msgstr "未安裝 Tuist 應用程式？"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:89
@@ -170,7 +170,7 @@ msgstr "此預覽不支援安裝至裝置"
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "如要直接從瀏覽器執行預覽，請下載並安裝 Tuist macOS 應用程式"
+msgstr "如要從瀏覽器直接執行預覽，請下載並安裝 Tuist macOS 應用程式"
 
 #: lib/tuist_web/live/preview_live.html.heex:83
 #, elixir-autogen, elixir-format
@@ -217,7 +217,7 @@ msgstr "此預覽版無法下載"
 #: lib/tuist_web/live/preview_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "App preview"
-msgstr "應用程式預覽"
+msgstr "App 預覽"
 
 #: lib/tuist_web/live/preview_live.ex:49
 #, elixir-autogen, elixir-format
@@ -227,4 +227,4 @@ msgstr "預覽"
 #: lib/tuist_web/live/preview_live.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Release notes"
-msgstr "版本說明"
+msgstr "更新日誌"

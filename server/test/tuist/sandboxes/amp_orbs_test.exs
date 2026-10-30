@@ -17,6 +17,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AmpOrbs
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
 
@@ -223,5 +224,160 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
 
     assert {:error, changeset} = %Sandbox{} |> Sandbox.create_changeset(attrs) |> Repo.insert()
     assert %{account_id: ["has already been taken"]} = errors_on(changeset)
+  end
+
+  describe "project snapshots" do
+    defp sandbox_node(name), do: %{name: name, disk: %{}, templates: [%{name: "default", ready: true, rootfs_bytes: 1}]}
+
+    test "a pause with a snapshot ID syncs the disks and saves them once", %{account: account} do
+      sandbox =
+        sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a", residency_work_id: "amp:x")
+
+      stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
+
+      expect(Nodes, :call, fn "node-a", "pause", args, _opts ->
+        assert args == %{sandbox_id: sandbox.id, sync_disks: true}
+        {:ok, %{"disks_synced" => true}}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "save_disks", %{sandbox_id: id, snapshot_id: snapshot_id}, _opts ->
+        assert id == sandbox.id
+        assert Repo.get!(DiskSnapshot, snapshot_id).state == :saving
+        {:ok, %{"duration_ms" => 3}}
+      end)
+
+      params = %{operation: "pause", snapshot_id: "proj-1"}
+      assert {:ok, %{state: :paused, residency_work_id: nil}} = AmpOrbs.dispatch(account, "amp-thread", params)
+
+      assert [%DiskSnapshot{state: :ready, amp_snapshot_id: "proj-1", node_name: "node-a", source_sandbox_id: source}] =
+               Repo.all(DiskSnapshot)
+
+      assert source == sandbox.id
+
+      # Amp may replay the pause; the copy of this pause is not saved twice.
+      reject(&Nodes.call/4)
+      assert {:ok, %{state: :paused}} = AmpOrbs.dispatch(account, "amp-thread", params)
+    end
+
+    test "a newer save replaces the older snapshot of the same ID", %{account: account} do
+      old = disk_snapshot_fixture(account: account, amp_snapshot_id: "proj-1", node_name: "node-b")
+      sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
+      stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
+      expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, fn "node-a", "save_disks", _args, _opts -> {:ok, %{}} end)
+
+      expect(Nodes, :call, fn "node-b", "delete_disks", %{snapshot_id: id}, _opts ->
+        assert id == old.id
+        {:ok, %{}}
+      end)
+
+      assert {:ok, _} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj-1"})
+      assert [%DiskSnapshot{node_name: "node-a"}] = Repo.all(DiskSnapshot)
+    end
+
+    test "a failed save still pauses the Orb and keeps no snapshot", %{account: account} do
+      sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
+      stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
+      expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{"disks_synced" => false}} end)
+
+      expect(Nodes, :call, fn "node-a", "save_disks", _args, _opts ->
+        {:error, "disks were not synced by the last pause"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "delete_disks", _args, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %{state: :paused}} =
+               AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj-1"})
+
+      assert Repo.all(DiskSnapshot) == []
+    end
+
+    test "a full node disk budget skips the save", %{account: account} do
+      sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
+
+      stub(Nodes, :connected_nodes, fn ->
+        [%{sandbox_node("node-a") | disk: %{budget_bytes: 1, available_bytes: 1}}]
+      end)
+
+      expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %{state: :paused}} =
+               AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj-1"})
+
+      assert Repo.all(DiskSnapshot) == []
+    end
+
+    test "a new Orb is cloned from the saved snapshot on its node", %{account: account} do
+      snapshot =
+        disk_snapshot_fixture(
+          account: account,
+          amp_snapshot_id: "proj-1",
+          node_name: "node-a",
+          last_used_at: DateTime.add(DateTime.utc_now(), -3600, :second)
+        )
+
+      expect(Capacity, :place_on_node, fn _sandbox, "node-a" -> {:ok, "node-a"} end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        assert args.from_disk_snapshot == snapshot.id
+        {:ok, %{"boot_ms" => 700}}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{state: :running, node_name: "node-a"}} =
+               AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+
+      assert DateTime.after?(Repo.reload!(snapshot).last_used_at, snapshot.last_used_at)
+    end
+
+    test "a clone the node lost falls back to the template on the same node", %{account: account} do
+      snapshot = disk_snapshot_fixture(account: account, amp_snapshot_id: "proj-1", node_name: "node-a")
+      expect(Capacity, :place_on_node, fn _sandbox, "node-a" -> {:ok, "node-a"} end)
+
+      expect(Nodes, :call, fn "node-a", "create", %{from_disk_snapshot: _}, _opts ->
+        {:error, "disk snapshot not found: #{snapshot.id}"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "delete_disks", _args, _opts -> {:ok, %{}} end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        refute Map.has_key?(args, :from_disk_snapshot)
+        {:ok, %{}}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{state: :running}} =
+               AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+
+      refute Repo.get(DiskSnapshot, snapshot.id)
+    end
+
+    test "a snapshot node without room boots the template elsewhere", %{account: account} do
+      disk_snapshot_fixture(account: account, amp_snapshot_id: "proj-1", node_name: "node-a")
+      expect(Capacity, :place_on_node, fn _sandbox, "node-a" -> {:error, :no_capacity} end)
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-b"} end)
+
+      expect(Nodes, :call, fn "node-b", "create", args, _opts ->
+        refute Map.has_key?(args, :from_disk_snapshot)
+        {:ok, %{}}
+      end)
+
+      expect(Nodes, :call, fn "node-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{node_name: "node-b"}} =
+               AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+    end
+
+    test "snapshots are account-scoped", %{account: account} do
+      disk_snapshot_fixture(account: account_fixture(), amp_snapshot_id: "proj-1", node_name: "node-a")
+      reject(&Capacity.place_on_node/2)
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-b"} end)
+      expect(Nodes, :call, fn "node-b", "create", _args, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, fn "node-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, _} = AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+    end
   end
 end

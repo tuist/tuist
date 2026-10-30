@@ -86,20 +86,16 @@ func main() {
 		labels["env"] = env
 	}
 
+	client, err := shipper.NewClient(url, 30*time.Second)
+	if err != nil {
+		log.Fatalf("configure log transport: %v", err)
+	}
+	defer client.CloseIdleConnections()
 	agent, err := shipper.New(shipper.Options{
 		Sources:    files,
 		BaseLabels: labels,
 		Positions:  shipper.LoadPositions(positions),
-		Client: &shipper.Client{
-			URL: url,
-			// Resolves through tailscaled rather than /etc/resolv.conf, which is
-			// what a MagicDNS --url requires from a CGO_ENABLED=0 binary on
-			// macOS. The bounded timeout is not the default's absence of one: a
-			// push that hangs against a half-open tailnet connection would
-			// otherwise stall this file's tail indefinitely, which looks
-			// identical to "the host stopped logging".
-			HTTP: shipper.NewHTTPClient(30 * time.Second),
-		},
+		Client:     client,
 	})
 	if err != nil {
 		log.Fatalf("start log shipper: %v", err)
@@ -108,6 +104,6 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("shipping %s to %s as instance=%s", files.String(), url, instance)
+	log.Printf("shipping %s to configured receiver as instance=%s", files.String(), instance)
 	agent.Run(ctx)
 }

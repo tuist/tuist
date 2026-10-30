@@ -127,6 +127,15 @@ report_heartbeat() {
   printf '%s' "${1}" >"${STATUS_SHARE}/runner-heartbeat" 2>/dev/null || true
 }
 
+# report_boot_stage marks that boot reached stage $1. The host reads the
+# file's mtime, which it stamps on its own clock.
+report_boot_stage() {
+  [ -d "${STATUS_SHARE:-}" ] || return 0
+  : >"${STATUS_SHARE}/boot-${1}" 2>/dev/null || true
+}
+
+report_boot_stage poller
+
 RUNNER_TCC_DB="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
 TCC_LOG=/var/log/tuist-runner/tcc.log
 TCC_LOG_PID=""
@@ -240,6 +249,13 @@ if [ ! -f /etc/tuist.env ]; then
 fi
 # shellcheck disable=SC1091
 source /etc/tuist.env
+
+# Node still embeds the compromised eMudhra roots; use the patched PEM store.
+export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--use-openssl-ca"
+export SSL_CERT_FILE=/etc/ssl/cert.pem
+export SSL_CERT_DIR=/var/empty
+export PIP_CERT="$SSL_CERT_FILE"
+export REQUESTS_CA_BUNDLE="$SSL_CERT_FILE"
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
@@ -997,13 +1013,25 @@ if [ ! -x "${JQ}" ]; then
   exit 1
 fi
 
+# The dev.tuist.logd-watchdog LaunchDaemon restarts a wedged logd, and reports
+# one that does not come back here, where tart-kubelet stops the VM (see
+# logd-watchdog.sh). A warm VM stops polling once it is reported, so it never
+# takes a job.
+LOGD_WEDGED_MARKER=/tmp/tuist-logd-wedged
+[ -d "${STATUS_SHARE}" ] && LOGD_WEDGED_MARKER="${STATUS_SHARE}/logd-wedged"
+
 while true; do
   attempt=$((attempt + 1))
+  if [ -e "${LOGD_WEDGED_MARKER}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: logd wedged during warm standby; exiting instead of taking a job"
+    exit 1
+  fi
   # Beat before the request, not after: this says the loop is running,
   # and a curl that hangs to its --max-time is exactly the stall the
   # beat needs to expose. One iteration is bounded by that timeout, so
   # a healthy warm runner never goes more than ~12s without a beat.
   report_heartbeat "${HEARTBEAT_POLLING}"
+  [ "${attempt}" = 1 ] && report_boot_stage first-poll
   # `-f` is intentionally omitted: with it, curl exits non-zero on
   # 4xx/5xx, the `|| http="000"` clause fires, and the real status
   # never reaches the case statement. We need 401/403/5xx as

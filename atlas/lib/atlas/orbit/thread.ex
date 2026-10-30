@@ -21,6 +21,7 @@ defmodule Atlas.Orbit.Thread do
     field :source_type, :string
     field :source_id, :string
     field :priority, :string
+    field :domain, :string
     field :request_id, Ecto.UUID
     field :required_scopes, {:array, :string}, default: []
     field :signal_reader_ids, {:array, Ecto.UUID}
@@ -29,6 +30,7 @@ defmodule Atlas.Orbit.Thread do
     field :environment_id, Ecto.UUID
     field :environment_name, :string
     field :project_id, Ecto.UUID
+    field :repository, :string
     field :personal_environment_dispatched, :boolean, default: false
 
     belongs_to :owner, User

@@ -1,5 +1,7 @@
 package dev.tuist.atlas
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
@@ -29,6 +31,7 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.SearchView
 import android.widget.TextView
 import android.widget.Toolbar
 import org.json.JSONObject
@@ -46,6 +49,7 @@ class AtlasOrbitScreen(
     private val navigationChanged: () -> Unit,
     private val appearance: AtlasAppearance? = null,
     private val pickAttachment: (() -> Unit)? = null,
+    private val environmentRequest: ((JSONObject, (Result<JSONObject>) -> Unit) -> Unit)? = null,
 ) {
     val toolbar = Toolbar(activity)
     private val liveStatus =
@@ -133,12 +137,44 @@ class AtlasOrbitScreen(
     private var promptAdapter: BaseAdapter? = null
     private val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(ZoneId.systemDefault())
     private var renderedContent: Any? = null
+    private var listMenuReady = false
+    private var searchItem: MenuItem? = null
+    private var domainItem: MenuItem? = null
+    private var statusItem: MenuItem? = null
+    private var composeItem: MenuItem? = null
+    private var searchTask: Runnable? = null
+    private var syncingSearch = false
+    private val search =
+        SearchView(activity).apply {
+            queryHint = "Search titles and summaries"
+            isSaveEnabled = false
+            isSaveFromParentEnabled = false
+            minimumHeight = dp(48)
+        }
     private val listener: () -> Unit = { render() }
     private val presenceListener: () -> Unit = { if (model.createDraft != null) render() }
 
     init {
         model.listener = listener
         presence?.listener = presenceListener
+        search.setOnQueryTextListener(
+            object : SearchView.OnQueryTextListener {
+                override fun onQueryTextChange(value: String?): Boolean {
+                    if (syncingSearch) return true
+                    searchTask?.let(search::removeCallbacks)
+                    searchTask = Runnable { if (!closed && model.selectionId == null) model.filter(query = value.orEmpty()) }
+                    search.postDelayed(searchTask, 300)
+                    return true
+                }
+
+                override fun onQueryTextSubmit(value: String?): Boolean {
+                    searchTask?.let(search::removeCallbacks)
+                    model.filter(query = value.orEmpty())
+                    hideKeyboard()
+                    return true
+                }
+            },
+        )
         composerField.addTextChangedListener(
             object : TextWatcher {
                 override fun beforeTextChanged(
@@ -179,7 +215,9 @@ class AtlasOrbitScreen(
 
     fun close() {
         closed = true
+        searchTask?.let(search::removeCallbacks)
         promptDialog?.dismiss()
+        environmentDialog?.dismiss()
         messageViews.clear()
         AtlasOrbitAttachments.clear()
         hideKeyboard()
@@ -188,6 +226,10 @@ class AtlasOrbitScreen(
     }
 
     fun back(): Boolean {
+        if (model.selectionId == null && searchItem?.isActionViewExpanded == true) {
+            searchItem?.collapseActionView()
+            return true
+        }
         val draft = model.createDraft
         if (draft != null && !model.snapshot.saving && !model.snapshot.loading &&
             (draft.title.isNotBlank() || draft.participants.isNotEmpty())
@@ -209,8 +251,13 @@ class AtlasOrbitScreen(
     private fun render() {
         if (closed) return
         if (promptThread != protectedThreadId()) promptDialog?.dismiss()
+        if (environmentThread != protectedThreadId()) environmentDialog?.dismiss()
         updatePromptIndex()
-        toolbar.menu.clear()
+        if (model.createDraft != null || model.selecting || model.selectionId != null || !listMenuReady) {
+            listMenuReady = false
+            searchTask?.let(search::removeCallbacks)
+            toolbar.menu.clear()
+        }
         when {
             model.createDraft != null -> renderCreate()
             model.selecting -> renderSelection()
@@ -248,11 +295,21 @@ class AtlasOrbitScreen(
         composer.visibility = View.GONE
         liveStatus.visibility = View.GONE
         toolbar.title = title
-        toolbar.subtitle = null
-        refreshAction { model.refresh() }
-        menuAction(if (snapshot.statusFilter == "active") "Show archived" else "Show active") {
-            model.filterStatus(if (snapshot.statusFilter == "active") "archived" else "active")
-        }
+        val domainTitle =
+            if (snapshot.domainFilter == "unclassified") {
+                "Unclassified"
+            } else {
+                snapshot.assistant
+                    ?.domains
+                    ?.firstOrNull { it.id == snapshot.domainFilter }
+                    ?.name ?: "All domains"
+            }
+        toolbar.subtitle = "${snapshot.statusFilter.replaceFirstChar(Char::uppercase)} · $domainTitle"
+        if (!listMenuReady) configureListMenu()
+        searchItem?.isEnabled = snapshot.assistant?.searchable == true && !snapshot.cached
+        domainItem?.isEnabled = snapshot.assistant?.searchable == true && !snapshot.cached
+        statusItem?.title = if (snapshot.statusFilter == "active") "Show archived" else "Show active"
+        composeItem?.isEnabled = snapshot.assistant != null && !snapshot.cached && !snapshot.loading
         val key =
             listOf(
                 "list",
@@ -262,6 +319,8 @@ class AtlasOrbitScreen(
                 snapshot.hasMore,
                 snapshot.cached,
                 snapshot.statusFilter,
+                snapshot.query,
+                snapshot.domainFilter,
                 snapshot.error,
                 model.failure,
             )
@@ -302,31 +361,24 @@ class AtlasOrbitScreen(
                 conversationRow(thread)
             }
         }
-        val assistant = snapshot.assistant
-        if (assistant != null) {
-            if (snapshot.threads.any { it.priority != null }) heading("Conversations")
-            val pinned = snapshot.privateThread
-            val subtitle =
-                buildString {
-                    append("Private thread")
-                    if (!assistant.configured) append("\nNot set up on this server yet")
-                    pinned?.summary?.takeIf { it.isNotEmpty() }?.let { append("\n$it") }
-                }
-            row(
-                assistant.name,
-                subtitle,
-                (!snapshot.loading || snapshot.cached) && (!snapshot.cached || pinned != null),
-                "${assistant.name}, pinned private thread",
-            ) {
-                if (snapshot.cached && pinned != null) model.select(pinned.id) else model.openPrivate()
-            }
-        }
-        button("New shared thread", assistant != null && !snapshot.cached) { model.startCreate() }
-        val shared = snapshot.shared.filter { it.priority == null }
-        if (shared.isNotEmpty() || snapshot.shared.isEmpty()) heading("Shared")
-        if (snapshot.shared.isEmpty() && !snapshot.loading && snapshot.error == null) text("No shared threads yet.")
-        for (thread in shared) {
+        if (snapshot.threads.any { it.priority != null } && snapshot.threads.any { it.priority == null }) heading("Conversations")
+        for (thread in snapshot.threads.filter { it.priority == null }) {
             conversationRow(thread)
+        }
+        if (snapshot.threads.isEmpty() && !snapshot.loading && snapshot.error == null) {
+            text(
+                if (snapshot.query.isNotEmpty() ||
+                    snapshot.domainFilter.isNotEmpty()
+                ) {
+                    "No matching conversations. Try another search or choose All domains."
+                } else if (snapshot.statusFilter ==
+                    "archived"
+                ) {
+                    "No archived conversations."
+                } else {
+                    "No conversations yet. Start one using New conversation."
+                },
+            )
         }
         if (snapshot.loading && snapshot.threads.isEmpty()) text("Loading threads…")
         if (!snapshot.loading && snapshot.hasMore) button("Load more threads") { model.loadMore() }
@@ -334,6 +386,260 @@ class AtlasOrbitScreen(
 
     private fun errors() {
         listOfNotNull(model.failure, model.snapshot.error).distinct().forEach { text(it) }
+    }
+
+    private fun configureListMenu() {
+        listMenuReady = true
+        refreshAction { model.refresh() }
+        searchItem =
+            toolbar.menu.add("Search conversations").apply {
+                setIcon(android.R.drawable.ic_menu_search)
+                actionView = search
+                setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS or MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW)
+                setOnActionExpandListener(
+                    object : MenuItem.OnActionExpandListener {
+                        override fun onMenuItemActionExpand(item: MenuItem) = true
+
+                        override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                            if (!listMenuReady) return true
+                            searchTask?.let(search::removeCallbacks)
+                            syncingSearch = true
+                            search.setQuery("", false)
+                            syncingSearch = false
+                            model.filter(query = "")
+                            return true
+                        }
+                    },
+                )
+            }
+        syncingSearch = true
+        search.setQuery(model.snapshot.query, false)
+        syncingSearch = false
+        if (model.snapshot.query.isNotEmpty()) searchItem?.expandActionView()
+        domainItem =
+            toolbar.menu.add("Filter by domain").apply {
+                setIcon(android.R.drawable.ic_menu_sort_by_size)
+                setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+                setOnMenuItemClickListener {
+                    showDomainFilter()
+                    true
+                }
+            }
+        composeItem =
+            toolbar.menu.add("New conversation").apply {
+                setIcon(android.R.drawable.ic_menu_edit)
+                setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+                setOnMenuItemClickListener {
+                    model.newPrivate()
+                    true
+                }
+            }
+        statusItem =
+            toolbar.menu.add("Show archived").setOnMenuItemClickListener {
+                model.filterStatus(if (model.snapshot.statusFilter == "active") "archived" else "active")
+                true
+            }
+        menuAction("New shared thread") { model.startCreate() }
+    }
+
+    private fun showDomainFilter() {
+        val domains =
+            listOf(AtlasOrbitModel.Domain("", "All domains")) +
+                model.snapshot.assistant
+                    ?.domains
+                    .orEmpty() +
+                AtlasOrbitModel.Domain("unclassified", "Unclassified")
+        AlertDialog
+            .Builder(activity)
+            .setTitle("Filter by domain")
+            .setSingleChoiceItems(
+                domains
+                    .map {
+                        it.name
+                    }.toTypedArray(),
+                domains.indexOfFirst { it.id == model.snapshot.domainFilter },
+            ) { dialog, index ->
+                model.filter(domain = domains[index].id)
+                dialog.dismiss()
+            }.setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private var environmentDialog: AlertDialog? = null
+    private var environmentThread: String? = null
+    private var repositoryDialog: AlertDialog? = null
+
+    private fun showEnvironments(id: String) {
+        val request = environmentRequest ?: return
+        environmentDialog?.dismiss()
+        environmentThread = id
+        val rows =
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(20), dp(8), dp(20), dp(8))
+            }
+        val dialog =
+            AlertDialog
+                .Builder(activity)
+                .setTitle("Tool environment")
+                .setView(ScrollView(activity).apply { addView(rows) })
+                .setNegativeButton("Close", null)
+                .create()
+        environmentDialog = dialog
+
+        fun current() = !closed && protectedThreadId() == id && environmentDialog === dialog && dialog.isShowing
+
+        fun message(value: String) {
+            rows.addView(
+                TextView(activity).apply {
+                    text = value
+                    textSize = 16f
+                },
+            )
+        }
+
+        fun select(action: JSONObject) {
+            if (!current()) return
+            rows.removeAllViews()
+            message("Updating environment…")
+            request(action.put("thread_id", id)) { result ->
+                if (!current()) return@request
+                rows.removeAllViews()
+                result.fold({
+                    showEnvironments(id)
+                }, { message("Couldn’t update the environment. Reopen to refresh before trying again.") })
+            }
+        }
+
+        fun option(
+            label: String,
+            action: JSONObject,
+        ) {
+            rows.addView(
+                Button(activity).apply {
+                    text = label
+                    isAllCaps = false
+                    minHeight = dp(48)
+                    setOnClickListener { select(action) }
+                },
+            )
+        }
+        dialog.setOnDismissListener { repositoryDialog?.dismiss() }
+        dialog.show()
+        message("Loading environments…")
+        request(JSONObject().put("action", "selection").put("thread_id", id)) selection@{ selectedResult ->
+            if (!current()) return@selection
+            val selected = selectedResult.getOrNull()?.optJSONObject("thread")
+            if (selected == null || selected.optString("id") != id) {
+                rows.removeAllViews()
+                message("Couldn’t load the current selection. Close and reopen to retry.")
+                return@selection
+            }
+            val repository = selected.nullableString("repository")
+            request(JSONObject().put("action", "list")) { result ->
+                if (!current()) return@request
+                rows.removeAllViews()
+                result.fold({ overview ->
+                    message(
+                        "Pip stays on Atlas. File and terminal tools run in the selected environment. Selecting Server only stops its hosted environment.",
+                    )
+                    rows.addView(
+                        Button(activity).apply {
+                            text = "Repository: ${repository ?: "None"}"
+                            isAllCaps = false
+                            minHeight = dp(48)
+                            setOnClickListener {
+                                isEnabled = false
+                                request(JSONObject().put("action", "repositories")) repositories@{ response ->
+                                    if (!current()) return@repositories
+                                    isEnabled = true
+                                    val repos = response.getOrNull()?.optJSONArray("repositories")
+                                    val names = (0 until (repos?.length() ?: 0)).map { repos!!.getJSONObject(it).getString("full_name") }
+                                    response.exceptionOrNull()?.let {
+                                        message(it.message ?: "Couldn’t load repositories. Configure GitHub in Profile → Coding.")
+                                    }
+                                    repositoryDialog =
+                                        AtlasCodingChoices.show(
+                                            activity,
+                                            "Repository",
+                                            listOf("No repository" to null) + names.map { it to it },
+                                            repository,
+                                        ) { name ->
+                                            if (current() && name != repository) {
+                                                select(
+                                                    JSONObject()
+                                                        .put("action", "select")
+                                                        .put("environment_id", JSONObject.NULL)
+                                                        .put("project_id", JSONObject.NULL)
+                                                        .put("repository", name ?: JSONObject.NULL),
+                                                )
+                                            }
+                                        }
+                                }
+                            }
+                        },
+                        LinearLayout.LayoutParams(-1, -2),
+                    )
+                    message("Changing repositories clears the tool environment. Configure defaults in Profile → Coding.")
+                    option(
+                        "Server only",
+                        JSONObject()
+                            .put("action", "select")
+                            .put("environment_id", JSONObject.NULL)
+                            .put("project_id", JSONObject.NULL)
+                            .put("repository", repository ?: JSONObject.NULL),
+                    )
+                    val providers = overview.optJSONArray("providers")
+                    for (index in 0 until (if (repository == null) providers?.length() ?: 0 else 0)) {
+                        val provider = providers!!.getJSONObject(index)
+                        option(
+                            "Start ${provider.getString("name")}",
+                            JSONObject()
+                                .put("action", "start_provider")
+                                .put("provider", provider.getString("id")),
+                        )
+                    }
+                    val environments = overview.getJSONArray("environments")
+                    for (index in 0 until environments.length()) {
+                        val environment = environments.getJSONObject(index)
+                        if (environment.optString("provider", "native") != "native") {
+                            message("${environment.getString("name")}: ${environment.optString("provider_state", "unavailable")}")
+                        } else if (environment.optBoolean("enabled")) {
+                            val projects = environment.getJSONArray("projects")
+                            var matches = 0
+                            for (projectIndex in 0 until projects.length()) {
+                                val project = projects.getJSONObject(projectIndex)
+                                if (repository != null && project.nullableString("repository") != repository) continue
+                                matches++
+                                option(
+                                    "${environment.getString("name")} · ${project.getString("name")}" +
+                                        (if (environment.optBoolean("online")) "" else " · Offline") +
+                                        (
+                                            if (selected.optString("environment_id") == environment.getString("id") &&
+                                                selected.optString("project_id") == project.getString("id")
+                                            ) {
+                                                " · Selected"
+                                            } else {
+                                                ""
+                                            }
+                                        ),
+                                    JSONObject()
+                                        .put("action", "select")
+                                        .put("environment_id", environment.getString("id"))
+                                        .put("project_id", project.getString("id"))
+                                        .put("repository", repository ?: JSONObject.NULL),
+                                )
+                            }
+                            if (repository != null &&
+                                matches == 0
+                            ) {
+                                message("${environment.getString("name")}: no matching checkout. Add this repository in This Mac settings.")
+                            }
+                        }
+                    }
+                }, { message("Couldn’t load environments. Close and reopen to retry.") })
+            }
+        }
     }
 
     private fun renderThread() {
@@ -345,6 +651,9 @@ class AtlasOrbitScreen(
         toolbar.subtitle =
             if (thread.isPrivate) "Private" else (listOf(assistant?.name ?: "Pip") + thread.participants.map { it.name }).joinToString(", ")
         refreshAction { model.refresh() }
+        if (thread.isPrivate && !thread.archived && environmentRequest != null) {
+            menuAction("Tool environment") { showEnvironments(id) }
+        }
         if (presence?.selfId != null && thread.ownerId == presence.selfId) {
             menuAction(if (thread.archived) "Restore conversation" else "Archive conversation") {
                 if (!thread.isPrivate && !thread.archived) {
@@ -995,26 +1304,31 @@ class AtlasOrbitScreen(
     private fun conversationRow(thread: AtlasOrbitModel.Thread) {
         val background =
             activity.obtainStyledAttributes(
-                intArrayOf(android.R.attr.selectableItemBackground, android.R.attr.colorControlHighlight),
+                intArrayOf(android.R.attr.selectableItemBackground, android.R.attr.textColorSecondary),
             )
         val ripple = background.getResourceId(0, 0)
-        val circleColor = background.getColor(1, 0)
+        val secondaryColor = background.getColor(1, 0)
         background.recycle()
+        val largeText = activity.resources.configuration.fontScale >= 1.5f
         val row =
             LinearLayout(activity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.TOP
-                minimumHeight = dp(72)
-                setPadding(dp(4), dp(16), dp(4), dp(16))
+                orientation = LinearLayout.VERTICAL
+                minimumHeight = dp(64)
+                setPadding(dp(4), dp(8), dp(4), dp(8))
                 isEnabled = !model.snapshot.loading || model.snapshot.cached
                 isFocusable = true
                 contentDescription =
                     listOfNotNull(
                         thread.priorityTitle,
+                        model.snapshot.assistant
+                            ?.domains
+                            ?.firstOrNull { it.id == thread.domain }
+                            ?.name,
                         thread.title,
                         thread.summary,
                         time(thread.updatedAt),
                         if (thread.isPrivate) "Private conversation" else "Shared conversation",
+                        thread.activityLabel,
                     ).filter { it.isNotEmpty() }.joinToString(". ")
                 setBackgroundResource(ripple)
                 accessibilityDelegate =
@@ -1034,67 +1348,96 @@ class AtlasOrbitScreen(
             }
         row.addView(
             TextView(activity).apply {
-                text =
-                    thread.title
-                        .split(" ")
-                        .filter { it.isNotEmpty() }
-                        .take(2)
-                        .map { it.first().uppercaseChar() }
-                        .joinToString("")
-                textSize = 18f
-                gravity = Gravity.CENTER
+                text = thread.title
+                textSize = 17f
+                maxLines = if (largeText) 3 else 1
+                ellipsize = TextUtils.TruncateAt.END
+                setTypeface(null, Typeface.BOLD)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                this.background =
-                    GradientDrawable().apply {
-                        shape = GradientDrawable.OVAL
-                        setColor(circleColor)
-                    }
             },
-            LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginEnd = dp(16) },
+            LinearLayout.LayoutParams(-1, -2),
         )
+        if (thread.summary.isNotEmpty()) {
+            row.addView(
+                TextView(activity).apply {
+                    id = android.R.id.text2
+                    text = thread.summary
+                    textSize = 15f
+                    maxLines = if (largeText) 3 else 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                },
+                LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) },
+            )
+        }
+        val domain =
+            model.snapshot.assistant
+                ?.domains
+                ?.firstOrNull { it.id == thread.domain }
+                ?.name
         row.addView(
             LinearLayout(activity).apply {
-                orientation = LinearLayout.VERTICAL
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
                 thread.priorityTitle?.let { priority ->
                     addView(
                         TextView(activity).apply {
                             id = android.R.id.text2
                             text = priority
-                            textSize = 14f
+                            textSize = 12f
+                            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                         },
+                        LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) },
                     )
                 }
-                addView(
-                    TextView(activity).apply {
-                        text = thread.title
-                        textSize = 17f
-                        setTypeface(null, Typeface.BOLD)
-                        setPadding(0, dp(2), 0, dp(4))
-                    },
-                )
-                if (thread.summary.isNotEmpty()) {
+                if (domain != null) {
                     addView(
                         TextView(activity).apply {
                             id = android.R.id.text2
-                            text = thread.summary
-                            textSize = 15f
-                            maxLines = if (resources.configuration.fontScale >= 1.5f) 3 else 2
-                            ellipsize = TextUtils.TruncateAt.END
+                            text = domain
+                            textSize = 12f
+                            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                            setPadding(dp(6), dp(2), dp(6), dp(2))
+                            this.background =
+                                GradientDrawable().apply {
+                                    cornerRadius = dp(5).toFloat()
+                                    setStroke(dp(1), (secondaryColor and 0x00FFFFFF) or 0x33000000)
+                                }
+                        },
+                    )
+                }
+                addView(View(activity), LinearLayout.LayoutParams(0, 0, 1f))
+                if (!largeText) {
+                    addView(
+                        TextView(activity).apply {
+                            id = android.R.id.text2
+                            text = time(thread.updatedAt)
+                            textSize = 12f
+                            setPadding(dp(8), 0, 0, 0)
                         },
                     )
                 }
                 addView(
-                    TextView(activity).apply {
-                        id = android.R.id.text2
-                        text = time(thread.updatedAt)
-                        textSize = 12f
-                        setPadding(0, dp(6), 0, 0)
+                    AtlasOrbitRunningIndicator(activity).apply {
+                        visibility = if (thread.activityLabel != null) View.VISIBLE else View.INVISIBLE
                     },
+                    LinearLayout.LayoutParams(dp(8), dp(8)).apply { marginStart = dp(8) },
                 )
             },
-            LinearLayout.LayoutParams(0, -2, 1f),
+            LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) },
         )
+        if (largeText) {
+            row.addView(
+                TextView(activity).apply {
+                    id = android.R.id.text2
+                    text = time(thread.updatedAt)
+                    textSize = 12f
+                    setPadding(0, dp(4), 0, 0)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                },
+            )
+        }
         content.addView(row, ViewGroup.LayoutParams(-1, -2))
     }
 
@@ -1103,6 +1446,64 @@ class AtlasOrbitScreen(
         focus.clearFocus()
         view.requestFocus()
         (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(focus.windowToken, 0)
+    }
+}
+
+private class AtlasOrbitRunningIndicator(
+    context: Context,
+) : View(context) {
+    private var pulse: ObjectAnimator? = null
+
+    init {
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+        val colors = context.obtainStyledAttributes(intArrayOf(android.R.attr.colorAccent))
+        background =
+            GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(colors.getColor(0, 0))
+            }
+        colors.recycle()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        updatePulse()
+    }
+
+    override fun onVisibilityChanged(
+        changedView: View,
+        visibility: Int,
+    ) {
+        super.onVisibilityChanged(changedView, visibility)
+        updatePulse()
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        updatePulse()
+    }
+
+    override fun onDetachedFromWindow() {
+        pulse?.cancel()
+        pulse = null
+        super.onDetachedFromWindow()
+    }
+
+    private fun updatePulse() {
+        if (isAttachedToWindow && isShown && windowVisibility == VISIBLE && ValueAnimator.areAnimatorsEnabled()) {
+            if (pulse != null) return
+            pulse =
+                ObjectAnimator.ofFloat(this, ALPHA, 1f, 0.4f).apply {
+                    duration = 800
+                    repeatCount = ValueAnimator.INFINITE
+                    repeatMode = ValueAnimator.REVERSE
+                    start()
+                }
+        } else {
+            pulse?.cancel()
+            pulse = null
+            alpha = 1f
+        }
     }
 }
 

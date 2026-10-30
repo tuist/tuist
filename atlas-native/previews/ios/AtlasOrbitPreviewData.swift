@@ -10,14 +10,20 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private var failedCachedRefresh = false
     private let clock = ContinuousClock()
     private var activityStarted: ContinuousClock.Instant?
+    private var inboxActivityStarted: ContinuousClock.Instant?
     private var followStarted: ContinuousClock.Instant?
+    private var inboxUpdate = 0
+    private var inboxUpdates: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-inbox-updates") }
     private var rich: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-rich") }
     private var signals: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-signals") }
     private var activity: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-activity") }
+    private var inboxActivity: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-inbox-activity") }
     private var follow: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-follow") }
     private var selected: [String: Any]?
     private var listKind: String?
     private var listStatus = "active"
+    private var query = ""
+    private var domain = ""
     private var archivedIDs: Set<String> = []
     private var createdThreads: [[String: Any]] = []
     private var draft = ""
@@ -72,7 +78,12 @@ final class AtlasOrbitPreviewData: ObservableObject {
             }
             listKind = command["kind"] as? String
             if let status = command["status"] as? String { listStatus = status }
+            if let query = command["query"] as? String { self.query = query }
+            if let domain = command["domain"] as? String { self.domain = domain }
             loads += 1
+            if loads > 1, ProcessInfo.processInfo.arguments.contains("--delayed-orbit-refresh") {
+                try await Task.sleep(for: .seconds(3))
+            }
             if loads > 1, ProcessInfo.processInfo.arguments.contains("--fail-orbit-refresh") {
                 throw AtlasAuthenticationError(kind: "server", message: "Preview refresh failed. Loaded threads are retained.")
             }
@@ -140,6 +151,16 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 "author_id": "preview-self", "author_name": "Taylor", "attachments": draftAttachments
             ]))
             if let handoff { sent.append(handoff) }
+            if ProcessInfo.processInfo.arguments.contains("--orbit-suggestions") {
+                let firstReply = sent.filter { $0["kind"] as? String == "human" }.count == 1
+                sent.append(message(id: UUID().uuidString, kind: "agent", body: firstReply
+                    ? "Two open tasks need your attention: the release checklist and the account review."
+                    : "The release checklist is due first. Start with validation, then prepare the rollback plan.", extra: [
+                        "suggestions": firstReply
+                            ? ["Show the overdue tasks", "Group tasks by account", "What can wait until tomorrow?"]
+                            : ["Summarize the release risks", "Explain the rollback plan", "Which checks are still missing?"]
+                    ]))
+            }
             draft = ""
             draftMentions = []
             draftAttachments = []
@@ -165,7 +186,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
             ])
         }
         if action["action"] as? String == "next" {
-            try await Task.sleep(for: .seconds(activity || follow ? 1 : 30))
+            try await Task.sleep(for: .seconds(activity || follow || inboxActivity || inboxUpdates ? 1 : 30))
+            if inboxUpdates { inboxUpdate += 1 }
         }
         if action["action"] as? String == "draft" {
             draft = action["body"] as? String ?? ""
@@ -202,6 +224,10 @@ final class AtlasOrbitPreviewData: ObservableObject {
 
     private func snapshot() throws -> Data {
         sequence += 1
+        if inboxActivity, inboxActivityStarted == nil { inboxActivityStarted = clock.now }
+        if inboxUpdates, selected?["id"] as? String == sharedID {
+            selected?["title"] = inboxUpdate >= 6 ? "Query plan comparison complete" : "Build listing latency"
+        }
         if let id = selected?["id"] as? String {
             drafts[id] = draft
             mentionsByThread[id] = draftMentions
@@ -312,10 +338,30 @@ final class AtlasOrbitPreviewData: ObservableObject {
             ] + sent
         }
         return try JSONSerialization.data(withJSONObject: [
-            "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
+            "sequence": sequence, "assistant": ["name": "Pip", "configured": true, "searchable": true,
+                                                 "domains": [["id": "engineering", "name": "Engineering"], ["id": "commercial", "name": "Commercial"]]],
             "cached": cached,
-            "threads": threads.filter { (listKind == nil || $0["kind"] as? String == listKind) && $0["status"] as? String == listStatus },
+            "threads": threads.map { row in
+                var row = row
+                row["domain"] = (row["kind"] as? String == "shared") ? "commercial" : "engineering"
+                if inboxActivity, row["id"] as? String == privateID {
+                    let elapsed = inboxActivityStarted?.duration(to: clock.now).components.seconds ?? 0
+                    row["agent_status"] = elapsed < 12 ? "running" : "idle"
+                }
+                if inboxUpdates, row["id"] as? String == sharedID, inboxUpdate >= 6 {
+                    row["title"] = "Query plan comparison complete"
+                    row["summary"] = "Updated comparison across affected projects."
+                }
+                return row
+            }.filter { row in
+                let label = row["domain"] as? String
+                let text = "\(row["title"] as? String ?? "") \(row["summary"] as? String ?? "")"
+                return (listKind == nil || row["kind"] as? String == listKind) && row["status"] as? String == listStatus
+                    && (domain.isEmpty || (domain == "unclassified" ? label == nil : label == domain))
+                    && (query.isEmpty || text.localizedCaseInsensitiveContains(query))
+            },
             "status_filter": listStatus,
+            "query": query, "domain_filter": domain,
             "selection_id": selected?["id"] as Any? ?? NSNull(),
             "selected": selected as Any? ?? NSNull(), "messages": messages,
             "people": selected?["kind"] as? String == "shared" ? [["id": "online", "name": "Alex", "typing": false]] : [],
@@ -328,7 +374,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
             ],
             "model_error": modelError as Any? ?? NSNull(), "models_loading": false,
             "has_drafts": !draft.isEmpty || !draftAttachments.isEmpty || drafts.values.contains(where: { !$0.isEmpty }),
-            "loading": false, "history_loading": false, "saving": false,
+            "loading": inboxUpdates && inboxUpdate % 4 < 2, "history_loading": false, "saving": false,
             "has_more": false, "has_older": ProcessInfo.processInfo.arguments.contains("--orbit-prompts") && !olderPromptsLoaded,
             "needs_session": false
         ])

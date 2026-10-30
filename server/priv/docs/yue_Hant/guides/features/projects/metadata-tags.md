@@ -1,37 +1,28 @@
 ---
 {
-  "title": "Metadata tags",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how to use target metadata tags to organize and focus on specific parts of your project"
+  "title": "中繼資料標籤",
+  "titleTemplate": ":title · 專案 · 功能 · 指南 · Tuist",
+  "description": "了解如何使用目標中繼資料標籤來組織並專注於專案的特定部分"
 }
 ---
-# Metadata tags {#metadata-tags}
+# 元數據標籤 {#metadata-tags}
 
-As projects grow in size and complexity, working with the entire codebase at
-once can become inefficient. Tuist provides **metadata tags** as a way to
-organize targets into logical groups and focus on specific parts of your project
-during development.
+隨著項目規模和複雜性增加，一次性處理整個代碼庫會變得很低效。Tuist 提供 **元數據標籤**，讓你將 target 組織成邏輯群組，並在開發期間專注於項目的特定部分。
 
-## What are metadata tags? {#what-are-metadata-tags}
+## 什麼是元數據標籤？ {#what-are-metadata-tags}
 
-Metadata tags are string labels that you can attach to targets in your project.
-They serve as markers that allow you to:
+元數據標籤是可以附加到項目中 target 的字串標籤。它們作為標記，讓你可以：
 
-- **Group related targets** - Tag targets that belong to the same feature, team,
-  or architectural layer
-- **Focus your workspace** - Generate projects that include only targets with
-  specific tags
-- **Optimize your workflow** - Work on specific features without loading
-  unrelated parts of your codebase
-- **Select targets to keep as sources** - Choose which group of targets you'd
-  like to keep as sources when caching
+- **將相關 target 分組** - 為屬於同一功能、團隊或架構層的 target 加上標籤
+- **聚焦工作區** - 生成只包含具有特定標籤的 target 的項目
+- **優化工作流程** - 專注於特定功能，無需載入代碼庫中不相關的部分
+- **選擇要保留為來源的 target** - 在快取時選擇你想保留為來源的 target 群組
 
-Tags are defined using the `metadata` property on targets and are stored as an
-array of strings.
+標籤使用 target 上的 `metadata` 屬性定義，並儲存為字串陣列。
 
-## Defining metadata tags {#defining-metadata-tags}
+## 定義元數據標籤 {#defining-metadata-tags}
 
-You can add tags to any target in your project manifest:
+你可以在項目清單中為任何 target 添加標籤：
 
 ```swift
 import ProjectDescription
@@ -70,15 +61,13 @@ let project = Project(
 )
 ```
 
-## Focusing on tagged targets {#focusing-on-tagged-targets}
+## 聚焦已加標籤的 target {#focusing-on-tagged-targets}
 
-Once you've tagged your targets, you can use the `tuist generate` command to
-create a focused project that includes only specific targets:
+為 target 加上標籤後，你可以使用 `tuist generate` 指令來建立一個聚焦項目，其中只包含特定的 target：
 
-### Focus by tag
+### 按標籤聚焦
 
-Use the `tag:` prefix to generate a project with all targets matching a specific
-tag:
+使用 `tag:` 前綴來生成包含所有符合特定標籤的 target 的項目：
 
 ```bash
 # Generate project with all authentication-related targets
@@ -88,33 +77,29 @@ tuist generate tag:feature:auth
 tuist generate tag:team:identity
 ```
 
-### Focus by name
+### 按名稱聚焦
 
-You can also focus on specific targets by name:
+你也可以按名稱聚焦於特定的 target：
 
 ```bash
 # Generate project with the Authentication target
 tuist generate Authentication
 ```
 
-### How focus works
+### 聚焦如何運作
 
-When you focus on targets:
+當你聚焦於 target 時：
 
-1. **Included targets** - The targets matching your query are included in the
-   generated project
-2. **Dependencies** - All dependencies of the focused targets are automatically
-   included
-3. **Test targets** - Test targets for the focused targets are included
-4. **Exclusion** - All other targets are excluded from the workspace
+1. **包含的 target** - 符合你查詢的 target 會被包含在生成的項目中
+2. **依賴項** - 聚焦 target 的所有依賴項會自動被包含
+3. **測試 target** - 聚焦 target 的測試 target 會被包含
+4. **排除** - 所有其他 target 會從工作區中排除
 
-This means you get a smaller, more manageable workspace that contains only what
-you need to work on your feature.
+這意味著你會獲得一個更小、更易管理的工作區，其中只包含開發功能所需的內容。
 
-## Tag naming conventions {#tag-naming-conventions}
+## 標籤命名慣例 {#tag-naming-conventions}
 
-While you can use any string as a tag, following a consistent naming convention
-helps keep your tags organized:
+雖然你可以使用任何字串作為標籤，但遵循一致的命名慣例有助於保持標籤有序：
 
 ```swift
 // Organize by feature
@@ -133,13 +118,51 @@ metadata: .metadata(tags: ["platform:ios", "platform:macos"])
 metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ```
 
-Using prefixes like `feature:`, `team:`, or `layer:` makes it easier to
-understand the purpose of each tag and avoid naming conflicts.
+使用如 `feature:`、`team:` 或 `layer:` 等前綴，可以更容易理解每個標籤的用途並避免命名衝突。
 
-## Using tags with project description helpers {#using-tags-with-helpers}
+## 系統標籤 {#system-tags}
 
-You can leverage
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> to standardize how tags are applied across your project:
+Tuist 使用 `tuist:` 前綴來標示系統管理的標籤。這些標籤由 Tuist 自動應用，並可用於快取設定檔中以針對特定類型的生成內容。
+
+### 可用的系統標籤
+
+| 標籤 | 描述 |
+| --- | --- |
+| `tuist:synthesized` | 應用於 Tuist 為靜態函式庫和靜態框架中的資源處理而建立的合成 bundle target。這些 bundle 出於歷史原因存在，以提供資源存取器 API。 |
+
+### 在快取設定檔中使用系統標籤
+
+你可以在快取設定檔中使用系統標籤來包含或排除合成的 target：
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+> [!TIP]
+> **合成 Bundle 繼承父級標籤**
+>
+> 合成 bundle target 除了接收 `tuist:synthesized` 標籤外，還會繼承其父級 target 的所有標籤。這意味著如果你為靜態函式庫加上 `feature:auth` 標籤，其合成的資源 bundle 將同時具有 `feature:auth` 和 `tuist:synthesized` 標籤。
+
+
+## 將標籤與項目描述輔助工具一起使用 {#using-tags-with-helpers}
+
+你可以利用 <.localized_link href="/guides/features/projects/code-sharing">項目描述輔助工具</.localized_link> 來標準化標籤在項目中的應用方式：
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -167,7 +190,7 @@ extension Target {
 }
 ```
 
-Then use it in your manifests:
+然後在你的清單中使用它：
 
 ```swift
 import ProjectDescription
@@ -182,33 +205,28 @@ let project = Project(
 )
 ```
 
-## Benefits of using metadata tags {#benefits}
+## 使用元數據標籤的好處 {#benefits}
 
-### Improved development experience
+### 提升開發體驗
 
-By focusing on specific parts of your project, you can:
+透過聚焦於項目的特定部分，你可以：
 
-- **Reduce Xcode project size** - Work with smaller projects that are faster to
-  open and navigate
-- **Speed up builds** - Build only what you need for your current work
-- **Improve focus** - Avoid distractions from unrelated code
-- **Optimize indexing** - Xcode indexes less code, making autocompletion faster
+- **減小 Xcode 項目大小** - 處理更小的項目，開啟和導航更快
+- **加快建置速度** - 只建置當前工作所需的內容
+- **提高專注度** - 避免無關代碼的干擾
+- **優化索引** - Xcode 索引的代碼更少，使自動補全更快
 
-### Better project organization
+### 更好的項目組織
 
-Tags provide a flexible way to organize your codebase:
+標籤提供了一種靈活的方式來組織你的代碼庫：
 
-- **Multiple dimensions** - Tag targets by feature, team, layer, platform, or
-  any other dimension
-- **No structural changes** - Add organizational structure without changing
-  directory layout
-- **Cross-cutting concerns** - A single target can belong to multiple logical
-  groups
+- **多個維度** - 按功能、團隊、層級、平台或其他任何維度標記 target
+- **無需結構變更** - 添加組織結構而無需更改目錄佈局
+- **跨領域關注點** - 單個 target 可以屬於多個邏輯組
 
-### Integration with caching
+### 與快取整合
 
-Metadata tags work seamlessly with
-<LocalizedLink href="/guides/features/cache">Tuist's caching features</LocalizedLink>:
+元數據標籤可與 <.localized_link href="/guides/features/cache">Tuist 的快取功能</.localized_link> 無縫協作：
 
 ```bash
 # Cache all targets
@@ -218,22 +236,16 @@ tuist cache
 tuist generate tag:feature:payment
 ```
 
-## Best practices {#best-practices}
+## 最佳實踐 {#best-practices}
 
-1. **Start simple** - Begin with a single tagging dimension (e.g., features) and
-   expand as needed
-2. **Be consistent** - Use the same naming conventions across all your manifests
-3. **Document your tags** - Keep a list of available tags and their meanings in
-   your project's documentation
-4. **Use helpers** - Leverage project description helpers to standardize tag
-   application
-5. **Review periodically** - As your project evolves, review and update your
-   tagging strategy
+1. **從簡單開始** - 從單一標記維度（例如功能）開始，並按需擴展
+2. **保持一致性** - 在所有清單中使用相同的命名慣例
+3. **記錄你的標籤** - 在項目的文檔中保留可用標籤及其含義的列表
+4. **使用輔助工具** - 利用項目描述輔助工具來標準化標籤應用
+5. **定期審查** - 隨著項目的發展，審查並更新你的標記策略
 
-## Related features {#related-features}
+## 相關功能 {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Code sharing</LocalizedLink> - Use project description helpers to standardize tag
-  usage
-- <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> - Combine
-  tags with caching for optimal build performance
-- <LocalizedLink href="/guides/features/selective-testing">Selective testing</LocalizedLink> - Run tests only for changed targets
+- <.localized_link href="/guides/features/projects/code-sharing">代碼共享</.localized_link> - 使用項目描述輔助工具來標準化標籤用法
+- <.localized_link href="/guides/features/cache">快取</.localized_link> - 將標籤與快取結合以獲得最佳建置性能
+- <.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link> - 僅對已更改的 target 運行測試

@@ -335,6 +335,11 @@ class AtlasAuthentication(
         completion: (Result<JSONObject>) -> Unit,
     ) = operation("business", action, completion)
 
+    fun environment(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) = operation("environment", action, completion)
+
     fun presence(
         action: JSONObject,
         completion: (Result<JSONObject>) -> Unit,

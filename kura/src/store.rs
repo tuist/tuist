@@ -7317,6 +7317,10 @@ impl Store {
             return Ok(());
         }
 
+        #[cfg(test)]
+        self.failpoints
+            .hit_blocking(FailpointName::BeforeUsageOutboxAppend)?;
+
         let mut batch = WriteBatch::default();
         for rollup in rollups {
             let value = serde_json::to_vec(rollup)

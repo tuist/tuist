@@ -56,6 +56,35 @@ fn message() -> Value {
 }
 
 #[test]
+fn optional_followups_are_bounded_without_breaking_legacy_history() {
+    let mut value = message();
+    for invalid in [Value::Null, json!({"action":"send"}), json!(false)] {
+        value["suggestions"] = invalid;
+        let parsed: Message = serde_json::from_value(value.clone()).unwrap();
+        assert!(parsed.suggestions.is_empty());
+        assert_eq!(parsed.body, "Please investigate");
+    }
+    let boundary = "🦀".repeat(120);
+    value["suggestions"] = json!([
+        " ",
+        42,
+        " Show account activity ",
+        "Show account activity",
+        "🦀".repeat(121),
+        boundary,
+        "Compare open tasks",
+        "Dropped fourth option"
+    ]);
+    let parsed: Message = serde_json::from_value(value).unwrap();
+    assert_eq!(
+        parsed.suggestions,
+        vec!["Show account activity", &boundary, "Compare open tasks"]
+    );
+    let legacy: Message = serde_json::from_value(message()).unwrap();
+    assert!(legacy.suggestions.is_empty());
+}
+
+#[test]
 fn fixed_routes_use_selected_instance_and_filter_payloads() {
     let cases = [
         (
@@ -63,6 +92,8 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
                 page: 2,
                 kind: None,
                 status: None,
+                query: None,
+                domain: None,
             },
             "GET",
             "?page=2".to_owned(),
@@ -81,9 +112,12 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
                 page: 1,
                 kind: Some("private".into()),
                 status: Some("archived".into()),
+                query: Some("release & 50%_".into()),
+                domain: Some("engineering".into()),
             },
             "GET",
-            "?page=1&kind=private&status=archived".into(),
+            "?page=1&kind=private&status=archived&query=release+%26+50%25_&domain=engineering"
+                .into(),
             Value::Null,
             json!({"assistant":{"name":"Pip","configured":true,"can_create_private":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}),
         ),
@@ -212,16 +246,22 @@ fn invalid_paths_pages_and_messages_never_leave_device() {
             page: 0,
             kind: None,
             status: None,
+            query: None,
+            domain: None,
         },
         Action::List {
             page: 1,
             kind: Some("../admin".into()),
             status: None,
+            query: None,
+            domain: None,
         },
         Action::List {
             page: 1,
             kind: None,
             status: Some("deleted".into()),
+            query: None,
+            domain: None,
         },
         Action::Archive {
             id: "../admin".into(),

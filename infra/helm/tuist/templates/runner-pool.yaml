@@ -32,13 +32,21 @@ catalog-driven xcodeVersions block below is the steady-state path.
 
 A pool names its image with `runnerImage`, or with `xcodeVersion`, which
 takes the catalog's image for that Xcode (`tuist.macosRunnerImage`) so the
-pool follows runner image releases with the rest of the fleet.
+pool follows runner image releases with the rest of the fleet. On a rack whose
+catalog pools run stacked images (`rackFleet.runners.stackedImages`), the pool
+runs the Xcode's stacked image too.
 */}}
+{{- $rackStacked := and .Values.rackFleet.enabled (dig "stackedImages" false (.Values.rackFleet.runners | default dict)) }}
 {{- range $pool := $pools }}
 {{- $name := required "runnersFleet.pools[].name required" $pool.name }}
 {{- $image := $pool.runnerImage }}
 {{- with $pool.xcodeVersion }}
 {{- $image = include "tuist.macosRunnerImage" (dict "root" $ "xcodeVersion" .) }}
+{{- if and $rackStacked (eq ($pool.fleetSelector | default "") (include "tuist.rackFleetName" $)) }}
+{{- with include "tuist.macosRunnerStackedImage" (dict "root" $ "xcodeVersion" .) }}
+{{- $image = . }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- if not $image }}
   {{- fail (printf "runnersFleet.pools[%s] needs runnerImage or xcodeVersion" $name) }}
@@ -377,12 +385,16 @@ shape larger than the smallest host in the fleet MUST carry an
 host it; that ceiling, not the shared budget, is what keeps the pool from
 targeting slots it can never fill. Omitting the block leaves the pool
 static at replicas 0, which is the safe cold default.
+
+An Xcode's override replaces that block for its own pool of the shape,
+`xcodeOverrides.<xcode>.shapes.<shapeKey>.autoscaling`, so one Xcode's
+shape pool can keep a warm floor while the shape's other pools stay cold.
 */}}
 {{- range $shape := $placement.shapes }}
 {{- $vcpus := required "runnersFleet.shapes[].vcpus required" $shape.vcpus | int }}
 {{- $memoryGb := required "runnersFleet.shapes[].memoryGb required" $shape.memoryGb | int }}
 {{- $shapeKey := printf "%dvcpu-%dgb" $vcpus $memoryGb }}
-{{- $shapeAutoscaling := $shape.autoscaling }}
+{{- $shapeAutoscaling := dig "shapes" $shapeKey "autoscaling" $shape.autoscaling $override }}
 {{- $shapePoolName := printf "%s-%s%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $sitePart $xcodeTag $shapeKey }}
 {{- $shapeGuestVcpus := $vcpus }}
 {{- $shapeGuestMemoryGb := $memoryGb }}

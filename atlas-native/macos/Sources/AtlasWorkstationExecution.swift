@@ -17,8 +17,11 @@ enum AtlasWorkstationExecution {
                             result = try read(command.arguments.path ?? "", root: root)
                         case "environment_list_directory":
                             result = try list(command.arguments.path ?? "", root: root)
-                        case "environment_terminal":
-                            result = try process.run(command.arguments.command ?? "", root: root)
+                        case "environment_terminal", "bash":
+                            result = try process.run(command.arguments.command ?? "", root: root,
+                                                     timeout: command.arguments.timeout ?? 1800)
+                        case "read", "edit", "write":
+                            result = try AtlasWorkstationFiles.perform(command, root: root)
                         default:
                             result = AtlasWorkstationResult(
                                 success: false, output: "This tool is unavailable on this Mac."
@@ -26,7 +29,8 @@ enum AtlasWorkstationExecution {
                         }
                     } catch {
                         result = AtlasWorkstationResult(
-                            success: false, output: "Could not read the selected project or run this tool."
+                            success: false, output: "Could not access the file or run this tool. " +
+                                "Use a contained UTF-8 file (maximum 4 MiB); write parents must exist."
                         )
                     }
                     continuation.resume(returning: result)
@@ -127,8 +131,8 @@ private final class WorkstationProcess: @unchecked Sendable {
         if pid > 0 { kill(-pid, SIGKILL) }
     }
 
-    func run(_ command: String, root: URL) throws -> AtlasWorkstationResult {
-        guard !command.isEmpty, command.utf8.count <= 8000, !command.contains("\0") else {
+    func run(_ command: String, root: URL, timeout: Int) throws -> AtlasWorkstationResult {
+        guard !command.isEmpty, command.utf8.count <= 8000, !command.contains("\0"), (1...1800).contains(timeout) else {
             throw CocoaError(.executableNotLoadable)
         }
         var descriptors = [Int32](repeating: 0, count: 2)
@@ -149,11 +153,13 @@ private final class WorkstationProcess: @unchecked Sendable {
         posix_spawnattr_setpgroup(&attributes, 0)
         // An independent deadline also survives an app crash. The command is a
         // positional argument, never interpolated into the watchdog's source.
-        let wrapper = "(sleep 1800; kill -KILL -- -$$) </dev/null >/dev/null 2>&1 & exec /bin/zsh -f -c \"$1\""
-        let arguments: [UnsafeMutablePointer<CChar>?] = ["/bin/sh", "-c", wrapper, "atlas-tool", command]
+        let wrapper = "(sleep \"$2\"; kill -KILL -- -$$) </dev/null >/dev/null 2>&1 & exec /bin/zsh -f -c \"$1\""
+        let arguments: [UnsafeMutablePointer<CChar>?] = [
+            "/bin/sh", "-c", wrapper, "atlas-tool", command, String(timeout)
+        ]
             .map { $0.withCString { strdup($0) } } + [nil]
         let environment: [UnsafeMutablePointer<CChar>?] = [
-            "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "HOME=\(NSHomeDirectory())",
+            "PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin", "HOME=\(NSHomeDirectory())",
             "TMPDIR=\(NSTemporaryDirectory())", "LANG=en_US.UTF-8"
         ]
             .map { $0.withCString { strdup($0) } } + [nil]
@@ -172,7 +178,7 @@ private final class WorkstationProcess: @unchecked Sendable {
         guard spawned == 0 else { throw CocoaError(.executableNotLoadable) }
         defer { lock.lock(); pid = 0; lock.unlock() }
         let deadline = DispatchSource.makeTimerSource()
-        deadline.schedule(deadline: .now() + 1800)
+        deadline.schedule(deadline: .now() + .seconds(timeout))
         deadline.setEventHandler { [weak self] in self?.cancel() }
         deadline.resume()
         defer { deadline.cancel() }
@@ -198,7 +204,7 @@ private final class WorkstationProcess: @unchecked Sendable {
         lock.lock()
         let stopped = cancelled
         lock.unlock()
-        let suffix = stopped ? "\n[Command stopped by cancellation or the 30-minute limit.]" : ""
+        let suffix = stopped ? "\n[Command stopped by cancellation or its execution limit.]" : ""
         return AtlasWorkstationResult(success: status == 0 && !stopped,
                                       output: text + suffix)
     }

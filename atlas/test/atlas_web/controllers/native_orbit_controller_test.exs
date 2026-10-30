@@ -8,6 +8,7 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
 
   alias Atlas.Orbit
   alias Atlas.Orbit.Attachments
+  alias Atlas.Orbit.Classification
   alias Atlas.Orbit.Run
   alias Atlas.Repo
 
@@ -63,7 +64,10 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
              "name" => "Pip",
              "configured" => true,
              "can_create_private" => true,
-             "environments" => true
+             "environments" => true,
+             "searchable" => true,
+             "domains" =>
+               Enum.map(Classification.domains(), &Map.new(&1, fn {key, value} -> {Atom.to_string(key), value} end))
            }
 
     assert %{"page" => 1, "total_pages" => 1, "total_count" => 2, "items" => [first, second]} = body["threads"]
@@ -72,13 +76,48 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert second["kind"] == "shared" and second["title"] == "Team"
 
     assert Map.keys(first) |> Enum.sort() ==
-             ~w(agent_status environment_id environment_name id kind latest_seq model origin owner_id participants priority project_id status summary title updated_at)
+             ~w(agent_status domain environment_id environment_name id kind latest_seq model origin owner_id participants priority project_id repository status summary title updated_at)
 
     assert is_nil(first["environment_id"]) and is_nil(first["environment_name"]) and is_nil(first["project_id"])
+    assert is_nil(first["repository"])
     assert first["participants"] == [%{"id" => user.id, "name" => user.name}]
     assert first["status"] == "active" and first["origin"] == "manual" and first["summary"] == ""
 
     assert api |> get("/api/native/orbit/threads?page=0") |> json_response(422) == %{"error" => "invalid_params"}
+  end
+
+  test "search and domain filters precede pagination and preserve audience boundaries" do
+    user = user_fixture()
+    api = bearer(user)
+    {:ok, hidden} = Orbit.create_shared(user_fixture(), %{"title" => "50%_ deployment"})
+    {:ok, match} = Orbit.create_shared(user, %{"title" => "50%_ deployment"})
+    {:ok, other} = Orbit.create_shared(user, %{"title" => "50abc deployment"})
+    for thread <- [hidden, match, other], do: thread |> Ecto.Changeset.change(domain: "engineering") |> Repo.update!()
+    {:ok, _unclassified} = Orbit.create_shared(user, %{"title" => "Hiring"})
+
+    for index <- 1..26 do
+      {:ok, noise} = Orbit.create_shared(user, %{"title" => "Other work #{index}"})
+      noise |> Ecto.Changeset.change(domain: "commercial") |> Repo.update!()
+    end
+
+    body = api |> get("/api/native/orbit/threads", %{query: "50%_", domain: "engineering"}) |> json_response(200)
+    assert body["threads"]["total_count"] == 1
+    assert [%{"id" => id, "domain" => "engineering"}] = body["threads"]["items"]
+    assert id == match.id
+
+    assert api
+           |> get("/api/native/orbit/threads", %{domain: "unclassified"})
+           |> json_response(200)
+           |> get_in(["threads", "total_count"]) == 1
+
+    for params <- [
+          %{domain: "unknown"},
+          %{query: String.duplicate("é", 101)},
+          %{query: "bad\nquery"},
+          %{owner_id: user.id}
+        ] do
+      assert api |> get("/api/native/orbit/threads", params) |> json_response(422) == %{"error" => "invalid_params"}
+    end
   end
 
   test "model choices are owner-authorized, durable, and frozen on each run" do
@@ -254,6 +293,37 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
 
     assert %{"error" => "validation_failed"} =
              api |> post("/api/native/orbit/threads", %{title: " "}) |> json_response(422)
+  end
+
+  test "authorized history carries each reply's evolving follow-ups, never client-authored suggestions" do
+    orbit_profile_fixture()
+    user = user_fixture()
+    api = bearer(user)
+    {:ok, thread, _} = Orbit.ensure_private(user)
+    path = "/api/native/orbit/threads/#{thread.id}/messages"
+
+    for {prompt, reply, suggestions} <- [
+          {"What needs attention?", "Two tasks are overdue.", ["Show the overdue tasks", "Compare priorities"]},
+          {"Show the overdue tasks", "The release review is the priority.", ["Summarize the release risks"]}
+        ] do
+      human =
+        api
+        |> post(path, %{body: prompt, client_id: Ecto.UUID.generate(), suggestions: ["Untrusted metadata"]})
+        |> json_response(201)
+
+      assert human["message"]["suggestions"] == []
+      run = Orbit.active_run(thread)
+      Repo.update!(Ecto.Changeset.change(run, status: "running"))
+      response = JSON.encode!(%{reply: reply, suggestions: suggestions})
+      assert :ok = Orbit.Runs.complete(run.id, run.resume_count, {:ok, response})
+
+      history = api |> get(path) |> json_response(200)
+      latest = List.last(history["messages"]["items"])
+      assert latest["kind"] == "agent" and latest["body"] == reply
+      assert latest["suggestions"] == suggestions
+    end
+
+    assert bearer(user_fixture()) |> get(path) |> json_response(404) == %{"error" => "not_found"}
   end
 
   test "posts idempotently and returns history newest page first in chronological order" do

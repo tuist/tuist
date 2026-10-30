@@ -1,0 +1,86 @@
+{{- if and .Values.enabled .Values.target.id }}
+{{- $reader := printf "%s-target-reader" .Release.Name }}
+{{- $config := dict
+  "site" .Values.target.site
+  "enabled" .Values.target.enabled
+  "private_network_ready" .Values.target.privateNetworkReady
+  "endpoint" (printf "http://%s.%s.svc.cluster.local:3900" .Release.Name .Release.Namespace)
+  "bucket" .Values.bucket
+  "region" "garage"
+  "access_key_id" "{{ .access_key_id }}"
+  "secret_access_key" "{{ .secret_access_key }}" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $reader }}
+  namespace: {{ .Values.serverNamespace }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $reader }}
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [{{ .Release.Name | quote }}]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $reader }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $reader }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $reader }}
+    namespace: {{ .Values.serverNamespace }}
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: {{ $reader }}
+  namespace: {{ .Values.serverNamespace }}
+spec:
+  provider:
+    kubernetes:
+      remoteNamespace: {{ .Release.Namespace }}
+      server:
+        url: https://kubernetes.default.svc
+        caProvider:
+          type: ConfigMap
+          name: kube-root-ca.crt
+          key: ca.crt
+      auth:
+        serviceAccount:
+          name: {{ $reader }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Release.Name }}-targets
+  namespace: {{ .Values.serverNamespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: {{ $reader }}
+  target:
+    name: {{ .Release.Name }}-targets
+    template:
+      engineVersion: v2
+      data:
+        targets.json: {{ dict .Values.target.id $config | toJson | quote }}
+  data:
+    - secretKey: access_key_id
+      remoteRef:
+        key: {{ .Release.Name }}
+        property: access-key-id
+    - secretKey: secret_access_key
+      remoteRef:
+        key: {{ .Release.Name }}
+        property: secret-access-key
+{{- end }}

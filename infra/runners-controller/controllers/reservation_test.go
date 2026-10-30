@@ -1454,3 +1454,73 @@ func TestReservation_AFreshCacheVolumeAgentDoesNotHoldBackTheEarlyPath(t *testin
 		t.Error("a host holding only an idle runner and the cache-volume agent should be reserved before reservationGrace")
 	}
 }
+
+func reserveFor(node *corev1.Node, pool *tuistv1.RunnerPool, ago time.Duration) *corev1.Node {
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{
+		reservationAtAnnotation: reservationNow.Add(-ago).UTC().Format(time.RFC3339),
+	}
+	return node
+}
+
+// A RISE-L seats one 16 vCPU Pod, so a pool short three of them is served
+// one host at a time. Production, 2026-10-29 08:54: the reservation seated
+// its Pod in 32 s and then held the host until the 15 minute timeout while
+// the pool's other two Pods waited for it.
+func TestReservation_HandsBackAHostOnceItSeatsWhatItCan(t *testing.T) {
+	pool := starvedSince(linuxMidPool(), 3*time.Minute)
+	pool.Spec.Replicas = 3
+	seated := kataPod(placedPod("mid-0", pool.Name, "rl-0", ""), 16000, 32768)
+	waiting := []*corev1.Pod{
+		kataPod(pendingPod("mid-1", pool.Name, 3*time.Minute), 16000, 32768),
+		kataPod(pendingPod("mid-2", pool.Name, 3*time.Minute), 16000, 32768),
+	}
+
+	r := reservationReconciler(pool, linuxSmallPool(),
+		reserveFor(riseLNode("rl-0"), pool, 30*time.Second), riseLNode("rl-1"),
+		seated, waiting[0], waiting[1],
+		kataPod(placedPod("rl-1-warm", "runner-pool-linux-4vcpu-16gb", "rl-1", ""), 4000, 16384),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*seated, *waiting[0], *waiting[1]}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	released := nodeByName(t, r, "rl-0")
+	if isReserved(released) {
+		t.Fatal("held a host that cannot seat another Pod of the pool")
+	}
+	if inReservationCooldown(released, reservationNow) {
+		t.Error("a host that seated its Pod must go back without a cooldown")
+	}
+	if !isReserved(nodeByName(t, r, "rl-1")) {
+		t.Fatal("the pool's next Pod should get the next host in the same pass")
+	}
+}
+
+// A host with room for another of the pool's Pods keeps accumulating
+// seats for it.
+func TestReservation_KeepsAHostThatCanSeatAnotherOwnPod(t *testing.T) {
+	pool := starvedSince(linuxMidPool(), 3*time.Minute)
+	pool.Spec.Replicas = 2
+	seated := kataPod(placedPod("mid-0", pool.Name, "ax-0", ""), 16000, 32768)
+	waiting := kataPod(pendingPod("mid-1", pool.Name, 3*time.Minute), 16000, 32768)
+
+	r := reservationReconciler(pool, linuxSmallPool(),
+		reserveFor(ax162Node("ax-0"), pool, 30*time.Second), ax162Node("ax-1"),
+		seated, waiting,
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*seated, *waiting}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "ax-0")) {
+		t.Fatal("released a host that still has room for the pool's next Pod")
+	}
+	if isReserved(nodeByName(t, r, "ax-1")) {
+		t.Fatal("took a second reservation while the first is still useful")
+	}
+}

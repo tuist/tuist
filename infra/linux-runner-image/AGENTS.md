@@ -172,7 +172,7 @@ root, or trimming externals from the image, breaks job containers
 From this directory:
 
 ```bash
-docker build --pull -t ghcr.io/tuist/tuist-linux-runner:dev .
+docker build --pull --build-context certificate-trust=../certificate-trust -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```
 
 `RUNNER_VERSION` is a `--build-arg` (default lives in the
@@ -423,9 +423,10 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   `changed`). Before that, when the agent's `/docker-merge` offers the saved head
   another job published since the mount, a changed data root is merged with it:
   a second dockerd runs on the head's clone (`/var/lib/docker-merge`, its own
-  socket, no networking), the images only one side keeps are copied into the
-  other with `docker save | docker load` (`planDockerMerge`: whichever moves
-  fewer bytes), the ledgers are merged, and the report names `merged_generation`
+  socket, no networking), the images one side added since the mount and the
+  other lacks are copied into the other with `docker save | docker load`
+  (`planDockerMerge`: whichever moves fewer bytes; an image of the mount that
+  either side removed is never brought back), the ledgers are merged, and the report names `merged_generation`
   and `merged_into` (`branch` or `head`) and describes the merged root. Any
   failure leaves the data root as the job left it. Without a volume, a job the agent answered
   `unseen` reports `/docker-seen` when the daemon holds any image, so the
@@ -444,8 +445,11 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   volume drivers/options are refused. Snapshot their tree metadata without
   following symlinks, bounded by teardown's context and one million entries.
   Default upstream setup with a random name and `keep-state: false` is ephemeral.
-- Merge different BuildKit volume keys, selecting this job's complete state for
-  a key it changed, otherwise the head's state. Never splice BuildKit databases.
+- Merge BuildKit volume keys three ways against the mount (`planBuildkitMerge`):
+  this job's complete state for a key it changed or added, otherwise the head's;
+  a key one side removed stays removed unless the other side changed it. Never
+  bring back a builder a job's prune or retention deleted, and skip copying
+  identical states. Never splice BuildKit databases.
   If the daemon's embedded build cache changed, merge images into the branch so
   that new build work survives; concurrent embedded caches use last-writer state.
   Stop/remove BuildKit containers before copying their volume state. A failed

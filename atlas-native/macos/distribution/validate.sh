@@ -7,7 +7,7 @@ plist="$app/Contents/Info.plist"
 buddy=/usr/libexec/PlistBuddy
 fail() { echo "$*" >&2; exit 1; }
 [[ -f "$plist" && -x "$app/Contents/MacOS/Atlas" ]] || fail 'Expected a macOS Contents bundle'
-[[ "$("$buddy" -c 'Print :CFBundleIdentifier' "$plist")" = dev.tuist.atlas.macos ]] || fail 'Unexpected Atlas bundle identity'
+[[ "$("$buddy" -c 'Print :CFBundleIdentifier' "$plist")" = dev.tuist.atlas ]] || fail 'Unexpected Atlas bundle identity'
 [[ "$("$buddy" -c 'Print :CFBundleExecutable' "$plist")" = Atlas ]] || fail 'Unexpected executable'
 [[ "$("$buddy" -c 'Print :CFBundleIconFile' "$plist")" = Atlas.icns ]] || fail 'Missing Atlas icon declaration'
 icon="$app/Contents/Resources/Atlas.icns"

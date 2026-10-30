@@ -43,6 +43,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :error_message, :string
 
     belongs_to :account, Account
+    belongs_to :provider_environment, Tuist.Sandboxes.ProviderEnvironment, type: :binary_id
     belongs_to :amp_integration, Tuist.Sandboxes.AmpIntegration, type: :binary_id
     belongs_to :agent_environment, AgentEnvironment
 
@@ -81,6 +82,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :anthropic_session_id,
       :amp_orb_id,
       :amp_integration_id,
+      :provider_environment_id,
       :template,
       :vcpus,
       :memory_mb,
@@ -91,6 +93,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     |> validate_shape()
     |> unique_constraint([:agent_environment_id, :anthropic_session_id])
     |> unique_constraint([:account_id, :amp_orb_id])
+    |> unique_constraint(:provider_environment_id)
   end
 
   def update_changeset(sandbox, attrs) do

@@ -2218,12 +2218,22 @@ defmodule Tuist.Accounts do
       Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
 
       {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
-      Repo.insert!(user_token)
+      user_token = Repo.insert!(user_token)
 
-      UserNotifier.deliver_reset_password_instructions(%{
-        user: user,
-        reset_password_url: reset_password_url.(encoded_token)
-      })
+      case UserNotifier.deliver_reset_password_instructions(%{
+             user: user,
+             reset_password_url: reset_password_url.(encoded_token)
+           }) do
+        {:ok, email} ->
+          email
+
+        {:error, _reason} ->
+          # Do not let an undelivered token suppress retries during the cooldown.
+          Repo.delete!(user_token, allow_stale: true)
+          # Bamboo API errors may include the recipient and reset URL.
+          Logger.error("Password reset email delivery failed")
+          {:error, :delivery_failed}
+      end
     end
   end
 

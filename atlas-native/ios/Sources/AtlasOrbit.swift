@@ -30,6 +30,7 @@ final class AtlasOrbit: ObservableObject {
     var pendingUploadName: String? { state?.uploadPending == true ? state?.uploadFilename : nil }
     var loading: Bool { state?.loading ?? false }
     var cached: Bool { state?.cached == true }
+    var historyCached: Bool { state?.historyCached == true }
     var loadingHistory: Bool { state?.historyLoading ?? false }
     var saving: Bool { submitting || (state?.saving ?? false) }
     var creating: Bool { loading }
@@ -44,19 +45,6 @@ final class AtlasOrbit: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return name?.isEmpty == false ? name : nil
     }
-    var activityMessage: String? {
-        guard liveMessage == nil else { return nil }
-        let name = assistant?.name ?? "Pip"
-        switch selected?.agentStatus {
-        case "queued": return "\(name) is getting ready…"
-        case "running":
-            if let tool = activeToolName { return "Using \(tool.replacingOccurrences(of: "_", with: " "))…" }
-            return "Typing…"
-        case "compacting": return "Compacting context…"
-        default: return nil
-        }
-    }
-
     private let request: ([String: Any]) async throws -> Data
     private let localRequest: ([String: Any]) async throws -> Data
     private var connection: String?
@@ -84,12 +72,6 @@ final class AtlasOrbit: ObservableObject {
         }
     }
 
-    func load(more: Bool = false, status: String? = nil) async {
-        var command: [String: Any] = ["action": more ? "load_more" : "load"]
-        if let status { command["status"] = status }
-        await perform(command)
-    }
-
     func privateThread() async -> AtlasThread? {
         guard await perform(["action": "private"]) else { return nil }
         return selected
@@ -102,14 +84,19 @@ final class AtlasOrbit: ObservableObject {
 
     func open(_ thread: AtlasThread) async {
         if selected?.id != thread.id {
-            selectionRevision = UUID()
-            await perform(["action": "select", "id": thread.id])
+            _ = await open(id: thread.id)
         }
     }
 
     func open(id: String) async -> AtlasThread? {
         selectionRevision = UUID()
-        guard await perform(["action": "select", "id": id]), !Task.isCancelled,
+        let intent = selectionRevision
+        if let handle = try? await ensureConnection(), intent == selectionRevision, !Task.isCancelled,
+           let data = try? await localRequest(["action": "saved_history", "connection": handle, "id": id]),
+           let saved = try? decode(data) as Snapshot, intent == selectionRevision, !Task.isCancelled { apply(saved) }
+        guard intent == selectionRevision, !Task.isCancelled else { return nil }
+        let refreshed = await perform(["action": "select", "id": id])
+        guard refreshed || historyCached, !Task.isCancelled, intent == selectionRevision,
               let selected, selected.id == id else { return nil }
         return selected
     }
@@ -283,6 +270,32 @@ final class AtlasOrbit: ObservableObject {
 }
 
 extension AtlasOrbit {
+    var activityMessage: String? {
+        guard liveMessage == nil else { return nil }
+        let name = assistant?.name ?? "Pip"
+        switch selected?.agentStatus {
+        case "queued": return "\(name) is getting ready…"
+        case "running":
+            if let tool = activeToolName { return "Using \(tool.replacingOccurrences(of: "_", with: " "))…" }
+            return "Typing…"
+        case "compacting": return "Compacting context…"
+        default: return nil
+        }
+    }
+
+    var query: String { state?.query ?? "" }
+    var domainFilter: String { state?.domainFilter ?? "" }
+    var domains: [AtlasOrbitDomain] { assistant?.domains ?? [] }
+    func domainTitle(_ domain: String?) -> String? { domains.first { $0.id == domain }?.name }
+
+    func load(more: Bool = false, status: String? = nil, query: String? = nil, domain: String? = nil) async {
+        var command: [String: Any] = ["action": more ? "load_more" : "load"]
+        if let status { command["status"] = status }
+        if let query { command["query"] = query }
+        if let domain { command["domain"] = domain }
+        await perform(command)
+    }
+
     func loadModels() async { await perform(["action": "models"]) }
 
     func setModel(_ choice: String?, threadId: String) async {

@@ -6,6 +6,13 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   used by sandbox lifecycle operations serializes dispatch, including the
   first create, across web replicas. The unique index is the final identity
   fence. Amp owns idle detection and sends pause when a turn finishes.
+
+  Project snapshots: a pause carrying Amp's `snapshot_id` syncs the guest's
+  disks and saves them as a `Tuist.Sandboxes.DiskSnapshot` on the Orb's
+  node; a spawn of a new Orb carrying a `snapshot_id` the account has saved
+  is cloned from it, so Amp skips the project's setup. Saving is best
+  effort: a failed save never fails the pause, and Amp then reruns setup
+  in the next new Orb.
   """
 
   alias Tuist.Environment
@@ -14,7 +21,10 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   alias Tuist.Repo
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Sandbox
+
+  require Logger
 
   @cache_scopes ["account:cache:read", "project:cache:read"]
   @cache_token_ttl_hours 6
@@ -54,15 +64,35 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     with {:ok, _deleted} <- Sandboxes.delete(sandbox), do: {:ok, nil}
   end
 
-  defp dispatch_operation(_account, _orb_id, %Sandbox{state: :paused} = sandbox, %{operation: "pause"}) do
-    Sandboxes.end_residency(sandbox)
+  defp dispatch_operation(_account, _orb_id, %Sandbox{state: :paused} = sandbox, %{operation: "pause"} = params) do
+    with {:ok, paused} <- Sandboxes.end_residency(sandbox) do
+      save_snapshot(paused, params)
+    end
   end
 
-  defp dispatch_operation(_account, _orb_id, sandbox, %{operation: "pause"}) do
+  defp dispatch_operation(_account, _orb_id, sandbox, %{operation: "pause"} = params) do
     # Keep the residency until the snapshot succeeds. A failed pause must
     # not make an active Orb eligible for CI reclaim.
-    with {:ok, paused} <- Sandboxes.pause(sandbox), do: Sandboxes.end_residency(paused)
+    with {:ok, paused} <- Sandboxes.pause(sandbox, sync_disks: snapshot_id(params) != nil),
+         {:ok, paused} <- Sandboxes.end_residency(paused) do
+      save_snapshot(paused, params)
+    end
   end
+
+  defp save_snapshot(sandbox, params) do
+    with amp_snapshot_id when is_binary(amp_snapshot_id) <- snapshot_id(params),
+         {:error, reason} <- DiskSnapshots.save(sandbox, amp_snapshot_id) do
+      Logger.warning("sandboxes: saving an Orb project snapshot failed",
+        sandbox_id: sandbox.id,
+        node: sandbox.node_name,
+        reason: inspect(reason)
+      )
+    end
+
+    {:ok, sandbox}
+  end
+
+  defp snapshot_id(params), do: Map.get(params, :snapshot_id)
 
   defp find_or_create(account, orb_id, nil, params) do
     attrs =
@@ -70,7 +100,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
       |> Map.take([:template, :vcpus, :memory_mb, :workspace_gb, :amp_integration_id])
       |> Map.put(:amp_orb_id, orb_id)
 
-    Sandboxes.create_sandbox(account, attrs)
+    Sandboxes.create_sandbox(account, attrs, from_disk_snapshot: disk_snapshot(account, attrs, params))
   end
 
   # Placement refusal leaves an error row with no node. It is safe to retry
@@ -80,6 +110,23 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   end
 
   defp find_or_create(_account, _orb_id, sandbox, _params), do: {:ok, sandbox}
+
+  defp disk_snapshot(account, attrs, params) do
+    case snapshot_id(params) do
+      nil ->
+        nil
+
+      amp_snapshot_id ->
+        default_shape = Sandboxes.default_shape()
+
+        DiskSnapshots.find_ready(
+          account.id,
+          amp_snapshot_id,
+          Map.get(attrs, :template) || Sandboxes.default_template(),
+          Map.get(attrs, :workspace_gb) || default_shape.workspace_gb
+        )
+    end
+  end
 
   defp bootstrap(account, sandbox, params) do
     env =

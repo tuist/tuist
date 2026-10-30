@@ -8,8 +8,8 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-function mount(value = "json") {
-  document.body.innerHTML = `<form><div id="language" data-name="language" data-value="${value}">
+function mount(value = "json", disabled = false) {
+  document.body.innerHTML = `<form><div id="language" data-name="language" data-value="${value}" data-disabled="${disabled}">
     <select data-part="hidden-select" name="language"><option value=""></option><option value="json">JSON</option><option value="javascript">JavaScript</option></select>
     <button data-part="trigger"><span data-part="label-wrapper"><span data-part="label">Language</span></span></button>
     <div data-part="positioner"><div data-part="content">
@@ -47,5 +47,43 @@ describe("Select initial and server values", () => {
     hook.updated();
     await vi.waitFor(() => expect(submitted()).toBe("json"));
     expect(hook.el.querySelector("[data-part=label]").textContent).toBe("JSON");
+  });
+
+  it("honors disabled state on mount and after a server patch", async () => {
+    mount("json", true);
+    const trigger = hook.el.querySelector("[data-part=trigger]");
+    expect(trigger.disabled).toBe(true);
+    hook.el.dataset.disabled = "false";
+    hook.updated();
+    expect(trigger.disabled).toBe(false);
+    hook.el.dataset.disabled = "true";
+    hook.updated();
+    expect(trigger.disabled).toBe(true);
+  });
+
+  it("accepts refreshed options without losing an unacknowledged client selection", async () => {
+    mount();
+    hook.select.api.setValue(["javascript"]);
+    await vi.waitFor(() => expect(submitted()).toBe("javascript"));
+    hook.el
+      .querySelector("select")
+      .insertAdjacentHTML("beforeend", '<option value="text">Text</option>');
+    hook.el
+      .querySelector("[data-part=content]")
+      .insertAdjacentHTML(
+        "beforeend",
+        '<div data-part="item" data-value="text" data-label="Text">Text</div>',
+      );
+    hook.updated();
+    await vi.waitFor(() => expect(submitted()).toBe("javascript"));
+    hook.el.querySelector("[data-part=trigger]").click();
+    await vi.waitFor(() =>
+      expect(hook.el.querySelector("[data-part=content]").dataset.state).toBe(
+        "open",
+      ),
+    );
+    hook.el.querySelector('[data-value="text"]').click();
+    await vi.waitFor(() => expect(submitted()).toBe("text"));
+    expect(hook.el.querySelector("[data-part=label]").textContent).toBe("Text");
   });
 });

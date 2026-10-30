@@ -14,7 +14,7 @@ msgstr "Language: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/bundle_live.html.heex:433
 #, elixir-autogen, elixir-format
 msgid "%{duplicates_count} duplicates"
-msgstr "%{duplicates_count}개 중복"
+msgstr "중복 %{duplicates_count}개"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:769
 #: lib/tuist_web/live/xcode_cache_live.html.heex:898
@@ -39,22 +39,22 @@ msgstr "%{duration}초"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:881
 #, elixir-autogen, elixir-format
 msgid "%{hit_rate}%"
-msgstr "%{hit_rate}%"
+msgstr "히트율 %{hit_rate}%"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "%{run_duration}s"
-msgstr "%{run_duration}초"
+msgstr "실행 시간 %{run_duration}초"
 
 #: lib/tuist_web/live/bundle_live.html.heex:384
 #, elixir-autogen, elixir-format
 msgid "%{savings} %"
-msgstr "%{savings}%"
+msgstr "절감률 %{savings}%"
 
 #: lib/tuist_web/live/bundle_live.ex:905
 #, elixir-autogen, elixir-format
 msgid "%{space_usage} %"
-msgstr "%{space_usage}%"
+msgstr "공간 사용량 %{space_usage}%"
 
 #: lib/tuist_web/live/bundles_live.html.heex:177
 #, elixir-autogen, elixir-format
@@ -110,12 +110,12 @@ msgstr "앱:"
 #: lib/tuist_web/live/bundle_live.html.heex:571
 #, elixir-autogen, elixir-format
 msgid "Asset"
-msgstr "자산"
+msgstr "에셋"
 
 #: lib/tuist_web/live/bundle_live.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Assets"
-msgstr "자산"
+msgstr "에셋"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:457
 #: lib/tuist_web/live/toolchain_cache_live.ex:230
@@ -240,12 +240,12 @@ msgstr "캐시 히트율"
 #: lib/tuist_web/live/module_cache_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "캐시 히트율은 로컬 또는 원격 캐시에서 해결된 캐시 가능 대상의 비율을 나타내며, 재빌드되지 않은 경우를 의미합니다."
+msgstr "캐시 히트율은 로컬 또는 원격 캐시에서 해결되어 다시 빌드되지 않은 캐시 가능 대상의 비율을 나타냅니다."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "캐시 히트율은 로컬 또는 원격 캐시에서 해결되어 다시 빌드되지 않은 캐시 가능 작업의 비율을 나타냅니다."
+msgstr "캐시 히트율은 다시 빌드하는 대신 캐시(로컬 또는 원격)에서 해결된 캐시 가능 작업의 비율을 나타냅니다."
 
 #: lib/tuist_web/live/module_cache_live.ex:380
 #, elixir-autogen, elixir-format
@@ -255,7 +255,7 @@ msgstr "캐시 히트"
 #: lib/tuist_web/live/module_cache_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
-msgstr "캐시 히트는 지정된 기간 동안 로컬 또는 원격 캐시에서 해결된 타겟의 총 개수를 나타냅니다."
+msgstr "캐시 히트는 지정된 기간 동안 캐시(로컬 또는 원격)에서 해결된 대상의 총 개수를 나타냅니다."
 
 #: lib/tuist_web/live/module_cache_live.ex:389
 #, elixir-autogen, elixir-format
@@ -265,7 +265,7 @@ msgstr "캐시 미스"
 #: lib/tuist_web/live/module_cache_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
-msgstr "캐시 미스는 지정된 기간 동안 캐시에서 찾을 수 없어 다시 빌드해야 했던 캐시 가능 타겟의 총 개수를 나타냅니다."
+msgstr "캐시 미스는 지정된 기간 동안 캐시에서 찾을 수 없어 다시 빌드해야 했던 캐시 가능 대상의 총 개수를 나타냅니다."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:260
 #: lib/tuist_web/live/xcode_cache_live.ex:247
@@ -416,7 +416,7 @@ msgstr "히트율"
 #: lib/tuist_web/live/modules_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Hits"
-msgstr "히트 수"
+msgstr "히트"
 
 #: lib/tuist_web/live/bundle_live.ex:1027
 #: lib/tuist_web/live/bundles_live.ex:398
@@ -441,7 +441,7 @@ msgstr "설치 크기"
 #: lib/tuist_web/live/bundles_live.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Install size (MB)"
-msgstr "설치 크기 (MB)"
+msgstr "설치 크기(MB)"
 
 #: lib/tuist_web/live/bundle_live.html.heex:32
 #, elixir-autogen, elixir-format
@@ -479,7 +479,7 @@ msgstr "현지화"
 #: lib/tuist_web/live/modules_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Misses"
-msgstr "미스"
+msgstr "캐시 미스"
 
 #: lib/tuist_web/live/bundle_live.html.heex:185
 #: lib/tuist_web/live/bundle_live.html.heex:627
@@ -508,7 +508,7 @@ msgstr "이름"
 #: lib/tuist_web/live/bundles_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "No bundles yet"
-msgstr "아직 번들이 없습니다"
+msgstr "번들이 아직 없습니다"
 
 #: lib/tuist_web/live/bundles_live.html.heex:427
 #: lib/tuist_web/live/cache_runs_live.html.heex:135
@@ -519,7 +519,7 @@ msgstr "아직 번들이 없습니다"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:916
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "아직 데이터가 없습니다"
+msgstr "데이터가 아직 없습니다"
 
 #: lib/tuist_web/live/bundle_live.html.heex:608
 #, elixir-autogen, elixir-format
@@ -529,7 +529,7 @@ msgstr "파일을 찾을 수 없습니다"
 #: lib/tuist_web/live/bundle_live.html.heex:345
 #, elixir-autogen, elixir-format
 msgid "No insights yet"
-msgstr "아직 인사이트가 없습니다"
+msgstr "인사이트가 아직 없습니다"
 
 #: lib/tuist_web/live/bundle_live.html.heex:701
 #, elixir-autogen, elixir-format
@@ -558,7 +558,7 @@ msgstr "개요"
 #: lib/tuist_web/live/xcode_cache_live.ex:436
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "통과됨"
+msgstr "통과"
 
 #: lib/tuist_web/live/bundle_live.html.heex:519
 #: lib/tuist_web/live/bundle_live.html.heex:526
@@ -577,7 +577,7 @@ msgstr "플랫폼"
 #: lib/tuist_web/live/bundle_live.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Potential savings"
-msgstr "잠재적 절감액"
+msgstr "예상 절감 효과"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:11
 #: lib/tuist_web/live/cache_runs_live.html.heex:34
@@ -597,7 +597,7 @@ msgstr "실행 시간"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:889
 #, elixir-autogen, elixir-format
 msgid "Ran by"
-msgstr "실행자"
+msgstr "실행 주체"
 
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:213
 #: lib/tuist_web/live/xcode_cache_live.html.heex:782
@@ -618,17 +618,17 @@ msgstr "중복 파일 제거"
 #: lib/tuist_web/live/bundle_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the compressed app bundle that gets downloaded by a user over the network."
-msgstr "네트워크를 통해 사용자가 다운로드하는 압축된 앱 번들의 크기를 나타냅니다."
+msgstr "사용자가 네트워크를 통해 다운로드하는 압축 앱 번들의 크기를 나타냅니다."
 
 #: lib/tuist_web/live/bundle_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
-msgstr "사용자가 설치하는 압축 해제된 앱 번들의 크기를 나타냅니다. 이는 App Store에 표시되는 숫자입니다."
+msgstr "사용자가 설치하는 압축 해제된 앱 번들의 크기를 나타냅니다. 이 값은 App Store에 표시됩니다."
 
 #: lib/tuist_web/live/bundles_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to analyze a bundle."
-msgstr "번들을 분석하려면 다음 명령을 실행하세요."
+msgstr "번들을 분석하려면 다음 명령어를 실행하세요."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:519
 #: lib/tuist_web/live/xcode_cache_live.ex:424
@@ -678,12 +678,12 @@ msgstr "상태"
 #: lib/tuist_web/live/bundles_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
-msgstr "번들 다운로드 크기입니다. 이는 사용자가 App Store에서 최종적으로 다운로드하는 압축된 앱 크기입니다."
+msgstr "번들 다운로드 크기입니다. 이는 사용자가 App Store에서 다운로드하게 되는 압축된 앱 크기입니다."
 
 #: lib/tuist_web/live/bundles_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
-msgstr "번들 설치 크기입니다. 이는 압축 해제된 앱 크기로, 기기에서 앱이 차지하는 공간의 양을 나타냅니다."
+msgstr "번들 설치 크기입니다. 이는 압축이 해제된 앱 크기로, 기기에서 앱이 차지하는 공간 크기를 나타냅니다."
 
 #: lib/tuist_web/live/bundle_live.html.heex:609
 #: lib/tuist_web/live/bundle_live.html.heex:702
@@ -748,7 +748,7 @@ msgstr "Xcode 캐시"
 #: lib/tuist_web/live/bundle_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "compared to last bundle"
-msgstr "이전 번들 대비"
+msgstr "이전 번들과 비교"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:496
 #: lib/tuist_web/live/xcode_cache_live.html.heex:633
@@ -909,7 +909,7 @@ msgstr "캐시 엔드포인트"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Set up Xcode cache for your project"
-msgstr "프로젝트의 Xcode 캐시를 설정하세요"
+msgstr "프로젝트의 Xcode 캐시 설정하기"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
@@ -929,7 +929,7 @@ msgstr "크기 (KB)"
 #: lib/tuist_web/live/bundle_live.ex:1065
 #, elixir-autogen, elixir-format
 msgid "Space usage (%)"
-msgstr "공간 사용량 (%)"
+msgstr "공간 사용률 (%)"
 
 #: lib/tuist_web/live/bundle_live.ex:1030
 #: lib/tuist_web/live/bundles_live.ex:401
@@ -963,12 +963,12 @@ msgstr "환경"
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "10,000개 항목 제한에 도달했습니다. 데이터는 %{date}까지만 포함됩니다. 데이터 세트를 좁히려면 필터링을 시도하세요."
+msgstr "10,000개 항목 제한에 도달했으며, %{date}까지의 데이터만 포함되어 있습니다. 필터를 적용하여 데이터 세트를 좁혀 보세요."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data."
-msgstr "10,000개 항목 제한에 도달했습니다. 데이터는 %{date}까지만 포함됩니다. 더 최근의 데이터를 보려면 날짜 범위를 좁혀보세요."
+msgstr "10,000개 항목 제한에 도달했으며, %{date}까지의 데이터만 포함되어 있습니다. 날짜 범위를 좁혀 더 최근 데이터를 확인해 보세요."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:299
 #, elixir-autogen, elixir-format
@@ -1007,7 +1007,7 @@ msgstr "캐시 전송은 지정된 기간 동안 원격 스토리지에서 다�
 #: lib/tuist_web/live/xcode_cache_live.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Combined download and upload throughput against remote cache storage during the given period, derived from bytes transferred over time."
-msgstr "지정된 기간 동안 원격 캐시 스토리지에 대한 다운로드 및 업로드 처리량으로, 시간에 따라 전송된 바이트 수를 기준으로 계산됩니다."
+msgstr "지정된 기간 동안 원격 캐시 스토리지와의 결합된 다운로드 및 업로드 처리량으로, 시간당 전송된 바이트 수에서 파생됩니다."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:265
 #: lib/tuist_web/live/xcode_cache_live.ex:290
@@ -1101,7 +1101,7 @@ msgstr "콜드 미스"
 #: lib/tuist_web/live/modules_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "Dependents"
-msgstr "종속 항목"
+msgstr "종속 모듈"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:154
 #, elixir-autogen, elixir-format
@@ -1128,12 +1128,12 @@ msgstr "모듈"
 #: lib/tuist_web/live/module_cache_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Most dependents"
-msgstr "가장 많은 종속 항목"
+msgstr "가장 많은 종속 모듈"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:582
 #, elixir-autogen, elixir-format
 msgid "Most missed"
-msgstr "가장 많이 누락됨"
+msgstr "가장 많은 미스"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:201
 #, elixir-autogen, elixir-format
@@ -1143,7 +1143,7 @@ msgstr "해당 없음"
 #: lib/tuist_web/live/module_cache_live.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "Needs CLI graph edges"
-msgstr "CLI 그래프 엣지 필요"
+msgstr "CLI 그래프 엣지가 필요합니다"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:649
 #: lib/tuist_web/live/modules_live.html.heex:393
@@ -1154,7 +1154,7 @@ msgstr "아직 캐시 미스가 없습니다"
 #: lib/tuist_web/live/modules_live.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "No modules match your search"
-msgstr "검색 조건과 일치하는 모듈이 없습니다"
+msgstr "검색 조건에 맞는 모듈이 없습니다"
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:24
 #, elixir-autogen, elixir-format
@@ -1169,17 +1169,17 @@ msgstr "모듈 검색"
 #: lib/tuist_web/live/module_cache_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Share of invalidations caused only by an upstream dependency changing rather than the module's own code (upstream ÷ changed + upstream). This is the fraction better module boundaries can remove."
-msgstr "상위 의존성 변경으로 인해 발생한 무효화 비율(모듈 자체 코드 변경이 아닌, 상위 ÷ 변경 + 상위). 더 나은 모듈 경계 설정을 통해 줄일 수 있는 부분입니다."
+msgstr "해당 모듈의 코드 변경이 아닌 상위 의존성 변경으로만 인해 무효화된 비율(상위 ÷ (변경 + 상위)). 모듈 경계를 개선하면 줄일 수 있는 부분입니다."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Share of this module's builds that were served from cache instead of rebuilt."
-msgstr "재빌드되지 않고 캐시에서 제공된 이 모듈의 빌드 비율입니다."
+msgstr "재빌드되지 않고 캐시에서 제공된 이 모듈 빌드의 비율입니다."
 
 #: lib/tuist_web/live/module_cache_live.html.heex:585
 #, elixir-autogen, elixir-format
 msgid "The module that was a cache miss most often during the period. Reducing how often it rebuilds has the largest direct payoff."
-msgstr "해당 기간 동안 가장 자주 캐시 미스가 발생한 모듈입니다. 이 모듈의 재빌드 빈도를 줄이는 것이 가장 큰 직접적인 효과를 가져옵니다."
+msgstr "기간 중 가장 자주 캐시 미스가 발생한 모듈입니다. 재빌드 빈도를 줄이면 가장 큰 직접적 효과를 얻을 수 있습니다."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:325
 #: lib/tuist_web/live/module_cache_module_live.ex:349
@@ -1195,12 +1195,12 @@ msgstr "상위"
 #: lib/tuist_web/live/modules_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "Upstream misses"
-msgstr "업스트림 누락"
+msgstr "상위 캐시 미스"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Upstream share"
-msgstr "업스트림 공유"
+msgstr "상위 공유"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:557
 #, elixir-autogen, elixir-format
@@ -1210,7 +1210,7 @@ msgstr "모든 모듈 보기"
 #: lib/tuist_web/live/module_cache_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "The module that invalidates the most other modules when it changes. It is the highest-impact target for better boundaries."
-msgstr "변경 시 다른 모듈을 가장 많이 무효화하는 모듈입니다. 더 나은 경계를 위한 가장 영향력 있는 대상입니다."
+msgstr "변경 시 다른 모듈을 가장 많이 무효화하는 모듈입니다. 더 나은 경계를 위한 가장 영향력 높은 대상입니다."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:429
 #, elixir-autogen, elixir-format
@@ -1267,24 +1267,24 @@ msgstr "이유:"
 #: lib/tuist_web/live/modules_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Modules in the project, from the latest commit on its default branch."
-msgstr "기본 브랜치의 최신 커밋을 기준으로 한 프로젝트 내 모듈입니다."
+msgstr "프로젝트의 모듈, 기본 브랜치의 최신 커밋 기준."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:182
 #: lib/tuist_web/live/modules_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "All"
-msgstr "전체"
+msgstr "모두"
 
 #: lib/tuist_web/live/module_cache_module_live.ex:336
 #: lib/tuist_web/live/modules_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Changed misses"
-msgstr "캐시 미스 변경됨"
+msgstr "변경된 캐시 미스"
 
 #: lib/tuist_web/live/modules_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Module builds served from cache instead of being rebuilt."
-msgstr "모듈 빌드가 다시 빌드되는 대신 캐시에서 제공되었습니다."
+msgstr "모듈 빌드가 다시 빌드되지 않고 캐시에서 제공되었습니다."
 
 #: lib/tuist_web/live/module_cache_module_live.html.heex:122
 #, elixir-autogen, elixir-format
@@ -1299,17 +1299,17 @@ msgstr "외 %{count}개 더"
 #: lib/tuist_web/helpers/module_cache.ex:59
 #, elixir-autogen, elixir-format
 msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
-msgstr "이 정확한 키는 이전에 동일한 캐시 엔드포인트에서 원격 히트가 있었지만, 지금은 미스됩니다. 캐시된 아티팩트는 대부분 제거되었을 가능성이 높습니다."
+msgstr "이 정확한 키는 이전에 동일한 캐시 엔드포인트에서 원격 히트를 기록했지만 현재는 미스 상태입니다. 캐시된 아티팩트가 제거되었을 가능성이 높습니다."
 
 #: lib/tuist_web/helpers/module_cache.ex:38
 #, elixir-autogen, elixir-format
 msgid "The module's reported inputs changed, such as its files, build settings, configuration, or compiler version."
-msgstr "모듈의 보고된 입력(파일, 빌드 설정, 구성 또는 컴파일러 버전 등)이 변경되었습니다."
+msgstr "파일, 빌드 설정, 구성 또는 컴파일러 버전과 같은 모듈의 보고된 입력이 변경되었습니다."
 
 #: lib/tuist_web/helpers/module_cache.ex:52
 #, elixir-autogen, elixir-format
 msgid "No earlier comparison is available, or the reported inputs and remote-hit history do not explain this miss."
-msgstr "이전 비교를 사용할 수 없거나, 보고된 입력과 원격 히트 기록으로 이 미스를 설명할 수 없습니다."
+msgstr "이전 비교 데이터를 사용할 수 없거나, 보고된 입력 및 원격 히트 기록으로 이 미스를 설명할 수 없습니다."
 
 #: lib/tuist_web/helpers/module_cache.ex:66
 #, elixir-autogen, elixir-format
@@ -1319,12 +1319,12 @@ msgstr "이 관찰 결과는 로컬 또는 원격 캐시 히트를 보고합니�
 #: lib/tuist_web/helpers/module_cache.ex:45
 #, elixir-autogen, elixir-format
 msgid "The module's own reported inputs stayed the same, but a dependency or external package hash changed."
-msgstr "모듈 자체의 입력은 동일하게 유지되었지만, 종속성 또는 외부 패키지 해시가 변경되었습니다."
+msgstr "모듈 자체의 입력은 동일하게 유지되었지만, 의존성 또는 외부 패키지 해시가 변경되었습니다."
 
 #: lib/tuist_web/helpers/module_cache.ex:70
 #, elixir-autogen, elixir-format
 msgid "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Evicted: a previously served key now misses."
-msgstr "변경됨: 모듈 입력이 변경되었습니다. 업스트림: 종속성이 변경되었습니다. 콜드: 증거 불충분. 제거됨: 이전에 제공된 키가 이제 누락됩니다."
+msgstr "변경됨: 모듈 입력이 변경됨. 상위: 의존성이 변경됨. 초기화: 증거 부족. 제거됨: 이전에 제공된 키가 이제 미스 발생."
 
 #: lib/tuist_web/live/module_cache_module_live.ex:327
 #: lib/tuist_web/live/module_cache_module_live.ex:351
@@ -1340,7 +1340,7 @@ msgstr "제거됨"
 #: lib/tuist_web/live/modules_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "Evicted misses"
-msgstr "제거됨 누락"
+msgstr "제거됨 미스"
 
 #: lib/tuist_web/live/modules_live.html.heex:109
 #, elixir-autogen, elixir-format
@@ -1355,7 +1355,7 @@ msgstr "로컬 히트"
 #: lib/tuist_web/live/mix_build_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "누락"
+msgstr "미스"
 
 #: lib/tuist_web/live/mix_build_live.ex:339
 #, elixir-autogen, elixir-format
@@ -1371,9 +1371,9 @@ msgstr[0] "최근 빌드 %{total}개 중 %{measured}개의 캐시 결과가 기�
 #: lib/tuist_web/live/toolchain_cache_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Average and percentiles of individual build cache hit rates. Hits reuse cached outputs; misses include lookup misses, cold compilations, and verification rebuilds. Prefetches are excluded."
-msgstr "개별 빌드 캐시 히트율의 평균 및 백분위수입니다. 히트는 캐시된 출력을 재사용하며, 미스는 조회 실패, 초기 컴파일 및 검증 재빌드를 포함합니다. 프리페치는 제외됩니다."
+msgstr "개별 빌드 캐시 히트율의 평균 및 백분위수입니다. 히트는 캐시된 출력을 재사용하며, 미스에는 조회 실패, 초기 컴파일 및 검증 재빌드가 포함됩니다. 프리페치는 제외됩니다."
 
 #: lib/tuist_web/live/toolchain_cache_live.ex:182
 #, elixir-autogen, elixir-format
 msgid "Experimental Cargo cache measurements. Transfer totals use build-wide byte counters. Latency measures recorded per-key index operations, not compilation or artifact transfer time. Throughput uses successful measured CAS transfers only; failed and already-present operations are excluded. Inspection records may be partial."
-msgstr "실험적인 Cargo 캐시 측정값입니다. 전송 총량은 빌드 전체 바이트 카운터를 사용합니다. 지연 시간은 컴파일이나 아티팩트 전송 시간이 아닌 키별 인덱스 작업에 대해 기록됩니다. 처리량은 성공적으로 측정된 CAS 전송만 사용하며, 실패하거나 이미 존재하는 작업은 제외됩니다. 검사 기록은 일부일 수 있습니다."
+msgstr "실험용 Cargo 캐시 측정값입니다. 전송 총량은 빌드 전체 바이트 카운터를 사용합니다. 지연 시간은 컴파일이나 아티팩트 전송 시간이 아닌, 키별 인덱스 작업당 측정된 값을 나타냅니다. 처리량은 성공적으로 측정된 CAS 전송만 사용하며, 실패하거나 이미 존재하는 작업은 제외됩니다. 검사 기록은 일부만 포함될 수 있습니다."

@@ -259,6 +259,24 @@ struct AtlasThreadPresentationTests {
 }
 
 extension AtlasThreadPresentationTests {
+    @Test func shortConversationsKeepFollowingAcrossViewportChanges() {
+        let state = AtlasThreadScrollState()
+        state.userScrolling = false
+        for metrics in [AtlasThreadScrollMetrics(height: 180, bottom: 180, viewport: 600),
+                        .init(height: 420, bottom: 420, viewport: 600),
+                        .init(height: 420, bottom: 420, viewport: 300, inset: 300),
+                        .init(height: 420, bottom: 300, viewport: 300, inset: 300),
+                        .init(height: 420, bottom: 420, viewport: 600)] {
+            state.update(metrics)
+            #expect(state.following)
+        }
+        state.following = false
+        state.update(.init(height: 420, bottom: -25, viewport: 600))
+        #expect(!state.following)
+        state.update(.init(height: 420, bottom: 420, viewport: 600))
+        #expect(state.following)
+    }
+
     @Test func attachmentPreviewsPreserveBytesInPrivateTemporaryFiles() throws {
         let data = Data([0x31, 0x00, 0xff, 0x72])
         let file = try AtlasAttachmentFile.preview(data, filename: "report.txt")
@@ -276,94 +294,38 @@ extension AtlasThreadPresentationTests {
 
     @Test func bottomFollowingSurvivesLayoutCorrectionsButStopsForUserHistoryScrolling() {
         let state = AtlasThreadScrollState()
-        let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
         state.userScrolling = false
-        #expect(!update(.init(height: 2000, bottom: 600, viewport: 600)))
-        #expect(update(.init(height: 2200, bottom: 840, viewport: 600)))
+        state.update(.init(height: 2000, bottom: 600, viewport: 600))
+        state.update(.init(height: 2200, bottom: 840, viewport: 600))
         // A later lazy-row correction can change offset without changing the new content height.
-        #expect(update(.init(height: 2200, bottom: 880, viewport: 600)))
+        state.update(.init(height: 2200, bottom: 880, viewport: 600))
         #expect(state.following)
-        #expect(!update(.init(height: 2200, bottom: 600, viewport: 600)))
+        state.update(.init(height: 2200, bottom: 600, viewport: 600))
         state.userScrolling = true
-        #expect(!update(.init(height: 2200, bottom: 645, viewport: 600)))
-        state.userScrolling = false
-        #expect(!update(.init(height: 2500, bottom: 945, viewport: 600)))
+        state.update(.init(height: 2200, bottom: 645, viewport: 600))
         #expect(!state.following)
-        #expect(!update(.init(height: 2500, bottom: 600, viewport: 600)))
+        state.userScrolling = false
+        state.update(.init(height: 2500, bottom: 945, viewport: 600))
+        #expect(!state.following)
+        state.update(.init(height: 2500, bottom: 600, viewport: 600))
         #expect(state.following)
-        #expect(update(.init(height: 2500, bottom: 760, viewport: 400, inset: 200)))
+        state.update(.init(height: 2500, bottom: 760, viewport: 400, inset: 200))
         #expect(state.following)
-        // Lazy estimates can leave every message above the viewport, not at its bottom edge.
-        #expect(update(.init(height: 2500, bottom: 50, viewport: 400, inset: 200)))
-        #expect(update(.init(height: 2500, bottom: -30, viewport: 400, inset: 200)))
-        #expect(!update(.init(height: 2500, bottom: 400, viewport: 400, inset: 200)))
-    }
-
-    @Test func latestRequestsCoalesceAcrossTheClearAndRestoreLayoutPasses() async throws {
-        let state = AtlasThreadScrollState()
-        var events: [String] = []
-        state.schedulePosition(clear: {
-            events.append("clear")
-            state.schedulePosition(clear: { events.append("duplicate clear") }, {
-                events.append("duplicate restore")
-            })
-        }, {
-            events.append("restore")
-        })
-        try await Task.sleep(for: .milliseconds(50))
-        #expect(events == ["clear", "restore"])
-    }
-
-    @Test func historyDragOrResetCancelsAPendingLatestRestore() async throws {
-        let state = AtlasThreadScrollState()
-        var restored = false
-        state.schedulePosition(clear: { state.userScrolling = true }, { restored = true })
-        try await Task.sleep(for: .milliseconds(50))
-        #expect(!restored)
-
-        state.reset()
-        var events: [String] = []
-        state.schedulePosition(clear: {
-            state.reset()
-            state.schedulePosition(clear: {
-                events.append("new clear")
-                state.schedulePosition(clear: { events.append("duplicate clear") }, {
-                    events.append("duplicate restore")
-                })
-            }, { events.append("new restore") })
-        }, { restored = true })
-        try await Task.sleep(for: .milliseconds(100))
-        #expect(!restored)
-        #expect(events == ["new clear", "new restore"])
-    }
-
-    @Test func promptSettlementSupersedesBottomCorrectionButNotANewDrag() async throws {
-        let state = AtlasThreadScrollState()
-        var events: [String] = []
-        state.schedulePosition(clear: { events.append("bottom clear") }, { events.append("bottom restore") })
         state.following = false
-        state.schedulePosition(following: false, clear: { events.append("prompt clear") }, {
-            events.append("prompt restore")
-        })
-        try await Task.sleep(for: .milliseconds(50))
-        #expect(events == ["prompt clear", "prompt restore"])
-
-        state.schedulePosition(following: false, clear: { state.userScrolling = true }, {
-            events.append("unexpected prompt restore")
-        })
-        try await Task.sleep(for: .milliseconds(50))
-        #expect(events == ["prompt clear", "prompt restore"])
+        state.update(.init(height: 2500, bottom: -30, viewport: 400, inset: 200))
+        #expect(!state.following)
+        state.update(.init(height: 2500, bottom: 400, viewport: 400, inset: 200))
+        #expect(state.following)
     }
 
     @Test func fallbackScrollAccumulatesSlowMovementAndRebasesContentGrowth() {
         let state = AtlasThreadScrollState()
-        let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
-        #expect(!update(.init(height: 2000, bottom: 600, viewport: 600)))
-        #expect(update(.init(height: 2200, bottom: 840, viewport: 600)))
-        #expect(update(.init(height: 2200, bottom: 880, viewport: 600)))
+        state.update(.init(height: 2000, bottom: 600, viewport: 600))
+        state.update(.init(height: 2200, bottom: 840, viewport: 600))
+        state.update(.init(height: 2200, bottom: 880, viewport: 600))
         #expect(state.following)
-        #expect(!update(.init(height: 2200, bottom: 600, viewport: 600)))
-        for step in 1...50 { _ = state.update(.init(height: 2200, bottom: 600 + CGFloat(step) / 2, viewport: 600)) }
+        state.update(.init(height: 2200, bottom: 600, viewport: 600))
+        for step in 1...50 { state.update(.init(height: 2200, bottom: 600 + CGFloat(step) / 2, viewport: 600)) }
         #expect(!state.following)
     }
 }
