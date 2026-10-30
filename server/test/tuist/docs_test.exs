@@ -5,6 +5,7 @@ defmodule Tuist.DocsTest do
   alias Tuist.ClickHouseVersions
   alias Tuist.Docs
   alias Tuist.Docs.CLI
+  alias Tuist.Docs.Loader
   alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Docs.Page
 
@@ -15,6 +16,76 @@ defmodule Tuist.DocsTest do
       assert page.slug == "/en/guides/install-tuist"
       assert page.title == "Install Tuist"
       assert page.body =~ "Install Tuist"
+    end
+
+    @tag :tmp_dir
+    test "localized headings retain explicit IDs with or without a separating space", %{tmp_dir: tmp_dir} do
+      source_path = Path.join(tmp_dir, "localized-headings.md")
+
+      File.write!(source_path, """
+      # 本地化标题{#localized-title}
+
+      ## 拉取/合并请求注释{#pullmerge-request-comments}
+
+      ## 测试覆盖率 {#test-coverage}
+
+      ## 普通标题
+      """)
+
+      page = Loader.load_page_source!({:page, source_path})
+      document = Floki.parse_fragment!(page.body)
+
+      assert page.title == "本地化标题"
+
+      assert page.headings == [
+               %{level: 2, text: "拉取/合并请求注释", id: "pullmerge-request-comments"},
+               %{level: 2, text: "测试覆盖率", id: "test-coverage"},
+               %{level: 2, text: "普通标题", id: "普通标题"}
+             ]
+
+      assert Floki.text(Floki.find(document, "h1")) == "本地化标题"
+
+      for heading <- Enum.take(page.headings, 2) do
+        anchor = Floki.find(document, ~s(h2 a[id="#{heading.id}"][href="##{heading.id}"]))
+        assert anchor |> Floki.find("[data-part=heading-text]") |> Floki.text() == heading.text
+      end
+
+      refute page.body =~ "{#"
+    end
+
+    @tag :tmp_dir
+    test "heading examples remain literal code and do not enter page metadata", %{tmp_dir: tmp_dir} do
+      source_path = Path.join(tmp_dir, "heading-examples.md")
+
+      File.write!(source_path, """
+      ```markdown
+      # 示例标题{#example-title}
+      ## 示例章节{#example-section}
+      ```
+
+      # 真实标题{#real-title}
+
+      ~~~~markdown
+      ## 围栏示例 {#fenced-example}
+      ~~~
+      ~~~~
+
+      ## 真实章节{#real-section}
+      """)
+
+      page = Loader.load_page_source!({:page, source_path})
+
+      assert page.headings == [%{level: 2, text: "真实章节", id: "real-section"}]
+      assert page.title == "真实标题"
+
+      document = Floki.parse_fragment!(page.body)
+
+      assert Enum.map(Floki.find(document, "[data-part=code] code"), &Floki.text/1) == [
+               "# 示例标题{#example-title}\n## 示例章节{#example-section}\n",
+               "## 围栏示例 {#fenced-example}\n~~~\n"
+             ]
+
+      assert Floki.find(document, "h2 a[id=real-section]") != []
     end
 
     test "workload authentication documents account-wide access and shared-provider trust boundaries" do
@@ -138,6 +209,15 @@ defmodule Tuist.DocsTest do
       assert root_page.slug == "/en"
       assert selective_testing_page.slug == "/en/guides/features/selective-testing"
       assert selective_testing_page.source_path == "en/guides/features/selective-testing/index.md"
+    end
+
+    @tag :locale
+    test "current translations take precedence over obsolete pages at the same URL" do
+      for locale <- ~w(es ja ko ru yue_Hant zh_Hans zh_Hant) do
+        page = Docs.get_page("/#{locale}/guides/features/selective-testing")
+
+        assert page.source_path == "#{locale}/guides/features/selective-testing/index.md"
+      end
     end
 
     test "loads static CLI documentation pages" do

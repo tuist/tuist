@@ -228,17 +228,21 @@ func (c *dockerHTTPClient) merge(ctx context.Context) (dockerMergeOffer, error) 
 }
 
 // dockerMergePlan is how a finished job's data root and the saved head another
-// job published become one: the images only one of them keeps are loaded into
-// the other, whichever moves fewer bytes. Into is "branch" or "head", or empty
-// when the job kept no image the head lacks.
+// job published become one: the images one of them added since the job's base
+// are loaded into the other, whichever moves fewer bytes. An image of the base
+// that one side removed is not brought back. Into is "branch" or "head", or
+// empty when the job added no image the head lacks.
 type dockerMergePlan struct {
 	Into string
 	Move []string
 }
 
-func planDockerMerge(branch, head []dockerImage) dockerMergePlan {
+func planDockerMerge(base []string, branch, head []dockerImage) dockerMergePlan {
 	only := func(images, other []dockerImage) ([]string, int64) {
 		present := map[string]bool{}
+		for _, id := range base {
+			present[id] = true
+		}
 		for _, image := range other {
 			present[image.ID] = true
 		}
@@ -261,6 +265,45 @@ func planDockerMerge(branch, head []dockerImage) dockerMergePlan {
 	default:
 		return dockerMergePlan{Into: "branch", Move: fromHead}
 	}
+}
+
+// planBuildkitMerge resolves each builder volume against the job's base: a
+// side's change or addition wins over the other side's removal, a removal
+// holds when the other side left the volume as the base had it, and the job's
+// version wins when both changed it. It returns the volumes to copy from the
+// other side into the one that keeps the union and those to remove from it.
+func planBuildkitMerge(into string, base, branch, head map[string]string) (copies, removals []string) {
+	target := branch
+	if into == "head" {
+		target = head
+	}
+	names := map[string]bool{}
+	for _, volumes := range []map[string]string{base, branch, head} {
+		for name := range volumes {
+			names[name] = true
+		}
+	}
+	for name := range names {
+		was, job, saved := base[name], branch[name], head[name]
+		want := saved
+		switch {
+		case job != was && job != "":
+			want = job
+		case saved != was && saved != "":
+		case job != was:
+			want = ""
+		}
+		switch {
+		case want == target[name]:
+		case want == "":
+			removals = append(removals, name)
+		default:
+			copies = append(copies, name)
+		}
+	}
+	sort.Strings(copies)
+	sort.Strings(removals)
+	return copies, removals
 }
 
 // mergeDockerLedgers adds the moved images' entries to the ledger of the data

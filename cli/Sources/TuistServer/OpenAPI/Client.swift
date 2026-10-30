@@ -15935,7 +15935,7 @@ public struct Client: APIProtocol {
     }
     /// List Cargo builds for a project, newest first.
     ///
-    /// Cargo test runs reported as nextest are listed with test runs, not builds.
+    /// Cargo test execution results are listed with test runs, not builds.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cargo/builds/get(listCargoBuilds)`.

@@ -1287,6 +1287,74 @@ defmodule Tuist.Runners.JobsTest do
       account = account_fixture()
       assert {:error, :not_found} = Jobs.get_for_account(account.id, 99_999_999)
     end
+
+    test "returns a job whose lifecycle row has not reached ClickHouse yet" do
+      account = account_fixture()
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 9201,
+          account_id: account.id,
+          fleet_name: "fleet-pg-only",
+          repository: "acme/x",
+          workflow_run_id: 92_010,
+          workflow_name: "CI",
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef"
+        })
+
+      assert {:error, :not_found} = Jobs.get(9201)
+
+      assert {:ok,
+              %Job{
+                workflow_job_id: 9201,
+                workflow_run_id: 92_010,
+                repository: "acme/x",
+                status: "queued",
+                conclusion: "",
+                pod_name: "",
+                runner_name: ""
+              }} = Jobs.get_for_account(account.id, 9201)
+    end
+
+    test "reports a cancelled lifecycle row in the ClickHouse status convention" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 9251, fleet: "fleet-pg-cancelled")
+      {:ok, _} = Jobs.complete(9251, "cancelled")
+
+      assert {:ok, %Job{status: "completed", conclusion: "cancelled"}} = Jobs.get_for_account(account.id, 9251)
+    end
+
+    test "returns :not_found for another account's job that has not reached ClickHouse yet" do
+      account = account_fixture()
+      other = account_fixture()
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 9301,
+          account_id: account.id,
+          fleet_name: "fleet-pg-only-other",
+          repository: "acme/x",
+          workflow_run_id: 93_010
+        })
+
+      assert {:error, :not_found} = Jobs.get_for_account(other.id, 9301)
+    end
+
+    test "prefers the lifecycle row's state over a ClickHouse row the outbox has not caught up on" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 9401, fleet: "fleet-pg-fresh")
+      {:ok, candidate} = Jobs.pick_queued("fleet-pg-fresh", [])
+      claim!(account, candidate.workflow_job_id, "fleet-pg-fresh", "pod-1")
+      :ok = mark_running!(9401, "runner-x")
+
+      assert {:ok, %Job{status: "queued"}} = Jobs.get(9401)
+
+      assert {:ok, %Job{status: "running", pod_name: "pod-1", runner_name: "runner-x", started_at: %DateTime{}}} =
+               Jobs.get_for_account(account.id, 9401)
+    end
   end
 
   describe "set_log_archived_at/2" do
@@ -1343,11 +1411,11 @@ defmodule Tuist.Runners.JobsTest do
       archived_at = ~U[2026-06-04 15:00:00.000000Z]
       :ok = Jobs.set_log_archived_at(7353, archived_at)
 
-      assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 7353)
+      assert {:ok, %{log_archived_at: nil}} = Jobs.get(7353)
 
       flush_outbox!()
 
-      assert {:ok, job} = Jobs.get_for_account(account.id, 7353)
+      assert {:ok, job} = Jobs.get(7353)
       assert job.log_archived_at == archived_at
       assert job.status == "completed"
     end
@@ -1411,8 +1479,10 @@ defmodule Tuist.Runners.JobsTest do
 
       :ok = Jobs.set_log_archived_at(7354, ~U[2026-06-04 15:00:00.000000Z])
 
+      assert {:ok, %{log_archived_at: nil}} = Jobs.get(7354)
+
       {:ok, job} = Jobs.get_for_account(account.id, 7354)
-      assert job.log_archived_at == nil
+      assert job.log_archived_at == ~U[2026-06-04 15:00:00.000000Z]
       assert Jobs.archive_available?(job)
     end
 

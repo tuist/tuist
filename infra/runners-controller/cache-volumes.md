@@ -513,7 +513,11 @@ The agent:
   local clone of the head assigned at allocation), it offers that HEAD's clone as
   `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
   at a time), so the guest merges the job's images with it before publishing;
-  otherwise it answers no merge. While another job of the lineage on this host
+  otherwise it answers no merge. The guest merges three ways against the data
+  root the job mounted: each side's additions and changes are kept, an image or
+  builder one side removed is not brought back from the other, and a builder one
+  side removed is also removed from the merged root unless the other side changed
+  it. Merging does not copy a builder both sides hold in the same state. While another job of the lineage on this host
   has finished with a changed, clean data root that is not yet published, it
   first waits up to two minutes for that publication, since HEAD moves only once
   the upload completes. Jobs on other hosts, or ones still tearing down, can

@@ -141,14 +141,18 @@ struct AtlasOrbitView: View {
             List(selection: desktopSelection) { inboxRows }
                 .listStyle(.inset)
             #else
-            List { inboxRows }.listStyle(.plain)
+            List {
+                // A top safe-area inset crosses the large title/search bar during pull-to-refresh.
+                // Keep the picker in the same scrolling content as the conversations.
+                statusPicker
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                inboxRows
+            }
+            .listStyle(.plain)
             #endif
         }
-        #if os(iOS)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            statusPicker.padding(.horizontal, 16).padding(.vertical, 8)
-        }
-        #endif
         .modifier(AtlasThemedContent())
         .overlay {
             if model.loading, model.assistant == nil { ProgressView("Loading threads") }
@@ -259,7 +263,7 @@ extension AtlasOrbitView {
             Text("Archived").tag("archived")
         }
         .pickerStyle(.segmented)
-        .disabled(model.loading || model.saving)
+        .disabled(model.saving || openingPrivate)
         .accessibilityIdentifier("orbit-status")
     }
 

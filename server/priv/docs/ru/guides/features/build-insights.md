@@ -2,7 +2,7 @@
 {
   "title": "Аналитика сборок",
   "titleTemplate": ":title · Возможности · Руководства · Tuist",
-  "description": "Отслеживайте производительность сборок для проектов на Xcode, Gradle, Bazel, Elixir и Rust с помощью аналитики сборок Tuist."
+  "description": "Отслеживайте производительность сборок проектов на Xcode, Gradle, Bazel, Elixir и Rust с помощью аналитики сборок Tuist."
 }
 ---
 # Аналитика сборок {#build-insights}
@@ -22,12 +22,12 @@
 />
   <.home_card
     title="Gradle"
-    details="Отслеживайте время выполнения задач Gradle и эффективность кэша с помощью плагина Tuist для Gradle."
+    details="Отслеживайте время выполнения задач Gradle и эффективность кэширования с помощью плагина Tuist Gradle."
     link="/guides/features/build-insights/gradle"
 />
   <.home_card
     title="Bazel"
-    details="Отслеживайте длительность выполнения команд Bazel, общие показатели кэша и диагностику критического пути через протокол событий сборки (Build Event Protocol)."
+    details="Отслеживайте длительность выполнения команд Bazel, общие показатели кэша и диагностику критического пути через протокол Build Event Protocol."
     link="/guides/features/build-insights/bazel"
 />
   <.home_card
@@ -37,7 +37,7 @@
 />
   <.home_card
     title="Rust"
-    details="Отслеживайте длительность выполнения команд Cargo, зафиксированные вызовы rustc и диагностику компилятора с помощью CLI Tuist."
+    details="Отслеживайте длительность выполнения команд Cargo, наблюдаемые вызовы rustc и диагностику компилятора с помощью CLI Tuist."
     link="/guides/features/build-insights/rust"
 />
 </.home_cards>
