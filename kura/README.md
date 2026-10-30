@@ -214,6 +214,8 @@ Kura splits storage into two planes:
 - 🪨 RocksDB stores metadata, keyvalue payloads, multipart state, tombstones, segment lifecycle state, and the replication arrival feed.
 - 📦 Segment files store large immutable binary artifacts for the hot path. The segment ring's capacity derives from the data-dir filesystem size (or `KURA_CAS_CAPACITY_BYTES`), and rotating in a new segment evicts the oldest one once the budget is reached. Quota pressure can reduce the effective ring: rotation requests supervised background cleanup and refuses allocation until enough space is available. Cleanup preserves the active writer, pending writes/promotions, and the five-segment minimum. Backfill uses effective capacity; storage snapshots retain the configured budget for claim sizing. Pressure events are separately attributed and cannot justify automatic claim resizing.
 
+The bounded in-memory existence cache uses SIEVE eviction to avoid recency-list updates on hits. Its TTL and deletion invalidation are unchanged. Manifest and file-handle caches retain LRU eviction; on-disk retention and RocksDB's block-cache policy are unchanged.
+
 Replication is leaderless and eventually consistent, and every node pulls (see `docs/replication-design.md`):
 
 - 🔁 local writes become durable together with their replication state: one arrival-feed row, in the same atomic batch as the metadata commit
