@@ -677,6 +677,10 @@ pass. Bootstrap the distribution repository and release credential first.
 Recover an unrecorded distribution from its original SOURCE_COMMIT before
 publishing newer source; never replace an immutable version.
 
+The Kura controller image workflow publishes the optional XFS disk allocator
+image alongside the controller. Both depend on the Linux Go tests; PR events
+never publish either image. Managed deployments do not enable shared disk by
+publishing this image.
 ## Nested KVM runner acceptance
 
 `linux-runners-staging-smoke.yml` has a manual `nested_kvm` mode, isolated from

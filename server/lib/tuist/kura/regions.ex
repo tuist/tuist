@@ -38,8 +38,9 @@ defmodule Tuist.Kura.Regions do
   with, so counting a region's machines and placing its instances can never
   disagree about which nodes are the region's.
   """
-  def node_label_selector(%__MODULE__{provisioner_config: %{node_selector: selector}})
+  def node_label_selector(%__MODULE__{provisioner_config: %{node_selector: selector}} = region)
       when is_map(selector) and map_size(selector) > 0 do
+    selector = if shared_disk?(region), do: Map.put(selector, "tuist.dev/kura-shared-disk", "true"), else: selector
     Enum.map_join(selector, ",", fn {label, value} -> "#{label}=#{value}" end)
   end
 
@@ -791,6 +792,13 @@ defmodule Tuist.Kura.Regions do
   def storage_governed?(%__MODULE__{provisioner_config: config}), do: config[:storage_governed] == true
 
   def storage_governed?(_), do: false
+
+  # Enable only on pools with the allocator, quota enforcement and compatible
+  # runtimes. Unset everywhere by default; node labels are an additional gate.
+  def shared_disk?(%__MODULE__{provisioner_config: config}),
+    do: config[:shared_disk] == true and config[:storage_governed] == true
+
+  def shared_disk?(_), do: false
 
   @doc """
   True iff the region shapes its instances' egress: it declares a guaranteed

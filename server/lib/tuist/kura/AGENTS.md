@@ -1,8 +1,8 @@
 # Kura control plane
 
 - Admission permits claims up to 90% of allocatable disk, retaining 10% on
-  top of the managed kubelet's existing nodefs reserve. This remains full-claim
-  reservation accounting; scheduler requests and filesystem quotas are unchanged.
+  top of the managed kubelet's existing nodefs reserve. Full-claim accounting
+  remains the default; only explicitly qualified shared-disk regions use floors.
 
 - `Origins` and `Demand` sort bulk upsert rows by their full conflict keys before
   insertion so concurrent overlapping batches acquire locks in a consistent
@@ -55,3 +55,11 @@
 - Usage events carry the `origin` Kura read off the cache token that authorized them (managed nodes only; self-hosted reports are stripped). `Origins.refresh_hits/1` rolls public-region hits per account-origin-day into `kura_origin_rollups.hit_count` on the claim-sizing refresh, replacing the column rather than adding to it, so it never disturbs the additive run and resolution counts. For flagged accounts where at least half the window's hits carry an origin, origin hits (mapped through `OriginMap`) replace runs for expansion and for moving the primary to a region the account does not hold; expansion needs a tenth of the attributed hits or four times the retirement rate against the region's projected reservation. Private runner-cache hits never count.
 
 - Rollout convergence leaves out servers whose `KuraInstance` reports `status.imageHold` (a positively fenced instance's runtime pin or manual replacement, or a replica recovery's hold): the controller never converges them alone, so they would hold every wave open until the deadline paused the fleet. `RolloutServer.held_reason` records the hold from each tick's health read; an unreadable read keeps the previous verdict. A held server is never evidence: the canary wave must converge one server of its own, and a rollout whose scope is all held does not complete. Completing a rollout cancels held servers' open deployments so the next rollout can mint one. A server whose hold clears rejoins convergence and the gate. Unannotated operator `OnDelete` is not a hold and still pauses the rollout.
+
+- Shared disk is disabled in the region catalog. `shared_disk: true` on a
+  governed region reserves plan floors instead of grown claim ceilings and
+  requires qualified-node labels. The manifest renders `storageFloor` and a
+  distinct revision. Ceiling-only changes preserve the existing floor
+  reservation; every update retains serialized admission and placement checks.
+  Keep the node quota/runtime protocol aligned with
+  `infra/kura-controller/shared-disk-capacity.md` before enabling a region.

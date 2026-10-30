@@ -167,6 +167,7 @@ const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    pub shared_disk: Option<crate::disk_budget::Config>,
     pub serving_authority: Option<crate::serving_authority::AuthorityConfig>,
     /// Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service,
     /// dispatching each request to the right subsystem by path. When `public_tls`
@@ -752,6 +753,28 @@ impl Config {
         if cas_capacity_bytes == Some(0) {
             invalid.push(format!("{KURA_CAS_CAPACITY_BYTES} must be greater than 0"));
         }
+        let shared_disk = match (
+            lookup("KURA_DISK_BUDGET_FILE"),
+            lookup("KURA_DISK_VOLUME_ID"),
+        ) {
+            (None, None) => None,
+            (Some(file), Some(volume_id)) if !file.is_empty() && !volume_id.is_empty() => {
+                if cas_capacity_bytes.is_none() {
+                    invalid.push("shared disk requires KURA_CAS_CAPACITY_BYTES".into());
+                }
+                Some(crate::disk_budget::Config {
+                    file: file.into(),
+                    volume_id,
+                })
+            }
+            _ => {
+                invalid.push(
+                    "shared disk requires both KURA_DISK_BUDGET_FILE and KURA_DISK_VOLUME_ID"
+                        .into(),
+                );
+                None
+            }
+        };
         let node_url = required_value(&mut lookup, KURA_NODE_URL, &mut missing);
         let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
             .map(|value| value.trim().to_owned())
@@ -1986,6 +2009,7 @@ impl Config {
             tenant_id: tenant_id.expect("tenant_id should be present when configuration is valid"),
             region: region.expect("region should be present when configuration is valid"),
             tmp_dir: tmp_dir.expect("tmp_dir should be present when configuration is valid"),
+            shared_disk,
             data_dir: data_dir.expect("data_dir should be present when configuration is valid"),
             tmp_dir_max_bytes,
             cas_capacity_bytes,

@@ -45,10 +45,14 @@ type KuraInstanceSpec struct {
 	// address through the same mechanism.
 	PublicHostNetwork bool `json:"publicHostNetwork,omitempty"`
 
-	PeerTLSSecretName string            `json:"peerTLSSecretName,omitempty"`
-	StorageClassName  string            `json:"storageClassName,omitempty"`
-	StorageSize       string            `json:"storageSize,omitempty"`
-	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
+	PeerTLSSecretName string `json:"peerTLSSecretName,omitempty"`
+	StorageClassName  string `json:"storageClassName,omitempty"`
+	StorageSize       string `json:"storageSize,omitempty"`
+	// StorageFloor opts into node-managed shared disk. StorageSize remains
+	// the ceiling; the floor sizes the initial PVC and scheduler request.
+	// Requires a compatible runtime and the node disk allocator.
+	StorageFloor string            `json:"storageFloor,omitempty"`
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	// Tolerations let the runtime pod schedule onto tainted nodes. Preview
 	// environments use this to colocate Kura on the generic preview pool
 	// (which carries role=preview:NoSchedule) instead of pinning to a

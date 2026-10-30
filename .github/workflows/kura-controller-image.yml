@@ -59,6 +59,15 @@ jobs:
     needs: test
     if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
     runs-on: tuist-linux
+    strategy:
+      matrix:
+        include:
+          - image: tuist/kura-controller
+            dockerfile: infra/kura-controller/Dockerfile
+            cache: kura-controller
+          - image: tuist/kura-disk-agent
+            dockerfile: infra/kura-controller/Dockerfile.disk-agent
+            cache: kura-disk-agent
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -71,20 +80,22 @@ jobs:
       - name: Compute tags
         id: tags
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          IMAGE="${{ env.REGISTRY }}/${{ matrix.image }}"
           GIT_SHA="${GITHUB_SHA::12}"
           {
             echo "tags<<EOF"
             echo "${IMAGE}:sha-${GIT_SHA}"
-            echo "${IMAGE}:latest"
+            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              echo "${IMAGE}:latest"
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: infra/kura-controller/Dockerfile
+          file: ${{ matrix.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=gha,scope=kura-controller
-          cache-to: type=gha,mode=max,scope=kura-controller
+          cache-from: type=gha,scope=${{ matrix.cache }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache }}

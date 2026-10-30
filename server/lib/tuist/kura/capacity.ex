@@ -119,7 +119,22 @@ defmodule Tuist.Kura.Capacity do
   An instance that carries no claim of its own falls back to what its region
   declares.
   """
-  def resident_gib(%Regions{} = region, %Server{} = server), do: claim_gib(region, server) * replicas(region)
+  def resident_gib(%Regions{} = region, %Server{} = server), do: reservation_gib(region, server) * replicas(region)
+
+  defp reservation_gib(region, %Server{account: %Account{} = account} = server) do
+    if Regions.shared_disk?(region) do
+      account
+      |> AccountPolicies.sizing_plan()
+      |> Regions.storage_profile()
+      |> Map.fetch!(:claim_size)
+      |> parse_quantity()
+      |> div(@gib)
+    else
+      claim_gib(region, server)
+    end
+  end
+
+  defp reservation_gib(region, server), do: claim_gib(region, server)
 
   # Through the same quantity parser the node and pod readings use, not a
   # Gi-only one. A claim is persisted in any unit Kubernetes accepts, and one
@@ -665,7 +680,7 @@ defmodule Tuist.Kura.Capacity do
   """
   def placeable?(%Regions{} = region, %Server{} = server) do
     with handle when is_binary(handle) <- account_handle(server),
-         claim when claim > 0 <- claim_gib(region, server) * @gib,
+         claim when claim > 0 <- reservation_gib(region, server) * @gib,
          %{nodes: [_ | _] = nodes, accounts_off_pool: %MapSet{} = off_pool} <- node_headroom(region),
          false <- MapSet.member?(off_pool, handle) do
       fits?(nodes, handle, claim, replicas(region))
