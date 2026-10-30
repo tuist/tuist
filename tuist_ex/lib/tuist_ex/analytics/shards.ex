@@ -13,6 +13,7 @@ defmodule TuistEx.Analytics.Shards do
   # building for testing once and testing without building.
 
   alias TuistEx.Analytics.HTTP
+  alias TuistEx.Analytics.Report
   alias TuistEx.Analytics.TempDir
   alias TuistEx.HTTP, as: RawHTTP
 
@@ -288,6 +289,9 @@ defmodule TuistEx.Analytics.Shards do
   means the plan has none, which is fine: the shard compiles as usual.
   """
   def download_build(url, build_path) when is_binary(url) do
+    %URI{scheme: scheme, host: host, port: port} = URI.parse(url)
+    Report.debug("Downloading the shard build from #{scheme}://#{host}:#{port}")
+
     TempDir.with_dir("tuist-ex-build", fn dir ->
       archive = Path.join(dir, "build.tar.gz")
 

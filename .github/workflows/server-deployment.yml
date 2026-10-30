@@ -1926,6 +1926,26 @@ jobs:
           fi
           start_server_image_prepull
 
+          # Runner-local shard storage, as its own release before the server so
+          # the rolled pods read the target it publishes. Nothing waits on
+          # Garage: its host may still be joining, and new plans use default
+          # storage until it serves. Staging's store is managed by hand.
+          case "$TARGET_ENVIRONMENT" in
+            canary|production)
+              if helm upgrade --install shard-storage infra/helm/shard-storage \
+                --namespace kura \
+                -f "infra/helm/shard-storage/values-${TARGET_ENVIRONMENT}.yaml" \
+                --set enabled=true \
+                --wait=hookOnly; then
+                kubectl -n "$NAMESPACE" wait externalsecret/shard-storage-targets \
+                  --for=condition=Ready --timeout=120s ||
+                  echo "::warning::The shard storage target has not synced; the server starts without it."
+              else
+                echo "::warning::Could not upgrade shard storage; the server keeps default shard storage."
+              fi
+              ;;
+          esac
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             "${helm_values_args[@]}" \

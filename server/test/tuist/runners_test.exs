@@ -575,7 +575,15 @@ defmodule Tuist.RunnersTest do
       stub(Catalog, :fleet_platform, fn _ -> :linux end)
 
       expect(K8sClient, :get_node, fn "linux-storage-node", _ ->
-        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/shard-storage-site" => "gra"}}}}
+        {:ok,
+         %{
+           "metadata" => %{
+             "labels" => %{
+               "node.cluster.x-k8s.io/shard-storage-site" => "gra",
+               "tuist.dev/private-network" => "pn-2024093"
+             }
+           }
+         }}
       end)
 
       expect(CacheGrant, :mint, fn id, opts ->

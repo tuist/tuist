@@ -623,10 +623,12 @@ server:
     cacheGrant:
       item: ""
       field: password
-    # JSON map of immutable target IDs to runner-local S3 configuration.
+    # JSON map of immutable target IDs to runner-local S3 configuration, from a
+    # 1Password item or the shard-storage chart's in-namespace Secret.
     shardStorage:
       item: ""
       field: password
+      secret: ""
     # Dedicated OAuth client used by Kura to call /oauth2/introspect.
     # Leave item empty to skip syncing it into the server environment.
     kuraIntrospection:

@@ -46,6 +46,21 @@ policy Job has completed and read back the policy before enrollment.
 
 ## Configuration
 
+Canary and production need no manual secrets. With `generateCredentials`, an
+External Secrets `Password` generator seeds the release-named Secret once
+(`refreshPolicy: CreatedOnce`, orphaned from the release) and the Garage RPC
+secret, key ID and secret key are derived from that seed. `target.id` publishes
+the store to the server as Secret `shard-storage-targets` (key `targets.json`)
+in `serverNamespace`, copied from the store's Secret through a namespaced
+SecretStore that may only `get` that one Secret. The main chart reads it with
+`server.externalSecrets.shardStorage.secret`. `privateNetwork` adds a node
+selector on `tuist.dev/private-network`, which the infrastructure provider sets
+only after every peer has installed the host's private routes, so the store
+cannot serve before runners reach it over the vRack.
+
+The manual setup below applies to stores configured through 1Password, such as
+staging's.
+
 Provision a 1Password item with `rpc-secret` (32 random bytes, hex encoded),
 `access-key-id` and `secret-access-key`. Set `externalSecrets.item` to that item.
 In singleton mode, Garage 2.5's `--single-node --default-bucket` initializes the
@@ -109,17 +124,17 @@ Gravelines, through `ovhFleets.shard-storage` and the `shard-storage` node pool.
 Its four 1.92 TB NVMe disks are RAID10: 64 GiB root and approximately 3.4 TiB
 XFS `/data`, with a 3 TiB Garage allocation. The adoption marker is
 `tuist-shards-ovh-production`; the controller owns joining and vRack
-`pn-2024093` configuration. Apply the marker only as the fleet deploys: an
-unmarked box leaves the MachineDeployment at 0/1 and wedges `helm --wait`.
+`pn-2024093` configuration. The box must carry the marker before the fleet
+deploys: an unmarked box leaves the MachineDeployment at 0/1 and wedges
+`helm --wait`.
 
 Canary uses the dedicated RISE-1 `ns3234030.ip-188-165-77.eu` in Gravelines,
 through `ovhFleets.shard-storage` and the `shard-storage` node pool. Its two
 512 GB NVMe disks are mirrored: 64 GiB root and approximately 411 GiB XFS
 `/data`, with a 200 GiB initial Garage allocation. The adoption marker is
 `tuist-shards-ovh-canary`; the controller owns joining and vRack `pn-2024092`
-configuration. Verify the node's private routes and active XFS project quotas
-after joining, before installing Garage. The canary overlay allows S3 access
-from the server's actual `tuist-canary` namespace.
+configuration. The canary overlay allows S3 access from the server's actual
+`tuist-canary` namespace.
 
 ### Singleton maintenance and recovery
 
@@ -276,39 +291,36 @@ Follow [infrastructure access rules](../../AGENTS.md) for every shared-cluster
 operation. This chart is not a dependency of the main server release. A failed
 storage node must not block server deployments.
 
-1. Deploy the additive ClickHouse migration and server routing/capacity code
-   before installing the store. All server replicas must understand the new
-   column and target configuration before enabling the account flag.
-2. Check Kura headroom, provision secrets, and install this chart separately as
-   a new production release in namespace `kura`, with `enabled=true` and
-   the environment overlay. Use singleton initialization for the initial rollout;
-   use the manual bootstrap only for the optional three-node topology. Canary
-   and production select the dedicated `shard-storage` pool through their
-   overlays. Verify the selected host's OVH provider identity, Gravelines
-   location, allocatable disk, active XFS project quota and private route before
-   enrollment. Preserve staging fixture archives.
-3. Confirm full cluster health and the lifecycle policy, then perform a multipart
-   upload/download/delete smoke test with disposable bytes from a server pod
-   and an enrolled runner. Test each replica's restart against the same PVC and
-   preserved data after recovery. During a singleton outage, existing local
-   plans must remain pinned and fail; new plans should fall back. Existing
-   timings describe one staging setup, not the new hardware or workload.
-4. Complete the drained [Linux private-network enrollment](../../kura-controller/linux-runner-private-cache.md)
-   for every runner eligible for the workflow. Verify the private route to the
-   storage host; a configured vRack template alone is insufficient. Only then
-   label those actual Nodes `node.cluster.x-k8s.io/shard-storage-site=gra`.
-   `ovhFleets.<fleet>.shardStorageSite: gra` carries that label on future Machines;
-   it does not attest to the networking of existing hosts. Do not label hosts
-   before private connectivity is verified.
-5. Deploy the updated Linux runner image and Mix/Cargo clients. GitHub and
-   Buildkite jobs receive the signed grant; fork jobs do not. Dispatch reads
-   the claiming node's storage-site label, never guest input. Both the build
-   and every consuming shard must run on enrolled nodes at that site.
-6. Set the target's `enabled` and `private_network_ready` to true and roll the
-   server pods to reload their environment. Enable the default-off
-   `runner_shard_storage` flag for the Tuist account only. New Mix/Cargo plans
-   select Garage only with a valid account/site/Linux grant and a successful
-   bounded authenticated bucket probe. Custom account S3 storage is preserved.
+Canary and production need no manual step before the account flag. The server
+deployment installs this chart as release `shard-storage` in `kura` before the
+main release, without waiting for Garage, and gives the server the published
+target. In the same deployment:
+
+1. The ClickHouse migration and server routing deploy. The server starts
+   without a target until the release's Secrets sync, which the deployment
+   waits up to two minutes for.
+2. `ovhFleets.shard-storage` adopts the marked storage host. The provider joins
+   it to the environment's vRack and labels it `tuist.dev/private-network` once
+   every peer routes to it privately; only then can Garage schedule, initialize
+   its singleton layout, key and bucket, and pass the server's bucket probe.
+   Until it does, new plans use default storage.
+3. `ovhFleets.runners-linux.shardStorageSite: gra` labels the runner Nodes.
+   Dispatch signs the `gra` site only for a Node that also carries
+   `tuist.dev/private-network`, so a host still enrolling gets no site.
+4. The Linux runner image release that follows the merge stages the signed
+   grant for jobs, and Mix projects using this repository's `tuist_ex` send it.
+   Cargo projects need a CLI release with the same change. GitHub and
+   Buildkite jobs receive the grant; fork jobs do not. Both the build and every
+   consuming shard must run on enrolled nodes at that site.
+5. The target is published with `enabled` and `private_network_ready` true.
+   Enabling the default-off `runner_shard_storage` flag for an account then
+   routes its new Mix/Cargo plans to Garage, subject to a valid
+   account/site/Linux grant and a successful bounded bucket probe. Custom
+   account S3 storage is preserved.
+6. Check the store before widening enrollment: the pod is Running on the
+   storage host, `kubectl -n kura get cronjob shard-storage-lifecycle` has run,
+   and `linux-shard-storage-smoke.yml` passes for the environment with the
+   flag on for the account owning its project.
 7. Verify creation, reference and plan-ID upload routes, download, rerun, and
    expiration cleanup, including the shorter local lifetime. In an isolated
    test, stop the store: new plans should use the default store

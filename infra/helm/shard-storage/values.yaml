@@ -32,6 +32,19 @@ externalSecrets:
     kind: ClusterSecretStore
   # Fields: rpc-secret, access-key-id, secret-access-key.
   item: ""
+# Generate the release-named Secret in-cluster once instead of reading it from
+# 1Password. It is never regenerated and survives uninstalling the release.
+generateCredentials: false
+# Publishes this store to the server as Secret <release>-targets (key
+# targets.json) in serverNamespace. The ID is immutable: never repoint it.
+target:
+  id: ""
+  site: gra
+  enabled: false
+  privateNetworkReady: false
+# OVH vRack the store's node must have joined, with private routes to every
+# peer, before the store can schedule.
+privateNetwork: ""
 serverNamespace: tuist
 runnerNamespace: tuist-runners
 # Preserve the existing staging experiment's policy. Fresh environment overlays

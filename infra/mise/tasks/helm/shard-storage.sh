@@ -55,8 +55,40 @@ for environment in staging canary production; do
       (.data["lifecycle.json"] | fromjson | .Rules[0].Expiration.Days == 3 and
         .Rules[0].AbortIncompleteMultipartUpload.DaysAfterInitiation == 1))
   ' "$WORK/$environment.json" >/dev/null
+  if [[ "$environment" == staging ]]; then
+    jq -e 'all(.[]; .kind != "Password" and .kind != "SecretStore")' "$WORK/$environment.json" >/dev/null
+    continue
+  fi
+  case "$environment" in
+    canary) server_namespace=tuist-canary vrack=pn-2024092 ;;
+    production) server_namespace=tuist vrack=pn-2024093 ;;
+  esac
+  jq -e --arg environment "$environment" --arg ns "$server_namespace" --arg vrack "$vrack" '
+    any(.[]; .kind == "StatefulSet" and
+      .spec.template.spec.nodeSelector["tuist.dev/private-network"] == $vrack) and
+    any(.[]; .kind == "Password" and .metadata.name == "shard-storage-seed") and
+    ([.[] | select(.kind == "ExternalSecret" and .metadata.namespace == null)] |
+      length == 1 and (.[0] | .spec.refreshPolicy == "CreatedOnce" and
+        .spec.target.creationPolicy == "Orphan" and
+        .spec.dataFrom[0].sourceRef.generatorRef.kind == "Password" and
+        (.spec.target.template.data | keys) == ["access-key-id", "rpc-secret", "secret-access-key"])) and
+    any(.[]; .kind == "Role" and .rules == [{"apiGroups": [""], "resources": ["secrets"], "resourceNames": ["shard-storage"], "verbs": ["get"]}]) and
+    any(.[]; .kind == "SecretStore" and .metadata.namespace == $ns and
+      .spec.provider.kubernetes.remoteNamespace == "kura") and
+    any(.[]; .kind == "ExternalSecret" and .metadata.namespace == $ns and
+      .spec.target.name == "shard-storage-targets" and
+      (.spec.target.template.data["targets.json"] | fromjson | .["gra-" + $environment + "-v1"] |
+        .site == "gra" and .enabled and .private_network_ready and .bucket == "shards" and
+        .endpoint == "http://shard-storage.kura.svc.cluster.local:3900" and
+        .access_key_id == "{{ .access_key_id }}" and .secret_access_key == "{{ .secret_access_key }}"))
+  ' "$WORK/$environment.json" >/dev/null
 done
 echo 'All environments: singleton, placement, region accounting, controlled restart, matching disk reservation and three-day archives verified'
+echo 'Canary and production: generated once-only credentials, private-network placement and a published server target verified'
+if helm template shard-storage "$CHART" --namespace kura -f "$CHART/values-production.yaml" --set enabled=true --set externalSecrets.enabled=true --set externalSecrets.item=SHARD_STORAGE >/dev/null 2>&1; then
+  echo 'Generated and 1Password credentials must not both define the store Secret' >&2
+  exit 1
+fi
 MAIN_CHART="$ROOT/infra/helm/tuist"
 for environment in canary production; do
   helm template tuist "$MAIN_CHART" --namespace tuist \
@@ -77,10 +109,15 @@ for environment in canary production; do
       .nodeTaints == [{"key": "tuist.dev/kura-cache", "value": "true", "effect": "NoSchedule"}]) and
     any(.[]; .kind == "MachineDeployment" and .metadata.name == $templates[0].metadata.name and
       .spec.replicas == 1 and .spec.strategy.type == "OnDelete" and
-      .spec.template.metadata.labels["node.cluster.x-k8s.io/pool"] == "shard-storage")
+      .spec.template.metadata.labels["node.cluster.x-k8s.io/pool"] == "shard-storage") and
+    any(.[]; .kind == "MachineDeployment" and .metadata.name == "tuist-tuist-ovh-fleet-runners-linux" and
+      .spec.template.metadata.labels["node.cluster.x-k8s.io/shard-storage-site"] == "gra") and
+    any(.[]; .kind == "Deployment" and (.metadata.name | endswith("-server")) and
+      any(.spec.template.spec.containers[0].env[]; .name == "TUIST_SHARD_STORAGE_TARGETS" and
+        .valueFrom.secretKeyRef == {"name": "shard-storage-targets", "key": "targets.json", "optional": true}))
   ' "$WORK/fleet-$environment.json" >/dev/null
 done
-echo 'Canary and production: one dedicated Gravelines storage host on the runner vRack, outside the runner pool'
+echo 'Canary and production: one dedicated Gravelines storage host on the runner vRack, gra runners, and the server reading the published target'
 helm lint "$CHART" --namespace kura -f "$CHART/values-production.yaml" -f "$CHART/values-replicated.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE
 helm template shard-storage "$CHART" --namespace kura -f "$CHART/values-production.yaml" -f "$CHART/values-replicated.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE |
   yq -o json -I0 'select(.kind != null)' | jq -s . > "$WORK/replicated.json"

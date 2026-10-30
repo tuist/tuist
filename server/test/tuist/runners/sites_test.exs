@@ -14,10 +14,24 @@ defmodule Tuist.Runners.SitesTest do
 
   test "shard storage site comes only from the claiming node's operator label" do
     expect(Client, :get_node, fn "linux-node", _ ->
-      {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/shard-storage-site" => "gra"}}}}
+      {:ok,
+       %{
+         "metadata" => %{
+           "labels" => %{
+             "node.cluster.x-k8s.io/shard-storage-site" => "gra",
+             "tuist.dev/private-network" => "pn-2024093"
+           }
+         }
+       }}
     end)
 
     assert Sites.shard_storage_site("linux-node") == "gra"
+
+    expect(Client, :get_node, fn "routes-pending", _ ->
+      {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/shard-storage-site" => "gra"}}}}
+    end)
+
+    assert Sites.shard_storage_site("routes-pending") == nil
     expect(Client, :get_node, fn "unlabelled", _ -> {:ok, %{"metadata" => %{"labels" => %{}}}} end)
     assert Sites.shard_storage_site("unlabelled") == nil
     expect(Client, :get_node, fn "unreachable", _ -> {:error, :timeout} end)

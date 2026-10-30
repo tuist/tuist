@@ -36,6 +36,9 @@ data:
     [admin]
     api_bind_addr = "[::]:3903"
 ---
+{{- if and .Values.externalSecrets.enabled .Values.generateCredentials }}
+{{- fail "generateCredentials replaces externalSecrets: disable externalSecrets" }}
+{{- end }}
 {{- if .Values.externalSecrets.enabled }}
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -142,6 +145,9 @@ spec:
       {{- end }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
+        {{- with .Values.privateNetwork }}
+        tuist.dev/private-network: {{ . | quote }}
+        {{- end }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 8 }}
       securityContext:
