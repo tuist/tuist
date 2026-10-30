@@ -1140,34 +1140,50 @@ defmodule Tuist.Runners do
          excluded_repositories,
          excluded_workflow_job_ids
        ) do
-    with {:ok, candidates} <-
-           Jobs.pick_queued_top_k(
-             fleet_name,
-             excluded_account_ids,
-             excluded_repositories,
-             excluded_workflow_job_ids,
-             volume_affinity_top_k()
-           ),
-         [_ | _] = candidates <- Sites.prefer_cache_site(candidates, site) do
-      if volume_affinity_enabled?(fleet_name) do
-        select_affine_candidate(candidates, node_name)
+    result =
+      with {:ok, candidates} <-
+             Jobs.pick_queued_top_k(
+               fleet_name,
+               excluded_account_ids,
+               excluded_repositories,
+               excluded_workflow_job_ids,
+               volume_affinity_top_k()
+             ),
+           [_ | _] = candidates <- Sites.prefer_cache_site(candidates, site) do
+        if volume_affinity_enabled?(fleet_name) do
+          select_affine_candidate(candidates, fleet_name, node_name)
+        else
+          # No volumes on this fleet: hand out the plain oldest-queued head, no
+          # affinity scoring or reordering. A nil outcome means "affinity never
+          # ran here", which is what suppresses the metric for this fleet.
+          {:ok, List.first(candidates), nil}
+        end
       else
-        # No volumes on this fleet: hand out the plain oldest-queued head, no
-        # affinity scoring or reordering. A nil outcome means "affinity never
-        # ran here", which is what suppresses the metric for this fleet.
-        {:ok, List.first(candidates), nil}
+        {:error, :empty} -> {:error, :empty}
+        [] -> {:error, :empty}
       end
-    else
-      {:error, :empty} -> {:error, :empty}
-      [] -> {:error, :empty}
+
+    note_poll(fleet_name, node_name, result)
+    result
+  end
+
+  # Whether this Node's runner is waiting for work is what lets other Nodes leave
+  # it the jobs whose volumes it holds (`VolumeAffinities.note_idle/2`).
+  defp note_poll(fleet_name, node_name, result) do
+    if volume_affinity_enabled?(fleet_name) do
+      case result do
+        {:ok, %{}, _outcome} -> VolumeAffinities.note_busy(fleet_name, node_name)
+        _ -> VolumeAffinities.note_idle(fleet_name, node_name)
+      end
     end
   end
 
-  defp select_affine_candidate(candidates, node_name) do
+  defp select_affine_candidate(candidates, fleet_name, node_name) do
     case VolumeAffinities.select_candidate(candidates, node_name,
-           tolerance_seconds: volume_affinity_age_tolerance_seconds()
+           tolerance_seconds: volume_affinity_age_tolerance_seconds(),
+           fleet_name: fleet_name
          ) do
-      nil -> {:ok, nil, nil}
+      nil -> {:error, :empty}
       {candidate, outcome} -> {:ok, candidate, outcome}
     end
   end
