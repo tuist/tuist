@@ -13,7 +13,7 @@ import XcodeGraph
 @testable import TuistCacheEE
 
 struct TargetsToCacheBinariesDebuggingAdmissionTests {
-    @Test(.inTemporaryDirectory, arguments: ["verified", "missing", "invalid"])
+    @Test(.inTemporaryDirectory, arguments: ["verified", "nothing-to-relocate", "missing", "invalid"])
     func replacementRequiresVerifiedMetadata(status: String) async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let fixture = fixture(at: path, coverage: false)
@@ -23,10 +23,15 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
             original: try AbsolutePath(validating: "/producer/Feature.swift"),
             current: path.appending(component: "Feature.swift")
         )]
+        let verified: [DebuggerSourceMapping]? = switch status {
+        case "verified": mappings
+        case "nothing-to-relocate": []
+        default: nil
+        }
         if status == "invalid" {
             given(reader).sourceMappings(artifact: .any, target: .any).willThrow(NSError(domain: "invalid-metadata", code: 1))
         } else {
-            given(reader).sourceMappings(artifact: .any, target: .any).willReturn(status == "verified" ? mappings : nil)
+            given(reader).sourceMappings(artifact: .any, target: .any).willReturn(verified)
         }
         let storage = MockCacheStoring()
         given(storage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([.test(
@@ -42,14 +47,14 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
             try await subject.map(graph: fixture.graph, environment: MapperEnvironment())
         }
         let items = await metadata.binaryCacheItems
-        #expect((items[path]?["Feature"]?.source == .miss) == (status != "verified"))
+        #expect((items[path]?["Feature"]?.source == .miss) == (verified == nil))
         verify(mutator).map(
             graph: .any,
-            precompiledArtifacts: .value(status == "verified" ? [fixture.feature: artifact] : [:]),
+            precompiledArtifacts: .value(verified == nil ? [:] : [fixture.feature: artifact]),
             sources: .any,
             keepSourceTargets: .any
         ).called(1)
-        #expect(environment.cachedModuleSourceMappings == (status == "verified" ? [artifact: mappings] : [:]))
+        #expect(environment.cachedModuleSourceMappings == verified.map { [artifact: $0] } ?? [:])
     }
 
     @Test(.inTemporaryDirectory, arguments: [false, true])
