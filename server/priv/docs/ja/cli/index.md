@@ -11,9 +11,9 @@ Tuist CLI は Tuist と対話するためのインターフェースの 1 つで
 
 ## はじめに {#getting-started}
 
-Tuist をまだインストールしていない場合は、<.localized_link href="/guides/install-tuist">インストールガイド</.localized_link>に従ってセットアップしてください。
+まだ Tuist をインストールしていない場合は、<.localized_link href="/guides/install-tuist">インストールガイド</.localized_link>に従ってセットアップしてください。
 
-インストール後、ターミナルで `tuist` を実行すると、利用可能なコマンドの一覧が表示されます。
+インストールが完了したら、ターミナルで `tuist` を実行して利用可能なコマンドの一覧を確認できます:
 
 ```bash
 tuist --help
@@ -25,4 +25,4 @@ CLI の動作は `tuist.toml` ファイルで構成できます。利用可能�
 
 ## トラブルシューティング {#troubleshooting}
 
-問題が発生した場合は、<.localized_link href="/cli/debugging">デバッグガイド</.localized_link>を確認して、セッションログやネットワーク記録を含む問題診断ツールを利用してください。
+問題が発生した場合は、セッションログやネットワーク記録を含む問題診断ツールについて、<.localized_link href="/cli/debugging">デバッグガイド</.localized_link>を確認してください。

@@ -11,7 +11,7 @@
 
 ## 用途 {#what-it-is-for}
 
-本手册记录了 Tuist 作为一家公司的运作方式：价值观、政策和工程实践。它是一个 VitePress 站点。
+本手册记录了 Tuist 作为一家公司的运作方式：价值观、政策和工程实践。这是一个基于 VitePress 的网站。
 
 ## 如何贡献 {#how-to-contribute}
 

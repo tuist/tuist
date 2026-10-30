@@ -1,34 +1,34 @@
 ---
 {
-  "title": "Informes de incidencias",
+  "title": "Reporte de incidencias",
   "titleTemplate": ":title · Colaboradores · Tuist",
-  "description": "Aprende a contribuir a Tuist informando de errores"
+  "description": "Aprende a contribuir a Tuist reportando errores"
 }
 ---
-# Informes de incidencias {#issue-reporting}
+# Informe de incidencias {#issue-reporting}
 
-Como usuario de Tuist, puedes encontrarte con errores o comportamientos inesperados. Si te ocurre, te animamos a que los informes para que podamos corregirlos.
+Como usuario de Tuist, es posible que te encuentres con errores o comportamientos inesperados. Si ocurre, te animamos a reportarlos para que podamos solucionarlos.
 
-## GitHub Issues es nuestra plataforma de tickets {#github-issues-is-our-ticketing-platform}
+## Las incidencias de GitHub son nuestra plataforma de tickets {#github-issues-is-our-ticketing-platform}
 
-Las incidencias deben reportarse en GitHub como [GitHub issues](https://github.com/tuist/tuist/issues), no en Slack ni en otras plataformas. GitHub es mejor para rastrear y gestionar incidencias, está más cerca del código base y nos permite seguir el progreso de la incidencia. Además, fomenta una descripción detallada del problema, lo que obliga al informante a reflexionar sobre el problema y aportar más contexto.
+Las incidencias deben reportarse en GitHub como [incidencias de GitHub](https://github.com/tuist/tuist/issues) y no en Slack u otras plataformas. GitHub es mejor para rastrear y gestionar incidencias, está más cerca del código base y nos permite seguir el progreso de la incidencia. Además, fomenta una descripción detallada del problema, lo que obliga al informante a reflexionar sobre el problema y aportar más contexto.
 
 ## El contexto es crucial {#context-is-crucial}
 
-Una incidencia sin suficiente contexto se considerará incompleta y se pedirá al autor que aporte contexto adicional. Si no se proporciona, la incidencia se cerrará. Piénsalo así: cuanto más contexto aportes, más fácil será para nosotros entender el problema y solucionarlo. Por tanto, si quieres que tu incidencia se resuelva, aporta todo el contexto posible. Intenta responder a las siguientes preguntas:
+Una incidencia sin suficiente contexto se considerará incompleta y se pedirá al autor que aporte contexto adicional. Si no se proporciona, la incidencia se cerrará. Piénsalo así: cuanto más contexto proporciones, más fácil será para nosotros entender el problema y solucionarlo. Por lo tanto, si quieres que tu incidencia se solucione, aporta todo el contexto posible. Intenta responder a las siguientes preguntas:
 
 - ¿Qué intentabas hacer?
 - ¿Cómo es tu grafo?
 - ¿Qué versión de Tuist estás usando?
-- ¿Esto te está bloqueando?
+- ¿Te está bloqueando esto?
 
-También requerimos que proporciones un **proyecto reproducible** mínimo.
+También te pedimos que proporciones un **proyecto reproducible** mínimo.
 
 ## Proyecto reproducible {#reproducible-project}
 
 ### ¿Qué es un proyecto reproducible? {#what-is-a-reproducible-project}
 
-Un proyecto reproducible es un pequeño proyecto de Tuist para demostrar un problema; a menudo este problema está causado por un error en Tuist. Tu proyecto reproducible debe contener el mínimo de funcionalidades necesarias para demostrar claramente el error.
+Un proyecto reproducible es un pequeño proyecto de Tuist para demostrar un problema; a menudo, este problema está causado por un error en Tuist. Tu proyecto reproducible debe contener las funcionalidades mínimas necesarias para demostrar claramente el error.
 
 ### ¿Por qué deberías crear un caso de test reproducible? {#why-should-you-create-a-reproducible-test-case}
 
@@ -45,7 +45,7 @@ Un proyecto reproducible es una excelente manera de compartir un entorno especí
 
 ### Beneficios de los proyectos reproducibles {#benefits-of-reproducible-projects}
 
-- **Menor superficie:** Al eliminar todo excepto el error, no tienes que indagar para encontrar el fallo.
-- **No hace falta publicar código secreto:** Es posible que no puedas publicar tu sitio principal (por muchas razones). Recrear una pequeña parte como un caso de test reproducible te permite demostrar públicamente un problema sin exponer ningún código secreto.
-- **Prueba del error:** A veces un error está causado por alguna combinación de ajustes en tu máquina. Un caso de test reproducible permite a los colaboradores descargar tu compilación y probarla también en sus máquinas. Esto ayuda a verificar y acotar la causa de un problema.
-- **Obtén ayuda para corregir tu error:** Si otra persona puede reproducir tu problema, suele tener buenas posibilidades de solucionarlo. Es casi imposible corregir un error sin poder reproducirlo primero.
+- **Superficie reducida:** Al eliminar todo excepto el error, no tienes que buscar mucho para encontrar el fallo.
+- **No hace falta publicar código secreto:** Es posible que no puedas publicar tu sitio principal (por muchas razones). Recrear una pequeña parte como caso de test reproducible te permite demostrar públicamente un problema sin exponer ningún código secreto.
+- **Prueba del error:** A veces, un error está causado por alguna combinación de configuraciones en tu máquina. Un caso de test reproducible permite a los colaboradores descargar tu compilación y probarla también en sus máquinas. Esto ayuda a verificar y acotar la causa de un problema.
+- **Obtén ayuda para solucionar tu error:** Si otra persona puede reproducir tu problema, a menudo tiene buenas posibilidades de solucionarlo. Es casi imposible solucionar un error sin poder reproducirlo primero.

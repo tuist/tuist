@@ -17,7 +17,7 @@ defmodule Tuist.Docs.Loader do
 
   # Paths
   @source_docs_root Path.expand("../../priv/docs", __DIR__)
-  @locales if(Tuist.Environment.test?(), do: ["en"], else: Locale.supported_locales())
+  @locales if(Tuist.Environment.single_locale?(), do: ["en"], else: Locale.supported_locales())
   @source_examples_root Path.expand("../../../examples/xcode", __DIR__)
   @priv_examples_root Path.expand("../../priv/examples/xcode", __DIR__)
 
@@ -32,8 +32,8 @@ defmodule Tuist.Docs.Loader do
   @frontmatter_regex ~r/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/s
   @localized_link_regex ~r/<LocalizedLink\s+(?:href|to)="([^"]+)"\s*>(.*?)<\/LocalizedLink>/s
   @script_setup_regex ~r/<script\s+setup>.*?<\/script>\s*/s
-  @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)\s+\{#([\w-]+)\}\s*$/m
-  @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
+  @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)[ \t]*\{#([\w-]+)\}\s*$/m
+  @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:[ \t]*\{#([\w-]+)\})?\s*$/m
   @code_group_regex ~r/^(?<indent>[ \t]*):::[ \t]*code-group[ \t]*\n(?<content>.*?)^\k<indent>:::[ \t]*$/ms
   @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
   # Tempered inner group so the title capture stops at the first `</strong>`
@@ -116,9 +116,9 @@ defmodule Tuist.Docs.Loader do
     Enum.map(example_readmes(), fn readme_path ->
       dir_name = readme_path |> Path.dirname() |> Path.basename()
       markdown = File.read!(readme_path)
-      title = title_from_markdown(markdown) || dir_name
+      title = markdown |> heading_lines() |> title_from_headings()
       slug = "/en/references/examples/generated-projects/#{String.downcase(dir_name)}"
-      {title, slug}
+      {title || dir_name, slug}
     end)
   end
 
@@ -140,8 +140,14 @@ defmodule Tuist.Docs.Loader do
       |> Path.join("**/*.md")
       |> Path.wildcard()
     end)
-    |> Enum.sort()
+    # A renamed English page can leave an obsolete translation at the same
+    # URL. Prefer the file matching the current English source layout.
+    |> Enum.sort_by(fn source_path ->
+      [_locale | relative_path] = source_path |> Path.relative_to(docs_root) |> Path.split()
+      {not File.exists?(Path.join([docs_root, "en" | relative_path])), source_path}
+    end)
     |> Enum.reject(&excluded_source?/1)
+    |> Enum.uniq_by(&(&1 |> Path.relative_to(docs_root) |> source_to_slug()))
   end
 
   defp example_readmes do
@@ -166,11 +172,12 @@ defmodule Tuist.Docs.Loader do
     {attrs, markdown} = parse_frontmatter(contents)
     markdown = expand_snippets(markdown, source_path)
     markdown = expand_compile_time_macros(markdown)
-    {html, template, code_blocks} = render_markdown(markdown, source_path, locale, true)
+    heading_lines = heading_lines(markdown)
+    {html, template, code_blocks} = render_markdown(markdown, source_path, locale, heading_lines)
 
     %Page{
       slug: slug,
-      title: attrs["title"] || title_from_markdown(markdown) || slug,
+      title: attrs["title"] || title_from_headings(heading_lines) || slug,
       title_template: attrs["titleTemplate"],
       description: attrs["description"],
       body: html,
@@ -178,7 +185,7 @@ defmodule Tuist.Docs.Loader do
       code_blocks: code_blocks,
       markdown: markdown,
       source_path: relative_path,
-      headings: extract_headings(markdown),
+      headings: extract_headings(heading_lines),
       last_modified: file_last_modified(source_path)
     }
   end
@@ -187,11 +194,12 @@ defmodule Tuist.Docs.Loader do
     dir_name = readme_path |> Path.dirname() |> Path.basename()
     slug = example_slug(readme_path)
     markdown = File.read!(readme_path)
-    title = title_from_markdown(markdown) || dir_name
+    heading_lines = heading_lines(markdown)
+    title = title_from_headings(heading_lines) || dir_name
     github_url = "https://github.com/tuist/tuist/tree/main/examples/xcode/#{dir_name}"
 
     markdown_with_link = markdown <> "\n\n[Check out example](#{github_url})\n"
-    {html, template, code_blocks} = render_markdown(markdown_with_link, readme_path, "en", true)
+    {html, template, code_blocks} = render_markdown(markdown_with_link, readme_path, "en", heading_lines)
 
     %Page{
       slug: slug,
@@ -203,7 +211,7 @@ defmodule Tuist.Docs.Loader do
       code_blocks: code_blocks,
       markdown: markdown_with_link,
       source_path: readme_path,
-      headings: extract_headings(markdown_with_link),
+      headings: extract_headings(heading_lines),
       last_modified: file_last_modified(readme_path)
     }
   end
@@ -379,14 +387,14 @@ defmodule Tuist.Docs.Loader do
     """
   end
 
-  defp render_markdown(markdown, source_path, locale, _live?) do
-    custom_ids = extract_custom_heading_ids(markdown)
+  defp render_markdown(markdown, source_path, locale, heading_lines) do
+    custom_ids = extract_custom_heading_ids(heading_lines)
 
     processed_markdown =
       markdown
       |> String.replace(@script_setup_regex, "")
+      |> strip_custom_heading_ids(heading_lines)
       |> localize_link_components(locale)
-      |> strip_custom_heading_ids()
       |> convert_code_groups()
 
     html =
@@ -640,15 +648,32 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
-  defp strip_custom_heading_ids(markdown) do
-    Regex.replace(@custom_heading_id_regex, markdown, "\\1")
+  # Use the Markdown parser's source positions so code examples and raw HTML
+  # cannot masquerade as headings. Share these lines across rendering and metadata.
+  defp heading_lines(markdown) do
+    cleaned = String.replace(markdown, @script_setup_regex, "")
+    lines = cleaned |> String.split("\n") |> List.to_tuple()
+    document = MDEx.parse_document!(cleaned, @mdex_options)
+
+    Enum.map(document[MDEx.Heading], fn heading ->
+      {line_number, _column} = heading.sourcepos.start
+      {line_number, elem(lines, line_number - 1)}
+    end)
   end
 
-  defp extract_custom_heading_ids(markdown) do
-    cleaned = String.replace(markdown, @script_setup_regex, "")
+  defp strip_custom_heading_ids(markdown, heading_lines) do
+    replacements =
+      Map.new(heading_lines, fn {number, line} -> {number, Regex.replace(@custom_heading_id_regex, line, "\\1")} end)
 
-    @custom_heading_id_regex
-    |> Regex.scan(cleaned)
+    markdown
+    |> String.split("\n")
+    |> Enum.with_index(1)
+    |> Enum.map_join("\n", fn {line, number} -> Map.get(replacements, number, line) end)
+  end
+
+  defp extract_custom_heading_ids(heading_lines) do
+    heading_lines
+    |> Enum.flat_map(fn {_number, line} -> Regex.scan(@custom_heading_id_regex, line) end)
     |> Map.new(fn [_, heading_text, custom_id] ->
       text =
         heading_text
@@ -680,11 +705,9 @@ defmodule Tuist.Docs.Loader do
     end)
   end
 
-  defp extract_headings(markdown) do
-    cleaned = String.replace(markdown, @script_setup_regex, "")
-
-    @heading_extract_regex
-    |> Regex.scan(cleaned)
+  defp extract_headings(heading_lines) do
+    heading_lines
+    |> Enum.flat_map(fn {_number, line} -> Regex.scan(@heading_extract_regex, line) end)
     |> Enum.map(fn
       [_, hashes, text, custom_id] when custom_id != "" ->
         %{level: String.length(hashes), text: strip_html(text), id: custom_id}
@@ -768,11 +791,13 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
-  defp title_from_markdown(markdown) do
-    case Regex.run(~r/^\s*#\s+(.+?)(?:\s+\{#.*\})?\s*$/m, markdown, capture: :all_but_first) do
-      [title] -> String.trim(title)
-      _ -> nil
-    end
+  defp title_from_headings(heading_lines) do
+    Enum.find_value(heading_lines, fn {_number, line} ->
+      case Regex.run(~r/^\s*#\s+(.+?)(?:[ \t]*\{#[\w-]+\})?\s*$/, line, capture: :all_but_first) do
+        [title] -> String.trim(title)
+        _ -> nil
+      end
+    end)
   end
 
   defp strip_html(text) do

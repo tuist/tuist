@@ -15,7 +15,7 @@
 
 ## 기여 방법 {#how-to-contribute}
 
-### 로컬 환경 설정 {#set-up-locally}
+### 로컬 설정 {#set-up-locally}
 
 ```bash
 cd handbook

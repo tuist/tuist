@@ -459,7 +459,9 @@ egressTreeAgent:
 postgresql:
   mode: cnpg
   cnpg:
-    instances: 2
+    # Two standbys, as in production: with required `ANY 1` replication, a
+    # single standby that stalls or restarts would hold every commit.
+    instances: 3
     # PostgreSQL config sized against the 8 GiB memory limit below. CNPG
     # otherwise leaves Postgres on its 128 MiB shared_buffers default;
     # mirror the production tuning shape so canary catches any regression
