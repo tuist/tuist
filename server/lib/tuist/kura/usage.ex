@@ -19,23 +19,29 @@ defmodule Tuist.Kura.Usage do
   @batch_timeout 3_000
   @admission __MODULE__.Admission
 
-  def child_spec(_opts) do
-    LoadLimiter.child_spec(
+  # One insert per replica bounds ClickHouse work. Two short waiting slots
+  # absorb batches that merely overlap; a held slot still sheds within a second.
+  def child_spec(opts) do
+    [
       name: @admission,
       max_concurrency: 1,
-      max_pending_loads: 1,
+      max_pending_loads: 3,
+      queue_timeout: 1_000,
       load_timeout: @batch_timeout,
       on_error: &report_error/1
-    )
+    ]
+    |> Keyword.merge(opts)
+    |> LoadLimiter.child_spec()
   end
 
   defp report_error({:exception, exception, stacktrace}), do: Sentry.capture_exception(exception, stacktrace: stacktrace)
   defp report_error(_reason), do: :ok
 
   @doc """
-  Admits one complete HTTP batch per replica, without queueing or coalescing.
-  Only completed inserts acknowledge the node's durable outbox. A soft timeout
-  retains admission until the worker exits; it does not cancel remote writes.
+  Admits one complete HTTP batch per replica at a time, without coalescing.
+  Overlapping batches wait briefly within the same deadline. Only completed
+  inserts acknowledge the node's durable outbox. A soft timeout retains
+  admission until the worker exits; it does not cancel remote writes.
   """
   def ingest_batch(events, evictions, snapshots, account, opts \\ []) do
     arrays = [events, evictions, snapshots]
