@@ -20,6 +20,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas.PreviewSupportedPlatform
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Helpers.PreviewInstallURLs
 
   @legacy_build_types [:app_bundle, :ipa, :apk]
   @legacy_platforms [
@@ -1063,9 +1064,9 @@ defmodule TuistWeb.API.PreviewsController do
 
     device_url =
       if preview.supported_platforms == [:android] do
-        url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/app.apk")
+        PreviewInstallURLs.apk_url(account_handle, project_handle, preview)
       else
-        "itms-services://?action=download-manifest&url=#{url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/manifest.plist")}"
+        PreviewInstallURLs.itms_services_url(account_handle, project_handle, preview)
       end
 
     %{

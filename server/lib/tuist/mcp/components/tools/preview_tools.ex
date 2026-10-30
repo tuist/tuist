@@ -181,13 +181,17 @@ defmodule Tuist.MCP.Components.Tools.PreviewSerializer do
   defp created_from_ci?(account), do: is_nil(account.user_id)
 
   defp device_url(preview, account_handle, project_handle, [:android]) do
-    preview_url(account_handle, project_handle, preview.id, "/app.apk")
+    preview_url(account_handle, project_handle, preview.id, "/app.apk") <> install_token_query(preview)
   end
 
   defp device_url(preview, account_handle, project_handle, _supported_platforms) do
-    manifest_url = preview_url(account_handle, project_handle, preview.id, "/manifest.plist")
-    "itms-services://?action=download-manifest&url=#{manifest_url}"
+    manifest_url =
+      preview_url(account_handle, project_handle, preview.id, "/manifest.plist") <> install_token_query(preview)
+
+    "itms-services://?action=download-manifest&url=#{URI.encode_www_form(manifest_url)}"
   end
+
+  defp install_token_query(preview), do: "?" <> URI.encode_query(token: AppBuilds.preview_install_token(preview))
 
   defp preview_url(account_handle, project_handle, preview_id, suffix \\ "") do
     Environment.app_url(path: "/#{account_handle}/#{project_handle}/previews/#{preview_id}#{suffix}")

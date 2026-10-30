@@ -9,6 +9,9 @@ defmodule Tuist.AppBuilds do
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
+  @preview_install_salt "preview_install"
+  @preview_install_token_ttl_seconds 24 * 60 * 60
+
   def create_preview(attrs) do
     %Preview{}
     |> Preview.create_changeset(attrs)
@@ -348,6 +351,31 @@ defmodule Tuist.AppBuilds do
   def icon_storage_key(%{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}) do
     "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{preview_id}/icon.png"
   end
+
+  def public_preview?(%Preview{
+        visibility: visibility,
+        project: %Project{default_previews_visibility: default_visibility}
+      }) do
+    (visibility || default_visibility) == :public
+  end
+
+  @doc """
+  Signs a token that grants access to a preview's install endpoints for 24 hours.
+  """
+  def preview_install_token(%Preview{id: preview_id}) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, @preview_install_salt, preview_id)
+  end
+
+  def verify_preview_install_token(%Preview{id: preview_id}, token) when is_binary(token) do
+    case Phoenix.Token.verify(TuistWeb.Endpoint, @preview_install_salt, token,
+           max_age: @preview_install_token_ttl_seconds
+         ) do
+      {:ok, ^preview_id} -> :ok
+      _ -> {:error, :invalid_preview_install_token}
+    end
+  end
+
+  def verify_preview_install_token(_preview, _token), do: {:error, :invalid_preview_install_token}
 
   def desktop_preview?(%Preview{supported_platforms: [_ | _] = platforms}) do
     Enum.all?(platforms, &(&1 in [:macos, :linux]))
