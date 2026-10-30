@@ -4,14 +4,14 @@ on:
   pull_request:
     paths:
       - .github/workflows/app-release*.yml
-      - .github/scripts/app-hotfix-plan*.py
-      - .github/scripts/app-release.test.cjs
+      - .github/scripts/app-hotfix-plan*.sh
+      - .github/scripts/app-release.test.sh
   push:
     branches: [main]
     paths:
       - .github/workflows/app-release*.yml
-      - .github/scripts/app-hotfix-plan*.py
-      - .github/scripts/app-release.test.cjs
+      - .github/scripts/app-hotfix-plan*.sh
+      - .github/scripts/app-release.test.sh
 
 permissions:
   contents: read
@@ -24,6 +24,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: npm ci --ignore-scripts
-      - run: python3 .github/scripts/app-hotfix-plan.test.py
-      - run: node --test .github/scripts/app-release.test.cjs
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked yq jq"
+          cache: "false"
+      - run: bash .github/scripts/app-hotfix-plan.test.sh
+      - run: bash .github/scripts/app-release.test.sh

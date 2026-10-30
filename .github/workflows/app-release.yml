@@ -71,7 +71,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff jq"
+          install_args: "--locked git-cliff jq yq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
@@ -86,7 +86,7 @@ jobs:
           curl --fail --location --retry 3 -H 'Cache-Control: no-cache' \
             "https://github.com/tuist/tuist/releases/download/appcast/appcast.xml?run=${GITHUB_RUN_ID}" \
             -o "$RUNNER_TEMP/live-appcast.xml"
-          python3 .github/scripts/app-hotfix-plan.py -- "$STABLE_TAG" "$SOURCE_SHA" "$RUNNER_TEMP/live-appcast.xml" >> "$GITHUB_OUTPUT"
+          bash .github/scripts/app-hotfix-plan.sh -- "$STABLE_TAG" "$SOURCE_SHA" "$RUNNER_TEMP/live-appcast.xml" >> "$GITHUB_OUTPUT"
 
   release-app:
     name: Release App
@@ -114,7 +114,7 @@ jobs:
       - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked tuist 1password-cli jq"
+          install_args: "--locked tuist 1password-cli jq yq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -162,24 +162,28 @@ jobs:
         env:
           RELEASE_TAG: ${{ needs.check-releases.outputs.app-next-version }}
         run: |
-          python3 - <<'PY'
-          import os, pathlib, re, xml.etree.ElementTree as ET
-          ns = '{http://www.andymatuschak.org/xml-namespaces/sparkle}'
-          tag = os.environ['RELEASE_TAG']
-          items = ET.parse('app/appcast.xml').getroot().findall('./channel/item')
-          candidates = [item for item in items if item.findtext(ns + 'shortVersionString') == tag.removeprefix('app@')]
-          assert len(candidates) == 1, 'Generated feed must advertise exactly one candidate'
-          item = candidates[0]
-          build = re.search(r'"CFBundleVersion": "([0-9]+)"', pathlib.Path('app/Project.swift').read_text()).group(1)
-          assert item.findtext(ns + 'version') == build, 'Feed must match the packaged build'
-          assert all(int(build) > int(other.findtext(ns + 'version')) for other in items if other is not item and other.findtext(ns + 'version', '').isdecimal()), 'Candidate must be newer than retained updates'
-          version = tuple(map(int, tag.removeprefix('app@').split('.')))
-          assert all(version > tuple(map(int, other.findtext(ns + 'shortVersionString').split('.'))) for other in items if other is not item), 'Candidate must not downgrade a newer live version'
-          enclosure = item.find('enclosure')
-          assert enclosure.get('url') == f'https://github.com/tuist/tuist/releases/download/{tag}/Tuist.dmg'
-          assert int(enclosure.get('length')) == pathlib.Path('app/build/artifacts/Tuist.dmg').stat().st_size
-          assert enclosure.get(ns + 'edSignature'), 'Missing Sparkle signature'
-          PY
+          set -euo pipefail
+          namespace='http://www.andymatuschak.org/xml-namespaces/sparkle:'
+          build=$(sed -nE 's/.*"CFBundleVersion": "([0-9]+)".*/\1/p' app/Project.swift)
+          size=$(wc -c < app/build/artifacts/Tuist.dmg)
+          yq -p=xml --xml-strict-mode --xml-raw-token=false \
+            --xml-skip-proc-inst --xml-skip-directives -o=json '.' app/appcast.xml |
+            jq -e --arg ns "$namespace" --arg tag "$RELEASE_TAG" --arg build "$build" --argjson size "$size" '
+              def version: if test("^[0-9]+(\\.[0-9]+){2}$") then split(".") | map(tonumber) else error("Invalid live version") end;
+              select(keys == ["rss"]) |
+              [.rss.channel.item // empty] | flatten as $items |
+              ($tag | ltrimstr("app@")) as $version |
+              [$items[] | select(.[$ns + "shortVersionString"] == $version)] as $candidates |
+              $candidates[0] as $item |
+              ($candidates | length) == 1 and
+              ($build | test("^[0-9]+$")) and $item[$ns + "version"] == $build and
+              all($items[] | select(. != $item);
+                ($version | version) > (.[$ns + "shortVersionString"] | version) and
+                ((.[$ns + "version"] // "") | if test("^[0-9]+$") then tonumber < ($build | tonumber) else true end)) and
+              $item.enclosure["+@url"] == ("https://github.com/tuist/tuist/releases/download/" + $tag + "/Tuist.dmg") and
+              ($item.enclosure["+@length"] | tonumber) == $size and
+              (($item.enclosure["+@" + $ns + "edSignature"] // "") | length > 0)
+            '
 
       - name: Upload App artifacts
         id: upload

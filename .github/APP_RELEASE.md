@@ -82,10 +82,10 @@ Never start a newer release while recovering a partial publication.
   it only as that original source/version, with separate owner approval; otherwise
   use the qualified stable backport and macOS-only lane.
 
-Credential-free checks:
+Credential-free checks (Bash with the repository-pinned `yq` and `jq`):
 
 ```bash
-python3 .github/scripts/app-hotfix-plan.test.py
-node --test .github/scripts/app-release.test.cjs
+mise exec yq jq -- bash .github/scripts/app-hotfix-plan.test.sh
+mise exec yq jq -- bash .github/scripts/app-release.test.sh
 actionlint -shellcheck= .github/workflows/app-release.yml
 ```
