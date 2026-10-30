@@ -183,7 +183,7 @@ defmodule TuistWeb.ConnectLive do
       <.terminal id="cargo-run">
         <:tab id="cargo-login" label="tuist auth login" command="tuist auth login" />
         <:tab id="cargo-build" label="tuist cargo build" command="tuist cargo build" />
-        <:tab id="cargo-test" label="tuist cargo nextest run" command="tuist cargo nextest run" />
+        <:tab id="cargo-test" label="tuist cargo test" command="tuist cargo test" />
       </.terminal>
       <.button
         variant="primary"

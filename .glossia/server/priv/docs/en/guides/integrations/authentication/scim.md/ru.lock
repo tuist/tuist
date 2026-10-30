@@ -1,0 +1,303 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "1b246f527d2065101cd7a0d78b368b657d4082f4891797cb3e61b07f3416530a",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# SCIM provisioning {#scim-provisioning}": {
+                  "content_hash": "e017066b3bbe366d4a18fbb885103779857c17533fccb1bf280cbc404d3c77dd"
+                },
+                "## Lifecycle behavior {#lifecycle-behavior}": {
+                  "content_hash": "8ee2e49fc1828520538e0a3039ec9f020d8613d19bc18566ce6de92a4a11f3e0"
+                },
+                "## Microsoft Entra ID {#microsoft-entra-id}": {
+                  "content_hash": "53ea2a32af2d282116fe23a7e8f3df093ed8f1af7654ef3e967c6b82041ccfb3"
+                },
+                "## Okta {#okta}": {
+                  "content_hash": "fbd0abdea598c27510f7021d385a89941a6df09c61cd604a1d2659adad1f613b"
+                },
+                "## Supported SCIM features {#supported-scim-features}": {
+                  "content_hash": "4d9898d0b6dfa38a02140c7a6b8fc667ab0802bd8569793435e567af03ece1c1"
+                },
+                "### Assigning roles {#entra-assigning-administrators}": {
+                  "content_hash": "cbe0add68e7a757bebeacd785c7107963ba23ec88ac47ce56657a0c9aac9e280"
+                },
+                "### Assigning roles {#okta-assigning-roles}": {
+                  "content_hash": "498d00fa6f7ec2c5edea13d39a554c28689977f8a9f74c1545012041bacab5bb"
+                },
+                "### Step 1: Generate a Tuist SCIM token {#entra-step-1}": {
+                  "content_hash": "1f1adefd12b8e01589a9de82e75e4958c4bcab13b0177932cb8e6c36be95f4b1"
+                },
+                "### Step 1: Generate a Tuist SCIM token {#okta-step-1}": {
+                  "content_hash": "d2bb82a5ad0abef1f3dcb47b14dd7b89b5311561816a987583e3ca4936061dea"
+                },
+                "### Step 2: Add the Okta SCIM app {#okta-step-2}": {
+                  "content_hash": "71c2124e3a6c76cecc4923d407024fa79d0ad1b85d43e6ccc48000297cf883c1"
+                },
+                "### Step 2: Configure provisioning {#entra-step-2}": {
+                  "content_hash": "47160a51dd5ea08062f1ce882dded6246a6597098e70357699ac2d76e4afd4c9"
+                },
+                "### Step 3: Configure the API integration {#okta-step-3}": {
+                  "content_hash": "550e28965cff3da64a3a96d5943bd3ec6bd65002ce0971738126b65f261691c2"
+                },
+                "### Step 3: Set the matching attribute {#entra-step-3}": {
+                  "content_hash": "8907fa218b8e5286ec99de7d55b6acb23843fcbbee606d229e6bde678b2aa0b7"
+                },
+                "### Step 4: Disable group provisioning {#entra-step-4}": {
+                  "content_hash": "448aba7271f368047f05203f65005b069fcb7ea12482e45100c57269228de2be"
+                },
+                "### Step 4: Enable provisioning actions {#okta-step-4}": {
+                  "content_hash": "66f1f18b2d9afb024729501ffbf4a659f2a4ad3ccef835a929006ae17613405b"
+                },
+                "### Step 5: Assign users and start provisioning {#entra-step-5}": {
+                  "content_hash": "d0e4f87f4dcaf5edeb72ec4a87bc02694a372ec03ff81554909531f7be56351b"
+                },
+                "### Step 5: Assign users or groups {#okta-step-5}": {
+                  "content_hash": "867a53832598599473bbd5aefaf33d686f92e17a19902e56d9e86ebb4d30f713"
+                },
+                "Preamble": {
+                  "content_hash": "f1d866243df67c027877035e744af0970f59319af95b45421cca23a87ce161f1"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "3412688e860bb2915d607c384f1f58357192dfb24bd007bec2a2f76ec4f92616",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/integrations/authentication/scim.md",
+          "metadata": {
+            "content_hash": "264c3e35c2cd324c6b3e0a906e9d29455fe81a229524e3415a54ec3e45d61ca4"
+          }
+        },
+        {
+          "children": [],
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "9786290c0e23635ecda638522b48a87ba4e82b1561fcc08ec81b152f3d7b77de",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "translate",
+            "language": "Russian",
+            "locale": "ru",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+              }
+            },
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "server/L10N/ru.md": {
+                    "content_hash": "6b95108ccc3f0561fd0baa74b19d36042627768e18d00466b411a26aec631992",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "809f7790b82a210b52aac663416221f899955f61f11ebd1f9f407018d6317413"
+                      },
+                      "## Russian-specific translation rules": {
+                        "content_hash": "1d80989e3db1fe4ea014830312aa518a027ef98b660b47dab0f8186666ebc492"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "03e8f92357bd42c2840b538e8db6643bcc4fe3e1a92d80e84872435f31e05253"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c3a059b5c05b024eeb6e14e43a4f18d82ce4b256e66040b87383147bff80417f",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "c14966d4fca075aebc13f54f40846a461c5a2fe8a69c3a7efd0def151ce0a282"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "5333d1ef6ad53f55a278ad34659373b59457597f7c78719bc78853bedaae8b6e"
+                      }
+                    }
+                  },
+                  "hash": "4032fcf654013ee0633b42203aa210b89122b5bcda2737e22a4db3751da0395e",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "99e96d3cce8d6dd883c28481dd913999408bea3faf905c4ae89cc604f544234b"
+                  }
+                }
+              ],
+              "details": {},
+              "hash": "1c29f387af2aa07df4576cca8e378d7346eec40bdc689129231e1b07e76c04f2",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "details": {},
+          "hash": "26ddd15da44ba3709e3ef994282bebf566d0c888fa4a4a5a8039217a7bedd6bf",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "details": {},
+      "hash": "1b246f527d2065101cd7a0d78b368b657d4082f4891797cb3e61b07f3416530a",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/integrations/authentication/scim.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "7ff4cbdccbd8efb593148b487cfb1eee72b3889f97c105ad9c2cce1692aba437",
+  "output_path": "server/priv/docs/ru/guides/integrations/authentication/scim.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [
+        "repo:features"
+      ],
+      "content_hash": "99e96d3cce8d6dd883c28481dd913999408bea3faf905c4ae89cc604f544234b",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
+  "source_path": "server/priv/docs/en/guides/integrations/authentication/scim.md",
+  "translated_at": "2026-10-29T16:33:40.208918Z",
+  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
+}

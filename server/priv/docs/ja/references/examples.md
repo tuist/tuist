@@ -1,10 +1,10 @@
 ---
 {
-  "title": "Examples",
-  "titleTemplate": ":title · References · Tuist",
-  "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
+  "title": "例",
+  "titleTemplate": ":title · リファレンス · Tuist",
+  "description": "Tuistの機能やパターンを示すサンプルプロジェクトを参照できます。"
 }
 ---
 # 例
 
-このセクションでは、<LocalizedLink to="/guides/features/projects">生成されたプロジェクト</LocalizedLink>の例を見つけることができます。これらのプロジェクトは、受け入れテストを実行するための[フィクスチャ](https://github.com/tuist/tuist/tree/main/cli/Fixtures)として使用します。新しい生成プロジェクトを作成したり、既存のXcodeプロジェクトをTuistによって生成されるように移行したりするときに、これらが役に立つかもしれません。
+このセクションでは、<.localized_link href="/guides/features/projects">生成されたプロジェクト</.localized_link>の例を紹介しています。これらは受入テストの実行に使用される[例](https://github.com/tuist/tuist/tree/main/examples/xcode)です。新しい生成プロジェクトを作成する際や、既存のXcodeプロジェクトをTuistによる生成に移行する際に役立つでしょう。

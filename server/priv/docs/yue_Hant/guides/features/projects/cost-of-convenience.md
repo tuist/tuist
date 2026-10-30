@@ -1,143 +1,63 @@
 ---
 {
-  "title": "The cost of convenience",
+  "title": "便利嘅代價",
   "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn about the cost of convenience in Xcode and how Tuist helps you prevent the issues that come with it."
+  "description": "Xcode 嘅隱含行為點樣導致問題，同埋 Tuist 點樣避免呢啲問題。"
 }
 ---
-# The cost of convenience {#the-cost-of-convenience}
+# 方便嘅代價 {#the-cost-of-convenience}
 
-Designing a code editor that the spectrum **from small to large-scale projects
-can use** is a challenging task. Many tools approach the problem by layering
-their solution and providing extensibility. The bottom-most layer is very
-low-level and close to the underlying build system, and the top-most layer is a
-high-level abstraction that's convenient to use but less flexible. By doing so,
-they make the simple things easy, and everything else possible.
+設計一個 **由小型到大型項目都可以用** 嘅程式碼編輯器係一件困難嘅事。好多工具會透過分層方案同提供擴展性嚟解決呢個問題。最底層非常低階，貼近底層建構系統；最頂層就係高階抽象，用起嚟方便但靈活性較低。咁樣做可以令簡單嘅事變易，其他事亦變得可行。
 
-However, **[Apple](https://www.apple.com) decided to take a different approach
-with Xcode**. The reason is unknown, but it's likely that optimizing for the
-challenges of large-scale projects has never been their goal. They overinvested
-in convenience for small projects, provided little flexibility, and strongly
-coupled the tools with the underlying build system. To achieve the convenience,
-they provide sensible defaults, which you can easily replace, and added a lot of
-implicit build-time-resolved behaviors that are the culprit of many issues at
-scale.
+不過，**[Apple](https://www.apple.com) 為 Xcode 選擇咗另一條路**。原因不明，但好可能優化大型項目嘅挑戰從來唔係佢哋嘅目標。佢哋過度投資於小型項目嘅便利性，提供嘅靈活性有限，並將工具與底層建構系統緊密耦合。為咗達到便利，佢哋提供咗合理嘅預設值（你可以輕鬆替換），同時加入咗大量隱式嘅建構時解析行為，成為規模擴大時許多問題嘅根源。
 
-## Explicitness and scale {#explicitness-and-scale}
+## 明確性與規模 {#explicitness-and-scale}
 
-When working at scale, **explicitness is key**. It allows the build system to
-analyze and understand the project structure and dependencies ahead of time, and
-perform optimizations that would be impossible otherwise. The same explicitness
-is also key in ensuring that editor features such as [SwiftUI
-previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
-or [Swift
-Macros](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/)
-work reliably and predictably. Because Xcode and Xcode projects embraced
-implicitness as a valid design choice to achieve convenience, a principle that
-the Swift Package Manager has inherited, the difficulties of using Xcode are
-also present in the Swift Package Manager.
+當項目規模擴大時，**明確性至關重要**。它讓建構系統可以預先分析並理解項目結構同依賴關係，從而執行否則無法實現嘅優化。同樣嘅明確性對於確保 [SwiftUI previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode) 或 [Swift Macros](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/) 等編輯器功能可靠且可預測地運作亦至關重要。由於 Xcode 同 Xcode 項目將隱式性視為達成便利嘅有效設計選擇，而 Swift Package Manager 繼承咗呢一原則，因此使用 Xcode 嘅困難同樣存在於 Swift Package Manager 中。
 
 > [!NOTE]
-> **The Role Of Tuist**
+> **Tuist 嘅角色**
 >
-> We could summarize Tuist's role as a tool that prevents implicitly-defined
-> projects and leverages explicitness to provide a better developer experience
-> (e.g. validations, optimizations). Tools like [Bazel](https://bazel.build) take
-> it further by bringing it down to the build system level.
+> 我哋可以將 Tuist 嘅角色總結為一個防止隱式定義項目、並利用明確性提供更佳開發者體驗（例如驗證、優化）嘅工具。像 [Bazel](https://bazel.build) 這類工具更進一步，將此原則落實到建構系統層面。
 
 
-This is an issue that's barely discussed in the community, but it's a
-significant one. While working on Tuist, we've noticed many organizations and
-developers thinking that the current challenges they face will be addressed by
-the [Swift Package
-Manager](https://www.swift.org/documentation/package-manager/), but what they
-don't realize is that because it's building on the same principles, even though
-it mitigates the so well-known Git conflicts, they degrade the developer
-experience in other areas and continue to make the projects non-optimizable.
+呢個問題在社區中很少被討論，但卻非常重要。在開發 Tuist 嘅過程中，我哋注意到許多組織同開發者認為 [Swift Package Manager](https://www.swift.org/documentation/package-manager/) 會解決佢哋目前面臨嘅挑戰，但佢哋未意識到，由於 Swift Package Manager 建立在相同原則之上，即使它緩解咗眾所周知嘅 Git 衝突，卻在其他方面降低咗開發者體驗，並繼續令項目難以優化。
 
-In the following sections, we'll discuss some real examples of how implicitness
-affects the developer experience and the project's health. The list is not
-exhaustive, but it should give you a good idea of the challenges that you might
-face when working with Xcode projects or Swift Packages.
+在以下章節中，我哋會討論一些真實例子，說明隱式性如何影響開發者體驗同項目健康狀況。清單並非詳盡無遺，但應該讓你對使用 Xcode 項目或 Swift Packages 時可能面臨嘅挑戰有個清晰概念。
 
-## Convenience getting in your way {#convenience-getting-in-your-way}
+## 便利性反而成為障礙 {#convenience-getting-in-your-way}
 
-### Shared built products directory {#shared-built-products-directory}
+### 共享建構產物目錄 {#shared-built-products-directory}
 
-Xcode uses a directory inside the derived data directory for each product.
-Inside it, it stores the build artifacts, such as the compiled binaries, the
-dSYM files, and the logs. Because all the products of a project go into the same
-directory, which is visible by default from other targets to link against, **you
-might end up with targets that implicitly depend on each other.** While this
-might not be a problem when having just a few targets, it might manifest as
-failing builds that are hard to debug when the project grows.
+Xcode 為每個產品在 derived data 目錄內使用一個目錄。裡面儲存建構產物，例如編譯後嘅二進制文件、dSYM 文件同日誌。由於項目所有產品都進入同一個目錄，而其他 target 預設可以看到並連結該目錄，**你可能會導致 target 之間產生隱式依賴。** 雖然只有少數 target 時這可能不成問題，但當項目擴大時，可能會表現為難以除錯嘅建構失敗。
 
-The consequence of this design decision is that many projects acidentally
-compile with a graph that is not well-defined.
+呢個設計決策嘅後果係，許多項目意外地以定義不清嘅圖進行編譯。
 
 > [!TIP]
-> **Tuist Detection Of Implicit Dependencies**
+> **Tuist 檢測隱式依賴**
 >
-> Tuist provides a
-> <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">command</LocalizedLink>
-> to detect implicit dependencies. You can use the command to validate in CI that
-> all your dependencies are explicit.
+> Tuist 提供 <.localized_link href="/guides/features/projects/inspect/implicit-dependencies">指令</.localized_link> 來檢測隱式依賴。你可以使用該指令在 CI 中驗證所有依賴都係明確嘅。
 
 
-### Find implicit dependencies in schemes {#find-implicit-dependencies-in-schemes}
+### 在 schemes 中查找隱式依賴 {#find-implicit-dependencies-in-schemes}
 
-Defining and maintaining a dependency graph in Xcode gets harder as the project
-grows. It's hard because they are codified in the `.pbxproj` files as build
-phases and build settings, there are no tools to visualize and work with the
-graph, and the changes in the graph (e.g. adding a new dynamic precompiled
-framework), might require configuration changes upstream (e.g. adding a new
-build phase to copy the framework into the bundle).
+隨著項目擴大，在 Xcode 中定義同維護依賴圖變得更加困難。困難在於它們以建構階段同建構設定嘅形式編碼在 `.pbxproj` 文件中，沒有工具可以視覺化並處理該圖，而且圖中嘅變更（例如新增一個動態預編譯框架）可能需要上游配置變更（例如新增一個建構階段將框架複製到 bundle 中）。
 
-Apple decided at some point that instead of evolving the graph model into
-something more manageable, it'd make more sense to add an option to resolve
-implicit dependencies at build time. This is once again a questionable design
-choice because you might end up with slower build times or unpredictable builds.
-For example, a build might pass locally due to some state in derive data, which
-acts as a [singleton](https://en.wikipedia.org/wiki/Singleton_pattern), but then
-fail to compile on CI because the state is different.
+Apple 在某個時刻決定，與其將圖模型演進為更易管理嘅形式，不如新增一個選項在建構時解析隱式依賴更為合理。這再次係一個值得商榷嘅設計選擇，因為你可能最終面臨更慢嘅建構時間或不可預測嘅建構結果。例如，由於 derived data 中嘅某些狀態（其作用類似 [singleton](https://en.wikipedia.org/wiki/Singleton_pattern)），建構可能在本地通過，但隨後因狀態不同而在 CI 上編譯失敗。
 
 > [!TIP]
-> We recommend disabling this in your project schemes, and use like Tuist that
-> eases the management of the dependency graph.
+> 我哋建議在你嘅項目 schemes 中禁用此選項，並使用像 Tuist 這樣簡化依賴圖管理嘅工具。
 
 
-### SwiftUI Previews and static libraries/frameworks {#swiftui-previews-and-static-librariesframeworks}
+### SwiftUI Previews 與靜態庫/框架 {#swiftui-previews-and-static-librariesframeworks}
 
-Some editor features like SwiftUI Previews or Swift Macros require the
-compilation of the dependency graph from the file that's being edited. This
-integration between the editor requires that the build system resolves any
-implicitness and output the right artifacts that are necessary for those
-features to work. As you can imagine, **the more implicit the graph is, the more
-challenging the task is for the build system**, and therefore it's not
-surprising that many of these features don't work reliably. We often hear from
-developers that they stopped using SwiftUI previews long time ago because they
-were too unreliable. Instead, they are using either example apps, or avoiding
-certaing things, like the usage of static libraries or script build phases,
-because they cause the feature to break.
+某些編輯器功能（如 SwiftUI Previews 或 Swift Macros）需要從正在編輯嘅文件編譯依賴圖。編輯器與建構系統之間嘅集成要求建構系統解析任何隱式性，並輸出這些功能正常工作所需嘅正確產物。可想而知，**圖越隱式，建構系統嘅任務就越具挑戰性**，因此許多這些功能無法可靠運作並不足為奇。我哋經常聽到開發者說，他們很久以前就停止使用 SwiftUI previews，因為它們太不可靠。相反，他們要么使用示例應用，要么避免某些事情（例如使用靜態庫或腳本建構階段），因為這些會導致功能失效。
 
-### Mergeable libraries {#mergeable-libraries}
+### 可合併庫 {#mergeable-libraries}
 
-Dynamic frameworks, while more flexible and easier to work with, have a negative
-impact in the launch time of apps. On the other side, static libraries are
-faster to launch, but impact the compilation time and are a bit harder to work
-with, specially in complex graph scenarios. *Wouldn't it be great if you could
-change between one or the other depending on the configuration?* That's what
-Apple must have thought when they decided to work on mergeable libraries. But
-once again, they moved more build-time inference to the build-time. If reasoning
-about a dependency graph, imagine having to do so when the static or dynamic
-nature of the target will be resolved at build-time based on some build settings
-in some targets. Good luck making that work reliably while ensuring features
-like SwiftUI previews don't break.
+動態框架雖然更靈活、更易於使用，但會對應用程式啟動時間產生負面影響。另一方面，靜態庫啟動更快，但會影響編譯時間，而且較難使用，特別是在複雜依賴圖場景中。*如果可以根據配置在兩者之間切換，豈不是更好？* 這應該就是 Apple 決定開發可合併庫時嘅想法。但又一次，他們將更多建構時推論移到了建構時。試想像一下，如果要推理依賴圖，而目標係靜態定動態要根據某些目標中嘅建構設定在建構時先解析，情況會幾複雜。要在確保 SwiftUI previews 等功能不會失效嘅同時令其可靠運作，真係好難。
 
-**Many users come to Tuist wanting to use mergeable libraries and our answer is
-always the same. You don't need to.** You can control the static or dynamic
-nature of your targets at generation-time leading to a project whose graph is
-known ahead of compilation. No variables need to be resolved at build-time.
+**許多用戶接觸 Tuist 時都想使用可合併庫，而我哋嘅答案總係一樣：你不需要。** 你可以在生成時控制目標嘅靜態或動態性質，從而令項目嘅依賴圖在編譯前就已確定。無需在建構時解析任何變量。
 
 ```bash
 # The value of TUIST_DYNAMIC can be read from the project {#the-value-of-tuist_dynamic-can-be-read-from-the-project}
@@ -145,45 +65,18 @@ known ahead of compilation. No variables need to be resolved at build-time.
 TUIST_DYNAMIC=1 tuist generate
 ```
 
-## Explicit, explicit, and explicit {#explicit-explicit-and-explicit}
+## 明確、明確、再明確 {#explicit-explicit-and-explicit}
 
-If there's an important non-written principle that we recommend every developer
-or organization that wants their development with Xcode to scale, is that they
-should embrace explicitness. And if explicitness is hard to manage with raw
-Xcode projects, they should consider something else, either
-[Tuist](https://tuist.io) or [Bazel](https://bazel.build). **Only then
-reliability, predicability, and optimizations will be possible.**
+如果我哋要向每位希望其 Xcode 開發能夠擴展嘅開發者或組織推薦一個重要嘅不成文原則，那就係擁抱明確性。如果原始 Xcode 項目難以管理明確性，就應該考慮其他方案，例如 [Tuist](https://tuist.io) 或 [Bazel](https://bazel.build)。**唯有如此，可靠性、可預測性同優化才有可能實現。**
 
-## Future {#future}
+## 未來 {#future}
 
-Whether Apple will do something to prevent all the above issues is unknown.
-Their continuous decisions embedded into Xcode and the Swift Package Manager
-don't suggest that they will. Once you allow implicit configuration as a valid
-state, **it's hard to move from there without introducing breaking changes.**
-Going back to first principles and rethinking the design of the tools might lead
-to breaking many Xcode projects that accidentally compiled for years. Imagine
-the community uproar if that happened.
+Apple 會否採取措施防止上述所有問題，目前尚不清楚。他們持續嵌入 Xcode 同 Swift Package Manager 中嘅決策並未顯示出會這樣做嘅跡象。一旦你允許隱式配置作為有效狀態，**就很難在不引入破壞性變更嘅情況下改變現狀。** 回到基本原則並重新思考工具設計，可能會導致多年來意外編譯成功嘅許多 Xcode 項目失效。想像一下如果發生這種情況，社區會幾大反應。
 
-Apple finds itself in a bit of a chicken-and-egg problem. Convenience is what
-helps developers get started quickly and build more apps for their ecosystem.
-But their decisions to make the experience convenience at that scale, is making
-it hard for them to ensure some of the Xcode features work reliably.
+Apple 陷入咗某種雞生蛋、蛋生雞嘅困境。便利性幫助開發者快速入門並為其生態系統構建更多應用程式。但他們為咗喺該規模上提供便利體驗而做出嘅決策，卻令他們難以確保某些 Xcode 功能可靠運作。
 
-Because the future is unknown, we try to **be as close as possible to the
-industry standards and Xcode projects**. We prevent the above issues, and
-leverage the knowledge that we have to provide a better developer experience.
-Ideally we wouldn't have to resort to project generation for that, but the lack
-of extensibility of Xcode and the Swift Package Manager make it the only viable
-option. And it's also a safe option because they'll have to break the Xcode
-projects to break Tuist projects.
+由於未來未知，我哋試圖 **盡量貼近行業標準同 Xcode 項目**。我哋防止上述問題，並利用現有知識提供更好嘅開發者體驗。理想情況下，我哋本無需為此訴諸項目生成，但 Xcode 同 Swift Package Manager 缺乏可擴展性，令其成為唯一可行嘅選項。這亦係一個安全嘅選項，因為他們必須先破壞 Xcode 項目，先會破壞 Tuist 項目。
 
-Ideally, **the build system was more extensible**, but wouldn't it be a bad idea
-to have plugins/extensions that contract with a world of implicitness? It
-doesn't seem like a good idea. So it seems like we'll need external tools like
-Tuist or [Bazel](https://bazel.build) to provide a better developer experience.
-Or maybe Apple will surprise us all and make Xcode more extensible and
-explicit...
+理想情況下，**建構系統應該更具可擴展性**，但如果插件/擴展需要與充滿隱式性嘅世界交互，豈不是一個壞主意？這似乎並非好主意。因此，我哋似乎需要像 Tuist 或 [Bazel](https://bazel.build) 這樣嘅外部工具來提供更好嘅開發者體驗。或者 Apple 會給所有人帶來驚喜，讓 Xcode 更具可擴展性同明確性……
 
-Until that happens, you have to choose whether you want to embrace the
-convencience of Xcode and take on the debt that comes with it, or trust us on
-this journey to provide a better developer experience. We won't disappoint you.
+在那發生之前，你需要選擇係擁抱 Xcode 嘅便利並承擔隨之而來嘅技術債，還係信任我哋在這段旅程中提供更好嘅開發者體驗。我哋不會令你失望。

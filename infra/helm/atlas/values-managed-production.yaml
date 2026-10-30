@@ -201,6 +201,13 @@ externalSecrets:
     # the same ingest pipeline external SDKs use — no HTTP hop, so an
     # ingest outage cannot loop back through the logger. This replaces the
     # previous route that posted envelopes to hive.tuist.dev.
+    # Personal OAuth needs client credentials, not the bot/signing credentials.
+    # Provision both fields before deployment; see the account-connections
+    # section in infra/k8s/atlas/onboarding.md.
+    ATLAS_SLACK_CLIENT_ID:
+      remoteRef: "atlas-slack-company/client_id"
+    ATLAS_SLACK_CLIENT_SECRET:
+      remoteRef: "atlas-slack-company/client_secret"
     ATLAS_SLACK_SIGNING_SECRET:
       remoteRef: "atlas-slack-company/password"
     SLACK_COMPANY_BOT_TOKEN:
@@ -233,6 +240,9 @@ externalSecrets:
       remoteRef: "atlas-github-app/app_name"
     ATLAS_GITHUB_APP_CLIENT_ID:
       remoteRef: "atlas-github-app/client_id"
+    # Provision the OAuth secret first; the App private key cannot replace it.
+    ATLAS_GITHUB_APP_CLIENT_SECRET:
+      remoteRef: "atlas-github-app/client_secret"
     ATLAS_GITHUB_APP_PRIVATE_KEY:
       remoteRef: "atlas-github-app/private_key"
     ATLAS_GITHUB_APP_WEBHOOK_SECRET:

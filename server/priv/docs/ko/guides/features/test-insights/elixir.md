@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Elixir Test Insights",
-  "titleTemplate": ":title · Test Insights · Features · Guides · Tuist",
-  "description": "Track the tests of your Elixir project in the Tuist dashboard to monitor test performance."
+  "title": "Elixir 테스트 인사이트",
+  "titleTemplate": ":title · 테스트 인사이트 · 기능 · 가이드 · Tuist",
+  "description": "Tuist 대시보드에서 Elixir 프로젝트의 테스트를 추적하여 테스트 성능을 모니터링하세요."
 }
 ---
 # Elixir 테스트 인사이트 {#elixir-test-insights}
 
-Tuist의 Hex 패키지는 각 테스트 실행 후 Elixir 프로젝트의 테스트 결과를 업로드하여, Tuist 대시보드에서 직접 테스트 성능과 불안정한(flaky) 테스트를 확인할 수 있게 해줍니다.
+Tuist의 Hex 패키지는 각 테스트 실행 후 Elixir 프로젝트의 테스트 결과를 업로드하여, Tuist 대시보드에서 테스트 성능과 불안정한 테스트를 직접 확인할 수 있게 해줍니다.
 
 > [!IMPORTANT] REQUIREMENTS
 > - <.localized_link href="/guides/get-started/elixir-project">Elixir 시작하기</.localized_link> 완료
@@ -22,7 +22,7 @@ mix test test/my_app_test.exs:12 --trace
 
 Tuist는 실행이 끝나면 결과를 보고하므로 추가적인 테스트 별칭이 필요하지 않습니다.
 
-Tuist 대시보드에서 테스트 인사이트에 액세스하고 시간이 지남에 따라 어떻게 변화하는지 확인할 수 있습니다:
+Tuist 대시보드에서 테스트 인사이트에 접근하고 시간이 지남에 따라 어떻게 변화하는지 확인할 수 있습니다:
 
 ![Phoenix 애플리케이션의 테스트 대시보드](/images/guides/features/elixir/tests-dashboard.png)
 
@@ -30,29 +30,29 @@ Tuist 대시보드에서 테스트 인사이트에 액세스하고 시간이 지
 
 이 패키지는 ExUnit의 결과를 수집하며, 다음을 포함합니다:
 - 개별 테스트의 통과/실패 상태 및 소요 시간
-- 각 테스트가 속한 모듈 및 `describe` 블록
+- 각 테스트가 속한 모듈과 `describe` 블록
 - 각 실패의 메시지 및 위치
-- 실행 간 불안정한(flaky) 테스트 감지
-- 브랜치와 커밋, 그리고 지속적 통합(CI) 환경에서는 제공자(provider)와 실행(run)
-- 지속적 통합(CI) 환경에서는 체크아웃의 [Git 기록](#git-history)
+- 실행 간 불안정한 테스트 감지
+- 브랜치와 커밋, 그리고 지속적 통합 환경에서는 제공자와 실행 정보
+- 지속적 통합 환경에서는 체크아웃의 [Git 기록](#git-history)
 
 Doctest는 다른 테스트와 마찬가지로 보고됩니다. `--cover` 옵션을 사용하면 실행의 라인 커버리지도 업로드됩니다: <.localized_link href="/guides/features/test-code-coverage/elixir">Elixir 코드 커버리지</.localized_link> 참조.
 
 > [!NOTE]
-> 이 패키지는 이미 사용 중인 포맷터 옆에 추가되는 ExUnit 포맷터를 통해 보고합니다. 명령줄에서 `--formatter`를 전달하면 Mix가 전체 목록을 대체하므로 실행이 보고되지 않으며, 작업(task)이 이에 대해 경고합니다.
+> 이 패키지는 이미 사용 중인 포맷터 옆에 추가되는 ExUnit 포맷터를 통해 보고합니다. 명령줄에서 `--formatter`를 전달하면 Mix가 전체 목록을 대체하므로 실행이 보고되지 않으며 작업이 이에 대해 경고합니다.
 
 ### Git 기록 {#git-history}
 
-지속적 통합(CI) 환경에서는 패키지가 체크아웃의 커밋 기록도 업로드합니다: 커밋 SHA, 부모 커밋, 커밋 날짜, 그리고 실행과 해당 풀 리퀘스트의 기본 브랜치가 있던 브랜치입니다. 파일 내용, 커밋 메시지 또는 작성자는 업로드되지 않습니다. 이를 통해 Tuist는 기본 브랜치에 머지된 커밋(예: 머지 큐에서 테스트된 커밋)을 식별할 수 있습니다. 패키지는 체크아웃에 이미 있는 기록을 읽으며, 체크아웃에 기본 브랜치가 없는 경우 원격 저장소에 최신 커밋을 요청합니다(`git ls-remote`). 코드 커버리지(`--cover`) 외부에서는 기록을 가져오지 않습니다.
+지속적 통합 환경에서는 이 패키지가 체크아웃의 커밋 기록도 업로드합니다: 커밋 SHA, 부모 커밋, 커밋 날짜, 그리고 실행과 풀 리퀘스트의 기본 브랜치가 있던 브랜치입니다. 파일 내용, 커밋 메시지 또는 작성자는 업로드되지 않습니다. 이를 통해 Tuist는 기본 브랜치에 병합된 커밋(예: 머지 큐에서 테스트된 커밋)을 식별합니다. 패키지는 체크아웃에 이미 있는 기록을 읽으며, 체크아웃에 기본 브랜치가 없는 경우 원격 저장소에 최신 커밋을 요청합니다(`git ls-remote`). 코드 커버리지(`--cover`) 외에는 기록을 가져오지 않습니다.
 
 | 변수 | 효과 |
 | --- | --- |
 | `TUIST_GIT_UPLOAD_ENABLED=false` | Git 기록을 읽거나 업로드하지 않습니다. |
-| `TUIST_GIT_UNSHALLOW_ENABLED=false` | 원격 저장소에 접속하지 않고 체크아웃만 읽습니다. |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | 원격 저장소에 연결하지 않고 체크아웃만 읽습니다. |
 
 ## 문제 해결 {#troubleshooting}
 
-보고 기능은 테스트 결과에 영향을 주지 않습니다: 보고서를 보낼 수 없는 경우, 실행은 평소처럼 종료되며 아무것도 출력되지 않습니다. 보고서가 전송되지 않은 이유를 확인하려면 `TUIST_DEBUG=1`를 설정하세요:
+보고 기능은 테스트 결과에 영향을 주지 않습니다: 보고서를 보낼 수 없는 경우 실행은 평소대로 종료되며 아무것도 출력되지 않습니다. 보고서가 전송되지 않은 이유를 확인하려면 `TUIST_DEBUG=1`를 설정하세요:
 
 ```bash
 TUIST_DEBUG=1 mix test

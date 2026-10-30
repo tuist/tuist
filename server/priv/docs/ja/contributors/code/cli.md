@@ -1,8 +1,8 @@
 ---
 {
   "title": "CLI",
-  "titleTemplate": ":title · コード · 貢献者 · Tuist",
-  "description": "Tuist CLIに貢献する。"
+  "titleTemplate": ":title · コード · コントリビューター · Tuist",
+  "description": "Tuist CLI に貢献する。"
 }
 ---
 # CLI {#cli}
@@ -11,7 +11,7 @@
 
 ## 用途 {#what-it-is-for}
 
-CLI は Tuist の中心です。プロジェクトの生成、自動化ワークフロー（テスト、実行、グラフ、検査）を処理し、認証、キャッシュ、インサイト、プレビュー、レジストリ、選択的テストなどの機能のために Tuist サーバーへのインターフェースを提供します。
+CLI は Tuist の中核です。プロジェクトの生成、自動化ワークフロー（テスト、実行、グラフ、検査）を処理し、認証、キャッシュ、インサイト、プレビュー、レジストリ、選択的テストなどの機能のために Tuist サーバーへのインターフェースを提供します。
 
 ## 貢献方法 {#how-to-contribute}
 
@@ -23,7 +23,7 @@ CLI は Tuist の中心です。プロジェクトの生成、自動化ワーク
 ### ローカル環境のセットアップ {#set-up-locally}
 
 - リポジトリのクローン: `git clone git@github.com:tuist/tuist.git`
-- [Mise の公式インストールスクリプト](https://mise.jdx.dev/getting-started.html)（Homebrew ではなく）を使用して Mise をインストールし、`mise install` を実行
+- Mise を [公式インストールスクリプト](https://mise.jdx.dev/getting-started.html)（Homebrew ではなく）でインストールし、`mise install` を実行
 - Tuist の依存関係をインストール: `tuist install`
 - ワークスペースを生成: `tuist generate`
 
@@ -42,7 +42,7 @@ CLI は Tuist の中心です。プロジェクトの生成、自動化ワーク
 `tuist` スキームを編集し、`generate --no-open` などの引数を設定します。作業ディレクトリをプロジェクトルートに設定するか（または `--path` を使用）、
 
 > [!WARNING]
-> **ProjectDescription のコンパイル**
+> **Projectdescription のコンパイル**
 >
 > CLI は `ProjectDescription` のビルドに依存しています。実行に失敗する場合は、まず `Tuist-Workspace` スキームをビルドしてください。
 

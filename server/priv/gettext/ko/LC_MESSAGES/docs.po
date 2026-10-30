@@ -21,7 +21,7 @@ msgstr "아티팩트"
 #: lib/tuist_web/live/docs_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
-msgstr "코드 변경 없이 실패하는 불안정한 테스트를 자동으로 감지하여 잘못된 실패 조사에 소요되는 시간을 절약하세요."
+msgstr "코드 변경 없이 실패하는 불안정한 테스트를 자동으로 감지하여 잘못된 실패를 조사하는 데 소요되는 시간을 절약하세요."
 
 #: lib/tuist_web/docs/layouts.ex:58
 #: lib/tuist_web/docs/layouts/root.html.heex:194
@@ -51,13 +51,13 @@ msgstr "Tuist 커뮤니티와 실시간으로 채팅하세요."
 #: lib/tuist_web/live/docs_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling."
-msgstr "Tuist로 더 나은 앱을 배포하는 수천 명의 개발자와 소통하세요. 도움을 받고, 성과를 공유하며, 앱 개발 도구의 미래를 함께 만들어가세요."
+msgstr "Tuist로 더 나은 앱을 배포하는 수천 명의 개발자와 연결하세요. 도움을 받고, 성공 사례를 공유하며, 앱 개발 도구의 미래를 함께 만들어가세요."
 
 #: lib/tuist_web/live/docs_live.ex:529
 #: lib/tuist_web/live/docs_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Contribute or report issues to our open source repository."
-msgstr "오픈 소스 저장소에 기여하거나 이슈를 보고하세요."
+msgstr "오픈소스 저장소에 기여하거나 이슈를 보고하세요."
 
 #: lib/tuist_web/docs/components/page_layout.html.heex:71
 #: lib/tuist_web/docs/components/page_layout.html.heex:74
@@ -73,7 +73,7 @@ msgstr "페이지 복사"
 #: lib/tuist_web/docs/components/toc.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Copy page as markdown for LLMs"
-msgstr "LLM용 마크다운으로 페이지 복사"
+msgstr "LLM용 페이지를 마크다운으로 복사"
 
 #: lib/tuist_web/docs/components/page_layout.html.heex:35
 #, elixir-autogen, elixir-format
@@ -133,13 +133,13 @@ msgstr "인사이트"
 #: lib/tuist_web/live/docs_live.ex:698
 #, elixir-autogen, elixir-format
 msgid "Learn from real implementations and get inspired by what's possible when your toolchain just works."
-msgstr "툴체인이 원활하게 작동할 때 가능한 것들로부터 영감을 얻고 실제 구현 사례를 살펴보세요."
+msgstr "원활하게 작동하는 툴체인으로 가능한 사례를 통해 실제 구현에서 배우고 영감을 얻으세요."
 
 #: lib/tuist_web/live/docs_live.ex:570
 #: lib/tuist_web/live/docs_live.ex:811
 #, elixir-autogen, elixir-format
 msgid "Learn from videos from the Tuist team and the community."
-msgstr "Tuist 팀과 커뮤니티의 동영상으로 배우세요."
+msgstr "Tuist 팀과 커뮤니티의 동영상을 통해 배워보세요."
 
 #: lib/tuist_web/docs/layouts/root.html.heex:109
 #: lib/tuist_web/docs/layouts/root.html.heex:269
@@ -168,12 +168,12 @@ msgstr "이 페이지에서"
 #: lib/tuist_web/live/docs_live.ex:798
 #, elixir-autogen, elixir-format
 msgid "Open source and community"
-msgstr "오픈소스와 커뮤니티"
+msgstr "오픈 소스 및 커뮤니티"
 
 #: lib/tuist_web/docs/layouts/root.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "Page navigation"
-msgstr "페이지 네비게이션"
+msgstr "페이지 탐색"
 
 #: lib/tuist_web/live/docs_live.ex:432
 #: lib/tuist_web/live/docs_live.ex:776
@@ -185,7 +185,7 @@ msgstr "Previews"
 #: lib/tuist_web/docs/layouts/root.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "References"
-msgstr "참조"
+msgstr "참고 자료"
 
 #: lib/tuist_web/docs/layouts.ex:40
 #: lib/tuist_web/docs/layouts/root.html.heex:140
@@ -207,7 +207,7 @@ msgstr "검색"
 #: lib/tuist_web/live/docs_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "See Tuist in action"
-msgstr "Tuist의 실제 작동 모습 보기"
+msgstr "Tuist 살펴보기"
 
 #: lib/tuist_web/live/docs_live.ex:368
 #: lib/tuist_web/live/docs_live.ex:753
@@ -219,12 +219,12 @@ msgstr "선택"
 #: lib/tuist_web/live/docs_live.ex:809
 #, elixir-autogen, elixir-format
 msgid "Share your ideas, report issues, and discuss with other community members."
-msgstr "아이디어를 공유하고, 문제를 보고하며, 다른 커뮤니티 멤버와 논의하세요."
+msgstr "아이디어를 공유하고, 문제를 보고하며, 다른 커뮤니티 구성원과 논의하세요."
 
 #: lib/tuist_web/docs/layouts/root.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Skip to content"
-msgstr "콘텐츠로 건너뛰기"
+msgstr "콘텐츠로 이동"
 
 #: lib/tuist_web/docs/layouts.ex:56
 #: lib/tuist_web/docs/layouts/root.html.heex:186
@@ -276,7 +276,7 @@ msgstr "닫기"
 #: lib/tuist_web/docs/components/search_modal.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Navigate"
-msgstr "탐색"
+msgstr "이동"
 
 #: lib/tuist_web/docs/components/search_modal.html.heex:22
 #, elixir-autogen, elixir-format
@@ -296,7 +296,7 @@ msgstr "선택"
 #: lib/tuist_web/live/docs_live.ex:652
 #, elixir-autogen, elixir-format
 msgid "Edit this page"
-msgstr "이 페이지 편집"
+msgstr "이 페이지 수정"
 
 #: lib/tuist_web/live/docs_live.ex:662
 #, elixir-autogen, elixir-format
@@ -336,7 +336,7 @@ msgstr "테마 전환"
 #: lib/tuist_web/live/docs_live.ex:721
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist's capabilities"
-msgstr "Tuist의 기능 살펴보기"
+msgstr "Tuist의 기능 탐색"
 
 #: lib/tuist_web/live/docs_live.ex:718
 #, elixir-autogen, elixir-format
@@ -347,7 +347,7 @@ msgstr "Tuist 설치"
 #: lib/tuist_web/live/docs_live.ex:771
 #, elixir-autogen, elixir-format
 msgid "Move from a successful build to useful feedback with shareable previews and bundle-size insights."
-msgstr "공유 가능한 미리보기와 번들 크기 인사이트를 통해 성공적인 빌드에서 유용한 피드백으로 전환하세요."
+msgstr "성공적인 빌드에서 공유 가능한 프리뷰와 번들 크기 인사이트를 통해 유용한 피드백으로 빠르게 이동하세요."
 
 #: lib/tuist_web/live/docs_live.ex:190
 #: lib/tuist_web/live/docs_live.ex:711
@@ -359,31 +359,31 @@ msgstr "더 빠른 빌드 툴체인을 위한 단일 플랫폼"
 #: lib/tuist_web/live/docs_live.ex:754
 #, elixir-autogen, elixir-format
 msgid "Run only impacted tests by detecting changes since your last successful run, both locally and in continuous integration."
-msgstr "마지막 성공 실행 이후 변경 사항을 감지하여 로컬 및 지속적 통합 환경에서 영향을 받은 테스트만 실행하세요."
+msgstr "로컬과 CI 환경 모두에서 마지막 성공적인 실행 이후 변경된 사항을 감지하여 영향받는 테스트만 실행하세요."
 
 #: lib/tuist_web/live/docs_live.ex:356
 #: lib/tuist_web/live/docs_live.ex:748
 #, elixir-autogen, elixir-format
 msgid "Run the tests that matter, detect flaky behavior, and understand test performance locally and in continuous integration."
-msgstr "중요한 테스트를 실행하고, 불안정한 동작을 감지하며, 로컬 및 지속적 통합 환경에서 테스트 성능을 파악하세요."
+msgstr "중요한 테스트를 실행하고, 불안정한 동작을 탐지하며, 로컬과 CI 환경에서 테스트 성능을 파악하세요."
 
 #: lib/tuist_web/live/docs_live.ex:306
 #: lib/tuist_web/live/docs_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Share build work across developer machines, continuous integration, runners, and coding agents, then use insights to find regressions."
-msgstr "개발자 머신, 지속적 통합, 러너, 코딩 에이전트 간에 빌드 작업을 공유하고, 인사이트를 활용해 회귀 문제를 찾으세요."
+msgstr "개발자 머신, CI, 러너 및 코딩 에이전트 간에 빌드 작업을 공유하고, 인사이트를 활용해 회귀 문제를 찾으세요."
 
 #: lib/tuist_web/live/docs_live.ex:436
 #: lib/tuist_web/live/docs_live.ex:777
 #, elixir-autogen, elixir-format
 msgid "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
-msgstr "TestFlight 설정 없이 다른 사용자가 기기 또는 시뮬레이터에서 앱을 실행할 수 있도록 링크로 앱을 공유하세요."
+msgstr "TestFlight 설정 없이도 링크를 통해 다른 사람들이 기기나 시뮬레이터에서 앱을 실행할 수 있도록 공유하세요."
 
 #: lib/tuist_web/live/docs_live.ex:295
 #: lib/tuist_web/live/docs_live.ex:723
 #, elixir-autogen, elixir-format
 msgid "Speed up builds, improve test reliability, understand performance, and run workflows on infrastructure designed for your toolchain."
-msgstr "빌드 속도를 높이고, 테스트 신뢰성을 개선하며, 성능을 이해하고, 여러분의 툴체인에 맞춰 설계된 인프라에서 워크플로를 실행하세요."
+msgstr "빌드를 가속화하고, 테스트 신뢰성을 개선하며, 성능을 파악하고, 여러분의 툴체인에 최적화된 인프라에서 워크플로를 실행하세요."
 
 #: lib/tuist_web/live/docs_live.ex:408
 #: lib/tuist_web/live/docs_live.ex:764
@@ -446,7 +446,7 @@ msgstr "특정 버전의 Tuist 설치"
 #: lib/tuist_web/live/docs_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "or follow the instructions to"
-msgstr "또는 다음 지침을 따르세요"
+msgstr "또는 다음 안내에 따라"
 
 #: lib/tuist_web/live/docs_live.ex:449
 #: lib/tuist_web/live/docs_live.ex:782
@@ -476,10 +476,10 @@ msgstr "최상의 결과를 위해 캐시 인프라가 컴퓨팅과 함께 배�
 #: lib/tuist_web/live/docs_live.ex:713
 #, elixir-autogen, elixir-format
 msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
-msgstr "코드는 그 어느 때보다 빠르고 더 많은 양으로 생산되고 있습니다. Tuist는 Xcode, Gradle, Bazel, Elixir 및 Rust 프로젝트에서 이미 사용 중인 빌드 시스템에 연동되어, 소프트웨어 통합과 배포가 속도를 맞출 수 있도록 인프라를 제공합니다."
+msgstr "코드는 그 어느 때보다 빠르게, 더 많은 양으로 생산되고 있습니다. Tuist는 Xcode, Gradle, Bazel, Elixir, Rust 프로젝트에서 이미 사용 중인 빌드 시스템에 연동되어, 소프트웨어 통합과 배포가 속도를 맞출 수 있도록 필요한 인프라를 제공합니다."
 
 #: lib/tuist_web/live/docs_live.ex:323
 #: lib/tuist_web/live/docs_live.ex:736
 #, elixir-autogen, elixir-format
 msgid "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
-msgstr "Xcode, Gradle, Bazel 및 Rust 빌드 아티팩트와 감사된 Elixir 의존성 번들을 머신과 CI 간에 공유하세요. Rust 캐싱은 실험 단계입니다."
+msgstr "Xcode, Gradle, Bazel, Rust 빌드 산출물과 감사된 Elixir 의존성 번들을 머신과 CI 간에 공유하세요. Rust 캐싱은 실험적 기능입니다."

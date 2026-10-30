@@ -28,6 +28,7 @@ jobs:
         run: |
           bash infra/helm/atlas/test-agent-boundary.sh
           bash infra/helm/atlas/test-chatgpt-config.sh
+          bash infra/helm/atlas/test-connections-config.sh
           bash atlas/deploy/test-sandbox-retention.sh
       - name: Test documentation capture bounds and diagnostics
         # Headless runners lack a desktop session bus; avoid D-Bus discovery delays.

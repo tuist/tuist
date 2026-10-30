@@ -52,7 +52,7 @@ msgstr "Criado por"
 #: lib/tuist_web/live/preview_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Delete preview"
-msgstr "Excluir preview"
+msgstr "Excluir pré-visualização"
 
 #: lib/tuist_web/live/preview_live.html.heex:111
 #, elixir-autogen, elixir-format
@@ -62,7 +62,7 @@ msgstr "Detalhes"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "Não tem o aplicativo Tuist instalado?"
+msgstr "Não tem o app Tuist instalado?"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:89
@@ -73,12 +73,12 @@ msgstr "Baixar"
 #: lib/tuist_web/live/preview_live.html.heex:191
 #, elixir-autogen, elixir-format
 msgid "Install App"
-msgstr "Instalar aplicativo"
+msgstr "Instalar App"
 
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "Últimas visualizações do aplicativo"
+msgstr "Últimas visualizações do app"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -108,7 +108,7 @@ msgstr "Plataformas"
 #: lib/tuist_web/live/previews_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Previews"
-msgstr "Pré-visualizações"
+msgstr "Previews"
 
 #: lib/tuist_web/live/preview_live.html.heex:215
 #: lib/tuist_web/live/preview_live.html.heex:261
@@ -129,12 +129,12 @@ msgstr "Executado por"
 #: lib/tuist_web/live/preview_live.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "Run"
-msgstr "Executar"
+msgstr "Execução"
 
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "Execute o seguinte comando para compartilhar a pré-visualização do aplicativo."
+msgstr "Execute o seguinte comando para compartilhar a pré-visualização do app."
 
 #: lib/tuist_web/live/preview_live.html.heex:202
 #: lib/tuist_web/live/preview_live.html.heex:248
@@ -160,7 +160,7 @@ msgstr "Plataformas suportadas"
 #: lib/tuist_web/live/preview_live.html.heex:291
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "Este preview é suportado apenas em simuladores e não pode ser instalado em um dispositivo físico"
+msgstr "Este preview é compatível apenas com simuladores e não pode ser instalado em um dispositivo físico"
 
 #: lib/tuist_web/live/preview_live.html.heex:285
 #, elixir-autogen, elixir-format
@@ -170,7 +170,7 @@ msgstr "Este preview não está disponível para instalação em dispositivos"
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "Para executar o preview diretamente do navegador, baixe e instale o app Tuist para macOS"
+msgstr "Para executar o preview diretamente pelo navegador, baixe e instale o app Tuist para macOS"
 
 #: lib/tuist_web/live/preview_live.html.heex:83
 #, elixir-autogen, elixir-format
@@ -217,7 +217,7 @@ msgstr "Esta prévia não está disponível para download"
 #: lib/tuist_web/live/preview_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "App preview"
-msgstr "Prévia do aplicativo"
+msgstr "Prévia do app"
 
 #: lib/tuist_web/live/preview_live.ex:49
 #, elixir-autogen, elixir-format

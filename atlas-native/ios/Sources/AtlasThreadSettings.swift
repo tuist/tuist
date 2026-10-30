@@ -15,9 +15,9 @@ struct AtlasThreadModelButton: View {
             }
             .font(.subheadline).frame(minHeight: 44)
             .padding(.horizontal, 12)
-            .background(.regularMaterial, in: Capsule())
         }
         .buttonStyle(.borderless).foregroundStyle(.secondary)
+        .modifier(AtlasComposerSurface(shape: Capsule(), interactive: true))
         .accessibilityLabel("Model").accessibilityValue(thread.model ?? "Automatic")
         .accessibilityIdentifier("thread-model")
         .disabled(!enabled || ["queued", "running", "compacting"].contains(thread.agentStatus ?? ""))

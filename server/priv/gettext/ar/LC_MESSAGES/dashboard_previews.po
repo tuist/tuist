@@ -14,7 +14,7 @@ msgstr "Language: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/preview_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "%{app_name} icon"
-msgstr "أيقونة %{app_name}"
+msgstr "رمز %{app_name}"
 
 #: lib/tuist_web/live/preview_live.ex:41
 #, elixir-autogen, elixir-format
@@ -31,7 +31,7 @@ msgstr "الفرع"
 #: lib/tuist_web/live/previews_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "تم البناء في"
+msgstr "مبني في"
 
 #: lib/tuist_web/live/preview_live.html.heex:135
 #, elixir-autogen, elixir-format
@@ -62,7 +62,7 @@ msgstr "التفاصيل"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "أليس لديك تطبيق Tuist مثبتًا؟"
+msgstr "ألم تقم بتثبيت تطبيق Tuist؟"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:89
@@ -78,7 +78,7 @@ msgstr "تثبيت التطبيق"
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "آخر معاينات التطبيق"
+msgstr "أحدث معاينات التطبيق"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -134,7 +134,7 @@ msgstr "تشغيل"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "قم بتشغيل الأمر التالي لمشاركة معاينة التطبيق."
+msgstr "شغّل الأمر التالي لمشاركة معاينة التطبيق."
 
 #: lib/tuist_web/live/preview_live.html.heex:202
 #: lib/tuist_web/live/preview_live.html.heex:248
@@ -145,7 +145,7 @@ msgstr "امسح رمز الاستجابة السريعة"
 #: lib/tuist_web/live/preview_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "امسح رمز الاستجابة السريعة (QR) هذا على جهاز iOS الخاص بك لتثبيت هذا الإصدار من التطبيق"
+msgstr "امسح رمز QR هذا على جهاز iOS الخاص بك لتثبيت هذا الإصدار من التطبيق"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -170,7 +170,7 @@ msgstr "هذه المعاينة غير متاحة للتثبيت على الجه
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "لتشغيل المعاينة مباشرة من المتصفح، قم بتنزيل وتثبيت تطبيق Tuist لنظام macOS"
+msgstr "لتشغيل المعاينة مباشرةً من المتصفح، قم بتنزيل وتثبيت تطبيق Tuist لنظام macOS"
 
 #: lib/tuist_web/live/preview_live.html.heex:83
 #, elixir-autogen, elixir-format
@@ -192,7 +192,7 @@ msgstr "بحث..."
 #: lib/tuist_web/live/previews_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Track"
-msgstr "تتبع"
+msgstr "تتبّع"
 
 #: lib/tuist_web/live/preview_live.html.heex:133
 #, elixir-autogen, elixir-format
@@ -202,27 +202,27 @@ msgstr "اسم الحزمة"
 #: lib/tuist_web/live/preview_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "امسح رمز الاستجابة السريعة هذا على جهاز Android الخاص بك لتنزيل وتثبيت هذا الإصدار من التطبيق"
+msgstr "امسح رمز الاستجابة السريعة هذا على جهاز Android الخاص بك لتنزيل وتثبيت إصدار التطبيق هذا"
 
 #: lib/tuist_web/live/preview_live.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "The APK for this preview is no longer available"
-msgstr "ملف APK لهذا المعاينة لم يعد متاحًا"
+msgstr "ملف APK لهذا العرض لم يعد متاحًا"
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for download"
-msgstr "هذه المعاينة غير متاحة للتنزيل"
+msgstr "هذا العرض غير متاح للتنزيل"
 
 #: lib/tuist_web/live/preview_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "App preview"
-msgstr "معاينة التطبيق"
+msgstr "عرض مسبق للتطبيق"
 
 #: lib/tuist_web/live/preview_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Preview"
-msgstr "معاينة"
+msgstr "عرض مسبق"
 
 #: lib/tuist_web/live/preview_live.html.heex:182
 #, elixir-autogen, elixir-format

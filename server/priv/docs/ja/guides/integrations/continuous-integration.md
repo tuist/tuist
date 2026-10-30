@@ -1,15 +1,15 @@
 ---
 {
-  "title": "Continuous Integration (CI)",
+  "title": "継続的インテグレーション (CI)",
   "titleTemplate": ":title · Automate · Guides · Tuist",
-  "description": "Learn how to use Tuist in your CI workflows."
+  "description": "CI ワークフローで Tuist を活用する方法を学びます。"
 }
 ---
-# 継続的インテグレーション（CI） {#continuous-integration-ci}
+# 継続的インテグレーション（CI）{#continuous-integration-ci}
 
 [継続的インテグレーション](https://en.wikipedia.org/wiki/Continuous_integration)ワークフローでTuistコマンドを実行するには、CI環境にTuistをインストールする必要があります。 
 
-認証はオプションですが、<.localized_link href="/guides/features/cache">キャッシュ</.localized_link>などのサーバーサイド機能を使用する場合は必須です。 
+認証は任意ですが、<.localized_link href="/guides/features/cache">キャッシュ</.localized_link>などのサーバー側機能を利用する場合は必須です。 
 
 以下のセクションでは、さまざまなCIプラットフォームでの設定例を紹介します。
 
@@ -17,7 +17,7 @@
 
 ### GitHub Actions {#github-actions}
 
-[GitHub Actions](https://docs.github.com/en/actions)では、<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用して、安全でシークレット不要の認証を行うことができます：
+[GitHub Actions](https://docs.github.com/en/actions)では、<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用して安全かつシークレット不要の認証を行えます：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -112,18 +112,18 @@ jobs:
 :::
 
 > [!NOTE]
-> **Oidcセットアップ**
+> **OIDCの設定**
 >
 > OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリをTuistプロジェクトに接続</.localized_link>する必要があります。OIDCを動作させるには`permissions: id-token: write`が必要です。代わりに、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>と`TUIST_TOKEN`シークレットを使用することもできます。
 
 
 > [!TIP]
-> Tuistプロジェクトで`mise use --pin`を使用して、環境間でTuistのバージョンを固定することを推奨します。このコマンドは、Tuistのバージョンを含む`.tool-versions`ファイルを作成します。
+> Tuistプロジェクトでは`mise use --pin`を使用して、環境間でTuistのバージョンを固定することを推奨します。このコマンドは、Tuistのバージョンを含む`.tool-versions`ファイルを作成します。
 
 
 ### Xcode Cloud {#xcode-cloud}
 
-Xcodeプロジェクトを信頼できる情報源として使用する[Xcode Cloud](https://developer.apple.com/xcode-cloud/)では、Tuistをインストールし、必要なコマンド（例：`tuist generate`）を実行するために、[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)スクリプトを追加する必要があります：
+Xcodeプロジェクトを信頼できる情報源として使用する[Xcode Cloud](https://developer.apple.com/xcode-cloud/)では、Tuistをインストールして必要なコマンド（例：`tuist generate`）を実行するための[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)スクリプトを追加する必要があります：
 
 ::: code-group
 
@@ -152,12 +152,12 @@ tuist generate
 > [!NOTE]
 > **認証**
 >
-> Xcode Cloudのワークフロー設定で`TUIST_TOKEN`環境変数を設定することで、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を使用してください。
+> Xcode Cloudのワークフロー設定で`TUIST_TOKEN`環境変数を設定し、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を使用してください。
 
 
 ### CircleCI {#circleci}
 
-[CircleCI](https://circleci.com)では、<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用して、安全でシークレット不要の認証を行うことができます：
+[CircleCI](https://circleci.com)では、<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用して安全かつシークレット不要の認証を行えます：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -211,12 +211,12 @@ jobs:
 > [!NOTE]
 > **認証**
 >
-> OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリをTuistプロジェクトに接続</.localized_link>する必要があります。CircleCIのOIDCトークンには接続されたGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを承認します。代わりに、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>と`TUIST_TOKEN`環境変数を使用することもできます。
+> OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリをTuistプロジェクトに接続</.localized_link>する必要があります。CircleCIのOIDCトークンには接続済みのGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを承認します。代わりに、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>と`TUIST_TOKEN`環境変数を使用することもできます。
 
 
 ### Bitrise {#bitrise}
 
-[Bitrise](https://bitrise.io)では、<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用して、安全でシークレット不要の認証を行うことができます：
+[Bitrise](https://bitrise.io)では、<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC認証</.localized_link>を使用して安全かつシークレット不要の認証を行えます：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -272,12 +272,12 @@ workflows:
 > [!NOTE]
 > **認証**
 >
-> OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリをTuistプロジェクトに接続</.localized_link>する必要があります。BitriseのOIDCトークンには接続されたGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを承認します。代わりに、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>と`TUIST_TOKEN`環境変数を使用することもできます。
+> OIDC認証を使用する前に、<.localized_link href="/guides/integrations/gitforge/github">GitHubリポジトリをTuistプロジェクトに接続</.localized_link>する必要があります。BitriseのOIDCトークンには接続済みのGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを承認します。代わりに、<.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>と`TUIST_TOKEN`環境変数を使用することもできます。
 
 
 ### Codemagic {#codemagic}
 
-[Codemagic](https://codemagic.io)では、ワークフローに追加のステップを追加してTuistをインストールできます：
+[Codemagic](https://codemagic.io)では、ワークフローに追加のステップを加えてTuistをインストールできます：
 
 ::: code-group
 ```yaml [Mise]
@@ -319,7 +319,7 @@ workflows:
 > [!NOTE]
 > **認証**
 >
-> <.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を作成し、それを`TUIST_TOKEN`という名前のシークレット環境変数として追加してください。
+> <.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を作成し、`TUIST_TOKEN`という名前のシークレット環境変数として追加してください。
 
 ### Appcircle {#appcircle}
 
@@ -344,16 +344,16 @@ tuist setup cache
 > [!NOTE]
 > **ワークフローステップ**
 >
-> Tuist InstallステップはHomebrewでTuistをインストールし、`tuist generate`を実行します。**Tuist Version**入力を設定してバージョンを固定し、その後Tuist Commandsステップを追加して`tuist test`や`tuist build`などのコマンドを実行します。
+> Tuist InstallステップはHomebrewでTuistをインストールし、`tuist generate`を実行します。**Tuist Version**入力欄でバージョンを固定し、Tuist Commandsステップを追加して`tuist test`や`tuist build`などのコマンドを実行してください。
 
 > [!NOTE]
 > **認証**
 >
-> <.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を作成し、それを`TUIST_TOKEN`という名前の変数として[環境変数グループ](https://docs.appcircle.io/build/build-environment-variables)に追加し、ビルド構成でそのグループを選択してください。ロックアイコンを使用して変数をシークレットとしてマークします。
+> <.localized_link href="/guides/server/authentication#account-tokens">アカウントトークン</.localized_link>を作成し、[環境変数グループ](https://docs.appcircle.io/build/build-environment-variables)に`TUIST_TOKEN`という名前の変数として追加して、ビルド構成でそのグループを選択してください。ロックアイコンを使用して変数をシークレットとしてマークします。
 
 ## 実行レポート {#run-report}
 
-Tuistが実行をアップロードすると、そのダッシュボードURLがログに出力されます。ログをスクレイピングせずにURLを取得するため（例えば、ジョブが失敗したときにテストレポートリンクをSlackに投稿したり、独自ツールに実行データを送信したりする場合）には、`--run-report-path`（または`TUIST_RUN_REPORT_PATH`を設定）を`tuist test`、`tuist xcodebuild test`、または`tuist xcodebuild build`に渡します。Tuistは、実行がアップロードされると、そのパスにJSONレポートを書き込みます：
+Tuistが実行をアップロードすると、そのダッシュボードURLがログに出力されます。ログをスクレイピングせずにURLを取得するため（例：ジョブ失敗時にテストレポートリンクをSlackに投稿したり、独自ツールに取り込んだりする場合）には、`--run-report-path`（または`TUIST_RUN_REPORT_PATH`を設定）を`tuist test`、`tuist xcodebuild test`、あるいは`tuist xcodebuild build`に渡してください。実行のアップロード完了後、TuistはそのパスにJSONレポートを書き込みます：
 
 ```json
 {
@@ -382,22 +382,22 @@ Tuistが実行をアップロードすると、そのダッシュボードURLが
 
 | フィールド | 型 | 説明 |
 | - | - | - |
-| `runId` | 文字列 | 実行の一意の識別子。 |
+| `runId` | 文字列 | 実行の一意な識別子。 |
 | `status` | 文字列 | `"success"`または`"failure"`。 |
 | `runURL` | 文字列 | 実行のダッシュボードURL。常に存在します。 |
 | `testRunURL` | 文字列? | テスト実行のダッシュボードURL。コマンドがテストを実行した場合に存在します。 |
 | `buildRunURL` | 文字列? | ビルド実行のダッシュボードURL。コマンドがビルドを実行した場合に存在します。 |
-| `testRuns` | 配列 | スキームごとのテスト結果：`scheme`、`succeeded`、`totalTests`、`skippedTests`、`ranTests`、`failedTestNames`、`ranTestModules`、および`skippedTestModules`。テスト数はテストケースの数であり、`skippedTests`は結果バンドルでスキップされたとして報告された数をカウントします。`skippedTestModules`は<.localized_link href="/guides/features/selective-testing">選択的テスト</.localized_link>によってスキップされたテストモジュールの数をカウントし、選択的テストが適用されなかった場合、または実行がテストシャードである場合は省略されます。 |
+| `testRuns` | 配列 | スキームごとのテスト結果：`scheme`、`succeeded`、`totalTests`、`skippedTests`、`ranTests`、`failedTestNames`、`ranTestModules`、および`skippedTestModules`。テスト件数はテストケースの数であり、`skippedTests`は結果バンドルでスキップされたものとして報告された件数を示します。`skippedTestModules`は<.localized_link href="/guides/features/selective-testing">選択的テスト</.localized_link>によってスキップされたテストモジュールの数を示し、選択的テストが適用されなかった場合や実行がテストシャードの場合は省略されます。 |
 | `buildRuns` | 配列 | スキームごとのビルド結果：`scheme`、`succeeded`、`durationInSeconds`。 |
 
-`testRunURL`と`buildRunURL`は独立しています：ビルドとテストの両方を実行するコマンドは両方を出力しますが、ログではそれができません。ログは実行ごとに1つのURLしか出力しません。
+`testRunURL`と`buildRunURL`は独立しています：ビルドとテストの両方を行うコマンドは両方のURLを出力しますが、ログでは実行ごとに1つのURLしか出力できません。
 
 > [!NOTE]
-> **レポートが書き込まれるタイミング**
+> **レポートの書き込みタイミング**
 >
-> レポートはサーバーにアップロードされた実行に対してのみ書き込まれます。これには認証が必要で、CIでは自動的に行われます。パスは各実行の開始時にクリアされるため、レポートを生成しない実行では、以前の実行からの古いレポートではなく、何も残されません。
+> レポートはサーバーにアップロードされた実行に対してのみ書き込まれます。これには認証が必要で、CI環境では自動的に行われます。パスは各実行の開始時にクリアされるため、レポートが生成されない実行では、前回の実行からの古いレポートが残るのではなく、何も残りません。
 
-GitLab CIでは、一般的な使用方法として、[`dotenv`レポート](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv)を使用して後続のジョブにURLを公開します：
+GitLab CIでは、[`dotenv`レポート](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv)を通じて後続のジョブにURLを公開するのが一般的な用途です：
 
 ```yaml
 test:

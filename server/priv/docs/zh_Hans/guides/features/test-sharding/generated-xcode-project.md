@@ -1,24 +1,24 @@
 ---
 {
-  "title": "Generated Xcode project",
-  "titleTemplate": ":title · Test sharding · Features · Guides · Tuist",
-  "description": "Distribute tests in a Tuist-generated Xcode project across multiple CI runners with Tuist Test Sharding."
+  "title": "生成的 Xcode 项目",
+  "titleTemplate": ":title · 测试分片 · 功能 · 指南 · Tuist",
+  "description": "使用 Tuist 测试分片，在多个 CI 运行器之间分发由 Tuist 生成的 Xcode 项目中的测试。"
 }
 ---
 # 生成的 Xcode 项目 {#generated-xcode-project-test-sharding}
 
-生成项目的测试分片在构建和测试阶段均使用 `tuist test`。
+生成项目的测试分片在构建和测试阶段都使用 `tuist test`。
 
 ## 工作原理 {#how-it-works}
 
 测试分片遵循两阶段工作流：
 
-1. **构建阶段：** Tuist 从已构建的 `.xctestrun` 文件中读取测试模块，并在服务器上创建**分片计划**。服务器使用过去 30 天的历史测试计时数据将测试分配到各个分片，使每个分片的耗时大致相同。构建阶段会输出一个**分片矩阵**，你的 CI 系统使用该矩阵来启动并行运行器。
+1. **构建阶段：** Tuist 从已构建的 `.xctestrun` 文件中读取测试模块，并在服务器上创建**分片计划**。服务器利用过去 30 天的历史测试耗时数据，将测试分配到各个分片，使每个分片的耗时大致相同。构建阶段会输出一个**分片矩阵**，你的 CI 系统可使用它来启动并行运行器。
 2. **测试阶段：** 每个持续集成运行器接收一个**分片索引**和确切的**分片计划标识符**，然后执行该计划的测试选择。
 
-当使用 `--shard-granularity suite` 时，Tuist 在构建阶段不会启动每个测试包来枚举套件。相反，当前的 `.xctestrun` 文件提供模块列表，服务器为每个模块选择已知套件：对于每个模块，它会合并正在构建的分支上最近几次 CI 运行的套件。如果某个模块在该分支上没有历史记录，服务器会回退到项目的默认分支。读取多次运行而非仅最新一次很重要，因为分片运行会在每个分片完成时上传一个测试运行，因此最新运行仅包含到目前为止已摄入的模块部分；此外，这也能防止选择性测试运行隐藏最新分支运行中被跳过的套件。服务器仍会使用过去 30 天的套件计时来估算持续时间。
+当使用 `--shard-granularity suite` 时，Tuist 不会在构建阶段启动每个测试包来枚举套件。相反，当前的 `.xctestrun` 文件提供模块列表，服务器为每个模块选择已知套件：对于每个模块，它会合并正在构建的分支上最近几次 CI 运行的套件。如果某个模块在该分支上没有历史记录，服务器会回退到项目的默认分支。读取多次运行而非仅最新一次很重要，因为分片运行会在每个分片完成时上传一次测试运行，因此最新运行只包含到目前为止已摄入的模块部分；同时，这也能避免选择性测试运行隐藏在最近一次分支运行中被跳过的套件。服务器仍会使用过去 30 天的套件耗时来估算持续时间。
 
-Tuist 将这些已知套件平衡分配到请求的分片数量中，并将最后一个分片用作兜底。例如，`--shard-total 5` 生成分片索引 `0` 到 `4`，其中分片索引 `4` 作为兜底。常规分片使用 `-only-testing` 运行其分配的套件。最后一个分片在不使用 `-only-testing` 的情况下运行，并为分配给较早分片的每个套件传递 `-skip-testing`，因此它还会运行新添加的套件、重命名的套件或历史清单中缺失的套件。模块粒度不需要兜底，因为 `.xctestrun` 文件提供了模块列表。
+Tuist 将这些已知套件平衡分配到请求的分片数量中，并将最后一个分片作为兜底分片。例如，`--shard-total 5` 会生成分片索引 `0` 到 `4`，其中分片索引 `4` 作为兜底。常规分片会针对其分配的套件使用 `-only-testing` 运行。最后一个分片在不使用 `-only-testing` 的情况下运行，并为分配给前面分片的每个套件传入 `-skip-testing`，因此它还会运行新增的套件、重命名的套件或历史清单中缺失的套件。模块粒度不需要兜底，因为 `.xctestrun` 文件提供了模块列表。
 
 ## 构建阶段 {#build-phase}
 
@@ -28,15 +28,15 @@ Tuist 将这些已知套件平衡分配到请求的分片数量中，并将最�
 tuist test --build-only --shard-total 5
 ```
 
-`--build-only` 标志指示 Tuist 构建测试而不运行它们。如果你在没有 `--build-only` 的情况下传递分片规划标志（`--shard-min`/`--shard-max`/`--shard-total`），Tuist 会报错。
+`--build-only` 标志指示 Tuist 构建测试但不运行它们。如果你在未使用 `--build-only` 的情况下传递分片规划标志（`--shard-min`/`--shard-max`/`--shard-total`），Tuist 会报错。
 
-此命令：
-1. 从你的清单生成 Xcode 项目
+该命令：
+1. 根据你的清单生成 Xcode 项目
 2. 构建你的测试
-3. 使用历史计时数据在 Tuist 服务器上创建分片计划
+3. 使用历史耗时数据在 Tuist 服务器上创建分片计划
 4. 上传 `.xctestproducts` 包或写入分片归档以供分片运行器使用
 5. 为你的 CI 系统输出分片矩阵
-6. 持久化<.localized_link href="/guides/features/selective-testing">选择性测试</.localized_link>图（如果适用），以便分片运行器无需重新生成项目
+6. 持久化<.localized_link href="/guides/features/selective-testing">选择性测试</.localized_link>图（如果适用），这样分片运行器就不需要重新生成项目
 
 ### 构建选项 {#build-options}
 
@@ -44,11 +44,11 @@ tuist test --build-only --shard-total 5
 |------|---------------------|-------------|
 | `--shard-max <N>` | `TUIST_TEST_SHARD_MAX` | 最大分片数。与 `--shard-max-duration` 一起使用以限制分片数量 |
 | `--shard-min <N>` | `TUIST_TEST_SHARD_MIN` | 最小分片数 |
-| `--shard-total <N>` | `TUIST_TEST_SHARD_TOTAL` | 确切的分片数量（与 `--shard-min`/`--shard-max` 互斥）。使用套件粒度时，最后一个分片为兜底 |
+| `--shard-total <N>` | `TUIST_TEST_SHARD_TOTAL` | 确切的分片数（与 `--shard-min`/`--shard-max` 互斥）。使用套件粒度时，最后一个分片为兜底分片 |
 | `--shard-max-duration <MS>` | `TUIST_TEST_SHARD_MAX_DURATION` | 每个分片的目标最大持续时间（毫秒） |
-| `--shard-granularity <LEVEL>` | `TUIST_TEST_SHARD_GRANULARITY` | `module`（默认）将整个测试模块分配到各个分片；`suite` 分配单个测试类以实现更细粒度的平衡 |
+| `--shard-granularity <LEVEL>` | `TUIST_TEST_SHARD_GRANULARITY` | `module`（默认）将整个测试模块分配到各个分片；`suite` 将单个测试类分配到各个分片，以实现更细粒度的平衡 |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | 分片计划的唯一标识符（在支持的 CI 提供商上自动派生） |
-| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Tuist 写入优化后的分片归档的路径，而不是将测试产品上传到远程存储 |
+| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Tuist 写入优化后的分片归档的路径，而非将测试产品上传到远程存储 |
 
 ## 测试阶段 {#test-phase}
 
@@ -58,7 +58,7 @@ tuist test --build-only --shard-total 5
 tuist test --without-building
 ```
 
-`--without-building` 标志指示 Tuist 使用之前构建的产品运行测试，而不是重新构建。如果在没有 `--without-building` 的情况下设置 `TUIST_SHARD_INDEX` / `--shard-index`，Tuist 会报错。
+`--without-building` 标志指示 Tuist 使用之前构建的产品运行测试，而非重新构建。如果在未设置 `--without-building` 的情况下设置了 `TUIST_SHARD_INDEX` / `--shard-index`，Tuist 会报错。
 
 ### 测试选项 {#test-options}
 
@@ -67,7 +67,7 @@ tuist test --without-building
 | `--shard-index <N>` | `TUIST_SHARD_INDEX` | 要执行的分片的从零开始索引 |
 | `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | 由构建阶段发出的确切分片计划标识符。生成的提供商输出会自动包含此值 |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | 分片计划的唯一标识符（在支持的 CI 提供商上自动派生） |
-| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | 本地管理的分片归档路径；Tuist 会提取该归档，而不是从远程存储下载测试产品 |
+| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | 本地管理的分片归档路径；Tuist 会提取它，而非从远程存储下载测试产品 |
 
 Tuist 下载 `.xctestproducts` 包并对其进行过滤，仅包含分配给该分片的测试。
 
@@ -87,7 +87,7 @@ Tuist 会自动检测以下 CI 提供商：
 - [Codemagic](#codemagic)
 - [Bitrise](#bitrise)
 
-对于其他提供商，请参阅 `.tuist-shard-matrix.json` 文件以设置并行作业。
+对于其他提供商，请参考 `.tuist-shard-matrix.json` 文件来设置并行作业。
 
 ### GitHub Actions {#github-actions}
 
@@ -130,7 +130,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist 会生成一个 `.tuist-shard-child-pipeline.yml`，你可以将其作为[子流水线](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines)触发。定义一个`.tuist-shard`模板作业，供生成的分片作业扩展：
+Tuist 会生成一个 `.tuist-shard-child-pipeline.yml`，你可以将其作为[子流水线](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines)触发。定义一个`.tuist-shard`模板作业，生成的分片作业将扩展该模板：
 
 ```yaml
 # .gitlab-ci.yml
@@ -268,7 +268,7 @@ tuist test --without-building
 
 ### Codemagic {#codemagic}
 
-Codemagic 不支持动态矩阵作业，因此需要为每个分片定义单独的工作流。Tuist 会将 `TUIST_SHARD_MATRIX` 和 `TUIST_SHARD_COUNT` 写入 `CM_ENV` 文件，以便在构建工作流中使用。Codemagic 的 `CM_ENV` 是工作流范围的，因此确切的分片计划标识符不会跨越工作流边界；测试工作流会回退到基于引用的分片查找：
+Codemagic 不支持动态矩阵作业，因此需要为每个分片定义单独的工作流。Tuist 会将 `TUIST_SHARD_MATRIX` 和 `TUIST_SHARD_COUNT` 写入 `CM_ENV` 文件，以便在构建工作流中使用。Codemagic 的 `CM_ENV` 是工作流作用域的，因此确切的分片计划标识符不会跨越工作流边界；测试工作流会回退到基于引用的分片查找：
 
 ```yaml
 # codemagic.yaml
@@ -405,7 +405,7 @@ workflows:
 
 ## 共享卷 {#shared-volumes}
 
-默认情况下，构建阶段会将 `.xctestproducts` 包上传到远程存储，每个分片运行器都会下载它。如果你的 CI 提供商支持**共享卷**（跨作业挂载的持久存储），你可以通过共享文件系统传递测试产品，从而完全跳过此上传/下载过程。
+默认情况下，构建阶段会将 `.xctestproducts` 包上传到远程存储，每个分片运行器再下载它。如果你的 CI 提供商支持**共享卷**（跨作业挂载的持久存储），你可以通过共享文件系统传递测试产品，从而完全跳过此上传/下载过程。
 
 这可以显著减少分片启动时间，尤其是对于大型测试包。
 
@@ -422,7 +422,7 @@ tuist test \
   -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
 ```
 
-2. 在**测试阶段**中，传递相同的 `-testProductsPath`，以便 Tuist 本地读取测试产品而不是下载它们：
+2. 在**测试阶段**中，传递相同的 `-testProductsPath`，以便 Tuist 本地读取测试产品而非下载它们：
 
 ```sh
 tuist test --without-building -- -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
@@ -436,7 +436,7 @@ tuist test --without-building -- -testProductsPath /path/to/shared/volume/$UNIQU
 
 如果你的 CI 提供商已有产物上传和下载步骤，你可以让 Tuist 处理归档和解压，而由你的 CI 处理传输。
 
-1. 在**构建阶段**中，传递 `--shard-archive-path`，以便 Tuist 将优化后的分片归档写入本地，而不是上传测试产品：
+1. 在**构建阶段**中，传递 `--shard-archive-path`，以便 Tuist 将优化后的分片归档写入本地，而非上传测试产品：
 
 ```sh
 tuist test \
@@ -457,14 +457,14 @@ tuist test \
 
 设置 `--shard-archive-path` 后，Tuist 会跳过远程测试产品传输，转而使用本地归档。如果你同时传递 `--shard-skip-upload`，则归档路径优先。
 
-当没有要运行的测试时（例如因为选择性测试跳过了所有测试目标），构建阶段会输出一个空的分片矩阵且不写入任何归档。仅当矩阵包含分片时才运行上传步骤。
+当没有要运行的测试时（例如，因为选择性测试跳过了所有测试目标），构建阶段会输出一个空的分片矩阵且不写入任何归档。仅当矩阵包含分片时才运行上传步骤。
 
 > [!IMPORTANT]
-> 为每次工作流运行使用唯一路径（例如包含 CI 运行 ID），以避免并发运行之间的冲突。你还应在分片完成后清理分片归档，以避免在运行器上积累过时数据。
+> 为每次工作流运行使用唯一路径（例如，包含 CI 运行 ID），以避免并发运行之间的冲突。你还应在分片完成后清理分片归档，以免在运行器上累积过时数据。
 
 ### Namespace {#namespace}
 
-[Namespace](https://namespace.so) 运行器与 GitHub Actions 产物配合良好。一次性设置 `TUIST_TEST_SHARD_ARCHIVE_PATH`，以便构建作业将分片归档写入本地，上传它，并在每个分片作业中下载它，然后再运行 `tuist test`：
+[Namespace](https://namespace.so) 运行器与 GitHub Actions 产物配合良好。设置一次 `TUIST_TEST_SHARD_ARCHIVE_PATH`，使构建作业将分片归档写入本地，上传它，并在每个分片作业中于运行 `tuist test` 之前下载它：
 
 ```yaml
 name: Tests

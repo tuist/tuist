@@ -136,29 +136,26 @@ func (d *daemon) buildkitSnapshot(ctx context.Context, host, root string) (map[s
 	return states, nil
 }
 
-// Builder databases cannot be merged record by record. For different keys keep
-// both; for the same key keep the job's version only if that job changed it.
-// Containers have been removed on both roots, so no BuildKit process is writing.
+// Builder databases cannot be merged record by record, so each volume is taken
+// whole from one side (planBuildkitMerge). Containers have been removed on both
+// roots, so no BuildKit process is writing.
 func (d *daemon) mergeBuildkitVolumes(ctx context.Context, into string, branch, head dockerSnapshot) error {
 	fromHost, toHost, fromRoot, toRoot := dockerMergeHost, "", d.mergeRoot, d.dataRoot
-	var names []string
 	if into == "head" {
 		fromHost, toHost, fromRoot, toRoot = "", dockerMergeHost, d.dataRoot, d.mergeRoot
-		for name, state := range branch.BuildVolumes {
-			if head.BuildVolumes[name] == "" || state != d.base.BuildVolumes[name] {
-				names = append(names, name)
-			}
-		}
-	} else {
-		for name := range head.BuildVolumes {
-			if branch.BuildVolumes[name] == "" || branch.BuildVolumes[name] == d.base.BuildVolumes[name] {
-				names = append(names, name)
-			}
-		}
 	}
-	sort.Strings(names)
+	names, removals := planBuildkitMerge(into, d.base.BuildVolumes, branch.BuildVolumes, head.BuildVolumes)
 	ledger := readDockerLedger(dockerBuilderLedger(toRoot))
 	sourceLedger := readDockerLedger(dockerBuilderLedger(fromRoot))
+	for _, name := range removals {
+		if !buildkitVolumeName.MatchString(name) {
+			return fmt.Errorf("invalid BuildKit volume name")
+		}
+		if out, err := d.run(ctx, "docker", dockerArgs(toHost, "volume", "rm", "-f", name)...); err != nil {
+			return fmt.Errorf("remove merged BuildKit volume: %s: %w", strings.TrimSpace(string(out)), err)
+		}
+		delete(ledger, name)
+	}
 	for _, name := range names {
 		if !buildkitVolumeName.MatchString(name) {
 			return fmt.Errorf("invalid BuildKit volume name")

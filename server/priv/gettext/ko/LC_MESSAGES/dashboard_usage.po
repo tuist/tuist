@@ -39,7 +39,7 @@ msgstr "사용량"
 #: lib/tuist_web/live/usage_live.html.heex:270
 #, elixir-autogen, elixir-format
 msgid "Egress"
-msgstr "아웃바운드"
+msgstr "이그레스"
 
 #: lib/tuist_web/live/usage_live.ex:219
 #: lib/tuist_web/live/usage_live.ex:220
@@ -50,12 +50,12 @@ msgstr "알 수 없음"
 #: lib/tuist_web/live/usage_live.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "%{count} free each month"
-msgstr "매달 %{count}개 무료"
+msgstr "매월 %{count}회 무료"
 
 #: lib/tuist_web/live/usage_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "At the standard rate, before the free tier"
-msgstr "무료 티어 이후 표준 요금 적용"
+msgstr "무료 티어 적용 전 표준 요금 기준"
 
 #: lib/tuist_web/live/usage_live.html.heex:65
 #, elixir-autogen, elixir-format
@@ -65,17 +65,17 @@ msgstr "청구됨"
 #: lib/tuist_web/live/usage_live.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs."
-msgstr "청구 기간 %{from} ~ %{to}. 분은 macOS 6 vCPU / 14 GB 기준 머신으로 측정되며, 더 큰 머신은 실행 시간 1분당 1분 이상 소모합니다."
+msgstr "청구 기간 %{from}부터 %{to}까지. 분은 macOS 6 vCPU / 14 GB 기준에서 측정되며, 더 큰 머신은 실행된 분당 1분 이상을 사용합니다."
 
 #: lib/tuist_web/live/usage_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Runner minutes"
-msgstr "러너 사용 시간"
+msgstr "러너 시간"
 
 #: lib/tuist_web/live/usage_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Runner time and cache traffic billed to this account."
-msgstr "이 계정에 청구된 러너 사용 시간 및 캐시 트래픽입니다."
+msgstr "이 계정에 청구된 러너 시간과 캐시 트래픽입니다."
 
 #: lib/tuist_web/live/usage_live.html.heex:33
 #, elixir-autogen, elixir-format
@@ -100,7 +100,7 @@ msgstr "macOS"
 #: lib/tuist_web/live/usage_live.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes included"
-msgstr "포함된 %{count}분"
+msgstr "%{count}분 포함"
 
 #: lib/tuist_web/live/usage_live.html.heex:105
 #, elixir-autogen, elixir-format
@@ -126,12 +126,12 @@ msgstr "이번 기간 적용"
 #: lib/tuist_web/live/usage_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Drawn down when the period is invoiced, so this is what your balance would cover today."
-msgstr "기간이 청구될 때 차감되므로, 이는 오늘의 잔액으로 커버할 수 있는 금액입니다."
+msgstr "기간 청구 시 차감되므로, 현재 잔액으로 커버 가능한 금액입니다."
 
 #: lib/tuist_web/live/usage_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Left to pay"
-msgstr "남은 결제 금액"
+msgstr "미결제 금액"
 
 #: lib/tuist_web/live/usage_live.html.heex:134
 #, elixir-autogen, elixir-format
@@ -151,7 +151,7 @@ msgstr "지난 기간은 %{count}분이었습니다."
 #: lib/tuist_web/live/usage_live.ex:323
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
-msgstr "지난 기간은 %{count}였습니다."
+msgstr "지난 기간은 %{count}이었습니다."
 
 #: lib/tuist_web/live/usage_live.ex:315
 #, elixir-autogen, elixir-format
@@ -161,7 +161,7 @@ msgstr "지난 기간에는 실행된 항목이 없습니다."
 #: lib/tuist_web/live/usage_live.ex:309
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this period."
-msgstr "이번 기간은 약 %{count}분 예상됩니다."
+msgstr "이번 기간은 약 %{count}분으로 예상됩니다."
 
 #: lib/tuist_web/live/usage_live.ex:212
 #: lib/tuist_web/live/usage_live.ex:465
@@ -204,17 +204,17 @@ msgstr "%{count}개 포함"
 #: lib/tuist_web/live/usage_live.html.heex:424
 #, elixir-autogen, elixir-format
 msgid "%{count} passing"
-msgstr "%{count}개 성공"
+msgstr "%{count}개 통과"
 
 #: lib/tuist_web/live/usage_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "%{count} requests"
-msgstr "%{count}회 요청"
+msgstr "%{count}개 요청"
 
 #: lib/tuist_web/live/usage_live.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "%{count} run on Tuist Runners"
-msgstr "Tuist Runners에서 %{count}회 실행"
+msgstr "Tuist Runner에서 %{count}회 실행"
 
 #: lib/tuist_web/live/usage_live.html.heex:461
 #, elixir-autogen, elixir-format
@@ -229,7 +229,7 @@ msgstr "%{size} 포함"
 #: lib/tuist_web/live/usage_live.html.heex:370
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Passing test cases are billed. Builds, failed and skipped test cases, and tests run on Tuist Runners are free."
-msgstr "청구 기간 %{from} ~ %{to}. 통과한 테스트 케이스만 청구됩니다. 빌드, 실패 및 건너뛴 테스트 케이스, Tuist Runners에서 실행된 테스트는 무료입니다."
+msgstr "청구 기간: %{from} ~ %{to}. 통과한 테스트 케이스는 청구 대상입니다. 빌드, 실패 및 건너뛴 테스트 케이스, Tuist Runner에서 실행된 테스트는 무료입니다."
 
 #: lib/tuist_web/live/usage_live.html.heex:168
 #, elixir-autogen, elixir-format
@@ -239,7 +239,7 @@ msgstr "캐시 사용량"
 #: lib/tuist_web/live/usage_live.ex:540
 #, elixir-autogen, elixir-format
 msgid "Estimated for this period"
-msgstr "이번 기간 예상"
+msgstr "이번 기간 예상치"
 
 #: lib/tuist_web/live/usage_live.html.heex:457
 #: lib/tuist_web/live/usage_live.html.heex:465
@@ -282,12 +282,12 @@ msgstr "테스트 인사이트 사용량"
 #: lib/tuist_web/live/usage_live.ex:536
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
-msgstr "이번 기간의 비용입니다. 청구할 구독이 없습니다."
+msgstr "이번 기간 총합입니다. 청구할 구독이 없습니다."
 
 #: lib/tuist_web/live/usage_live.ex:528
 #, elixir-autogen, elixir-format
 msgid "per %{count}"
-msgstr "%{count}회당"
+msgstr "%{count}당"
 
 #: lib/tuist_web/live/usage_live.ex:525
 #, elixir-autogen, elixir-format
@@ -297,37 +297,37 @@ msgstr "GB당"
 #: lib/tuist_web/live/usage_live.ex:530
 #, elixir-autogen, elixir-format
 msgid "per million"
-msgstr "백만 회당"
+msgstr "백만 건당"
 
 #: lib/tuist_web/live/usage_live.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "No runner usage in this period"
-msgstr "이번 기간에 러너 사용량이 없습니다"
+msgstr "이번 기간 러너 사용량 없음"
 
 #: lib/tuist_web/live/usage_live.html.heex:482
 #, elixir-autogen, elixir-format
 msgid "No test runs in this period"
-msgstr "이번 기간에 테스트 실행이 없습니다"
+msgstr "이번 기간 테스트 실행 없음"
 
 #: lib/tuist_web/live/usage_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "%{size} of egress"
-msgstr "%{size}의 아웃바운드 트래픽"
+msgstr "%{size}의 이그레스"
 
 #: lib/tuist_web/live/usage_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Egress and requests from every cache share one allowance, and traffic from Tuist Runners counts at half. Uploads and storage are free."
-msgstr "청구 기간 %{from}부터 %{to}까지. 모든 캐시의 아웃바운드 트래픽과 요청은 하나의 할당량을 공유하며, Tuist Runners에서 발생하는 트래픽은 절반으로 계산됩니다. 업로드 및 스토리지는 무료입니다."
+msgstr "청구 기간 %{from}부터 %{to}까지. 모든 캐시의 이그레스와 요청은 하나의 할당량을 공유하며, Tuist Runner에서 발생하는 트래픽은 절반으로 계산됩니다. 업로드 및 스토리지는 무료입니다."
 
 #: lib/tuist_web/live/usage_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Data downloaded from your caches. %{size} free each period."
-msgstr "캐시에서 다운로드한 데이터. 매 기간 %{size} 무료."
+msgstr "캐시에서 다운로드한 데이터. 매 기간 %{size}까지 무료입니다."
 
 #: lib/tuist_web/live/usage_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Downloads served from your caches. %{count} free each period."
-msgstr "캐시에서 제공된 다운로드 수. 매 기간 %{count}회 무료."
+msgstr "캐시에서 제공된 다운로드. 매 기간 %{count}회까지 무료입니다."
 
 #: lib/tuist_web/live/usage_live.html.heex:351
 #, elixir-autogen, elixir-format
@@ -338,7 +338,7 @@ msgstr "이번 기간에는 캐시 사용량이 없습니다"
 #: lib/tuist_web/live/usage_live.html.heex:327
 #, elixir-autogen, elixir-format
 msgid "Tuist Runners discount"
-msgstr "Tuist Runners 할인"
+msgstr "Tuist Runner 할인"
 
 #: lib/tuist_web/live/usage_live.ex:532
 #, elixir-autogen, elixir-format
