@@ -469,13 +469,10 @@ jobs:
       - name: Load the prebuilt Docker image
         run: zstd -dc prebuilt-images/kura-e2e-images.tar.zst | docker load
 
-      - name: Extract Kura for the network-trusted cache tests
+      - name: Configure the network-trusted cache tests
         if: matrix.shard_name == 'authorization-mtls'
         run: |
-          binary="$RUNNER_TEMP/kura-network-cache"
-          docker run --rm --entrypoint cat "$KURA_IMAGE" /usr/local/bin/kura > "$binary"
-          chmod +x "$binary"
-          echo "KURA_NETWORK_CACHE_TEST_BIN=$binary" >> "$GITHUB_ENV"
+          echo "KURA_NETWORK_CACHE_TEST_IMAGE=$KURA_IMAGE" >> "$GITHUB_ENV"
 
       - name: Run end-to-end suite
         run: shellspec ${{ matrix.specs }}

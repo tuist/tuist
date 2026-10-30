@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "99808af126596fcbefd79df846cc76164f0119267b77212879b9aa3712079e63",
+  "hash": "bc82f7c2d0e8188582e4bf93f5f8b885bfb5a686c2316bc7a549fa4d2740d896",
   "hash_tree": {
     "root": {
       "children": [
@@ -32,7 +32,7 @@
                   "content_hash": "523f47280c39d8e660a51226c2be0240f19bf41bc6ff6e1186ec96bf13fa2db6"
                 },
                 "## Release workflows": {
-                  "content_hash": "320927ed83e83495919a3f43891b54ba560f7952d7972acbb061011d2f87b534"
+                  "content_hash": "9876c584168d211767a670c568436e6369d70bf94b64abe686664d0cddfeb8c6"
                 },
                 "## Troubleshooting": {
                   "content_hash": "56b6de54e902851696d562ee5fb7d576f8d374f3c88a0655bb73b7f3f65399ce"
@@ -53,7 +53,7 @@
                   "content_hash": "8d5d13faa347320c16ee7a874d19232fb4bf108a089f3773b481b2334c4871c2"
                 },
                 "### Backporting fixes to a stable line": {
-                  "content_hash": "b3340187573ea81a9bf5c444b26f90d576d9aa38451107ef405e4bb3b7a77fdd"
+                  "content_hash": "1b629c50acc1c56b72ad1d7247447b2a7a203ba543f5bdee10066b50957e175a"
                 },
                 "### Breaking changes": {
                   "content_hash": "1357cbd7c9f8f5dc31474b5c20b12a152a72222d961fa78539b3aafd4cf6b7fe"
@@ -86,11 +86,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "fda253718a44358e7c8dd3539f889342cc4ca1aa90a635f906c8e40844184f37",
+          "hash": "6dfda339e71e6a2ed59c43fb1d298b070e9ad5e04c0fcae4a9ee0b76a2806d9b",
           "kind": "source",
           "label": "server/priv/docs/en/contributors/releases.md",
           "metadata": {
-            "content_hash": "71005674fb9cb7124d6516d4aa82b2f0238973a40b2196f8265c9cce8bb76704"
+            "content_hash": "2291407f1174dad1b918dc3f37d10feaffe52395d6a6c6dcca5fabfa95a4d45e"
           }
         },
         {
@@ -293,14 +293,14 @@
         }
       ],
       "details": {},
-      "hash": "99808af126596fcbefd79df846cc76164f0119267b77212879b9aa3712079e63",
+      "hash": "bc82f7c2d0e8188582e4bf93f5f8b885bfb5a686c2316bc7a549fa4d2740d896",
       "kind": "translation_input",
       "label": "server/priv/docs/en/contributors/releases.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a93915b1eca8a5254c8cc9b0112f40d65c49cf92377b0a7f667f45df1f8c81c4",
+  "output_hash": "b0e3cea4833c5b9a38e602d20ed005a3338afece5f7f8fa158cbd91f62b81a37",
   "output_path": "server/priv/docs/ko/contributors/releases.md",
   "protection_state": "recorded",
   "provider": "",
@@ -320,8 +320,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "2dc0deca385e6dd0ffc47eedcd6f65c7361abd96",
+  "source_commit_sha": "284465780c58606c735b61b1cedf4537b05007b5",
   "source_path": "server/priv/docs/en/contributors/releases.md",
-  "translated_at": "2026-10-29T13:11:44.145756Z",
-  "translation_session_id": "01a187bf-130d-71a2-b89f-0ac2dfbb9d62"
+  "translated_at": "2026-10-30T09:56:27.225184Z",
+  "translation_session_id": "01a18c3a-681f-7d3d-aba2-04429023a3f2"
 }
