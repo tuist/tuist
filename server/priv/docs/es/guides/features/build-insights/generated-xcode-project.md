@@ -2,18 +2,18 @@
 {
   "title": "Proyecto de Xcode generado",
   "titleTemplate": ":title · Análisis de compilaciones · Funcionalidades · Guías · Tuist",
-  "description": "Haz seguimiento de las analíticas de compilación para un proyecto de Xcode generado con Tuist en el panel de control de Tuist."
+  "description": "Rastrea las métricas de compilación de un proyecto de Xcode generado con Tuist en el panel de control de Tuist."
 }
 ---
 # Proyecto de Xcode generado {#generated-xcode-project-build-insights}
 
 > [!NOTE]
-> Los esquemas generados automáticamente incluyen la acción posterior `tuist inspect build`.
+> Los esquemas autogenerados incluyen automáticamente la postacción `tuist inspect build`.
 
 >
 > Si no quieres hacer seguimiento del análisis de compilaciones en esquemas generados, desactívalo con [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
 
-Si usas proyectos generados con esquemas personalizados, debes añadir la acción posterior tú mismo. Para [Mise](https://mise.jdx.dev/):
+Si usas proyectos generados con esquemas personalizados, debes añadir la postacción tú mismo. Para [Mise](https://mise.jdx.dev/):
 
 ```swift
 let project = Project(
@@ -44,7 +44,7 @@ let project = Project(
 )
 ```
 
-Si no usas Mise, debes asegurarte de que `tuist` esté disponible en el entorno del esquema, ya que las acciones posteriores de Xcode no heredan el `PATH` de tu shell. Para instalaciones de [Homebrew](https://brew.sh/):
+Si no usas Mise, debes asegurarte de que `tuist` esté disponible en el entorno del esquema, ya que las postacciones de Xcode no heredan el `PATH` de tu shell. Para instalaciones de [Homebrew](https://brew.sh/):
 
 ```swift
 buildAction: .buildAction(
@@ -65,9 +65,9 @@ buildAction: .buildAction(
 
 ## Análisis de compilaciones en CI {#continuous-integration}
 
-Para hacer seguimiento del análisis de compilaciones en CI, asegúrate de que CI esté <.localized_link href="/guides/integrations/continuous-integration#authentication">autenticado</.localized_link>.
+Para hacer seguimiento del análisis de compilaciones en CI, asegúrate de que la CI esté <.localized_link href="/guides/integrations/continuous-integration#authentication">autenticada</.localized_link>.
 
-Para CI basado en Xcodebuild debes:
+Para CI impulsada por Xcodebuild necesitas:
 - Usa <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> al invocar acciones de `xcodebuild`.
 - Añade `-resultBundlePath` a tu comando de `xcodebuild`.
 
@@ -75,13 +75,13 @@ Sin `-resultBundlePath`, no se generan los registros de actividad ni los paquete
 
 ## Métricas de la máquina {#machine-metrics}
 
-El análisis de compilaciones puede incluir métricas de rendimiento a nivel de máquina (CPU, memoria, red y uso de disco) capturadas durante la compilación. Para habilitarlo, configura un demonio ligero en segundo plano que tome muestras continuas de las métricas del sistema:
+El análisis de compilaciones puede incluir métricas de rendimiento a nivel de máquina (CPU, memoria, red y uso de disco) capturadas durante la compilación. Para habilitarlo, configura un demonio ligero en segundo plano que muestree continuamente las métricas del sistema:
 
 ```bash
 tuist setup insights
 ```
 
-Esto ejecuta un demonio local que toma muestras de métricas en segundo plano. Los datos son recogidos automáticamente por `tuist inspect build` y se suben junto con el informe de compilación.
+Esto ejecuta un demonio local que muestrea métricas en segundo plano. Los datos son recogidos automáticamente por `tuist inspect build` y subidos junto con el informe de compilación.
 
 > [!TIP]
 > **Ci**
@@ -94,7 +94,7 @@ Para dejar de recopilar métricas de la máquina, ejecuta:
 tuist teardown insights
 ```
 
-Esto descarga el LaunchAgent del demonio, elimina su plist y borra las métricas muestreadas y los registros del demonio de `~/.local/state`, de modo que no quede nada ejecutándose en segundo plano.
+Esto descarga el LaunchAgent del demonio, elimina su plist y borra las métricas muestreadas y los registros del demonio de `~/.local/state`, de modo que no queda nada ejecutándose en segundo plano.
 
 
 ## Metadatos personalizados {#custom-metadata}
@@ -110,7 +110,7 @@ Puedes adjuntar metadatos a las compilaciones mediante variables de entorno para
 
 ### Ejemplos
 
-Establece estos valores en CI o en tu shell antes de invocar tu compilación:
+Establece estos valores en la CI o en tu shell antes de invocar tu compilación:
 
 ```sh
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"
