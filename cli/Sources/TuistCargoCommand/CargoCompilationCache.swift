@@ -8,8 +8,23 @@ import TuistREAPI
     import TuistCore
 #endif
 
+protocol CargoCacheAction {
+    var cacheVersion: String { get }
+    var key: REAPI.Digest { get }
+    var environment: [String: String] { get }
+    var output: URL { get }
+    var name: String { get }
+    var kind: String { get }
+    var files: [String] { get }
+    func fingerprint() throws -> REAPI.Digest
+    func validateDependencies(restoring: Bool) async throws
+    func certifyOutputs(metadataOnly: Bool) throws
+    func outputFiles() throws -> [String]
+    func acceptsOutput(_ file: String) -> Bool
+}
+
 struct CargoCompilationCache {
-    let invocation: CargoCacheInvocation
+    let invocation: any CargoCacheAction
     let root: URL
     var remote: (any REAPICacheStoring)?
     let measurement: CargoCacheMeasurement
@@ -20,7 +35,7 @@ struct CargoCompilationCache {
     private let actionDigest: REAPI.Digest
 
     init(
-        invocation: CargoCacheInvocation, root: URL, remote: (any REAPICacheStoring)?, measurement: CargoCacheMeasurement,
+        invocation: any CargoCacheAction, root: URL, remote: (any REAPICacheStoring)?, measurement: CargoCacheMeasurement,
         fileSystem: any FileSysteming = FileSystem()
     ) throws {
         self.invocation = invocation
@@ -29,7 +44,7 @@ struct CargoCompilationCache {
         self.measurement = measurement
         self.fileSystem = fileSystem
         command = try REAPI.Command.with {
-            $0.arguments = ["tuist-swift-cargo-cache-v1", invocation.key.hash, String(invocation.key.sizeBytes)]
+            $0.arguments = [invocation.cacheVersion, invocation.key.hash, String(invocation.key.sizeBytes)]
         }.serializedData()
         let commandDigest = REAPI.digest(command)
         action = try REAPI.Action.with {
@@ -60,25 +75,33 @@ struct CargoCompilationCache {
     func restoreRemotely() async throws -> Bool {
         try Task.checkCancellation()
         guard let remote else { return false }
+        let result: REAPI.ActionResult?
         do {
             let started = Date()
-            let result = try await remote.actionResult(for: actionDigest)
+            result = try await remote.actionResult(for: actionDigest)
             measurement.timing("read", duration: Date().timeIntervalSince(started))
-            guard let result else { return false }
+        } catch {
+            if error is CancellationError || Task.isCancelled { throw error }
+            debug(error)
+            if !CargoRemoteCache.isOverloaded(error) { measurement.failure() }
+            return false
+        }
+        guard let result else { return false }
+        do {
             return try await materialize(result, downloadMissing: true)
         } catch {
             if error is CancellationError || Task.isCancelled { throw error }
             debug(error)
-            measurement.failure()
             return false
         }
     }
 
     func store(stdout: Data, stderr: Data) async throws {
         try Task.checkCancellation()
-        guard stdout.count + stderr.count <= 1_000_000 else { return }
-        try invocation.validateDependencies()
+        try await invocation.validateDependencies(restoring: false)
         guard try invocation.fingerprint() == invocation.key else { return }
+        try? invocation.certifyOutputs(metadataOnly: false)
+        guard stdout.isEmpty, stderr.count <= 1_000_000, Self.hasOnlyArtifactMessages(stderr) else { return }
         var result = REAPI.ActionResult()
         result.stdoutRaw = stdout
         result.stderrRaw = stderr
@@ -101,7 +124,9 @@ struct CargoCompilationCache {
         let localStarted = Date()
         try write(try result.serializedData(), to: index)
         measurement.timing("write", duration: Date().timeIntervalSince(localStarted))
-        guard let remote, invocation.environment["TUIST_CARGO_CACHE_UPLOAD"] == "1" else { return }
+        guard let remote else { return }
+        if let marker = CargoCacheSetup.readOnlyMarker(environment: invocation.environment),
+           FileManager.default.fileExists(atPath: marker.path) { return }
         let started = Date()
         do {
             for data in [command, action, Data()] {
@@ -138,6 +163,13 @@ struct CargoCompilationCache {
         }
     }
 
+    private static func hasOnlyArtifactMessages(_ data: Data) -> Bool {
+        data.split(separator: 10).allSatisfy { line in
+            guard let message = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] else { return false }
+            return message["$message_type"] as? String == "artifact"
+        }
+    }
+
     private func debug(_ error: any Error) {
         if invocation.environment["TUIST_DEBUG"] == "1" {
             FileHandle.standardError.write(Data("Tuist Cargo cache: \(REAPI.describe(error))\n".utf8))
@@ -148,7 +180,7 @@ struct CargoCompilationCache {
         guard result.exitCode == 0, result.outputDirectories.isEmpty,
               result.outputFileSymlinks.isEmpty, result.outputDirectorySymlinks.isEmpty, result.outputSymlinks.isEmpty,
               !result.hasStdoutDigest, !result.hasStderrDigest,
-              result.stdoutRaw.count + result.stderrRaw.count <= 1_000_000,
+              result.stdoutRaw.isEmpty, result.stderrRaw.count <= 1_000_000, Self.hasOnlyArtifactMessages(result.stderrRaw),
               result.outputFiles.count <= 128,
               Set(result.outputFiles.map(\.path)).count == result.outputFiles.count,
               Set(invocation.files).isSubset(of: Set(result.outputFiles.map(\.path))),
@@ -168,16 +200,24 @@ struct CargoCompilationCache {
         if !missing.isEmpty {
             guard downloadMissing, let remote else { return false }
             let started = Date()
-            let downloaded = try await remote.downloadAvailableBlobs(missing)
+            let download: REAPIBlobDownload
+            do {
+                download = try await remote.downloadBlobs(missing)
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                if !CargoRemoteCache.isOverloaded(error) { measurement.failure() }
+                throw error
+            }
             let elapsed = Date().timeIntervalSince(started)
             var complete = true
             for (digest, file) in missing {
-                let verified = downloaded.contains(digest) && (try? REAPI.digest(file: file)) == digest
+                let verified = download.available.contains(digest) && (try? REAPI.digest(file: file)) == digest
                 measurement.transfer(digest, operation: "download", status: verified ? "downloaded" : "failed", duration: elapsed)
                 if verified { _ = try publish(file, digest: digest) } else { complete = false }
             }
-            guard complete else { measurement.failure(); return false }
+            guard complete else { measurement.failure(endpoint: !download.remoteFailures.isEmpty); return false }
         }
+        try await invocation.validateDependencies(restoring: true)
         guard try invocation.fingerprint() == invocation.key else { return false }
         let properties = try invocation.output.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard properties.isDirectory == true, properties.isSymbolicLink != true else { return false }
@@ -201,6 +241,7 @@ struct CargoCompilationCache {
             try FileManager.default.moveItem(at: staging.appendingPathComponent(file.path), to: destination)
             measurement.reference(file.digest)
         }
+        try invocation.certifyOutputs(metadataOnly: false)
         try write(try result.serializedData(), to: index)
         FileHandle.standardOutput.write(result.stdoutRaw)
         FileHandle.standardError.write(result.stderrRaw)

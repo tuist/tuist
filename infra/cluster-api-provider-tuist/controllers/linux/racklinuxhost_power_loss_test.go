@@ -246,11 +246,39 @@ func TestRackPowerReachable(t *testing.T) {
 	}
 }
 
+// A failed read of a host on the tailnet is retried after amtPowerRetryInterval,
+// not amtPowerCheckInterval: a moment with no edge on the tailnet would
+// otherwise leave the host reported unreachable for an hour.
+func TestRackPowerRetriesAFailedReadOfAConnectedHost(t *testing.T) {
+	h, amt := newPowerLossHarness(t, activatedAMTEdge(""), rackPowerOn)
+	amt.readErr = errors.New("no edge of site \"ber1\" is on the tailnet to reach AMT through")
+
+	got := h.reconcile(t, edgeUUID)
+	if conditions.IsTrue(got, PowerReachableCondition) {
+		t.Fatal("a failed read reported AMT reachable")
+	}
+	if after := h.r.reconcilePower(context.Background(), got.DeepCopy()); after != amtPowerRetryInterval {
+		t.Fatalf("looks again in %s, want %s", after, amtPowerRetryInterval)
+	}
+
+	amt.readErr = nil
+	h.now = installEpoch.Add(amtPowerRetryInterval - time.Second)
+	h.reconcile(t, edgeUUID)
+	if amt.reads != 1 {
+		t.Fatalf("read AMT %d times before the retry interval", amt.reads)
+	}
+	h.now = installEpoch.Add(amtPowerRetryInterval)
+	got = h.reconcile(t, edgeUUID)
+	if amt.reads != 2 || !conditions.IsTrue(got, PowerReachableCondition) {
+		t.Fatalf("read AMT %d times, condition %+v; want it read again and reachable", amt.reads, conditions.Get(got, PowerReachableCondition))
+	}
+}
+
 // An edge that comes onto the tailnet is the way to its site's AMT, so the
 // site's other hosts are looked at again at once.
 func TestRackPowerLooksAtTheSiteAgainWhenAnEdgeJoins(t *testing.T) {
 	store := otherEdge("ber1-store-a", rackTestNamespace, "ber1", "storage", false)
-	elsewhere := otherEdge("ber2-store-a", rackTestNamespace, "ber2", "storage", false)
+	elsewhere := otherEdge("larch-store-a", rackTestNamespace, "larch", "storage", false)
 	h := newInstallHarness(t, edgeHost(), store, elsewhere)
 
 	edge := edgeHost()

@@ -25,6 +25,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         project_id: project.id,
         user_id: account.id,
         status: "processing",
+        tuist_version: "4.200.0-canary.2",
         duration: 0
       )
 
@@ -127,6 +128,29 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       assert :ok ==
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+
+    test "expanded stored metadata survives processor replacement and validation", %{account: account, project: project} do
+      values = Map.new(1..64, &{"future.#{&1}", "value #{&1}"})
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          status: "processing",
+          custom_values: values
+        )
+
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+      expect(BuildProcessor, :process_build, fn _path, true, consume -> consume.(parsed_data()) end)
+
+      expect(Builds, :create_build, fn attrs ->
+        assert attrs.custom_values == values
+        assert Build.create_changeset(attrs).valid?
+        {:ok, %{id: build.id}}
+      end)
+
+      assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
     test "atomizes machine metrics keys", %{
@@ -365,10 +389,14 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build_metadata = %{
         "xcode_version" => "16.0",
         "macos_version" => "15.0",
+        "tuist_version" => "4.200.0-canary.2",
         "is_ci" => true,
         "scheme" => "App",
         "git_branch" => "main",
-        "git_commit_sha" => "abc123"
+        "git_commit_sha" => "abc123",
+        "actor_account_id" => account.id,
+        "claimed_actor_id" => "developer-123",
+        "submission_auth" => "token"
       }
 
       expect(Builds, :get_build, fn ^non_existent_build_id, _opts -> {:error, :not_found} end)
@@ -379,10 +407,14 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert attrs.id == non_existent_build_id
         assert attrs.xcode_version == "16.0"
         assert attrs.macos_version == "15.0"
+        assert attrs.tuist_version == "4.200.0-canary.2"
         assert attrs.is_ci == true
         assert attrs.scheme == "App"
         assert attrs.git_branch == "main"
         assert attrs.git_commit_sha == "abc123"
+        assert attrs.actor_account_id == account.id
+        assert attrs.claimed_actor_id == "developer-123"
+        assert attrs.submission_auth == "token"
         {:ok, %{id: non_existent_build_id}}
       end)
 
@@ -416,6 +448,36 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       assert :ok ==
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+
+    test "preserves actor fields but strips a loaded actor association", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      attributed_build = %{
+        build
+        | inserted_at: NaiveDateTime.utc_now(),
+          updated_at: NaiveDateTime.utc_now(),
+          actor_account_id: account.id,
+          claimed_actor_id: "developer-123",
+          submission_auth: "token",
+          actor_account: %Tuist.Accounts.Account{id: account.id}
+      }
+
+      expect(Builds, :get_build, fn _, _ -> {:ok, attributed_build} end)
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+      expect(BuildProcessor, :process_build, fn _, _, consume -> consume.(parsed_data()) end)
+
+      expect(Builds, :create_build, fn attrs ->
+        assert attrs.actor_account_id == account.id
+        assert attrs.claimed_actor_id == "developer-123"
+        assert attrs.submission_auth == "token"
+        refute Map.has_key?(attrs, :actor_account)
+        {:ok, %{id: build.id}}
+      end)
+
+      assert :ok = ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
     test "does not carry over stale cacheable task counts from existing build", %{
@@ -535,6 +597,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       assert {:ok, merged} = Builds.get_build(build.id, project_id: project.id)
       assert merged.status == "success"
       assert merged.duration == 1200
+      assert merged.tuist_version == "4.200.0-canary.2"
     end
 
     test "supersedes the placeholder even when the processing pod's clock is behind", %{

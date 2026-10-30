@@ -204,7 +204,14 @@ log "Step 4/13: install hcloud-cloud-controller-manager"
 helm repo add hcloud https://charts.hetzner.cloud >/dev/null 2>&1 || true
 helm repo update hcloud >/dev/null
 
+flags=()
+if [[ "${HCCM_INTERNALIP_TARGETS_QUALIFIED:-}" == 1 ]]; then
+  flags+=(--acknowledged)
+fi
+KUBECONFIG="$WL_KUBECONFIG" bash "$BOOTSTRAP_DIR/../../../certificate-trust/guard.sh" hccm "${flags[@]}"
+
 KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hccm hcloud/hcloud-cloud-controller-manager \
+  --version 1.39.1 \
   --namespace kube-system \
   -f "$BOOTSTRAP_DIR/hccm-values.yaml" \
   --set "env.HCLOUD_LOAD_BALANCERS_LOCATION.value=${REGION}" \

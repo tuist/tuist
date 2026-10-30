@@ -40,7 +40,7 @@ Most Bazel test rules already produce a real `test.xml`:
 - `py_test`: use pytest with `--junitxml=$XML_OUTPUT_FILE`, or the `rules_python` pytest runner.
 - `go_test`: pipe `go test -json` through `gotestsum --junitfile=$XML_OUTPUT_FILE`, or wrap with a helper that emits JUnit.
 
-`rust_test` from `rules_rust` and `rules_rs` runs the standard `libtest` harness, which does not write JUnit on stable Rust. Wrap the test target with [cargo-nextest](https://nexte.st) or a small script that parses `libtest` output and writes JUnit to `$XML_OUTPUT_FILE`; you keep per-case rows in Tuist and the same run stays a single Bazel test target.
+`rust_test` from `rules_rust` and `rules_rs` runs the standard `libtest` harness, which does not write JUnit on stable Rust. Wrap the test target with a script that parses `libtest` output and writes JUnit to `$XML_OUTPUT_FILE`; you keep per-case rows in Tuist and the same run stays a single Bazel test target.
 
 ## Test identity {#test-identity}
 

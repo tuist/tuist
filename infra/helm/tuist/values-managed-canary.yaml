@@ -48,7 +48,10 @@ registry:
       sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
-  replicaCount: 1
+  # Exercise distribution between real replicas before production promotion.
+  replicaCount: 2
+  cluster:
+    enabled: true
 
   kuraCapacityAdmission:
     enabled: true
@@ -95,6 +98,8 @@ server:
   externalSecrets:
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
+    shardStorage:
+      secret: shard-storage-targets
 
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Canary's own (test-mode) IDs; the chart
@@ -135,13 +140,12 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woPQ9gGM5W1agDGX7fNED"
-      # Usage-based pricing meters, reported only for accounts with the
-      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Usage-based pricing meters: the Prices cache and test insights usage
+      # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by
-      # `Tuist.Billing.UsageMeterProvisioning`. A subscription only carries
-      # them once its account is switched, which the flag still gates.
+      # `Tuist.Billing.UsageMeterProvisioning`.
       usage_meters:
-        cache_egress_megabytes: "price_1UITAiQ9gGM5W1agQo117CYC"
+        cache_egress_megabytes: "price_1UUl2aQ9gGM5W1agJzLtmvnH"
         cache_requests: "price_1UITAkQ9gGM5W1ag7kkpTbOX"
         passing_test_cases: "price_1UITAlQ9gGM5W1ag0ql0psQC"
       # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
@@ -228,11 +232,10 @@ server:
     # legacy cache writer was disabled.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
       value: "true"
-    # Single web replica shares this pool between request handling and the
-    # in-node Oban queues (default: 10). Sized well above the default-queue
-    # concurrency so the steady AlertEvaluationWorker load can't starve web
-    # checkouts. Comfortably under CNPG max_connections (100): 30 web + 10
-    # processor + replication/monitoring/superuser overhead.
+    # Each of the two web replicas shares this direct pool between requests
+    # and in-node Oban queues (default: 10). Keep checkout headroom without
+    # increasing application concurrency. The CNPG budget below includes
+    # both outgoing pools during their 60 s termination grace period.
     - name: TUIST_DATABASE_POOL_SIZE
       value: "30"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -288,13 +291,6 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
-  # The in-cluster ClickHouse is canary's system of record (spec #73). Every
-  # workload reads and writes it through TUIST_CLICKHOUSE_URL, and ClickHouse
-  # Cloud receives nothing.
-  #
-  # Going back to `external` does not copy anything back: rows written since
-  # the switch exist only on the in-cluster server.
-  mode: managed
   managed:
     enabled: true
     # Canary carries no production-sized copy: its AX42-1s have a 2x512 GB
@@ -379,12 +375,17 @@ pdcAgent:
   enabled: true
   # Canary mirrors staging's sizing; production is the env that needs HA.
   replicas: 1
-  # Pin the tunnel to the CNPG read-only service. Without this the agent
-  # permits any destination reachable from its pod, not just Postgres.
+  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
+    - tuist-tuist-clickhouse.tuist-canary.svc.cluster.local:8123
 
 capi:
+  ovhRunnerEgress:
+    enabled: true
+    vrackID: pn-2024092
+    cidr: "5.196.103.232/29"
   ovhPrivateNetwork:
     enabled: true
     vrackID: pn-2024092
@@ -458,12 +459,23 @@ egressTreeAgent:
 postgresql:
   mode: cnpg
   cnpg:
-    instances: 2
+    # Two standbys, as in production: with required `ANY 1` replication, a
+    # single standby that stalls or restarts would hold every commit.
+    instances: 3
     # PostgreSQL config sized against the 8 GiB memory limit below. CNPG
     # otherwise leaves Postgres on its 128 MiB shared_buffers default;
     # mirror the production tuning shape so canary catches any regression
     # before it reaches prod.
     parameters:
+      # One rollout: 2 old + 2 new web pods x 30 = 120 direct connections.
+      # maxSurge=1 excludes terminating pods; maxSurge=0 would not bound
+      # their pools either. Allow 2 overlapping PgBouncers x 3 db/user
+      # pairs x 20 = 120 more (processor + xcresult share tuist_processor,
+      # Swift sync has its own role, auth uses postgres/cnpg_pooler_pgbouncer).
+      # Add 30 for other direct users, notifier/leader, admin/monitoring and
+      # reserved slots: 270, plus 30 spare. max_client_conn=200 is only a
+      # client admission limit. See infra/cnpg/README.md for assumptions.
+      max_connections: "300"
       shared_buffers: "2GB"
       effective_cache_size: "6GB"
       work_mem: "32MB"
@@ -638,23 +650,27 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
-  # Canary half of the OVH Linux runner move: production is going to RISE-L in
-  # Gravelines (see values-managed-production.yaml), and this is the box that
-  # exercises the integration in front of it. RISE-S rather than RISE-L on
-  # purpose: same Zen 5 AM5 family, same single-thread class (4,643 vs 4,728),
-  # same soft-RAID NVMe layout and the same OVHDedicatedMachine code path, at a
-  # third of the cost. Canary does not need production throughput; it needs to
-  # run the production integration.
-  #
-  # OVH RISE-S bare metal in Gravelines: Ryzen 7 9700X, 8c/16t, 64 GB,
-  # 2x512 GB NVMe soft RAID. RISE-S rather than production's RISE-L on purpose:
-  # same Zen 5 AM5 family, same single-thread class, same soft-RAID NVMe layout
-  # and the same OVHDedicatedMachine code path, at a third of the cost. This env
-  # does not need production throughput, it needs to exercise the production
-  # integration.
-  #
-  # The one thing this shape cannot rehearse is the private link: RISE-S has no
-  # vRack option, where RISE-L carries 1 Gbit/s.
+  # Dedicated Garage validation host: ns3234030.ip-188-165-77.eu (RISE-1).
+  # Ubuntu 24.04, healthy RAID1/XFS and SSH verified; adoption marker is set.
+  shard-storage:
+    enabled: true
+    replicas: 1
+    endpoint: ovh-us
+    nodePool: shard-storage
+    machine:
+      # Disjoint from both the Canadian cache and Linux runner adoption prefixes.
+      adoptDisplayNamePrefix: tuist-shards-ovh-canary
+      offer: rise-1
+      datacenter: gra
+      os: ubuntu_24.04
+      vRackID: pn-2024092
+      # The default cache taint enables quota-backed /data and its exporter.
+      # This host does not run Kata or join the Linux runner pool.
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
+  # One shared RISE-M pool; every Linux job uses the regional Kura instance.
   runners-linux:
     enabled: true
     # MUST equal the number of boxes prepped and marked for this env. Too high
@@ -668,15 +684,15 @@ ovhFleets:
     # fleet must share one value, because the reconciler resolves a single
     # OVH_ENDPOINT for all of them.
     endpoint: ovh-us
-    # The pool the Linux Runner Profiles select on.
     nodePool: runners-linux
+    # Jobs reach the gra shard store privately once the provider attests the
+    # node's vRack routes (tuist.dev/private-network).
+    shardStorageSite: gra
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-canary
-      # Case-insensitive substring of the box's commercialRange, which the
-      # catalog bills as "RISE-S | AMD Ryzen 7 9700X". The range token alone
-      # matches without depending on how the CPU suffix is spelled on the server
-      # object. A value matching nothing adopts nothing, silently.
-      offer: rise-s
+      offer: rise-m
+      # Backfill existing OnDelete hosts during drained network enrollment.
+      vRackID: pn-2024092
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04
@@ -698,6 +714,10 @@ ovhFleets:
 
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
+  # Every Mac host this env runs, including the BER1 rack hosts production
+  # lends it. Keep the three envs on one release.
+  tart:
+    version: "2.41.1"
   # The cluster's own tag, for a proxy the Tailscale operator runs for one
   # Service (values.yaml).
   tailscaleEgress:
@@ -714,26 +734,12 @@ macosFleet:
   # costs the public dial path, the only one that can update Tailscale itself.
   sshIngressAllowCIDRs:
     - 78.47.174.50/32
-  # Per-account cache volumes. The quota is an APFS ceiling (shares the
-  # container's free space, not a reservation) fenced by admission +
-  # watermark eviction, so space pressure degrades a job to the cold
-  # path rather than risking ENOSPC. With the CAS folded in, a master's
-  # sparse ceiling is masterCapGib (28 GiB); it only bills the quota for
-  # what it actually holds, and the evictor drops whole masters LRU as the
-  # 80 GiB quota fills — ample for canary's single replica.
-  # The 2026-07-16 incident (the guest exported TUIST_XDG_CACHE_HOME at a
-  # virtio-fs share it could not create dirs on, so the CLI died on its
-  # first cache write) was fixed by the disk-image redesign (#11908) — the
-  # cache is now a block-device APFS image, and the guest abandons an
-  # unwritable share for a local cold cache instead of exporting a broken
-  # root. Production has run on that path (gib: 80) since; canary tracks it
-  # here, with the Xcode compilation cache (CAS) folded in — masterCapGib 28
-  # gives the two caches 22.4 GiB to share by use, with a 5.6 GiB reserve.
-  # casGib 16 sets the fixed split older runner images apply.
+  # Runner cache volumes. The quota is an APFS ceiling (shares the
+  # container's free space, not a reservation) fenced by admission and
+  # eviction, so space pressure degrades a job to the cold path rather than
+  # risking ENOSPC.
   runnerCacheVolume:
     gib: 80
-    masterCapGib: 28
-    casGib: 16
   # Canary runs on the production tailnet (single shared tailnet
   # across canary + production — same Grafana, same admin console).
   # Staging has its own tailnet so a leaked staging key can't add
@@ -765,14 +771,18 @@ macosFleet:
     name: tuist-runner-cache
     cidr: 172.16.0.0/22
 
-# Customer-runner Mac mini fleet — sibling of macosFleet.
-# Canary keeps one warm runner so the production rollout can be
-# validated on the same substrate first.
+# Canary rents no Scaleway hosts for its macOS runners: they run on the BER1
+# rack host production lends it (`rackFleet`), and every canary account runs
+# there (`runner_site`). `enabled` stays on, since it also renders the runners
+# controller, the runner namespace and the rack's RunnerPools. With
+# `hostCount: 0` the chart renders no rented macOS pools, and the
+# MachineDeployment stays at zero, so a host released from it goes back to
+# the `tuist-pool-` pool.
 runnersFleet:
   customCacheVolumes:
     enabled: true
   enabled: true
-  hostCount: 1
+  hostCount: 0
   # Pre-ordered pool. Operator pre-orders Mac minis named with the
   # `tuist-pool-` prefix; the CAPI controller adopts them on demand.
   # No auto-order fallback — see values.yaml for the full workflow.
@@ -783,61 +793,6 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  # macOS catalog (shapes + xcodeVersions) is shared across managed
-  # envs via `values-managed-common.yaml`. Per-env tuning lives in
-  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
-  # template merges each catalog entry with its override at render
-  # time. Every active profile runs through the runners-controller's
-  # fleet allocator, which apportions the fleet's guest-slot budget
-  # across all macOS pools using the three-tier (floor / load /
-  # headroom) policy. `minWarmPoolFloor` is the always-on warm
-  # guarantee; the sum across overrides must stay ≤ `hostCount`.
-  xcodeOverrides:
-    "27.2-beta":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "27.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "27.0":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.6":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 1
-        maxReplicas: 1
-    "26.5":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.4.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.3":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.1.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-    "26.0.1":
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""
   pools: []
@@ -853,10 +808,24 @@ rackFleet:
   enabled: false
   name: tuist-canary-rack-fleet
   site: ber1
+  env: canary
+  # Rack hosts production lends canary with `lendTo: canary` (see "A host lent
+  # to another env" in infra/cluster-api-provider-tuist/AGENTS.md). Canary's
+  # operator runs their runtime and rolls it with canary's deploys.
+  borrow:
+    enabled: true
+    hosts:
+      - ber1-runner-b02
+  # The identity ber1-runner-b02 ran under while it was lent by hand. Canary
+  # deploys before production in the cascade, and its runners acceptance gate
+  # runs on b02 before production lends it with `lendTo`, so this stays until
+  # canary's lease is Active, and goes in a later change.
   joiningNodes:
     - tuist-tuist-rack-fleet-ber1-runner-b02
   runners:
     enabled: true
+    # Every BER1 host runs macOS 27 and Tart 2.41.1.
+    stackedImages: true
     # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
     # rack, which the host's production sizing (16 CPU / 48 GB) fits two of.
     guestShapes:
@@ -866,14 +835,6 @@ rackFleet:
       enabled: true
       minWarmPoolFloor: 0
       maxReplicas: 2
-    # `tuist-canary-macos` resolves to 26.6, which the runners acceptance gate
-    # targets on every deploy, so one guest stays warm for it.
-    xcodeOverrides:
-      "26.6":
-        autoscaling:
-          enabled: true
-          minWarmPoolFloor: 1
-          maxReplicas: 2
 
 # Bare-metal vm-image-builder fleet. Disabled in canary: the baked
 # Tart images are global GHCR artifacts, so only the production fleet
@@ -887,6 +848,30 @@ buildersFleet:
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
     enabled: false
+
+# Firecracker sandboxes for coding-agent sessions, on the OVH RISE-S that also
+# hosts the Linux runner pool. No memory is set aside for sandboxes: the
+# daemon starts at the chart's 1 GiB floor, which holds no sandbox, and grows
+# up to 24 GiB as sandboxes need memory no running job holds. 50 GiB of disk
+# holds two default sessions with a 10 GB workspace, running or paused. The
+# kata runner pools keep the rest of the box. Accounts reach sandboxes only
+# through the `sandboxes` feature flag.
+sandboxes:
+  # Deploy the daemon; account access is controlled by the `sandboxes` flag.
+  enabled: true
+  image:
+    tag: "sha-3b10e1eddbaf"
+  templateImage:
+    tag: "sha-56965cb61732"
+  nodePools:
+    - runners-linux
+  tolerations:
+    - key: tuist.dev/runner-tier
+      operator: Equal
+      value: bare-metal
+      effect: NoSchedule
+  maxMemoryGiB: 24
+  diskGiB: 50
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
@@ -917,6 +902,18 @@ runnersFleetLinux:
   # Resolved at deploy time from the latest `linux-runner-image@` git tag.
   shapeRunnerImage: ""
   shapeRuntimeClass: kata-qemu
+  cacheVolumes:
+    enabled: true
+    hostPath: /var/lib/kubelet/tuist-runner-cache
+    minFreeGB: 40
+    volumeGB: 20
+    provisioning:
+      enabled: true
+      sizeGB: 200
+    dockerCache:
+      enabled: true
+      # Acceptance uses the default shape; qualify it before widening rollout.
+      pools: [tuist-tuist-runner-pool-linux-2vcpu-8gb]
   shapeAutoscaling:
     enabled: true
     minWarmPoolFloor: 0
@@ -941,3 +938,7 @@ runnersFleetLinux:
 # rate limiter falls back to the per-pod InMemory bucket.
 redis:
   enabled: true
+
+ampOrbProvider:
+  enabled: true
+  url: https://canary.tuist.dev

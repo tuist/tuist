@@ -12,6 +12,7 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
 func edgeConvergeOptions() rackConvergeOptions {
@@ -146,6 +147,26 @@ func TestRackNodeConfigKeepsTheBluetoothDriverOut(t *testing.T) {
 	f := configFile(t, rackNodeConfig(edgeConvergeOptions()), "/etc/modprobe.d/tuist-rack.conf")
 	if f.Content != "blacklist btusb\n" || f.Group != "modules" {
 		t.Fatalf("modprobe file %+v", f)
+	}
+}
+
+// A rack host installed before its install took sshd out of systemd's start
+// limit gets the drop-ins from its converge. They are unit drop-ins, which a
+// daemon-reload loads, so nothing restarts sshd under the session the
+// converge runs over.
+func TestRackNodeConfigKeepsSSHDOutOfTheStartLimit(t *testing.T) {
+	for _, role := range []string{"edge", "services", "storage"} {
+		o := edgeConvergeOptions()
+		o.Role = role
+		cfg := rackNodeConfig(o)
+		for path, content := range map[string]string{
+			sshd.ServiceDropInPath: sshd.ServiceDropInContent,
+			sshd.SocketDropInPath:  sshd.SocketDropInContent,
+		} {
+			if f := configFile(t, cfg, path); f.Content != content || f.Group != "units" {
+				t.Errorf("a %s's %s is %+v", role, path, f)
+			}
+		}
 	}
 }
 

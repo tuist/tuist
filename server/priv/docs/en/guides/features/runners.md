@@ -40,6 +40,44 @@ Adopting them is usually a one-line change to a job:
 <!-- -->
 :::
 
+## Android emulators on Linux {#android-emulators}
+
+Linux runners provide hardware-accelerated virtualization through `/dev/kvm` by default. Use your ordinary Linux <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>, such as `tuist-linux`, to run x86_64 Android emulators, including Gradle Managed Devices. No special runner profile, KVM setup action, permission change, or `sudo` is needed to access the device.
+
+The runner image includes the Android SDK. Install the emulator and its runtime libraries before starting a device. For a project that already defines a Gradle Managed Device named `pixel6`, a GitHub Actions job looks like this:
+
+```yaml
+jobs:
+  android-test:
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install emulator dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2 \
+            libxrender1 libpulse0 libnss3 libxkbcommon-x11-0 libxcb-cursor0 \
+            libasound2 libglu1-mesa
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'emulator'
+      - name: Check hardware acceleration
+        run: |
+          test -r /dev/kvm && test -w /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+      - name: Run instrumented tests
+        run: ./gradlew :app:pixel6DebugAndroidTest
+```
+
+Use the Java version required by your Android Gradle Plugin and replace the test task with your project's managed-device task. Configure an **x86_64** system image. Choose a runner shape with enough memory for both Gradle and the emulators; concurrent devices share the job's CPU and memory allocation.
+
+Run the emulator as the normal runner user. `sudo` in this example is only for installing operating-system packages.
+
+Emulators use nested virtualization, so their timings can differ from a physical Android device. Treat emulator benchmarks as measurements of that CI environment, rather than physical-device performance.
+
 ## Concurrency limits {#concurrency-limits}
 
 Each account has independent vCPU and memory concurrency limits for macOS and Linux. Before Tuist admits a job, it checks the job's <.localized_link href="/guides/features/runners/profiles#machine-shapes">machine shape</.localized_link> against all jobs currently running on that platform. The job starts only when both its vCPU and memory fit within the remaining capacity; otherwise it stays queued until capacity becomes available. Work on one platform never consumes the other platform's capacity.
@@ -47,6 +85,17 @@ Each account has independent vCPU and memory concurrency limits for macOS and Li
 The **Concurrency** section of the Runners dashboard shows the peak admitted vCPU and memory usage for every hour. A red bar means usage reached the configured limit at some point during that hour. Usage cannot exceed the line because jobs that would take either resource over its limit remain queued.
 
 Your current limits are shown alongside each chart. If your workflows regularly reach them and spend time queued, [contact us](mailto:contact@tuist.dev) with your account handle, platform, and expected parallel workload. We'll review the required capacity and help raise the limits.
+
+## Network access {#network-access}
+
+Jobs can open outbound connections to the public internet. Private address ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) are blocked, and runners accept no inbound connections.
+
+| Platform | Outbound ports |
+| --- | --- |
+| Linux | TCP 22 (SSH), 80 (HTTP), and 443 (HTTPS), plus DNS |
+| macOS | All ports |
+
+SSH covers `git@` dependencies, SSH submodules, deploy keys, and `ssh` or `scp` deploys. If a Linux workflow needs another outbound port, [contact us](mailto:contact@tuist.dev).
 
 <.home_cards>
   <.home_card

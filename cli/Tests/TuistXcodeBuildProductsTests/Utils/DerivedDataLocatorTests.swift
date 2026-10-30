@@ -99,6 +99,38 @@ struct DerivedDataLocatorTests {
         #expect(result.basename == "Example_App-haqlyztoonwvfngqefjfdacmpopg")
     }
 
+    @Test(
+        .withMockedEnvironment(),
+        arguments: [
+            ("/private/tmp/checkout/Tuist.xcworkspace", "Tuist-dpjpnkssqpthzhhhfxjnhiqlkqag"),
+            ("/tmp/checkout/Tuist.xcworkspace", "Tuist-dpjpnkssqpthzhhhfxjnhiqlkqag"),
+            ("/private/var/folders/ab/T/checkout/Tuist.xcworkspace", "Tuist-bxjqiptddbsgrbdcigrcfulltmsb"),
+            ("/private/etc/checkout/Tuist.xcworkspace", "Tuist-fjxftmuartejcyclfypinywdfaup"),
+            ("/private/opt/checkout/Tuist.xcworkspace", "Tuist-gusvznatpyrclbbpwtdlpbarvsiu"),
+        ]
+    )
+    func locate_hashes_the_path_xcode_standardizes(path: String, expectedBasename: String) async throws {
+        let projectPath = try AbsolutePath(validating: path)
+
+        let result = try await subject.locate(for: projectPath)
+
+        #expect(result.basename == expectedBasename)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func locate_hashes_the_path_xcode_standardizes_for_custom_absolute_location() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let customDerivedDataDirectory = temporaryDirectory.appending(component: "CustomDerivedData")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.derivedDataLocationStub = .custom(customDerivedDataDirectory)
+
+        let result = try await subject.locate(
+            for: try AbsolutePath(validating: "/private/tmp/checkout/Tuist.xcworkspace")
+        )
+
+        #expect(result == customDerivedDataDirectory.appending(component: "Tuist-dpjpnkssqpthzhhhfxjnhiqlkqag"))
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func locate_uses_workspace_name_without_hash_for_relative_location() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

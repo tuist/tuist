@@ -8,10 +8,9 @@ defmodule TuistWeb.BuildsLiveTest do
 
   alias TuistTestSupport.Fixtures.RunsFixtures
 
-  # render_async/2 is LiveViewTest's first-party hook for waiting on async assigns.
-  # The builds widgets still cross analytics-backed async work that can be slower on CI,
-  # so keep an explicit timeout until we have a deterministic non-time-based drain.
-  @render_async_timeout 1_000
+  # These integration tests run real ClickHouse queries. Wait for completion with
+  # CI headroom rather than imposing a one-second performance budget.
+  @render_async_timeout 30_000
 
   test "renders empty view when no builds are available", %{
     conn: conn,
@@ -20,6 +19,7 @@ defmodule TuistWeb.BuildsLiveTest do
   } do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds")
+    render_async(lv, @render_async_timeout)
 
     # Then
     assert has_element?(lv, "span", "No data yet")
@@ -147,15 +147,15 @@ defmodule TuistWeb.BuildsLiveTest do
 
     path = "/#{project.account.name}/#{project.name}/builds"
     {:ok, view, _} = live(conn, path)
-    render_async(view, 5_000)
+    render_async(view, @render_async_timeout)
     assert has_element?(view, "#build-runs-table", "App")
     assert has_element?(view, "#build-runs-table", "Other")
     render_patch(view, path <> "?analytics-build-scheme=App&analytics-environment=ci")
-    render_async(view, 5_000)
+    render_async(view, @render_async_timeout)
     assert has_element?(view, "#build-runs-table", "App")
     refute has_element?(view, "#build-runs-table", "Other")
     render_patch(view, path <> "?analytics-build-scheme=App&analytics-environment=local")
-    render_async(view, 5_000)
+    render_async(view, @render_async_timeout)
     refute has_element?(view, "#build-runs-table", "Verification")
   end
 end

@@ -37,15 +37,12 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
       tool_version: Map.get(args, "tool_version") || ""
     }
 
-    shard_index = Map.get(args, "shard_index")
-    expected_shards = Map.get(args, "expected_shards", 1)
-
     case Tests.get_test(test_run_id) do
+      {:ok, %{reporting_version: 1}} ->
+        {:cancel, :immutable_shard_coverage_unsupported}
+
       {:ok, test} ->
-        case Accounts.get_account_by_id(Map.get(args, "account_id") || project_account_id(project_id)) do
-          {:ok, account} -> publish(test, account, storage_key, coverage, shard_index, expected_shards)
-          {:error, :not_found} -> :ok
-        end
+        publish_for_account(test, project_id, storage_key, coverage, args)
 
       {:error, :not_found} ->
         if DateTime.diff(DateTime.utc_now(), inserted_at) > @run_wait_seconds do
@@ -55,6 +52,16 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
           Logger.warning("Coverage for test run #{test_run_id} arrived before the run; retrying")
           {:snooze, 30}
         end
+    end
+  end
+
+  defp publish_for_account(test, project_id, storage_key, coverage, args) do
+    case Accounts.get_account_by_id(Map.get(args, "account_id") || project_account_id(project_id)) do
+      {:ok, account} ->
+        publish(test, account, storage_key, coverage, Map.get(args, "shard_index"), Map.get(args, "expected_shards", 1))
+
+      {:error, :not_found} ->
+        :ok
     end
   end
 

@@ -6,6 +6,10 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // The status share is a writable virtio-fs mount the guest owns, and the guest
@@ -45,37 +49,10 @@ var guestStatusReaders = []struct {
 		},
 	},
 	{
-		name:     "volume-upload-ms",
-		file:     uploadMillisFile,
-		content:  "4200\n",
-		accepted: func(d string) bool { return readUploadMillis(d) != -1 },
-	},
-	{
-		name:     "cache-fill-percent",
-		file:     fillPercentFile,
-		content:  "42\n",
-		accepted: func(d string) bool { return readFillPercent(d) != -1 },
-	},
-	{
-		name:     "cache-promote-result",
-		file:     promoteResultFile,
-		content:  "accepted 9\n",
-		accepted: func(d string) bool { return readPromoteResult(d).Result != "" },
-	},
-	{
-		name:     "volume-head.json",
-		file:     volumeHeadFile,
-		content:  `{"generation":9,"digest":"deadbeef","download_url":"https://example.invalid/head"}`,
-		accepted: func(d string) bool { return readVolumeHead(d) != nil },
-	},
-	{
-		name:    "cache-dirty",
-		file:    dirtyMarkerFile,
-		content: "1\n",
-		accepted: func(d string) bool {
-			present, _ := readDirtyMarker(d)
-			return present
-		},
+		name:     "runner.log",
+		file:     runnerLogFile,
+		content:  "dispatched\n",
+		accepted: func(d string) bool { return readRunnerLog(d) != "" },
 	},
 	{
 		name:    "runner-heartbeat",
@@ -156,5 +133,23 @@ func TestGuestStatusReadersRejectDirectory(t *testing.T) {
 				t.Error("reader accepted a directory")
 			}
 		})
+	}
+}
+
+func TestStatusShareOnlyForRunnerPods(t *testing.T) {
+	client := &tart.Client{UserDataDir: t.TempDir()}
+	runner := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{runnerPodLabel: "true"}}}
+	dir := StatusDirForPod(client, runner, "vm")
+	if dir != filepath.Join(client.UserDataDir, "vm", "status") {
+		t.Fatalf("runner Pod status share = %q", dir)
+	}
+	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o777 {
+		t.Fatalf("status share is not guest-writable: %v %v", info, err)
+	}
+	if dir := StatusDirForPod(client, &corev1.Pod{}, "other"); dir != "" {
+		t.Fatalf("non-runner Pod got a status share at %q", dir)
+	}
+	if dir := StatusDirForPod(nil, runner, "vm"); dir != "" {
+		t.Fatalf("status share without a Tart client: %q", dir)
 	}
 }

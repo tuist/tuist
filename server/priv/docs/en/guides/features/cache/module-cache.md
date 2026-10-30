@@ -36,6 +36,24 @@ The command re-uses binaries to speed up the process.
 
 If a binary fails to upload, the command still uploads the rest, then exits with a non-zero status and lists the targets that weren't uploaded. Binaries in a machine's local cache count as cached, so to upload them again from the same machine, run `tuist clean binaries` before warming. Pass `--no-upload` to only store binaries in the local cache.
 
+### Destination selection {#destination-selection}
+
+Use `--destination simulator` or `--destination device` to cache and generate for one destination:
+
+```bash
+tuist cache --destination simulator
+tuist generate --destination simulator
+
+tuist cache --destination device
+tuist generate --destination device
+```
+
+The default is `all`, which preserves every destination supported by your targets, including Mac Catalyst. A later `tuist cache` reuses cached slices and builds only the missing SDKs. Normal generation keeps a module's sources if any required slices are missing.
+
+Restricted generation limits source targets to the selected destination and preserves native macOS targets, including macros. Neither restricted mode includes Mac Catalyst. Regenerate with `--destination all` to restore all destinations.
+
+Slice-by-slice caching supports iOS and macOS with standard architectures. Other platforms, custom architectures, and unsupported products keep full-artifact caching. Legacy module caching requires `--destination all`.
+
 ### Remote upload admission {#remote-upload-admission}
 
 Modern module caching uses REAPI. When a busy cache temporarily rejects an upload with `RESOURCE_EXHAUSTED`, Tuist backs off with jitter, respects standard `google.rpc.RetryInfo` minimum delays, and retries within a bounded wait budget. Upload admission allows at most six retries per call. Each blob-upload operation shares one 60-second cumulative backoff budget across its presence checks, batch uploads, and streaming writes; concurrent waits each consume the budget, so repeated refusals do not grant every queued blob another minute of retries. Successful transfers do not consume this budget and are not cancelled when it runs out. Action-result publication has its own bounded budget. The exponential delay starts at one second and grows toward 30 seconds before proportional jitter. If a server's required delay exceeds the remaining budget, Tuist fails rather than retrying earlier than instructed. Cancellation interrupts backoff, and cache reads retain short retries so overload does not stall generation.
@@ -241,6 +259,53 @@ The path can be absolute or relative to the current working directory. Tuist cre
 When this environment variable is set, Tuist leaves the directory and its contents in place after the command finishes. The caller is responsible for cleaning it before the next cache warm. When the variable is unset, Tuist continues to use and remove a temporary directory.
 
 Tuist rejects a caller-owned scratch directory when a foreign build target needs to be warmed. Foreign build scripts control their own output locations, so Tuist cannot guarantee that those outputs stay inside the scratch directory.
+
+### Code coverage {#code-coverage}
+
+> [!NOTE] EARLY ACCESS
+> Code coverage with the module cache is in early access. Commands only read and warm the instrumented binaries described below when `TUIST_FEATURE_FLAG_COVERAGE=1` is set.
+
+A target from the module cache is a prebuilt binary, and a test run measures its code only when that binary was built with coverage counters. Turn coverage on for your project in `Tuist.swift`:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        generationOptions: .options(
+            coverage: .coverage(enabled: true)
+        )
+    )
+)
+```
+
+With `enabled`, every command and every environment reads one instrumented variant of the cache for your project's own targets, so a single warm on CI serves CI and local machines:
+
+| Command | Your project's targets | External packages |
+| --- | --- | --- |
+| `tuist cache` (Debug configuration) | Warms instrumented binaries | Warms plain binaries |
+| `tuist cache` (Release configuration) | Warms plain binaries | Warms plain binaries |
+| `tuist hash cache` | Prints the instrumented keys | Prints the plain keys |
+| `tuist generate` | Reads instrumented binaries | Reads plain binaries |
+| `tuist test` | Reads instrumented binaries | Reads plain binaries |
+
+The option applies to every configuration Xcode treats as Debug. Release builds are never instrumented. Tuist also links the profile runtime in those configurations (`CLANG_COVERAGE_MAPPING_LINKER_ARGS`), so builds that don't collect coverage still link the instrumented binaries, and turns on coverage in the test action of the schemes it generates automatically and of the schemes you define that leave `coverage` unset.
+
+A scheme you define follows the option unless it sets coverage itself: `.options(coverage: false)` keeps it off and `.options(coverage: true)` keeps it on whatever the option says. Test plans decide coverage themselves, and `-enableCodeCoverage` still overrides a run, as in Xcode. A run that reads instrumented binaries without collecting coverage builds and tests normally. When a run collects coverage but your project's targets came from the cache as plain binaries, Tuist warns that their coverage isn't measured.
+
+The `TUIST_COVERAGE_ENABLED` environment variable (`1` or `0`) takes precedence over `coverage: .coverage(enabled:)`. Set it for a whole environment, such as a CI workflow, rather than for a single command, so that the commands that warm the cache and the ones that read it agree.
+
+`prefixMapping` (see the <.localized_link href="/guides/features/cache/xcode-cache#coverage-with-prefix-mapping">Xcode cache</.localized_link>) has its own override: the `TUIST_COVERAGE_PREFIX_MAPPING` environment variable (`1` or `0`) takes precedence over `coverage: .coverage(prefixMapping:)`.
+
+Overriding to off reads the plain variant, which a cache warmed with coverage on doesn't fill, so those targets build from source. A Release warm always warms plain binaries.
+
+> [!IMPORTANT] KEEP THE VALUES THE SAME EVERYWHERE
+> `enabled` and `prefixMapping` change the build settings and cache keys of your project's targets, and the selective-testing hashes of its test targets. Set them to the same value on every machine that shares the cache, and don't derive them from the environment (for example from `Environment.isCI`): a value that differs between CI and local machines gives them different keys. The same goes for the environment variables: a run with `TUIST_COVERAGE_ENABLED=0` doesn't reuse the binaries or the selective-testing results of runs with coverage on.
+
+Keep in mind:
+
+- Instrumented binaries are larger: about 20–30% for static archives and dynamic libraries. Debug builds run at the same speed.
+- Xcode's coverage report never shows code that came from the cache, with or without this option. Tuist's coverage upload measures it. To see a target's coverage in Xcode, focus it with `tuist generate <target>` so it builds from source.
 
 ## Troubleshooting {#troubleshooting}
 

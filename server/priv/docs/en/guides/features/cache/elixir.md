@@ -26,15 +26,17 @@ mix test
 
 When a dependency needs compilation, Tuist checks the local cache, then the shared
 remote cache. A miss compiles normally and stores the result for future builds.
-Dependencies that are already up to date need no lookup. If authentication or the
-cache is unavailable, Mix still compiles normally.
+Selected, supported dependencies that Mix considers up to date count as local
+hits when their compiled outputs are present and valid; no cache lookup is
+needed. If authentication or the cache is unavailable, Mix still compiles normally.
 
 ## See your cache hits
 
 Open **Mix Cache** in your project's dashboard for hit rates, transfers and recent
 builds. Select a build's **Mix cache** tab to see which tasks hit or missed.
 **CAS Outputs** shows actual remote downloads and uploads; local hits don't create
-remote transfer records.
+remote transfer records. Reusing already-current outputs contributes to hit rate
+but has no transfer bytes, restore latency or estimated time saved.
 
 To try a restore, clean a supported dependency's compiled output and build again:
 

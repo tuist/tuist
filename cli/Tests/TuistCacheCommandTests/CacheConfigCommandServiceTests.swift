@@ -22,6 +22,8 @@ struct CacheConfigCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
     private func makeSubject(
+        serverURL: URL? = nil,
+        cacheURL: URL? = nil,
         cacheURLError: CacheURLStoreError? = nil,
         cacheToken: String = "scoped-cache-token",
         cacheTokenError: GetCacheTokenServiceError? = nil
@@ -35,6 +37,8 @@ struct CacheConfigCommandServiceTests {
         ciOIDCAuthenticator: MockCIOIDCAuthenticating,
         exchangeOIDCTokenService: MockExchangeOIDCTokenServicing
     ) {
+        let serverURL = serverURL ?? self.serverURL
+        let cacheURL = cacheURL ?? self.cacheURL
         let serverEnvironmentService = MockServerEnvironmentServicing()
         let serverAuthenticationController = MockServerAuthenticationControlling()
         let cacheURLStore = MockCacheURLStoring()
@@ -94,6 +98,22 @@ struct CacheConfigCommandServiceTests {
             ciOIDCAuthenticator,
             exchangeOIDCTokenService
         )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func run_returns_unsigned_configuration_only_for_discovered_self_hosted_cache() async throws {
+        let (subject, _, authentication, _, _, _, _, _) = makeSubject(
+            serverURL: URL(string: "https://tuist.example.com")!,
+            cacheURL: URL(string: "https://cache.example.com")!,
+            cacheTokenError: .unknownError(503)
+        )
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        try await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in true }) {
+            try await subject.run(fullHandle: "my-account/my-project", json: true, forceRefresh: false, directory: nil, url: nil)
+        }
+        let decoded = try #require(JSONSerialization.jsonObject(with: Data(ui().utf8)) as? [String: Any])
+        #expect(decoded["token"] as? String == "")
+        #expect(decoded["url"] as? String == "https://cache.example.com")
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [404, 503])

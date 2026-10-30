@@ -27,7 +27,7 @@ defmodule Atlas.Support.Workers.PostNotification do
     %{
       "event" => Atom.to_string(event),
       "thread_id" => thread_id,
-      "notification_id" => Ecto.UUID.generate()
+      "notification_id" => Keyword.get(opts, :notification_id, Ecto.UUID.generate())
     }
     |> maybe_put("message_id", opts[:message_id])
     |> maybe_put("actor_id", opts[:actor_id])
@@ -38,11 +38,16 @@ defmodule Atlas.Support.Workers.PostNotification do
   end
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: args}) do
+  def perform(%Oban.Job{args: args, attempt: attempt, max_attempts: max_attempts}) do
     Audit.with_context(%{interface: "worker"}, fn ->
       with {:ok, event} <- event(args["event"]),
            thread when not is_nil(thread) <- Support.get_thread(args["thread_id"]),
-           {:ok, delivery} <- Notifier.notify(thread, Atom.to_string(event), notifier_opts(thread, event, args)) do
+           {:ok, delivery} <-
+             Notifier.notify(
+               thread,
+               Atom.to_string(event),
+               [final_attempt?: attempt >= max_attempts] ++ notifier_opts(thread, event, args)
+             ) do
         audit_notification(thread, event, args, delivery)
         :ok
       else

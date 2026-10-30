@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIRuntime
+import TuistEnvironment
 
 @Mockable
 public protocol ExchangeOIDCTokenServicing {
@@ -28,13 +29,24 @@ enum ExchangeOIDCTokenServiceError: LocalizedError {
 }
 
 public struct ExchangeOIDCTokenService: ExchangeOIDCTokenServicing {
-    public init() {}
+    private let makeClient: (URL) -> Client
+
+    public init() {
+        makeClient = { Client.unauthenticated(serverURL: $0) }
+    }
+
+    init(makeClient: @escaping (URL) -> Client) {
+        self.makeClient = makeClient
+    }
 
     public func exchangeOIDCToken(oidcToken: String, serverURL: URL) async throws -> String {
-        let client = Client.unauthenticated(serverURL: serverURL)
+        let client = makeClient(serverURL)
 
+        let accountHandle = Environment.current.variables["TUIST_OIDC_ACCOUNT"]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty ? nil : $0 }
         let response = try await client.exchangeOIDCToken(
-            body: .json(.init(token: oidcToken))
+            body: .json(.init(account_handle: accountHandle, token: oidcToken))
         )
 
         switch response {

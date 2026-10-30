@@ -190,8 +190,14 @@ fi
 # Set keep_alive_timeout high enough to cover idle gaps in the Elixir connection
 # pool; otherwise the server drops sockets mid-suite and TRUNCATE queries from
 # ExUnit `on_exit` handlers fail with `Mint.TransportError: socket closed`.
+# Disable request-count rotation too: reconnecting after 10,000 requests creates
+# a new driver session, losing the sandbox transaction and its uncommitted rows.
 (
   cd "${CLICKHOUSE_RUNTIME_DIR}"
+  # Container runtimes can inherit a 1024-file soft limit. Match release startup
+  # by using the available hard limit; some local platforms reject the raise.
+  ulimit -Sn "$(ulimit -Hn)" 2>/dev/null || true
+  echo "Starting ClickHouse with open-files limit $(ulimit -Sn)"
   TZ=UTC nohup clickhouse server \
     -L "${SERVER_LOG}" \
     -E "${ERROR_LOG}" \
@@ -209,6 +215,7 @@ fi
     --mysql_port="${CLICKHOUSE_MYSQL_PORT}" \
     --postgresql_port="${CLICKHOUSE_POSTGRESQL_PORT}" \
     --keep_alive_timeout=300 \
+    --max_keep_alive_requests=0 \
     2>&1 | (
       trap '' HUP
       head -c "${STARTUP_LOG_MAX_BYTES}" > "${STARTUP_LOG}"
@@ -216,9 +223,23 @@ fi
     ) >/dev/null 2>&1 &
 )
 
+# "Too many open files" (errno 24) comes either from the server's own
+# RLIMIT_NOFILE or, when the data directory is on FUSE (a Tuist Linux runner's
+# virtio-fs), from the file budget of the daemon serving that filesystem.
+log_open_file_limits() {
+  local pid
+  pid="$(tr -d '[:space:]' < "${PID_FILE}" 2>/dev/null || true)"
+  if [[ -n "${pid}" && -r "/proc/${pid}/limits" ]]; then
+    echo "ClickHouse open files: $(awk '/^Max open files/ {print "soft=" $4 " hard=" $5}' "/proc/${pid}/limits"); data directory filesystem: $(stat -f -c %T "${DATA_DIR}" 2>/dev/null || echo unknown)"
+  else
+    echo "ClickHouse open files: soft=$(ulimit -Sn) hard=$(ulimit -Hn)"
+  fi
+}
+
 for _ in $(seq 1 60); do
   if curl -sf "${CLICKHOUSE_HTTP_URL}/ping" >/dev/null 2>&1; then
     echo "ClickHouse ready at ${CLICKHOUSE_HTTP_URL}"
+    log_open_file_limits
     exit 0
   fi
   sleep 1

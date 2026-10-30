@@ -1,5 +1,9 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
 import UIKit
+#endif
 
 enum AtlasBrand {
     static let accent = Color(red: 8 / 255, green: 124 / 255, blue: 170 / 255)
@@ -9,6 +13,17 @@ enum AtlasBrand {
     static let secondaryBackground = adaptive(light: 0xFDFDFD, dark: 0x1F2126)
 
     private static func adaptive(light: UInt32, dark: UInt32) -> Color {
+        #if os(macOS)
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let value = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+            return NSColor(
+                red: CGFloat((value >> 16) & 0xFF) / 255,
+                green: CGFloat((value >> 8) & 0xFF) / 255,
+                blue: CGFloat(value & 0xFF) / 255,
+                alpha: 1
+            )
+        })
+        #else
         Color(uiColor: UIColor { traits in
             let value = traits.userInterfaceStyle == .dark ? dark : light
             return UIColor(
@@ -18,21 +33,23 @@ enum AtlasBrand {
                 alpha: 1
             )
         })
+        #endif
     }
 }
 
 struct AtlasSignInButton: View {
     let title: String
     var primary = false
+    var image: String?
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 2) {
-                if primary {
-                    Image("AtlasMark")
+                if let image {
+                    Image(image)
                         .resizable()
-                        .renderingMode(.template)
+                        .renderingMode(primary ? .template : .original)
                         .scaledToFit()
                         .frame(width: 20, height: 20)
                         .accessibilityHidden(true)

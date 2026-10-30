@@ -15,6 +15,20 @@ steps:
     command: ./gradlew test
 ```
 
+The cache volume starts at `20gb`. Set `size` to give it another capacity, a
+whole number of GB from `1gb` to `100gb`:
+
+```yaml
+    plugins:
+      - tuist/gradle-cache#v1:
+          size: 50gb
+```
+
+A larger size grows the cache, keeping its contents, from its next job. A
+smaller one applies after the volume is next cleared or expires. Sizes above
+`20gb` may not be enabled for every account yet. Runner images without size
+support keep the current size and warn.
+
 Set `GRADLE_USER_HOME` in the step's `env` if you use one. The directories must
 be empty when the hook runs, so remove other caches of them.
 
@@ -24,7 +38,10 @@ cleans after every build and removes entries unused for seven days. The plugin
 keeps local caches only; the Tuist Gradle plugin shares build outputs through
 Tuist's remote cache.
 
-Successful default-branch webhook and scheduled builds save the cache. On
+Successful webhook and schedule builds of your pipeline's repository save the
+cache, including its pull requests; fork pull requests, tags and API or dashboard
+builds never do. The runner profile's **Save cache from** setting can limit it
+to specific branches. On
 agents that are not Tuist runners the hook does nothing, and if the volume is
 unavailable the build runs with an empty cache; it never fails the step.
 

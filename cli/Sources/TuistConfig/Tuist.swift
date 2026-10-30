@@ -50,7 +50,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
         }
     }
 
-    public let project: TuistProject
+    public var project: TuistProject
     public let fullHandle: String?
     public let inspectOptions: InspectOptions
     public let network: Network

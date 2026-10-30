@@ -70,6 +70,37 @@ defmodule Atlas.TuistServerTest do
     end
   end
 
+  describe "evaluate_feature_flags/2" do
+    test "GETs resource evaluation with workload identity and query parameters, without a JSON body" do
+      request = fn req ->
+        assert req.method == :get
+        assert to_string(req.url) == "https://tuist.test/api/internal/atlas/flags/evaluate"
+        assert req.options[:params] == %{"project_id" => 123}
+        assert req.options[:auth] == {:bearer, "tok"}
+        refute Map.has_key?(req.options, :json)
+        {:ok, %Req.Response{status: 200, body: %{"evaluations" => []}}}
+      end
+
+      assert {:ok, %{"evaluations" => []}} =
+               TuistServer.evaluate_feature_flags(%{"project_id" => 123},
+                 token: "tok",
+                 base_url: "https://tuist.test/",
+                 request: request
+               )
+    end
+
+    test "preserves missing resource and invalid target errors" do
+      for {status, reason} <- [{404, "resource_not_found"}, {422, "invalid_target"}] do
+        assert {:error, ^reason} =
+                 TuistServer.evaluate_feature_flags(%{"account_id" => 42},
+                   token: "tok",
+                   base_url: "https://tuist.test",
+                   request: respond(status, %{"error" => reason})
+                 )
+      end
+    end
+  end
+
   describe "describe_table/3" do
     test "GETs the table path, defaulting the schema to public" do
       parent = self()
@@ -181,6 +212,73 @@ defmodule Atlas.TuistServerTest do
       assert_receive {:req, req}
       assert req.method == :get
       assert to_string(req.url) == "https://tuist.test/api/internal/atlas/clickhouse/tables/default/command_events"
+    end
+  end
+
+  describe "feature flags" do
+    test "lists and inspects persisted rules through the internal workload-identity API" do
+      parent = self()
+      body = %{"flags" => []}
+
+      request = fn req ->
+        send(parent, {:req, req})
+        {:ok, %Req.Response{status: 200, body: body}}
+      end
+
+      opts = [token: "tok", base_url: "https://tuist.test", request: request]
+      assert {:ok, ^body} = TuistServer.list_feature_flags(opts)
+      assert_receive {:req, req}
+      assert req.method == :get
+      assert req.url.path == "/api/internal/atlas/flags"
+      assert req.options[:auth] == {:bearer, "tok"}
+
+      assert {:ok, ^body} = TuistServer.get_feature_flag("flag/../../db", opts)
+      assert_receive {:req, req}
+      assert req.method == :get
+      assert req.url.path == "/api/internal/atlas/flags/flag%2F..%2F..%2Fdb"
+    end
+
+    test "PUTs the complete mutation once with automatic retries disabled" do
+      attrs = %{
+        "operation" => "enable",
+        "scope" => "percentage",
+        "percentage" => 12.5,
+        "expected_revision" => "revision",
+        "change_id" => Ecto.UUID.generate(),
+        "reason" => "Gradual rollout",
+        "actor" => %{"id" => Ecto.UUID.generate(), "email" => "operator@tuist.dev"},
+        "interface" => "mcp"
+      }
+
+      request = fn req ->
+        assert req.method == :put
+        assert req.url.path == "/api/internal/atlas/flags/rollout"
+        assert req.options[:json] == attrs
+        assert req.options[:retry] == false
+        {:ok, %Req.Response{status: 409, body: %{"error" => "stale_revision"}}}
+      end
+
+      assert {:error, "stale_revision"} =
+               TuistServer.update_feature_flag("rollout", attrs,
+                 token: "tok",
+                 base_url: "https://tuist.test",
+                 request: request
+               )
+    end
+
+    test "does not inspect transport failures which can contain credentials" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:error, "Could not reach the Tuist server."} =
+                   TuistServer.update_feature_flag("rollout", %{},
+                     token: "sensitive-test-token",
+                     base_url: "https://tuist.test",
+                     request: fn req -> {:error, %{request: req, secret: "sensitive-test-token"}} end
+                   )
+        end)
+
+      assert log =~ "transport error"
+      refute log =~ "sensitive-test-token"
     end
   end
 

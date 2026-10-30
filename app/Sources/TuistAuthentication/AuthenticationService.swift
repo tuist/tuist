@@ -205,7 +205,7 @@ public final class AuthenticationService: ObservableObject {
         let jsonData = try JSONSerialization.data(withJSONObject: parameters)
         request.httpBody = jsonData
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.tuistDefault.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthenticationError.invalidTokenResponse
@@ -245,7 +245,7 @@ public final class AuthenticationService: ObservableObject {
         let jsonData = try JSONSerialization.data(withJSONObject: parameters)
         request.httpBody = jsonData
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.tuistDefault.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthenticationError.invalidTokenResponse
@@ -378,7 +378,7 @@ public final class AuthenticationService: ObservableObject {
 
         request.httpBody = body.data(using: .utf8)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.tuistDefault.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthenticationError.invalidTokenResponse

@@ -10,6 +10,32 @@ defmodule Tuist.Application.RuntimeChildren do
   default and has to opt in.
   """
 
+  def cluster([]), do: []
+
+  def cluster(topologies) do
+    topologies =
+      Enum.map(topologies, fn {name, options} ->
+        if options[:strategy] == Cluster.Strategy.Kubernetes.DNS do
+          {name, Keyword.put(options, :disconnect, {__MODULE__, :retain_cluster_node, []})}
+        else
+          {name, options}
+        end
+      end)
+
+    [{Cluster.Supervisor, [topologies, [name: Tuist.ClusterSupervisor]]}]
+  end
+
+  @doc """
+  Keeps an established connection when DNS discovery omits a peer.
+
+  libcluster also treats a failed DNS lookup as an empty answer. Explicitly
+  disconnecting those peers can trigger OTP global partition prevention on
+  otherwise healthy nodes. DNS discovers connections; node shutdown and the
+  BEAM failure detector remove them. This does not disable partition prevention
+  or claim that a real network partition cannot disconnect other nodes.
+  """
+  def retain_cluster_node(_node), do: true
+
   @sweeper_interval_ms 60 * 60 * 1000
 
   @doc """
@@ -35,9 +61,9 @@ defmodule Tuist.Application.RuntimeChildren do
   worker and re-sends itself `:init_worker` with no backoff, so the pool
   stays up and retries forever (measured at ~120 failures per second on
   both xcresult-processor replicas), burning CPU on hosts whose only job
-  is CPU-bound xcresult parsing and flooding Sentry. `start_pool/1` cannot
-  intercept it: `NimblePool.start_link/2` has already returned `{:ok, pid}`
-  by then, so the `:ignore` branch never runs.
+  is CPU-bound xcresult parsing and flooding Sentry. In `:web` mode,
+  `Tuist.OpenGraphImageRenderer.start_pool/1` checks for Chrome before
+  starting the pool and returns `:ignore` when there is none.
   """
   def open_graph_image_renderer(:web) do
     [
@@ -69,6 +95,7 @@ defmodule Tuist.Application.RuntimeChildren do
   """
   def readiness_server(:xcresult_processor) do
     [
+      {Tuist.XcresultDrain, []},
       {Plug.Cowboy, scheme: :http, plug: Tuist.Readiness.Plug, options: [port: Tuist.Readiness.port(), ip: {0, 0, 0, 0}]}
     ]
   end

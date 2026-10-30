@@ -1,8 +1,16 @@
 # Managed cache DNS
 
-`zone.yaml` is an operator-applied CloudFormation stack for the delegated
-`cache.tuist.dev` zone and three distinct runtime IAM policies. The zone is
-retained on stack deletion. No workflow applies it automatically.
+`zone.yaml` is the CloudFormation stack for the delegated `cache.tuist.dev`
+zone and three distinct runtime IAM policies. The zone is retained on stack
+deletion. `.github/workflows/cache-dns.yml` plans it on pull requests and applies
+it on `main` through `.github/scripts/cache-dns-change-set.sh`; both refuse a
+change set that replaces or removes the hosted zone.
+
+`deploy-role.yaml` is the one operator-applied stack: GitHub's OIDC provider, a
+pull-request role that can only create change sets, a `main` role that can also
+execute them, and the CloudFormation execution role that holds the Route53, Logs
+and IAM permissions. Neither workflow role may change it. Keep record-set writes
+out of the execution role; external-dns, cert-manager and the controller own them.
 
 Keep bootstrap, rollback, and the repeatable staging test sequence in `README.md`.
 Preserve completed evidence with the PR rather than adding point-in-time logs

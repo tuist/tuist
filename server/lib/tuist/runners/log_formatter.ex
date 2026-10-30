@@ -128,7 +128,8 @@ defmodule Tuist.Runners.LogFormatter do
   actions that call other composite actions). An `##[end-action]`
   closes any group still open inside its action. Unterminated groups
   and actions (last batch streamed mid-section) are closed implicitly
-  at the end of the list.
+  at the end of the list. Closers whose opener isn't in the list (a
+  page of lines that starts mid-section) are dropped.
   """
   def group_lines(lines) when is_list(lines) do
     lines
@@ -147,7 +148,7 @@ defmodule Tuist.Runners.LogFormatter do
       :group_close ->
         case stack do
           [{:group, _header, _parent_acc} = frame | stack_rest] -> walk(rest, close_frame(frame, acc), stack_rest)
-          _ -> walk(rest, [{:line, line} | acc], stack)
+          _ -> walk(rest, acc, stack)
         end
 
       {:action_start, name} ->
@@ -159,7 +160,7 @@ defmodule Tuist.Runners.LogFormatter do
           {acc, stack} = close_action(acc, stack, result)
           walk(rest, acc, stack)
         else
-          walk(rest, [{:line, line} | acc], stack)
+          walk(rest, acc, stack)
         end
 
       :line ->

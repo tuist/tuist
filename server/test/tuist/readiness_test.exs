@@ -7,15 +7,7 @@ defmodule Tuist.ReadinessTest do
 
   describe "checks/1" do
     test "the xcresult processor checks Postgres, ClickHouse and its Oban queue" do
-      stub(Environment, :clickhouse_bare_metal_url, fn -> nil end)
-
       assert Readiness.checks(:xcresult_processor) == [:postgres, :clickhouse, {:oban_queue, :process_xcresult}]
-    end
-
-    test "the xcresult processor also checks the in-cluster ClickHouse when it is configured" do
-      stub(Environment, :clickhouse_bare_metal_url, fn -> "http://clickhouse.tailnet:8123/tuist" end)
-
-      assert :clickhouse_shadow in Readiness.checks(:xcresult_processor)
     end
 
     test "every other mode has no checks" do
@@ -50,14 +42,6 @@ defmodule Tuist.ReadinessTest do
 
       assert {:error, %{"clickhouse" => {:error, :timeout}, "postgres" => :ok}} =
                Readiness.check([:postgres, :clickhouse], timeout: 100)
-    end
-
-    test "fails when a repository is not started" do
-      stub(Tuist.ShadowIngestRepo, :query, fn "SELECT 1", [], _opts ->
-        raise RuntimeError, "could not lookup Ecto repo Tuist.ShadowIngestRepo because it was not started"
-      end)
-
-      assert {:error, %{"clickhouse_shadow" => {:error, %RuntimeError{}}}} = Readiness.check([:clickhouse_shadow])
     end
 
     test "fails when the Oban queue is paused" do

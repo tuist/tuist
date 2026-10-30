@@ -12,23 +12,30 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let authenticationURL: URL?
     private let networkTrustedReports: Bool
+    private let networkTrustedPublishing: Bool
 
-    init(authenticationURL: URL? = nil, networkTrustedReports: Bool = false) {
+    init(
+        authenticationURL: URL? = nil, networkTrustedReports: Bool = false,
+        networkTrustedPublishing: Bool = false
+    ) {
         self.init(
             serverAuthenticationController: ServerAuthenticationController(),
             authenticationURL: authenticationURL,
-            networkTrustedReports: networkTrustedReports
+            networkTrustedReports: networkTrustedReports,
+            networkTrustedPublishing: networkTrustedPublishing
         )
     }
 
     init(
         serverAuthenticationController: ServerAuthenticationControlling,
         authenticationURL: URL? = nil,
-        networkTrustedReports: Bool = false
+        networkTrustedReports: Bool = false,
+        networkTrustedPublishing: Bool = false
     ) {
         self.serverAuthenticationController = serverAuthenticationController
         self.authenticationURL = authenticationURL
         self.networkTrustedReports = networkTrustedReports
+        self.networkTrustedPublishing = networkTrustedPublishing
     }
 
     func intercept(
@@ -44,23 +51,29 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         let config = ServerAuthenticationConfig.current
         let reportOperation = networkTrustedReports &&
             ["createBuild", "createBuild (2)", "createTest"].contains(operationID)
-        let networkReport = reportOperation && ServerReportPublishingMode.enabled
 
         let token: AuthenticationToken?
         do {
-            token = try await serverAuthenticationController.authenticationToken(
-                serverURL: urlForAuthentication,
-                refreshIfNeeded: true
-            )
+            token = try await ServerAuthenticationConfig.$current.withValue(
+                .init(
+                    backgroundRefresh: reportOperation ? false : config.backgroundRefresh,
+                    optionalAuthentication: config.optionalAuthentication
+                )
+            ) {
+                try await serverAuthenticationController.authenticationToken(
+                    serverURL: urlForAuthentication,
+                    refreshIfNeeded: true
+                )
+            }
         } catch {
             if config.optionalAuthentication, !reportOperation {
                 return try await next(request, body, baseURL)
             }
-            throw error
+            throw CredentialAcquisitionError(underlyingError: error)
         }
 
         guard let token else {
-            if networkReport {
+            if reportOperation, networkTrustedPublishing {
                 try ServerReportPublishingMode.validateDestination(baseURL)
                 return try await next(request, body, baseURL)
             }
@@ -69,7 +82,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
             }
             throw ClientAuthenticationError.notAuthenticated
         }
-        if networkReport, token.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if reportOperation, token.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             throw ServerReportPublishingError.invalidCredentials
         }
         addAuthorizationHeader(to: &request, token: token)

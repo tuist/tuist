@@ -17,9 +17,6 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeTools do
         {:error, :not_found} ->
           {:error, "Runner volume or job not found."}
 
-        {:error, :unsupported} ->
-          {:error, "Built-in volumes can't be cleared."}
-
         {:error, :invalid_parameters} ->
           {:error,
            "Invalid identifier, pagination, sorting or time range. Use an ordered range of at most 90 days ending no later than now."}

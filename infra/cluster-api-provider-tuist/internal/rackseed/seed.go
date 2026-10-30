@@ -15,6 +15,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,6 +68,28 @@ type Sealed struct {
 func Fingerprint(ek []byte) string {
 	sum := sha256.Sum256(ek)
 	return "SHA256:" + base64.RawStdEncoding.EncodeToString(sum[:])
+}
+
+// CheckCode is the part of an endorsement key's (PKIX DER) SHA-256 a vendor
+// copies from a box's unit sheet onto its acceptance report: the first 64
+// bits in hex, in four groups, as xxxx-xxxx-xxxx-xxxx.
+func CheckCode(ek []byte) string {
+	sum := sha256.Sum256(ek)
+	h := hex.EncodeToString(sum[:8])
+	return h[0:4] + "-" + h[4:8] + "-" + h[8:12] + "-" + h[12:16]
+}
+
+// NormalizeCheckCode is code as CheckCode prints it, from what a person typed:
+// any case, with or without the hyphens. It is empty for anything else.
+func NormalizeCheckCode(code string) string {
+	h := strings.ToLower(strings.NewReplacer("-", "", " ", "").Replace(code))
+	if len(h) != 16 {
+		return ""
+	}
+	if _, err := hex.DecodeString(h); err != nil {
+		return ""
+	}
+	return h[0:4] + "-" + h[4:8] + "-" + h[8:12] + "-" + h[12:16]
 }
 
 // Seal seals seed to the TPM whose endorsement key (PKIX DER) the host

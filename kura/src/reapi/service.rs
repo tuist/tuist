@@ -465,6 +465,7 @@ impl ReapiService {
         usage.record_public_grpc_download(
             &usage_tenant_id(metadata, &self.state.config.tenant_id),
             namespace_id,
+            self.usage_origin(metadata).as_ref(),
             reapi_usage_artifact_kind(metadata),
             bytes,
         );
@@ -484,9 +485,19 @@ impl ReapiService {
         usage.record_public_grpc_upload(
             &usage_tenant_id(metadata, &self.state.config.tenant_id),
             namespace_id,
+            self.usage_origin(metadata).as_ref(),
             reapi_usage_artifact_kind(metadata),
             bytes,
         );
+    }
+
+    // Where the credential that authorized this request was issued. Read back from
+    // the authorization engine, which only holds an origin for a credential it
+    // confirmed, so it is never taken from the request on its word.
+    fn usage_origin(&self, metadata: &tonic::metadata::MetadataMap) -> Option<Arc<str>> {
+        let auth = self.state.auth.as_ref()?;
+        let authorization = metadata.get("authorization")?.to_str().ok()?;
+        auth.origin(authorization)
     }
 
     fn record_reapi_cache_event(
@@ -4951,10 +4962,13 @@ fn grpc_request_context(
     spec: &GrpcRequestSpec<'_>,
     metadata: &tonic::metadata::MetadataMap,
 ) -> RequestContext {
-    let authorization = metadata
-        .get("authorization")
-        .and_then(|value| value.to_str().ok())
-        .map(ToOwned::to_owned);
+    let authorization = metadata.get("authorization").map(|value| {
+        if metadata.get_all("authorization").iter().count() == 1 {
+            value.to_str().unwrap_or_default().to_owned()
+        } else {
+            String::new()
+        }
+    });
     let tenant_id = tenant_id_from_metadata(metadata);
     RequestContext {
         transport: "grpc".into(),
@@ -8379,6 +8393,116 @@ mod tests {
         assert_eq!(split_error.code(), tonic::Code::NotFound);
     }
 
+    async fn persist_snapshot_test_entry(context: &TestContext, seed: u8) -> ([u8; 32], u64) {
+        let blob_hash = [seed; 32];
+        let blob_key_name = blob_key(&format!("{}/7", hex::encode(blob_hash)));
+        context
+            .state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key_name,
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("blob should persist");
+        let action_hash = [seed.wrapping_add(0x80); 32];
+        let action_key = format!("action_cache/{}/10", hex::encode(action_hash));
+        let action_result = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([seed]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(blob_hash),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        tokio::time::sleep(Duration::from_millis(3)).await;
+        let manifest = context
+            .state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &action_key,
+                "application/x-protobuf",
+                &action_result,
+            )
+            .await
+            .expect("action result should persist");
+        (action_hash, manifest.version_ms)
+    }
+
+    #[tokio::test]
+    async fn snapshot_reconcile_at_its_byte_budget_keeps_the_newest_entries() {
+        let context = test_context(|_| {}).await;
+        let unbounded = SnapshotBuildBudgets {
+            metadata_bytes: 1024 * 1024,
+            index_bytes: 1024 * 1024,
+            encoded_bytes: 1024 * 1024,
+            decoded_bytes: 1024 * 1024,
+        };
+        let mut oldest_first = Vec::new();
+        for seed in 1..=3u8 {
+            oldest_first.push(persist_snapshot_test_entry(&context, seed).await);
+        }
+        let full = match reconcile_snapshot_index(
+            &context.state,
+            "ios",
+            None,
+            NamespaceSnapshotIndex::new(),
+            unbounded,
+        )
+        .await
+        {
+            Ok(index) => index,
+            Err((_, error)) => panic!("the initial reconcile should load every entry: {error}"),
+        };
+        assert_eq!(full.entries.len(), 3);
+        // A budget that holds exactly the three entries it was measured with.
+        let budgets = SnapshotBuildBudgets {
+            index_bytes: full.estimated_bytes(),
+            ..unbounded
+        };
+
+        // A build republishes the oldest entry (the proxy's view refresh does
+        // this for every per-key hit) and publishes a new one.
+        let (republished, previous_version) = oldest_first[0];
+        let (republished_again, republished_version) =
+            persist_snapshot_test_entry(&context, 1).await;
+        assert_eq!(republished_again, republished);
+        assert!(republished_version > previous_version);
+        let (published, _) = persist_snapshot_test_entry(&context, 4).await;
+
+        let index = match reconcile_snapshot_index(&context.state, "ios", None, full, budgets).await
+        {
+            Ok(index) => index,
+            Err((_, error)) => panic!("a full index should still reconcile: {error}"),
+        };
+        assert!(
+            index.entries.contains_key(&published),
+            "the newest entry must displace an older one rather than be rejected"
+        );
+        assert!(
+            index.entries.contains_key(&republished),
+            "a republished entry is the newest write and must stay advertised"
+        );
+        assert!(
+            index.entries.contains_key(&oldest_first[2].0),
+            "the next-newest entry still fits"
+        );
+        assert!(
+            !index.entries.contains_key(&oldest_first[1].0),
+            "the oldest entry makes room"
+        );
+        assert!(index.estimated_bytes() <= budgets.index_bytes);
+    }
+
     #[tokio::test]
     async fn snapshot_reconcile_rejects_a_decode_larger_than_its_working_budget() {
         let context = test_context(|_| {}).await;
@@ -10686,6 +10810,70 @@ mod tests {
                 .expect("bearer metadata"),
         );
         request
+    }
+
+    // A write authorized by a cache token carrying a signed origin books its
+    // usage under that origin, read back from the engine that confirmed it.
+    #[tokio::test]
+    async fn usage_carries_the_origin_of_the_credential_that_authorized_it() {
+        let context = test_context_with_auth(
+            |config| config.usage = Some(test_usage_config()),
+            Some(namespace_policy_auth()),
+        )
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let token = jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &serde_json::json!({
+                "sub": "test",
+                "type": "subject",
+                "scopes": ["project_cache_write"],
+                "cache_grants": { "project": { "write": ["test-tenant/ios"] } },
+                "cache_origin": "US-IL",
+                "exp": 4_102_444_800_u64,
+            }),
+            &jsonwebtoken::EncodingKey::from_secret(NAMESPACE_POLICY_SECRET.as_bytes()),
+        )
+        .expect("mint a policy token");
+
+        let mut update = Request::new(reapi::UpdateActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(reapi::Digest {
+                hash: hex::encode(Sha256::digest(b"action")),
+                size_bytes: "action".len() as i64,
+            }),
+            action_result: Some(reapi::ActionResult::default()),
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        update.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {token}").parse().expect("bearer metadata"),
+        );
+        add_direct_write_admission(
+            &context.state,
+            &mut update,
+            ACTION_CACHE_UPDATE_DECODE_COPIES,
+        );
+        service
+            .update_action_result(update)
+            .await
+            .expect("update action result should succeed");
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+        let upload = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "upload")
+            .expect("update_action_result should record an upload rollup");
+        assert_eq!(upload.origin.as_deref(), Some("US-IL"));
     }
 
     #[tokio::test]

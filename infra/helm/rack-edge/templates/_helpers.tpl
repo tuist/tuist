@@ -43,7 +43,23 @@ dnsmasq-machines.conf: |
   {{- .Files.Get (printf "sites/%s/dnsmasq-machines.conf" $site) | nindent 2 }}
 tailnet-routes.sh: |
   {{- .Files.Get (printf "sites/%s/tailnet-routes.sh" $site) | nindent 2 }}
+{{- with .Files.Get (printf "sites/%s/bird.conf" $site) }}
+bird.conf: |
+  {{- . | nindent 2 }}
+{{- end }}
 {{- range $path, $_ := .Files.Glob (printf "sites/%s/keepalived-*.conf" $site) }}
+{{ base $path }}: |
+  {{- $.Files.Get $path | nindent 2 }}
+{{- end }}
+{{- with .Files.Get (printf "sites/%s/ztp.sh" $site) }}
+ztp.sh: |
+  {{- . | nindent 2 }}
+{{- end }}
+{{- with .Files.Get (printf "sites/%s/picos-bootstrap.sh" $site) }}
+picos-bootstrap.sh: |
+  {{- . | nindent 2 }}
+{{- end }}
+{{- range $path, $_ := .Files.Glob (printf "sites/%s/ztp-*.conf" $site) }}
 {{ base $path }}: |
   {{- $.Files.Get $path | nindent 2 }}
 {{- end }}

@@ -1,21 +1,24 @@
 use std::{
     collections::{HashMap, VecDeque},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use axum::http::header::AUTHORIZATION;
 use base64::{Engine, engine::general_purpose::STANDARD};
+use rand::Rng;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::time::{MissedTickBehavior, interval, sleep};
+use tokio::{sync::watch, task::JoinHandle};
 use tracing::warn;
+use uuid::Uuid;
 
 use crate::{
     config::UsageConfig,
     metrics::Metrics,
     state::SharedState,
-    store::{CapacityEviction, StorageSnapshotData},
+    store::{CapacityEviction, StorageSnapshotData, Store},
 };
 
 const USAGE_PATH: &str = "/_internal/kura/usage";
@@ -42,8 +45,27 @@ struct UsageInner {
     region: String,
     metrics: Metrics,
     buckets: Mutex<HashMap<UsageBucketKey, UsageBucket>>,
+    checkpoint: Mutex<()>,
+    incarnation: Uuid,
+    final_window: OnceLock<u64>,
     undelivered_evictions: Mutex<VecDeque<SegmentEvictionEvent>>,
     last_snapshot_at: Mutex<Option<Instant>>,
+}
+
+pub struct UsageTasks {
+    stop: watch::Sender<bool>,
+    flush: JoinHandle<()>,
+    delivery: JoinHandle<()>,
+}
+
+impl UsageTasks {
+    /// Stop delivery without draining the remote backlog. Join checkpoint work
+    /// before the final append, including any local fsync already in progress.
+    pub async fn stop(self) {
+        let _ = self.stop.send(true);
+        let _ = self.flush.await;
+        let _ = self.delivery.await;
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -62,6 +84,11 @@ pub struct UsageRollup {
     pub artifact_kind: String,
     pub bytes: u64,
     pub request_count: u64,
+    /// Where the credential behind these requests was issued, when it carried a
+    /// signed origin. Absent on the wire otherwise, so older control planes and
+    /// rollups stored before it existed read the same.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
 }
 
 /// One ring-rotation eviction as it crosses the wire. `reason` is always
@@ -122,6 +149,7 @@ struct UsageBucketKey {
     operation: &'static str,
     protocol: &'static str,
     artifact_kind: &'static str,
+    origin: Option<Arc<str>>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -147,31 +175,46 @@ impl Usage {
                 region: metrics.region().to_owned(),
                 metrics,
                 buckets: Mutex::new(HashMap::new()),
+                checkpoint: Mutex::new(()),
+                incarnation: Uuid::now_v7(),
+                final_window: OnceLock::new(),
                 undelivered_evictions: Mutex::new(VecDeque::new()),
                 last_snapshot_at: Mutex::new(None),
             }),
         }))
     }
 
-    pub fn spawn_tasks(state: SharedState) {
-        if state.usage.is_none() {
-            return;
-        }
+    pub fn spawn_tasks(state: SharedState) -> Option<UsageTasks> {
+        state.usage.as_ref()?;
 
-        tokio::spawn(flush_loop(state.clone()));
-        tokio::spawn(delivery_loop(state));
+        let (stop, flush_stop) = watch::channel(false);
+        let mut delivery_stop = flush_stop.clone();
+        let flush = tokio::spawn(flush_loop(state.clone(), flush_stop));
+        let delivery = tokio::spawn(async move {
+            tokio::select! {
+                _ = delivery_stop.changed() => {}
+                _ = delivery_loop(state) => {}
+            }
+        });
+        Some(UsageTasks {
+            stop,
+            flush,
+            delivery,
+        })
     }
 
     pub fn record_public_download(
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        origin: Option<&Arc<str>>,
         artifact_kind: &'static str,
         bytes: u64,
     ) {
         self.record(
             tenant_id,
             namespace_id,
+            origin,
             "public",
             "egress",
             "download",
@@ -185,12 +228,14 @@ impl Usage {
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        origin: Option<&Arc<str>>,
         artifact_kind: &'static str,
         bytes: u64,
     ) {
         self.record(
             tenant_id,
             namespace_id,
+            origin,
             "public",
             "ingress",
             "upload",
@@ -204,12 +249,14 @@ impl Usage {
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        origin: Option<&Arc<str>>,
         artifact_kind: &'static str,
         bytes: u64,
     ) {
         self.record(
             tenant_id,
             namespace_id,
+            origin,
             "public",
             "egress",
             "download",
@@ -223,12 +270,14 @@ impl Usage {
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        origin: Option<&Arc<str>>,
         artifact_kind: &'static str,
         bytes: u64,
     ) {
         self.record(
             tenant_id,
             namespace_id,
+            origin,
             "public",
             "ingress",
             "upload",
@@ -243,6 +292,7 @@ impl Usage {
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        origin: Option<&Arc<str>>,
         traffic_plane: &'static str,
         direction: &'static str,
         operation: &'static str,
@@ -261,6 +311,7 @@ impl Usage {
             operation,
             protocol,
             artifact_kind,
+            origin: origin.cloned(),
         };
 
         let mut buckets = self.inner.buckets.lock().expect("usage buckets poisoned");
@@ -296,8 +347,46 @@ impl Usage {
             .collect()
     }
 
+    /// Call with `final_checkpoint` only after traffic producers have drained.
+    /// Allow one final batch (at most max_buckets) beyond the normal soft outbox
+    /// depth, so a deploy during a control-plane outage does not drop counters.
+    pub fn checkpoint(&self, store: &Store, final_checkpoint: bool) -> Result<(), String> {
+        let _checkpoint = self
+            .inner
+            .checkpoint
+            .lock()
+            .expect("usage checkpoint poisoned");
+        let rollups = if final_checkpoint {
+            self.inner.final_window.get_or_init(|| {
+                let now = unix_seconds();
+                now - now % self.inner.config.window_secs.max(1)
+            });
+            let buckets = self.inner.buckets.lock().expect("usage buckets poisoned");
+            buckets
+                .iter()
+                .map(|(key, bucket)| (key.clone(), self.rollup_for_bucket(key, bucket)))
+                .collect::<Vec<_>>()
+        } else {
+            if store.usage_outbox_message_count()? >= self.inner.config.outbox_max_depth {
+                self.inner.metrics.record_memory_action("usage_outbox_full");
+                return Ok(());
+            }
+            self.closed_rollups()
+        };
+        let keys = rollups
+            .iter()
+            .map(|(key, _)| key.clone())
+            .collect::<Vec<_>>();
+        let rows = rollups.into_iter().map(|(_, row)| row).collect::<Vec<_>>();
+        store.append_usage_rollups(&rows)?;
+        // A failed/ambiguous local append leaves the same counters and IDs for
+        // another attempt. Never remove counters before the synced write.
+        self.remove_buckets(&keys);
+        Ok(())
+    }
+
     fn rollup_for_bucket(&self, key: &UsageBucketKey, bucket: &UsageBucket) -> UsageRollup {
-        let event_id = format!(
+        let mut event_id = format!(
             "{}:{}:{}:{}:{}:{}:{}:{}:{}",
             self.inner.node_id,
             key.window_start_unix_seconds,
@@ -309,6 +398,25 @@ impl Usage {
             key.protocol,
             key.artifact_kind
         );
+        // The control plane dedupes on the id, so buckets that differ only by
+        // origin need distinct ones. Unattributed buckets keep the id they
+        // always had, so a redelivery across an upgrade still dedupes.
+        if let Some(origin) = &key.origin {
+            event_id.push(':');
+            event_id.push_str(origin);
+        }
+
+        // Two processes can shut down in the same window on the same volume.
+        // Their disjoint partial counters must not replace each other. Freeze
+        // the cutoff once so a retry across a window boundary keeps its ID.
+        if self
+            .inner
+            .final_window
+            .get()
+            .is_some_and(|window| key.window_start_unix_seconds >= *window)
+        {
+            event_id.push_str(&format!(":partial:{}", self.inner.incarnation));
+        }
 
         UsageRollup {
             event_id,
@@ -325,6 +433,7 @@ impl Usage {
             artifact_kind: key.artifact_kind.to_owned(),
             bytes: bucket.bytes,
             request_count: bucket.request_count,
+            origin: key.origin.as_deref().map(ToOwned::to_owned),
         }
     }
 
@@ -434,7 +543,7 @@ impl Usage {
     }
 }
 
-async fn flush_loop(state: SharedState) {
+async fn flush_loop(state: SharedState, mut stop: watch::Receiver<bool>) {
     let mut ticker = interval(Duration::from_millis(
         state
             .config
@@ -446,91 +555,109 @@ async fn flush_loop(state: SharedState) {
     ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
     loop {
-        ticker.tick().await;
-        let Some(usage) = state.usage.as_ref() else {
-            return;
-        };
-
-        match state.store.usage_outbox_message_count() {
-            Ok(depth) if depth >= usage.inner.config.outbox_max_depth => {
-                state.metrics.record_memory_action("usage_outbox_full");
-                continue;
-            }
-            Err(error) => {
-                warn!("failed to inspect usage outbox depth: {error}");
-                continue;
-            }
-            _ => {}
+        tokio::select! {
+            _ = stop.changed() => return,
+            _ = ticker.tick() => {}
         }
-
-        let closed_rollups = usage.closed_rollups();
-        if closed_rollups.is_empty() {
-            continue;
-        }
-
-        let keys = closed_rollups
-            .iter()
-            .map(|(key, _)| key.clone())
-            .collect::<Vec<_>>();
-        let rollups = closed_rollups
-            .into_iter()
-            .map(|(_, rollup)| rollup)
-            .collect::<Vec<_>>();
-
-        if let Err(error) = state.store.append_usage_rollups(&rollups) {
-            warn!("failed to persist usage rollups: {error}");
-        } else {
-            usage.remove_buckets(&keys);
+        let checkpoint_state = state.clone();
+        match tokio::task::spawn_blocking(move || {
+            checkpoint_state
+                .usage
+                .as_ref()
+                .expect("usage should exist")
+                .checkpoint(&checkpoint_state.store, false)
+        })
+        .await
+        {
+            Ok(Ok(())) => {}
+            result => warn!("failed to persist usage rollups: {result:?}"),
         }
     }
 }
 
 async fn delivery_loop(state: SharedState) {
-    let client = match crate::control_plane_http::client_builder().build() {
+    let client = match crate::control_plane_http::client_builder().and_then(|builder| {
+        builder
+            .build()
+            .map_err(|_| "failed to build usage HTTP client".to_string())
+    }) {
         Ok(client) => client,
         Err(error) => {
             warn!("failed to build usage delivery client: {error}");
             return;
         }
     };
+    let base_delay = Duration::from_millis(
+        state
+            .config
+            .usage
+            .as_ref()
+            .expect("usage config should exist")
+            .delivery_interval_ms
+            .max(1),
+    );
+    let mut failures = 0_u32;
 
     loop {
         if state.memory.pause_usage_outbox() {
             state
                 .metrics
                 .update_background_work_paused("usage_outbox", true);
-            sleep(Duration::from_millis(
-                state
-                    .config
-                    .usage
-                    .as_ref()
-                    .expect("usage config should exist")
-                    .delivery_interval_ms,
-            ))
-            .await;
+            sleep(base_delay).await;
             continue;
         }
         state
             .metrics
             .update_background_work_paused("usage_outbox", false);
 
-        if let Err(error) = deliver_once(&state, &client).await {
-            warn!("usage delivery failed: {error}");
-        }
-
-        sleep(Duration::from_millis(
-            state
-                .config
-                .usage
-                .as_ref()
-                .expect("usage config should exist")
-                .delivery_interval_ms,
-        ))
-        .await;
+        let delay = match deliver_once(&state, &client).await {
+            Ok(true) => {
+                failures = 0;
+                base_delay
+            }
+            Ok(false) => base_delay,
+            Err(error) => {
+                failures = failures.saturating_add(1);
+                let delay = retry_delay(failures, base_delay, error.retry_after);
+                warn!(
+                    retry_in_ms = delay.as_millis() as u64,
+                    "usage delivery failed: {}", error.reason
+                );
+                delay
+            }
+        };
+        sleep(delay).await;
     }
 }
 
-async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String> {
+#[derive(Debug)]
+struct DeliveryError {
+    reason: String,
+    retry_after: Duration,
+}
+
+impl From<String> for DeliveryError {
+    fn from(reason: String) -> Self {
+        Self {
+            reason,
+            retry_after: Duration::ZERO,
+        }
+    }
+}
+
+fn retry_delay(failures: u32, base: Duration, retry_after: Duration) -> Duration {
+    let base_ms = base.as_millis().min(u128::from(u64::MAX)) as u64;
+    let cap = base_ms.saturating_mul(2).max(60_000);
+    let ceiling = base_ms.saturating_mul(1_u64 << failures.min(20)).min(cap);
+    // Equal jitter preserves a minimum rest period and spreads even the first
+    // fleet-wide failure. Retry-After is a floor, with jitter above it too.
+    let jitter = Duration::from_millis(rand::rng().random_range(ceiling / 2..=ceiling));
+    let advised =
+        retry_after.saturating_add(Duration::from_millis(rand::rng().random_range(0..=base_ms)));
+    jitter.max(advised)
+}
+
+async fn deliver_once(state: &SharedState, client: &Client) -> Result<bool, DeliveryError> {
     let config = state
         .config
         .usage
@@ -555,7 +682,7 @@ async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String
     };
 
     if rollups.is_empty() && evictions.is_empty() && storage_snapshots.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
 
     let keys = rollups
@@ -591,9 +718,19 @@ async fn deliver_once(state: &SharedState, client: &Client) -> Result<(), String
         if delivered_snapshot {
             usage.mark_snapshot_delivered();
         }
-        Ok(())
+        Ok(true)
     } else {
-        Err(format!("server returned {}", response.status()))
+        let retry_after = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            .map(Duration::from_secs)
+            .unwrap_or_default();
+        Err(DeliveryError {
+            reason: format!("server returned {}", response.status()),
+            retry_after,
+        })
     }
 }
 
@@ -674,6 +811,197 @@ mod tests {
             operation: "download",
             protocol: "http",
             artifact_kind: "xcframework",
+            origin: None,
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn shutdown_checkpoints_current_windows_without_overwriting_a_previous_incarnation() {
+        let context = crate::test_support::test_context(|config| {
+            config.usage = Some(test_config(3_600, 100));
+        })
+        .await;
+        let state = &context.state;
+        let usage = state.usage.as_ref().unwrap();
+        usage.record_public_download("acme", "ios", None, "xcframework", 123);
+        usage.checkpoint(&state.store, true).unwrap();
+        let first = state.store.next_usage_rollups(100).unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].1.bytes, 123);
+        assert!(usage.current_rollups_for_tests().is_empty());
+
+        // A repeated shutdown checkpoint must not duplicate the final append.
+        usage.checkpoint(&state.store, true).unwrap();
+        assert_eq!(state.store.next_usage_rollups(100).unwrap(), first);
+
+        let next = Usage::from_config(
+            state.config.usage.as_ref(),
+            &state.config.node_url,
+            state.metrics.clone(),
+        )
+        .unwrap()
+        .unwrap();
+        next.record_public_download("acme", "ios", None, "xcframework", 700);
+        next.checkpoint(&state.store, true).unwrap();
+        let rows = state.store.next_usage_rollups(100).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows.iter().map(|(_, row)| row.bytes).sum::<u64>(), 823);
+        assert_ne!(rows[0].1.event_id, rows[1].1.event_id);
+
+        let config = state.config.clone();
+        let io = state.io.clone();
+        let memory = state.memory.clone();
+        let crate::test_support::TestContext { _temp_dir, state } = context;
+        drop(state);
+        let reopened = Store::open(&config, io, memory).unwrap();
+        assert_eq!(reopened.next_usage_rollups(100).unwrap(), rows);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn failed_shutdown_append_preserves_counters_and_final_ids() {
+        use crate::failpoints::{FailpointAction, FailpointName};
+
+        let context = crate::test_support::test_context(|config| {
+            config.usage = Some(test_config(3_600, 100));
+        })
+        .await;
+        let state = &context.state;
+        let usage = state.usage.as_ref().unwrap();
+        usage.record_public_download("acme", "ios", None, "xcframework", 123);
+        state.store.failpoints().set_once(
+            FailpointName::BeforeUsageOutboxAppend,
+            FailpointAction::Error("disk unavailable".to_owned()),
+        );
+        assert!(usage.checkpoint(&state.store, true).is_err());
+        assert_eq!(state.store.usage_outbox_message_count().unwrap(), 0);
+        let retained = usage.current_rollups_for_tests();
+        assert_eq!(retained.len(), 1);
+        assert_eq!(retained[0].bytes, 123);
+        usage.checkpoint(&state.store, true).unwrap();
+        let persisted = state.store.next_usage_rollups(100).unwrap();
+        assert_eq!(persisted[0].1, retained[0]);
+        assert!(usage.current_rollups_for_tests().is_empty());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn shutdown_persists_a_bounded_final_batch_past_the_soft_outbox_limit() {
+        let context = crate::test_support::test_context(|config| {
+            let mut usage = test_config(3_600, 2);
+            usage.outbox_max_depth = 1;
+            config.usage = Some(usage);
+        })
+        .await;
+        let state = &context.state;
+        let usage = state.usage.as_ref().unwrap();
+        let existing = usage.rollup_for_bucket(
+            &bucket_key("previous", "ios", 0),
+            &UsageBucket {
+                bytes: 10,
+                request_count: 1,
+            },
+        );
+        state
+            .store
+            .append_usage_rollups(&[existing.clone()])
+            .unwrap();
+        usage.inner.buckets.lock().unwrap().insert(
+            bucket_key("closed", "ios", 0),
+            UsageBucket {
+                bytes: 20,
+                request_count: 1,
+            },
+        );
+        usage.record_public_download("current", "ios", None, "xcframework", 30);
+        usage.checkpoint(&state.store, false).unwrap();
+        assert_eq!(state.store.usage_outbox_message_count().unwrap(), 1);
+        usage.checkpoint(&state.store, true).unwrap();
+        let rows = state.store.next_usage_rollups(100).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows.iter().map(|(_, row)| row.bytes).sum::<u64>(), 60);
+        assert!(rows.iter().any(|(_, row)| row == &existing));
+        let closed = rows
+            .iter()
+            .find(|(_, row)| row.tenant_id == "closed")
+            .unwrap();
+        assert!(!closed.1.event_id.contains(":partial:"));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn delivery_replays_identical_usage_after_rejection_and_lost_acknowledgement() {
+        use std::sync::atomic::{AtomicU8, Ordering};
+
+        use axum::{Json, Router, http::StatusCode, routing::post};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let mode = Arc::new(AtomicU8::new(0));
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let router = Router::new().route(
+            USAGE_PATH,
+            post({
+                let mode = mode.clone();
+                let captured = captured.clone();
+                move |Json(batch): Json<serde_json::Value>| {
+                    let mode = mode.clone();
+                    let captured = captured.clone();
+                    async move {
+                        captured.lock().unwrap().push(batch["events"].clone());
+                        match mode.load(Ordering::SeqCst) {
+                            0 => (StatusCode::SERVICE_UNAVAILABLE, [("retry-after", "120")]),
+                            1 => std::future::pending().await,
+                            _ => (StatusCode::ACCEPTED, [("retry-after", "0")]),
+                        }
+                    }
+                }
+            }),
+        );
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        let context = crate::test_support::test_context(|config| {
+            let mut usage = test_config(3_600, 100);
+            usage.control_plane_url = format!("http://{address}");
+            config.usage = Some(usage);
+        })
+        .await;
+        let state = &context.state;
+        let usage = state.usage.as_ref().unwrap();
+        usage.record_public_download("acme", "ios", None, "xcframework", 123);
+        usage.checkpoint(&state.store, true).unwrap();
+        let retained = state.store.next_usage_rollups(100).unwrap();
+        let client = Client::builder()
+            .timeout(Duration::from_millis(100))
+            .build()
+            .unwrap();
+        let error = deliver_once(state, &client).await.unwrap_err();
+        assert_eq!(error.retry_after, Duration::from_secs(120));
+        assert_eq!(state.store.next_usage_rollups(100).unwrap(), retained);
+
+        mode.store(1, Ordering::SeqCst);
+        assert!(deliver_once(state, &client).await.is_err());
+        assert_eq!(state.store.next_usage_rollups(100).unwrap(), retained);
+
+        mode.store(2, Ordering::SeqCst);
+        assert!(deliver_once(state, &client).await.unwrap());
+        assert_eq!(state.store.usage_outbox_message_count().unwrap(), 0);
+        assert!(!deliver_once(state, &client).await.unwrap());
+        let batches = captured.lock().unwrap();
+        assert_eq!(batches.len(), 3);
+        assert_eq!(batches[0], batches[1]);
+        assert_eq!(batches[1], batches[2]);
+        server.abort();
+    }
+
+    #[test]
+    fn retry_backoff_is_bounded_and_honors_retry_after() {
+        let base = Duration::from_secs(5);
+        for _ in 0..100 {
+            for (failures, minimum, maximum) in [(1, 5, 10), (2, 10, 20), (20, 30, 60)] {
+                let delay = retry_delay(failures, base, Duration::ZERO);
+                assert!(delay >= Duration::from_secs(minimum));
+                assert!(delay <= Duration::from_secs(maximum));
+            }
+            let advised = retry_delay(20, base, Duration::from_secs(120));
+            assert!(advised >= Duration::from_secs(120));
+            assert!(advised <= Duration::from_secs(125));
         }
     }
 
@@ -705,9 +1033,9 @@ mod tests {
     fn record_accumulates_bytes_and_request_count_into_existing_bucket() {
         let usage = test_usage(60, 100);
 
-        usage.record_public_download("acme", "ios", "xcframework", 100);
-        usage.record_public_download("acme", "ios", "xcframework", 250);
-        usage.record_public_download("acme", "ios", "xcframework", 50);
+        usage.record_public_download("acme", "ios", None, "xcframework", 100);
+        usage.record_public_download("acme", "ios", None, "xcframework", 250);
+        usage.record_public_download("acme", "ios", None, "xcframework", 50);
 
         let buckets = usage.inner.buckets.lock().unwrap();
         assert_eq!(buckets.len(), 1);
@@ -720,24 +1048,95 @@ mod tests {
     fn record_keeps_separate_buckets_per_tenant_namespace() {
         let usage = test_usage(60, 100);
 
-        usage.record_public_download("acme", "ios", "xcframework", 100);
-        usage.record_public_download("acme", "android", "xcframework", 200);
-        usage.record_public_upload("acme", "ios", "xcframework", 300);
+        usage.record_public_download("acme", "ios", None, "xcframework", 100);
+        usage.record_public_download("acme", "android", None, "xcframework", 200);
+        usage.record_public_upload("acme", "ios", None, "xcframework", 300);
 
         let buckets = usage.inner.buckets.lock().unwrap();
         assert_eq!(buckets.len(), 3);
     }
 
     #[test]
+    fn record_keeps_separate_buckets_per_origin() {
+        let usage = test_usage(60, 100);
+        let illinois: Arc<str> = Arc::from("US-IL");
+        let netherlands: Arc<str> = Arc::from("NL");
+
+        usage.record_public_download("acme", "ios", Some(&illinois), "xcframework", 100);
+        usage.record_public_download("acme", "ios", Some(&illinois), "xcframework", 50);
+        usage.record_public_download("acme", "ios", Some(&netherlands), "xcframework", 10);
+        usage.record_public_download("acme", "ios", None, "xcframework", 1);
+
+        let buckets = usage.inner.buckets.lock().unwrap();
+        assert_eq!(buckets.len(), 3);
+        let illinois_bucket = buckets
+            .iter()
+            .find(|(key, _)| key.origin.as_deref() == Some("US-IL"))
+            .map(|(_, bucket)| bucket)
+            .unwrap();
+        assert_eq!(illinois_bucket.request_count, 2);
+        assert_eq!(illinois_bucket.bytes, 150);
+    }
+
+    // The control plane dedupes on the event id, so two origins in one window
+    // must not share one, and an unattributed bucket keeps the id it has always
+    // had so a rollup redelivered across an upgrade still dedupes.
+    #[test]
+    fn rollup_carries_the_origin_and_keeps_the_unattributed_id() {
+        let usage = test_usage(60, 100);
+        let unattributed = bucket_key("acme", "ios", 120);
+        let attributed = UsageBucketKey {
+            origin: Some(Arc::from("US-IL")),
+            ..bucket_key("acme", "ios", 120)
+        };
+        let bucket = UsageBucket {
+            bytes: 1,
+            request_count: 1,
+        };
+
+        let plain = usage.rollup_for_bucket(&unattributed, &bucket);
+        let located = usage.rollup_for_bucket(&attributed, &bucket);
+
+        assert_eq!(plain.origin, None);
+        assert!(plain.event_id.ends_with(":xcframework"));
+        assert_eq!(located.origin.as_deref(), Some("US-IL"));
+        assert_eq!(located.event_id, format!("{}:US-IL", plain.event_id));
+
+        let wire = serde_json::to_value(&plain).unwrap();
+        assert!(wire.get("origin").is_none());
+        let wire = serde_json::to_value(&located).unwrap();
+        assert_eq!(wire["origin"], "US-IL");
+    }
+
+    // Rollups persist in the outbox, so ones stored before the field existed
+    // have to read back.
+    #[test]
+    fn a_rollup_stored_without_an_origin_reads_back() {
+        let usage = test_usage(60, 100);
+        let rollup = usage.rollup_for_bucket(
+            &bucket_key("acme", "ios", 120),
+            &UsageBucket {
+                bytes: 1,
+                request_count: 1,
+            },
+        );
+        let mut stored = serde_json::to_value(&rollup).unwrap();
+        stored.as_object_mut().unwrap().remove("origin");
+
+        let read: UsageRollup = serde_json::from_value(stored).unwrap();
+        assert_eq!(read, rollup);
+    }
+
+    #[test]
     fn record_rejects_new_keys_once_max_buckets_reached() {
         let usage = test_usage(60, 2);
 
-        usage.record_public_download("acme", "ios", "xcframework", 1);
-        usage.record_public_download("acme", "android", "xcframework", 1);
+        usage.record_public_download("acme", "ios", None, "xcframework", 1);
+        usage.record_public_download("acme", "android", None, "xcframework", 1);
         // Third unique key — rejected.
-        usage.record_public_download("globex", "ios", "xcframework", 1);
+        usage.record_public_download("globex", "ios", None, "xcframework", 1);
         // Existing keys still accumulate.
-        usage.record_public_download("acme", "ios", "xcframework", 9);
+        usage.record_public_download("acme", "ios", None, "xcframework", 9);
 
         let buckets = usage.inner.buckets.lock().unwrap();
         assert_eq!(buckets.len(), 2);
@@ -755,8 +1154,8 @@ mod tests {
     fn record_uses_saturating_add_on_overflow() {
         let usage = test_usage(60, 100);
 
-        usage.record_public_download("acme", "ios", "xcframework", u64::MAX - 5);
-        usage.record_public_download("acme", "ios", "xcframework", 100);
+        usage.record_public_download("acme", "ios", None, "xcframework", u64::MAX - 5);
+        usage.record_public_download("acme", "ios", None, "xcframework", 100);
 
         let buckets = usage.inner.buckets.lock().unwrap();
         let bucket = buckets.values().next().unwrap();

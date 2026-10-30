@@ -8,10 +8,12 @@ defmodule Tuist.Kura.Identity do
 
   alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.SelfHostedClient
   alias Tuist.Kura.Server
+  alias Tuist.Observability
   alias Tuist.Repo
   alias Tuist.Time
 
@@ -52,11 +54,17 @@ defmodule Tuist.Kura.Identity do
     [account.name | aliases] |> Enum.map(&String.downcase/1) |> Enum.uniq() |> Enum.sort()
   end
 
-  def endpoint_migration_enabled?(%Account{} = account) do
-    FunWithFlags.enabled?(:kura_account_endpoint_migration, for: account)
+  def endpoint_migration_enabled?(account, flags \\ nil)
+
+  def endpoint_migration_enabled?(%Account{} = account, flags) do
+    Observability.feature_flag_evaluated(
+      :kura_account_endpoint_migration,
+      account,
+      FeatureFlags.flag_enabled?(:kura_account_endpoint_migration, account, flags)
+    )
   end
 
-  def endpoint_migration_enabled?(_account), do: false
+  def endpoint_migration_enabled?(_account, _flags), do: false
 
   def endpoint_handle(account) do
     if endpoint_migration_enabled?(account), do: account.name, else: tenant_id(account)
@@ -92,11 +100,15 @@ defmodule Tuist.Kura.Identity do
         do: {host, canonical}
   end
 
-  def rename_allowed?(account) do
-    Environment.env() not in [:can, :prod] or
-      FunWithFlags.enabled?(:kura_account_rename, for: account) or
-      not (Repo.exists?(from(s in Server, where: s.account_id == ^account.id)) or
-             Repo.exists?(from(c in SelfHostedClient, where: c.account_id == ^account.id)))
+  def rename_allowed?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :kura_account_rename,
+      account,
+      Environment.env() not in [:can, :prod] or
+        FeatureFlags.flag_enabled?(:kura_account_rename, account, flags) or
+        not (Repo.exists?(from(s in Server, where: s.account_id == ^account.id)) or
+               Repo.exists?(from(c in SelfHostedClient, where: c.account_id == ^account.id)))
+    )
   end
 
   def account_ids(tenants) do

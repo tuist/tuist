@@ -185,13 +185,16 @@ defmodule Tuist.Runners.Profiles do
     changeset =
       if Enum.any?(@resource_fields, &Map.has_key?(attrs, &1)),
         do: Profile.changeset(profile, attrs, catalog_opts_for(platform)),
-        else: Profile.cache_writer_changeset(profile, attrs)
+        else: Profile.cache_settings_changeset(profile, attrs)
 
     update_revoking_writers(changeset)
   end
 
   defp update_revoking_writers(changeset) do
-    if Enum.any?([:cache_writer_default_branch, :cache_writer_branches], &Map.has_key?(changeset.changes, &1)) do
+    if Enum.any?(
+         [:cache_writer_all_branches, :cache_writer_default_branch, :cache_writer_branches],
+         &Map.has_key?(changeset.changes, &1)
+       ) do
       Repo.transaction(fn ->
         with {:ok, profile} <- Repo.update(changeset),
              :ok <- CacheVolumes.revoke_profile_writers(profile) do
@@ -287,19 +290,27 @@ defmodule Tuist.Runners.Profiles do
   policy inside a transaction. Returns `nil` for labels that resolved to a
   legacy pool or a profile that no longer exists.
   """
-  def lock_for_dispatch_label(account_id, label) when is_binary(label) do
+  def lock_for_dispatch_label(account_id, label) do
+    with %Ecto.Query{} = query <- dispatch_label_query(account_id, label), do: Repo.one(lock(query, "FOR SHARE"))
+  end
+
+  @doc """
+  The profile a job was dispatched to, or `nil` like `lock_for_dispatch_label/2`.
+  """
+  def get_for_dispatch_label(account_id, label) do
+    with %Ecto.Query{} = query <- dispatch_label_query(account_id, label), do: Repo.one(query)
+  end
+
+  defp dispatch_label_query(account_id, label) when is_binary(label) do
     prefix = Profile.prefix()
 
     case label do
-      ^prefix <> name ->
-        Repo.one(from(p in Profile, where: p.account_id == ^account_id and p.name == ^name, lock: "FOR SHARE"))
-
-      _ ->
-        nil
+      ^prefix <> name -> from(p in Profile, where: p.account_id == ^account_id and p.name == ^name)
+      _ -> nil
     end
   end
 
-  def lock_for_dispatch_label(_account_id, _label), do: nil
+  defp dispatch_label_query(_account_id, _label), do: nil
 
   @doc """
   Resolve `(account, requested_labels)` → profile, mirroring the

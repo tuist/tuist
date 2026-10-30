@@ -18,6 +18,7 @@ defmodule Tuist.Kura.UsageEvent do
     field :artifact_kind, :string
     field :bytes, Ch, type: "UInt64"
     field :request_count, Ch, type: "UInt64"
+    field :origin, Ch, type: "LowCardinality(String)", default: ""
     field :window_start, :naive_datetime
     field :window_seconds, Ch, type: "UInt32"
     field :inserted_at, :naive_datetime

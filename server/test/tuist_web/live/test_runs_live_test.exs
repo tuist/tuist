@@ -126,7 +126,7 @@ defmodule TuistWeb.TestRunsLiveTest do
           ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?analytics-selected-widget=coverage"
         )
 
-      render_async(lv)
+      render_async(lv, 2_000)
 
       assert has_element?(lv, "#test-runs-analytics-chart")
     end

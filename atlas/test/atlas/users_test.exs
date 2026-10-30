@@ -7,6 +7,32 @@ defmodule Atlas.UsersTest do
   alias Atlas.Users.User
   alias Ueberauth.Auth.Info
 
+  test "self description is bounded, independent of identity, and private background only" do
+    {:ok, actor} = Users.find_or_create_user_from_auth(build_auth(email: "profile@tuist.dev", name: "Profile"))
+    {:ok, other} = Users.find_or_create_user_from_auth(build_auth(email: "other-profile@tuist.dev", name: "Other"))
+    description = "Engineering lead\nCurious; concise answers please."
+    assert {:ok, saved} = Users.update_my_profile(actor, "  " <> description <> "\n")
+    assert saved.description == description
+    assert saved.name == actor.name and saved.email == actor.email
+    assert Users.get_user(other.id).description == ""
+    assert Users.profile_description_for(actor, :private) == description
+    assert Users.profile_description_for(actor, :shared) == nil
+    assert Users.profile_description_for(nil, :private) == nil
+    assert {:ok, _} = Users.update_my_profile(actor, "")
+    assert Users.profile_description_for(actor, :private) == nil
+
+    assert {:ok, _} = Users.update_my_profile(actor, String.duplicate("🦀", 4000))
+    assert {:error, %Ecto.Changeset{}} = Users.update_my_profile(actor, String.duplicate("🦀", 4001))
+    assert {:error, %Ecto.Changeset{}} = Users.update_my_profile(actor, String.duplicate("é", 2001))
+
+    for invalid <- [nil, 42, %{"description" => "no mass assignment"}, "null\0byte", <<255>>] do
+      assert {:error, :invalid_params} = Users.update_my_profile(actor, invalid)
+    end
+
+    changeset = User.changeset(actor, %{description: "not an SSO field"})
+    refute Map.has_key?(changeset.changes, :description)
+  end
+
   describe "find_or_create_user_from_auth/1" do
     test "creates a user when the email is in the allowed Google Workspace" do
       auth = build_auth(email: "alice@tuist.dev", name: "Alice")

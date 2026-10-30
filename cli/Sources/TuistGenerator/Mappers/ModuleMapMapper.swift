@@ -54,8 +54,9 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
             )
 
+        let (sourceGraph, headerSideEffects) = SwiftPackageHeaderNamespaceMapper().map(graph: graph)
         var targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>] = [:]
-        let graphTraverser = GraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: sourceGraph)
         for target in graphTraverser.allTargets() {
             try Self.dependenciesModuleMaps(
                 graphTraverser: graphTraverser,
@@ -64,8 +65,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             )
         }
 
-        var graph = graph
-        var generatedFileSideEffects: [SideEffectDescriptor] = []
+        var graph = sourceGraph
+        var generatedFileSideEffects: [SideEffectDescriptor] = headerSideEffects
         var generatedModuleMapDirectories: Set<AbsolutePath> = []
         var activeFilesByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
 
@@ -361,6 +362,11 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     }
 
     private static func dependencyMetadata(for dependency: GraphTargetReference) throws -> DependencyMetadata {
+        // Swift package headers are bound after binary replacement. Propagating their original
+        // paths here leaves source module maps competing with the exported maps of cache hits.
+        if dependency.target.headers?.sourceLayout != nil {
+            return DependencyMetadata(moduleName: dependency.target.productName, moduleMapPath: nil, headerSearchPaths: [])
+        }
         let dependencyModuleMapPath: AbsolutePath?
         let pathString = dependency.graphTarget.path.pathString
 

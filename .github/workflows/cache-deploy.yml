@@ -27,12 +27,9 @@ env:
 jobs:
   deploy-canary:
     if: github.repository == 'tuist/tuist'
-    # Must stay on a GitHub-hosted runner: kamal SSHes into the cache hosts, and
-    # the in-house fleet's runner Pods have no TCP 22 egress (the
-    # runners-default-deny NetworkPolicy allows only DNS, 80/443 and Kura 4000),
-    # so kamal dies with Net::SSH::ConnectionTimeout there. ubuntu-latest is
-    # 4 vCPU / 16 GB on public repos — kamal builds the Elixir release image
-    # locally and the 2/8 shape OOMs.
+    # Stays on a GitHub-hosted runner: kamal builds the Elixir release image
+    # locally and the 2/8 shape OOMs. ubuntu-latest is 4 vCPU / 16 GB on public
+    # repos.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: cache-canary
@@ -53,12 +50,9 @@ jobs:
         run: |
           mise run deploy canary
   deploy-production:
-    # Must stay on a GitHub-hosted runner: kamal SSHes into the cache hosts, and
-    # the in-house fleet's runner Pods have no TCP 22 egress (the
-    # runners-default-deny NetworkPolicy allows only DNS, 80/443 and Kura 4000),
-    # so kamal dies with Net::SSH::ConnectionTimeout there. ubuntu-latest is
-    # 4 vCPU / 16 GB on public repos — kamal builds the Elixir release image
-    # locally and the 2/8 shape OOMs.
+    # Stays on a GitHub-hosted runner: kamal builds the Elixir release image
+    # locally and the 2/8 shape OOMs. ubuntu-latest is 4 vCPU / 16 GB on public
+    # repos.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: deploy-canary

@@ -1,8 +1,6 @@
 module github.com/tuist/tuist/infra/tart-kubelet
 
-go 1.25.0
-
-toolchain go1.25.10
+go 1.26.10
 
 require (
 	github.com/go-logr/logr v1.4.2
@@ -70,3 +68,5 @@ require (
 )
 
 replace github.com/tuist/tuist/infra/runner-cache => ../runner-cache
+
+godebug default=go1.25

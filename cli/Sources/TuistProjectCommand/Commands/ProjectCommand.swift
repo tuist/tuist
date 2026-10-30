@@ -15,6 +15,7 @@ public struct ProjectCommand: ParsableCommand {
                 ProjectDeleteCommand.self,
                 ProjectTokensCommand.self,
                 ProjectUpdateCommand.self,
+                ProjectRepositoryCommand.self,
             ]
         )
     }

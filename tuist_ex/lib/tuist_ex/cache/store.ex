@@ -1,6 +1,7 @@
 defmodule TuistEx.Cache.Store do
   @moduledoc false
 
+  alias TuistEx.Cache.Compiler
   alias TuistEx.Cache.Key
 
   @max_files 50_000
@@ -25,7 +26,7 @@ defmodule TuistEx.Cache.Store do
         validate_path!(file["path"])
 
         case file["type"] do
-          "directory" ->
+          type when type in ["directory", "symlink"] ->
             {[file | records], contents, size}
 
           "file" ->
@@ -79,7 +80,7 @@ defmodule TuistEx.Cache.Store do
             validate_path!(file["path"])
 
             case file do
-              %{"type" => "directory"} ->
+              %{"type" => type} when type in ["directory", "symlink"] ->
                 data
 
               %{"type" => "file", "size_bytes" => bytes}
@@ -114,7 +115,7 @@ defmodule TuistEx.Cache.Store do
     rescue
       _ -> :miss
     catch
-      :invalid_entry -> :miss
+      reason when reason in [:invalid_entry, :unmodeled_input] -> :miss
     after
       File.rm_rf(staging)
     end
@@ -163,6 +164,7 @@ defmodule TuistEx.Cache.Store do
             bytes + restore_file(entry, staging, file)
           end)
 
+        restore_internal_links(staging, files)
         Enum.each(links, &restore_link(staging, build, source, &1))
         if not validate.(staging), do: throw(:invalid_entry)
         swap(staging, build)
@@ -179,7 +181,7 @@ defmodule TuistEx.Cache.Store do
     rescue
       _ -> :miss
     catch
-      :invalid_entry -> :miss
+      reason when reason in [:invalid_entry, :unmodeled_input] -> :miss
     after
       File.rm_rf(staging)
     end
@@ -192,14 +194,30 @@ defmodule TuistEx.Cache.Store do
     end
   end
 
-  def publish_with_metrics(root, key, build, source, duration, validate \\ fn _ -> true end) do
+  def publish_with_metrics(
+        root,
+        key,
+        build,
+        source,
+        duration,
+        validate \\ fn _ -> true end,
+        options \\ []
+      ) do
     started = System.monotonic_time(:microsecond)
     entry = Path.join(root, key)
     staging = sibling(entry, "publish")
 
     try do
       File.mkdir_p!(staging)
-      {files, links, _count, _bytes} = snapshot(build, staging, source, "", {[], [], 0, 0})
+
+      {files, links, _count, _bytes} =
+        snapshot(build, staging, source, "", {[], [], 0, 0}, options)
+
+      internal_links =
+        for %{type: "symlink", path: path, target: target} <- files,
+            do: %{"type" => "symlink", "path" => path, "target" => target}
+
+      restore_internal_links(Path.join(staging, "files"), internal_links)
       if not validate.(Path.join(staging, "files")), do: throw(:invalid_entry)
 
       manifest =
@@ -235,7 +253,7 @@ defmodule TuistEx.Cache.Store do
     rescue
       error -> {:error, error}
     catch
-      :invalid_entry -> {:error, :unsupported_outputs}
+      reason when reason in [:invalid_entry, :unmodeled_input] -> {:error, :unsupported_outputs}
     after
       File.rm_rf(staging)
     end
@@ -270,7 +288,7 @@ defmodule TuistEx.Cache.Store do
     end
   end
 
-  defp snapshot(build, staging, source, relative, state) do
+  defp snapshot(build, staging, source, relative, state, options) do
     build
     |> Path.join(relative)
     |> File.ls!()
@@ -289,7 +307,8 @@ defmodule TuistEx.Cache.Store do
             staging,
             source,
             path,
-            {[%{path: path, type: "directory"} | files], links, count + 1, size}
+            {[%{path: path, type: "directory"} | files], links, count + 1, size},
+            options
           )
 
         %{type: :regular, mode: mode, size: bytes} ->
@@ -311,10 +330,32 @@ defmodule TuistEx.Cache.Store do
 
           {[record | files], links, count + 1, size + byte_size(bytes)}
 
-        %{type: :symlink} when path in ["priv", "include", "src"] ->
+        %{type: :symlink} when path in ["ebin", "priv", "include", "src"] ->
           target = File.read_link!(input) |> Path.expand(Path.dirname(input))
           if target != Path.expand(Path.join(source, path)), do: throw(:invalid_entry)
-          {files, [path | links], count + 1, size}
+
+          if options[:materialize_resources] do
+            resource = Compiler.resource_directory(build, source, path)
+            File.mkdir_p!(Path.join([staging, "files", path]))
+
+            snapshot(
+              Path.dirname(resource),
+              staging,
+              source,
+              path,
+              {[%{path: path, type: "directory"} | files], links, count + 1, size},
+              options
+            )
+          else
+            if path == "ebin", do: throw(:invalid_entry)
+            {files, [path | links], count + 1, size}
+          end
+
+        %{type: :symlink} ->
+          target = File.read_link!(input)
+          validate_internal_link!(build, path, target)
+          validate_internal_target!(build, path)
+          {[%{path: path, type: "symlink", target: target} | files], links, count + 1, size}
 
         _ ->
           throw(:invalid_entry)
@@ -347,7 +388,60 @@ defmodule TuistEx.Cache.Store do
     byte_size(bytes)
   end
 
+  defp restore_file(_entry, _staging, %{"type" => "symlink"}), do: 0
   defp restore_file(_, _, _), do: throw(:invalid_entry)
+
+  defp restore_internal_links(staging, files) do
+    links = Enum.filter(files, &(&1["type"] == "symlink"))
+
+    Enum.each(links, fn
+      %{"path" => path, "target" => target} ->
+        validate_internal_link!(staging, path, target)
+        directory_path!(staging, Path.split(Path.dirname(path)))
+        File.ln_s!(target, Path.join(staging, path))
+
+      _ ->
+        throw(:invalid_entry)
+    end)
+
+    for link <- links, do: validate_internal_target!(staging, link["path"])
+  end
+
+  defp validate_internal_link!(root, path, target) when is_binary(target) do
+    validate_path!(path)
+    resource = resource_root!(root, path)
+    resolved = Path.expand(target, Path.dirname(Path.join(root, path)))
+
+    if Path.type(target) != :relative or String.contains?(target, "\\") or
+         not (resolved == resource or String.starts_with?(resolved, resource <> "/")),
+       do: throw(:invalid_entry)
+  end
+
+  defp validate_internal_link!(_, _, _), do: throw(:invalid_entry)
+
+  defp validate_internal_target!(root, path) do
+    resource = Key.canonical_path(resource_root!(root, path))
+    resolved = Key.canonical_path(Path.join(root, path))
+
+    if not (resolved == resource or String.starts_with?(resolved, resource <> "/")) or
+         File.stat!(resolved).type not in [:regular, :directory],
+       do: throw(:invalid_entry)
+  end
+
+  defp resource_root!(root, path) do
+    case Path.split(path) do
+      [name, _ | _] when name in ["priv", "include", "src"] -> Path.expand(Path.join(root, name))
+      _ -> throw(:invalid_entry)
+    end
+  end
+
+  defp directory_path!(_root, []), do: :ok
+
+  defp directory_path!(root, [name | rest]) do
+    path = Path.join(root, name)
+    if File.lstat!(path).type != :directory, do: throw(:invalid_entry)
+    directory_path!(path, rest)
+  end
 
   defp restore_link(staging, build, source, name) when name in ["priv", "include", "src"] do
     target_parts = source |> Path.join(name) |> Path.expand() |> Path.split()

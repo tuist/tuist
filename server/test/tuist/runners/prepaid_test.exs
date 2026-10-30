@@ -867,7 +867,8 @@ defmodule Tuist.Runners.PrepaidTest do
       # setting zero looked impossible.
       stub(CreditGrants, :list_for_customer, fn _customer_id -> {:ok, []} end)
 
-      expect(KeyValueStore, :put, fn _key, value, _opts ->
+      expect(KeyValueStore, :put, fn _key, value, opts ->
+        assert opts[:cache] == :display
         assert is_nil(value)
         value
       end)

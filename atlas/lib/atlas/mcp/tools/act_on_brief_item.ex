@@ -34,24 +34,30 @@ defmodule Atlas.MCP.Tools.ActOnBriefItem do
 
   def execute(_conn, _args), do: {:error, "brief_item_id and action are required."}
 
-  defp perform("claim", id, _args, actor), do: ItemActions.claim(id, actor, interface: "mcp")
+  defp perform("claim", id, _args, actor), do: ItemActions.claim(id, actor, interface: Tool.audit_interface(nil))
 
-  defp perform("acknowledge", id, _args, actor), do: ItemActions.acknowledge(id, actor, interface: "mcp")
+  defp perform("acknowledge", id, _args, actor),
+    do: ItemActions.acknowledge(id, actor, interface: Tool.audit_interface(nil))
 
-  defp perform("complete", id, args, actor), do: ItemActions.complete(id, args["note"], actor, interface: "mcp")
+  defp perform("complete", id, args, actor),
+    do: ItemActions.complete(id, args["note"], actor, interface: Tool.audit_interface(nil))
 
-  defp perform("dismiss", id, args, actor), do: ItemActions.dismiss(id, args["note"], actor, interface: "mcp")
+  defp perform("dismiss", id, args, actor),
+    do: ItemActions.dismiss(id, args["note"], actor, interface: Tool.audit_interface(nil))
 
   defp perform("rate_useful", id, args, actor),
-    do: ItemActions.rate(id, "useful", args["note"] || "Rated useful through MCP", actor, interface: "mcp")
+    do: ItemActions.rate(id, "useful", args["note"] || "Rated useful", actor, interface: Tool.audit_interface(nil))
 
   defp perform("rate_not_useful", id, args, actor),
-    do: ItemActions.rate(id, "not_useful", args["note"] || "Rated not useful through MCP", actor, interface: "mcp")
+    do:
+      ItemActions.rate(id, "not_useful", args["note"] || "Rated not useful", actor,
+        interface: Tool.audit_interface(nil)
+      )
 
   defp perform("suppress", id, args, actor),
     do:
       ItemActions.suppress(id, args["note"] || "Suppressed through MCP", args["suppression_days"] || 30, actor,
-        interface: "mcp"
+        interface: Tool.audit_interface(nil)
       )
 
   defp perform(_action, _id, _args, _actor), do: {:error, "Unsupported brief action."}

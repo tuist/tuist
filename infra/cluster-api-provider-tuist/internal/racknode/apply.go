@@ -4,8 +4,9 @@
 // not running, or when the host has not finished applying this configuration,
 // restarts systemd-networkd or systemd-resolved when their own configuration
 // changed or the host has not finished applying a configuration that carries
-// it, and installs exactly the kubelet release the configuration names, never
-// downgrading. The operator runs it over SSH to join a host (cmd/rack-node
+// it, reloads systemd for a unit drop-in the same way, which leaves the unit
+// running, and installs exactly the kubelet release the configuration names,
+// never downgrading. The operator runs it over SSH to join a host (cmd/rack-node
 // apply), and its node agent runs it on the node afterwards (cmd/rack-node
 // agent).
 package racknode
@@ -143,7 +144,7 @@ func Apply(ctx context.Context, h Host, req Request, opts Options) (Result, erro
 	if applied, _ := h.ReadFile(HashPath); strings.TrimSpace(string(applied)) != cfg.Hash {
 		a.dirty["containerd"], a.dirty["kubelet"] = true, true
 		for _, f := range cfg.Files {
-			if f.Group == "networkd" || f.Group == "resolved" {
+			if f.Group == "networkd" || f.Group == "resolved" || f.Group == "units" {
 				a.dirty[f.Group] = true
 			}
 		}
@@ -201,6 +202,11 @@ func Apply(ctx context.Context, h Host, req Request, opts Options) (Result, erro
 	}
 	if a.dirty["systemd"] {
 		if _, err := h.Run(ctx, nil, "systemctl", "daemon-reexec"); err != nil {
+			return a.res, err
+		}
+	} else if a.dirty["units"] {
+		// A unit drop-in takes effect on a reload, which leaves the unit running.
+		if _, err := h.Run(ctx, nil, "systemctl", "daemon-reload"); err != nil {
 			return a.res, err
 		}
 	}

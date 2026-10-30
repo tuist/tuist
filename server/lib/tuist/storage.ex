@@ -9,6 +9,7 @@ defmodule Tuist.Storage do
   alias Tuist.Environment
   alias Tuist.Performance
   alias Tuist.Storage.AzureBlob
+  alias Tuist.Storage.S3Target
 
   require Logger
 
@@ -756,6 +757,21 @@ defmodule Tuist.Storage do
     |> String.to_integer()
   end
 
+  def available?(%S3Target{} = target) do
+    {config, bucket} = s3_config_and_bucket(target)
+
+    config =
+      config
+      |> Map.put(:retries, max_attempts: 1)
+      |> with_http_opts(receive_timeout: 1000, pool_timeout: 1000, retry: false, redirect: false)
+
+    match?({:ok, _}, ExAws.request(ExAws.S3.head_bucket(bucket), config))
+  rescue
+    _ -> false
+  end
+
+  defp s3_config_and_bucket(%S3Target{config: config, bucket: bucket}), do: {config, bucket}
+
   defp s3_config_and_bucket(actor) do
     if has_custom_storage?(actor) do
       {custom_s3_config(actor), actor.s3_bucket_name}
@@ -763,6 +779,8 @@ defmodule Tuist.Storage do
       {ExAws.Config.new(:s3), Environment.s3_bucket_name()}
     end
   end
+
+  defp storage_provider(%S3Target{}), do: :s3
 
   defp storage_provider(actor) do
     if has_custom_storage?(actor) do
@@ -941,6 +959,7 @@ defmodule Tuist.Storage do
   defp deletion_outcome({:error, _}), do: "failure"
   defp deletion_outcome(_), do: "success"
 
+  defp has_custom_storage?(%S3Target{}), do: true
   defp has_custom_storage?(actor), do: Account.custom_s3_storage_configured?(actor)
 
   defp custom_s3_config(%Account{} = account) do

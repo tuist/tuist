@@ -85,6 +85,49 @@ defmodule Tuist.OpenGraphImageRendererTest do
     end
   end
 
+  describe "start_pool/1 on a host without Chrome" do
+    setup do
+      stub(System, :get_env, fn
+        "TUIST_OG_IMAGE_CHROME_PATH" -> nil
+        name -> Mimic.call_original(System, :get_env, [name])
+      end)
+
+      stub(System, :find_executable, fn _ -> nil end)
+      stub(File, :exists?, fn _ -> false end)
+
+      :ok
+    end
+
+    test "starts no pool when no Chrome is configured or auto-detected" do
+      log =
+        capture_log(fn ->
+          assert OpenGraphImageRenderer.start_pool(pool_size: 1) == :ignore
+        end)
+
+      assert log =~ "no Chrome executable"
+      assert Process.whereis(Tuist.OpenGraphImagePool) == nil
+    end
+
+    test "starts no pool when the configured Chrome path does not exist" do
+      log =
+        capture_log(fn ->
+          assert OpenGraphImageRenderer.start_pool(chrome_path: "/missing/chrome", pool_size: 1) == :ignore
+        end)
+
+      assert log =~ "no Chrome executable"
+      assert Process.whereis(Tuist.OpenGraphImagePool) == nil
+    end
+  end
+
+  describe "render/2 without a browser pool" do
+    test "falls back to the libvips renderer" do
+      capture_log(fn ->
+        assert {:fallback, image} = OpenGraphImageRenderer.render("<html></html>", "Tuist")
+        assert is_binary(image)
+      end)
+    end
+  end
+
   describe "the browser pool in the test environment" do
     test "is not started" do
       assert Process.whereis(Tuist.OpenGraphImagePool) == nil,

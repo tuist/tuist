@@ -154,6 +154,16 @@
   }
 }
 
+[data-part="holiday-request-modal"] > [data-part="positioner"] {
+  width: min(48rem, calc(100dvw - var(--noora-spacing-8)));
+
+  & > [data-part="content"] {
+    width: 100%;
+    max-height: calc(100dvh - var(--noora-spacing-8));
+    overflow-y: auto;
+  }
+}
+
 [data-part="holiday-request-modal-content"] {
   padding: var(--noora-spacing-4) var(--noora-spacing-6);
   font: var(--noora-font-body-medium);
@@ -166,8 +176,32 @@
     margin-top: var(--noora-spacing-5);
   }
 
-  & [data-part="holiday-range-picker"] [data-part="presets"] {
-    display: none;
+  & [data-part="holiday-range-picker"] {
+    /* Keep the calendar in the scrollable dialog instead of floating outside it. */
+    & > [data-part="positioner"] {
+      position: static !important;
+      transform: none !important;
+      min-width: 0 !important;
+      margin: 0;
+
+      & > [data-part="content"] {
+        width: 100%;
+        max-width: none;
+      }
+    }
+
+    & [data-part="calendar"] {
+      flex: 1;
+      min-width: 0;
+    }
+
+    & [data-part="months"] {
+      justify-content: space-between;
+    }
+
+    & [data-part="presets"] {
+      display: none;
+    }
   }
 
   & [data-part="range-error"] {

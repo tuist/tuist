@@ -22,6 +22,13 @@ set -uo pipefail
 
 JIT_PATH=${TUIST_RUNNER_JIT_PATH:-/var/lib/tuist-runner/jit}
 
+# Dispatch is the only source of this attestation. An untrusted job receives
+# no grant and must not inherit one from the image environment.
+unset TUIST_CACHE_SIGNING_GRANT
+if [ -s "${JIT_PATH}.cache-grant" ]; then
+  export TUIST_CACHE_SIGNING_GRANT="$(cat "${JIT_PATH}.cache-grant")"
+fi
+
 # Optional: route the job's Tuist cache at the account's per-job
 # endpoint when dispatch-poll.sh staged one. The CLI honors
 # TUIST_CACHE_ENDPOINT as a cache-endpoint override; exporting before
@@ -153,6 +160,8 @@ fi
 # earlier, never make it fire on a live job.
 JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
 JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
+CACHE_VOLUME_BIN=/usr/local/bin/tuist-cache-volume
+CHECKOUT_STATE=/home/runner/.tuist-checkout.json
 WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
 rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
 cat >"${JOB_STARTED_HOOK}" <<HOOK
@@ -171,12 +180,34 @@ if [ -n "\${TUIST_CACHE_ENDPOINT:-}" ]; then
     echo "::warning::Could not publish the runner cache endpoint to the job environment"
   fi
 fi
-for _var in TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID; do
+for _var in TUIST_CACHE_SIGNING_GRANT TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID; do
   _value="\${!_var:-}"
   if [ -n "\${_value}" ]; then
+    # GitHub prints GITHUB_ENV values in later step headers. Register the
+    # dispatch credential before publishing it to that environment.
+    if [ "\${_var}" = "TUIST_CACHE_SIGNING_GRANT" ]; then
+      printf '::add-mask::%s\\n' "\${_value}"
+    fi
     printf '%s=%s\\n' "\${_var}" "\${_value}" >> "\${GITHUB_ENV}"
   fi
 done
+# Move dockerd onto the repository's Docker cache volume before the runner
+# pulls job and service containers, beside the cached checkout and within its
+# window. Any miss leaves dockerd on the job's ephemeral data root.
+if [ "\${TUIST_DOCKER_CACHE:-}" = "1" ] && [ -n "\${TUIST_CACHE_VOLUME_URL:-}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --docker &
+  _docker_pid=\$!
+fi
+# Mount the job's cached checkout at its workspace before the first step, so a
+# stock actions/checkout reuses it instead of cloning. The host decides whether
+# there is one; any miss leaves the workspace empty and the job checks out as
+# before.
+if [ -n "\${GITHUB_WORKSPACE:-}" ] && [ -n "\${TUIST_CACHE_VOLUME_URL:-}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --checkout "\${GITHUB_WORKSPACE}" || true
+fi
+if [ -n "\${_docker_pid:-}" ]; then
+  wait "\${_docker_pid}" || true
+fi
 exit 0
 HOOK
 chmod +x "${JOB_STARTED_HOOK}"
@@ -266,4 +297,16 @@ while kill -0 "${runner_pid}" 2>/dev/null; do
   rc=$?
 done
 [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+# Clean the job's Docker cache volume and hand it back, or report that a job
+# without one used Docker. After the job and outside its billed time; never
+# affects the exit code.
+if [ "${TUIST_DOCKER_CACHE:-}" = "1" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --docker-teardown || true
+fi
+# Hand the host what the job's checkout added, after the job and outside its
+# billed time; the host verifies it and builds the next cached checkout from it.
+# Never affects the exit code.
+if [ -s "${CHECKOUT_STATE}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --checkout-export || true
+fi
 exit "${rc}"

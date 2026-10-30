@@ -34,28 +34,35 @@ private func resolvedCACertificatePath() -> String? {
     return HTTPSettings.current.caCertificatePath
 }
 
-/// The session delegate to use. When a custom CA bundle resolves and parses, a
-/// trust-augmenting delegate is used so a private CA is honored on top of the system
-/// root store. Otherwise the behavior is unchanged from before: HAR metrics delegate
-/// when available, or no delegate at all.
-private func tuistSessionDelegate() -> (URLSessionDelegate & URLSessionTaskDelegate)? {
+/// Apple sessions always apply the key deny after normal trust evaluation, even
+/// without a custom CA bundle. Additional anchors augment the system roots. Other
+/// platforms keep their metrics behavior and require separate verifier qualification.
+private func tuistSessionDelegate(
+    additionalBlockedSPKIHashes: Set<String>, followRedirects: Bool
+) -> (URLSessionDelegate & URLSessionTaskDelegate)? {
     #if canImport(Security)
-        if let path = resolvedCACertificatePath(),
-           let certificates = CACertificateLoader.load(from: path),
-           !certificates.isEmpty
-        {
-            return TuistURLSessionDelegate(additionalCertificates: certificates)
-        }
-    #endif
-    #if canImport(TuistHAR)
-        return URLSessionMetricsDelegate.shared
+        let certificates = resolvedCACertificatePath().flatMap { CACertificateLoader.load(from: $0) } ?? []
+        return TuistURLSessionDelegate(
+            additionalCertificates: certificates,
+            additionalBlockedSPKIHashes: additionalBlockedSPKIHashes,
+            followRedirects: followRedirects
+        )
     #else
-        return nil
+        if !followRedirects { return NoDiscoveryRedirects() }
+        #if canImport(TuistHAR)
+            return URLSessionMetricsDelegate.shared
+        #else
+            return nil
+        #endif
     #endif
 }
 
-private func makeURLSession(configuration: URLSessionConfiguration) -> URLSession {
-    if let delegate = tuistSessionDelegate() {
+private func makeURLSession(
+    configuration: URLSessionConfiguration, additionalBlockedSPKIHashes: Set<String> = [], followRedirects: Bool = true
+) -> URLSession {
+    if let delegate = tuistSessionDelegate(
+        additionalBlockedSPKIHashes: additionalBlockedSPKIHashes, followRedirects: followRedirects
+    ) {
         return URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
     }
     return URLSession(configuration: configuration)
@@ -67,6 +74,24 @@ private func environmentInt(_ key: String, default defaultValue: Int) -> Int {
     }
     return parsed
 }
+
+/// Below the 15-second idle timeout the server applies to keep-alive connections, so the client
+/// closes an idle connection before the server can close it under a request being written.
+let tuistIdleConnectionTimeout: TimeInterval = 10
+
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+    private let idleConnectionTimeoutKey = "_connectionCachePurgeTimeout"
+
+    private func setIdleConnectionTimeout(_ timeout: TimeInterval, on configuration: URLSessionConfiguration) {
+        guard configuration.responds(to: NSSelectorFromString("set\(idleConnectionTimeoutKey):")) else { return }
+        configuration.setValue(timeout, forKey: idleConnectionTimeoutKey)
+    }
+
+    func idleConnectionTimeout(of configuration: URLSessionConfiguration) -> TimeInterval? {
+        guard configuration.responds(to: NSSelectorFromString(idleConnectionTimeoutKey)) else { return nil }
+        return configuration.value(forKey: idleConnectionTimeoutKey) as? TimeInterval
+    }
+#endif
 
 public func tuistURLSessionConfiguration(useEnvironmentProxy: Bool? = nil) -> URLSessionConfiguration {
     tuistURLSessionConfigurationResolved(useEnvironmentProxy: resolvedUseEnvironmentProxy(useEnvironmentProxy))
@@ -81,6 +106,7 @@ private func tuistURLSessionConfigurationResolved(useEnvironmentProxy: Bool) -> 
         configuration.allowsCellularAccess = true
         configuration.allowsConstrainedNetworkAccess = true
         configuration.allowsExpensiveNetworkAccess = true
+        setIdleConnectionTimeout(tuistIdleConnectionTimeout, on: configuration)
     #endif
     #if os(macOS)
         if useEnvironmentProxy,
@@ -184,7 +210,49 @@ func invalidateSharedTuistURLSession() {
     sharedTuistLargeTransferURLSession.invalidate()
 }
 
+private final class NoDiscoveryRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(
+        _: URLSession, task _: URLSessionTask, willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest _: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+
+    #if canImport(TuistHAR)
+        func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+            URLSessionMetricsDelegate.shared.urlSession(session, task: task, didFinishCollecting: metrics)
+        }
+    #endif
+}
+
 extension URLSession {
+    /// Retains native default cache, cookie and timeout behavior for direct callers.
+    /// Apple platforms add the key policy; other platforms require a patched verifier.
+    public static let tuistDefault = makeURLSession(configuration: .default)
+
+    /// Retains caller-supplied cache/timeouts and installs the key policy on Apple.
+    /// Other platforms require independent qualification of the native verifier.
+    public static func tuist(configuration: URLSessionConfiguration) -> URLSession {
+        makeURLSession(configuration: configuration)
+    }
+
+    #if canImport(Security)
+        /// Adds restrictions without allowing removal of the embedded key policy.
+        public static func tuist(configuration: URLSessionConfiguration, additionalBlockedSPKIHashes: Set<String>) -> URLSession {
+            makeURLSession(configuration: configuration, additionalBlockedSPKIHashes: additionalBlockedSPKIHashes)
+        }
+    #endif
+
+    public static var tuistDiscovery: URLSession {
+        let configuration = tuistURLSessionConfiguration()
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 10
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        configuration.urlCredentialStorage = nil
+        return makeURLSession(configuration: configuration, followRedirects: false)
+    }
+
     public static var tuistShared: URLSession {
         sharedTuistURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
     }

@@ -1,5 +1,6 @@
 # Include this file at an immutable commit, then reference the snippet before
-# Gradle runs. A cache problem never fails the job.
+# Gradle runs. A cache problem never fails the job. TUIST_GRADLE_CACHE_SIZE
+# optionally sets the volume capacity, such as 50gb.
 .tuist-gradle-cache:
   before_script:
     - |
@@ -9,8 +10,22 @@
           /*) ;;
           *) tuist_gradle_home="$PWD/$tuist_gradle_home" ;;
         esac
+        tuist_gradle_size=${TUIST_GRADLE_CACHE_SIZE:-}
+        if [ -n "$tuist_gradle_size" ]; then
+          case "$(tuist-cache-volume -h 2>&1 || true)" in
+            *-size*) ;;
+            *)
+              echo "Warning: this runner image does not support TUIST_GRADLE_CACHE_SIZE yet; the Gradle cache keeps its current size." >&2
+              tuist_gradle_size=
+              ;;
+          esac
+        fi
         tuist_gradle_status=0
-        tuist-cache-volume --key tuist-gradle --path "$tuist_gradle_home/caches" --path "$tuist_gradle_home/wrapper" || tuist_gradle_status=$?
+        if [ -n "$tuist_gradle_size" ]; then
+          tuist-cache-volume --key tuist-gradle --path "$tuist_gradle_home/caches" --path "$tuist_gradle_home/wrapper" --size "$tuist_gradle_size" || tuist_gradle_status=$?
+        else
+          tuist-cache-volume --key tuist-gradle --path "$tuist_gradle_home/caches" --path "$tuist_gradle_home/wrapper" || tuist_gradle_status=$?
+        fi
         if [ "$tuist_gradle_status" = 0 ]; then
           mkdir -p "$tuist_gradle_home/init.d"
           cat >"$tuist_gradle_home/init.d/tuist-gradle-cache.gradle" <<'GROOVY'
@@ -35,7 +50,7 @@
         else
           echo "Warning: could not attach the Gradle cache (tuist-cache-volume exited $tuist_gradle_status); the job runs with an empty one." >&2
         fi
-        unset tuist_gradle_home tuist_gradle_status
+        unset tuist_gradle_home tuist_gradle_size tuist_gradle_status
       else
         echo "This runner does not provide Tuist cache volumes; nothing to set up."
       fi

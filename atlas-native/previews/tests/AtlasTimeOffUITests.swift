@@ -5,6 +5,7 @@ final class AtlasTimeOffUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--time-off"]
         app.launch()
+        XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.navigationBars["Time off"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Edit request"].firstMatch.exists)
         XCTAssertGreaterThanOrEqual(app.buttons["Edit request"].firstMatch.frame.height, 44)
@@ -28,20 +29,21 @@ final class AtlasTimeOffUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--time-off", "--fail-holiday-save", "--dark", "--large-text"]
         app.launch()
+        XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.navigationBars["Time off"].waitForExistence(timeout: 15))
         try tapVisible("Request holiday", in: app)
         XCTAssertTrue(app.navigationBars["Request holiday"].waitForExistence(timeout: 5))
-        app.swipeUp()
+        app.scrollContent()
         try tapVisible("Request holiday", in: app)
         let messages = app.staticTexts.matching(identifier: "Preview save failed. Your dates are still here.")
         XCTAssertTrue(messages.firstMatch.waitForExistence(timeout: 5))
-        let message = try XCTUnwrap(messages.allElementsBoundByIndex.first(where: \.isHittable))
+        let message = try app.visibleElement("Preview save failed. Your dates are still here.")
         XCTAssertGreaterThan(message.frame.height, 60)
         attach(app, "ios-time-off-failed-save-large-dark")
     }
 
     @MainActor private func tapVisible(_ label: String, in app: XCUIApplication) throws {
-        let button = try XCTUnwrap(app.buttons.matching(identifier: label).allElementsBoundByIndex.first(where: \.isHittable))
+        let button = try app.visibleElement(label, type: .button)
         XCTAssertGreaterThanOrEqual(button.frame.height, 44)
         button.tap()
     }

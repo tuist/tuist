@@ -2,6 +2,7 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 import Testing
+import TuistEnvironmentTesting
 
 @testable import TuistHTTP
 
@@ -128,6 +129,30 @@ struct RetryMiddlewareTests {
 
         #expect(response.status.code == 200)
         #expect(callCount == 2)
+    }
+
+    @Test(.withMockedEnvironment())
+    func recovers_by_default_when_the_first_four_attempts_fail() async throws {
+        struct TestError: Error {}
+        let subject = RetryMiddleware(baseDelayMilliseconds: 0)
+        var callCount = 0
+
+        let (response, _) = try await subject.intercept(
+            HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/test"),
+            body: nil,
+            baseURL: URL(string: "https://test.tuist.dev")!,
+            operationID: "test-op"
+        ) { _, _, _ in
+            callCount += 1
+            switch callCount {
+            case 1: throw TestError()
+            case 2 ... 4: return (HTTPResponse(status: .badGateway), nil)
+            default: return (HTTPResponse(status: 200), nil)
+            }
+        }
+
+        #expect(response.status.code == 200)
+        #expect(callCount == 5)
     }
 
     @Test func does_not_retry_a_throttled_authorization_denial() async throws {
@@ -425,12 +450,190 @@ struct RetryMiddlewareTests {
                 receivedBodies.append(String(data: data, encoding: .utf8)!)
             }
             if receivedBodies.count == 1 {
-                return (HTTPResponse(status: 502), nil)
+                return (HTTPResponse(status: 503), nil)
             }
             return (HTTPResponse(status: 200), nil)
         }
 
         #expect(response.status.code == 200)
         #expect(receivedBodies == [bodyContent, bodyContent])
+    }
+
+    @Test(arguments: [502, 504])
+    func does_not_replay_a_non_idempotent_operation_on_an_ambiguous_status(statusCode: Int) async throws {
+        let attempts = try await Self.attempts(
+            method: .post, operationID: "createCommandEvent", failures: [.status(statusCode)]
+        )
+
+        #expect(attempts == 1)
+    }
+
+    @Test(arguments: [URLError.Code.networkConnectionLost, .timedOut])
+    func does_not_replay_a_non_idempotent_operation_after_a_transport_failure(code: URLError.Code) async throws {
+        let attempts = try await Self.attempts(
+            method: .post, operationID: "createProject", failures: [.transport(code)]
+        )
+
+        #expect(attempts == 1)
+    }
+
+    @Test(arguments: [
+        ReplayFailure.transport(.cannotConnectToHost),
+        .transport(.cannotFindHost),
+        .transport(.dnsLookupFailed),
+        .transport(.notConnectedToInternet),
+        .transport(.secureConnectionFailed),
+        .status(503),
+        .status(429),
+    ])
+    func replays_a_non_idempotent_operation_the_server_never_processed(failure: ReplayFailure) async throws {
+        let attempts = try await Self.attempts(
+            method: .post, operationID: "createCommandEvent", failures: [failure]
+        )
+
+        #expect(attempts == 2)
+    }
+
+    @Test(arguments: [ReplayFailure.status(502), .transport(.networkConnectionLost), .transport(.timedOut)])
+    func replays_a_get_request_after_an_ambiguous_failure(failure: ReplayFailure) async throws {
+        let attempts = try await Self.attempts(method: .get, operationID: "listProjects", failures: [failure])
+
+        #expect(attempts == 2)
+    }
+
+    @Test(arguments: [ReplayFailure.status(502), .transport(.networkConnectionLost)])
+    func replays_an_idempotent_operation_after_an_ambiguous_failure(failure: ReplayFailure) async throws {
+        let attempts = try await Self.attempts(
+            method: .post,
+            operationID: "generateBuildsMultipartUploadURL",
+            failures: [failure],
+            subject: RetryMiddleware(
+                maxRetries: 4, baseDelayMilliseconds: 0, idempotentOperationIDs: ["generateBuildsMultipartUploadURL"]
+            )
+        )
+
+        #expect(attempts == 2)
+    }
+
+    @Test(arguments: [
+        CredentialFailure.transport(.networkConnectionLost),
+        .transport(.cannotConnectToHost),
+        .status(502),
+        .status(401),
+        .other,
+    ])
+    func never_replays_a_request_whose_credentials_could_not_be_obtained(failure: CredentialFailure) async throws {
+        let (attempts, error) = await Self.credentialAttempts(failure: failure)
+
+        #expect(attempts == 1)
+        switch failure {
+        case let .transport(code): #expect((error as? URLError)?.code == code)
+        case let .status(code): #expect((error as? CredentialStatusError)?.httpStatusCode == code)
+        case .other: #expect(error is CredentialStatusError.Other)
+        }
+    }
+
+    enum CredentialFailure: Sendable, CustomTestStringConvertible {
+        case transport(URLError.Code)
+        case status(Int)
+        case other
+
+        var error: any Error {
+            switch self {
+            case let .transport(code): URLError(code)
+            case let .status(code): CredentialStatusError(httpStatusCode: code)
+            case .other: CredentialStatusError.Other()
+            }
+        }
+
+        var testDescription: String {
+            switch self {
+            case let .transport(code): "URLError \(code.rawValue)"
+            case let .status(code): "HTTP \(code)"
+            case .other: "other"
+            }
+        }
+    }
+
+    struct CredentialStatusError: HTTPStatusCodeError, Equatable {
+        struct Other: Error {}
+        let httpStatusCode: Int
+    }
+
+    static func credentialAttempts(failure: CredentialFailure) async -> (attempts: Int, error: (any Error)?) {
+        let subject = RetryMiddleware(maxRetries: 4, baseDelayMilliseconds: 0)
+        var attempts = 0
+        do {
+            _ = try await subject.intercept(
+                HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/test"),
+                body: HTTPBody(Data("{}".utf8)),
+                baseURL: URL(string: "https://test.tuist.dev")!,
+                operationID: "createProject"
+            ) { _, _, _ in
+                attempts += 1
+                guard attempts == 1 else { return (HTTPResponse(status: 200), nil) }
+                throw ClientError(
+                    operationID: "createProject",
+                    operationInput: "",
+                    request: nil,
+                    requestBody: nil,
+                    baseURL: nil,
+                    response: nil,
+                    responseBody: nil,
+                    causeDescription: "Middleware threw an error.",
+                    underlyingError: CredentialAcquisitionError(underlyingError: failure.error)
+                )
+            }
+            return (attempts, nil)
+        } catch {
+            return (attempts, error)
+        }
+    }
+
+    enum ReplayFailure: Sendable, CustomTestStringConvertible {
+        case status(Int)
+        case transport(URLError.Code)
+
+        var testDescription: String {
+            switch self {
+            case let .status(code): "HTTP \(code)"
+            case let .transport(code): "URLError \(code.rawValue)"
+            }
+        }
+    }
+
+    static func attempts(
+        method: HTTPRequest.Method,
+        operationID: String,
+        failures: [ReplayFailure],
+        subject: RetryMiddleware = RetryMiddleware(maxRetries: 4, baseDelayMilliseconds: 0)
+    ) async throws -> Int {
+        var attempts = 0
+        _ = try? await subject.intercept(
+            HTTPRequest(method: method, scheme: nil, authority: nil, path: "/test"),
+            body: method == .get ? nil : HTTPBody(Data("{}".utf8)),
+            baseURL: URL(string: "https://test.tuist.dev")!,
+            operationID: operationID
+        ) { _, _, _ in
+            attempts += 1
+            guard attempts <= failures.count else { return (HTTPResponse(status: 200), nil) }
+            switch failures[attempts - 1] {
+            case let .status(code):
+                return (HTTPResponse(status: .init(code: code)), nil)
+            case let .transport(code):
+                throw ClientError(
+                    operationID: operationID,
+                    operationInput: "",
+                    request: nil,
+                    requestBody: nil,
+                    baseURL: nil,
+                    response: nil,
+                    responseBody: nil,
+                    causeDescription: "Transport threw an error.",
+                    underlyingError: URLError(code)
+                )
+            }
+        }
+        return attempts
     }
 }

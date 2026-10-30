@@ -18,25 +18,37 @@ defmodule TuistWeb.API.ShardsControllerTest do
   end
 
   describe "POST /api/projects/:account/:project/tests/shards" do
-    test "creates shard plan with valid params", %{conn: conn, user: user, project: project} do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
-          %{
-            reference: "github-123-1",
-            modules: ["AppTests", "CoreTests"],
-            shard_max: 2
-          }
-        )
+    for version <- [0, 1] do
+      @tag reporting_version: version
+      test "creates shard plan with reporting version #{version}", %{
+        conn: conn,
+        user: user,
+        project: project,
+        reporting_version: version
+      } do
+        stub(Tuist.FeatureFlags, :immutable_shard_reports_enabled?, fn _account -> version == 1 end)
 
-      response = json_response(conn, :ok)
-      assert response["reference"] == "github-123-1"
-      assert response["shard_count"] == 2
-      assert response["upload_url"] =~ "/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start"
-      assert is_list(response["shards"])
+        conn =
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+          |> post(
+            ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+            %{
+              reference: "github-123-1",
+              modules: ["AppTests", "CoreTests"],
+              shard_max: 2
+            }
+          )
+
+        response = json_response(conn, :ok)
+        assert response["reference"] == "github-123-1"
+        assert response["shard_count"] == 2
+        assert response["reporting_version"] == version
+        assert {:ok, %{reporting_version: ^version}} = Tuist.Shards.get_shard_plan(response["id"])
+        assert response["upload_url"] =~ "/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start"
+        assert is_list(response["shards"])
+      end
     end
 
     test "creates suite-granularity shard plan when the client does not enumerate suites", %{
@@ -177,9 +189,9 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "creates plan with empty modules list", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 
-      stub(Tuist.Shards, :create_shard_plan, fn _project, _params ->
+      stub(Tuist.Shards, :create_shard_plan, fn _project, _params, _opts ->
         %{
-          plan: %{id: plan_id, reference: "empty-modules-ref"},
+          plan: %{id: plan_id, reference: "empty-modules-ref", reporting_version: 0},
           shard_count: 1,
           shard_assignments: [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
         }
@@ -205,11 +217,11 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "forwards the git_branch parameter", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 
-      expect(Tuist.Shards, :create_shard_plan, fn _project, params ->
+      expect(Tuist.Shards, :create_shard_plan, fn _project, params, _opts ->
         assert params.git_branch == "feature/current"
 
         %{
-          plan: %{id: plan_id, reference: "git-branch-ref"},
+          plan: %{id: plan_id, reference: "git-branch-ref", reporting_version: 0},
           shard_count: 1,
           shard_assignments: [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
         }
@@ -234,11 +246,11 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "forwards the concurrent_modules parameter", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 
-      expect(Tuist.Shards, :create_shard_plan, fn _project, params ->
+      expect(Tuist.Shards, :create_shard_plan, fn _project, params, _opts ->
         assert params.concurrent_modules == ["AppTests"]
 
         %{
-          plan: %{id: plan_id, reference: "concurrent-modules-ref"},
+          plan: %{id: plan_id, reference: "concurrent-modules-ref", reporting_version: 0},
           shard_count: 1,
           shard_assignments: [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
         }
@@ -301,9 +313,9 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "response includes id field", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 
-      stub(Tuist.Shards, :create_shard_plan, fn _project, _params ->
+      stub(Tuist.Shards, :create_shard_plan, fn _project, _params, _opts ->
         %{
-          plan: %{id: plan_id, reference: "id-check-ref"},
+          plan: %{id: plan_id, reference: "id-check-ref", reporting_version: 0},
           shard_count: 2,
           shard_assignments: [
             %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 1000},
@@ -334,7 +346,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "starts upload for a shard plan id", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 
-      stub(Tuist.Shards, :start_upload_for_plan_id, fn _project, _account, ^plan_id, _artifact ->
+      stub(Tuist.Shards, :start_upload_for_plan_id, fn _project, _account, ^plan_id, _artifact, _opts ->
         {:ok, "upload-id-123"}
       end)
 
@@ -352,7 +364,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
 
     test "keeps reference-based upload start for older clients", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :start_upload, fn _project, _account, "session-1", _artifact ->
+      stub(Tuist.Shards, :start_upload, fn _project, _account, "session-1", _artifact, _opts ->
         {:ok, "upload-id-123"}
       end)
 
@@ -594,7 +606,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   describe "POST /api/projects/:account/:project/tests/shards/upload/generate-url" do
     test "returns signed upload URL", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :generate_upload_url, fn _project, _account, _reference, _upload_id, _part, _artifact ->
+      stub(Tuist.Shards, :generate_upload_url, fn _project, _account, _reference, _upload_id, _part, _artifact, _opts ->
         {:ok, "https://upload.example.com/part"}
       end)
 
@@ -614,7 +626,13 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "returns signed upload URL for a shard plan id", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 
-      stub(Tuist.Shards, :generate_upload_url_for_plan, fn _project, _account, ^plan_id, _upload_id, _part, _artifact ->
+      stub(Tuist.Shards, :generate_upload_url_for_plan, fn _project,
+                                                           _account,
+                                                           ^plan_id,
+                                                           _upload_id,
+                                                           _part,
+                                                           _artifact,
+                                                           _opts ->
         {:ok, "https://upload.example.com/part"}
       end)
 
@@ -648,7 +666,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   describe "POST /api/projects/:account/:project/tests/shards/upload/complete" do
     test "completes upload successfully", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :complete_upload, fn _project, _account, _reference, _upload_id, _parts, _artifact ->
+      stub(Tuist.Shards, :complete_upload, fn _project, _account, _reference, _upload_id, _parts, _artifact, _opts ->
         :ok
       end)
 
@@ -668,7 +686,13 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "completes upload successfully for a shard plan id", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 
-      stub(Tuist.Shards, :complete_upload_for_plan, fn _project, _account, ^plan_id, _upload_id, _parts, _artifact ->
+      stub(Tuist.Shards, :complete_upload_for_plan, fn _project,
+                                                       _account,
+                                                       ^plan_id,
+                                                       _upload_id,
+                                                       _parts,
+                                                       _artifact,
+                                                       _opts ->
         :ok
       end)
 

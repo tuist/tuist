@@ -86,7 +86,9 @@ impl ReportClaim {
     }
 }
 
-fn running_in_build_service() -> bool {
+/// Whether this process is Xcode's build service (`SWBBuildService`, or `XCBBuildService`
+/// before it), as opposed to a compiler frontend.
+pub(crate) fn running_in_build_service() -> bool {
     static IN_BUILD_SERVICE: OnceLock<bool> = OnceLock::new();
     *IN_BUILD_SERVICE.get_or_init(|| {
         std::env::current_exe()

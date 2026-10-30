@@ -56,8 +56,8 @@ public actor RunMetadataStorage {
         self.binaryCacheItems = binaryCacheItems
     }
 
-    /// Tests the run skipped because they are quarantined. They are left out on every run, so a run
-    /// that skips only them still runs its whole selection.
+    /// Tests the run skipped because they are quarantined. They are left out on every run, so they
+    /// aren't reported as skipped: a run that skips only them still runs its whole selection.
     public private(set) var skippedQuarantinedTestIdentifiers: Set<String> = []
     public func update(skippedQuarantinedTestIdentifiers: Set<String>) {
         self.skippedQuarantinedTestIdentifiers = skippedQuarantinedTestIdentifiers
@@ -97,6 +97,12 @@ public actor RunMetadataStorage {
     public private(set) var resultBundlePath: AbsolutePath?
     public func update(resultBundlePath: AbsolutePath?) {
         self.resultBundlePath = resultBundlePath
+    }
+
+    /// The directory `tuist test --coverage-output-path` writes each run's coverage to, as LCOV.
+    public private(set) var coverageOutputPath: AbsolutePath?
+    public func update(coverageOutputPath: AbsolutePath?) {
+        self.coverageOutputPath = coverageOutputPath
     }
 
     /// The ID of the latest build run.

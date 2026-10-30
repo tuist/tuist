@@ -26,9 +26,27 @@ stays with your project: set `COMPILATION_CACHE_ENABLE_CACHING`, or run
 `XCODE_XCCONFIG_FILE` the job already sets is included last, so its settings
 win.
 
-Tuist does not yet verify GitLab jobs for its built-in caches, so on GitLab the
-cache starts empty and is not saved. Once Tuist verifies GitLab jobs, the same
-snippet starts saving with no pipeline change.
+The cache starts at `30gb`. Set `TUIST_XCODE_CACHE_SIZE` to give it another
+capacity, a whole number of GB from `1gb` to `100gb`:
+
+```yaml
+build:
+  variables:
+    TUIST_XCODE_CACHE_SIZE: 50gb
+```
+
+Tuist prunes the cache to fit whatever its capacity is. A larger size grows the
+cache, keeping its contents, from its next job. A smaller one applies after the
+cache is next cleared or expires. Runner images without size support keep the
+current size and warn.
+
+Successful push, schedule and web pipelines of your project save their changes,
+on any branch. Tag pipelines and merge request pipelines use the cache but don't
+save, unless the GitLab connection has an API access token and the merge
+request comes from the project itself; see
+[Merge request pipelines](https://tuist.dev/en/docs/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines).
+To save only from some branches, limit them on the runner profile; see
+[Choose which branches save](https://tuist.dev/en/docs/guides/features/runners/cache-volumes#choose-which-branches-save).
 
 On runners that are not Tuist macOS runners the snippet does nothing. If the
 runner could not restore the cache, it warns and the job runs with an empty

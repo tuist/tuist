@@ -2,6 +2,9 @@ package linux
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -135,5 +138,44 @@ func TestNodeInternalIP(t *testing.T) {
 	}
 	if got := nodeInternalIP(&corev1.Node{}); got != "" {
 		t.Fatalf("expected empty string when no InternalIP, got %q", got)
+	}
+}
+
+func TestDesiredKubeletConfigHashCoversTheSSHStartLimitDropIns(t *testing.T) {
+	ca := []byte("cluster-ca")
+	h := sha256.New()
+	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath)))
+	h.Write(ca)
+	if desiredKubeletConfigHash(ca) == hex.EncodeToString(h.Sum(nil)) {
+		t.Fatal("expected the sshd drop-ins in the hash, so nodes stamped before them drift and receive them")
+	}
+}
+
+func TestRenderKubeletConfigRepushScript_InstallsSSHStartLimitDropIns(t *testing.T) {
+	s := renderKubeletConfigRepushScript(linuxCloudInitOptions{
+		ClusterDNS:    "10.96.0.10",
+		BootstrapUser: "ubuntu",
+	})
+	for _, want := range []string{
+		sshStartLimitDropIns("sudo ", writeFileFunc("sudo ")),
+		"sudo systemctl daemon-reload",
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("expected re-push script to contain %q, got:\n%s", want, s)
+		}
+	}
+	if strings.Index(s, sshSocketDropInPath) > strings.Index(s, "systemctl daemon-reload") {
+		t.Fatalf("expected the drop-ins written before the daemon-reload that loads them, got:\n%s", s)
+	}
+	// The re-push runs over the very SSH session these units serve.
+	for _, banned := range []string{"restart ssh", "stop ssh", "reload ssh", "daemon-reexec"} {
+		if strings.Contains(s, banned) {
+			t.Fatalf("re-push must not run %q under its own SSH session, got:\n%s", banned, s)
+		}
+	}
+	syntax := exec.Command("bash", "-n")
+	syntax.Stdin = strings.NewReader(s)
+	if output, err := syntax.CombinedOutput(); err != nil {
+		t.Fatalf("invalid script: %s: %v", output, err)
 	}
 }

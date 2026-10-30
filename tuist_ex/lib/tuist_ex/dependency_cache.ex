@@ -4,13 +4,19 @@ defmodule TuistEx.DependencyCache do
   alias TuistEx.Analytics.CompileProfile
   alias TuistEx.Analytics.CompileReporter
   alias TuistEx.Analytics.Report
+  alias TuistEx.Cache.Compiler
   alias TuistEx.Cache.Key
+  alias TuistEx.Cache.Plan
+  alias TuistEx.Cache.Prefetch
   alias TuistEx.Cache.Reapi
   alias TuistEx.Cache.Store
 
   @compiler_config [
     :app,
     :version,
+    :description,
+    :language,
+    :application_definition,
     :elixir,
     :compilers,
     :elixirc_paths,
@@ -20,8 +26,17 @@ defmodule TuistEx.DependencyCache do
     :build_per_environment,
     :erlc_paths,
     :erlc_options,
+    :yecc_options,
+    :leex_options,
+    :source_generators,
+    :generated_sources,
     :consolidate_protocols,
-    :build_embedded
+    :build_embedded,
+    :rebar,
+    :rebar_toolchain,
+    :cache_builder,
+    :builder_configuration,
+    :builder_inputs
   ]
 
   @compiler_environment ~w(ERL_COMPILER_OPTIONS ELIXIR_ERL_OPTIONS ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS SOURCE_DATE_EPOCH ERL_LIBS MIX_PATH MIX_ARCHIVES)
@@ -39,10 +54,12 @@ defmodule TuistEx.DependencyCache do
 
     if not is_nil(options) and not Mix.Project.umbrella?() and
          not Enum.any?(["--no-compile", "--no-deps-check"], &(&1 in args)) do
+      Compiler.validate_builders!(options)
       Mix.ensure_application!(:crypto)
+      Mix.ensure_application!(:parsetools)
 
       Mix.Project.with_build_lock(fn ->
-        prepare_dependencies(args, options, reporter, analytics_options)
+        Plan.with_plan(fn -> prepare_dependencies(args, options, reporter, analytics_options) end)
       end)
     end
 
@@ -62,40 +79,195 @@ defmodule TuistEx.DependencyCache do
       CompileReporter.build_id(reporter),
       analytics_options,
       fn remote ->
-        pending =
-          Enum.reduce(dependencies, [], fn dependency, pending ->
-            dependency = Mix.Dep.check_lock(dependency)
+        Prefetch.with_fetcher(
+          remote,
+          &prefetch_requests(&1, &2, dependencies, options),
+          fn fetch ->
+            dependencies_by_app = Map.new(dependencies, &{&1.app, &1})
 
-            cond do
-              not Mix.Dep.compilable?(dependency) ->
-                pending
+            {pending, _support} =
+              Enum.reduce(dependencies, {[], %{}}, fn dependency, {pending, support} ->
+                dependency = check_dependency(dependency, options)
 
-              selected?(dependency, options) ->
-                compile_dependencies(Enum.reverse(pending))
-                context = capture_context(options)
-                observation = compile(dependency, dependencies, context, options, remote)
-                CompileReporter.record_cache(reporter, observation)
-                Mix.Dep.load_and_cache()
-                []
+                cond do
+                  not Mix.Dep.compilable?(dependency) ->
+                    support =
+                      record_current_dependency(
+                        dependency,
+                        dependencies_by_app,
+                        options,
+                        reporter,
+                        support
+                      )
 
-              local_chain?(dependency, dependencies) ->
-                pending
+                    {pending, support}
 
-              true ->
-                [dependency | pending]
-            end
-          end)
+                  selected?(dependency, options) ->
+                    compile_dependencies(Enum.reverse(pending))
+                    context = capture_context(options)
 
-        compile_dependencies(Enum.reverse(pending))
-        Mix.Dep.load_and_cache()
+                    observation =
+                      compile(dependency, dependencies, context, options, remote, fetch)
+
+                    CompileReporter.record_cache(reporter, observation)
+                    {[], %{}}
+
+                  local_chain?(dependency, dependencies) ->
+                    {pending, support}
+
+                  true ->
+                    {[dependency | pending], support}
+                end
+              end)
+
+            compile_dependencies(Enum.reverse(pending))
+            Mix.Dep.load_and_cache()
+          end
+        )
       end
     )
   end
 
-  defp compile(dependency, dependencies, context, options, remote) do
+  defp prefetch_requests(key, dependency, dependencies, options) do
+    remaining = Enum.drop_while(dependencies, &(&1.app != dependency.app))
+    by_app = Map.new(dependencies, &{&1.app, &1})
+
+    {requests, _seen, _context} =
+      Enum.reduce_while(remaining, {[], MapSet.new(), :uncaptured}, fn candidate,
+                                                                       {requests, seen, context} ->
+        candidate = check_dependency(candidate, options)
+
+        cond do
+          MapSet.size(seen) >= Reapi.concurrency() ->
+            {:halt, {requests, seen, context}}
+
+          Mix.Dep.ok?(candidate) and not Mix.Dep.compilable?(candidate) ->
+            {:cont, {requests, seen, context}}
+
+          not selected?(candidate, options) or not Mix.Dep.compilable?(candidate) or
+              Enum.any?(closure(candidate, by_app, MapSet.new()), &MapSet.member?(seen, &1.app)) ->
+            {:halt, {requests, seen, context}}
+
+          true ->
+            {modeled, context} =
+              if candidate.app == dependency.app do
+                {{:ok, key}, context}
+              else
+                # One speculative context per window; staging still reads fresh inputs.
+                context = if context == :uncaptured, do: capture_context(options), else: context
+                {action_key(candidate, dependencies, context, options), context}
+              end
+
+            case modeled do
+              {:ok, candidate_key} ->
+                # Presence is only a prefetch hint, never an integrity decision.
+                local = Path.join([store_root(options), candidate_key, "manifest.json"])
+                request = {candidate_key, candidate.app}
+                requests = if File.regular?(local), do: requests, else: [request | requests]
+                {:cont, {requests, MapSet.put(seen, candidate.app), context}}
+
+              _ ->
+                {:halt, {requests, seen, context}}
+            end
+        end
+      end)
+
+    # A corrupt local entry can miss despite the presence hint.
+    [{key, dependency.app} | requests]
+    |> Enum.uniq()
+    |> Enum.take(Reapi.concurrency())
+  end
+
+  defp check_dependency(dependency, options) do
+    dependency = Mix.Dep.check_lock(dependency)
+
+    if Mix.Dep.ok?(dependency) and
+         not outputs_present?(dependency.opts[:build], dependency, options),
+       do: %{dependency | status: :compile},
+       else: dependency
+  end
+
+  defp outputs_present?(build, dependency, options) do
+    builder = Compiler.builder(dependency, options)
+
+    not Compiler.supported_manager?(dependency, builder) or
+      Compiler.outputs_present?(build, builder)
+  rescue
+    _ -> true
+  catch
+    :unmodeled_input -> true
+  end
+
+  defp record_current_dependency(dependency, dependencies, options, reporter, support) do
+    started = now()
+
+    if Mix.Dep.ok?(dependency) and selected?(dependency, options) and
+         not Enum.any?(Code.compiler_options()[:tracers] || [], &(&1 != CompileProfile)) do
+      {supported?, support} =
+        Enum.reduce_while(
+          [dependency | closure(dependency, dependencies, MapSet.new())],
+          {true, support},
+          fn dep, {true, support} ->
+            {config, support} = current_dependency_config(dep, support, options)
+            if config, do: {:cont, {true, support}}, else: {:halt, {false, support}}
+          end
+        )
+
+      if supported? and
+           valid_application?(
+             dependency.opts[:build],
+             dependency,
+             support[dependency.app][:version]
+           ) do
+        # Mix reused installed outputs, not a keyed snapshot. Do not hash their
+        # inputs or invent an artifact key, transfer metrics or original duration.
+        CompileReporter.record_cache(
+          reporter,
+          observation(dependency, "local_hit", "up_to_date", "", now() - started, nil)
+        )
+      end
+
+      support
+    else
+      support
+    end
+  rescue
+    error ->
+      Report.debug("tuist cache: cannot observe current dependency: #{inspect(error)}")
+      support
+  catch
+    :unmodeled_input ->
+      Report.debug("tuist cache: cannot observe current dependency: unsupported source tree")
+      support
+  end
+
+  defp current_dependency_config(dependency, support, options) do
+    case Map.fetch(support, dependency.app) do
+      {:ok, config} ->
+        {config, support}
+
+      :error ->
+        config =
+          if dependency.scm.fetchable?() and
+               Compiler.supported_manager?(dependency, Compiler.builder(dependency, options)) do
+            config = Compiler.config(dependency, false, Compiler.builder(dependency, options))
+
+            if Compiler.supported_config?(config) and
+                 not Enum.any?(
+                   Compiler.source_paths(dependency, config),
+                   &Compiler.unsupported_source?(&1, config)
+                 ),
+               do: config
+          end
+
+        {config, Map.put(support, dependency.app, config)}
+    end
+  end
+
+  defp compile(dependency, dependencies, context, options, remote, fetch) do
     case action_key(dependency, dependencies, context, options) do
       {:ok, key} ->
-        cached_compile(dependency, dependencies, context, options, key, remote)
+        cached_compile(dependency, dependencies, context, options, key, remote, fetch)
 
       {:bypass, "local_dependency"} ->
         # Mix must compile local source dependencies before their fetched dependents.
@@ -109,53 +281,93 @@ defmodule TuistEx.DependencyCache do
     end
   end
 
-  defp cached_compile(dependency, dependencies, context, options, key, remote) do
+  defp cached_compile(dependency, dependencies, context, options, key, remote, fetch) do
     root = store_root(options)
     started = now()
 
-    case restore(remote, root, key, dependency) do
+    current? = fn ->
+      Plan.fresh(fn ->
+        capture_context(options) == context and
+          action_key(dependency, dependencies, context, options) == {:ok, key}
+      end)
+    end
+
+    case restore(fetch, root, key, dependency, current?, options) do
       {:ok, previous_duration, metrics, outcome} ->
+        Plan.invalidate(dependency.app)
+
         dependency
         |> observation(outcome, "", key, now() - started, previous_duration)
         |> Map.merge(metrics)
 
       :miss ->
-        duration = compile_dependency(dependency)
+        # Lookup models may be shared, but compilation/publication must use a
+        # newly captured key even when a stale plan never found an artifact.
+        {context, modeled} =
+          Plan.fresh(fn ->
+            context = capture_context(options)
+            {context, action_key(dependency, dependencies, context, options)}
+          end)
 
-        {reason, metrics} =
-          if capture_context(options) == context and
-               action_key(dependency, dependencies, context, options) == {:ok, key} do
-            case Store.publish_with_metrics(
-                   root,
-                   key,
-                   dependency.opts[:build],
-                   dependency.opts[:dest],
-                   duration,
-                   &valid_application?(&1, dependency)
-                 ) do
-              {:ok, metrics} ->
-                metrics =
-                  if Keyword.get(options, :upload, true),
-                    do: publish_remote(remote, root, key, dependency.app, metrics),
-                    else: metrics
+        case modeled do
+          {:ok, key} ->
+            publish_compilation(dependency, dependencies, context, options, key, remote)
 
-                {"", metrics}
-
-              {:error, _} ->
-                {"store_failed", %{}}
-            end
-          else
-            {"inputs_changed", %{}}
-          end
-
-        dependency
-        |> observation("miss", reason, key, duration, nil)
-        |> Map.merge(metrics)
+          {:bypass, reason} ->
+            duration = compile_dependency(dependency)
+            observation(dependency, "bypass", reason, "", duration, nil)
+        end
     end
   end
 
-  defp restore(remote, root, key, dependency) do
-    validate = &valid_application?(&1, dependency)
+  defp publish_compilation(dependency, dependencies, context, options, key, remote) do
+    root = store_root(options)
+
+    current? = fn ->
+      Plan.fresh(fn ->
+        capture_context(options) == context and
+          action_key(dependency, dependencies, context, options) == {:ok, key}
+      end)
+    end
+
+    prepared = prepare_sources(dependency, options)
+    duration = compile_dependency(dependency)
+
+    {reason, metrics} =
+      case prepared do
+        {:ok, materialize?} ->
+          case Store.publish_with_metrics(
+                 root,
+                 key,
+                 dependency.opts[:build],
+                 dependency.opts[:dest],
+                 duration,
+                 &(valid_artifact?(&1, dependency, options) and current?.()),
+                 materialize_resources: materialize?
+               ) do
+            {:ok, metrics} ->
+              metrics =
+                if Keyword.get(options, :upload, true),
+                  do: publish_remote(remote, root, key, dependency.app, metrics),
+                  else: metrics
+
+              {"", metrics}
+
+            {:error, _} ->
+              {if(current?.(), do: "store_failed", else: "inputs_changed"), %{}}
+          end
+
+        :error ->
+          {"unmodeled_input", %{}}
+      end
+
+    dependency
+    |> observation("miss", reason, key, duration, nil)
+    |> Map.merge(metrics)
+  end
+
+  defp restore(fetch, root, key, dependency, current?, options) do
+    validate = &(valid_artifact?(&1, dependency, options) and current?.())
 
     case Store.restore_with_metrics(
            root,
@@ -168,7 +380,7 @@ defmodule TuistEx.DependencyCache do
         {:ok, duration, metrics, "local_hit"}
 
       :miss ->
-        with {:ok, binary, metrics} <- Reapi.get(remote.(), key, dependency.app),
+        with {:ok, binary, metrics} <- fetch.(key, dependency),
              {:ok, duration, _local_metrics} <-
                Store.restore_bundle(
                  root,
@@ -185,16 +397,49 @@ defmodule TuistEx.DependencyCache do
     end
   end
 
-  defp valid_application?(staging, dependency) do
+  defp prepare_sources(dependency, options) do
+    config = dependency_config(dependency, options)
+    Compiler.prepare_sources(dependency, config)
+    {:ok, Compiler.materialize?(config)}
+  rescue
+    _ -> :error
+  catch
+    :unmodeled_input -> :error
+  end
+
+  defp valid_artifact?(staging, dependency, options) do
+    builder = Compiler.builder(dependency, options)
+    config = Compiler.config(dependency, false, builder)
+
+    materialized? =
+      not Compiler.materialize?(config) or
+        Enum.all?(["ebin", "priv", "include", "src"], fn name ->
+          case File.lstat(Path.join(staging, name)) do
+            {:ok, %{type: :directory}} -> true
+            {:error, :enoent} -> true
+            _ -> false
+          end
+        end)
+
+    materialized? and Compiler.outputs_present?(staging, builder) and
+      valid_application?(staging, dependency, config[:version])
+  end
+
+  defp valid_application?(staging, dependency, version) do
     app = dependency.app
     path = Path.join([staging, "ebin", "#{app}.app"])
-    version = dependency_config(dependency)[:version]
+    Code.ensure_loaded!(Mix.Dep.ElixirSCM)
+
+    manifest =
+      if dependency.manager != :mix and not function_exported?(Mix.Dep.ElixirSCM, :update, 3),
+        do: "compile.fetch",
+        else: "compile.elixir_scm"
 
     with {:ok, [{:application, ^app, properties}]} <- :file.consult(String.to_charlist(path)),
          true <- Keyword.keyword?(properties),
          true <- to_string(Keyword.fetch!(properties, :vsn)) == version,
          modules when is_list(modules) <- Keyword.fetch!(properties, :modules),
-         true <- File.regular?(Path.join(staging, ".mix/compile.elixir_scm")) do
+         true <- File.regular?(Path.join([staging, ".mix", manifest])) do
       Enum.all?(modules, fn module ->
         is_atom(module) and File.regular?(Path.join([staging, "ebin", "#{module}.beam"]))
       end)
@@ -230,6 +475,7 @@ defmodule TuistEx.DependencyCache do
       Mix.Tasks.Deps.Compile.compile(dependencies)
     after
       Code.prepend_paths(paths -- :code.get_path())
+      Plan.clear()
     end
   end
 
@@ -257,7 +503,10 @@ defmodule TuistEx.DependencyCache do
       not selected?(dependency, options) ->
         {:bypass, "not_enabled"}
 
-      Enum.any?([dependency | closure], &(&1.manager != :mix or &1.opts[:compile] != nil)) ->
+      not Enum.all?(
+        [dependency | closure],
+        &Compiler.supported_manager?(&1, Compiler.builder(&1, options))
+      ) ->
         {:bypass, "custom_compiler"}
 
       is_nil(context) ->
@@ -267,99 +516,101 @@ defmodule TuistEx.DependencyCache do
         {:bypass, "custom_compiler"}
 
       true ->
-        model_key(dependency, closure, context, options)
+        Plan.in_context({context, options}, fn ->
+          model_key(dependency, closure, context, options)
+        end)
     end
   rescue
     _ -> {:bypass, "unmodeled_input"}
   catch
     :unmodeled_input -> {:bypass, "unmodeled_input"}
+    :custom_compiler -> {:bypass, "custom_compiler"}
   end
 
   defp model_key(dependency, closure, context, options) do
-    root = Key.canonical_path(store_root(options))
+    root = planned_path(store_root(options))
 
     for dep <- [dependency | closure], input <- [dep.opts[:dest], dep.opts[:build]] do
-      if Path.type(Path.relative_to(root, Key.canonical_path(input))) == :relative,
+      if Path.type(Path.relative_to(root, planned_path(input))) == :relative,
         do: throw(:unmodeled_input)
     end
 
-    config = dependency_config(dependency)
-    sources = Key.tree(dependency.opts[:dest])
+    # A rejected closure needs no source bytes, even for its supported members.
+    [{_, config, sources} | upstream_sources] =
+      [dependency | closure]
+      |> Enum.map(&structural_model(&1, options))
+      |> Enum.map(&modeled_source/1)
 
-    upstream_sources = Enum.map(closure, &{&1, Key.tree(&1.opts[:dest])})
+    upstream =
+      upstream_sources
+      |> Enum.sort_by(fn {dep, _, _} -> dep.app end)
+      |> Enum.map(fn {dep, upstream_config, tree} ->
+        {dep.app, dependency_options(dep), tree, compiler_config(upstream_config),
+         Plan.fetch({:artifacts, dep}, fn -> Compiler.artifacts(dep, upstream_config) end)}
+      end)
 
-    if unsupported_config?(config) or unsupported_sources?(sources) or
-         Enum.any?(upstream_sources, fn {dep, tree} ->
-           upstream_config = dependency_config(dep)
-           unsupported_config?(upstream_config) or unsupported_sources?(tree)
-         end) do
-      {:bypass, "custom_compiler"}
-    else
-      upstream =
-        upstream_sources
-        |> Enum.sort_by(fn {dep, _} -> dep.app end)
-        |> Enum.map(fn {dep, tree} ->
-          {dep.app, dependency_options(dep), tree, Key.tree(Path.join(dep.opts[:build], "ebin"))}
-        end)
+    paths =
+      if !Keyword.get(options, :portable, false),
+        do: {File.cwd!(), dependency.opts[:dest], dependency.opts[:build]}
 
-      paths =
-        if !Keyword.get(options, :portable, false),
-          do: {File.cwd!(), dependency.opts[:dest], dependency.opts[:build]}
+    inputs =
+      {context, dependency.app, dependency_options(dependency), sources, compiler_config(config),
+       upstream, paths}
 
-      inputs =
-        {context, dependency.app, dependency_options(dependency), sources,
-         Keyword.take(config, @compiler_config), upstream, paths}
-
-      {:ok, inputs |> model_term() |> Key.build()}
-    end
+    {:ok, inputs |> model_term() |> Key.build()}
   end
 
-  defp dependency_config(dependency) do
-    Mix.Dep.Loader.with_system_env(dependency, fn ->
-      Mix.Dep.in_dependency(dependency, fn _ -> Mix.Project.config() end)
-    end)
+  defp planned_path(path), do: Plan.fetch({:path, path}, fn -> Key.canonical_path(path) end)
+
+  defp structural_model(dependency, options) do
+    modeled =
+      Plan.fetch({:structure, dependency}, fn ->
+        config = dependency_config(dependency, options)
+
+        if Compiler.supported_config?(config) and
+             not Enum.any?(
+               Compiler.source_paths(dependency, config),
+               &Compiler.unsupported_source?(&1, config)
+             ), do: {dependency, config}, else: :unsupported
+      end)
+
+    if modeled == :unsupported, do: throw(:custom_compiler), else: modeled
   end
+
+  defp modeled_source({dependency, config}) do
+    modeled =
+      Plan.fetch({:source, dependency}, fn ->
+        sources = Compiler.source_tree(dependency, config)
+
+        if unsupported_sources?(sources, config),
+          do: :unsupported,
+          else: {dependency, config, sources}
+      end)
+
+    if modeled == :unsupported, do: throw(:custom_compiler), else: modeled
+  end
+
+  defp dependency_config(dependency, options),
+    do: Compiler.config(dependency, true, Compiler.builder(dependency, options))
+
+  defp compiler_config(config),
+    do: config |> Keyword.take(@compiler_config) |> Compiler.effective_config()
 
   defp dependency_options(dependency) do
-    {dependency.opts[:lock], dependency.opts[:env] || :prod,
-     dependency.system_env |> Map.new() |> Enum.sort()}
+    options = fn dep ->
+      dep.opts
+      |> Keyword.take([:compile, :lock, :app, :runtime, :optional, :only, :targets])
+      |> Keyword.put(:env, dep.opts[:env] || :prod)
+      |> Compiler.effective_config()
+    end
+
+    {dependency.manager, dependency.scm, options.(dependency),
+     dependency.system_env |> Map.new() |> Enum.sort(),
+     dependency.deps |> Enum.map(&{&1.app, options.(&1)}) |> Enum.sort()}
   end
 
-  defp unsupported_config?(config) do
-    compilers = config[:compilers] || Mix.compilers()
-    paths = (config[:elixirc_paths] || ["lib"]) ++ (config[:erlc_paths] || ["src"])
-
-    Enum.any?(compilers, &(&1 not in [:yecc, :leex, :erlang, :elixir, :app])) or
-      Enum.any?(config[:aliases] || [], fn {name, _} ->
-        String.starts_with?(to_string(name), "compile") or
-          name in [:loadpaths, :"deps.loadpaths", :loadconfig, :"app.config", :will_recompile]
-      end) or
-      (config[:elixirc_options] || [])[:tracers] not in [nil, []] or
-      Enum.any?(
-        paths,
-        &(Path.type(&1) != :relative or ".." in Path.split(&1) or
-            hd(Path.split(&1)) in [".git", "_build"])
-      )
-  end
-
-  defp unsupported_sources?(sources) do
-    Enum.any?(sources, fn entry ->
-      path = elem(entry, 0)
-
-      Path.extname(path) in [
-        ".erl",
-        ".xrl",
-        ".yrl",
-        ".c",
-        ".cc",
-        ".cpp",
-        ".rs",
-        ".so",
-        ".dylib",
-        ".dll"
-      ] or
-        Path.basename(path) in ["Makefile", "makefile", "rebar.config", "CMakeLists.txt"]
-    end)
+  defp unsupported_sources?(sources, config) do
+    Enum.any?(sources, &Compiler.unsupported_source?(elem(&1, 0), config))
   end
 
   defp capture_context(options) do
@@ -392,8 +643,31 @@ defmodule TuistEx.DependencyCache do
         architecture: :erlang.system_info(:system_architecture),
         word_size: :erlang.system_info(:wordsize),
         endianness: :erlang.system_info(:endian),
+        parsetools_includes:
+          :parsetools |> :code.lib_dir() |> to_string() |> Path.join("include") |> Key.tree(),
         os: {:os.type(), :os.version()},
-        compilers: Enum.map([:compile, :elixir_erl_compiler], &compiler_digest/1)
+        compilers:
+          Enum.map(
+            [
+              :compile,
+              :yecc,
+              :leex,
+              :epp,
+              :elixir_compiler,
+              :elixir_erl_compiler,
+              Kernel,
+              Macro,
+              Mix.Tasks.Deps.Compile,
+              Mix.Tasks.Compile.App,
+              Mix.Tasks.Compile.Elixir,
+              Mix.Tasks.Compile.Erlang,
+              Mix.Tasks.Compile.Yecc,
+              Mix.Tasks.Compile.Leex,
+              Mix.Compilers.Elixir,
+              Mix.Compilers.Erlang
+            ],
+            &compiler_digest/1
+          )
       },
       compiler_options: Code.compiler_options() |> Enum.sort(),
       env: Mix.env(),
@@ -404,7 +678,12 @@ defmodule TuistEx.DependencyCache do
         |> Enum.uniq()
         |> Enum.sort()
         |> Enum.map(&{&1, System.get_env(&1)}),
-      inputs: options |> Keyword.get(:inputs, []) |> Enum.sort() |> Enum.map(&{&1, Key.tree(&1)}),
+      inputs:
+        options
+        |> Keyword.get(:inputs, [])
+        |> Enum.uniq()
+        |> Enum.sort()
+        |> Enum.map(&{&1, Key.tree(&1)}),
       project: Mix.Project.config()[:tuist] |> Keyword.get(:project)
     }
   end

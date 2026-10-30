@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-unset TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID
+unset TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID TUIST_CACHE_SIGNING_GRANT
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 fixtures="$(mktemp -d)"
@@ -16,6 +16,14 @@ test -s "${fixtures}/generate-hook.sh"
 export JOB_STARTED_HOOK="${fixtures}/job-started.sh"
 export JOB_STARTED_MARKER="${fixtures}/job-started"
 export WATCHDOG_PID_FILE="${fixtures}/watchdog.pid"
+export CACHE_VOLUME_BIN="${fixtures}/tuist-cache-volume"
+cat > "${CACHE_VOLUME_BIN}" <<'CLIENT'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${CHECKOUT_CALLS}"
+exit "${CHECKOUT_EXIT:-0}"
+CLIENT
+chmod +x "${CACHE_VOLUME_BIN}"
+export CHECKOUT_CALLS="${fixtures}/checkout-calls"
 env -u GITHUB_ENV -u TUIST_CACHE_ENDPOINT bash -eu "${fixtures}/generate-hook.sh"
 bash -n "${JOB_STARTED_HOOK}"
 
@@ -32,6 +40,13 @@ bash -eu "${JOB_STARTED_HOOK}"
 printf 'TUIST_CACHE_ENDPOINT=%s\n' "${TUIST_CACHE_ENDPOINT}" >> "${fixtures}/expected"
 cmp "${fixtures}/expected" "${GITHUB_ENV}"
 echo "ok: the runtime endpoint is appended to the runtime environment file"
+
+export TUIST_CACHE_SIGNING_GRANT="signed.runner.grant"
+bash -eu "${JOB_STARTED_HOOK}" > "${fixtures}/grant-mask"
+grep -qx '::add-mask::signed.runner.grant' "${fixtures}/grant-mask"
+grep -qx 'TUIST_CACHE_SIGNING_GRANT=signed.runner.grant' "${GITHUB_ENV}"
+unset TUIST_CACHE_SIGNING_GRANT
+echo "ok: the dispatch grant reaches GitHub container steps"
 
 # An environment-file failure must not prevent the watchdog latch or
 # turn otherwise successful builds into failures.
@@ -66,6 +81,16 @@ env -i PATH="$PATH" TUIST_RUNNER_JOB_ENV="${BUILDKITE_JOB_ENV_PATH}" TUIST_RUNNE
   bash -ec 'source buildkite-hooks/environment; test "$EXISTING_BUILD_SETTING" = preserved; test "$TUIST_CACHE_VOLUME_URL" = "http://runner-cache-volumes:8090"; test "$TUIST_CACHE_VOLUME_POD" = "pod-test"; test "$TUIST_CACHE_VOLUME_UID" = "uid-test"'
 echo "ok: Buildkite restores cache-volume routing after environment sanitization"
 
+env -i PATH="$PATH" TUIST_RUNNER_JOB_ENV="${fixtures}/missing-env" TUIST_RUNNER_STATE_DIR="${fixtures}/state" \
+  NODE_OPTIONS=--max-old-space-size=512 \
+  bash -ec 'source buildkite-hooks/environment; test "$NODE_OPTIONS" = "--max-old-space-size=512 --use-openssl-ca"; test "$SSL_CERT_FILE" = /etc/ssl/certs/ca-certificates.crt; test "$PIP_CERT" = "$SSL_CERT_FILE"; test "$REQUESTS_CA_BUNDLE" = "$SSL_CERT_FILE"'
+echo "ok: Buildkite jobs restore image trust settings without losing Node options"
+
+env -i PATH="$PATH" TUIST_RUNNER_JOB_ENV="${fixtures}/missing-env" TUIST_RUNNER_STATE_DIR="${fixtures}/state" \
+  NODE_OPTIONS=--max-old-space-size=512 \
+  bash -ec 'source ../runner-image/buildkite-hooks/environment; test "$NODE_OPTIONS" = "--max-old-space-size=512 --use-openssl-ca"; test "$SSL_CERT_FILE" = /etc/ssl/cert.pem; test "$SSL_CERT_DIR" = /var/empty; test "$PIP_CERT" = "$SSL_CERT_FILE"; test "$REQUESTS_CA_BUNDLE" = "$SSL_CERT_FILE"'
+echo "ok: macOS Buildkite jobs restore the guest PEM store and disable fallback CA directories"
+
 # Run the production launch command with an agent stub. The standalone binary
 # has no packaged config to supply a plugin checkout directory.
 awk '/^  exec \/usr\/local\/bin\/buildkite-agent start/ {
@@ -96,3 +121,24 @@ chmod +x "${BUILDKITE_AGENT_TEST_BINARY}"
 bash -eu "${fixtures}/launch-buildkite.sh"
 test -f "${TUIST_RUNNER_STATE_DIR}/plugins/checkout-probe"
 echo "ok: Buildkite receives a writable job-local plugin checkout directory"
+
+# The hook mounts the job's cached checkout only where cache volumes are routed,
+# and a failing client never fails the job.
+rm -f "${CHECKOUT_CALLS}"
+GITHUB_WORKSPACE=/home/runner/work/repo/repo env -u TUIST_CACHE_VOLUME_URL bash -eu "${JOB_STARTED_HOOK}"
+test ! -e "${CHECKOUT_CALLS}"
+GITHUB_WORKSPACE=/home/runner/work/repo/repo CHECKOUT_EXIT=1 bash -eu "${JOB_STARTED_HOOK}"
+grep -qx -- "--checkout /home/runner/work/repo/repo" "${CHECKOUT_CALLS}"
+echo "ok: the job-start hook asks for a cached checkout of the workspace"
+
+# The hook moves dockerd onto a Docker cache volume only where the sidecar
+# supports it, concurrently with the checkout, and a failing client never fails
+# the job.
+rm -f "${CHECKOUT_CALLS}"
+GITHUB_WORKSPACE=/home/runner/work/repo/repo env -u TUIST_DOCKER_CACHE bash -eu "${JOB_STARTED_HOOK}"
+! grep -qx -- "--docker" "${CHECKOUT_CALLS}"
+rm -f "${CHECKOUT_CALLS}"
+GITHUB_WORKSPACE=/home/runner/work/repo/repo TUIST_DOCKER_CACHE=1 CHECKOUT_EXIT=1 bash -eu "${JOB_STARTED_HOOK}"
+grep -qx -- "--docker" "${CHECKOUT_CALLS}"
+grep -qx -- "--checkout /home/runner/work/repo/repo" "${CHECKOUT_CALLS}"
+echo "ok: the job-start hook asks for the Docker cache beside the checkout"

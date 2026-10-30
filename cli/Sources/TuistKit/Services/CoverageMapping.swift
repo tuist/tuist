@@ -108,17 +108,26 @@ struct CoverageMapping {
         }
     }
 
-    /// Whether the product at `path`, a Mach-O image or a static archive, carries a coverage
-    /// mapping: the code in it was built with coverage, so a run that collects coverage counts
-    /// its lines. Anything else, or anything unreadable, does not.
-    static func carriesMapping(path: String) -> Bool {
+    /// Whether the product at `path`, a Mach-O image or a static archive, was built with coverage,
+    /// so a run that collects coverage counts its lines: it carries a coverage mapping, or, when
+    /// none of its code has a body to map (a module of constants), it still names the profile
+    /// runtime. Anything else, or anything unreadable, was not.
+    static func isInstrumented(path: String) -> Bool {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe),
               data.count >= MemoryLayout<mach_header_64>.size
         else { return false }
         if let archive = archive(in: data) {
-            return archiveMembers(archive).contains { !sections(of: $0, named: ["__llvm_covmap"]).isEmpty }
+            return archiveMembers(archive).contains(where: isInstrumented(image:))
         }
-        return !sections(of: data, named: ["__llvm_covmap"]).isEmpty
+        return isInstrumented(image: data)
+    }
+
+    /// The symbol through which an object the compiler instrumented pulls in the profile runtime:
+    /// referenced by every such object, counters or not, and defined in an image linked from them.
+    static let profileRuntimeSymbol = "___llvm_profile_runtime"
+
+    private static func isInstrumented(image: Data) -> Bool {
+        !sections(of: image, named: ["__llvm_covmap"]).isEmpty || namesSymbol(profileRuntimeSymbol, in: image)
     }
 
     // BSD `ar` (`ar.h`, which Swift does not import): `ARMAG`, `sizeof(struct ar_hdr)`, the
@@ -526,28 +535,68 @@ extension CoverageMapping {
     /// The named sections of a 64-bit Mach-O image, or of its chosen slice when it is universal.
     /// The image's own fields are read as laid out, which is host order on every Apple platform.
     static func sections(of image: Data, named names: Set<String>) -> [String: Data] {
-        let base = universalSlice(of: image)?.lowerBound ?? 0
-        guard let header: mach_header_64 = image.structure(at: base), header.magic == MH_MAGIC_64 else { return [:] }
         var result: [String: Data] = [:]
+        forEachLoadCommand(in: image) { base, command, load in
+            guard load.cmd == UInt32(LC_SEGMENT_64), let segment: segment_command_64 = image.structure(at: command)
+            else { return true }
+            for index in 0 ..< Int(segment.nsects) {
+                let offset = command + MemoryLayout<segment_command_64>.size + index * MemoryLayout<section_64>.size
+                guard let section: section_64 = image.structure(at: offset) else { break }
+                let name = withUnsafeBytes(of: section.sectname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+                guard names.contains(name),
+                      let range = image.range(offset: UInt64(base) + UInt64(section.offset), size: section.size)
+                else { continue }
+                result[name] = image.subdata(in: image.startIndex + range.lowerBound ..< image.startIndex + range.upperBound)
+            }
+            return true
+        }
+        return result
+    }
+
+    /// Whether the symbol table of a 64-bit Mach-O image, or of its chosen slice, holds a symbol
+    /// named exactly `name`, defined or not.
+    static func namesSymbol(_ name: String, in image: Data) -> Bool {
+        let target = Array(name.utf8)
+        var found = false
+        forEachLoadCommand(in: image) { base, command, load in
+            guard load.cmd == UInt32(LC_SYMTAB), let symtab: symtab_command = image.structure(at: command)
+            else { return true }
+            let entrySize = MemoryLayout<nlist_64>.size
+            guard let entries = image.range(
+                offset: UInt64(base) + UInt64(symtab.symoff),
+                size: UInt64(symtab.nsyms) * UInt64(entrySize)
+            ),
+                let strings = image.range(offset: UInt64(base) + UInt64(symtab.stroff), size: UInt64(symtab.strsize))
+            else { return false }
+            for index in 0 ..< Int(symtab.nsyms) {
+                guard let entry: nlist_64 = image.structure(at: entries.lowerBound + index * entrySize) else { break }
+                let start = strings.lowerBound + Int(entry.n_un.n_strx)
+                guard start + target.count < strings.upperBound,
+                      image[image.startIndex + start + target.count] == 0,
+                      image[image.startIndex + start ..< image.startIndex + start + target.count].elementsEqual(target)
+                else { continue }
+                found = true
+                break
+            }
+            return false
+        }
+        return found
+    }
+
+    /// Walks the load commands of a 64-bit Mach-O image, or of its chosen slice, handing each the
+    /// slice's offset, the command's own offset and its header, until `body` returns false or a
+    /// command runs past the image.
+    private static func forEachLoadCommand(in image: Data, _ body: (Int, Int, load_command) -> Bool) {
+        let base = universalSlice(of: image)?.lowerBound ?? 0
+        guard let header: mach_header_64 = image.structure(at: base), header.magic == MH_MAGIC_64 else { return }
         var command = base + MemoryLayout<mach_header_64>.size
         for _ in 0 ..< Int(header.ncmds) {
             guard let load: load_command = image.structure(at: command), load.cmdsize > 0,
-                  command + Int(load.cmdsize) <= image.count
-            else { break }
-            if load.cmd == UInt32(LC_SEGMENT_64), let segment: segment_command_64 = image.structure(at: command) {
-                for index in 0 ..< Int(segment.nsects) {
-                    let offset = command + MemoryLayout<segment_command_64>.size + index * MemoryLayout<section_64>.size
-                    guard let section: section_64 = image.structure(at: offset) else { break }
-                    let name = withUnsafeBytes(of: section.sectname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
-                    guard names.contains(name),
-                          let range = image.range(offset: UInt64(base) + UInt64(section.offset), size: section.size)
-                    else { continue }
-                    result[name] = image.subdata(in: image.startIndex + range.lowerBound ..< image.startIndex + range.upperBound)
-                }
-            }
+                  command + Int(load.cmdsize) <= image.count,
+                  body(base, command, load)
+            else { return }
             command += Int(load.cmdsize)
         }
-        return result
     }
 }
 

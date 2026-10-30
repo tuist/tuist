@@ -1,0 +1,67 @@
+name: Cache DNS
+
+on:
+  pull_request:
+    paths:
+      - infra/cache-dns/zone.yaml
+      - .github/workflows/cache-dns.yml
+      - .github/scripts/cache-dns-change-set.sh
+  push:
+    branches: [main]
+    paths:
+      - infra/cache-dns/zone.yaml
+      - .github/workflows/cache-dns.yml
+      - .github/scripts/cache-dns-change-set.sh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-dns-${{ github.event.pull_request.number || 'main' }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: tuist-cache-dns
+  TEMPLATE: infra/cache-dns/zone.yaml
+  EXECUTION_ROLE_ARN: arn:aws:iam::${{ vars.CACHE_DNS_AWS_ACCOUNT_ID }}:role/tuist-cache-dns-cloudformation
+
+jobs:
+  plan:
+    name: Plan
+    # Skipped until the bootstrap stack exists and its account is set as a
+    # repository variable. Fork pull requests get no OIDC token.
+    if: vars.CACHE_DNS_AWS_ACCOUNT_ID != '' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.CACHE_DNS_AWS_ACCOUNT_ID }}:role/tuist-cache-dns-plan
+          aws-region: ${{ env.AWS_REGION }}
+      - run: .github/scripts/cache-dns-change-set.sh plan
+
+  deploy:
+    name: Deploy
+    if: vars.CACHE_DNS_AWS_ACCOUNT_ID != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.CACHE_DNS_AWS_ACCOUNT_ID }}:role/tuist-cache-dns-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      - run: .github/scripts/cache-dns-change-set.sh deploy

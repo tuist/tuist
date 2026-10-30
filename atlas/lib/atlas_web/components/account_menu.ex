@@ -6,11 +6,16 @@ defmodule AtlasWeb.AccountMenu do
   import AtlasWeb.CoreComponents, only: []
 
   alias Atlas.Users.User
+  alias AtlasWeb.NativeLinks
+  alias AtlasWeb.NativeLinksHTML
 
   attr :current_user, :any, required: true
   attr :account_settings?, :boolean, default: false
+  attr :current_path, :string, default: nil
 
   def headerbar(assigns) do
+    assigns = assign(assigns, :native_url, native_url(assigns.current_path))
+
     ~H"""
     <header class="headerbar">
       <div data-part="left-section">
@@ -20,6 +25,17 @@ defmodule AtlasWeb.AccountMenu do
         </.link>
       </div>
       <div data-part="right-section">
+        <%!-- Explicit opt-in wherever a native equivalent exists. Browsers cannot tell whether
+             the app is installed, and pointer type is not a device class (iPads with a
+             trackpad need this escape from same-domain browser handoff), so it is always shown. --%>
+        <.button
+          :if={@native_url}
+          id="open-in-atlas"
+          href={NativeLinksHTML.native_href(@native_url)}
+          variant="secondary"
+          size="small"
+          label={gettext("Open in Atlas")}
+        />
         <div
           id="account-dropdown"
           class="account-dropdown"
@@ -85,4 +101,16 @@ defmodule AtlasWeb.AccountMenu do
     </header>
     """
   end
+
+  # Only the path is used: query strings and fragments never reach the native link.
+  defp native_url(path) when is_binary(path) do
+    if !Atlas.Demo.enabled?() do
+      case NativeLinks.for_page(path) do
+        nil -> nil
+        destination -> NativeLinks.native_url(destination)
+      end
+    end
+  end
+
+  defp native_url(_path), do: nil
 end
