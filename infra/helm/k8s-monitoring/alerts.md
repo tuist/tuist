@@ -2747,20 +2747,19 @@ starts. A job VM is a fresh clone of its pool's runner image, so the
 free space at start is a property of the image: the runner image build
 fails below 100 GiB available (`infra/runner-image/runner.pkr.hcl`), and
 this rule catches what the build cannot see, such as a clone's boot
-writing more than the image left free. Create it once the first release
-with the 200 GB disk runs on every pool: older images start with an
-estimated 58 GiB available and would fire on every job.
+writing more than the image left free.
 
 Grafana-managed rule on the `Tuist Production ClickHouse` data source
-(`cg1vnyjs65blsc`), evaluated every 15 minutes over jobs whose steps
-arrived in the last hour:
+(`cg1vnyjs65blsc`), evaluated every 15 minutes over jobs whose first
+step started in the last hour:
 
 ```sql
 WITH steps AS (
   SELECT workflow_job_id, min(started_at) AS first_step
   FROM runner_job_steps
-  WHERE inserted_at >= now() - INTERVAL 1 HOUR AND started_at IS NOT NULL
+  WHERE inserted_at >= now() - INTERVAL 1 DAY AND started_at IS NOT NULL
   GROUP BY workflow_job_id
+  HAVING first_step >= now() - INTERVAL 1 HOUR
 ), starts AS (
   SELECT workflow_job_id, min(timestamp) AS t0,
     argMin(disk_total_bytes - disk_used_bytes, timestamp) / 1073741824 AS free_gib
@@ -2799,7 +2798,10 @@ so their first sample could come after checkout and cache restores. On
 2026-10-22, 39 jobs were sampled 99 to 679 seconds late and showed 46.8
 to 74 GiB free while every VM started with about 79. The filter skips
 those jobs. With the current sampler the first sample comes before the
-first step.
+first step. The first step is read over a day of steps: a job that runs
+for more than an hour also has steps from before the last hour, and
+taking the earliest recent one instead would let a late first sample
+through.
 
 Free is the APFS container's available space (`df` Avail), which is
 what a job can write. Runner images before that change reported Size
