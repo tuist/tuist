@@ -177,7 +177,7 @@ the chart is at fault.
 Its rules are query-driven: it proposes aggregating away any label no query has
 touched in the lookback, and **auto-apply is enabled on this stack**, so a
 recommendation becomes a rule on its own. That means a metric nobody queries
-loses its labels, and a query is the only thing that keeps them.
+loses its labels, and only a query or an exemption keeps them.
 
 An aggregated metric does not disappear. It survives as a single series with the
 aggregated labels removed, which is why a matcher on one of them silently
@@ -227,22 +227,46 @@ that `rate()` reads. The `tuist_` prefix rule (drops `pod`, `instance`,
 metric without an exact rule, so a new counter under that prefix cannot be
 rated until it gets an exact rule with `sum:counter`. An exact rule takes
 precedence over a prefix rule, as `tuist_runners_dispatch_request_count`
-shows. Exact `sum:counter` rules (dropping only `instance` and `pod`) cover:
+shows. Samples stored before a rule took effect still cannot be rated.
 
-- `tuist_runners_job_executor_queue_time_milliseconds_{bucket,count,sum}`,
-  read by the `runner-queue-time-p90-over-target` alert
-- `tuist_runners_job_queue_time_milliseconds_{bucket,count,sum}`, read by the
-  Runners dashboard's queue-time panels
+**An exact rule needs an exemption to last.** The recommender treats a metric
+that any alerting rule reads, Grafana-managed ones included, as not a candidate
+for aggregation, so it recommends no exact rule for it, and auto-apply deletes
+the one you add. It does not consider prefix rules, so the metric falls back to
+the `tuist_` prefix rule's plain `sum`, and the alert's `rate()` returns an
+empty result. The alert stays Normal rather than NoData. Any change to the rules
+triggers a new recommendation run, so this happens within about twenty
+minutes: the queue-time rules added at 16:41 UTC on 2026-10-30 were gone by
+17:02. Metrics no alert reads are not safe either. Their aggregations follow
+the last 30 days of queries, which turned the 2026-10-22 cache volume rules
+back into plain `sum`.
 
-Samples stored before a rule took effect still cannot be rated.
+So create an exact exemption for the metric first, then add its rule. An
+exemption keeps the metric out of recommendations without removing an applied
+rule:
 
-Auto-apply also rewrites exact rules. The
-`tuist_runner_cache_volume_operations_total` and
-`tuist_runner_cache_volume_operation_duration_seconds_{bucket,count,sum}`
-rules added on 2026-10-22 no longer match: as of 2026-10-30 `_bucket` stores
-plain `sum`, and `_total` and `_count` have no exact rule and fall back to the
-prefix rule. Re-read the rules after adding one, and again before trusting a
-rate over the metric.
+```bash
+curl -s -u "1774467:$TOKEN" -X POST -H 'Content-Type: application/json' \
+  --data '{"metric": "<name>", "match_type": "exact", "reason": "<what rates it>"}' \
+  $BASE/v1/recommendations/exemptions
+curl -s -u "1774467:$TOKEN" $BASE/v1/recommendations/exemptions  # list
+```
+
+Exempted, with exact `sum:counter` rules dropping `instance`, `pod` and
+`pod_template_hash` (applied 2026-10-30 at 17:33 UTC):
+
+- `tuist_runners_job_executor_queue_time_milliseconds_{bucket,count,sum}`
+  (plus `max`), read by the `runner-queue-time-p90-over-target` alert
+- `tuist_runners_job_queue_time_milliseconds_{bucket,count,sum}` (plus `max`),
+  read by the Runners dashboard's queue-time panels
+- `tuist_runner_cache_volume_operations_total` and
+  `tuist_runner_cache_volume_operation_duration_seconds_{bucket,count,sum}`
+
+Other alerts still `rate()` a `tuist_*` metric that only the prefix rule
+covers, so they evaluate an empty result: the HTTP request duration alerts, the
+Oban build and XCResult processing and queue duration alerts, Kura admission
+refusals, and egress jobs on an unusable fleet. To find more, list the metrics
+the alert rules read that have no exact rule and match a prefix rule.
 
 `sum:counter` cannot count an increment it never saw. A counter series a
 source creates on its first increment (a label combination the code does not

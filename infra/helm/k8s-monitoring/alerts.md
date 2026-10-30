@@ -3010,7 +3010,8 @@ that carries the same fields undercounts.
 `agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
 removed. Until 2026-10-22 16:50 UTC it stored only a plain `sum`, so `rate()`
 and `increase()` over it returned an empty result, as with the Oban counters
-in **Ingestion jobs being discarded**. It now has an exact `sum:counter` rule
+in **Ingestion jobs being discarded**. Auto-apply reverted its first exact
+rule; since 2026-10-30 17:33 UTC it has an exempted exact `sum:counter` rule
 and rates, but both agents create each `(operation, source, result)` series
 on its first increment, and that first increment is never counted (see
 `README.md`, *Metrics aggregated downstream of this chart*). Compared with the
