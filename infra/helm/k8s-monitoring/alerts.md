@@ -3714,30 +3714,31 @@ No Data: OK. The queue-age rules above already cover missing telemetry.
 
 ```promql
 # Build queue duration. XCResult queue duration is the same with
-# worker="Tuist.Tests.Workers.ProcessXcresultWorker", le="600000.0" and >= 5.
-(
-  (
-      sum(increase(tuist_oban_job_queue_time_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker", le="1.8e+06"}[15m]))
-    - sum(increase(tuist_oban_job_queue_time_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker", le="60000.0"}[15m]))
-  )
-  / sum(increase(tuist_oban_job_queue_time_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker", le="1.8e+06"}[15m]))
-  > 0.01
-)
-and
+# worker="Tuist.Tests.Workers.ProcessXcresultWorker", le="600000.0" and $B >= 5.
+# A: share of jobs that waited longer than the threshold
 (
     sum(increase(tuist_oban_job_queue_time_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker", le="1.8e+06"}[15m]))
   - sum(increase(tuist_oban_job_queue_time_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker", le="60000.0"}[15m]))
-  >= 3
 )
+/ sum(increase(tuist_oban_job_queue_time_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker", le="1.8e+06"}[15m]))
+# B: count of those jobs, A's numerator
+# C (math): $A > 0.01 && $B >= 3
 
 # Build processing duration. XCResult processing duration is the same with
-# worker="Tuist.Tests.Workers.ProcessXcresultWorker" and > 600000.
+# worker="Tuist.Tests.Workers.ProcessXcresultWorker" and C > 600000.
+# A:
 histogram_quantile(0.99,
   sum by (le) (
     rate(tuist_oban_job_processing_duration_milliseconds_bucket{env="production", worker="Tuist.Builds.Workers.ProcessBuildWorker"}[15m])
   )
-) > 300000
+)
+# C (threshold): A > 300000
 ```
+
+The thresholds live in expression C rather than in the PromQL, so A returns
+a value on every evaluation and a healthy rule reads `Normal`. With the
+comparison inside A, a healthy rule and a broken selector both read
+`Normal (NoData)`, which is how these four went unnoticed.
 
 **All four were dead from 2026-09-10 to 2026-10-30.** They matched
 `job="prometheus.scrape.tuist", instance="production"`, but the `tuist_`
