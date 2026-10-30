@@ -175,7 +175,7 @@ struct RunCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func skipsIncompatibleArchitectureBeforeRunningMatchingBuild() async throws {
+    func selectsCompatiblePlatformAndArchitectureBeforeRunningBuild() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let wrongTool = directory.appending(component: "wrong-tool")
         #if arch(arm64)
@@ -190,7 +190,11 @@ struct RunCommandServiceTests {
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.pathString)
         }
         let manifest = directory.appending(component: ExecutablePreviewManifest.filename)
-        var builds: [Components.Schemas.AppBuild] = []
+        let linuxURL = URL(string: "https://tuist.dev/linux.zip")!
+        given(remoteArtifactDownloader).download(url: .value(linuxURL)).willThrow(TestError())
+        var builds: [Components.Schemas.AppBuild] = [
+            .test(id: "linux-build", supportedPlatforms: [.linux], type: .executable, url: linuxURL),
+        ]
         for executable in [wrongTool, tool] {
             try JSONEncoder().encode(ExecutablePreviewManifest(
                 executable: RelativePath(validating: executable.basename)
@@ -203,7 +207,7 @@ struct RunCommandServiceTests {
             builds.append(.test(id: executable.basename, supportedPlatforms: [.macos], type: .executable, url: url))
         }
         given(getPreviewService).getPreview(.any, fullHandle: .any, serverURL: .any).willReturn(.test(
-            builds: builds, supportedPlatforms: [.macos]
+            builds: builds, supportedPlatforms: [.linux, .macos]
         ))
         let output = directory.appending(component: "output.txt")
         try await subject.run(

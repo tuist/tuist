@@ -113,6 +113,28 @@ struct ShareCommandServiceTests {
         )
         let current = directory.appending(component: "current")
         try FileManager.default.createSymbolicLink(at: current.url, withDestinationURL: distribution.url)
+        let resolvedDistribution = try AbsolutePath(validating: distribution.url.resolvingSymlinksInPath().path)
+
+        gitController.reset()
+        given(gitController)
+            .gitInfo(workingDirectory: .value(directory))
+            .willReturn(GitInfo(
+                ref: "refs/pull/123/merge", branch: "feature/cli", sha: "preview-commit", remoteURLOrigin: nil
+            ))
+        previewsUploadService.reset()
+        given(previewsUploadService)
+            .uploadPreview(
+                .value(.executable(path: resolvedDistribution, entryPoint: try RelativePath(validating: "bin/tool"))),
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(Constants.URLs.production),
+                gitBranch: .value("feature/cli"),
+                gitCommitSHA: .value("preview-commit"),
+                gitRef: .value("refs/pull/123/merge"),
+                track: .value("pr-123"),
+                releaseNotes: .value("Try the CLI changes"),
+                updateProgress: .any
+            )
+            .willReturn(.test(url: shareURL))
 
         try await subject.run(
             path: directory.pathString,
@@ -121,7 +143,8 @@ struct ShareCommandServiceTests {
             platforms: [],
             derivedDataPath: nil,
             json: false,
-            track: nil,
+            track: "pr-123",
+            releaseNotes: "Try the CLI changes",
             executable: "bin/tool"
         )
 

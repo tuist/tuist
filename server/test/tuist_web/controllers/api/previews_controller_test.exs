@@ -238,7 +238,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       } do
         expect(Storage, :multipart_start, fn object_key, _actor ->
           assert String.ends_with?(object_key, ".zip")
-          "upload-id"
+          {:ok, "upload-id"}
         end)
 
         conn =
@@ -257,6 +257,68 @@ defmodule TuistWeb.PreviewsControllerTest do
         assert build.type == :executable
         assert build.supported_platforms == [String.to_existing_atom(@platform)]
       end
+    end
+
+    test "groups CLI target builds under one preview without mixing commits", %{
+      conn: conn,
+      user: user,
+      account: account,
+      project: project
+    } do
+      stub(Storage, :multipart_start, fn _key, _actor -> {:ok, "upload-id"} end)
+      stub(Storage, :multipart_complete_upload, fn _key, _upload, _parts, _actor -> :ok end)
+      stub(Storage, :generate_download_url, fn _key, _actor, _opts -> "https://example.com/build.zip" end)
+      conn = Authentication.put_current_user(conn, user)
+
+      targets = [{"macos", "macos-arm64"}, {"macos", "macos-x86_64"}, {"linux", "linux-x86_64"}]
+
+      responses =
+        Enum.map(targets, fn {platform, binary_id} ->
+          started =
+            conn
+            |> put_req_header("content-type", "application/json")
+            |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+              type: "executable",
+              display_name: "tuist",
+              git_commit_sha: "preview-commit",
+              build_version: "preview-commit",
+              binary_id: binary_id,
+              supported_platforms: [platform]
+            )
+            |> json_response(:ok)
+
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
+            preview_id: started["data"]["app_build_id"],
+            app_build_id: started["data"]["app_build_id"],
+            multipart_upload_parts: %{upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag"}]}
+          )
+          |> json_response(:ok)
+        end)
+
+      assert responses |> Enum.map(& &1["id"]) |> Enum.uniq() |> length() == 1
+      preview = List.last(responses)
+      assert Enum.sort(preview["supported_platforms"]) == ["linux", "macos"]
+      assert length(preview["builds"]) == 3
+      assert Enum.all?(preview["builds"], &(&1["type"] == "executable"))
+
+      assert Enum.sort(Enum.map(preview["builds"], & &1["binary_id"])) ==
+               Enum.sort(Enum.map(targets, &elem(&1, 1)))
+
+      started =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          type: "executable",
+          display_name: "tuist",
+          git_commit_sha: "next-commit",
+          supported_platforms: ["macos"]
+        )
+        |> json_response(:ok)
+
+      {:ok, next_build} = AppBuilds.app_build_by_id(started["data"]["app_build_id"])
+      assert next_build.preview_id != preview["id"]
     end
 
     test "starts multipart upload of an apk preview", %{

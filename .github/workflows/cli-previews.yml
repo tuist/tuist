@@ -6,6 +6,8 @@ on:
     paths:
       - "cli/**"
       - "cas-plugin/**"
+      - "swifterpm/**"
+      - "server/native/xcresult_nif/Sources/XCResultParser/**"
       - "Tuist/**"
       - "*.swift"
       - "Package.resolved"
@@ -34,6 +36,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"

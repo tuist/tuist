@@ -100,6 +100,20 @@ The entire distribution directory is uploaded, including executable permissions 
 
 Use `--` to separate Tuist options from the preview's arguments. Everything after it is forwarded literally, including `--verbose`, `--quiet`, and `--path`. Child arguments are excluded from Tuist command analytics.
 
+### Multiple CLI targets {#multiple-cli-targets}
+
+A preview groups builds of the same CLI for one commit; each build contains a distribution for one operating system and one or more CPU architectures. For example, one preview can contain macOS arm64, macOS x86_64, and Linux x86_64 distributions. A universal macOS executable covers both Mac architectures in one build.
+
+Build each target separately, then publish the distributions sequentially from the same Git checkout using the same entry-point basename and track:
+
+```bash
+tuist share dist/macos-arm64 --executable bin/tuist --track pr
+tuist share dist/macos-x86_64 --executable bin/tuist --track pr
+tuist share dist/linux-x86_64 --executable bin/tuist --track pr
+```
+
+These uploads add builds to the same preview link. Keep the project, commit, publishing account, CLI name, and track identical across uploads. Build directory names do not determine compatibility: Tuist identifies native targets from the executable headers, skips other operating systems, and checks CPU compatibility before execution. Recipients use the same `tuist run {preview-url} -- …` command on either OS. An unavailable target produces a compatibility error rather than running another platform's build. The repository's automated Tuist CLI publisher currently builds only native macOS; Linux distributions can be published separately.
+
 Previews are not a cross-compilation or dependency-bundling service. Include non-system dependencies and use relocatable library/resource paths. Tuist reads the executable's Mach-O or ELF header to identify its OS and CPU architectures, including universal macOS binaries, and selects a compatible build. Linux binaries still need compatible system libraries (for example, glibc and the Swift runtime); prefer self-contained distributions targeting your recipients' oldest supported OS. Scripts must have a shebang and require their interpreter on the recipient's system; they use the publisher's OS as their target.
 
 A preview does not provide a sandbox: it runs as the current user with access to their files and environment. Only run builds from authors and pull requests you trust. Signing and notarization requirements still apply to macOS applications.
