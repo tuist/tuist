@@ -76,6 +76,47 @@ defmodule Tuist.Shards.StorageRoutingTest do
     assert {:error, :shard_storage_unavailable} = Shards.get_shard_for_plan_id(ctx.project, ctx.account, plan.id, 0)
   end
 
+  test "uploads a just-created plan to its store before any ClickHouse replica returns it", ctx do
+    stub(FeatureFlags, :runner_shard_storage_enabled?, fn _ -> true end)
+    expect(Storage, :available?, fn _ -> true end)
+
+    %{plan: routed} =
+      Shards.create_shard_plan(ctx.project, %{reference: "routed", modules: ["Tests"], shard_total: 1}, ctx.opts)
+
+    stub(FeatureFlags, :runner_shard_storage_enabled?, fn _ -> false end)
+
+    %{plan: default} =
+      Shards.create_shard_plan(ctx.project, %{reference: "default", modules: ["Tests"], shard_total: 1}, ctx.opts)
+
+    stub(Tuist.IngestRepo, :one, fn _queryable -> nil end)
+    stub(Tuist.ClickHouseRepo, :one, fn _queryable -> nil end)
+    routed_key = Shards.bundle_object_key(ctx.account, ctx.project, routed.id)
+    default_key = Shards.bundle_object_key(ctx.account, ctx.project, default.id)
+    account = ctx.account
+
+    expect(Storage, :multipart_start, fn ^routed_key, %S3Target{id: "gra-v1"} -> {:ok, "routed"} end)
+    expect(Storage, :multipart_generate_url, fn ^routed_key, "routed", 1, %S3Target{id: "gra-v1"} -> "routed-url" end)
+
+    expect(Storage, :multipart_complete_upload, fn ^routed_key, "routed", [{1, "etag"}], %S3Target{id: "gra-v1"} ->
+      :ok
+    end)
+
+    expect(Storage, :multipart_start, fn ^default_key, ^account -> {:ok, "default"} end)
+
+    assert {:ok, "routed"} = Shards.start_upload_for_plan_id(ctx.project, ctx.account, routed.id, nil, ctx.opts)
+
+    assert {:ok, "routed-url"} =
+             Shards.generate_upload_url_for_plan(ctx.project, ctx.account, routed.id, "routed", 1, nil, ctx.opts)
+
+    assert :ok =
+             Shards.complete_upload_for_plan(ctx.project, ctx.account, routed.id, "routed", [{1, "etag"}], nil, ctx.opts)
+
+    assert {:ok, "default"} = Shards.start_upload_for_plan_id(ctx.project, ctx.account, default.id, nil, ctx.opts)
+
+    assert {:error, :not_found} =
+             Shards.start_upload_for_plan_id(ProjectsFixtures.project_fixture(build_system: :mix), ctx.account, routed.id)
+  end
+
   test "foreign and missing plan IDs cannot start, sign or complete an upload", ctx do
     foreign = ShardsFixtures.shard_plan_fixture()
     reject(&Storage.multipart_start/2)
