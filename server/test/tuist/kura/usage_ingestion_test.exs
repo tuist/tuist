@@ -41,14 +41,15 @@ defmodule Tuist.Kura.UsageIngestionTest do
     end)
 
     first = Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
-    assert_receive {:inserting, worker}
     assert Task.await(first) == {:error, :timeout}
+    # The worker may reach the insert before or after the response times out.
+    assert_receive {:inserting, worker}, 5_000
 
     assert Usage.ingest_batch([event()], [], [], nil, limiter: limiter) == {:error, :overloaded}
     assert Process.alive?(worker)
     monitor = Process.monitor(worker)
     send(worker, :finish)
-    assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}
+    assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}, 5_000
   end
 
   test "an overlapping batch waits for the insert slot instead of being rejected", %{limiter: limiter} do
@@ -60,13 +61,13 @@ defmodule Tuist.Kura.UsageIngestionTest do
     end)
 
     first = Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
-    assert_receive {:inserting, first_worker, _remaining}
+    assert_receive {:inserting, first_worker, _remaining}, 5_000
     second = Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
     refute_receive {:inserting, _, _}, 100
 
     send(first_worker, :finish)
     assert Task.await(first) == {:ok, 1}
-    assert_receive {:inserting, second_worker, remaining}
+    assert_receive {:inserting, second_worker, remaining}, 5_000
     # Time spent waiting comes out of the batch budget rather than extending it.
     assert remaining <= 2_900
     send(second_worker, :finish)
@@ -83,7 +84,7 @@ defmodule Tuist.Kura.UsageIngestionTest do
     end)
 
     running = Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
-    assert_receive {:inserting, worker}
+    assert_receive {:inserting, worker}, 5_000
     waiting = for _ <- 1..2, do: Task.async(fn -> Usage.ingest_batch([event()], [], [], nil, limiter: limiter) end)
     assert wait_for_pending_loads(limiter, 3) == 3
 
