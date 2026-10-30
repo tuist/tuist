@@ -193,6 +193,115 @@ struct GraphLinterTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
+    ) func lint_when_test_plan_references_unknown_target() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let projectPath: AbsolutePath = "/project/App"
+        let testPlan = TestPlan(
+            path: "/project/TestPlans/UnitTests.xctestplan",
+            testTargets: [
+                TestableTarget.test(target: TargetReference(projectPath: projectPath, name: "AppTests")),
+            ],
+            isDefault: true,
+            kind: .referenced
+        )
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: []),
+            testAction: .test(targets: [], testPlans: [testPlan]),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: projectPath,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App"),
+            ]
+        )
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [projectPath],
+            schemes: [scheme]
+        )
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [projectPath: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(
+            result ==
+                [LintingIssue(
+                    reason: "Test plan UnitTests.xctestplan references target 'AppTests' in project at App, which does not exist",
+                    severity: .warning,
+                    category: .schemeTargetNotFound
+                )]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_test_plan_references_known_target() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let projectPath: AbsolutePath = "/project/App"
+        let testPlan = TestPlan(
+            path: "/project/TestPlans/UnitTests.xctestplan",
+            testTargets: [
+                TestableTarget.test(target: TargetReference(projectPath: projectPath, name: "AppTests")),
+            ],
+            isDefault: true,
+            kind: .referenced
+        )
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: []),
+            testAction: .test(targets: [], testPlans: [testPlan]),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: projectPath,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "AppTests"),
+            ]
+        )
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [projectPath],
+            schemes: [scheme]
+        )
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [projectPath: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(result == [])
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
     ) func lint_when_scheme_codeCoverageTarget_references_localPackage() async throws {
         // Given
         let path: AbsolutePath = "/project"

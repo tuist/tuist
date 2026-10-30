@@ -45,16 +45,28 @@ public struct TestPlanDescriptor: Equatable {
         /// generated `.xctestplan`.
         public let parallelization: TestableTarget.Parallelization
 
+        /// Swift Testing tag names whose tests are the only ones the target runs. An empty array
+        /// omits the `selectedTags` key from the generated `.xctestplan`.
+        public let selectedTags: [String]
+
+        /// Swift Testing tag names whose tests the target skips. An empty array omits the
+        /// `skippedTags` key from the generated `.xctestplan`.
+        public let skippedTags: [String]
+
         public init(
             pbxTarget: PBXTarget,
             containerPath: String,
             isEnabled: Bool,
-            parallelization: TestableTarget.Parallelization
+            parallelization: TestableTarget.Parallelization,
+            selectedTags: [String] = [],
+            skippedTags: [String] = []
         ) {
             self.pbxTarget = pbxTarget
             self.containerPath = containerPath
             self.isEnabled = isEnabled
             self.parallelization = parallelization
+            self.selectedTags = selectedTags
+            self.skippedTags = skippedTags
         }
     }
 
@@ -133,7 +145,9 @@ public struct TestPlanDescriptor: Equatable {
                         name: target.pbxTarget.name
                     ),
                     enabled: target.isEnabled ? nil : false,
-                    parallelizable: target.parallelization.xcTestPlanValue
+                    parallelizable: target.parallelization.xcTestPlanValue,
+                    selectedTags: Self.tagList(target.selectedTags),
+                    skippedTags: Self.tagList(target.skippedTags)
                 )
             },
             configurations: [
@@ -146,6 +160,10 @@ public struct TestPlanDescriptor: Equatable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(plan)
+    }
+
+    private static func tagList(_ tags: [String]) -> XCTestPlan.TagList? {
+        tags.isEmpty ? nil : XCTestPlan.TagList(tags: tags)
     }
 
     /// Deterministic UUID derived from the plan's absolute path.

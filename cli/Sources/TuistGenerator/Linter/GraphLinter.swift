@@ -72,6 +72,9 @@ public struct GraphLinter: GraphLinting {
         await issues.append(contentsOf: measure("lintSchemesUnknownTargets") {
             lintSchemesUnknownTargets(graphTraverser: graphTraverser)
         })
+        await issues.append(contentsOf: measure("lintSchemesTestPlanTargets") {
+            lintSchemesTestPlanTargets(graphTraverser: graphTraverser)
+        })
         await issues.append(contentsOf: measure("lintSchemesRunAction") {
             lintSchemesRunAction(graphTraverser: graphTraverser)
         })
@@ -126,6 +129,30 @@ public struct GraphLinter: GraphLinting {
                 severity: .warning,
                 category: .schemeTargetNotFound
             )
+        }
+    }
+
+    /// A test plan's entries are not part of `Scheme.targetDependencies()`, so an entry pointing at
+    /// a target that is not in the graph — a typo, or a `containerPath` naming the wrong project —
+    /// goes unreported: the tree-shaker drops the entry and the scheme ends up with no test plans
+    /// at all. Both plan kinds are linted, since a generated plan's entries are not validated
+    /// anywhere else either.
+    private func lintSchemesTestPlanTargets(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        graphTraverser.schemes().flatMap { scheme in
+            (scheme.testAction?.testPlans ?? []).flatMap { testPlan in
+                testPlan.testTargets.compactMap { testableTarget -> LintingIssue? in
+                    let reference = testableTarget.target
+                    guard graphTraverser.target(path: reference.projectPath, name: reference.name) == nil else {
+                        return nil
+                    }
+                    let projectPath = reference.projectPath.relative(to: graphTraverser.path).pathString
+                    return LintingIssue(
+                        reason: "Test plan \(testPlan.path.basename) references target '\(reference.name)' in project at \(projectPath), which does not exist",
+                        severity: .warning,
+                        category: .schemeTargetNotFound
+                    )
+                }
+            }
         }
     }
 

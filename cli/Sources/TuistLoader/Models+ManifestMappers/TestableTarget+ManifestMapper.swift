@@ -41,7 +41,22 @@ extension XcodeGraph.TestableTarget {
             skipped: manifest.isSkipped,
             parallelization: parallelization,
             randomExecutionOrdering: manifest.isRandomExecutionOrdering,
-            simulatedLocation: simulatedLocation
+            simulatedLocation: simulatedLocation,
+            selectedTags: normalizedTags(manifest.selectedTags),
+            skippedTags: normalizedTags(manifest.skippedTags)
         )
+    }
+
+    /// Normalizes user-provided Swift Testing tag names into the spelling Xcode writes into
+    /// `.xctestplan` files, which is the Swift symbol spelling with its leading dot (`".contract"`).
+    /// A name that already contains a dot anywhere is passed through untouched, so a fully qualified
+    /// spelling such as `"Tag.contract"` is not mangled into `".Tag.contract"`. Whitespace is trimmed,
+    /// empty names are dropped, and order is preserved without deduplication.
+    private static func normalizedTags(_ tags: [String]) -> [String] {
+        tags.compactMap { tag in
+            let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            return trimmed.contains(".") ? trimmed : ".\(trimmed)"
+        }
     }
 }
