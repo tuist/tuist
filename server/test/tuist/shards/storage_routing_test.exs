@@ -117,6 +117,40 @@ defmodule Tuist.Shards.StorageRoutingTest do
              Shards.start_upload_for_plan_id(ProjectsFixtures.project_fixture(build_system: :mix), ctx.account, routed.id)
   end
 
+  test "uploads a just-created plan by reference before any ClickHouse replica returns it", ctx do
+    stub(FeatureFlags, :runner_shard_storage_enabled?, fn _ -> true end)
+    expect(Storage, :available?, fn _ -> true end)
+    xcode = ProjectsFixtures.project_fixture(build_system: :xcode, account_id: ctx.account.id)
+
+    %{plan: routed} =
+      Shards.create_shard_plan(ctx.project, %{reference: "routed", modules: ["Tests"], shard_total: 1}, ctx.opts)
+
+    %{plan: default} = Shards.create_shard_plan(xcode, %{reference: "routed", modules: ["AppTests"], shard_total: 1})
+
+    stub(Tuist.IngestRepo, :one, fn _queryable -> nil end)
+    stub(Tuist.ClickHouseRepo, :one, fn _queryable -> nil end)
+    routed_key = Shards.bundle_object_key(ctx.account, ctx.project, routed.id)
+    default_key = Shards.bundle_object_key(ctx.account, xcode, default.id)
+    account = ctx.account
+
+    expect(Storage, :multipart_start, fn ^routed_key, %S3Target{id: "gra-v1"} -> {:ok, "routed"} end)
+    expect(Storage, :multipart_generate_url, fn ^routed_key, "routed", 1, %S3Target{id: "gra-v1"} -> "routed-url" end)
+
+    expect(Storage, :multipart_complete_upload, fn ^routed_key, "routed", [{1, "etag"}], %S3Target{id: "gra-v1"} ->
+      :ok
+    end)
+
+    expect(Storage, :multipart_start, fn ^default_key, ^account -> {:ok, "default"} end)
+
+    assert {:ok, "routed"} = Shards.start_upload(ctx.project, ctx.account, "routed", nil, ctx.opts)
+
+    assert {:ok, "routed-url"} =
+             Shards.generate_upload_url(ctx.project, ctx.account, "routed", "routed", 1, nil, ctx.opts)
+
+    assert :ok = Shards.complete_upload(ctx.project, ctx.account, "routed", "routed", [{1, "etag"}], nil, ctx.opts)
+    assert {:ok, "default"} = Shards.start_upload(xcode, ctx.account, "routed")
+  end
+
   test "foreign and missing plan IDs cannot start, sign or complete an upload", ctx do
     foreign = ShardsFixtures.shard_plan_fixture()
     reject(&Storage.multipart_start/2)
