@@ -9,6 +9,7 @@ public enum MachineReadableOutput {
     ]
 
     public static func isEnabled(arguments: [String]) -> Bool {
+        let arguments = CommandLineArguments.beforePassthrough(arguments)
         if arguments.contains("--json") {
             return true
         }
@@ -25,6 +26,6 @@ public enum MachineReadableOutput {
     }
 
     public static func isQuiet(arguments: [String]) -> Bool {
-        arguments.contains("--quiet")
+        CommandLineArguments.beforePassthrough(arguments).contains("--quiet")
     }
 }

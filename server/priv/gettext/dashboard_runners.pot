@@ -48,7 +48,7 @@ msgstr ""
 msgid "Avg. workflow duration"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:946
+#: lib/tuist/runners/analytics.ex:976
 #: lib/tuist_web/live/runner_job_live.html.heex:190
 #: lib/tuist_web/live/runner_jobs_live.ex:507
 #: lib/tuist_web/live/runner_jobs_live.html.heex:618
@@ -71,7 +71,7 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:910
+#: lib/tuist/runners/analytics.ex:940
 #: lib/tuist_web/live/runner_job_live.ex:265
 #: lib/tuist_web/live/runner_jobs_live.ex:498
 #: lib/tuist_web/live/runner_jobs_live.ex:523
@@ -119,7 +119,7 @@ msgstr ""
 msgid "Custom"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:949
+#: lib/tuist/runners/analytics.ex:979
 #: lib/tuist_web/live/runner_jobs_live.ex:562
 #: lib/tuist_web/live/runner_jobs_live.html.heex:553
 #: lib/tuist_web/live/runner_jobs_live.html.heex:641
@@ -150,7 +150,7 @@ msgstr ""
 msgid "Failed jobs"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:909
+#: lib/tuist/runners/analytics.ex:939
 #: lib/tuist_web/live/runner_jobs_live.ex:497
 #: lib/tuist_web/live/runner_jobs_live.ex:522
 #: lib/tuist_web/live/runner_workflow_live.ex:176
@@ -167,7 +167,7 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:944
+#: lib/tuist/runners/analytics.ex:974
 #: lib/tuist_web/components/runs/ci_context_card.ex:48
 #: lib/tuist_web/live/runner_jobs_live.ex:560
 #: lib/tuist_web/live/runner_jobs_live.html.heex:537
@@ -311,7 +311,7 @@ msgstr ""
 msgid "Recent jobs"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:945
+#: lib/tuist/runners/analytics.ex:975
 #: lib/tuist_web/live/runner_job_live.html.heex:206
 #: lib/tuist_web/live/runner_jobs_live.html.heex:599
 #: lib/tuist_web/live/runner_volumes_live.ex:223
@@ -340,7 +340,7 @@ msgstr ""
 msgid "Running"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:911
+#: lib/tuist/runners/analytics.ex:941
 #: lib/tuist_web/live/runner_job_live.ex:268
 #: lib/tuist_web/live/runner_job_live.ex:582
 #: lib/tuist_web/live/runner_jobs_live.ex:499
@@ -353,7 +353,7 @@ msgstr ""
 msgid "Skipped"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:947
+#: lib/tuist/runners/analytics.ex:977
 #: lib/tuist_web/live/runner_job_live.html.heex:135
 #: lib/tuist_web/live/runner_jobs_live.ex:489
 #: lib/tuist_web/live/runner_jobs_live.html.heex:366
@@ -367,7 +367,7 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:908
+#: lib/tuist/runners/analytics.ex:938
 #: lib/tuist_web/live/runner_jobs_live.ex:496
 #: lib/tuist_web/live/runner_jobs_live.ex:521
 #: lib/tuist_web/live/runner_workflow_live.ex:175
@@ -428,10 +428,10 @@ msgstr ""
 msgid "Total wall-clock time from the first job start to the last job completion in a workflow run."
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:906
-#: lib/tuist/runners/analytics.ex:907
-#: lib/tuist/runners/analytics.ex:953
-#: lib/tuist/runners/analytics.ex:954
+#: lib/tuist/runners/analytics.ex:936
+#: lib/tuist/runners/analytics.ex:937
+#: lib/tuist/runners/analytics.ex:983
+#: lib/tuist/runners/analytics.ex:984
 #: lib/tuist_web/components/runs/ci_context_card.ex:101
 #: lib/tuist_web/live/runner_job_live.ex:278
 #: lib/tuist_web/live/runner_job_live.ex:289
@@ -471,7 +471,7 @@ msgstr ""
 msgid "View more"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:943
+#: lib/tuist/runners/analytics.ex:973
 #: lib/tuist_web/components/runs/ci_context_card.ex:35
 #: lib/tuist_web/live/runner_jobs_live.ex:474
 #: lib/tuist_web/live/runner_jobs_live.ex:561
@@ -742,7 +742,7 @@ msgstr ""
 msgid "All job runs"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:926
+#: lib/tuist/runners/analytics.ex:956
 #: lib/tuist_web/live/runner_job_live.ex:286
 #: lib/tuist_web/live/runner_jobs_live.ex:557
 #: lib/tuist_web/live/runner_jobs_live.ex:601
@@ -770,7 +770,7 @@ msgstr ""
 msgid "Platform:"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:923
+#: lib/tuist/runners/analytics.ex:953
 #: lib/tuist_web/live/runner_job_live.ex:283
 #: lib/tuist_web/live/runner_jobs_live.ex:556
 #: lib/tuist_web/live/runner_jobs_live.ex:598
@@ -789,13 +789,13 @@ msgstr ""
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range, repository, or platform."
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:929
-#: lib/tuist/runners/analytics.ex:933
+#: lib/tuist/runners/analytics.ex:959
+#: lib/tuist/runners/analytics.ex:963
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr ""
 
-#: lib/tuist/runners/analytics.ex:948
+#: lib/tuist/runners/analytics.ex:978
 #: lib/tuist_web/live/runner_job_live.html.heex:181
 #: lib/tuist_web/live/runner_jobs_live.html.heex:367
 #: lib/tuist_web/live/runner_jobs_live.html.heex:418

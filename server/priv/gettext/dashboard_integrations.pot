@@ -21,7 +21,7 @@ msgstr ""
 #: lib/tuist_web/components/amp_integration.ex:274
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
-#: lib/tuist_web/live/integrations_live.html.heex:980
+#: lib/tuist_web/live/integrations_live.html.heex:794
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -176,8 +176,8 @@ msgstr ""
 msgid "Buildkite"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:899
-#: lib/tuist_web/live/integrations_live.html.heex:964
+#: lib/tuist_web/live/integrations_live.html.heex:713
+#: lib/tuist_web/live/integrations_live.html.heex:778
 #, elixir-autogen, elixir-format
 msgid "Cluster agent token"
 msgstr ""
@@ -186,20 +186,20 @@ msgstr ""
 #: lib/tuist_web/components/amp_integration.ex:240
 #: lib/tuist_web/live/integrations_live.html.heex:526
 #: lib/tuist_web/live/integrations_live.html.heex:578
-#: lib/tuist_web/live/integrations_live.html.heex:704
-#: lib/tuist_web/live/integrations_live.html.heex:752
-#: lib/tuist_web/live/integrations_live.html.heex:935
-#: lib/tuist_web/live/integrations_live.html.heex:988
+#: lib/tuist_web/live/integrations_live.html.heex:749
+#: lib/tuist_web/live/integrations_live.html.heex:802
+#: lib/tuist_web/live/integrations_live.html.heex:855
+#: lib/tuist_web/live/integrations_live.html.heex:903
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:923
+#: lib/tuist_web/live/integrations_live.html.heex:737
 #, elixir-autogen, elixir-format
 msgid "Connect Buildkite"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:925
+#: lib/tuist_web/live/integrations_live.html.heex:739
 #, elixir-autogen, elixir-format
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
 msgstr ""
@@ -208,13 +208,13 @@ msgstr ""
 #: lib/tuist_web/components/amp_integration.ex:249
 #: lib/tuist_web/components/amp_integration.ex:281
 #: lib/tuist_web/live/integrations_live.html.heex:504
-#: lib/tuist_web/live/integrations_live.html.heex:680
-#: lib/tuist_web/live/integrations_live.html.heex:864
+#: lib/tuist_web/live/integrations_live.html.heex:678
+#: lib/tuist_web/live/integrations_live.html.heex:831
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:953
+#: lib/tuist_web/live/integrations_live.html.heex:767
 #, elixir-autogen, elixir-format
 msgid "Organization slug"
 msgstr ""
@@ -225,12 +225,12 @@ msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues
 msgstr ""
 
 #: lib/tuist_web/components/amp_integration.ex:224
-#: lib/tuist_web/live/integrations_live.html.heex:967
+#: lib/tuist_web/live/integrations_live.html.heex:781
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:889
+#: lib/tuist_web/live/integrations_live.html.heex:703
 #, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr ""
@@ -242,7 +242,7 @@ msgstr ""
 
 #: lib/tuist_web/components/amp_integration.ex:169
 #: lib/tuist_web/live/integrations_live.html.heex:656
-#: lib/tuist_web/live/integrations_live.html.heex:908
+#: lib/tuist_web/live/integrations_live.html.heex:722
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr ""
@@ -460,8 +460,8 @@ msgstr ""
 msgid "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:743
-#: lib/tuist_web/live/integrations_live.html.heex:827
+#: lib/tuist_web/live/integrations_live.html.heex:894
+#: lib/tuist_web/live/integrations_live.html.heex:978
 #, elixir-autogen, elixir-format
 msgid "API token"
 msgstr ""
@@ -471,12 +471,12 @@ msgstr ""
 msgid "Add pool"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:666
+#: lib/tuist_web/live/integrations_live.html.heex:817
 #, elixir-autogen, elixir-format
 msgid "Bitrise"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:692
+#: lib/tuist_web/live/integrations_live.html.heex:843
 #, elixir-autogen, elixir-format
 msgid "Connect Bitrise"
 msgstr ""
@@ -486,12 +486,12 @@ msgstr ""
 msgid "Pool token"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:797
+#: lib/tuist_web/live/integrations_live.html.heex:948
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:783
+#: lib/tuist_web/live/integrations_live.html.heex:934
 #, elixir-autogen, elixir-format
 msgid "Runner pools"
 msgstr ""
@@ -501,7 +501,7 @@ msgstr ""
 msgid "Stack ID"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:784
+#: lib/tuist_web/live/integrations_live.html.heex:935
 #, elixir-autogen, elixir-format
 msgid "A build runs on Tuist when its workflow selects the pool's stack under Stacks & Machines in Bitrise."
 msgstr ""
@@ -531,7 +531,7 @@ msgstr ""
 msgid "Choose one of your Tuist profiles."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:671
+#: lib/tuist_web/live/integrations_live.html.heex:822
 #, elixir-autogen, elixir-format
 msgid "Connected to %{workspace}. Pair each runner pool with a Tuist profile to run its builds on Tuist runners."
 msgstr ""
@@ -541,12 +541,12 @@ msgstr ""
 msgid "Every runner pool in this workspace is paired. To add another, create a pool in Bitrise under Workspace settings, then Infrastructure."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:694
+#: lib/tuist_web/live/integrations_live.html.heex:845
 #, elixir-autogen, elixir-format
 msgid "In Bitrise, open Workspace settings, then Security, and create a workspace API token with the Viewer role and Tester/QA access to Bitrise CI. Tuist only uses it to read your builds."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:807
+#: lib/tuist_web/live/integrations_live.html.heex:958
 #, elixir-autogen, elixir-format
 msgid "Loading runner pools from Bitrise…"
 msgstr ""
@@ -556,7 +556,7 @@ msgstr ""
 msgid "Reload pools"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:667
+#: lib/tuist_web/live/integrations_live.html.heex:818
 #, elixir-autogen, elixir-format
 msgid "Run builds of your self-hosted Bitrise runner pools on Tuist runners. Your workflows stay on Bitrise; only the machines change."
 msgstr ""
@@ -577,7 +577,7 @@ msgstr ""
 msgid "This API token can't see the connected workspace. Disconnect first to switch workspaces."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:724
+#: lib/tuist_web/live/integrations_live.html.heex:875
 #, elixir-autogen, elixir-format
 msgid "This token can see several workspaces. Choose the one whose runner pools Tuist should serve."
 msgstr ""
@@ -603,17 +603,17 @@ msgstr ""
 msgid "Tuist profile"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:722
+#: lib/tuist_web/live/integrations_live.html.heex:873
 #, elixir-autogen, elixir-format
 msgid "Workspace"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:829
+#: lib/tuist_web/live/integrations_live.html.heex:980
 #, elixir-autogen, elixir-format
 msgid "Paste a new token to replace the stored one. It must belong to the same workspace."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:842
+#: lib/tuist_web/live/integrations_live.html.heex:993
 #, elixir-autogen, elixir-format
 msgid "Update token"
 msgstr ""

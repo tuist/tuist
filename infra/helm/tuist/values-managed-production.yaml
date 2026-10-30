@@ -2276,7 +2276,7 @@ sandboxes:
   # Deploy the daemon; account access is controlled by the `sandboxes` flag.
   enabled: true
   image:
-    tag: "sha-3b10e1eddbaf"
+    tag: "sha-1949e6dfc6f9"
   templateImage:
     tag: "sha-56965cb61732"
   nodePools:
