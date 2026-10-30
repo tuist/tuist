@@ -116,12 +116,13 @@ workflow code runs in the guest. Never expose host credentials or masters.
   comes from ConfigMaps labelled
   `tuist.dev/upcoming-runner-images=true`, keyed `<xcode>.<variant>`, which
   the `announce` job of `runner-image-release.yml` writes into canary and
-  production. A deploy holds each pool on its current image until every
-  Ready, schedulable Node holding the current image's golden label also
+  production as the release publishes each image. A deploy holds each pool
+  on its current image until every Ready, schedulable Node holding the
+  current image's golden label also
   holds the new one (`.github/scripts/runner-image-staging-gate.sh`, run by
   `server-deployment.yml` before the chart upgrade), and `announce` waits for
   the same before it dispatches the release's deploy. Both give up an hour
-  after the announcement (`tuist.dev/runner-image-announced-at`), and a
+  after the latest announcement (`tuist.dev/runner-image-announced-at`), and a
   release dispatched with `skip_staging` moves the pools at once
   (`tuist.dev/runner-image-staging: skip`). Canary's deploy instead waits up
   to 30 minutes for staging, ignoring the hour, and fails closed, so runners

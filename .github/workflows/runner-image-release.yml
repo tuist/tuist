@@ -427,20 +427,25 @@ jobs:
           # action reads only this input, not GITHUB_TOKEN from env.
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
-  # Names this release's images to each cluster's macOS hosts, which pull the
-  # next image of each pool they serve in the background
-  # (infra/tart-kubelet/AGENTS.md), and waits until they hold it before the
-  # deploy below is dispatched. Deploys hold each pool on its current image
-  # until then (.github/scripts/runner-image-staging-gate.sh), so the first job
-  # of a new image on a host does not wait 6 to 7 minutes for the pull. Both
-  # give up an hour after the announcement, and `skip_staging` moves the pools
-  # at once. A failure here dispatches the deploy, which moves the pools.
+  # Names this release's images to each cluster's macOS hosts as the builds
+  # publish them, so hosts pull the next image of each pool they serve in the
+  # background (infra/tart-kubelet/AGENTS.md) while the other builds run, and
+  # waits until they hold them before the deploy below is dispatched. Deploys
+  # hold each pool on its current image until then
+  # (.github/scripts/runner-image-staging-gate.sh), so the first job of a new
+  # image on a host does not wait 6 to 7 minutes for the pull. Both give up an
+  # hour after the latest announcement, and `skip_staging` moves the pools at
+  # once. A failure here dispatches the deploy, which moves the pools.
   announce:
     name: Announce upcoming runner images (${{ matrix.environment }})
-    needs: [plan, release]
-    if: always() && needs.release.result == 'success'
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
     runs-on: tuist-linux
-    timeout-minutes: 75
+    # Covers the build phase it runs alongside plus the hour of staging.
+    timeout-minutes: 360
+    permissions:
+      actions: read
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -472,10 +477,14 @@ jobs:
         env:
           VERSION: ${{ needs.plan.outputs.version }}
           STAGING: ${{ inputs.skip_staging && 'skip' || 'wait' }}
+          GH_TOKEN: ${{ github.token }}
         # Keys are `<xcode>.<variant>`, as tart-kubelet looks them up from a
         # RunnerPool's `tuist.dev/xcode-version` and
         # `tuist.dev/runner-image-variant` labels; values are the image by the
-        # digest the deploy will resolve for the same tag.
+        # digest the deploy will resolve for the same tag. Each write names the
+        # images published so far and moves `announced-at` to its own time; a
+        # failed or cancelled build fails this step, so re-running the failed
+        # jobs announces again.
         run: |
           set -euo pipefail
           namespace="$(kubectl get runnerpools.tuist.dev -A -l tuist.dev/runner-image-variant \
@@ -484,26 +493,61 @@ jobs:
             echo "No RunnerPool follows the runner image catalog in ${{ matrix.environment }}."
             exit 0
           fi
-          args=()
+          profiles="$(jq -r '.[]' infra/runner-image/profiles.json)"
           digests='{}'
           stacked_digests='{}'
-          for xcode in $(jq -r '.[]' infra/runner-image/profiles.json); do
-            tag="macos-${xcode//./-}-${VERSION}"
-            standalone="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "$tag")"
-            stacked="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "${tag}-stacked")"
-            args+=(--from-literal "${xcode}.standalone=ghcr.io/tuist/tuist-runner@${standalone}")
-            args+=(--from-literal "${xcode}.stacked=ghcr.io/tuist/tuist-runner@${stacked}")
-            digests="$(jq -c --arg xcode "$xcode" --arg digest "$standalone" '. + {($xcode): $digest}' <<< "$digests")"
-            stacked_digests="$(jq -c --arg xcode "$xcode" --arg digest "$stacked" '. + {($xcode): $digest}' <<< "$stacked_digests")"
+          announced=''
+          while :; do
+            pending=0
+            for xcode in $profiles; do
+              tag="macos-${xcode//./-}-${VERSION}"
+              if [ "$(jq -r --arg xcode "$xcode" '.[$xcode] // ""' <<< "$digests")" = "" ]; then
+                if digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "$tag" 2>/dev/null)"; then
+                  digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$digests")"
+                else
+                  pending=$((pending + 1))
+                fi
+              fi
+              if [ "$(jq -r --arg xcode "$xcode" '.[$xcode] // ""' <<< "$stacked_digests")" = "" ]; then
+                if digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "${tag}-stacked" 2>/dev/null)"; then
+                  stacked_digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$stacked_digests")"
+                else
+                  pending=$((pending + 1))
+                fi
+              fi
+            done
+
+            current="${digests}${stacked_digests}"
+            if [ "$current" != "$announced" ] && [ "$current" != '{}{}' ]; then
+              args=()
+              while IFS=$'\t' read -r key digest; do
+                args+=(--from-literal "${key}=ghcr.io/tuist/tuist-runner@${digest}")
+              done < <(jq -rn --argjson standalone "$digests" --argjson stacked "$stacked_digests" '
+                ($standalone | to_entries[] | ["\(.key).standalone", .value]),
+                ($stacked | to_entries[] | ["\(.key).stacked", .value]) | @tsv')
+              kubectl create configmap tuist-upcoming-runner-images --namespace "$namespace" "${args[@]}" \
+                --dry-run=client -o yaml |
+                kubectl label --local -f - tuist.dev/upcoming-runner-images=true -o yaml |
+                kubectl annotate --local -f - \
+                  "tuist.dev/runner-image-release=${VERSION}" \
+                  "tuist.dev/runner-image-announced-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                  "tuist.dev/runner-image-staging=${STAGING}" -o yaml |
+                kubectl apply --server-side --field-manager=runner-image-release --force-conflicts -f -
+              echo "Announced $(( ${#args[@]} / 2 )) of $(( $(wc -w <<< "$profiles") * 2 )) images at $(date -u +%H:%M:%SZ)."
+              announced="$current"
+            fi
+            [ "$pending" -eq 0 ] && break
+
+            failed="$(gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs" \
+              --jq '.jobs[] | select(.name | test("^(Build (stacked )?runner image|Re-tag unchanged runner images)"))
+                | select(.conclusion == "failure" or .conclusion == "cancelled") | .name')"
+            if [ -n "$failed" ]; then
+              echo "::error::This release will not publish every image; failed builds: ${failed//$'\n'/, }"
+              exit 1
+            fi
+            sleep 60
           done
-          kubectl create configmap tuist-upcoming-runner-images --namespace "$namespace" "${args[@]}" \
-            --dry-run=client -o yaml |
-            kubectl label --local -f - tuist.dev/upcoming-runner-images=true -o yaml |
-            kubectl annotate --local -f - \
-              "tuist.dev/runner-image-release=${VERSION}" \
-              "tuist.dev/runner-image-announced-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-              "tuist.dev/runner-image-staging=${STAGING}" -o yaml |
-            kubectl apply --server-side --field-manager=runner-image-release --force-conflicts -f -
           {
             echo "digests=$digests"
             echo "stacked-digests=$stacked_digests"

@@ -497,14 +497,18 @@ CI:
      (`runnersFleet.runnerImageDigests`). Pools name the digest, so a
      carried profile's pools, warm Pods and host goldens stay as they
      were. A profile tag that cannot be resolved fails the deploy.
-  5. `announce` writes each profile's standalone and stacked digest into
-     the `tuist-upcoming-runner-images` ConfigMap of canary and
-     production, so their macOS hosts pull the images their pools move
-     to, and waits until they hold them (see "stages" in
-     `infra/tart-kubelet/AGENTS.md`). Every deploy holds a pool on its
-     current image until then, for up to an hour; dispatch the release
-     with `skip_staging` to move the pools at once. A failure in
-     `announce` does not hold the deploy.
+  5. `announce` runs alongside the builds. It writes each profile's
+     standalone and stacked digest into the
+     `tuist-upcoming-runner-images` ConfigMap of canary and production
+     as soon as its tag is published, so their macOS hosts pull the
+     images their pools move to while the other builds run, and once
+     every image is named it waits until the hosts hold them (see
+     "stages" in `infra/tart-kubelet/AGENTS.md`). Every deploy holds a
+     pool on its current image until then, for up to an hour after the
+     latest announcement; dispatch the release with `skip_staging` to
+     move the pools at once. A failed or cancelled build fails
+     `announce`, and a failure in `announce` does not hold the deploy.
+     Hosts can stage images of a release that then fails to publish.
   6. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 
