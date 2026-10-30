@@ -159,11 +159,11 @@ other_guidance=""
   PostgreSQL 16 (systemd, trust auth), compiled the server and created and migrated its databases.
 - `.agents/resume` starts ClickHouse; rerun `mise run clickhouse:start` from `server/` if it is down.
 - This checkout's dev instance is 100: server on port 8180, databases `tuist_development_100`.
-- Start the server with `amp orb services ensure` (service `server`). The dev database is not seeded
-  until the first server start: the server comes up first and the seed then fills the database for
-  about 4 minutes (`amp orb service logs server`). Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.
+- Start the server with `amp orb services ensure` (service `server`). The dev database is seeded on
+  the first server start, before the server boots, so that start takes about 5 minutes; follow it with
+  `amp orb service logs server`. Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.
   To seed without the server, run `mise run db:seed` from `server/`.
-- The server test build is not precompiled: the first `MIX_ENV=test` compile or `mix test` takes about 8 minutes.
+- The server test build is not precompiled: the first `MIX_ENV=test` compile or `mix test` takes about 6 minutes.
 - macOS-only work (Xcode, `tuist generate`, Swift app targets) is not possible in this orb.
 EOF
 } >"$guidance.tmp"
