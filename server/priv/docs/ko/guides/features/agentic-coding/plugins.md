@@ -2,7 +2,7 @@
 {
   "title": "플러그인",
   "titleTemplate": ":title · 에이전트 코딩 · 기능 · 가이드 · Tuist",
-  "description": "Cursor용 Tuist 플러그인 또는 벤더 중립적인 Agent Plugins 패키지를 설치하세요."
+  "description": "Cursor용 Tuist 플러그인이나 벤더 중립적인 에이전트 플러그인 패키지를 설치하세요."
 }
 ---
 
@@ -12,7 +12,7 @@ Tuist는 에이전트 스킬과 호스팅된 MCP 서버를 플러그인으로 �
 
 ## Claude Code
 
-[Tuist Claude Code 마켓플레이스](https://github.com/tuist/claude-plugin)에서 Tuist 플러그인을 다음 명령어로 설치할 수 있습니다:
+[Tuist Claude Code 마켓플레이스](https://github.com/tuist/claude-plugin)는 Tuist 플러그인을 다음 명령어로 설치할 수 있도록 패키징합니다:
 
 ```bash
 claude plugin marketplace add tuist/claude-plugin
@@ -35,17 +35,17 @@ Cursor에서 `/add-plugin`을 입력하여 동일한 설치 흐름을 열 수도
 
 ## 기타 코딩 에이전트
 
-[Tuist Agent Plugin](https://github.com/tuist/agent-plugin)은 오픈且벤더 중립적인 [Agent Plugins](https://agent-plugins.org/) 표준을 따릅니다. 호환되는 클라이언트의 플러그인 디렉터리 설치 또는 참조 지침에 따라 리포지토리를 지정하세요:
+[Tuist Agent Plugin](https://github.com/tuist/agent-plugin)은 오픈且벤더 중립적인 [Agent Plugins](https://agent-plugins.org/) 표준을 따릅니다. 해당 클라이언트의 플러그인 디렉터리 설치 또는 참조 지침에 따라 호환되는 클라이언트를 리포지토리로 지정하세요:
 
 ```bash
 git clone https://github.com/tuist/agent-plugin.git
 ```
 
-이 플러그인은 Tuist 스킬을 설치하고 `https://tuist.dev/mcp`을 원격 MCP 서버로 등록합니다. Agent Plugins를 아직 지원하지 않는 클라이언트의 경우, [스킬](/guides/features/agentic-coding/skills)을 설치하거나 [MCP 서버](/guides/features/agentic-coding/mcp)를 별도로 구성하세요.
+이 플러그인은 Tuist 스킬을 설치하고 `https://tuist.dev/mcp`을 원격 MCP 서버로 등록합니다. 아직 Agent Plugins를 지원하지 않는 클라이언트의 경우, [스킬](/guides/features/agentic-coding/skills)을 설치하거나 [MCP 서버](/guides/features/agentic-coding/mcp)를 별도로 구성하세요.
 
 ## 인증
 
-대부분의 스킬은 Tuist 명령줄 인터페이스를 사용하므로, 에이전트가 프로젝트 데이터에 접근하기 전에 한 번 인증하세요:
+대부분의 스킬은 Tuist 명령줄 인터페이스를 사용하므로, 에이전트가 프로젝트 데이터에 액세스하도록 요청하기 전에 한 번 인증하세요:
 
 ```bash
 tuist auth login

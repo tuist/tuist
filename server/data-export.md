@@ -821,7 +821,9 @@ The archive contains everything needed to understand the account's complete data
   volumes and registry images are also subject to a 26 decimal GB aggregate guest
   filesystem-use target before publication and after merging, below the host's
   30 GB allocated-byte limit. Least-recently-used images or whole builder volumes
-  are evicted when necessary. `tuist/builders.json` inside the same image records
+  are evicted when necessary. When a finished job's data root is merged with a
+  copy another job saved meanwhile, an image or builder volume that either job
+  removed is not restored from the other copy. `tuist/builders.json` inside the same image records
   hashed builder-volume names and last-use timestamps for this policy; it is
   included in detached-image exports and has no separate database table. Deleted
   filesystem blocks are discarded before upload. Builder volumes otherwise follow

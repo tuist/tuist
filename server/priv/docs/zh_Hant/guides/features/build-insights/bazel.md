@@ -2,27 +2,27 @@
 {
   "title": "Bazel 建置洞察",
   "titleTemplate": ":title · 建置洞察 · 功能 · 指南 · Tuist",
-  "description": "在 Tuist 儀表板中追蹤 Bazel 指令持續時間、快取總量與關鍵路徑診斷。"
+  "description": "在 Tuist 儀表板中追蹤 Bazel 指令執行時間、快取總量與關鍵路徑診斷。"
 }
 ---
 # Bazel 建置洞察 {#bazel-build-insights}
 
 每次完成的 `build`、`test` 及其他 Bazel 指令都會顯示在專案的 **叫用** 儀表板中：包含指令類型、結束狀態、開始與結束時間、持續時間，以及 Bazel 歸因於該次叫用的快取命中、未命中、下載和上傳。
 
-叫用資料透過 Bazel 的 [Build Event Protocol](https://bazel.build/remote/bep) 傳送。當你執行 `tuist bazel setup` 時，設定會自動為你連線；無需額外旗標即可開始查看叫用。
+叫用資料透過 Bazel 的 [Build Event Protocol](https://bazel.build/remote/bep) 傳遞。當你執行 `tuist bazel setup` 時，設定會自動為你接好；無需額外旗標即可開始查看叫用。
 
 ## 儀表板顯示內容 {#what-the-dashboard-shows}
 
 每次叫用會記錄：
 
 - Bazel 執行的指令、其結束代碼、開始與結束時間，以及總持續時間。
-- 動作、目標和套件數量。
-- 有限的建置時間軸與關鍵路徑摘要。
+- 動作、目標和套件的數量。
+- 有界建置時間軸和關鍵路徑摘要。
 - 歸因於該次叫用的快取命中、未命中、下載和上傳。
-- 執行期間依執行順序擷取的進度紀錄行。
-- Bazel 版本、Bazel 回報時的 git 分支與提交，以及該次執行是否發生在 CI 上。
+- 執行期間依執行順序擷取的進度記錄行。
+- Bazel 版本、Git 分支與提交（當 Bazel 回報時），以及該次執行是否發生在 CI 上。
 
-Bazel 無法歸因至已完成叫用的快取活動（例如指令在中途被中斷），仍會以原始遠端快取觀察結果的形式出現在專案 **概覽** 中。這些資料不會被視為指令成功、持續時間或測試結果的證據。
+Bazel 無法歸因於已完成叫用的快取活動（例如指令在執行中途被中斷），仍會以原始遠端快取觀察結果的形式出現在專案 **概覽** 中。這些資料不會被視為指令成功、持續時間或測試結果的證據。
 
 ## 自訂中繼資料 {#custom-metadata}
 
@@ -48,7 +48,7 @@ Tuist 從建置環境衍生的內容鍵（例如 `CI`、`GIT_BRANCH` 和 `GIT_CO
 
 ## 選擇退出 {#opting-out}
 
-Build Event Protocol 串流會攜帶命令列引數、環境變數值和指令輸出。Tuist 僅保留上述已完成的指令欄位並捨棄其餘資料，但如果你完全不想傳送事件串流，請重新執行設定：
+Build Event Protocol 串流會攜帶命令列引數、環境變數值和指令輸出。Tuist 僅保留上述已完成指令的欄位並捨棄其餘部分，但如果你完全不想傳送事件串流，請重新執行設定：
 
 ```bash
 tuist bazel setup --no-build-insights
@@ -58,4 +58,4 @@ tuist bazel setup --no-build-insights
 
 ## 資料保留 {#data-retention}
 
-Tuist 會保留 Bazel 叫用及其紀錄 90 天。完整政策請參閱 <.localized_link href="/guides/server/data-retention">資料保留</.localized_link>。
+Tuist 會保留 Bazel 叫用及其記錄 90 天。如需完整政策，請參閱 <.localized_link href="/guides/server/data-retention">資料保留</.localized_link>。

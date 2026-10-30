@@ -7,7 +7,7 @@
 ---
 # Depuración {#debugging}
 
-Ser abierto es una ventaja práctica: el código está disponible, puedes ejecutarlo localmente y puedes usar agentes de programación para responder preguntas más rápido y depurar posibles errores en la base de código.
+Ser abierto es una ventaja práctica: el código está disponible, puedes ejecutarlo localmente y usar agentes de programación para responder preguntas más rápido y depurar posibles errores en la base de código.
 
 Si encuentras documentación faltante o incompleta mientras depuras, actualiza la documentación en inglés bajo `docs/` y abre un PR.
 
@@ -25,24 +25,24 @@ kill -USR1 "$TUIST_PID"
 wait "$TUIST_PID"
 ```
 
-Si `TUIST_THREAD_DUMP_SAMPLE` no está establecido, el manejador imprime la pila del hilo actual. La salida se escribe en stderr, por lo que aparece en los registros de CI.
+Si `TUIST_THREAD_DUMP_SAMPLE` no está configurado, el manejador imprime la pila del hilo actual. La salida se escribe en stderr, por lo que aparece en los registros de CI.
 
 ## Usar agentes de programación {#use-coding-agents}
 
 Los agentes de programación son útiles para:
 
-- Escanear la base de código para ver dónde se implementa un comportamiento.
+- Explorar la base de código para identificar dónde se implementa un comportamiento.
 - Reproducir problemas localmente e iterar rápidamente.
 - Rastrear cómo fluyen las entradas a través de Tuist para encontrar la causa raíz.
 
 Comparte la reproducción más pequeña posible y dirige al agente hacia el componente específico (CLI, servidor, caché, docs o handbook). Cuanto más enfocado sea el alcance, más rápido y preciso será el proceso de depuración.
 
-### Prompts frecuentemente necesarios (FNP) {#frequently-needed-prompts}
+### Indicaciones frecuentemente necesarias (FNP) {#frequently-needed-prompts}
 
-#### Generación de proyecto inesperada {#unexpected-project-generation}
+#### Generación inesperada del proyecto {#unexpected-project-generation}
 
-La generación del proyecto me está dando algo que no espero. Ejecuta la CLI de Tuist contra mi proyecto en `/path/to/project` para entender por qué está ocurriendo esto. Rastrea el pipeline del generador y señala las rutas de código responsables del resultado.
+La generación del proyecto me está dando algo que no espero. Ejecuta la CLI de Tuist contra mi proyecto en `/path/to/project` para entender por qué ocurre esto. Rastrea el pipeline del generador e indica las rutas de código responsables del resultado.
 
 #### Error reproducible en proyectos generados {#reproducible-bug-in-generated-projects}
 
-Esto parece un error en los proyectos generados. Crea un proyecto reproducible bajo `examples/`, usando ejemplos existentes como referencia. Añade un test de aceptación que falle, ejecútalo mediante `xcodebuild` con solo ese test seleccionado, corrige el problema, vuelve a ejecutar el test para confirmar que pasa y abre un PR.
+Esto parece un error en los proyectos generados. Crea un proyecto reproducible bajo `examples/`, usando ejemplos existentes como referencia. Añade una prueba de aceptación que falle, ejecútala mediante `xcodebuild` seleccionando solo esa prueba, corrige el problema, vuelve a ejecutar la prueba para confirmar que pasa y abre un PR.

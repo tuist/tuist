@@ -928,6 +928,11 @@ defmodule Tuist.Runners.Jobs do
     end
   end
 
+  defp lifecycle_job(%WorkflowJob{} = row, replica) do
+    job = struct(Job, WorkflowJobs.replica_row(row))
+    %{job | log_archived_at: row.log_archived_at || (replica && replica.log_archived_at)}
+  end
+
   @doc """
   The current ClickHouse row of up to `limit` jobs with a
   `workflow_job_id` above `after_id`, in id order, across every account.
@@ -959,11 +964,6 @@ defmodule Tuist.Runners.Jobs do
         |> order_by([j], j.workflow_job_id)
         |> ClickHouseRepo.all()
     end
-  end
-
-  defp lifecycle_job(%WorkflowJob{} = row, replica) do
-    job = struct(Job, WorkflowJobs.replica_row(row))
-    %{job | log_archived_at: row.log_archived_at || (replica && replica.log_archived_at)}
   end
 
   @doc """

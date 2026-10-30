@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "9844d402c401eee4a1d76032ae25ed2465fe698acfc5cdeb31c447d210d7e36e",
+  "hash": "f107ea94d07891202cbfba21397493ca02eb7d8c26f8155abada3f74e5741f0c",
   "hash_tree": {
     "root": {
       "children": [
@@ -137,7 +137,7 @@
                     "sections_omitted": 0
                   },
                   "server/priv/docs/L10N.md": {
-                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "content_hash": "a252a3620c5beaa04ea8bded5baaaea6f6107f91ddded57992a31b0350ed77a7",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Docs Markdown Translation Context": {
@@ -150,21 +150,21 @@
                         "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
                       },
                       "## Translation scope": {
-                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                        "content_hash": "f0dfddd4a93348998e35a9c05638d1e80d0d13291e8d23a91ae7e078228104ed"
                       },
                       "## Translation workflow": {
-                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                        "content_hash": "dc3de3dd611d170c3fe5a6b25f405676369e86a2a44a259df05fd739d66a678f"
                       }
                     },
                     "sections_omitted": 0
                   }
                 }
               },
-              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
               }
             },
             {
@@ -247,21 +247,21 @@
             }
           ],
           "details": {},
-          "hash": "056e267d31144313cc738d8ba1a0be975677be3cb5bef8e3bf498d334ccd9278",
+          "hash": "a067ccf822e446b09fa896de73f4542dd3f4acbc84f43c0b7fdd2e11b7e0d7c6",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "9844d402c401eee4a1d76032ae25ed2465fe698acfc5cdeb31c447d210d7e36e",
+      "hash": "f107ea94d07891202cbfba21397493ca02eb7d8c26f8155abada3f74e5741f0c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/skills.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "5757d7e98b65b238fd7749cdb98626b925394e736e42c5f0f2a4ad3a7f39e94c",
+  "output_hash": "ff826fc295a47a96d87e97c64eba09299aff0b92f2e4cf18e05d5cf1b79cbb7d",
   "output_path": "server/priv/docs/yue_Hant/guides/features/agentic-coding/skills.md",
   "protection_state": "recorded",
   "provider": "",
@@ -282,8 +282,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "2dc0deca385e6dd0ffc47eedcd6f65c7361abd96",
+  "source_commit_sha": "6015683fe02afd165cfac93aaea4a0a2e6b13251",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/skills.md",
-  "translated_at": "2026-10-29T13:34:23.765314Z",
-  "translation_session_id": "01a187bf-130d-71a2-b89f-0ac2dfbb9d62"
+  "translated_at": "2026-10-30T13:34:19.043861Z",
+  "translation_session_id": "01a18ce1-c02e-7bc6-a18d-aa70ecc3e653"
 }
