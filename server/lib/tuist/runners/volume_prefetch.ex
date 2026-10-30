@@ -12,18 +12,20 @@ defmodule Tuist.Runners.VolumePrefetch do
   HEAD by its use, and names its Node as in its other requests.
 
   The list names the saved HEADs of the platform's custom volumes that jobs used
-  on the Node's peers, for every peer (`CacheVolumes.prefetch_heads/3`): first
-  the volumes runs keep reusing and have left idle, so the account's next working
-  day starts warm, then the volumes used in the last day. Dispatch hands a queued
-  job to whichever host polls first, and an account's first job of the day goes
-  to any idle runner, so every peer gets the same list. Peers are the Nodes of a
-  macOS host class, or every Node of a Linux fleet, whose job shapes share its
-  Nodes. Hosts download these only into free space.
+  on the Node's peers (`CacheVolumes.prefetch_heads/4`): first the volumes runs
+  keep reusing and have left idle, so the account's next working day starts
+  warm, then the volumes used in the last day. A Node gets only the repositories
+  `VolumePlacement` places on it, weighted by the cache capacity each peer
+  advertises, and dispatch leaves a repository's young jobs to its holders while
+  one has an idle runner (`VolumeAffinities`). Peers are the Nodes of a macOS
+  host class, or every Node of a Linux fleet, whose job shapes share its Nodes.
+  Hosts download these only into free space.
   """
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.VolumeAffinities
 
   @host_service_account_prefix "tart-kubelet-"
   @fleet_label "tuist.dev/fleet"
@@ -53,9 +55,12 @@ defmodule Tuist.Runners.VolumePrefetch do
          labels when is_map(labels) <- get_in(node, ["metadata", "labels"]),
          fleet when is_binary(fleet) <- labels[@fleet_label],
          true <- platform_fleet?(fleet, platform),
-         {:ok, peer_names} <- peers(node, fleet, platform),
-         true <- node_name in peer_names do
-      CacheVolumes.prefetch_heads(Atom.to_string(platform), peer_names, DateTime.utc_now())
+         {:ok, peers} <- peers(node, fleet, platform),
+         true <- Map.has_key?(peers, node_name) do
+      CacheVolumes.prefetch_heads(Atom.to_string(platform), Map.keys(peers), DateTime.utc_now(),
+        node: node_name,
+        weights: weights(peers)
+      )
     else
       _ -> []
     end
@@ -89,17 +94,33 @@ defmodule Tuist.Runners.VolumePrefetch do
 
     case K8sClient.list_nodes("#{@fleet_label}=#{fleet}") do
       {:ok, %{"items" => items}} ->
-        names =
+        peers =
           for peer <- items,
               platform == :linux or node_class(peer) == class,
               name = get_in(peer, ["metadata", "name"]),
               is_binary(name),
-              do: name
+              into: %{},
+              do: {name, peer |> get_in(["metadata", "labels"]) |> capacity_gib()}
 
-        {:ok, names}
+        {:ok, peers}
 
       _ ->
         :error
+    end
+  end
+
+  # A Node holds repositories in proportion to the cache capacity it advertises.
+  # While any peer advertises none, every peer weighs the same.
+  defp weights(peers) do
+    if Enum.all?(peers, fn {_name, gib} -> is_integer(gib) and gib > 0 end),
+      do: peers,
+      else: Map.new(peers, fn {name, _gib} -> {name, 1} end)
+  end
+
+  defp capacity_gib(labels) do
+    case VolumeAffinities.cache_volumes_from_node_labels(labels) do
+      %{capacity_bytes: bytes} when is_integer(bytes) -> div(bytes, 1024 * 1024 * 1024)
+      _ -> nil
     end
   end
 

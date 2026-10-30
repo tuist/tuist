@@ -233,7 +233,7 @@ workflow code runs in the guest. Never expose host credentials or masters.
   creation. Count remaining growth for running VMs and recover it from journals.
   Master prefetch runs one download at a time from a bounded, deduplicated queue:
   masters a job asked for but did not get within its 25 seconds first, then the
-  custom HEADs the server lists for the host class (free space only, no eviction),
+  custom HEADs the server places on this host (free space only, no eviction),
   in the server's order: `prewarm` (idle volumes several workflow runs used this week)
   before `recent`. `tuist_runner_cache_volume_prefetched_bytes_total{reason}` adds
   the saved head's used bytes for each installed master (`job`, `refresh` for a
@@ -333,7 +333,7 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - A master whose tip moved (a default-branch commit, or a started lineage) is
   published under the job's use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
   one); a cold host with a HEAD restores it in the background instead, and the
-  prefetch poller restores the checkout HEADs the server lists for the host class
+  prefetch poller restores the checkout HEADs the server places on this host
   ahead of any job (`PrefetchCheckout`, a `Spare` restore from free space only). A cold
   answer journals no branch and reports the use deleted at once. A host without
   working git answers `denied`, so guests do not export. `Track` maps the

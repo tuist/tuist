@@ -6,19 +6,23 @@ these schemas persist volume identities and per-job uses.
 - Account-scope all browser reads and writes. Agent reports, uploads and
   publications are separately authenticated and bound to the node that received
   the allocation. Read-only image `retain` and `download` requests may name a use
-  from any node: hosts prefetch a custom HEAD (`prefetch_heads/3`, listed by
+  from any node: hosts prefetch a custom HEAD (`prefetch_heads/4`, listed by
   `VolumePrefetch`) under the use that published it.
-- `prefetch_heads/3` lists, for every macOS host of a class and every Linux
-  host of a fleet (Linux job shapes share its nodes), first up to 32
+- `prefetch_heads/4` lists, for a macOS host of a class or a Linux host of a
+  fleet (Linux job shapes share its nodes), first up to 32
   `prewarm` HEADs (volumes at least two workflow runs used in the last seven
   days and unused for four hours) and then up to 8 `recent` HEADs (used in the
   last day). Each list takes the accounts in turn, most recently active first,
   and each account's volumes most recently used first. An idle volume's HEAD
   cannot change before its next job, so one download per host covers the whole
   idle period, including a weekend. Two runs leave out keys one run made for
-  itself (every `e2e-reuse-*` key). Hosts download only into free space, and
-  the listing goes to every host of the class or fleet because an account's first job
-  of the day goes to whichever idle runner polls first. A schedule learned per
+  itself (every `e2e-reuse-*` key). Hosts download only into free space. Each
+  host gets only the repositories `VolumePlacement` places on it: every volume of
+  an account's repository goes to the same hosts, one more than the repository's
+  jobs ran on at once over the week and at least two, picked by rendezvous
+  hashing weighted by advertised cache capacity, and the caps apply per host.
+  Dispatch then leaves a young job to an idle holder (`VolumeAffinities`). A
+  schedule learned per
   weekday and UTC hour covered none of the customer first-of-day starts from
   2026-10-08 to 10-22, whose start times move by hours from day to day. The
   `reason` reaches the hosts' `tuist_runner_cache_volume_prefetched_bytes_total`

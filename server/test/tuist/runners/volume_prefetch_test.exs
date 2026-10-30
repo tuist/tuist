@@ -30,8 +30,11 @@ defmodule Tuist.Runners.VolumePrefetchTest do
   @m2 %{"cpu" => "8", "memory" => "14Gi"}
   @m4 %{"cpu" => "12", "memory" => "28Gi"}
 
-  defp fleet_node(name, fleet \\ @fleet, capacity \\ @m2) do
-    %{"metadata" => %{"name" => name, "labels" => %{"tuist.dev/fleet" => fleet}}, "status" => %{"capacity" => capacity}}
+  defp fleet_node(name, fleet \\ @fleet, capacity \\ @m2, labels \\ %{}) do
+    %{
+      "metadata" => %{"name" => name, "labels" => Map.put(labels, "tuist.dev/fleet", fleet)},
+      "status" => %{"capacity" => capacity}
+    }
   end
 
   defp stub_fleet(nodes) do
@@ -72,8 +75,10 @@ defmodule Tuist.Runners.VolumePrefetchTest do
 
       stub_fleet([fleet_node("mac-01"), fleet_node("mac-02"), fleet_node("m4-01", @fleet, @m4)])
 
-      expect(CacheVolumes, :prefetch_heads, 2, fn "macos", nodes, %DateTime{} ->
+      expect(CacheVolumes, :prefetch_heads, 2, fn "macos", nodes, %DateTime{}, opts ->
         assert Enum.sort(nodes) == ["mac-01", "mac-02"]
+        assert opts[:node] in ["mac-01", "mac-02"]
+        assert opts[:weights] == %{"mac-01" => 1, "mac-02" => 1}
         [custom]
       end)
 
@@ -81,11 +86,42 @@ defmodule Tuist.Runners.VolumePrefetchTest do
       assert VolumePrefetch.for_node("mac-02", :macos) == [custom]
     end
 
-    test "lists a Linux fleet's HEADs to every Node of it, whatever its capacity" do
+    test "weighs the Nodes of the class by the cache capacity they advertise" do
+      capacity = &%{"tuist.dev/cache-volume-capacity-gib" => &1}
+
+      stub_fleet([
+        fleet_node("mac-01", @fleet, @m2, capacity.("512")),
+        fleet_node("mac-02", @fleet, @m2, capacity.("240"))
+      ])
+
+      expect(CacheVolumes, :prefetch_heads, fn "macos", _nodes, %DateTime{}, opts ->
+        assert opts == [node: "mac-01", weights: %{"mac-01" => 512, "mac-02" => 240}]
+        []
+      end)
+
+      assert VolumePrefetch.for_node("mac-01", :macos) == []
+    end
+
+    test "weighs the Nodes equally while one advertises no capacity" do
+      stub_fleet([
+        fleet_node("mac-01", @fleet, @m2, %{"tuist.dev/cache-volume-capacity-gib" => "512"}),
+        fleet_node("mac-02")
+      ])
+
+      expect(CacheVolumes, :prefetch_heads, fn "macos", _nodes, %DateTime{}, opts ->
+        assert opts[:weights] == %{"mac-01" => 1, "mac-02" => 1}
+        []
+      end)
+
+      assert VolumePrefetch.for_node("mac-01", :macos) == []
+    end
+
+    test "lists a Linux fleet's HEADs from every Node of it, whatever its capacity" do
       stub_fleet([fleet_node("linux-01", "runners-linux"), fleet_node("linux-02", "runners-linux", @m4)])
 
-      expect(CacheVolumes, :prefetch_heads, fn "linux", nodes, %DateTime{} ->
+      expect(CacheVolumes, :prefetch_heads, fn "linux", nodes, %DateTime{}, opts ->
         assert Enum.sort(nodes) == ["linux-01", "linux-02"]
+        assert opts[:node] == "linux-01"
         []
       end)
 
@@ -94,7 +130,7 @@ defmodule Tuist.Runners.VolumePrefetchTest do
 
     test "answers nothing for a Node outside a fleet of the platform" do
       stub_fleet([fleet_node("linux-01", "runners-linux"), fleet_node("mac-01")])
-      reject(&CacheVolumes.prefetch_heads/3)
+      reject(&CacheVolumes.prefetch_heads/4)
 
       assert VolumePrefetch.for_node("linux-01", :macos) == []
       assert VolumePrefetch.for_node("mac-01", :linux) == []

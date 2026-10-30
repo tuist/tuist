@@ -414,7 +414,8 @@ asks the server which HEADs its node should hold (`GET
 /api/internal/runners/cache-volumes/masters?node_name=<node>`, with the same
 agent token): first volumes at least two workflow runs used this week and left
 idle for four hours, so an account's first jobs of the day start warm, then
-volumes used in the last day. Every node of the fleet gets the same list. The
+volumes used in the last day, for the repositories the server places on this
+node (a few nodes per repository; dispatch leaves its young jobs to them). The
 agent restores the ones it lacks one at a time, separately from the job
 prefetch, with a ten-minute deadline each, through `LocalImages.PrefetchSpare`:
 only into free space above the reserve, never evicting, and as a speculative

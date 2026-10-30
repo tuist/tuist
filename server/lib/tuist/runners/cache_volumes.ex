@@ -25,6 +25,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.VolumePlacement
   alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.VCS
@@ -1077,8 +1078,15 @@ defmodule Tuist.Runners.CacheVolumes do
   master once per lineage and then keeps it current from jobs' exports, so each
   costs one download per host. Their entries (`kind: "checkout"`) also carry what
   the host restores the master with, as `allocate_checkout/1` does.
+
+  With `node:`, the lists are those of that one of `node_names`: only the
+  repositories `VolumePlacement` places on it, every volume of a repository on
+  the same Nodes, and the caps apply to that Node's lists. A repository is held
+  by one more Node than its jobs ran on at once over the week
+  (`VolumePlacement.replicas/2`), chosen by `weights` (Node name to weight,
+  equal when absent).
   """
-  def prefetch_heads(platform, node_names, %DateTime{} = now) when platform in ["macos", "linux"] do
+  def prefetch_heads(platform, node_names, %DateTime{} = now, opts \\ []) when platform in ["macos", "linux"] do
     now = DateTime.truncate(now, :second)
     since = DateTime.add(now, -@prefetch_history_days * 24 * 60 * 60, :second)
     idle_since = DateTime.add(now, -@prewarm_idle_seconds, :second)
@@ -1101,6 +1109,16 @@ defmodule Tuist.Runners.CacheVolumes do
         )
       )
 
+    candidates =
+      case Keyword.fetch(opts, :node) do
+        {:ok, node} ->
+          weights = Keyword.get_lazy(opts, :weights, fn -> Map.new(node_names, &{&1, 1}) end)
+          placed_on(candidates, node, weights, peak_concurrency(platform, node_names, since, now))
+
+        :error ->
+          candidates
+      end
+
     {checkouts, custom} = Enum.split_with(candidates, &(&1.volume.key == @checkout_key))
     {prewarm, recent} = prefetch_reasons(custom, idle_since, recent_since)
     {checkout_prewarm, checkout_recent} = prefetch_reasons(checkouts, idle_since, recent_since)
@@ -1112,6 +1130,80 @@ defmodule Tuist.Runners.CacheVolumes do
           listed_heads(checkout_recent, "recent", @checkout_limit),
         @checkout_limit
       )
+  end
+
+  defp placed_on(candidates, node, weights, peaks) do
+    Enum.filter(candidates, fn %{volume: volume} ->
+      group = {volume.account_id, volume.repository}
+      count = VolumePlacement.replicas(Map.get(peaks, group, 0), map_size(weights))
+      node in VolumePlacement.holders(placement_key(group), weights, count)
+    end)
+  end
+
+  @doc "The key `VolumePlacement` places an account's repository by."
+  def placement_key({account_id, repository}), do: "#{account_id}/#{repository}"
+
+  # The most jobs of each account's repository that held a volume use on
+  # `node_names` at the same time over the week: a sweep over every job's span,
+  # from its first use's allocation to its last use's end.
+  defp peak_concurrency(platform, node_names, since, now) do
+    jobs =
+      from(u in Usage,
+        join: v in Volume,
+        on: v.id == u.volume_id,
+        where:
+          u.node_name in ^node_names and u.inserted_at >= ^since and u.inserted_at <= ^now and v.platform == ^platform and
+            is_nil(v.deleted_at),
+        group_by: [v.account_id, v.repository, u.workflow_job_id],
+        select: %{
+          account_id: v.account_id,
+          repository: v.repository,
+          started_at: type(min(u.inserted_at), :utc_datetime),
+          ended_at:
+            type(
+              max(
+                coalesce(
+                  u.finished_at,
+                  coalesce(u.deleted_at, coalesce(u.last_reported_at, type(u.inserted_at, :utc_datetime_usec)))
+                )
+              ),
+              :utc_datetime_usec
+            )
+        }
+      )
+
+    starts =
+      from(j in subquery(jobs),
+        select: %{
+          account_id: j.account_id,
+          repository: j.repository,
+          at: type(j.started_at, :utc_datetime_usec),
+          delta: 1
+        }
+      )
+
+    ends =
+      from(j in subquery(jobs), select: %{account_id: j.account_id, repository: j.repository, at: j.ended_at, delta: -1})
+
+    levels =
+      from(e in subquery(union_all(starts, ^ends)),
+        select: %{
+          account_id: e.account_id,
+          repository: e.repository,
+          level:
+            over(sum(e.delta),
+              partition_by: [e.account_id, e.repository],
+              order_by: [asc: e.at, desc: e.delta]
+            )
+        }
+      )
+
+    from(l in subquery(levels),
+      group_by: [l.account_id, l.repository],
+      select: {{l.account_id, l.repository}, type(max(l.level), :integer)}
+    )
+    |> Repo.all()
+    |> Map.new()
   end
 
   defp prefetch_reasons(candidates, idle_since, recent_since) do

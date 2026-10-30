@@ -111,7 +111,7 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   disk reserve. Coalesce queued generations to the newest one per scope. Like
   refreshes, a prefetch has no deadline: its download ends on a stall or after
   its attempts. It also restores, one at a time, the HEADs the server lists
-  for its node (`/runners/cache-volumes/masters`, see `CacheVolumes.prefetch_heads/3`)
+  for its node (`/runners/cache-volumes/masters`, see `CacheVolumes.prefetch_heads/4`)
   through `PrefetchSpare`: free space above `MinFreeBytes` plus
   `Identity.RestoreBytes`, never evicting, written as a `.spare` master. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend

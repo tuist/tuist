@@ -21,6 +21,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.VolumePlacement
   alias Tuist.Runners.Workers.ExecutionLookupWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.VCS
@@ -686,6 +687,60 @@ defmodule Tuist.Runners.CacheVolumesTest do
              {second, "recent"},
              {third, "recent"}
            ]
+  end
+
+  @peers ~w(node mac-02 mac-03 mac-04 mac-05 mac-06)
+
+  defp placed_volumes(node, now, weights \\ Map.new(@peers, &{&1, 1})) do
+    for head <- CacheVolumes.prefetch_heads("macos", @peers, now, node: node, weights: weights),
+        into: MapSet.new(),
+        do: Repo.get!(Usage, head.id).volume_id
+  end
+
+  test "lists a Node only the repositories placed on it, with every volume of one together", %{job: job} do
+    now = DateTime.utc_now()
+    app = published_mac_volumes(job, ~w(xcode module))
+    other_job = %{job | repository: "org/other", workflow_job_id: job.workflow_job_id + 1}
+    other = published_mac_volumes(other_job, ~w(other-xcode))
+    weights = Map.new(@peers, &{&1, 1})
+    app_holders = VolumePlacement.holders("#{job.account_id}/#{job.repository}", weights, 2)
+    other_holders = VolumePlacement.holders("#{job.account_id}/org/other", weights, 2)
+
+    for node <- @peers do
+      expected =
+        MapSet.union(
+          if(node in app_holders, do: MapSet.new(app), else: MapSet.new()),
+          if(node in other_holders, do: MapSet.new(other), else: MapSet.new())
+        )
+
+      assert placed_volumes(node, now) == expected
+    end
+  end
+
+  test "places a repository whose jobs ran concurrently on one more Node than they ran on", %{job: job} do
+    now = DateTime.utc_now()
+    [volume_id] = published_mac_volumes(job, ~w(xcode))
+    start = now |> DateTime.add(-3 * 60 * 60, :second) |> DateTime.truncate(:second)
+
+    for minute <- 0..2 do
+      at = DateTime.add(start, minute * 60, :second)
+
+      Repo.insert!(%Usage{
+        volume_id: volume_id,
+        generation: Repo.get!(Volume, volume_id).generation,
+        workflow_job_id: System.unique_integer([:positive]),
+        workflow_run_id: System.unique_integer([:positive]),
+        pod_name: "pod-#{minute}",
+        pod_uid: "pod-#{minute}",
+        node_name: "mac-0#{minute + 2}",
+        can_publish: false,
+        inserted_at: at,
+        updated_at: at,
+        finished_at: %{DateTime.add(at, 10 * 60, :second) | microsecond: {0, 6}}
+      })
+    end
+
+    assert Enum.count(@peers, &MapSet.member?(placed_volumes(&1, now), volume_id)) == 4
   end
 
   test "records the older generation a host mounted, and only that", %{job: job} do
