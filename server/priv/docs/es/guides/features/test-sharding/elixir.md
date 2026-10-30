@@ -1,29 +1,31 @@
 ---
 {
-  "title": "Fragmentación de tests en Elixir",
-  "titleTemplate": ":title · Fragmentación de tests · Funcionalidades · Guías · Tuist",
-  "description": "Distribuye los tests de tu proyecto de Elixir entre varios runners de CI con la fragmentación de tests de Tuist."
+  "title": "Sharding de tests en Elixir",
+  "titleTemplate": ":title · Sharding de tests · Funcionalidades · Guías · Tuist",
+  "description": "Distribuye los tests de tu proyecto Elixir entre varios runners de CI con el sharding de tests de Tuist."
 }
 ---
 # Fragmentación de tests en Elixir {#elixir-test-sharding}
 
-El paquete Hex de Tuist incluye soporte integrado para fragmentar los tests de un proyecto Elixir. Utiliza el servidor de Tuist para crear planes de fragmentación equilibrados basados en datos históricos de tiempos de ejecución y compila tu proyecto una sola vez para que cada runner pueda pasar directamente a ejecutar los tests.
+El paquete Hex de Tuist incluye soporte integrado para fragmentar los tests de un proyecto Elixir. Utiliza el servidor de Tuist para crear planes de fragmentación equilibrados basados en datos históricos de tiempos de ejecución, y compila tu proyecto una sola vez para que cada runner pueda pasar directamente a ejecutar los tests.
 
 > [!IMPORTANT] REQUIREMENTS
-> - Completa la <.localized_link href="/guides/get-started/elixir-project">configuración compartida de Elixir</.localized_link> antes de configurar tus trabajos de fragmentación en CI
+> - Completa la <.localized_link href="/guides/get-started/elixir-project">configuración compartida de Elixir</.localized_link> antes de configurar tus jobs de fragmentación en CI
 
 ## Cómo funciona {#how-it-works}
 
-La fragmentación de tests sigue un flujo de trabajo en dos fases:
+La fragmentación de tests sigue un flujo de trabajo de dos fases:
 
-1. **Fase de compilación:** Tuist compila tu proyecto para testing, enumera tus archivos de test y crea un **plan de fragmentación** en el servidor. El servidor utiliza datos históricos de tiempos de ejecución de los últimos 30 días para distribuir los tests entre las fragmentaciones, de modo que cada una tarde aproximadamente lo mismo. La fase de compilación sube la build y genera una **matriz de fragmentación** que tu sistema de CI utiliza para lanzar runners en paralelo.
-2. **Fase de test:** Cada runner de CI recibe un **índice de fragmentación**, descarga la build y ejecuta únicamente los tests asignados a esa fragmentación.
+1. **Fase de compilación:** Tuist compila tu proyecto para tests, enumera tus archivos de test y crea un **plan de fragmentación** en el servidor. El servidor utiliza datos históricos de tiempos de ejecución de los últimos 30 días para distribuir los tests entre las fragmentaciones de modo que cada una tarde aproximadamente lo mismo. La fase de compilación sube la build y genera una **matriz de fragmentación** que tu sistema de CI utiliza para lanzar runners en paralelo.
+2. **Fase de tests:** Cada runner de CI recibe un **índice de fragmentación**, descarga la build y ejecuta únicamente los tests asignados a esa fragmentación.
+
+Las subidas de builds envían hasta cuatro partes simultáneamente e intentan hasta tres veces en caso de fallos transitorios en alguna parte. En los runners Linux de Tuist inscritos, las builds de fragmentación pueden usar almacenamiento local de artefactos. Todas las fragmentaciones que consuman dicha build deben ejecutarse en runners inscritos en el mismo sitio; vuelve a ejecutar la build con el almacenamiento local desactivado al mover el flujo de trabajo a otros runners.
 
 Los tests se distribuyen por archivo: todos los tests de un archivo se ejecutan en la misma fragmentación. Los tests que Tuist aún no ha visto reciben una estimación, por lo que los primeros planes de un proyecto están menos equilibrados que los posteriores.
 
 ## Fase de compilación {#build-phase}
 
-Prepara las fragmentaciones de test usando la tarea `tuist.test.build`:
+Prepara las fragmentaciones de test utilizando la tarea `tuist.test.build`:
 
 ```sh
 MIX_ENV=test mix compile --warnings-as-errors
@@ -34,11 +36,11 @@ Compila a través del alias instalado por la configuración compartida antes de 
 
 Esta tarea:
 1. Compila el proyecto en el entorno de test
-2. Crea un plan de fragmentación en el servidor de Tuist utilizando datos históricos de tiempos
+2. Crea un plan de fragmentación en el servidor de Tuist usando datos históricos de tiempos
 3. Sube la build para que las fragmentaciones no vuelvan a compilar
 4. Genera una matriz de fragmentación para tu sistema de CI
 
-### Opciones de compilación {#build-options}
+### Opciones de build {#build-options}
 
 | Opción | Descripción |
 |--------|-------------|
@@ -46,24 +48,24 @@ Esta tarea:
 | `--shard-min <N>` | Número mínimo de fragmentaciones |
 | `--shard-total <N>` | Número exacto de fragmentaciones, en lugar de un rango |
 | `--shard-max-duration <MS>` | Duración máxima objetivo por fragmentación en milisegundos |
-| `--shard-reference <REF>` | El nombre con el que las fragmentaciones encuentran el plan |
+| `--shard-reference <REF>` | Nombre con el que las fragmentaciones encuentran el plan |
 | `--no-upload` | Planifica las fragmentaciones sin subir la build; cada fragmentación compila por su cuenta |
 
 Cualquier otro argumento se reenvía a `mix compile`.
 
-La referencia de fragmentación se deriva automáticamente de las variables de entorno de CI (`GITHUB_RUN_ID`, `CI_PIPELINE_ID`, `CIRCLE_WORKFLOW_ID`, `BUILDKITE_BUILD_ID`) o se puede establecer explícitamente mediante la variable de entorno `TUIST_SHARD_REFERENCE`. Fuera de esos proveedores debes configurarla con un valor que compartan la fase de compilación y las fragmentaciones de una misma ejecución de pipeline. En GitHub Actions, las referencias también incluyen el intento de ejecución: al volver a ejecutar solo los trabajos fallidos, pasa la referencia del trabajo de compilación original en lugar de derivar una nueva en los trabajos de fragmentación.
+La referencia de fragmentación se deriva automáticamente de las variables de entorno de CI (`GITHUB_RUN_ID`, `CI_PIPELINE_ID`, `CIRCLE_WORKFLOW_ID`, `BUILDKITE_BUILD_ID`) o puede establecerse explícitamente mediante la variable de entorno `TUIST_SHARD_REFERENCE`. Fuera de esos proveedores debes establecerla con un valor que compartan la fase de compilación y las fragmentaciones de una misma ejecución de pipeline. En GitHub Actions, las referencias también incluyen el intento de ejecución: al volver a ejecutar solo los jobs fallidos, pasa la referencia del job de build original en lugar de derivar una nueva en los jobs de fragmentación.
 
-## Fase de test {#test-phase}
+## Fase de tests {#test-phase}
 
-Cuando `TUIST_SHARD_INDEX` está definida, el paquete obtiene la asignación de fragmentación del servidor, descarga la build y ejecuta únicamente los archivos de test asignados sin compilar. En un runner limpio, inicializa el SDK y carga sus rutas antes de invocar la tarea:
+Cuando `TUIST_SHARD_INDEX` está definida, el paquete obtiene la asignación de fragmentación desde el servidor, descarga la build y ejecuta únicamente los archivos de test asignados sin compilar. En un runner limpio, inicializa el SDK y carga sus rutas antes de invocar la tarea:
 
 ```sh
 MIX_ENV=test TUIST_SHARD_INDEX=0 mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.test
 ```
 
-Compilar el SDK en los procesos worker de Mix no lo carga en el proceso padre. El paso explícito `deps.loadpaths` evita que el descubrimiento de tareas compile las dependencias restantes antes de descargar la build. Esta forma de comando único preserva el alias de preparación de tests de tu proyecto. Si sus comandos de configuración activan la compilación, usa la secuencia de configuración separada que aparece más abajo.
+Compilar el SDK en los procesos worker de Mix no lo carga en el proceso padre. El paso explícito `deps.loadpaths` evita que la descubierta de tareas compile las dependencias restantes antes de descargar la build. Esta forma de comando único preserva el alias de preparación de tests de tu proyecto. Si sus comandos de configuración desencadenan la compilación, usa la secuencia de configuración separada que aparece más abajo.
 
-Cualquier archivo o directorio de test que pases acota aún más la fragmentación: solo se ejecutan los archivos que están tanto en la fragmentación como en tu selección. Una fragmentación que queda sin tests finaliza con éxito.
+Cualquier archivo o directorio de test que pases reduce aún más la fragmentación: solo se ejecutan los archivos que están tanto en la fragmentación como en tu selección. Una fragmentación que queda sin tests finaliza con éxito.
 
 Los resultados de todas las fragmentaciones llegan al dashboard como una única ejecución de tests, y su sección **Fragmentaciones** muestra cuánto tardó cada una.
 
@@ -81,7 +83,7 @@ MIX_ENV=test mix run --no-start --no-compile --no-deps-check -e 'Mix.Tasks.Ecto.
 
 Mantén cualquier otra preparación específica del proyecto en esta fase. Tu alias de compilación también debe respetar `--no-compile` antes de realizar el trabajo de inicialización: Mix solo reenvía flags a la última tarea de un alias de lista, por lo que un `deps.compile` incondicional anterior sigue ejecutándose. Consulta el alias protegido en <.localized_link href="/guides/features/cache/elixir-advanced#manual-compile-integration">integración manual de compilación</.localized_link>.
 
-Luego carga el SDK restaurado sin compilación antes de ejecutar la fragmentación. Esto también evita que el descubrimiento de tareas compile una dependencia de ruta cuando sus fuentes son más recientes que la build descargada:
+Luego carga el SDK restaurado sin compilación antes de ejecutar la fragmentación. Esto también evita que la descubierta de tareas compile una dependencia de ruta cuando sus fuentes son más recientes que la build descargada:
 
 ```sh
 MIX_ENV=test TUIST_SHARD_INDEX=0 mix do deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download
@@ -94,11 +96,11 @@ Al probar diferentes entornos, pasa una etiqueta `--scheme` estable, como `--sch
 ### Qué necesitan las fragmentaciones {#what-the-shards-need}
 
 La build subida es el directorio `_build/test`. Cada runner de fragmentación aún necesita:
-- El mismo checkout que en la fase de build
+- El mismo checkout que la fase de build
 - Las mismas versiones de Elixir y Erlang/OTP
 - Las fuentes de las dependencias, obtenidas con `mix deps.get`
 
-La fragmentación desde la raíz de un proyecto umbrella aún no es compatible. Ejecuta ambas fases dentro de una de sus aplicaciones.
+La fragmentación desde la raíz de un proyecto umbrella aún no está soportada. Ejecuta ambas fases dentro de una de sus aplicaciones.
 
 ## Integración continua {#continuous-integration}
 

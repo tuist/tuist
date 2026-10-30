@@ -1,0 +1,76 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-lifecycle
+data:
+  lifecycle.json: |
+    {"Rules":[{"ID":"shard-retention-backstop","Status":"Enabled","Filter":{"Prefix":""},"Expiration":{"Days":{{ .Values.lifecycle.expirationDays }}},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":{{ .Values.lifecycle.abortMultipartDays }}}}]}
+---
+# Reapplying the policy is idempotent and recovers automatically if the bucket
+# was recreated. It is separate from readiness: do not block server releases.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-lifecycle
+spec:
+  schedule: "17 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 120
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: shard-storage-lifecycle
+            app.kubernetes.io/instance: {{ .Release.Name }}
+        spec:
+          automountServiceAccountToken: false
+          restartPolicy: OnFailure
+          containers:
+            - name: policy
+              image: {{ .Values.lifecycle.image | quote }}
+              args:
+                - --endpoint-url
+                - http://{{ .Release.Name }}.{{ .Release.Namespace }}.svc.cluster.local:3900
+                - s3api
+                - put-bucket-lifecycle-configuration
+                - --bucket
+                - {{ .Values.bucket | quote }}
+                - --lifecycle-configuration
+                - file:///policy/lifecycle.json
+              env:
+                - name: AWS_DEFAULT_REGION
+                  value: garage
+                - name: AWS_EC2_METADATA_DISABLED
+                  value: "true"
+                - name: AWS_REQUEST_CHECKSUM_CALCULATION
+                  value: WHEN_REQUIRED
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Release.Name }}
+                      key: access-key-id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Release.Name }}
+                      key: secret-access-key
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: policy
+                  mountPath: /policy
+                  readOnly: true
+          volumes:
+            - name: policy
+              configMap:
+                name: {{ .Release.Name }}-lifecycle
+{{- end }}

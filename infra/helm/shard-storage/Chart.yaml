@@ -1,0 +1,6 @@
+apiVersion: v2
+name: shard-storage
+description: Runner-local S3 storage for disposable Linux shard artifacts
+type: application
+version: 0.1.0
+appVersion: "2.5.0"

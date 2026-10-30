@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "e3cabd63dc9f5e9789e0e182b03085baa0978bde1473f104acb4cf68ea7d75e1",
+  "hash": "420948734b1d72cbf4818ba663981627a48e8793b8b8036e79dabc3a73b8af92",
   "hash_tree": {
     "root": {
       "children": [
@@ -20,7 +20,7 @@
                   "content_hash": "8f190199c5612a889644f8916703bbf4e85fca40fd6d63d4a022e2b2c8cc0260"
                 },
                 "## How it works {#how-it-works}": {
-                  "content_hash": "c816f0105e7ec5327270b4c9781985edcf9c31c3fe31ae9135e88697ec7d45dc"
+                  "content_hash": "603328f4a96b98242b1e57d6229c601ff89a0152fd80c22cec840199ac1a517b"
                 },
                 "## Test phase {#test-phase}": {
                   "content_hash": "d3928a1e69f36862061edae1e0efdddaf561f8bac7ae732dc4ba2bf5056c5048"
@@ -44,11 +44,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "6c9ed248f648397ae6a1cda780a3f59b440faddf4cb78daddfe2909a5f68bbad",
+          "hash": "e065d6114080a7f39e84ecef80b797f22ead22d340fbb5418ea952e12fe8c553",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-sharding/elixir.md",
           "metadata": {
-            "content_hash": "bd538bbbcdbe8da6462e77fd61aeaaa0475fe5c83f90239e2f40d0ec80f0a0d1"
+            "content_hash": "3e4a86790c71639462497583993b7791c7bdfb91fb6e97d0a2e953b86699c95d"
           }
         },
         {
@@ -257,14 +257,14 @@
         }
       ],
       "details": {},
-      "hash": "e3cabd63dc9f5e9789e0e182b03085baa0978bde1473f104acb4cf68ea7d75e1",
+      "hash": "420948734b1d72cbf4818ba663981627a48e8793b8b8036e79dabc3a73b8af92",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-sharding/elixir.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "944d0a403f33724fdbe74a7a90410673cb590b32352dcd38e32a66fb2996c1be",
+  "output_hash": "d2d4f395fc64d1f965216db88262c15c836f8cc1209742b43c5f7afa75fb9458",
   "output_path": "server/priv/docs/zh_Hant/guides/features/test-sharding/elixir.md",
   "protection_state": "recorded",
   "provider": "",
@@ -286,8 +286,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1cefac5619d9b782f0b20a129574bec335f77663",
+  "source_commit_sha": "285bc375df422767a04c6589976457a380da734a",
   "source_path": "server/priv/docs/en/guides/features/test-sharding/elixir.md",
-  "translated_at": "2026-10-29T16:14:56.151622Z",
-  "translation_session_id": "01a1886f-a8bb-7308-ad15-96a829a04f8e"
+  "translated_at": "2026-10-30T10:37:09.238990Z",
+  "translation_session_id": "01a18c5f-1ecf-731d-9fca-f4bcd3dd9a8b"
 }

@@ -86,6 +86,27 @@ defmodule Tuist.Runners.Sites do
     end
   end
 
+  @doc """
+  The storage site of the actual claiming Linux node. The provider sets
+  `tuist.dev/private-network` only once every peer has its private routes.
+  """
+  def shard_storage_site(node_name) when is_binary(node_name) and node_name != "" do
+    case Client.get_node(node_name, timeout: @read_timeout) do
+      {:ok, node} -> node |> get_in(["metadata", "labels"]) |> attested_storage_site()
+      _ -> nil
+    end
+  end
+
+  def shard_storage_site(_), do: nil
+
+  defp attested_storage_site(%{
+         "node.cluster.x-k8s.io/shard-storage-site" => site,
+         "tuist.dev/private-network" => network
+       })
+       when is_binary(site) and site != "" and is_binary(network) and network != "", do: site
+
+  defp attested_storage_site(_), do: nil
+
   defp node_site(node_name) when is_binary(node_name) and node_name != "" do
     [__MODULE__, :node_site, node_name]
     |> KeyValueStore.get_or_update([cache: cache_name(), ttl: @node_site_ttl_ms, cache_errors: false], fn ->
