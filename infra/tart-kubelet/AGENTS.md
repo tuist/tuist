@@ -281,12 +281,12 @@ workflow code runs in the guest. Never expose host credentials or masters.
   during recovery scans, and never hold the global store lock across writer-fence
   API calls. Slow publication or restoration must not starve another guest.
 
-- A runner guest that writes `logd-wedged` into its status share
-  (`infra/runner-image/logd-watchdog.sh`) is stopped by the host
-  (`stopWedgedGuest`), in the background, and its runner is published
-  terminated with reason `LogdWedged` and exit code 1. The guest cannot halt
-  itself in that state, so without the stop its job hangs until the job's
-  timeout and the VM keeps its host after that. Find them with
+- A runner guest that writes `logd-wedged` into its status share is stopped by
+  the host (`stopWedgedGuest`), in the background, and its runner is published
+  terminated with reason `LogdWedged` and exit code 1. The guest restarts a
+  wedged logd itself (`infra/runner-image/logd-watchdog.sh`) and writes the
+  file only when that fails. It cannot halt itself then, so without the stop
+  its job hangs until the job's timeout and the VM keeps its host after that. Find them with
   `{job="tuist-macos-tart-kubelet"} |= "wedged logd"`.
 
 - Readiness: without a `readinessProbe`, a Pod is Ready once its VM has an IP

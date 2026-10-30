@@ -1,28 +1,58 @@
 #!/bin/bash
-# Reports a wedged logd to the host. Forked by dispatch-poll.sh at boot, so it
-# watches the warm standby and the job alike, and dies with the VM.
+# Restarts the guest's logd when it wedges. Runs as root from the
+# dev.tuist.logd-watchdog LaunchDaemon for the life of the VM, so it covers the
+# warm standby and the job alike.
 #
 # A wedged logd spins on one core and stops draining the processes' log
-# buffers. Every process that logs then blocks inside os_log, including
+# buffers. A process whose buffer fills then blocks inside os_log, including
 # syspolicyd while it holds the lock Xcode's execution-policy registrations
-# wait on, so a build stops with no compiler running. Nothing in the guest
-# recovers it: logd ignores SIGTERM in that state, and sudo, which the guest's
-# own halt goes through, blocks too. So this script only reports, without sudo
-# or anything else that writes to the unified log, by writing
-# LOGD_WEDGED_MARKER. In the status share,
-# tart-kubelet reads it and stops the VM; dispatch-poll.sh reads it while the
-# VM is warm and stops polling for a job.
+# wait on, so a build stops with no compiler running. SIGKILL recovers it:
+# launchd starts a new logd and the blocked writers carry on. SIGTERM does not:
+# logd stays up, still not draining, and sudo starts blocking too, which is why
+# this runs as root instead of going through sudo.
 #
 # Wedged is logd using LOGD_WEDGED_PERCENT of one core in each of
 # LOGD_WEDGED_SAMPLES consecutive samples. A healthy guest's logd stays near 1%
 # of a core, including under a heavy build.
+#
+# A logd that launchd does not bring back is reported by writing
+# LOGD_WEDGED_MARKER. In the status share, tart-kubelet reads it and stops the
+# VM; dispatch-poll.sh reads it while the VM is warm and stops polling for a
+# job.
 
 set -uo pipefail
 
+STATUS_SHARE="/Volumes/My Shared Files/status"
 LOGD_WATCHDOG_INTERVAL="${LOGD_WATCHDOG_INTERVAL:-30}"
 LOGD_WEDGED_PERCENT="${LOGD_WEDGED_PERCENT:-50}"
-LOGD_WEDGED_SAMPLES="${LOGD_WEDGED_SAMPLES:-10}"
-LOGD_WEDGED_MARKER="${LOGD_WEDGED_MARKER:-/tmp/tuist-logd-wedged}"
+LOGD_WEDGED_SAMPLES="${LOGD_WEDGED_SAMPLES:-4}"
+LOGD_RESTART_TIMEOUT="${LOGD_RESTART_TIMEOUT:-10}"
+LOGD_WATCHDOG_LOG="${LOGD_WATCHDOG_LOG:-/var/log/tuist-runner/poll.log}"
+
+# say appends a line to dispatch-poll.sh's log, which reaches the host as the
+# runner log, or to stdout before dispatch-poll.sh has created it. Never
+# creates the log: it belongs to `runner`, and a root-owned one would lock
+# dispatch-poll.sh out.
+say() {
+  local line
+  line="$(date -u +%FT%TZ) logd-watchdog: $*"
+  if [ -f "${LOGD_WATCHDOG_LOG}" ]; then
+    echo "${line}" >>"${LOGD_WATCHDOG_LOG}"
+  else
+    echo "${line}"
+  fi
+}
+
+# wedged_marker prints where to report a logd that cannot be recovered.
+wedged_marker() {
+  if [ -n "${LOGD_WEDGED_MARKER:-}" ]; then
+    echo "${LOGD_WEDGED_MARKER}"
+  elif [ -d "${STATUS_SHARE}" ]; then
+    echo "${STATUS_SHARE}/logd-wedged"
+  else
+    echo /tmp/tuist-logd-wedged
+  fi
+}
 
 # cpu_centiseconds converts ps's cumulative CPU time ([[DD-]HH:]MM:SS.cc) to
 # centiseconds.
@@ -50,14 +80,41 @@ logd_sample() {
   echo "${pid} $(cpu_centiseconds "${time}")"
 }
 
+# restart_logd kills logd ($1) and prints the pid launchd starts in its place,
+# or fails when none comes up within LOGD_RESTART_TIMEOUT seconds.
+restart_logd() {
+  local pid="$1" sample waited=0
+  kill -KILL "${pid}" 2>/dev/null || return 1
+  while [ "${waited}" -lt "${LOGD_RESTART_TIMEOUT}" ]; do
+    sleep 1
+    waited=$((waited + 1))
+    sample=$(logd_sample)
+    if [ -n "${sample}" ] && [ "${sample%% *}" != "${pid}" ]; then
+      echo "${sample%% *}"
+      return 0
+    fi
+  done
+  return 1
+}
+
 prev_pid=""
 prev_cpu=0
 hot_samples=0
+restarts=0
 
-# watchdog_tick takes one sample and returns 1 once logd has been wedged for
-# LOGD_WEDGED_SAMPLES samples in a row, after writing LOGD_WEDGED_MARKER.
+# report_wedged writes the marker the host stops the VM on.
+report_wedged() {
+  local marker
+  marker=$(wedged_marker)
+  date -u +%FT%TZ >"${marker}" 2>/dev/null || true
+  say "$*; reported in ${marker} for the host to stop the VM"
+}
+
+# watchdog_tick takes one sample and restarts logd once it has been wedged for
+# LOGD_WEDGED_SAMPLES samples in a row. Returns 1 once logd is reported as
+# unrecoverable, after which there is nothing left to do.
 watchdog_tick() {
-  local sample pid cpu percent
+  local sample pid cpu percent new_pid
   sample=$(logd_sample)
   if [ -z "${sample}" ]; then
     prev_pid=""
@@ -81,13 +138,18 @@ watchdog_tick() {
   hot_samples=$((hot_samples + 1))
   [ "${hot_samples}" -ge "${LOGD_WEDGED_SAMPLES}" ] || return 0
 
-  echo "$(date -u +%FT%TZ) logd-watchdog: logd (pid ${pid}) used at least ${LOGD_WEDGED_PERCENT}% of a core for $((hot_samples * LOGD_WATCHDOG_INTERVAL))s (last ${percent}%); reporting it wedged"
-  date -u +%FT%TZ >"${LOGD_WEDGED_MARKER}" 2>/dev/null || true
-  return 1
+  hot_samples=0
+  restarts=$((restarts + 1))
+  say "logd (pid ${pid}) used at least ${LOGD_WEDGED_PERCENT}% of a core for $((LOGD_WEDGED_SAMPLES * LOGD_WATCHDOG_INTERVAL))s (last ${percent}%); killing it (restart ${restarts})"
+  if ! new_pid=$(restart_logd "${pid}"); then
+    report_wedged "logd (pid ${pid}) did not come back within ${LOGD_RESTART_TIMEOUT}s"
+    return 1
+  fi
+  say "logd restarted (pid ${new_pid})"
 }
 
 main() {
-  echo "$(date -u +%FT%TZ) logd-watchdog: watching logd every ${LOGD_WATCHDOG_INTERVAL}s"
+  say "watching logd every ${LOGD_WATCHDOG_INTERVAL}s"
   while watchdog_tick; do
     sleep "${LOGD_WATCHDOG_INTERVAL}"
   done

@@ -1773,9 +1773,10 @@ func runnerFinishedAt(entry *Entry) metav1.Time {
 	return metav1.NewTime(time.Now())
 }
 
-// stopWedgedGuest stops the VM of a Pod whose guest reported a wedged logd. The
-// guest cannot recover or halt itself then, so without this a job hangs until
-// its own timeout and the VM holds its host after that. The stop runs in the
+// stopWedgedGuest stops the VM of a Pod whose guest reported a wedged logd that
+// killing did not bring back. The guest cannot recover or halt itself then, so
+// without this a job hangs until its own timeout and the VM holds its host
+// after that. The stop runs in the
 // background, off the single reconcile worker; the reconcile that sees `tart
 // run` exit publishes the runner terminated with runnerExitReasonLogdWedged.
 func (r *Reconciler) stopWedgedGuest(ctx context.Context, pod *corev1.Pod) {

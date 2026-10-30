@@ -198,10 +198,10 @@ func readRunnerExitTime(statusDir string) (time.Time, bool) {
 	return fi.ModTime(), true
 }
 
-// logdWedgedFile is the guest's report that its logd wedged
-// (`infra/runner-image/logd-watchdog.sh`). From then on every guest process
-// that logs is blocked, the job's build and the guest's own halt included, so
-// the host stops the VM.
+// logdWedgedFile is the guest's report that its logd wedged and did not come
+// back when the guest killed it (`infra/runner-image/logd-watchdog.sh`). Guest
+// processes that log stay blocked, the job's build and the guest's own halt
+// included, so the host stops the VM.
 const logdWedgedFile = "logd-wedged"
 
 // readLogdWedged reports whether the guest reported a wedged logd. Only the

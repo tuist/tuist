@@ -1013,15 +1013,12 @@ if [ ! -x "${JQ}" ]; then
   exit 1
 fi
 
-# A wedged logd blocks every process that logs, the job's build and this
-# script's own halt included (see logd-watchdog.sh). The watchdog reports it
-# through the status share, where tart-kubelet stops the VM. A warm VM stops
-# polling as soon as it is reported, so it never takes a job.
+# The dev.tuist.logd-watchdog LaunchDaemon restarts a wedged logd, and reports
+# one that does not come back here, where tart-kubelet stops the VM (see
+# logd-watchdog.sh). A warm VM stops polling once it is reported, so it never
+# takes a job.
 LOGD_WEDGED_MARKER=/tmp/tuist-logd-wedged
 [ -d "${STATUS_SHARE}" ] && LOGD_WEDGED_MARKER="${STATUS_SHARE}/logd-wedged"
-if [ -x /opt/tuist/logd-watchdog.sh ]; then
-  LOGD_WEDGED_MARKER="${LOGD_WEDGED_MARKER}" /opt/tuist/logd-watchdog.sh &
-fi
 
 while true; do
   attempt=$((attempt + 1))
