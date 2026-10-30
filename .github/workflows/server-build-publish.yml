@@ -212,7 +212,7 @@ jobs:
           BASE_TAG: ${{ inputs.stable_base_tag }}
           APPROVED_BASE_SHA: ${{ inputs.stable_base_sha }}
           EXPECTED_VERSION: ${{ inputs.version }}
-        run: python3 .github/scripts/stable-image-patch.py server "$SOURCE_SHA" "$BASE_TAG"
+        run: bash .github/scripts/stable-image-patch.sh server "$SOURCE_SHA" "$BASE_TAG"
 
       - name: Publish multi-arch manifest
         env:
@@ -268,7 +268,7 @@ jobs:
           BASE_TAG: ${{ inputs.stable_base_tag }}
           APPROVED_BASE_SHA: ${{ inputs.stable_base_sha }}
           EXPECTED_VERSION: ${{ inputs.version }}
-        run: python3 .github/scripts/stable-image-patch.py server "$SOURCE_SHA" "$BASE_TAG"
+        run: bash .github/scripts/stable-image-patch.sh server "$SOURCE_SHA" "$BASE_TAG"
       - name: Create Server GitHub Release
         uses: softprops/action-gh-release@v2
         with:

@@ -31,4 +31,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Exercise real-Git patch planning and publication rejection
-        run: python3 .github/scripts/stable-image-patch.test.py
+        run: bash .github/scripts/stable-image-patch.test.sh

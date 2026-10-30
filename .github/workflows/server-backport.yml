@@ -42,7 +42,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
           BASE_TAG: ${{ inputs.base_tag }}
-        run: python3 .github/scripts/stable-image-patch.py server "$SOURCE_SHA" "$BASE_TAG"
+        run: bash .github/scripts/stable-image-patch.sh server "$SOURCE_SHA" "$BASE_TAG"
 
   build-publish:
     name: Build and publish stable patch

@@ -290,7 +290,7 @@ jobs:
           BASE_TAG: ${{ inputs.stable_base_tag }}
           APPROVED_BASE_SHA: ${{ inputs.stable_base_sha }}
           EXPECTED_VERSION: ${{ inputs.version }}
-        run: python3 .github/scripts/stable-image-patch.py kura "$SOURCE_SHA" "$BASE_TAG"
+        run: bash .github/scripts/stable-image-patch.sh kura "$SOURCE_SHA" "$BASE_TAG"
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -379,7 +379,7 @@ jobs:
           BASE_TAG: ${{ inputs.stable_base_tag }}
           APPROVED_BASE_SHA: ${{ inputs.stable_base_sha }}
           EXPECTED_VERSION: ${{ inputs.version }}
-        run: python3 .github/scripts/stable-image-patch.py kura "$SOURCE_SHA" "$BASE_TAG"
+        run: bash .github/scripts/stable-image-patch.sh kura "$SOURCE_SHA" "$BASE_TAG"
 
       - name: Create Kura GitHub Release
         uses: softprops/action-gh-release@v2
