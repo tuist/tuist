@@ -41,11 +41,15 @@ sleep() { :; }
 eval "real_$(declare -f probe_logging)"
 probe_logging() { [ "$(cat "${work}/probe")" = ok ]; }
 
+# The clock advances one interval per sample.
+epoch() { cat "${work}/clock"; }
+
 setup() {
   work=$(mktemp -d "$base/test.XXXXXX")
   echo 300 >"${work}/pid"
   echo 0 >"${work}/cpu"
   echo ok >"${work}/probe"
+  echo 1000 >"${work}/clock"
   RESPAWN=1
   LOGD_WATCHDOG_INTERVAL=30
   LOGD_WEDGED_PERCENT=50
@@ -53,6 +57,7 @@ setup() {
   LOGD_PROBE_TIMEOUT=10
   LOGD_STALLED_SAMPLES=2
   LOGD_RESTART_TIMEOUT=10
+  LOGD_RESTART_MIN_INTERVAL=300
   LOGD_WEDGED_MARKER="${work}/logd-wedged"
   LOGD_WATCHDOG_LOG="${work}/poll.log"
   : >"${LOGD_WATCHDOG_LOG}"
@@ -61,6 +66,8 @@ setup() {
   hot_samples=0
   stalled_samples=0
   restarts=0
+  last_restart_at=""
+  deferral_reported=0
   watchdog_tick || fail 'the first sample reported a wedge'
 }
 
@@ -68,6 +75,7 @@ setup() {
 # ticks in this shell, leaving its status in $rc.
 spend() {
   echo $(($(cat "${work}/cpu") + $1 * LOGD_WATCHDOG_INTERVAL)) >"${work}/cpu"
+  echo $(($(cat "${work}/clock") + LOGD_WATCHDOG_INTERVAL)) >"${work}/clock"
   watchdog_tick
   rc=$?
 }
@@ -97,14 +105,33 @@ test_a_logd_spinning_for_two_minutes_is_killed_and_watched_again() {
   [ ! -e "${LOGD_WEDGED_MARKER}" ] || fail 'reported a logd that came back'
 
   # The new logd is watched from a fresh baseline, and restarted again if it
-  # wedges too.
-  for _ in 1 2 3 4 5; do
+  # stays wedged, but not within five minutes of the last restart.
+  for _ in $(seq 1 9); do
     spend 85
     eq 0 "${rc}"
   done
+  eq "-KILL 300" "$(cat "${work}/kills")"
+  eq 1 "$(grep -c 'not killing it within 300s of the last restart' "${LOGD_WATCHDOG_LOG}")"
+  spend 85
+  eq 0 "${rc}"
   eq "-KILL 300
 -KILL 301" "$(cat "${work}/kills")"
   [[ "$(log)" == *"logd (pid 301) used at least 50% of a core for 120s (last 85%); killing it (restart 2)"* ]] || fail "unexpected log: $(log)"
+}
+
+test_a_logd_that_recovers_during_the_cooldown_is_left_alone() {
+  setup
+  echo stalled >"${work}/probe"
+  spend 0
+  spend 0
+  eq "-KILL 300" "$(cat "${work}/kills")"
+  spend 0
+  spend 0
+  echo ok >"${work}/probe"
+  for _ in $(seq 1 20); do
+    spend 0
+  done
+  eq "-KILL 300" "$(cat "${work}/kills")"
 }
 
 test_a_logd_that_does_not_come_back_is_reported() {

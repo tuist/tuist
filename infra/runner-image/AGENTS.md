@@ -423,6 +423,13 @@ added to catch that failed on `admin`'s unwritable cache instead.
   - Never create `/var/log/tuist-runner/poll.log`: it belongs to `runner`.
     The watchdog appends to it once `dispatch-poll.sh` has created it, so
     restarts appear in the runner log as `logd-watchdog:` lines.
+  - At most one kill per 5 minutes, so a misread probe cannot turn into a
+    restart loop. Do not add an escalation that stops the VM after repeated
+    successful restarts: a logd that keeps coming back still lets the job
+    finish.
+  - `log stream` clients survive a restart: on staging, `stream_tcc_log`'s
+    stream kept its PID across a logd SIGKILL and received messages written
+    after it. Do not add restart loops around them.
 
   A logd that does not come back is reported by writing `logd-wedged` into
   the status share: tart-kubelet stops the VM (see

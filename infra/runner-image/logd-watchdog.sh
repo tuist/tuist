@@ -19,6 +19,11 @@
 #   seconds in each of LOGD_STALLED_SAMPLES consecutive samples, which catches
 #   a logd that stops draining without spinning.
 #
+# logd is killed at most once per LOGD_RESTART_MIN_INTERVAL seconds, so a
+# probe misreading sustained load costs one lost-messages restart per window
+# instead of a restart loop. A logd still wedged when the window ends is
+# killed on the next sample.
+#
 # A logd that launchd does not bring back is reported by writing
 # LOGD_WEDGED_MARKER. In the status share, tart-kubelet reads it and stops the
 # VM; dispatch-poll.sh reads it while the VM is warm and stops polling for a
@@ -34,6 +39,7 @@ LOGD_PROBE_LINES="${LOGD_PROBE_LINES:-1000}"
 LOGD_PROBE_TIMEOUT="${LOGD_PROBE_TIMEOUT:-10}"
 LOGD_STALLED_SAMPLES="${LOGD_STALLED_SAMPLES:-2}"
 LOGD_RESTART_TIMEOUT="${LOGD_RESTART_TIMEOUT:-10}"
+LOGD_RESTART_MIN_INTERVAL="${LOGD_RESTART_MIN_INTERVAL:-300}"
 LOGD_WATCHDOG_LOG="${LOGD_WATCHDOG_LOG:-/var/log/tuist-runner/poll.log}"
 
 # say appends a line to dispatch-poll.sh's log, which reaches the host as the
@@ -126,11 +132,15 @@ probe_logging() {
   return 0
 }
 
+epoch() { date +%s; }
+
 prev_pid=""
 prev_cpu=0
 hot_samples=0
 stalled_samples=0
 restarts=0
+last_restart_at=""
+deferral_reported=0
 
 # report_wedged writes the marker the host stops the VM on.
 report_wedged() {
@@ -180,8 +190,18 @@ watchdog_tick() {
     return 0
   fi
 
+  if [ -n "${last_restart_at}" ] && [ $(($(epoch) - last_restart_at)) -lt "${LOGD_RESTART_MIN_INTERVAL}" ]; then
+    if [ "${deferral_reported}" = 0 ]; then
+      say "logd (pid ${pid}) ${reason}; not killing it within ${LOGD_RESTART_MIN_INTERVAL}s of the last restart"
+      deferral_reported=1
+    fi
+    return 0
+  fi
+
   hot_samples=0
   stalled_samples=0
+  deferral_reported=0
+  last_restart_at=$(epoch)
   restarts=$((restarts + 1))
   say "logd (pid ${pid}) ${reason}; killing it (restart ${restarts})"
   if ! new_pid=$(restart_logd "${pid}"); then
