@@ -205,7 +205,12 @@ ordinary full-suite job exercises current OTP. Keep native alternate-path
 validation and real-key fixtures covered without a separate shared harness.
 The workflow is reused by `tuist-ex-release.yml` before publication.
 Releases run only from `main`, serialize publishing, and use the shared
-`release:check` registry with the `tuist-ex@` tag prefix. The existing
+`release:check` registry with the `tuist-ex@` tag prefix by default. The opt-in
+stable dispatch validates an immutable release-branch tip and exact next patch,
+then reuses validation and publishing with that source. Keep control code on
+main and recheck source/tag boundaries before publication. See the stable hotfix
+procedure in `tuist_ex/README.md`; validate the guard with
+`bash .github/scripts/tuist-ex-stable-release.test.sh`. The existing
 `HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
 
 The optional `custom_cache_apfs` staging smoke input runs the candidate shared
