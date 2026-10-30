@@ -2,48 +2,81 @@
 
 Describe 'network-trusted self-hosted cache access'
   Include spec/e2e/support.sh
-  Skip if 'native Kura binary is not configured' test -z "${KURA_NETWORK_CACHE_TEST_BIN:-}"
+  Skip if 'Kura runtime is not configured' test -z "${KURA_NETWORK_CACHE_TEST_IMAGE:-${KURA_NETWORK_CACHE_TEST_BIN:-}}"
 
   setup_network_cache() {
+    KURA_PID='' CONTROL_PID='' NETWORK_CONTAINER='' NETWORK_TMP=''
+    # Each example has its own subshell, separate from ShellSpec's runner traps.
+    trap teardown_network_cache EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
     NETWORK_TMP="$(mktemp -d)"
     export KURA_MTLS_CERT_DIR="$NETWORK_TMP"
-    generate_peer_tls_material || return 1
-    node test/e2e/network-cache/control_plane.mjs "$NETWORK_TMP" >"$NETWORK_TMP/control.log" 2>&1 &
+    generate_peer_tls_material || { teardown_network_cache; return 1; }
+    node test/e2e/network-cache/control_plane.mjs "$NETWORK_TMP" >"$NETWORK_TMP/control.log" 2>&1 </dev/null &
     CONTROL_PID=$!
     for _ in $(seq 1 100); do
       [ -s "$NETWORK_TMP/ports" ] && break
+      kill -0 "$CONTROL_PID" 2>/dev/null || break
       sleep 0.1
     done
-    [ -s "$NETWORK_TMP/ports" ] || return 1
+    if [ ! -s "$NETWORK_TMP/ports" ]; then
+      cat "$NETWORK_TMP/control.log" >&2
+      teardown_network_cache
+      return 1
+    fi
     read -r CONTROL_PORT PORT INTERNAL_PORT < "$NETWORK_TMP/ports"
     CONTROL_URL="http://127.0.0.1:$CONTROL_PORT"
     NETWORK_URL="http://127.0.0.1:$PORT"
-    env -i PATH="$PATH" KURA_PORT="$PORT" KURA_INTERNAL_PORT="$INTERNAL_PORT" \
-      KURA_TENANT_ID=acme KURA_REGION=local KURA_NODE_URL="https://127.0.0.1:$INTERNAL_PORT" \
-      KURA_INTERNAL_TLS_CA_CERT_PATH="$NETWORK_TMP/ca.pem" \
-      KURA_INTERNAL_TLS_CERT_PATH="$NETWORK_TMP/peer.pem" KURA_INTERNAL_TLS_KEY_PATH="$NETWORK_TMP/peer.key" \
-      KURA_DATA_DIR="$NETWORK_TMP/data" KURA_TMP_DIR="$NETWORK_TMP/tmp" \
-      KURA_MEMORY_SOFT_LIMIT_BYTES=536870912 KURA_MEMORY_HARD_LIMIT_BYTES=805306368 \
-      KURA_METADATA_STORE_READ_CACHE_BYTES=16777216 KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES=16777216 \
-      KURA_METADATA_STORE_WRITE_BUFFER_BYTES=4194304 KURA_METADATA_STORE_MAX_OPEN_FILES=256 \
-      KURA_FILE_DESCRIPTOR_POOL_SIZE=256 KURA_OTEL_SERVICE_NAME=network-cache-test KURA_OTEL_DEPLOYMENT_ENVIRONMENT=local \
-      KURA_AUTH_TUIST_URL="$CONTROL_URL" KURA_CONTROL_PLANE_URL="$CONTROL_URL" \
-      KURA_CONTROL_PLANE_CLIENT_ID=test KURA_CONTROL_PLANE_CLIENT_SECRET=test KURA_MESH_PEERS_SYNC=true \
-      RUST_LOG=warn "$KURA_NETWORK_CACHE_TEST_BIN" >"$NETWORK_TMP/kura.log" 2>&1 &
+    local config=(
+      KURA_PORT="$PORT" KURA_INTERNAL_PORT="$INTERNAL_PORT"
+      KURA_TENANT_ID=acme KURA_REGION=local KURA_NODE_URL="https://127.0.0.1:$INTERNAL_PORT"
+      KURA_INTERNAL_TLS_CA_CERT_PATH="$NETWORK_TMP/ca.pem"
+      KURA_INTERNAL_TLS_CERT_PATH="$NETWORK_TMP/peer.pem" KURA_INTERNAL_TLS_KEY_PATH="$NETWORK_TMP/peer.key"
+      KURA_DATA_DIR="$NETWORK_TMP/data" KURA_TMP_DIR="$NETWORK_TMP/tmp"
+      KURA_MEMORY_SOFT_LIMIT_BYTES=536870912 KURA_MEMORY_HARD_LIMIT_BYTES=805306368
+      KURA_METADATA_STORE_READ_CACHE_BYTES=16777216 KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES=16777216
+      KURA_METADATA_STORE_WRITE_BUFFER_BYTES=4194304 KURA_METADATA_STORE_MAX_OPEN_FILES=256
+      KURA_FILE_DESCRIPTOR_POOL_SIZE=256 KURA_OTEL_SERVICE_NAME=network-cache-test KURA_OTEL_DEPLOYMENT_ENVIRONMENT=local
+      KURA_AUTH_TUIST_URL="$CONTROL_URL" KURA_CONTROL_PLANE_URL="$CONTROL_URL"
+      KURA_CONTROL_PLANE_CLIENT_ID=test KURA_CONTROL_PLANE_CLIENT_SECRET=test KURA_MESH_PEERS_SYNC=true
+      RUST_LOG=warn
+    )
+    local runtime=(env -i PATH="$PATH") setting
+    if [ -n "${KURA_NETWORK_CACHE_TEST_IMAGE:-}" ]; then
+      # Linux accounting requires a container-root cgroup, not the host root.
+      NETWORK_CONTAINER="kura-network-cache-${NETWORK_TMP##*/}"
+      runtime=(docker run --rm --name "$NETWORK_CONTAINER" --network host --memory=1g
+        --user "$(id -u):$(id -g)" --volume "$NETWORK_TMP:$NETWORK_TMP")
+      for setting in "${config[@]}"; do runtime+=(--env "$setting"); done
+      runtime+=("$KURA_NETWORK_CACHE_TEST_IMAGE")
+    else
+      runtime+=("${config[@]}" "$KURA_NETWORK_CACHE_TEST_BIN")
+    fi
+    "${runtime[@]}" >"$NETWORK_TMP/kura.log" 2>&1 </dev/null &
     KURA_PID=$!
     for _ in $(seq 1 200); do
       curl -fsS "$NETWORK_URL/ready" >/dev/null 2>&1 && return 0
+      kill -0 "$KURA_PID" 2>/dev/null || break
       sleep 0.1
     done
     cat "$NETWORK_TMP/kura.log" >&2
+    # ShellSpec does not run AfterEach when BeforeEach fails.
+    teardown_network_cache
     return 1
   }
 
   teardown_network_cache() {
+    [ -z "${NETWORK_CONTAINER:-}" ] || docker rm -f "$NETWORK_CONTAINER" >/dev/null 2>&1 || true
     [ -z "${KURA_PID:-}" ] || kill "$KURA_PID" 2>/dev/null || true
     [ -z "${CONTROL_PID:-}" ] || kill "$CONTROL_PID" 2>/dev/null || true
     wait "${KURA_PID:-}" "${CONTROL_PID:-}" 2>/dev/null || true
-    rm -rf "${NETWORK_TMP:?}"
+    KURA_PID='' CONTROL_PID='' NETWORK_CONTAINER=''
+    if [ -n "${NETWORK_TMP:-}" ]; then
+      rm -rf "${NETWORK_TMP:?}"
+      NETWORK_TMP=''
+    fi
   }
 
   cache_roundtrip() {

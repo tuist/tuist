@@ -2659,6 +2659,85 @@ When it fires, check [Runner fleet out of macOS capacity](#runner-fleet-out-of-m
 first. If that is not firing, the wait is not a full fleet; work through
 the causes listed under the 30-minute rule.
 
+### Runner queue time p90 over 10 s
+
+The queue-time target is a p90 below 10 s on Linux and on macOS, for jobs
+that did not wait on their own account's concurrency limit. Rule
+`runner-queue-time-p90-over-target`, folder `Alerts`, group `Runners`,
+recorded in [`runner-queue-time-alert-rules.json`](runner-queue-time-alert-rules.json)
+and created through `POST /api/v1/provisioning/alert-rules` with
+`X-Disable-Provenance: true`. Merging the file does not provision Grafana:
+change the live rule and the file together.
+
+```promql
+# A: jobs that claimed their runner within 10 s; B is the same over _count
+sum by (platform) (increase(
+  tuist_runners_job_executor_queue_time_milliseconds_bucket{
+    env="production", platform=~"linux|macos", limit_held="false", le="10000.0"
+  }[1h]
+))
+```
+
+- C: `1 - $A / $B`, the share of jobs over 10 s. It is above 10% exactly
+  when the p90 is over 10 s, because 10 s is a bucket boundary.
+- Condition: `$C > 0.1 && $B >= 20`; pending period 30 minutes; severity
+  warning; policy tree (`#notifications`)
+- No `affected_service`: jobs still start.
+- `test-runner-queue-time-alert.sh` checks the expression with promtool.
+
+The server observes each job once, when GitHub first names the runner it ran
+on (`Tuist.Runners.WorkflowJobs.record_execution/3`). The value is the job's
+queue time as the runners dashboard measures it, enqueue to that runner's
+claim (`executor_claimed_at`). `limit_held="true"` marks a job whose
+account's open runner sessions, plus the job, exceeded its limit at enqueue
+or 15 s before that claim (`Tuist.Runners.Concurrency.limit_held?/4`).
+Those jobs waited on the limit the customer bought, so the rule leaves them
+out.
+
+The existing `tuist_runners_job_queue_time_milliseconds` histogram cannot
+serve: it is observed at every claim, so a job the runner shuffle moves
+between claims is counted again with a later claim time, and it includes
+limit holds.
+
+The 20-job floor keeps a quiet hour from firing on one or two cold boots;
+macOS often has fewer jobs than that per hour at night.
+
+The rule needs `platform`, `limit_held` and `le` on the histogram. Grafana
+Cloud adaptive aggregation already took `fleet` off the older queue-time
+histogram, so if this rule reads nothing while jobs run, check for an
+aggregation rule on the new metric before anything else.
+
+Backtest of the condition on hourly buckets, computed from Postgres
+(`runner_workflow_jobs`, `runner_sessions`, `runner_concurrency_limits`)
+with the same definition, 2026-10-27 and 10-28 UTC:
+
+- Linux had more than 10% of jobs over 10 s in 9 of 24 hours on 10-27
+  (up to 83%) and 6 of 23 on 10-28.
+- macOS was over in most hours with at least 20 jobs on both days.
+
+So the rule fires daily until the cold-pool fixes (learned warm floors,
+tuist/tuist#14940) take effect; that is the gap it exists to show.
+
+When it fires, find the pools behind it:
+
+```promql
+1 - sum by (fleet) (increase(tuist_runners_job_executor_queue_time_milliseconds_bucket{env="production", platform="linux", limit_held="false", le="10000.0"}[1h]))
+  / sum by (fleet) (increase(tuist_runners_job_executor_queue_time_milliseconds_count{env="production", platform="linux", limit_held="false"}[1h]))
+```
+
+Then work through:
+
+- **No warm runner.** A cold runner takes a median 20 to 26 s on the rack and
+  13 to 16 s on Linux to claim. Compare
+  `tuist_runners_autoscaler_learned_warm_floor_replicas` and
+  `tuist_runners_autoscaler_warm_deficit_replicas` for the pool.
+- **A fan-out larger than the pool's floor.** Learned floors are capped per
+  pool in `values-managed-production.yaml` (`maxLearnedWarmPoolFloor`).
+- **No capacity.** Check [Runner fleet out of macOS capacity](#runner-fleet-out-of-macos-capacity)
+  and [Runner jobs waiting for a runner](#runner-jobs-waiting-for-a-runner).
+- **Re-queued jobs.** `tuist_runners_job_requeued_count` rising means GitHub
+  ran other jobs on the runners claimed for these.
+
 ### Runner fleet out of macOS capacity
 
 Says the cause rather than the symptom: the Scaleway macOS fleet has
@@ -2747,20 +2826,19 @@ starts. A job VM is a fresh clone of its pool's runner image, so the
 free space at start is a property of the image: the runner image build
 fails below 100 GiB available (`infra/runner-image/runner.pkr.hcl`), and
 this rule catches what the build cannot see, such as a clone's boot
-writing more than the image left free. Create it once the first release
-with the 200 GB disk runs on every pool: older images start with an
-estimated 58 GiB available and would fire on every job.
+writing more than the image left free.
 
 Grafana-managed rule on the `Tuist Production ClickHouse` data source
-(`cg1vnyjs65blsc`), evaluated every 15 minutes over jobs whose steps
-arrived in the last hour:
+(`cg1vnyjs65blsc`), evaluated every 15 minutes over jobs whose first
+step started in the last hour:
 
 ```sql
 WITH steps AS (
   SELECT workflow_job_id, min(started_at) AS first_step
   FROM runner_job_steps
-  WHERE inserted_at >= now() - INTERVAL 1 HOUR AND started_at IS NOT NULL
+  WHERE inserted_at >= now() - INTERVAL 1 DAY AND started_at IS NOT NULL
   GROUP BY workflow_job_id
+  HAVING first_step >= now() - INTERVAL 1 HOUR
 ), starts AS (
   SELECT workflow_job_id, min(timestamp) AS t0,
     argMin(disk_total_bytes - disk_used_bytes, timestamp) / 1073741824 AS free_gib
@@ -2799,7 +2877,10 @@ so their first sample could come after checkout and cache restores. On
 2026-10-22, 39 jobs were sampled 99 to 679 seconds late and showed 46.8
 to 74 GiB free while every VM started with about 79. The filter skips
 those jobs. With the current sampler the first sample comes before the
-first step.
+first step. The first step is read over a day of steps: a job that runs
+for more than an hour also has steps from before the last hour, and
+taking the earliest recent one instead would let a late first sample
+through.
 
 Free is the APFS container's available space (`df` Avail), which is
 what a job can write. Runner images before that change reported Size

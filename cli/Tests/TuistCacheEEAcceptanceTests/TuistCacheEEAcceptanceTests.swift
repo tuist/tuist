@@ -967,6 +967,39 @@ struct TuistCacheEEAcceptanceTests {
         #expect(try await fileSystem.exists(productsDirectory.appending(component: "ResourcesPackage_ResourcesLib.bundle")))
     }
 
+    /// A public header includes a header from a directory the package excludes from compilation.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_app_with_cached_spm_c_target_excluded_headers")
+    ) func generated_app_with_cached_spm_c_target_excluded_headers() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(CacheCommand.self, ["CVendored", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("CVendored", by: "App", xcodeprojPath: xcodeprojPath)
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "App",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
     /// Removes the targets' binaries from the local cache so the next warm treats them as misses, and returns the
     /// number of cache actions removed.
     private func evictFromLocalCache(_ targets: Set<String>) async throws -> Int {

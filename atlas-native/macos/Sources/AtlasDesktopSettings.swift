@@ -7,6 +7,7 @@ struct AtlasDesktopSettings: View {
     let server: URL?
     let accounts: AtlasAIAccounts
     let profileRequest: AtlasWorkstation.Request?
+    let profileModel: AtlasProfile
     let notifications: AtlasPushNotifications?
     let signOut: () -> Void
     let workstation: AtlasWorkstation?
@@ -17,7 +18,8 @@ struct AtlasDesktopSettings: View {
             NavigationStack {
                 if let server {
                     AtlasSettingsView(server: server, accounts: accounts, signOut: signOut,
-                                      profileRequest: profileRequest, notifications: notifications)
+                                      profileRequest: profileRequest, profileModel: profileModel,
+                                      notifications: notifications)
                 } else {
                     ContentUnavailableView("Sign in to Atlas", systemImage: "person.crop.circle",
                                            description: Text("Open the Atlas window to sign in."))
@@ -84,9 +86,9 @@ struct AtlasWorkstationSettings: View {
                         .foregroundStyle(model.connected ? .green : .secondary)
                 }
                 TextField("Name", text: $draft.name).accessibilityIdentifier("workstation-name")
-                Toggle("Allow terminal commands", isOn: $draft.terminal)
+                Toggle("Allow terminal and coding tools", isOn: $draft.terminal)
                     .accessibilityIdentifier("workstation-terminal")
-                Text("Once enabled, commands run without asking for approval each time. " +
+                Text("Once enabled, commands and code edits run without asking for approval each time. " +
                      "Commands run as your macOS user, not inside a folder sandbox, for up to 30 minutes.")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Keep this Mac awake", isOn: $draft.keepAwake)
@@ -105,9 +107,10 @@ struct AtlasWorkstationSettings: View {
                 folderRows(draft.projectDirectories, parentDirectories: true)
                 Button("Choose project parent directories…") { choose(parentDirectories: true) }
             } header: { Text("Where tools can work") } footer: {
-                Text("File tools stay inside the selected project. " +
-                     "Parent directories make their immediate subfolders " +
-                     "available as projects. Home includes personal files. " +
+                Text("Git projects use an isolated worktree per conversation, named from its title. " +
+                     "Work starts from local HEAD; uncommitted files stay in the original checkout. " +
+                     "Worktrees are retained when conversations are archived. " +
+                     "Parent directories list their immediate Git repositories. Home includes personal files. " +
                      "Only project names are registered with Atlas; " +
                      "file contents and command output go to Atlas and your AI provider when a tool runs. " +
                      "These folder limits do not restrict terminal commands.")

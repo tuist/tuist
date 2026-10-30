@@ -432,19 +432,15 @@ checkout hides its parents, so the CLI can't resolve the head through `HEAD^2`).
 full run of an earlier commit on main, tested with main's `mise.toml`. The
 selective runs upload coverage too; the server drops from their skips whatever a
 full run of the scheme at the commit executed. The coverage settings are set once, in the
-root `mise.toml`'s `[env]` (`TUIST_FEATURE_FLAG_COVERAGE`, `TUIST_COVERAGE_ENABLED`,
-`TUIST_COVERAGE_PREFIX_MAPPING`), so every job that loads mise's environment and
+root `Tuist.swift`'s `coverage: .coverage(enabled: true, prefixMapping: true)`
+(behind the root `mise.toml`'s `TUIST_FEATURE_FLAG_COVERAGE`), so every job and
 every developer resolve the same variant and the same prefix mapping; both are
-hashed into binary-cache and selective-testing keys, so never set them per step.
-They stand in for `Tuist.swift`'s `coverage` option until the
-backward-compatibility gate's CLI knows it. The test runs pass no
+hashed into binary-cache and selective-testing keys, so never override them per
+step with `TUIST_COVERAGE_ENABLED` or `TUIST_COVERAGE_PREFIX_MAPPING`. The test runs pass no
 `-enableCodeCoverage`: schemes that leave their test action's coverage unset
 follow the resolved option, and the acceptance-test schemes set `coverage: false`
-to stay out. CLIs before tuist/tuist#14404 ignore the last two variables, so until
-`mise.toml` pins one with it the runs collect no coverage and stay green
-(`tuist coverage complete` leaves the commit pending). `tuist-project-tests.yml`'s single
-`tuist cache` on main warms the variant those settings select: plain binaries
-before that pin, the coverage variant after it. Plain environment variables
+to stay out. `tuist-project-tests.yml`'s single
+`tuist cache` on main warms the variant those settings select. Plain environment variables
 never reach the macOS test hosts (only `TEST_RUNNER_`-prefixed ones do), so
 they cannot flip the CLI's own unit tests. The coverage runs pass no
 `--derived-data-path`: the CLI locates Xcode's derived data itself

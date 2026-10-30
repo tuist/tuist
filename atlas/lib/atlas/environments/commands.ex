@@ -1,5 +1,12 @@
 defmodule Atlas.Environments.Commands do
-  @moduledoc "The durable, at-most-once device dispatch boundary. A claim is never reassigned."
+  @moduledoc """
+  The durable, at-most-once executor dispatch boundary.
+
+  Delivery adapters poll or subscribe to the same ledger, then claim, report
+  progress and settle results. They never execute tools in the model process.
+  Commands stay bound to the selected environment/project and configuration
+  version. A claim is never reassigned, including to another provider.
+  """
   import Ecto.Query
 
   alias Atlas.Audit
@@ -9,6 +16,7 @@ defmodule Atlas.Environments.Commands do
   alias Atlas.Environments.ProviderWorker
   alias Atlas.Orbit
   alias Atlas.Orbit.Access
+  alias Atlas.Orbit.EnvironmentTools
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Rendering
   alias Atlas.Orbit.Run
@@ -17,9 +25,11 @@ defmodule Atlas.Environments.Commands do
   alias Atlas.Repo
   alias Atlas.Users.User
 
-  @unknown "The device command outcome is unknown. It will not be retried automatically."
+  @unknown "The environment command outcome is unknown. It will not be retried automatically."
   @unavailable "The personal environment is unavailable."
   @active ~w(queued claimed)
+  @terminal ~w(environment_terminal bash)
+  @mutating ~w(environment_terminal bash edit write)
 
   def unknown, do: @unknown
 
@@ -38,18 +48,24 @@ defmodule Atlas.Environments.Commands do
   end
 
   defp reserve_new!(thread, run, message, args) do
-    if message.tool_name == "environment_terminal" and terminal_pending?(thread.id),
+    if EnvironmentTools.mutating?(message.tool_name) and mutation_pending?(thread.id),
       do: Repo.rollback(:command_outcome_unknown)
 
     environment = Environments.owned_enabled!(thread.owner_id, run.environment_id, run.project_id)
     if not Environments.online?(environment), do: Repo.rollback(:environment_offline)
 
-    if message.tool_name == "environment_terminal" and not environment.terminal,
-      do: Repo.rollback(:environment_terminal_disabled)
+    project = Enum.find(environment.projects, &(&1["id"] == run.project_id))
+    ensure_tool!(environment, project, message.tool_name)
 
     arguments = Map.put(args, "project_id", run.project_id)
+
+    arguments =
+      if EnvironmentTools.coding?(message.tool_name),
+        do: Map.merge(arguments, %{"thread_id" => thread.id, "title" => thread.title}),
+        else: arguments
+
     id = Ecto.UUID.generate()
-    terminal = message.tool_name == "environment_terminal"
+    terminal = EnvironmentTools.terminal?(message.tool_name)
     timeout = execution_timeout(message.tool_name, environment)
 
     digest = digest({id, environment.id, environment.version, run.project_id, message.tool_name, arguments, timeout})
@@ -67,7 +83,7 @@ defmodule Atlas.Environments.Commands do
         status: "queued",
         environment_name: environment.name,
         project_id: run.project_id,
-        project_name: Enum.find(environment.projects, &(&1["id"] == run.project_id))["name"],
+        project_name: project["name"],
         execution_timeout_seconds: timeout,
         digest: digest,
         expires_at: DateTime.add(DateTime.utc_now(), if(terminal, do: 600, else: 60), :second)
@@ -83,15 +99,23 @@ defmodule Atlas.Environments.Commands do
     command
   end
 
-  defp execution_timeout("environment_terminal", %{provider: "native"}), do: 1_800
-  defp execution_timeout("environment_terminal", _environment), do: 600
+  defp ensure_tool!(environment, project, tool) do
+    if (EnvironmentTools.mutating?(tool) or EnvironmentTools.coding?(tool)) and not environment.terminal,
+      do: Repo.rollback(:environment_terminal_disabled)
+
+    if EnvironmentTools.coding?(tool) and (environment.provider != "native" or project["coding"] != true),
+      do: Repo.rollback(:environment_project_unavailable)
+  end
+
+  defp execution_timeout(tool, %{provider: "native"}) when tool in @terminal, do: 1_800
+  defp execution_timeout(tool, _environment) when tool in @terminal, do: 600
   defp execution_timeout(_tool, _environment), do: 60
 
-  defp terminal_pending?(thread_id) do
+  defp mutation_pending?(thread_id) do
     Repo.exists?(
       from c in Command,
         where:
-          c.thread_id == ^thread_id and c.tool == "environment_terminal" and
+          c.thread_id == ^thread_id and c.tool in ^@mutating and
             c.status in ["queued", "claimed", "unknown"]
     )
   end
@@ -120,7 +144,7 @@ defmodule Atlas.Environments.Commands do
       on: r.id == c.run_id,
       join: t in Thread,
       on: t.id == c.thread_id,
-      where: r.status == "running" or (c.tool == "environment_terminal" and r.status in ["queued", "succeeded"]),
+      where: r.status == "running" or (c.tool in ^@terminal and r.status in ["queued", "succeeded"]),
       where: is_nil(r.cancel_requested_at) and t.status == "active" and t.kind == "private" and t.owner_id == ^user.id,
       order_by: [asc: c.inserted_at],
       limit: 8
@@ -151,7 +175,7 @@ defmodule Atlas.Environments.Commands do
             claim_token: Ecto.UUID.generate(),
             execution_deadline: deadline,
             result_deadline:
-              if(command.tool == "environment_terminal",
+              if(command.tool in @terminal,
                 do: DateTime.add(deadline, 300, :second),
                 else: command.expires_at
               )
@@ -202,7 +226,8 @@ defmodule Atlas.Environments.Commands do
   defp owner_command(user, thread_id, command_id, fun) do
     with {:ok, thread_id} <- Environments.uuid(thread_id),
          {:ok, command_id} <- Environments.uuid(command_id),
-         %Command{tool: "environment_terminal"} = initial <- Repo.get_by(Command, id: command_id, thread_id: thread_id) do
+         %Command{tool: tool} = initial when tool in @terminal <-
+           Repo.get_by(Command, id: command_id, thread_id: thread_id) do
       Repo.transaction(fn ->
         thread = owner_thread!(user, thread_id)
         run = Repo.one!(from r in Run, where: r.id == ^initial.run_id, lock: "FOR UPDATE")
@@ -234,7 +259,7 @@ defmodule Atlas.Environments.Commands do
           commands =
             Repo.all(
               from c in Command,
-                where: c.thread_id == ^thread_id and c.tool == "environment_terminal",
+                where: c.thread_id == ^thread_id and c.tool in ^@terminal,
                 order_by: [desc: fragment("? = ANY(?)", c.status, ^@active), desc: c.inserted_at, desc: c.id],
                 limit: 32
             )
@@ -279,7 +304,7 @@ defmodule Atlas.Environments.Commands do
       id: command.id,
       message_id: command.message_id,
       environment_id: command.environment_id,
-      environment_name: String.slice(command.environment_name || "Mac", 0, 120),
+      environment_name: String.slice(command.environment_name || "Environment", 0, 120),
       project_id: command.project_id || JSON.decode!(command.arguments)["project_id"],
       project_name: String.slice(command.project_name || "Project", 0, 120),
       digest: command.digest,
@@ -358,11 +383,11 @@ defmodule Atlas.Environments.Commands do
   defp store_result!(environment, command, thread, run, payload, user_id) do
     ensure_source!(thread, run, command)
     ensure_configuration!(environment, command)
-    deadline = if command.tool == "environment_terminal", do: command.result_deadline, else: command.expires_at
+    deadline = if command.tool in @terminal, do: command.result_deadline, else: command.expires_at
     if expired?(deadline), do: Repo.rollback(:command_expired)
     if command.status != "claimed", do: Repo.rollback(:command_claimed_or_settled)
     command = command |> Ecto.Changeset.change(status: "settled", result: JSON.encode!(payload)) |> Repo.update!()
-    if command.tool == "environment_terminal", do: completed_terminal!(command, thread, payload)
+    if command.tool in @terminal, do: completed_terminal!(command, thread, payload)
     audit(command, "settled", user_id, "api")
   end
 
@@ -393,7 +418,7 @@ defmodule Atlas.Environments.Commands do
 
   # Completion may race the originating model's ticket settlement. A confirmed
   # result must win over that earlier reservation rendering on the original card.
-  def completed_card_attrs(%Message{tool_name: "environment_terminal", id: id}) do
+  def completed_card_attrs(%Message{tool_name: tool, id: id}) when tool in @terminal do
     case Repo.get_by(Command, message_id: id, status: "settled") do
       %Command{result: result} = command ->
         payload = JSON.decode!(result)
@@ -471,7 +496,7 @@ defmodule Atlas.Environments.Commands do
   defp ensure_configuration!(environment, command) do
     if not current_configuration?(environment, command), do: Repo.rollback(:environment_disabled)
 
-    if command.tool == "environment_terminal" and not environment.terminal,
+    if command.tool in @mutating and not environment.terminal,
       do: Repo.rollback(:environment_terminal_disabled)
   end
 
@@ -483,7 +508,7 @@ defmodule Atlas.Environments.Commands do
     user = run.acting_user_id && Repo.get(User, run.acting_user_id)
 
     statuses =
-      if command.tool == "environment_terminal", do: ["succeeded" | Run.active_statuses()], else: Run.active_statuses()
+      if command.tool in @terminal, do: ["succeeded" | Run.active_statuses()], else: Run.active_statuses()
 
     private_run?(thread, run) and thread.status == "active" and run.status in statuses and
       is_nil(run.cancel_requested_at) and not is_nil(user) and Access.can_read?(thread, user)
@@ -596,7 +621,7 @@ defmodule Atlas.Environments.Commands do
            command_id: command.id,
            status: command.status,
            notice:
-             "Durable terminal job queued on the selected Mac. Do not poll, retry or reserve another command; its confirmed result will continue this conversation."
+             "Durable terminal job queued on the selected execution environment. Do not poll, retry or reserve another command; its confirmed result will continue this conversation."
          }}
     end
   end
@@ -705,7 +730,7 @@ defmodule Atlas.Environments.Commands do
 
   defp swept_status(command, invalid) do
     deadline =
-      if command.status == "claimed" and command.tool == "environment_terminal",
+      if command.status == "claimed" and command.tool in @terminal,
         do: command.result_deadline,
         else: command.expires_at
 

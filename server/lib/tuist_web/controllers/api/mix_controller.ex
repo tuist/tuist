@@ -12,6 +12,7 @@ defmodule TuistWeb.API.MixController do
   alias TuistWeb.API.Schemas.MixBuild
   alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
   alias TuistWeb.Plugs.ReportActorPlug
   alias TuistWeb.Plugs.ReportPublishingPlug
 
@@ -446,6 +447,7 @@ defmodule TuistWeb.API.MixController do
     |> Map.merge(%{
       project_id: project.id,
       account_id: publisher_id(conn),
+      tuist_version: Headers.get_build_integration_version(conn, :mix),
       is_ci: body[:is_ci] || false,
       custom_tags: Map.get(metadata, :tags, []),
       custom_values: Map.get(metadata, :values, %{}),
