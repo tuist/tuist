@@ -16,12 +16,14 @@ defmodule TuistWeb.CargoBuildsLiveTest do
 
   @tag :build_environment
   test "Rust version belongs to the collapsed build environment", %{conn: conn, user: user, project: project} do
-    id = build(project, user, custom_metadata: %{values: %{"team" => "mobile"}})
+    id = build(project, user, tuist_version: "4.200.0-canary.2", custom_metadata: %{values: %{"team" => "mobile"}})
     path = "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}"
     {:ok, view, _} = live(conn, path)
 
     assert has_element?(view, "#build-environment-content[hidden]", "Rust version")
     assert has_element?(view, "#build-environment-content", "rustc 1.97.1")
+    assert has_element?(view, "#build-environment-content[hidden]", "Tuist CLI version")
+    assert has_element?(view, "#build-environment-content", "4.200.0-canary.2")
     refute has_element?(view, "[data-part=build-details]", "Rust version")
     assert has_element?(view, "[data-part=build-details]", "cargo build")
     assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")

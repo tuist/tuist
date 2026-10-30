@@ -28,6 +28,20 @@
           navigate={~p"/settings/llm-providers"}
           selected={@current_path == ~p"/settings/llm-providers"}
         />
+        <.sidebar_item
+          id="account-connections-link"
+          label={gettext("Connections")}
+          icon="server"
+          navigate={~p"/settings/connections"}
+          selected={@current_path == ~p"/settings/connections"}
+        />
+        <.sidebar_item
+          id="account-coding-link"
+          label={gettext("Coding")}
+          icon="brand_github"
+          navigate={~p"/settings/coding"}
+          selected={@current_path == ~p"/settings/coding"}
+        />
       </.sidebar_group>
     </.sidebar>
     <div class="layout__content" data-part="account-content">

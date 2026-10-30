@@ -10,6 +10,7 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "cli/Templates/**"
+      - "e2e/global_flags.bats"
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run the CLI builds.
       - "cas-plugin/**"
@@ -41,6 +42,7 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "cli/Templates/**"
+      - "e2e/global_flags.bats"
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run the CLI builds.
       - "cas-plugin/**"
@@ -162,7 +164,7 @@ jobs:
       - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
-          install_args: "tuist"
+          install_args: "tuist bats"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -179,12 +181,16 @@ jobs:
         run: swift package --cache-path "$PWD/.build/dependency-cache" resolve --replace-scm-with-registry
       - name: Build
         run: swift build --cache-path "$PWD/.build/dependency-cache" --configuration debug --replace-scm-with-registry --force-resolved-versions
+      - name: Test global flags
+        run: |
+          bin_path="$(swift build --cache-path "$PWD/.build/dependency-cache" --configuration debug --replace-scm-with-registry --force-resolved-versions --show-bin-path)"
+          TUIST_EXECUTABLE="$bin_path/tuist" bats --print-output-on-failure e2e/global_flags.bats
 
   cli-linux-build:
     name: Linux Build
     runs-on: ubuntu-latest
     container:
-      image: swift:6.2
+      image: swift:6.4.1-noble
     timeout-minutes: 30
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
@@ -194,33 +200,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-musl-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: linux-cli-musl-swift-6.4.1-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            linux-cli-musl-${{ hashFiles('Package.swift') }}-
-      - name: Install caddy
-        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
-      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
-      # (see #12229), and the registry answers 303 to storage over h2. Terminating
-      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
-      # target negotiates http/1.1 on its own, so only this hop needs forcing.
-      - name: Front the registry with an HTTP/1.1 proxy
-        shell: bash
-        run: |
-          nohup caddy reverse-proxy \
-            --from :8080 --to https://tuist.dev --change-host-header \
-            > /tmp/registry-proxy.log 2>&1 &
-          for _ in $(seq 1 30); do
-            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
-              exec 3>&-
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "::error::registry proxy did not start listening on :8080"
-          cat /tmp/registry-proxy.log || true
-          exit 1
-      - name: Point SwiftPM at the proxy
-        run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
+            linux-cli-musl-swift-6.4.1-${{ hashFiles('Package.swift') }}-
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       # Releases ship a static musl binary, and the musl SDK exposes `Musl`
@@ -243,7 +225,7 @@ jobs:
     name: Linux Unit Tests
     runs-on: ubuntu-latest
     container:
-      image: swift:6.2
+      image: swift:6.4.1-noble
     timeout-minutes: 30
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
@@ -253,33 +235,11 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: linux-cli-swift-6.4.1-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            linux-cli-${{ hashFiles('Package.swift') }}-
-      - name: Install caddy
-        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
-      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
-      # (see #12229), and the registry answers 303 to storage over h2. Terminating
-      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
-      # target negotiates http/1.1 on its own, so only this hop needs forcing.
-      - name: Front the registry with an HTTP/1.1 proxy
-        shell: bash
-        run: |
-          nohup caddy reverse-proxy \
-            --from :8080 --to https://tuist.dev --change-host-header \
-            > /tmp/registry-proxy.log 2>&1 &
-          for _ in $(seq 1 30); do
-            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
-              exec 3>&-
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "::error::registry proxy did not start listening on :8080"
-          cat /tmp/registry-proxy.log || true
-          exit 1
-      - name: Point SwiftPM at the proxy
-        run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
+            linux-cli-swift-6.4.1-${{ hashFiles('Package.swift') }}-
+      - name: Install loopback TLS test dependency
+        run: apt-get update -qq && apt-get install -y --no-install-recommends openssl
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests

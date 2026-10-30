@@ -2375,10 +2375,10 @@ defmodule Tuist.ShardsTest do
       assert {:ok, "test-upload-id"} = Shards.start_upload_for_plan(project, account, plan)
     end
 
-    test "starts a multipart upload for a shard plan id without reading the plan" do
+    test "starts a multipart upload after resolving the project-scoped shard plan id" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
-      plan_id = Ecto.UUID.generate()
+      plan_id = ShardsFixtures.shard_plan_fixture(project_id: project.id).id
 
       stub(Tuist.Storage, :multipart_start, fn key, _account ->
         assert key == Shards.bundle_object_key(account, project, plan_id)
@@ -2413,6 +2413,25 @@ defmodule Tuist.ShardsTest do
       assert plan_id == plan.id
       assert {:ok, shard} = Shards.get_shard_for_plan_id(project, account, plan.id, 0)
       assert shard.modules != []
+    end
+
+    test "uploads a just-created plan by id when no ClickHouse replica returns it yet" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      %{plan: plan} =
+        Shards.create_shard_plan(project, %{reference: "unreplicated-plan", modules: ["AppTests"], shard_total: 1})
+
+      key = Shards.artifact_object_key(account, project, plan.id, "shared")
+      stub(IngestRepo, :one, fn _queryable -> nil end)
+      stub(ClickHouseRepo, :one, fn _queryable -> nil end)
+      expect(Tuist.Storage, :multipart_start, fn ^key, ^account -> {:ok, "upload"} end)
+      expect(Tuist.Storage, :multipart_generate_url, fn ^key, "upload", 1, ^account -> "put-url" end)
+      expect(Tuist.Storage, :multipart_complete_upload, fn ^key, "upload", [{1, "etag"}], ^account -> :ok end)
+
+      assert {:ok, "upload"} = Shards.start_upload_for_plan_id(project, account, plan.id, "shared")
+      assert {:ok, "put-url"} = Shards.generate_upload_url_for_plan(project, account, plan.id, "upload", 1, "shared")
+      assert :ok = Shards.complete_upload_for_plan(project, account, plan.id, "upload", [{1, "etag"}], "shared")
     end
 
     test "fetches a just-created suite shard when the routed read replica has not received it yet" do

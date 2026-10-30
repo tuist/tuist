@@ -78,6 +78,59 @@ defmodule Atlas.Push.Workers.DeliverTest do
     )
   end
 
+  test "signal decisions enqueue once, deliver generic alerts and cancel archived or mismatched evidence", %{user: user} do
+    AtlasWeb.ConnCase.assign_role_or_scopes(user, nil, ["automation:write"])
+    installation = register(user, ios_device())
+    {_, revision} = Atlas.AutomationsFixtures.workflow_fixture(user)
+
+    {:ok, source} =
+      Atlas.Signals.create_source(user, %{
+        "name" => "Signals",
+        "revision_id" => revision.id,
+        "reader_ids" => [],
+        "required_scopes" => []
+      })
+
+    {:ok, _} = Atlas.Signals.set_enabled(user, source.id, true)
+
+    {:ok, signal} =
+      Atlas.Signals.ingest(user, source.id, %{
+        "external_id" => "event",
+        "correlation_key" => "question",
+        "type" => "customer.question",
+        "schema_version" => 1,
+        "occurred_at" => "2026-10-28T12:00:00Z",
+        "title" => "Private customer title",
+        "summary" => "Private customer evidence"
+      })
+
+    decision = %{"signal_id" => signal.id, "action" => "opened", "priority" => "today", "reason" => "Source policy"}
+    {:ok, result} = Atlas.Signals.decide(user, decision)
+    assert {:ok, ^result} = Atlas.Signals.decide(user, decision)
+    assert [%Oban.Job{args: job_args}] = all_enqueued(worker: Deliver)
+    assert job_args["signal_id"] == signal.id
+    assert job_args["registration_id"] == installation.id
+    assert job_args["kind"] == "orbit_signal"
+    refute JSON.encode!(job_args) =~ "Private customer"
+    assert :ok = perform_job(Deliver, job_args)
+    assert_receive {:request, "api.push.apple.com", _, _, body}
+
+    assert JSON.decode!(body)["aps"]["alert"] == %{
+             "title" => "Atlas",
+             "body" => "An Orbit investigation needs your attention"
+           }
+
+    refute body =~ "Private customer"
+
+    assert {:cancel, :destination_unavailable} =
+             perform_job(Deliver, Map.put(job_args, "signal_id", Ecto.UUID.generate()))
+
+    {:ok, thread} = Orbit.fetch(user, result.thread_id)
+    {:ok, _} = Orbit.set_status(user, thread, "archived")
+    assert {:cancel, :destination_unavailable} = perform_job(Deliver, job_args)
+    refute_received {:request, _, _, _, _}
+  end
+
   describe "Orbit mentions" do
     test "delivers a generic ping for the exact human source, without leaking title or contents", %{user: user} do
       installation = register(user, ios_device())

@@ -5,6 +5,7 @@ import SwiftUI
 final class AtlasBusinessPreviewData: ObservableObject {
     private var recordAccessRevoked = false
     private var profileDescription = ""
+    private var loadedProfile = false
     private var items: [String: [[String: Any]]] = [
         "tasks": [
             AtlasBusinessPreviewData.record(
@@ -125,6 +126,10 @@ final class AtlasBusinessPreviewData: ObservableObject {
             try await Task.sleep(for: .milliseconds(700))
         }
         if resource == "profile" {
+            if !loadedProfile, ProcessInfo.processInfo.arguments.contains("--delayed-profile") {
+                try await Task.sleep(for: .seconds(8))
+            }
+            loadedProfile = true
             if action["action"] as? String == "update_profile" {
                 if ProcessInfo.processInfo.arguments.contains("--fail-business-save") {
                     throw AtlasAuthenticationError(kind: "server", message: "Preview save failed. Your draft is still here.")

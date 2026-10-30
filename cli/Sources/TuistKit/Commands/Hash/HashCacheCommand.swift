@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TuistEnvKey
+import TuistExtension
 import TuistSupport
 
 /// A command to hash an Xcode or generated project.
@@ -30,7 +31,13 @@ public struct HashCacheCommand: AsyncParsableCommand, ProjectPathProviding {
     )
     var configuration: String?
 
+    @Option(
+        name: .long,
+        help: "Cache destinations: all, simulator, or device. Restricted destinations also print their SDK fingerprints."
+    )
+    var destination: CacheDestination = .all
+
     public func run() async throws {
-        try await HashCacheCommandService().run(path: path, configuration: configuration)
+        try await HashCacheCommandService().run(path: path, configuration: configuration, destination: destination)
     }
 }

@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -16,11 +18,18 @@ import (
 
 var testEgress = Egress{Namespace: "tailscale-operator", ProxyGroup: "macmini-egress"}
 
-// withEgress dials through testEgress, whose Service names resolve nowhere
-// outside a cluster, so a dial gives up quickly.
+// withEgress keeps failed Service lookups local even on a cluster runner.
 func (h *harness) withEgress() {
 	h.r.Egress = testEgress
 	h.r.PicOS.Dialer.Timeout = 200 * time.Millisecond
+	resolver := net.DefaultResolver
+	h.t.Cleanup(func() { net.DefaultResolver = resolver })
+	net.DefaultResolver = &net.Resolver{
+		PreferGo: true,
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			return nil, errors.New("test egress DNS unavailable")
+		},
+	}
 }
 
 func (h *harness) egressService(name string) (*corev1.Service, error) {
@@ -30,12 +39,12 @@ func (h *harness) egressService(name string) (*corev1.Service, error) {
 }
 
 func TestPicOSSwitchIsDialledThroughItsEgressService(t *testing.T) {
-	h, sw := picosHarness(t, picosSwitch("ber2-tor-a", torConfig()))
+	h, sw := picosHarness(t, picosSwitch("larch-tor-a", torConfig()))
 	h.withEgress()
 
-	h.reconcile("ber2-tor-a")
+	h.reconcile("larch-tor-a")
 
-	svc, err := h.egressService("ber2-tor-a")
+	svc, err := h.egressService("larch-tor-a")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,14 +55,13 @@ func TestPicOSSwitchIsDialledThroughItsEgressService(t *testing.T) {
 		svc.Spec.Ports[0].Port != 22 || svc.Spec.Ports[1].Port != 830 {
 		t.Fatalf("spec = %+v", svc.Spec)
 	}
-	rs := h.get("ber2-tor-a")
+	rs := h.get("larch-tor-a")
 	if !controllerutil.ContainsFinalizer(rs, EgressFinalizer) {
 		t.Fatalf("finalizers = %v", rs.Finalizers)
 	}
-	// The Service's name is what was dialled, not the address: nothing
-	// resolves it outside a cluster, so the switch was never reached.
+	// The failed lookup names the Service, not the switch's address.
 	c := condition(rs, v1alpha1.ConditionAdopted)
-	if c.Reason != "NotProvisioned" || !strings.Contains(c.Message, "rackswitch-ber2-tor-a.tailscale-operator.svc.cluster.local") {
+	if c.Reason != "NotProvisioned" || !strings.Contains(c.Message, "rackswitch-larch-tor-a.tailscale-operator.svc.cluster.local") {
 		t.Fatalf("Adopted = %+v", c)
 	}
 	if len(sw.Writes()) != 0 {
@@ -62,14 +70,14 @@ func TestPicOSSwitchIsDialledThroughItsEgressService(t *testing.T) {
 }
 
 func TestAnEgressServiceFollowsTheManagementAddress(t *testing.T) {
-	h, _ := picosHarness(t, picosSwitch("ber2-tor-a", torConfig()))
+	h, _ := picosHarness(t, picosSwitch("larch-tor-a", torConfig()))
 	h.withEgress()
-	h.reconcile("ber2-tor-a")
+	h.reconcile("larch-tor-a")
 
-	h.editSpec("ber2-tor-a", func(s *v1alpha1.RackSwitchSpec) { s.ManagementAddress = "192.168.61.2" })
-	h.reconcile("ber2-tor-a")
+	h.editSpec("larch-tor-a", func(s *v1alpha1.RackSwitchSpec) { s.ManagementAddress = "192.168.61.2" })
+	h.reconcile("larch-tor-a")
 
-	svc, err := h.egressService("ber2-tor-a")
+	svc, err := h.egressService("larch-tor-a")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,33 +87,33 @@ func TestAnEgressServiceFollowsTheManagementAddress(t *testing.T) {
 }
 
 func TestDeletingAPicOSSwitchDeletesItsEgressService(t *testing.T) {
-	h, _ := picosHarness(t, picosSwitch("ber2-tor-a", torConfig()))
+	h, _ := picosHarness(t, picosSwitch("larch-tor-a", torConfig()))
 	h.withEgress()
-	h.reconcile("ber2-tor-a")
-	if _, err := h.egressService("ber2-tor-a"); err != nil {
+	h.reconcile("larch-tor-a")
+	if _, err := h.egressService("larch-tor-a"); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := h.client.Delete(context.Background(), h.get("ber2-tor-a")); err != nil {
+	if err := h.client.Delete(context.Background(), h.get("larch-tor-a")); err != nil {
 		t.Fatal(err)
 	}
-	h.reconcile("ber2-tor-a")
+	h.reconcile("larch-tor-a")
 
-	if _, err := h.egressService("ber2-tor-a"); !apierrors.IsNotFound(err) {
+	if _, err := h.egressService("larch-tor-a"); !apierrors.IsNotFound(err) {
 		t.Fatalf("egress Service still there: %v", err)
 	}
 	var rs v1alpha1.RackSwitch
-	if err := h.client.Get(context.Background(), types.NamespacedName{Namespace: namespace, Name: "ber2-tor-a"}, &rs); !apierrors.IsNotFound(err) {
+	if err := h.client.Get(context.Background(), types.NamespacedName{Namespace: namespace, Name: "larch-tor-a"}, &rs); !apierrors.IsNotFound(err) {
 		t.Fatalf("RackSwitch still there: %v, finalizers %v", err, rs.Finalizers)
 	}
 }
 
 func TestWithoutAnEgressAPicOSSwitchIsDialledAtItsAddress(t *testing.T) {
-	h, sw := picosHarness(t, picosSwitch("ber2-tor-a", torConfig()))
+	h, sw := picosHarness(t, picosSwitch("larch-tor-a", torConfig()))
 
-	h.reconcile("ber2-tor-a")
+	h.reconcile("larch-tor-a")
 
-	if rs := h.get("ber2-tor-a"); rs.Status.HostKey != sw.HostKeyFingerprint() || len(rs.Finalizers) != 0 {
+	if rs := h.get("larch-tor-a"); rs.Status.HostKey != sw.HostKeyFingerprint() || len(rs.Finalizers) != 0 {
 		t.Fatalf("hostKey %q, finalizers %v", rs.Status.HostKey, rs.Finalizers)
 	}
 	var services corev1.ServiceList

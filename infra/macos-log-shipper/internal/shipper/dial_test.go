@@ -89,13 +89,20 @@ func TestDialContextPrefersPrimaryResolver(t *testing.T) {
 }
 
 func TestNewHTTPClientUsesTheMagicDNSDialer(t *testing.T) {
-	client := NewHTTPClient(30 * time.Second)
+	client, err := NewHTTPClient(30 * time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.CloseIdleConnections()
 	if client.Timeout != 30*time.Second {
 		t.Fatalf("Timeout = %v, want 30s", client.Timeout)
 	}
 	transport, ok := client.Transport.(*http.Transport)
 	if !ok {
 		t.Fatalf("Transport = %T, want *http.Transport", client.Transport)
+	}
+	if transport.Proxy != nil || transport.ForceAttemptHTTP2 || transport.TLSClientConfig.RootCAs != nil || transport.TLSClientConfig.ClientSessionCache != nil {
+		t.Fatal("native roots, direct HTTP/1 topology or nil production session cache changed")
 	}
 	if transport.DialContext == nil {
 		t.Fatal("Transport.DialContext is nil: the client would use the default resolver, " +

@@ -4,7 +4,9 @@ defmodule Atlas.Automations.Interfaces do
   alias Atlas.MCP.Tools.ControlAutomationExecution
   alias Atlas.MCP.Tools.CreateAutomationBehavior
   alias Atlas.MCP.Tools.CreateAutomationTrigger
+  alias Atlas.MCP.Tools.CreateSignalSource
   alias Atlas.MCP.Tools.DecideAutomationApproval
+  alias Atlas.MCP.Tools.DecideSignal
   alias Atlas.MCP.Tools.DeleteAutomationBehavior
   alias Atlas.MCP.Tools.DeleteAutomationTrigger
   alias Atlas.MCP.Tools.DeleteAutomationWorkflow
@@ -13,19 +15,34 @@ defmodule Atlas.Automations.Interfaces do
   alias Atlas.MCP.Tools.GetAutomationExecutionTrace
   alias Atlas.MCP.Tools.GetAutomationRecord
   alias Atlas.MCP.Tools.GetAutomationWorkflow
+  alias Atlas.MCP.Tools.GetSignal
+  alias Atlas.MCP.Tools.GetSignalCandidates
+  alias Atlas.MCP.Tools.IngestSignal
   alias Atlas.MCP.Tools.ListAutomationRecords
   alias Atlas.MCP.Tools.ListAutomationTypes
+  alias Atlas.MCP.Tools.ListSignals
+  alias Atlas.MCP.Tools.ListSignalSources
   alias Atlas.MCP.Tools.PublishAutomationWorkflow
   alias Atlas.MCP.Tools.RotateAutomationWebhookCredential
   alias Atlas.MCP.Tools.RunAutomationWorkflow
   alias Atlas.MCP.Tools.SaveAutomationWorkflow
   alias Atlas.MCP.Tools.SetAutomationTriggerEnabled
+  alias Atlas.MCP.Tools.SetSignalSourceEnabled
   alias Atlas.MCP.Tools.UpdateAutomationBehavior
   alias Atlas.MCP.Tools.UpdateAutomationTrigger
   alias Atlas.MCP.Tools.UpdateAutomationWorkflow
   alias Atlas.MCP.Tools.ValidateAutomationWorkflow
 
   @operations [
+    {:create_signal_source, :write, :post, "/signal-sources", CreateSignalSource, "create_signal_source"},
+    {:list_signal_sources, :read, :get, "/signal-sources", ListSignalSources, "list_signal_sources"},
+    {:set_signal_source_enabled, :write, :post, "/signal-sources/:id/enabled", SetSignalSourceEnabled,
+     "set_signal_source_enabled"},
+    {:ingest_signal, :write, :post, "/signal-sources/:id/signals", IngestSignal, "ingest_signal"},
+    {:list_signals, :read, :get, "/signals", ListSignals, "list_signals"},
+    {:get_signal, :read, :get, "/signals/:id", GetSignal, "get_signal"},
+    {:signal_candidates, :read, :get, "/signals/:id/candidates", GetSignalCandidates, "get_signal_candidates"},
+    {:decide_signal, :write, :post, "/signal-decisions", DecideSignal, "decide_signal"},
     {:catalog, :read, :get, "/types", ListAutomationTypes, "list_automation_types"},
     {:list, :read, :get, "/records", ListAutomationRecords, "list_automation_records"},
     {:get_record, :read, :get, "/records/:kind/:id", GetAutomationRecord, "get_automation_record"},

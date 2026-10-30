@@ -12,6 +12,7 @@ defmodule TuistWeb.PreviewLive do
   alias Tuist.Authorization
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Helpers.PreviewInstallURLs
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
@@ -32,6 +33,7 @@ defmodule TuistWeb.PreviewLive do
     current_user = Map.get(socket.assigns, :current_user)
 
     can_delete_preview = Authorization.authorize(:preview_delete, current_user, preview.project) == :ok
+    desktop_preview = AppBuilds.desktop_preview?(preview)
 
     {
       :ok,
@@ -44,6 +46,8 @@ defmodule TuistWeb.PreviewLive do
         :preview,
         preview
       )
+      |> assign(:desktop_preview, desktop_preview)
+      |> assign(:cli_preview, Enum.any?(preview.app_builds, &(&1.type == :executable)))
       |> assign(
         OpenGraph.project_image_assigns(selected_project,
           title: preview.display_name || dgettext("dashboard_previews", "Preview"),
@@ -62,7 +66,7 @@ defmodule TuistWeb.PreviewLive do
       )
       |> assign(
         :run_button_href,
-        run_button_href(preview, user_agent)
+        if(desktop_preview, do: nil, else: run_button_href(preview, user_agent))
       )
       |> assign(
         :preview_url,
@@ -93,7 +97,7 @@ defmodule TuistWeb.PreviewLive do
     case {user_agent.os.family, AppBuilds.latest_ipa_app_build_for_preview(preview)} do
       {"iOS", %AppBuild{}} ->
         {String.to_atom("itms-services"),
-         "//?action=download-manifest&url=#{url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/manifest.plist")}"}
+         PreviewInstallURLs.itms_services_path(preview.project.account.name, preview.project.name, preview)}
 
       {"iOS", _} ->
         nil

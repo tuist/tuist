@@ -2,13 +2,13 @@
   "domain_policies": [
     {
       "domain": "feature_flags",
-      "policy": "Production feature-flag control requires a dedicated external-effect workflow adapter with durable request identity and ambiguous-outcome reconciliation; MCP grants do not enroll workflow behaviors.",
-      "execution_mode": "excluded"
+      "execution_mode": "excluded",
+      "policy": "Production feature-flag control requires a dedicated external-effect workflow adapter with durable request identity and ambiguous-outcome reconciliation; MCP grants do not enroll workflow behaviors."
     },
     {
       "domain": "time_off_approvals",
-      "policy": "Employee leave and manager-review ownership remain outside workflow behaviors until explicit scoped adapters and approval conformance are available.",
-      "execution_mode": "excluded"
+      "execution_mode": "excluded",
+      "policy": "Employee leave and manager-review ownership remain outside workflow behaviors until explicit scoped adapters and approval conformance are available."
     },
     {
       "domain": "accounts",
@@ -84,17 +84,14 @@
     }
   ],
   "excluded_tools": {
-    "list_tuist_feature_flags": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
-    "get_tuist_feature_flag": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
-    "evaluate_tuist_feature_flags": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
-    "update_tuist_feature_flag": "Production mutations need an external-effect workflow adapter with durable idempotency and ambiguous-outcome reconciliation before workflow enrollment.",
-    "get_error_event_contexts": "Sensitive event context requires engineering read and production-systems access; keep published error workflow contracts unchanged until an explicit adapter is versioned.",
     "save_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "check_out_air_gapped_license": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "publish_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "create_manual_finance_invoice": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "set_signal_source_enabled": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "get_automation_execution_trace": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "search_documents": "Vector/embedding effects need a bounded, durable operation-specific adapter; local list/get alternatives are available.",
+    "get_my_business_profile": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "delete_task": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "rotate_automation_webhook_credential": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "delete_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
@@ -104,8 +101,11 @@
     "finance_list_transaction_attachments": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "list_account_nudges": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "edit_stripe_draft_invoice": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "list_error_alert_rules": "Alert control-plane inspection requires an explicitly versioned Engineering-scoped workflow adapter before enrollment.",
+    "delete_moodboard_comment": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
     "finance_add_transaction_attachment": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "assign_time_off_location": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
+    "search_moodboard_resources": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
     "get_automation_record": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "create_document_upload": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "run_gtm_signal_search": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
@@ -114,8 +114,12 @@
     "control_automation_execution": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "rotate_project_error_dsn": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "start_chatgpt_provider_login": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
+    "update_my_profile": "Personal self-description requires an explicit caller request, not automated workflow inference or mutation of personal preferences.",
+    "list_coding_repositories": "Personal GitHub grants and repository selection are not transactional workflow capabilities.",
+    "update_coding_repository_settings": "Personal repository defaults require an explicit caller decision, not automated workflow changes to personal preferences.",
     "get_domain_error_dsn": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "claim_nudge": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "list_signals": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "get_time_off_overview": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "describe_tuist_postgres_table": "Remote arbitrary-query execution is outside bounded local domain actions.",
     "run_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
@@ -124,6 +128,8 @@
     "connect_claude_provider": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "send_account_email": "External delivery/outbox requires its own idempotency, approval and ambiguous-outcome conformance tests before workflow enablement.",
     "cancel_chatgpt_provider_login": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
+    "ingest_signal": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
+    "get_signal_candidates": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "search_apollo_outreach": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "enrich_gtm_opportunity_contacts": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "notify_gtm_opportunity": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
@@ -135,16 +141,20 @@
     "poll_chatgpt_provider_login": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "get_nudge_analytics_status": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "create_automation_trigger": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
+    "list_moodboard_resources": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
     "create_letter_document_upload": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "search_web": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "query_tuist_clickhouse": "Remote arbitrary-query execution is outside bounded local domain actions.",
     "list_tuist_postgres_tables": "Remote arbitrary-query execution is outside bounded local domain actions.",
     "create_automation_behavior": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
+    "create_signal_source": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "delete_automation_behavior": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "prepare_gtm_opportunity_outreach": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "create_license": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
+    "decide_signal": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "create_stripe_draft_invoice": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "dismiss_nudge": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "save_error_alert_rule": "Alert routing can disclose receiver credentials and enable external incident declarations; it requires a dedicated approved workflow adapter.",
     "list_licenses": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
     "release_nudge": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "get_contract_template": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
@@ -152,6 +162,7 @@
     "update_manual_finance_invoice": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "check_letter_delivery": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "send_nudge": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "add_moodboard_comment": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
     "create_time_off_location": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "search_notes": "Vector/embedding effects need a bounded, durable operation-specific adapter; local list/get alternatives are available.",
     "decide_automation_approval": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
@@ -160,36 +171,50 @@
     "enroll_outreach_candidate": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "list_account_feature_usage": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "browse_url": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "manage_account_connections": "Personal OAuth metadata and disconnect require explicit caller intent, never workflow credential lifecycle management.",
     "send_email_broadcast": "External delivery/outbox requires its own idempotency, approval and ambiguous-outcome conformance tests before workflow enablement.",
     "get_time_off_calendar": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "confirm_tax_certificate_delivery": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "finalize_document_upload": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "create_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
     "generate_outreach_next_step": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "report_holiday": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "get_monthly_invoice_totals": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "list_tuist_clickhouse_tables": "Remote arbitrary-query execution is outside bounded local domain actions.",
     "upload_postal_letter": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "delete_error_alert_rule": "Deleting production alert coverage is a sensitive control-plane operation and requires a dedicated approved workflow adapter.",
+    "suggest_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
     "extend_license": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
+    "get_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "get_my_profile": "Personal self-description is private caller context, not a workflow capability; it must not be copied into shared execution inputs or outputs.",
     "add_email_audience_subscriber": "External delivery/outbox requires its own idempotency, approval and ambiguous-outcome conformance tests before workflow enablement.",
     "send_test_push_notification": "Personal device consent and push-test delivery are not workflow capabilities; notification delivery requires an explicit durable adapter.",
-    "get_my_profile": "Personal self-description is private caller context, not a workflow capability; it must not be copied into shared execution inputs or outputs.",
-    "update_my_profile": "Personal self-description requires an explicit caller request, not automated workflow inference or mutation of personal preferences.",
     "list_automation_types": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "list_llm_provider_connections": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "update_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "get_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
+    "delete_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "list_tuist_feature_flags": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
+    "evaluate_tuist_feature_flags": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
     "save_memory": "Vector/embedding effects need a bounded, durable operation-specific adapter; local list/get alternatives are available.",
     "query_tuist_postgres": "Remote arbitrary-query execution is outside bounded local domain actions.",
+    "update_tuist_feature_flag": "Production mutations need an external-effect workflow adapter with durable idempotency and ambiguous-outcome reconciliation before workflow enrollment.",
+    "update_my_business_profile": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "get_account_feature_usage": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "update_automation_trigger": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "enroll_outreach_contact": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "get_automation_execution": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
+    "preview_error_alert_rule": "Historical event-window queries require a bounded ClickHouse workflow adapter; management preview is not a published workflow behavior.",
     "import_public_holidays": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
+    "update_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "list_signal_sources": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "rotate_domain_error_dsn": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "set_automation_trigger_enabled": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "cancel_holiday": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "remove_public_holiday": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
+    "get_signal": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "create_mcp_server": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
+    "get_error_event_contexts": "Sensitive event context requires engineering read and production-systems access; keep published error workflow contracts unchanged until an explicit adapter is versioned.",
     "disconnect_llm_provider": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "get_mcp_connection_status": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "get_automation_analytics": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
@@ -201,6 +226,7 @@
     "review_holiday": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "finance_delete_transaction_attachment": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "generate_leadership_brief": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
+    "get_tuist_feature_flag": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
     "finalize_letter_document_upload": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "reply_to_support_thread": "External delivery/outbox requires its own idempotency, approval and ambiguous-outcome conformance tests before workflow enablement."
   },
@@ -31289,6 +31315,106 @@
       ],
       "requires_approval": false,
       "source_tool": "list_product_traces",
+      "version": 1
+    },
+    {
+      "action": "signals.decide",
+      "description": "Apply a source-owner signal policy, recording priority and opening a permission-bound Orbit investigation. Returns opaque IDs only.",
+      "domain": "automation",
+      "effect": "write",
+      "execution_mode": "local_transaction",
+      "handler": "Elixir.Atlas.Automations.LocalOperations",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "opened",
+              "ignored"
+            ]
+          },
+          "priority": {
+            "enum": [
+              "now",
+              "today",
+              "later"
+            ]
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "pattern": "^[^\\x00]+$",
+            "type": "string"
+          },
+          "signal_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signal_id",
+          "action",
+          "priority",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "name": "signals.decide",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "execution_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string"
+          },
+          "priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "opened",
+              "ignored"
+            ]
+          },
+          "thread_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "source_id",
+          "status",
+          "priority",
+          "thread_id",
+          "execution_id",
+          "observed_at"
+        ],
+        "type": "object"
+      },
+      "permissions": [
+        "automation:write"
+      ],
+      "requires_approval": false,
       "version": 1
     },
     {

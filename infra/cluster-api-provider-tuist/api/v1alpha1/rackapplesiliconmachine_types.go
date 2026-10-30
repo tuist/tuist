@@ -129,7 +129,7 @@ type RackAppleSiliconMachineStatus struct {
 	OSUpdate *OSUpdateStatus `json:"osUpdate,omitempty"`
 }
 
-// OSUpdateStatus tracks one in-place macOS update of a rack host.
+// OSUpdateStatus tracks host macOS maintenance; rented hosts support in-place updates only.
 type OSUpdateStatus struct {
 	// ID names this update's job directory on the host, so a resumed update
 	// recognises the download and install it started and never one an earlier

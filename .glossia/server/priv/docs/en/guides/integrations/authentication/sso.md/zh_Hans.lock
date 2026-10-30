@@ -1,0 +1,324 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "aaf93d55e93c0ce6352ac18039d3835c03127d25d90ab2d7e253b3a58086ce0d",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "# Single Sign-On {#single-sign-on}": {
+                  "content_hash": "5a0fca05d3ea53b8f99ee52775d5fda19571f28328e50c300144f29d45377cee"
+                },
+                "## Command-line configuration {#command-line-configuration}": {
+                  "content_hash": "e6d5245c14c992a289942f2f4e5bb74de0a317f03cafd091d6a95f3ee1c36741"
+                },
+                "## Custom OAuth 2.0 provider {#custom-oauth-2-provider}": {
+                  "content_hash": "194e347b4a3112707358fade4e6a790dfac4d30e5cf09ea6f728331e0207bb4a"
+                },
+                "## Google Workspace {#google}": {
+                  "content_hash": "dd3e8ccdece531dc72e58a3c0d2e0a8a68017b7093e3b3f404c8f3ed7466a503"
+                },
+                "## How access works {#how-access-works}": {
+                  "content_hash": "cada9cb09af8563b8a210372d5da2d8fde8e992272febf2d15694d8161b36666"
+                },
+                "## Microsoft Entra ID {#microsoft-entra-id}": {
+                  "content_hash": "535d81d1a7f7f41a9df354591ffb26f0d381ed04f9d2afa228976d67016ece93"
+                },
+                "## Okta {#okta}": {
+                  "content_hash": "1881f776a3d6225ca7966c844657ecf382e134ad9968f73a1ee63aa6a2d2cdb0"
+                },
+                "## Troubleshooting {#troubleshooting}": {
+                  "content_hash": "8aaf5c9abf7b8885bbf50c115f609fb241f85145e2d4cc9ee125b3c522b1c1b5"
+                },
+                "### Choose an enrollment policy {#choose-an-enrollment-policy}": {
+                  "content_hash": "b50c68bf31d4b1c20fc4dce8212f668e0bcb19e88ee8f04207aa541691b905bf"
+                },
+                "### Choose the role enrolled members get {#choose-the-enrollment-role}": {
+                  "content_hash": "8904e328ae21f7bb036e0ad74e2076f13edb288b0602342de530444610f0826f"
+                },
+                "### Conditional Access and multifactor authentication {#entra-conditional-access}": {
+                  "content_hash": "a554d4e0aa8fb1637efa4aa186f288b5b1d32f4fb7491ac720a78c9b50d2414a"
+                },
+                "### Domain verification remains pending {#domain-verification-remains-pending}": {
+                  "content_hash": "1bd835f8e9fe17b0cdca819cef51f9241892646fd38f58b1951df23bec7dd4d9"
+                },
+                "### Existing members can sign in, but new users cannot {#existing-members-can-sign-in-but-new-users-cannot}": {
+                  "content_hash": "f69c833f65f0c2bc3e49ba052091d95e2ea0513f1fdaf79744a159c2fa5fa0a4"
+                },
+                "### Existing organizations {#existing-organizations}": {
+                  "content_hash": "750848deb07a422a0874e8ea263d00c52f77c0adde864bf974829d49af061aa2"
+                },
+                "### Link an existing Tuist account {#link-an-existing-account}": {
+                  "content_hash": "1622a30ae112c5a90d5dcbed9968942fea6dd0da5bb95736568e6d33435039e0"
+                },
+                "### Requirements for the email claim {#entra-email-claim}": {
+                  "content_hash": "6dcea01e4b9d990f76f1cfb8ad33f11f82d5ada54bb617a8bdc63db98421af82"
+                },
+                "### Setup {#google-setup}": {
+                  "content_hash": "263770aa336989dc29292f5b003719c3325eee16242bf20bdbaad802150cc2ab"
+                },
+                "### Sign-in stopped after changing the provider {#sign-in-stopped-after-changing-the-provider}": {
+                  "content_hash": "7396e96d200aed37a29506153e449fbdffbb549d630f81443f10322a6fa72e9e"
+                },
+                "### Single sign-on asks you to log in first {#single-sign-on-asks-you-to-log-in-first}": {
+                  "content_hash": "ec4f37fe0ee9fc25d865355657119fc7a3a2f829d01c5dead697cc16d69bba37"
+                },
+                "### Step 1: Create an Okta application {#okta-step-1}": {
+                  "content_hash": "f8f802665635cac3d457fd4d040d9e9f0872954fbd9e7d662fa1a0de6a1734bf"
+                },
+                "### Step 1: Register an Entra application {#entra-step-1}": {
+                  "content_hash": "d5f561d9322f319c1179c296da42b45c0bfafc2ef64e04094a0b5e34f2730ef8"
+                },
+                "### Step 2: Configure Tuist {#entra-step-2}": {
+                  "content_hash": "b8c25d4d569b9d0cae50b28d471eb5cbee43cde1530fa9ae790ad85be42ee302"
+                },
+                "### Step 2: Configure Tuist {#okta-step-2}": {
+                  "content_hash": "059b41ca6a1f4d67c3d24f4022ba238a71b56e73551ece6c67b756251ac4b5b5"
+                },
+                "### Step 3: Assign users to the Entra application {#entra-step-3}": {
+                  "content_hash": "a4b16623901b91d1ff9acf5e34e9fd22993b4f045b4523beecff4ec2b5d18aba"
+                },
+                "### Step 3: Assign users to the Okta application {#okta-step-3}": {
+                  "content_hash": "3edd0ca6e020272b4226657b37df9215aea897db96ac943561a2ab5acf9288e7"
+                },
+                "### Tuist cannot find an organization for an email address {#tuist-cannot-find-an-organization-for-an-email-address}": {
+                  "content_hash": "247d37b8cbfb887c66ab357c15f252fbe2e0e0181defba76a9a54cbaae63d9d5"
+                },
+                "### Verify a login email domain {#verify-a-login-email-domain}": {
+                  "content_hash": "0ee56d5e22f13c00637254cd60450998a35e163a968d54bccc62fff2610b7a5d"
+                },
+                "Preamble": {
+                  "content_hash": "24f8f97af80bd73d4dbf2ae0b9134f564c17947819fb1fa4e946a548223b9676"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "268ea990a1ae73dd858b69b8e367ae39805d4ed6c3461dc5eb69bc47aa8618ff",
+          "kind": "source",
+          "label": "server/priv/docs/en/guides/integrations/authentication/sso.md",
+          "metadata": {
+            "content_hash": "042578c7c219b90cff4985ec0e940413ea6363321f4f99b611e853900ab3d250"
+          }
+        },
+        {
+          "children": [],
+          "details": {
+            "validation_hash": {
+              "argv_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": null
+            }
+          },
+          "hash": "cb3ef38f26dd230a44a10b9a9a205124a471a1da26752a9e97f549353a95590b",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "markdown",
+            "frontmatter_mode": "translate",
+            "language": "Chinese (Simplified)",
+            "locale": "zh_Hans",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "d665594a2b8c317a47a848cd8bf459061c9b7b2dc9f4ec6b2a72c9e3d749228b"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/L10N.md": {
+                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Server Translation Context": {
+                        "content_hash": "58337d2257695271cb07c7e3b84cd9a9074191346f443a1548f71b74284162e2"
+                      },
+                      "## Audience and Meaning": {
+                        "content_hash": "eb077d9892263bc1f3010236330a8fba94938010a34ae755baad973faa307e6d"
+                      },
+                      "## Marketing Copy and Split Strings": {
+                        "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
+                      },
+                      "## Metrics and Test States": {
+                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                      },
+                      "## Plural Forms by Locale": {
+                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
+                      },
+                      "## Translation Domains": {
+                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/docs/L10N.md": {
+                    "content_hash": "932073cc2af6f3df7946636b05068517a9dde8f8c38ec908017c445226c542d0",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Docs Markdown Translation Context": {
+                        "content_hash": "db9c0bf6847ce1a4e43e9d47378a3380ecd0fe501ad9d50f470503348dffcebd"
+                      },
+                      "## Product terminology": {
+                        "content_hash": "7db08a4d61afd66de67c38b010775056e5b13a2ff87135cd2804f602b7532799"
+                      },
+                      "## Renderer-sensitive syntax": {
+                        "content_hash": "26e2d120749904202e7edd47cab9df63ef2523ad1f961bf59210a143a62cefa2"
+                      },
+                      "## Translation scope": {
+                        "content_hash": "dc25dab8b4a28cfb39bd07e756d98c96f4cd6f4a4f4561652d62de63ad99c381"
+                      },
+                      "## Translation workflow": {
+                        "content_hash": "41482f06aeabfdd0d52b1b3e2cc004d87f865bca73e354f5b34d655c5892082a"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "c68e05e7324681877740f60b9cb8b429ed51d734431c6cbe271e7daf1fa4149e",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "0e1b007113d28577daea7e9df3b0c70df47c1d82d32775a04df7d0ca3f469666"
+              }
+            },
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "server/L10N/zh_Hans.md": {
+                    "content_hash": "102548dff6bf0ad155a6b3106da4c8e0a903d3ef539613ee36b63084599f502f",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "## Developer Vocabulary and Marketing": {
+                        "content_hash": "da2fa5209be9830744d8bb8c03f6673e3a0acdcc6ad367d9e3522862cc901862"
+                      },
+                      "## Simplified Chinese-specific translation rules": {
+                        "content_hash": "f01479e5b111a861c24c2e0d4a76ab9f71137d66b58489db3f91e96f28132e49"
+                      },
+                      "## Voice and Typography": {
+                        "content_hash": "017c0a6d9740ff194260d707188252a7f67bceb0ccf6e5c4402da52039ae9bf7"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "2bab184a3c432c61df3f5670ae5e6bd28d4586152ba9cf2c38a5048ee26f6c19",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "d804fdcf2155e6a669b9be9abfbd793a0808076c496e3aaa02d6dc36915138d2"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "aaaa323144d0aa263b3c3b320f63fa40d6f277ca8e12bac4001fb8a508c0d17f",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "details": {},
+              "hash": "c18f36f445e3f1b1119032b90a7907097b5bb97f568b020c7a5a8333447a8658",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "details": {},
+          "hash": "6f77111e495ddec8fb0a9152bf7648137f667961f24386115263b7aa5cd5e172",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "details": {},
+      "hash": "aaf93d55e93c0ce6352ac18039d3835c03127d25d90ab2d7e253b3a58086ce0d",
+      "kind": "translation_input",
+      "label": "server/priv/docs/en/guides/integrations/authentication/sso.md",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "efaf7abfee1e5393c95c903cbebfc9de0c399fb3cf7f32105781554ccbc89c20",
+  "output_path": "server/priv/docs/zh_Hans/guides/integrations/authentication/sso.md",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "e2d83711f920ed81085070185d1fe39a6f166821",
+  "source_path": "server/priv/docs/en/guides/integrations/authentication/sso.md",
+  "translated_at": "2026-10-29T16:43:18.751481Z",
+  "translation_session_id": "01a18889-9abd-7cd5-93c7-fbe3f8e92b65"
+}

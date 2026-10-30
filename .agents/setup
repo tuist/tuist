@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# Prepares an Amp orb (Debian 12) for working on this monorepo: the root and
+# server mise toolchains, PostgreSQL 16, ClickHouse, and a bootstrapped,
+# compiled server. Idempotent; warm runs only verify what is already there.
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+step() {
+  printf '\n==> %s (%s)\n' "$1" "$(date +%T)"
+}
+
+# --- System packages -------------------------------------------------------
+# Erlang builds from source (mise.lock has no Linux URL for core:erlang), so
+# keep its build dependencies alongside PostgreSQL 16, which the server
+# requires and Debian 12 does not ship.
+apt_packages=(
+  autoconf build-essential libssl-dev libncurses-dev unzip
+  inotify-tools postgresql-16 postgresql-client-16
+)
+missing_packages=()
+for package in "${apt_packages[@]}"; do
+  dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q "install ok installed" ||
+    missing_packages+=("$package")
+done
+if ((${#missing_packages[@]})); then
+  step "Installing ${missing_packages[*]}"
+  # Orb providers differ in base image (Debian 12, Ubuntu 24.04), so match the
+  # PGDG suite to this distribution; a mismatched suite has unmet dependencies.
+  pgdg_list="deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main"
+  if [[ "$(cat /etc/apt/sources.list.d/pgdg.list 2>/dev/null)" != "$pgdg_list" ]]; then
+    sudo install -d /usr/share/postgresql-common/pgdg
+    sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+      https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    echo "$pgdg_list" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+  fi
+  sudo apt-get update -q
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing_packages[@]}"
+fi
+
+# --- PostgreSQL 16 ---------------------------------------------------------
+# Orbs are disposable: trade durability for speed and trust local
+# connections. Dev connects as the OS user, tests as postgres/postgres.
+step "Configuring PostgreSQL 16"
+pg_conf=/etc/postgresql/16/main
+sudo tee "$pg_conf/conf.d/amp-orb.conf" >/dev/null <<'EOF'
+fsync = off
+synchronous_commit = off
+full_page_writes = off
+max_connections = 300
+EOF
+sudo tee "$pg_conf/pg_hba.conf" >/dev/null <<'EOF'
+local all all trust
+host  all all 127.0.0.1/32 trust
+host  all all ::1/128 trust
+EOF
+sudo chown postgres:postgres "$pg_conf/pg_hba.conf" "$pg_conf/conf.d/amp-orb.conf"
+# pg_ctlcluster goes through systemd when it runs and pg_ctl otherwise, since
+# some orb providers boot without systemd.
+sudo pg_ctlcluster 16 main restart
+for _ in $(seq 1 30); do
+  pg_isready -q -h localhost && break
+  sleep 1
+done
+sudo -u postgres psql -qtAc "SELECT 1 FROM pg_roles WHERE rolname = '$(id -un)'" | grep -qx 1 ||
+  sudo -u postgres createuser --superuser "$(id -un)"
+sudo -u postgres psql -qc "ALTER USER postgres PASSWORD 'postgres'"
+
+# --- mise and toolchains ---------------------------------------------------
+# Keep in sync with .github/actions/mise/action.yml.
+mise_version="2026.5.15"
+mise_bin="$HOME/.local/bin/mise"
+if [[ ! -x "$mise_bin" ]] || [[ "$("$mise_bin" --version 2>/dev/null)" != "$mise_version "* ]]; then
+  step "Installing mise $mise_version"
+  curl -fsSL https://mise.run | MISE_VERSION="v$mise_version" MISE_INSTALL_PATH="$mise_bin" sh
+fi
+export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+export MISE_YES=1
+
+profile_marker="# tuist: mise toolchain"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >>"$HOME/.bash_profile" <<'EOF'
+
+# tuist: mise toolchain
+case ":$PATH:" in
+  *":$HOME/.local/share/mise/shims:"*) ;;
+  *) export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH" ;;
+esac
+EOF
+fi
+
+# mise records Linux checksums into these lockfiles while installing. Restore
+# them afterwards so orbs start with a clean worktree, unless they already
+# carried someone's edits.
+clean_lockfiles=()
+for lockfile in mise.lock server/mise.lock; do
+  git diff --quiet -- "$lockfile" && clean_lockfiles+=("$lockfile")
+done
+
+mise trust --quiet "$repo_root/mise.toml"
+mise trust --quiet "$repo_root/server/mise.toml"
+
+# Pin this checkout's development instance so ports and database names are
+# stable across orbs: server on 8180, databases tuist_development_100.
+# Instance 1 would put the server on 8081, which the orb itself listens on.
+# Overwrite rather than fill in: a mise invocation before this point persists a
+# random instance (seen on a self-hosted orb), which would otherwise win.
+printf '100' >"$(git rev-parse --path-format=absolute --git-path tuist-dev-instance)"
+
+step "Installing root tools"
+time mise install --quiet
+
+# The postinstall hook bootstraps databases before ClickHouse runs; its CI
+# guard skips it here and the bootstrap runs explicitly below.
+step "Installing server tools"
+(cd server && time CI=1 mise install --quiet)
+mise reshim
+
+step "Installing root Node dependencies"
+# npm ci deletes node_modules, so skip it when the installed tree matches.
+npm ls >/dev/null 2>&1 || time npm ci --ignore-scripts --no-audit --no-fund
+
+# --- Server ----------------------------------------------------------------
+cd "$repo_root/server"
+
+step "Starting ClickHouse"
+mise run --no-deps clickhouse:start
+
+dev_db="$(mise exec -- printenv TUIST_SERVER_POSTGRES_DB)"
+if psql -h localhost -d "$dev_db" -Atqc "SELECT to_regclass('public.users') IS NOT NULL" 2>/dev/null | grep -qx t; then
+  # Stale snapshot: the databases are seeded already, so sync dependencies
+  # and migrate without rerunning the seeds.
+  step "Updating server dependencies and migrating $dev_db"
+  time mix deps.get
+  time aube install
+  (cd ../noora && time aube install && time aube run build)
+  time mise run --no-deps db:migrate
+else
+  # Fresh orb: deps.get, aube installs, Noora build, dev compile, database
+  # create/migrate and seed (about 11 minutes cold). The test build is left
+  # to the first `mix test`; compiling it here would exceed setup's limit.
+  step "Bootstrapping server dependencies and databases"
+  time mise run --no-deps install
+fi
+
+# Stop the databases cleanly so their data directories are consistent in
+# the snapshot; .agents/resume starts them again.
+step "Stopping ClickHouse and PostgreSQL"
+mise run --no-deps clickhouse:stop
+sudo pg_ctlcluster 16 main stop
+
+cd "$repo_root"
+((${#clean_lockfiles[@]} == 0)) || git checkout -- "${clean_lockfiles[@]}"
+
+step "Writing orb agent guidance"
+guidance="$HOME/.config/amp/AGENTS.md"
+guidance_marker="# Tuist orb environment"
+mkdir -p "$(dirname "$guidance")"
+if ! grep -Fqx "$guidance_marker" "$guidance" 2>/dev/null; then
+  cat >>"$guidance" <<'EOF'
+
+# Tuist orb environment
+
+- `.agents/setup` installed the root and `server/` mise toolchains (shims on PATH),
+  PostgreSQL 16 (pg_ctlcluster, trust auth) and bootstrapped the server databases.
+- `.agents/resume` starts PostgreSQL and ClickHouse; rerun `mise run clickhouse:start` from `server/` if ClickHouse is down.
+- This checkout's dev instance is 100: server on port 8180, databases `tuist_development_100`.
+- Start the server with `amp orb services ensure` (service `server`).
+  Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.
+- The server test build is not precompiled: the first `MIX_ENV=test` compile or `mix test` takes about 8 minutes.
+- macOS-only work (Xcode, `tuist generate`, Swift app targets) is not possible in this orb.
+EOF
+fi
+
+step "Setup finished"

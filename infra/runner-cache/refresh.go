@@ -98,7 +98,7 @@ func (b *LocalImages) refreshMaster(job refreshJob) {
 // no job attaches is not refreshed on every publication until it ages out, and
 // a master a job restored or cloned meanwhile keeps its own.
 func (b *LocalImages) restoreRefresh(ctx context.Context, job refreshJob) error {
-	return b.fetchMaster(ctx, job.next, func(master, _ string) error {
+	return b.fetchMaster(ctx, job.next, false, func(master, _ string) error {
 		usedAt := job.usedAt
 		if info, err := os.Stat(job.master); err == nil && info.ModTime().After(usedAt) {
 			usedAt = info.ModTime()

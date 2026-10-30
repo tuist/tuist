@@ -19,12 +19,13 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
         create("release") {
             val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
-                ?: rootProject.file("release.keystore").takeIf { it.exists() }?.absolutePath
+                ?: file("$rootDir/release.keystore").takeIf { it.exists() }?.absolutePath
             if (keystorePath != null) {
                 storeFile = file(keystorePath)
                 storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
@@ -57,10 +58,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -73,11 +70,19 @@ android {
     }
 
     sourceSets["main"].java.srcDir("${layout.buildDirectory.get()}/generated/openapi/src/main/kotlin")
+    sourceSets["androidTest"].assets.srcDir("src/test/resources")
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 play {
+    isolatedSingleProject.set(true)
     val serviceAccountJsonPath = System.getenv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON")
-        ?: rootProject.file("service-account.json").takeIf { it.exists() }?.absolutePath
+        ?: file("$rootDir/service-account.json").takeIf { it.exists() }?.absolutePath
     if (serviceAccountJsonPath != null) {
         serviceAccountCredentials.set(file(serviceAccountJsonPath))
     }
@@ -126,12 +131,18 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.okhttp.tls)
     testImplementation(libs.robolectric)
+
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(libs.okhttp.tls)
 }
 
 openApiGenerate {
     generatorName.set("kotlin")
-    inputSpec.set("${rootProject.projectDir}/../cli/Sources/TuistServer/OpenAPI/server.yml")
+    inputSpec.set("$rootDir/../cli/Sources/TuistServer/OpenAPI/server.yml")
     outputDir.set("${layout.buildDirectory.get()}/generated/openapi")
     apiPackage.set("dev.tuist.app.api")
     modelPackage.set("dev.tuist.app.api.model")

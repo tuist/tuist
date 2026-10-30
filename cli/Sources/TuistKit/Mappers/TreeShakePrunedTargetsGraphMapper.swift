@@ -399,11 +399,19 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             let wasPruned = testPlan.testTargets.contains { originalTargets.contains($0.target) }
             return testPlan.kind == .referenced && !wasPruned ? testPlan : nil
         } else {
+            let codeCoverageTargets = testPlan.codeCoverageTargets.filter(sourceTargets.contains)
+            let coverage = testPlan.coverage.map {
+                $0 && (testPlan.codeCoverageTargets.isEmpty || !codeCoverageTargets.isEmpty)
+            }
             return TestPlan(
                 path: testPlan.path,
                 testTargets: testTargets,
                 isDefault: testPlan.isDefault,
-                kind: testPlan.kind
+                kind: testPlan.kind,
+                coverage: coverage,
+                codeCoverageTargets: codeCoverageTargets,
+                language: testPlan.language,
+                region: testPlan.region
             )
         }
     }

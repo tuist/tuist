@@ -11,6 +11,7 @@ public protocol MultipartUploadStartPreviewsServicing {
         buildVersion: String,
         bundleIdentifier: String?,
         supportedPlatforms: [Components.Schemas.PreviewSupportedPlatform],
+        supportedArchitectures: [String],
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
@@ -61,6 +62,7 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
         buildVersion: String,
         bundleIdentifier: String?,
         supportedPlatforms: [Components.Schemas.PreviewSupportedPlatform],
+        supportedArchitectures: [String],
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
@@ -81,6 +83,8 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
             .ipa
         case .apk:
             .apk
+        case .executable:
+            .executable
         }
         let response = try await client.startPreviewsMultipartUpload(
             .init(
@@ -98,6 +102,7 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
                         git_commit_sha: gitCommitSHA,
                         git_ref: gitRef,
                         release_notes: releaseNotes,
+                        supported_architectures: supportedArchitectures.isEmpty ? nil : supportedArchitectures,
                         supported_platforms: supportedPlatforms,
                         track: track,
                         _type: type,

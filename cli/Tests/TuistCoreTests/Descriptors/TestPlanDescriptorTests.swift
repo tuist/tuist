@@ -6,6 +6,59 @@ import XcodeGraph
 import XcodeProj
 
 struct TestPlanDescriptorTests {
+    @Test func legacy_initializer_preserves_xcode_coverage_defaults() throws {
+        let inferredFactory = TestPlanDescriptor.init
+        let factory: (AbsolutePath, [TestPlanDescriptor.TestTarget]) -> TestPlanDescriptor = inferredFactory
+        let descriptor = factory(try AbsolutePath(validating: "/tmp/Plan.xctestplan"), [])
+        let json = try #require(JSONSerialization.jsonObject(with: descriptor.encode()) as? [String: Any])
+        let options = try #require(json["defaultOptions"] as? [String: Any])
+        #expect(options.isEmpty)
+    }
+
+    @Test(arguments: [false, true]) func encode_coverage_for_all_targets(coverage: Bool) throws {
+        let descriptor = TestPlanDescriptor(
+            path: try AbsolutePath(validating: "/tmp/Plan.xctestplan"),
+            testTargets: [],
+            coverage: coverage
+        )
+
+        let json = try #require(JSONSerialization.jsonObject(with: descriptor.encode()) as? [String: Any])
+        let options = try #require(json["defaultOptions"] as? [String: Any])
+        if coverage {
+            let coverageOptions = try #require(options["codeCoverage"] as? [String: Any])
+            #expect(coverageOptions.isEmpty)
+        } else {
+            #expect(options["codeCoverage"] as? Bool == false)
+        }
+    }
+
+    @Test(arguments: [false, true]) func encode_coverage_for_selected_targets(coverage: Bool) throws {
+        let app = PBXNativeTarget(name: "App")
+        let framework = PBXNativeTarget(name: "Framework")
+        let descriptor = TestPlanDescriptor(
+            path: try AbsolutePath(validating: "/tmp/Plan.xctestplan"),
+            testTargets: [],
+            coverage: coverage,
+            codeCoverageTargets: [
+                .init(pbxTarget: app, containerPath: "container:App.xcodeproj"),
+                .init(pbxTarget: framework, containerPath: "container:Frameworks/Framework.xcodeproj"),
+            ]
+        )
+
+        let json = try #require(JSONSerialization.jsonObject(with: descriptor.encode()) as? [String: Any])
+        let options = try #require(json["defaultOptions"] as? [String: Any])
+        if coverage {
+            let coverageOptions = try #require(options["codeCoverage"] as? [String: Any])
+            let targets = try #require(coverageOptions["targets"] as? [[String: String]])
+            #expect(targets == [
+                ["containerPath": "container:App.xcodeproj", "identifier": app.uuid, "name": "App"],
+                ["containerPath": "container:Frameworks/Framework.xcodeproj", "identifier": framework.uuid, "name": "Framework"],
+            ])
+        } else {
+            #expect(options["codeCoverage"] as? Bool == false)
+        }
+    }
+
     @Test func encode_produces_valid_xctestplan_json() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "AppTests")
@@ -122,6 +175,39 @@ struct TestPlanDescriptorTests {
         #expect(try parallelizable(descriptor(parallelization: .all)) as? Bool == true)
         #expect(try parallelizable(descriptor(parallelization: .none)) as? Bool == false)
         #expect(try parallelizable(descriptor(parallelization: .swiftTestingOnly)) == nil)
+    }
+
+    @Test func encode_writes_language_and_region_into_default_options() throws {
+        // Given
+        func descriptor(language: String?, region: String?) throws -> TestPlanDescriptor {
+            TestPlanDescriptor(
+                path: try AbsolutePath(validating: "/tmp/Plan.xctestplan"),
+                testTargets: [
+                    .init(
+                        pbxTarget: PBXNativeTarget(name: "AppTests"),
+                        containerPath: "container:App.xcodeproj",
+                        isEnabled: true,
+                        parallelization: .swiftTestingOnly
+                    ),
+                ],
+                language: language,
+                region: region
+            )
+        }
+
+        func defaultOptions(_ plan: TestPlanDescriptor) throws -> [String: Any] {
+            let json = try JSONSerialization.jsonObject(with: try plan.encode()) as? [String: Any]
+            return try #require(json?["defaultOptions"] as? [String: Any])
+        }
+
+        // When
+        let pinned = try defaultOptions(descriptor(language: "en", region: "US"))
+        let unpinned = try defaultOptions(descriptor(language: nil, region: nil))
+
+        // Then
+        #expect(pinned["language"] as? String == "en")
+        #expect(pinned["region"] as? String == "US")
+        #expect(unpinned.isEmpty)
     }
 
     @Test func encode_writes_selected_tags() throws {

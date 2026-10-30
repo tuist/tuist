@@ -138,11 +138,16 @@ struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
         #expect(appTestsEntry["selectedTags"] as? [String: [String]] == ["tags": [".contract"]])
         #expect(appTestsEntry["skippedTags"] == nil)
 
-        // And: the untagged plan omits both tag keys
+        // And: the snapshot plan pins the language and region it was declared with
         let snapshotPlanData = try Data(contentsOf: snapshotPlanPath.url)
         let snapshotPlanJSON = try #require(
             try JSONSerialization.jsonObject(with: snapshotPlanData) as? [String: Any]
         )
+        let snapshotOptions = try #require(snapshotPlanJSON["defaultOptions"] as? [String: Any])
+        #expect(snapshotOptions["language"] as? String == "en")
+        #expect(snapshotOptions["region"] as? String == "US")
+
+        // And: the untagged plan omits both tag keys
         let snapshotTargets = try #require(snapshotPlanJSON["testTargets"] as? [[String: Any]])
         let appSnapshotTestsEntry = try #require(
             snapshotTargets.first { ($0["target"] as? [String: Any])?["name"] as? String == "AppSnapshotTests" }
@@ -618,9 +623,8 @@ struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
 
-        let xcodeproj = try XcodeProj(
-            pathString: fixturePath.appending(components: "Package", "repro.xcodeproj").pathString
-        )
+        let packageDirectory = fixturePath.appending(component: "Package")
+        let xcodeproj = try XcodeProj(pathString: packageDirectory.appending(component: "repro.xcodeproj").pathString)
         let reproCoreTarget = try TuistAcceptanceTest.requireTarget("ReproCore", in: xcodeproj)
         let buildConfigurations = try #require(reproCoreTarget.buildConfigurationList?.buildConfigurations)
 
@@ -631,7 +635,12 @@ struct GenerateAcceptanceTestCommandLineToolWithPackageAccessAndModuleMap {
             let otherSwiftFlags = try #require(buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue)
             #expect(otherSwiftFlags.contains("-module-abi-name"))
             #expect(otherSwiftFlags.contains("-Xcc"))
-            #expect(otherSwiftFlags.contains(where: { $0.contains("ReproCore-deps.modulemap") }))
+            let moduleMapFlag = try #require(otherSwiftFlags.first { $0.hasPrefix("-fmodule-map-file=") })
+            let moduleMapPath = try AbsolutePath(validating: String(moduleMapFlag.dropFirst("-fmodule-map-file=".count))
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: packageDirectory.pathString))
+            let moduleMap = try await FileSystem().readTextFile(at: moduleMapPath)
+            #expect(moduleMap.contains("module CShim"))
             #expect(!otherSwiftFlags.contains("-package-name"))
         }
 
@@ -758,16 +767,8 @@ struct GenerateAcceptanceTestiOSAppWithModuleMapPackages {
 }
 
 struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
-    /// Regression coverage for the request to include SwiftPM target headers in generated projects
-    /// (https://community.tuist.dev/t/988): a C-family SwiftPM target's headers must appear in the
-    /// generated project. Before the fix, a target with a custom module map produced no headers at all,
-    /// and nested/non-public headers were dropped, so this assertion fails without it (red -> green).
-    ///
-    /// The headers are surfaced as project headers rather than public ones on purpose: these targets
-    /// generate as frameworks, and copying a public header into the framework bundle re-homes the
-    /// declarations of sibling C modules that `#include <Module/Header.h>`, breaking consumers under the
-    /// `MemberImportVisibility` upcoming feature (for example swift-nio-ssl, which the Tuist project itself
-    /// depends on). See `discoveredHeaders` for the full reasoning.
+    /// Headers stay browsable through their source folder without becoming Xcode build inputs.
+    /// Compilation still resolves the custom module map, nested public headers and private includes.
     @Test(.withFixture("generated_app_with_spm_c_target_headers"), .inTemporaryDirectory)
     func app_with_spm_c_target_headers() async throws {
         let fixturePath = try fixtureDirectory()
@@ -775,36 +776,30 @@ struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
 
-        let xcodeproj = try XcodeProj(
-            pathString: fixturePath.appending(components: "CLibPkg", "CLibPkg.xcodeproj").pathString
-        )
+        let packageDirectory = fixturePath.appending(component: "CLibPkg")
+        let xcodeproj = try XcodeProj(pathString: packageDirectory.appending(component: "CLibPkg.xcodeproj").pathString)
         let target = try #require(xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == "CLib" }))
-        let headerFiles = target.buildPhases.compactMap { $0 as? PBXHeadersBuildPhase }.first?.files ?? []
-        let headerNames = Set(headerFiles.compactMap { $0.file?.path })
-
-        #expect(headerNames.isSuperset(of: ["CLib.h", "Deep.h", "CLibInternal.h"]))
-
-        func attributes(of name: String) -> [String] {
-            headerFiles.first(where: { $0.file?.path == name })?.settings?["ATTRIBUTES"]?.arrayValue ?? []
-        }
-        // Headers are surfaced as project headers, so none are tagged `Public` (which would copy them into
-        // the framework bundle and break sibling C shim modules).
-        #expect(!attributes(of: "CLib.h").contains("Public"))
-        #expect(!attributes(of: "Deep.h").contains("Public"))
-        #expect(!attributes(of: "CLibInternal.h").contains("Public"))
+        #expect(target.buildPhases.compactMap { $0 as? PBXHeadersBuildPhase }.isEmpty)
+        let sourceDirectory = packageDirectory.appending(components: "Sources", "CLib")
+        let sourceFolder = try #require(try xcodeproj.pbxproj.fileReferences.first {
+            guard let path = try $0.fullPath(sourceRoot: packageDirectory.pathString) else { return false }
+            return URL(fileURLWithPath: path).resolvingSymlinksInPath().path == sourceDirectory.url.resolvingSymlinksInPath().path
+        })
+        #expect(xcodeproj.pbxproj.groups.contains { $0.children.contains(sourceFolder) })
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild", "build",
+            "-workspace", fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme", "App", "-destination", "platform=macOS",
+            "-derivedDataPath", temporaryDirectory.appending(component: "DerivedData").pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+        ])
     }
 }
 
 struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
-    /// Regression coverage for SwiftPM C targets whose public headers contain duplicate basenames once
-    /// flattened into an Xcode framework's `Headers` directory. The local package mirrors nanopb's layout:
-    /// top-level wrapper public headers include nested module headers with the same filenames.
-    ///
-    /// Before the fix, both the wrapper and nested headers were marked Public, so Xcode failed with
-    /// "Multiple commands produce ... nanopb.framework/Headers/pb.h". After the fix, Tuist keeps only one
-    /// public header per framework destination. A sibling C target then includes `<nanopb/pb.h>` to ensure
-    /// the remaining project headers do not shadow the real framework public header and recurse through the
-    /// top-level wrapper.
+    /// Duplicate basenames retain their directory hierarchy. Consumers resolve <nanopb/pb.h>
+    /// through the original public include root without copying or flattening either wrapper.
     @Test(.withFixture("generated_app_with_spm_c_target_duplicate_public_headers"), .inTemporaryDirectory)
     func app_with_spm_c_target_duplicate_public_headers() async throws {
         let fixturePath = try fixtureDirectory()
@@ -819,18 +814,7 @@ struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
         )
         let xcodeproj = try XcodeProj(pathString: packageXcodeprojPath.pathString)
         let target = try #require(xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == "nanopb" }))
-        let headerFiles = target.buildPhases.compactMap { $0 as? PBXHeadersBuildPhase }.first?.files ?? []
-        let publicHeaderNames = headerFiles
-            .filter { ($0.settings?["ATTRIBUTES"]?.arrayValue ?? []).contains("Public") }
-            .compactMap { $0.file?.path }
-            .sorted()
-        let nonPublicHeaderNames = headerFiles
-            .filter { !($0.settings?["ATTRIBUTES"]?.arrayValue ?? []).contains("Public") }
-            .compactMap { $0.file?.path }
-            .sorted()
-
-        #expect(publicHeaderNames == ["pb.h", "pb_common.h"])
-        #expect(nonPublicHeaderNames == ["pb.h", "pb_common.h"])
+        #expect(target.buildPhases.compactMap { $0 as? PBXHeadersBuildPhase }.isEmpty)
 
         try await CommandRunner().runAndWait(arguments: [
             "/usr/bin/xcodebuild",

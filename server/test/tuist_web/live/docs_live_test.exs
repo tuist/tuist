@@ -342,33 +342,93 @@ defmodule TuistWeb.DocsLiveTest do
 
     @tag :locale
     test "redirects an untranslated article to its English source, preserving the query", %{conn: conn} do
-      assert {:error, {:redirect, %{to: "/en/docs/guides/features/cache/rust?utm_source=google"}}} =
-               live(conn, "/zh_Hans/docs/guides/features/cache/rust?utm_source=google")
+      page = %{Tuist.Docs.get_page("/en/guides/install-tuist") | slug: "/en/guides/english-only"}
+      stub(CLI, :get_pages, fn -> [page] end)
+      stub(CLI, :get_page, fn slug -> if slug == page.slug, do: page end)
+
+      assert {:error, {:redirect, %{to: "/en/docs/guides/english-only?utm_source=google"}}} =
+               live(conn, "/zh_Hans/docs/guides/english-only?utm_source=google")
     end
   end
 
   describe "documentation language metadata" do
     @describetag :locale
 
+    test "navigation segments follow the page language rather than the previous session", %{conn: conn} do
+      for {locale, previous_locale, guides, references, resources, builds} <- [
+            {"ka", "en", "სახელმძღვანელოები", "მითითებები", "რესურსები", "ბილდები"},
+            {"en", "ka", "Guides", "References", "Resources", "Builds"}
+          ] do
+        conn = init_test_session(conn, %{locale: previous_locale})
+        {:ok, view, html} = live(conn, "/#{locale}/docs")
+        document = Floki.parse_document!(html)
+
+        for {tab, label} <- [{"guides", guides}, {"references", references}, {"resources", resources}] do
+          assert document |> Floki.find(~s(#docs-nav-tabs [data-tab="#{tab}"])) |> Floki.text() |> String.trim() == label
+        end
+
+        assert has_element?(view, "h2#builds", builds)
+        assert has_element?(view, "#docs-toc a[href='#builds']", builds)
+      end
+    end
+
+    test "an explicit docs language overrides the signed-in user's preference", %{conn: conn} do
+      user = user_fixture()
+
+      for {locale, preferred_locale, builds} <- [{"en", "ka", "Builds"}, {"ka", "en", "ბილდები"}] do
+        {:ok, user} = Accounts.update_user_preferred_locale(user, preferred_locale)
+        conn = conn |> log_in_user(user) |> get("/#{locale}/docs")
+        document = conn |> html_response(200) |> Floki.parse_document!()
+
+        assert document |> Floki.find("#docs-toc a[href='#builds']") |> Floki.text() |> String.trim() == builds
+
+        {:ok, view, _html} = live(conn)
+        assert has_element?(view, "#docs-toc a[href='#builds']", builds)
+        assert has_element?(view, "h2#builds", builds)
+      end
+    end
+
+    test "non-Latin sidebar sections have distinct collapsible IDs", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/ja/docs")
+      document = Floki.parse_fragment!(render(view))
+      ids = Floki.attribute(document, "#docs-sidebar [phx-hook='NooraCollapsible']", "id")
+
+      assert length(ids) > 1
+      assert Enum.uniq(ids) == ids
+      refute "docs-nav-" in ids
+    end
+
     test "English-only articles do not advertise fallback pages as translations", %{conn: conn} do
+      page = %{Tuist.Docs.get_page("/en/guides/install-tuist") | slug: "/en/guides/english-only"}
+      stub(CLI, :get_pages, fn -> [page] end)
+      stub(CLI, :get_page, fn slug -> if slug == page.slug, do: page end)
+
       document =
         conn
-        |> get("/en/docs/guides/features/cache/rust?utm_source=google")
+        |> get("/en/docs/guides/english-only?utm_source=google")
         |> html_response(200)
         |> Floki.parse_document!()
+
+      assert Floki.attribute(document, "html", "lang") == ["en"]
+
+      for picker <- ["docs-language-selector", "docs-mobile-nav-language-selector"] do
+        selector = "##{picker} a[data-value='zh_Hans']"
+        assert Floki.attribute(document, selector, "data-glossia-language") == ["zh-Hans"]
+        assert Floki.attribute(document, selector, "href") == ["/zh_Hans/docs/guides/english-only"]
+      end
 
       alternates = Floki.find(document, "link[hreflang]")
       assert length(alternates) == 2
 
       for language <- ["en", "x-default"] do
         assert Floki.attribute(alternates, "[hreflang='#{language}']", "href") ==
-                 [Tuist.Environment.app_url(path: "/en/docs/guides/features/cache/rust")]
+                 [Tuist.Environment.app_url(path: "/en/docs/guides/english-only")]
       end
     end
 
     test "available translations have reciprocal language links without inventing English pages", %{conn: conn} do
-      # Tests load only English source files, so supply a small exact article
-      # inventory through the runtime CLI page provider instead.
+      # Supply an exact inventory independent of repository translation coverage
+      # through the runtime CLI page provider.
       page = Tuist.Docs.get_page("/en/guides/install-tuist")
       pages = for locale <- ["es", "zh_Hans"], do: %{page | slug: "/#{locale}/guides/language-metadata"}
       stub(CLI, :get_pages, fn -> pages end)
@@ -400,6 +460,15 @@ defmodule TuistWeb.DocsLiveTest do
 
         assert Floki.attribute(document, "html", "lang") == [language]
         assert length(Floki.find(document, "link[hreflang]")) == 10
+
+        for picker <- ["docs-language-selector", "docs-mobile-nav-language-selector"],
+            {target_locale, target_language} <- [{"en", "en"}, {"zh_Hans", "zh-Hans"}, {"yue_Hant", "yue-Hant"}] do
+          selector = "##{picker} a[data-value='#{target_locale}']"
+          assert Floki.attribute(document, selector, "data-glossia-language") == [target_language]
+          assert Floki.attribute(document, selector, "href") == ["/#{target_locale}/docs"]
+        end
+
+        assert length(Floki.find(document, "a[data-glossia-language]")) == 18
 
         assert Floki.attribute(document, "link[hreflang='zh-Hans']", "href") ==
                  [Tuist.Environment.app_url(path: "/zh_Hans/docs")]

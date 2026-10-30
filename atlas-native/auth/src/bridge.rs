@@ -18,6 +18,23 @@ enum Command {
     Restore {
         session: Session,
     },
+    Bootstrap {
+        session: Session,
+    },
+    ForgetCache {
+        session: Session,
+        directory: String,
+    },
+    ReadCache {
+        session: Session,
+        directory: String,
+        request: crate::cache::Read,
+        local: bool,
+    },
+    InvalidateCache {
+        session: Session,
+        directory: String,
+    },
     Native {
         session: Session,
         request: crate::api::Request,
@@ -33,6 +50,10 @@ enum Command {
         #[serde(flatten)]
         action: crate::presence::Action,
     },
+    Environment {
+        #[serde(flatten)]
+        action: crate::environments::Action,
+    },
     OrbitSession {
         #[serde(flatten)]
         action: crate::orbit_session::Action,
@@ -42,6 +63,11 @@ enum Command {
         resource: crate::business::Resource,
         #[serde(flatten)]
         action: crate::business::Action,
+    },
+    Moodboard {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::moodboard::Action,
     },
     Push {
         session: Session,
@@ -62,6 +88,11 @@ enum Command {
         session: Session,
         #[serde(flatten)]
         action: crate::accounts::Action,
+    },
+    Connections {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::connections::Action,
     },
 }
 
@@ -86,12 +117,26 @@ pub fn execute(input: &str) -> String {
                 serde_json::to_value(complete(pending, &callback)?)
             }
             Command::Restore { session } => serde_json::to_value(restore(session)?),
+            Command::Bootstrap { session } => serde_json::to_value(crate::bootstrap(session)?),
+            Command::ForgetCache { session, directory } => {
+                return crate::orbit_session::forget_cache(&session, &directory);
+            }
+            Command::ReadCache { session, directory, request, local } => {
+                return crate::cache::read(session, &directory, request, local);
+            }
+            Command::InvalidateCache { session, directory } => {
+                if let Some(cache) = crate::cache::Cache::open(&directory, &session) { cache.invalidate(false); }
+                return Ok(json!({}));
+            }
             Command::Native { session, request } => return crate::api::execute(session, request),
             Command::Themes { server } => return crate::themes::fetch(&server),
             Command::ValidateThemes { catalog } => return crate::themes::validate(catalog),
             Command::DefaultThemes => return Ok(crate::themes::defaults()),
             Command::Presence { action } => {
                 return crate::presence::execute(action);
+            }
+            Command::Environment { action } => {
+                return crate::environments::execute(action);
             }
             Command::OrbitSession { action } => {
                 return crate::orbit_session::execute(action);
@@ -102,6 +147,9 @@ pub fn execute(input: &str) -> String {
                 action,
             } => {
                 return crate::business::execute(session, resource, action);
+            }
+            Command::Moodboard { session, action } => {
+                return crate::moodboard::execute(session, action);
             }
             Command::Push { session, action } => {
                 return crate::push::execute(session, action);
@@ -114,6 +162,9 @@ pub fn execute(input: &str) -> String {
             }
             Command::AiAccounts { session, action } => {
                 return crate::accounts::execute(session, action);
+            }
+            Command::Connections { session, action } => {
+                return crate::connections::execute(session, action);
             }
         }
         .map_err(|_| crate::invalid())

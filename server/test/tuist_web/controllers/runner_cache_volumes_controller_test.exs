@@ -7,6 +7,7 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.VolumePrefetch
   alias TuistWeb.RunnerCacheVolumesController, as: Controller
 
   defp conn do
@@ -148,5 +149,145 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     result = Controller.checkout(conn(), %{"node_name" => "node"})
     assert result.status == 403
     assert CacheVolumes.checkout_key() == "checkout"
+  end
+
+  test "the storage agent lists the Linux HEADs its node should prefetch" do
+    assert %{plug: Controller, plug_opts: :masters} =
+             Phoenix.Router.route_info(TuistWeb.Router, "GET", "/api/internal/runners/cache-volumes/masters", "localhost")
+
+    namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+    name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+    stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+
+    expect(VolumePrefetch, :for_node, fn "linux-01", :linux ->
+      [
+        %{
+          kind: "custom",
+          id: "use",
+          account_id: 42,
+          scope: "scope",
+          generation: 2,
+          image_digest: "d",
+          content_digest: "c",
+          volume_bytes: 20_000_000_000,
+          head_size_bytes: 1_000_000_000,
+          reason: "prewarm",
+          extra: "dropped"
+        },
+        %{
+          kind: "checkout",
+          id: "checkout-use",
+          account_id: 42,
+          scope: "checkout-scope",
+          generation: 1,
+          image_digest: "d",
+          content_digest: "c",
+          volume_bytes: 20_000_000_000,
+          head_size_bytes: nil,
+          reason: "recent",
+          checkout_generation: 3,
+          clone_url: "https://github.com/org/repo",
+          default_branch: "main",
+          uid: 1000,
+          volume_key: "key"
+        }
+      ]
+    end)
+
+    result = Controller.masters(conn(), %{"node_name" => "linux-01"})
+    assert result.status == 200
+    assert get_resp_header(result, "cache-control") == ["no-store"]
+
+    assert JSON.decode!(result.resp_body) == %{
+             "masters" => [
+               %{
+                 "kind" => "custom",
+                 "id" => "use",
+                 "account_id" => 42,
+                 "scope" => "scope",
+                 "generation" => 2,
+                 "image_digest" => "d",
+                 "content_digest" => "c",
+                 "volume_bytes" => 20_000_000_000,
+                 "head_size_bytes" => 1_000_000_000,
+                 "reason" => "prewarm"
+               },
+               %{
+                 "kind" => "checkout",
+                 "id" => "checkout-use",
+                 "account_id" => 42,
+                 "scope" => "checkout-scope",
+                 "generation" => 1,
+                 "image_digest" => "d",
+                 "content_digest" => "c",
+                 "volume_bytes" => 20_000_000_000,
+                 "head_size_bytes" => nil,
+                 "reason" => "recent",
+                 "checkout_generation" => 3,
+                 "clone_url" => "https://github.com/org/repo",
+                 "default_branch" => "main",
+                 "uid" => 1000,
+                 "volume_key" => "key"
+               }
+             ]
+           }
+
+    assert Controller.masters(conn(), %{}).status == 400
+  end
+
+  test "only the storage agent can list HEADs to prefetch" do
+    expect(K8sClient, :create_controller_token_review, fn "agent-token" ->
+      {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}
+    end)
+
+    reject(&VolumePrefetch.for_node/2)
+    assert Controller.masters(conn(), %{"node_name" => "linux-01"}).status == 403
+  end
+
+  describe "Docker data roots" do
+    setup do
+      namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+      name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+      stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+      :ok
+    end
+
+    test "are served only to the storage agent" do
+      for {path, action} <- [{"/docker", :docker}, {"/docker-seen", :docker_seen}] do
+        assert %{plug: Controller, plug_opts: ^action} =
+                 Phoenix.Router.route_info(
+                   TuistWeb.Router,
+                   "POST",
+                   "/api/internal/runners/cache-volumes" <> path,
+                   "localhost"
+                 )
+      end
+
+      expect(K8sClient, :create_controller_token_review, fn "agent-token" ->
+        {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}
+      end)
+
+      assert Controller.docker(conn(), %{}).status == 403
+    end
+
+    test "answer 404 for a repository not yet seen using Docker" do
+      expect(CacheVolumes, :allocate_docker, fn _ -> {:error, :unseen} end)
+      result = Controller.docker(conn(), %{})
+      assert result.status == 404
+      assert JSON.decode!(result.resp_body) == %{"error" => "unseen"}
+    end
+
+    test "answer 425 while the executed job is pending" do
+      expect(CacheVolumes, :allocate_docker, fn _ -> {:error, :pending} end)
+      assert Controller.docker(conn(), %{}).status == 425
+    end
+
+    test "acknowledge a recorded use of Docker with no content" do
+      expect(CacheVolumes, :mark_docker_seen, fn _ -> :ok end)
+      assert Controller.docker_seen(conn(), %{}).status == 204
+
+      expect(CacheVolumes, :mark_docker_seen, fn _ -> {:error, :unavailable} end)
+      assert Controller.docker_seen(conn(), %{}).status == 403
+    end
   end
 end

@@ -62,16 +62,19 @@ const (
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
 type ScalewayAppleSiliconMachineReconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
-	ScalewayClient     *scaleway.Client
-	CredentialsManager *credentials.Manager
+	APIReader               client.Reader
+	ProcessorDeploymentName string
+	Scheme                  *runtime.Scheme
+	ScalewayClient          *scaleway.Client
+	CredentialsManager      *credentials.Manager
 
 	// Recorder emits Events on lifecycle transitions. `kubectl describe
 	// scalewayapplesiliconmachine` then shows a tail-followable timeline
 	// of state changes alongside the static Conditions block, which is
 	// the difference between "I can see this is broken" and "I can see
 	// what step it's currently doing" while a Mac mini is mid-bootstrap.
-	Recorder record.EventRecorder
+	Recorder     record.EventRecorder
+	osUpdateDial osUpdateDialFunc
 
 	// Kubeconfig builds the per-host kubeconfig the bootstrap installs.
 	// Required for tart-kubelet to authenticate to the cluster.
@@ -503,6 +506,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			"Bootstrap secret for %s has no sudo password and the Scaleway refresh did not recover one — verify credentials at the source",
 			machine.Name)
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	}
+
+	if handled, result, err := r.reconcileScalewayOSUpdate(ctx, machine, sshKey, bootstrapCreds); handled || err != nil {
+		return result, err
 	}
 
 	// Detect Node drift: bootstrap previously succeeded

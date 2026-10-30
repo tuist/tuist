@@ -18,6 +18,34 @@ import Config
 #
 # See `Tuist.Environment.mode/0` for the full list.
 alias Tuist.Oban.RuntimeConfig
+alias Tuist.Runners.Catalog
+
+# Explicit account-to-issuer trust, separate from account CI workload identities.
+if raw = System.get_env("TUIST_ATLAS_ENVIRONMENT_TRUST") do
+  trusts = JSON.decode!(raw)
+
+  valid =
+    is_map(trusts) and map_size(trusts) <= 20 and
+      Enum.all?(trusts, fn
+        {account, %{"issuer" => issuer} = trust} when is_binary(account) and is_binary(issuer) ->
+          uri = URI.parse(issuer)
+
+          uri.scheme == "https" and is_binary(uri.host) and uri.userinfo == nil and uri.query == nil and
+            uri.fragment == nil and uri.path in [nil, ""] and
+            Enum.all?(Map.keys(trust), &(&1 in ["issuer", "subjects"])) and
+            (not Map.has_key?(trust, "subjects") or
+               (is_list(trust["subjects"]) and length(trust["subjects"]) in 1..1000 and
+                  Enum.all?(trust["subjects"], &is_binary/1)))
+
+        _ ->
+          false
+      end)
+
+  if !valid,
+    do: raise("TUIST_ATLAS_ENVIRONMENT_TRUST must map account handles to HTTPS issuer origins and optional subjects")
+
+  config :tuist, :atlas_environment_trust, trusts
+end
 
 # Runner Profiles shape catalog. Helm injects the same
 # `runnersFleetLinux.shapes` list it renders the shape-keyed RunnerPool
@@ -30,9 +58,27 @@ alias Tuist.Oban.RuntimeConfig
 # back to the default would run a catalog that doesn't match the pools
 # that actually exist — reintroducing the drift this injection removes.
 # A boot failure here is caught in the canary stage before production.
-alias Tuist.Runners.Catalog
+# Configure OTP before dependencies can create clients. Its macOS keychain
+# exporter ignores Apple trust-settings deny records. Filter the PEM at runtime
+# so the release also boots on older images, retaining every unrelated anchor.
+if System.get_env("TUIST_MODE") == "xcresult_processor" and :os.type() == {:unix, :darwin} do
+  config :public_key, cacerts_path: Tuist.Application.CertificateTrust.filtered_bundle!("/etc/ssl/cert.pem")
+end
 
-config :tuist, :network_trusted_report_publishing, System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING") == "true"
+if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
+  case Tuist.Accounts.SSOLoginDomainTrust.parse_config(value) do
+    {:ok, enabled} -> config :tuist, :sso_require_login_domain_verification, enabled
+    {:error, reason} -> raise reason
+  end
+end
+
+config :tuist, :network_trusted_cache_access, System.get_env("TUIST_NETWORK_TRUSTED_CACHE_ACCESS") == "true"
+
+config :tuist,
+       :network_trusted_report_publishing,
+       System.get_env("TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS", System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING")) ==
+         "true"
+
 config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
 config :tuist, :runner_macos_cache_volumes, System.get_env("TUIST_RUNNER_MACOS_CACHE_VOLUMES") == "true"
 
@@ -122,7 +168,8 @@ case System.get_env("TUIST_RUNNER_MACOS_XCODE_VERSIONS") do
     end
 end
 
-if Tuist.Environment.web?() do
+# Outside releases the endpoint binds only under `mix phx.server`.
+if config_env() == :prod and Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
 
@@ -671,6 +718,8 @@ base_queues = [
   runner_gitlab: 10,
   default: 10,
   alert_evaluations: 1,
+  alert_evaluation_batches: 1,
+  automation_notifications: 5,
   vcs_comments: 20,
   webhooks: 20,
   mcp_events: 5,
@@ -696,7 +745,11 @@ oban_queues =
       [process_build_queue, process_bazel_tests_queue]
 
     Tuist.Environment.xcresult_processor_mode?() ->
-      [process_xcresult_queue]
+      # Every queue start, including an Oban-only supervisor restart, is
+      # paused until the local drain monitor confirms no termination request.
+      [
+        {:process_xcresult, limit: Tuist.Environment.process_xcresult_queue_concurrency(), paused: true}
+      ]
 
     Tuist.Environment.swift_registry_sync_mode?() ->
       swift_registry_sync_queues

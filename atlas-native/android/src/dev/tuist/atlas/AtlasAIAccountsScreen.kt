@@ -64,6 +64,8 @@ class AtlasAIAccountsScreen(
     private var showingTokenHelp = false
     private var profile: AtlasProfileModel? = null
     private var appearance: AtlasAppearance? = null
+    private var connections: AtlasConnectionsModel? = null
+    private var coding: AtlasCodingRepositories? = null
     private var pushStatus: (() -> String)? = null
     private var pushToggle: (() -> Unit)? = null
     private var navigationChanged: () -> Unit = {}
@@ -99,6 +101,18 @@ class AtlasAIAccountsScreen(
         render()
     }
 
+    fun connections(model: AtlasConnectionsModel) {
+        connections = model
+        model.listener = renderListener
+        render()
+    }
+
+    fun coding(model: AtlasCodingRepositories) {
+        coding = model
+        model.listener = renderListener
+        render()
+    }
+
     fun notifications(
         status: () -> String,
         toggle: () -> Unit,
@@ -116,9 +130,35 @@ class AtlasAIAccountsScreen(
         if (appearance?.showingSettings == true) render()
     }
 
-    val isDetail: Boolean get() = profile?.draft != null || appearance?.showingSettings == true || accounts.page != "settings"
+    val isDetail: Boolean get() =
+        profile?.draft != null || appearance?.showingSettings == true ||
+            connections?.showing == true || coding?.showing == true || accounts.page != "settings"
 
     fun back(): Boolean {
+        coding?.takeIf { it.showing }?.let { model ->
+            if (model.busy) return true
+            if (model.dirty) {
+                dialog =
+                    AlertDialog
+                        .Builder(activity)
+                        .setTitle("Discard repository settings?")
+                        .setNegativeButton("Keep editing", null)
+                        .setPositiveButton("Discard") { _, _ ->
+                            model.showing = false
+                            model.discard()
+                            render()
+                        }.show()
+            } else {
+                model.showing = false
+                render()
+            }
+            return true
+        }
+        if (connections?.showing == true) {
+            connections?.showing = false
+            render()
+            return true
+        }
         if (profile?.draft != null) {
             cancelDescription()
             return true
@@ -143,6 +183,8 @@ class AtlasAIAccountsScreen(
         dialog?.dismiss()
         if (accounts.listener === renderListener) accounts.listener = null
         if (profile?.listener === renderListener) profile?.listener = null
+        if (connections?.listener === renderListener) connections?.listener = null
+        if (coding?.listener === renderListener) coding?.listener = null
         if (cancelPending) accounts.cancelLogin()
     }
 
@@ -164,9 +206,29 @@ class AtlasAIAccountsScreen(
         descriptionWatcher?.let { descriptionField?.removeTextChangedListener(it) }
         descriptionWatcher = null
         descriptionField = null
+        coding?.takeIf { it.showing }?.let { model ->
+            activity.title = "Coding"
+            toolbar.menu.clear()
+            content.addView(AtlasCodingSettingsScreen(activity, model) { dialog = it }.view)
+            scroll.post { if (!closed) scroll.scrollTo(0, position) }
+            navigationChanged()
+            return
+        }
         if (appearance?.showingSettings == true) {
             activity.title = "Appearance"
             renderAppearance()
+            scroll.post { if (!closed) scroll.scrollTo(0, position) }
+            navigationChanged()
+            return
+        }
+        connections?.takeIf { it.showing }?.let { model ->
+            activity.title = "Connections"
+            toolbar.menu.clear()
+            content.addView(AtlasConnectionsScreen(activity, model) { dialog = it }.view)
+            model.authorizationURL?.let { address ->
+                model.authorizationURL = null
+                openBrowser(Uri.parse(address))
+            }
             scroll.post { if (!closed) scroll.scrollTo(0, position) }
             navigationChanged()
             return
@@ -223,6 +285,23 @@ class AtlasAIAccountsScreen(
                         "Get notified when Pip finishes. Alerts include the thread title and a short reply preview. " +
                             "Control lock-screen previews in Android notification settings.",
                     )
+                }
+                connections?.let { model ->
+                    heading("Connected accounts")
+                    row("Connections", "GitHub, Slack and Google") {
+                        model.showing = true
+                        scroll.scrollTo(0, 0)
+                        render()
+                        model.load()
+                    }
+                }
+                coding?.let { model ->
+                    row("Coding", "GitHub installation and default repository") {
+                        model.showing = true
+                        scroll.scrollTo(0, 0)
+                        render()
+                        if (model.catalog == null) model.load()
+                    }
                 }
                 heading("AI accounts")
                 row("Claude", status("claude")) {

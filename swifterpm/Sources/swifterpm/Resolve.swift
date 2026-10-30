@@ -402,6 +402,9 @@ enum PackageResolver {
         if dependencies.contains(where: { $0.kind == .sourceControl }) {
             expectedIdentities.formUnion(transformedIdentities)
         }
+        guard let registryPaths = try? await RegistryDownloadPaths(pins: resolved.pins, scratchDir: scratchDir) else {
+            return
+        }
         var identitiesToInspect = Array(expectedIdentities)
         var inspectedIdentities = Set<String>()
         while let identity = identitiesToInspect.popLast() {
@@ -422,6 +425,7 @@ enum PackageResolver {
                 pin,
                 scratchDir: scratchDir,
                 cacheRoot: cacheRoot,
+                registryPaths: registryPaths,
                 disableSandbox: disableSandbox
             ), let dependencies = try? ManifestParser.dependencies(manifest) else {
                 return
@@ -460,11 +464,12 @@ enum PackageResolver {
         _ pin: ResolvedPin,
         scratchDir: URL,
         cacheRoot: URL,
+        registryPaths: RegistryDownloadPaths,
         disableSandbox: Bool
     ) async throws -> Any? {
         var candidates: [URL] = []
         if PinKind.isRegistry(pin.kind),
-           let subpath = try? PinKind.registryDownloadSubpath(pin)
+           let subpath = try? registryPaths.subpath(for: pin)
         {
             candidates.append(
                 scratchDir

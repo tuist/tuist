@@ -5,8 +5,78 @@ defmodule Tuist.FeatureFlagsTest do
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Projects.Project
 
   setup :set_mimic_from_context
+
+  describe "cli_previews_enabled?/1" do
+    test "canary and production require explicit enrollment after the server rollout" do
+      account = %Account{id: 42}
+
+      for env <- [:can, :prod], enabled <- [false, true] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :cli_previews, [for: ^account] -> enabled end)
+        assert FeatureFlags.cli_previews_enabled?(account) == enabled
+      end
+    end
+
+    test "local and staging previews work without enrollment" do
+      reject(FunWithFlags, :enabled?, 2)
+
+      for env <- [:dev, :test, :stag] do
+        stub(Environment, :env, fn -> env end)
+        assert FeatureFlags.cli_previews_enabled?(%Account{id: 42})
+      end
+    end
+  end
+
+  describe "runner_docker_cache_enabled?/1" do
+    test "canary qualification does not depend on a database flag" do
+      stub(Environment, :env, fn -> :can end)
+      reject(FunWithFlags, :enabled?, 2)
+
+      assert FeatureFlags.runner_docker_cache_enabled?(%Account{id: 42})
+    end
+
+    test "production still requires the account or global rollout flag" do
+      account = %Account{id: 42}
+      stub(Environment, :env, fn -> :prod end)
+
+      for enabled <- [false, true] do
+        expect(FunWithFlags, :enabled?, fn :runner_docker_cache, [for: ^account] -> enabled end)
+        assert FeatureFlags.runner_docker_cache_enabled?(account) == enabled
+      end
+    end
+
+    test "development, test and staging retain their enabled default" do
+      reject(FunWithFlags, :enabled?, 2)
+
+      for env <- [:dev, :test, :stag] do
+        stub(Environment, :env, fn -> env end)
+        assert FeatureFlags.runner_docker_cache_enabled?(%Account{id: 42})
+      end
+    end
+
+    test "production account opt-outs override a global rollout" do
+      account = %Account{id: 42}
+
+      flag = %FunWithFlags.Flag{
+        name: :runner_docker_cache,
+        gates: [
+          %FunWithFlags.Gate{type: :boolean, enabled: true},
+          %FunWithFlags.Gate{type: :actor, for: "account:42", enabled: false}
+        ]
+      }
+
+      stub(Environment, :env, fn -> :prod end)
+
+      expect(FunWithFlags, :enabled?, fn :runner_docker_cache, [for: ^account] ->
+        FunWithFlags.Flag.enabled?(flag, for: account)
+      end)
+
+      refute FeatureFlags.runner_docker_cache_enabled?(account)
+    end
+  end
 
   describe "immutable_shard_reports_enabled?/1" do
     test "coverage-enabled accounts cannot create immutable plans" do
@@ -27,6 +97,33 @@ defmodule Tuist.FeatureFlagsTest do
       stub(Environment, :env, fn -> :stag end)
       expect(FunWithFlags, :enabled?, fn :immutable_shard_reports, _ -> true end)
       refute FeatureFlags.immutable_shard_reports_enabled?(%Account{id: 42, name: "tuist"})
+    end
+
+    test "Mix projects, which always have coverage, remain on legacy plans" do
+      account = %Account{id: 42, name: "tuist"}
+      stub(Environment, :env, fn -> :prod end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :immutable_shard_reports, [for: ^account] -> true
+        :xcode_coverage, [for: ^account] -> false
+      end)
+
+      refute FeatureFlags.immutable_shard_reports_enabled?(%Project{id: 1, account: account, build_system: :mix})
+      assert FeatureFlags.immutable_shard_reports_enabled?(%Project{id: 2, account: account, build_system: :xcode})
+    end
+  end
+
+  describe "coverage_enabled?/2" do
+    test "Mix projects have coverage in every account; other projects follow the account's flag" do
+      account = %Account{id: 42, name: "tuist"}
+      stub(Environment, :env, fn -> :prod end)
+
+      for flag? <- [true, false], build_system <- [:mix, :xcode, :gradle, :bazel] do
+        stub(FunWithFlags, :enabled?, fn :xcode_coverage, [for: ^account] -> flag? end)
+
+        assert FeatureFlags.coverage_enabled?(account, %Project{build_system: build_system}) ==
+                 (flag? or build_system == :mix)
+      end
     end
   end
 

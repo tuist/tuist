@@ -74,6 +74,9 @@ cmd_render() {
       target="$(config_path "$device")"
       mkdir -p "$(dirname "$target")"
       fleet_render "$(site_file)" "$device" > "$rendered"
+    elif ! fleet_check_picos "$(site_file)" "$device"; then
+      rm -f "$rendered" "$object"
+      return 1
     fi
     # The RackSwitch object is derived from the same site definition, so the
     # cluster's view of a switch cannot drift from the configuration rendered

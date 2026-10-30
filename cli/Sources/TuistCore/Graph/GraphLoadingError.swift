@@ -9,6 +9,7 @@ enum GraphLoadingError: FatalError, Equatable {
     case missingProject(AbsolutePath)
     case manifestNotFound(AbsolutePath)
     case circularDependency([GraphCircularDetectorNode])
+    case conflictingXCFrameworkSignatures(AbsolutePath, Set<String>)
     case unexpected(String)
 
     var type: ErrorType {
@@ -30,6 +31,12 @@ enum GraphLoadingError: FatalError, Equatable {
         case let .circularDependency(nodes):
             let nodeDescriptions = nodes.map { "\($0.path):\($0.name)" }
             return "Found circular dependency between targets: \(nodeDescriptions.joined(separator: " -> "))"
+        case let .conflictingXCFrameworkSignatures(path, signatures):
+            return """
+            The XCFramework at '\(path.pathString)' has conflicting expected signatures: \(signatures.sorted()
+                .joined(separator: ", ")). \
+            Use the same expected signature for all references to this XCFramework.
+            """
         }
     }
 
@@ -49,6 +56,11 @@ enum GraphLoadingError: FatalError, Equatable {
             return lhsMessage == rhsMessage
         case let (.circularDependency(lhsNodes), .circularDependency(rhsNodes)):
             return Set(lhsNodes) == Set(rhsNodes)
+        case let (
+            .conflictingXCFrameworkSignatures(lhsPath, lhsSignatures),
+            .conflictingXCFrameworkSignatures(rhsPath, rhsSignatures)
+        ):
+            return lhsPath == rhsPath && lhsSignatures == rhsSignatures
         default:
             return false
         }

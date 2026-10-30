@@ -23,8 +23,7 @@ defmodule AtlasWeb.Plugs.NativeOAuthClient do
   def call(conn, _opts) do
     with [header | _] <- get_req_header(conn, "authorization"),
          {:ok, value} <- bearer(header),
-         %Token{client: %Client{id: client_id, redirect_uris: [@native_redirect_uri]}} <-
-           AccessTokens.get_by(value: value) do
+         {:ok, client_id} <- client_id(value) do
       assign(conn, :oauth_client_id, client_id)
     else
       _ ->
@@ -32,6 +31,15 @@ defmodule AtlasWeb.Plugs.NativeOAuthClient do
         |> put_resp_content_type("application/json")
         |> send_resp(403, JSON.encode!(%{error: "native_client_required"}))
         |> halt()
+    end
+  end
+
+  # The socket separately revalidates the OAuth grant through Guardian before
+  # applying this same native-client shape gate on every renewal/push.
+  def client_id(value) do
+    case AccessTokens.get_by(value: value) do
+      %Token{client: %Client{id: client_id, redirect_uris: [@native_redirect_uri]}} -> {:ok, client_id}
+      _ -> :error
     end
   end
 

@@ -15,9 +15,9 @@ import (
 
 const runnerPodLabel = "tuist.dev/runner"
 
-// StatusDirForPod is the guest-writable status share of a runner Pod's VM, or "" for any other Pod.
+// StatusDirForPod supplies the per-VM status share to runners and Pods that opt into the guest drain protocol.
 func StatusDirForPod(t *tart.Client, pod *corev1.Pod, vm string) string {
-	if t == nil || pod == nil || pod.Labels[runnerPodLabel] != "true" {
+	if t == nil || pod == nil || (pod.Labels[runnerPodLabel] != "true" && pod.Annotations[gracefulDrainAnnotation] != "xcresult-v1") {
 		return ""
 	}
 	dir, err := t.StatusDir(vm)
@@ -196,6 +196,22 @@ func readRunnerExitTime(statusDir string) (time.Time, bool) {
 	}
 	defer f.Close()
 	return fi.ModTime(), true
+}
+
+// logdWedgedFile is the guest's report that its logd wedged and did not come
+// back when the guest killed it (`infra/runner-image/logd-watchdog.sh`). Guest
+// processes that log stay blocked, the job's build and the guest's own halt
+// included, so the host stops the VM.
+const logdWedgedFile = "logd-wedged"
+
+// readLogdWedged reports whether the guest reported a wedged logd. Only the
+// file's presence counts.
+func readLogdWedged(statusDir string) bool {
+	f, _, ok := openGuestFile(statusDir, logdWedgedFile)
+	if ok {
+		f.Close()
+	}
+	return ok
 }
 
 // runnerHeartbeatFile is the guest's liveness beat: dispatch-poll.sh

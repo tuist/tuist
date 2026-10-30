@@ -26,13 +26,19 @@ defmodule Atlas.Push do
   @stale_after_days 60
   @tombstone_retention_days 180
   @uuid ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/
-  @ios_token ~r/\A(?:[0-9a-fA-F]{2}){16,256}\z/
+  @apns_token ~r/\A(?:[0-9a-fA-F]{2}){16,256}\z/
   @android_token ~r/\A[\x21-\x7E]{16,4096}\z/
   @body_keys ~w(platform token environment)
 
   # Kind => seconds before an undelivered notification is no longer useful.
   # Orbit source-backed kinds reauthorize the exact message at send time.
-  @kinds %{"activity" => 86_400, "self_test" => 600, "orbit_completed" => 3600, "orbit_mentioned" => 3600}
+  @kinds %{
+    "activity" => 86_400,
+    "self_test" => 600,
+    "orbit_completed" => 3600,
+    "orbit_mentioned" => 3600,
+    "orbit_signal" => 3600
+  }
 
   def kinds, do: Map.keys(@kinds)
 
@@ -173,11 +179,20 @@ defmodule Atlas.Push do
 
   @doc "Whether queued job arguments still describe an allowed kind and destination."
   def valid_notification?(kind, {"orbit", record_id} = destination)
-      when kind in ["orbit_completed", "orbit_mentioned"] and is_binary(record_id), do: valid_destination?(destination)
+      when kind in ["orbit_completed", "orbit_mentioned", "orbit_signal"] and is_binary(record_id),
+      do: valid_destination?(destination)
 
-  def valid_notification?(kind, _destination) when kind in ["orbit_completed", "orbit_mentioned"], do: false
+  def valid_notification?(kind, _destination) when kind in ["orbit_completed", "orbit_mentioned", "orbit_signal"],
+    do: false
 
   def valid_notification?(kind, destination), do: Map.has_key?(@kinds, kind) and valid_destination?(destination)
+
+  defp notification_source("orbit_signal", opts) do
+    case Ecto.UUID.cast(Keyword.get(opts, :signal_id)) do
+      {:ok, signal_id} -> {:ok, %{signal_id: signal_id}}
+      :error -> :error
+    end
+  end
 
   defp notification_source(kind, opts) when kind in ["orbit_completed", "orbit_mentioned"] do
     case Ecto.UUID.cast(Keyword.get(opts, :message_id)) do
@@ -512,8 +527,8 @@ defmodule Atlas.Push do
     end
   end
 
-  defp validate_token("ios", token) do
-    if Regex.match?(@ios_token, token), do: {:ok, String.downcase(token)}, else: :error
+  defp validate_token(platform, token) when platform in ["ios", "macos"] do
+    if Regex.match?(@apns_token, token), do: {:ok, String.downcase(token)}, else: :error
   end
 
   defp validate_token("android", token) do
@@ -522,7 +537,9 @@ defmodule Atlas.Push do
 
   defp validate_token(_platform, _token), do: :error
 
-  defp valid_environment?("ios", environment), do: environment in ["sandbox", "production"]
+  defp valid_environment?(platform, environment) when platform in ["ios", "macos"],
+    do: environment in ["sandbox", "production"]
+
   defp valid_environment?("android", environment), do: environment == "production"
 
   defp ensure_available(platform, environment) do

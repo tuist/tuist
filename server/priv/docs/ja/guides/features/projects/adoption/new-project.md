@@ -1,21 +1,17 @@
 ---
 {
-  "title": "Create a new project",
-  "titleTemplate": ":title · Adoption · Projects · Features · Guides · Tuist",
-  "description": "Learn how to create a new project with Tuist."
+  "title": "新しいプロジェクトの作成",
+  "titleTemplate": ":title · 導入 · プロジェクト · 機能 · ガイド · Tuist",
+  "description": "Tuist で新しいプロジェクトを作成する方法を学びます。"
 }
 ---
-# 新しいプロジェクトを作成する {#create-a-new-project}。
+# 新しいプロジェクトの作成 {#create-a-new-project}
 
-Tuistで新しいプロジェクトを始める最も簡単な方法は、`tuist init`
-コマンドを使うことである。このコマンドは対話型CLIを起動し、プロジェクトのセットアップをガイドする。プロンプトが表示されたら、必ず "generated
-project "を作成するオプションを選択してください。
+Tuist で新しいプロジェクトを始める最も簡単な方法は、`tuist init` コマンドを使用することです。このコマンドはインタラクティブな CLI を起動し、プロジェクトの設定手順を案内します。プロンプトが表示されたら、「generated project」を作成するオプションを選択してください。
 
-プロジェクトを編集する`tuist edit` を実行すると、Xcodeがプロジェクトを開き、そこでプロジェ
-クトを編集することができます。生成されるファイルの一つは、`Project.swift` で、プロジェクトの定義を含んでいます。Swift
-のパッケージマネージャに慣れているなら、`Package.swift` のように、しかし Xcode プロジェクトの専門用語で考えてください。
+その後、`tuist edit` を実行して <.localized_link href="/guides/features/projects/editing">プロジェクトを編集</.localized_link> すると、Xcode が開き、プロジェクトを編集できます。生成されるファイルの一つに `Project.swift` があり、これにはプロジェクトの定義が含まれています。Swift Package Manager に慣れている方は、これを Xcode プロジェクトの用語で記述された `Package.swift` と考えてください。
 
-コードグループ
+::: code-group
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -56,24 +52,21 @@ let project = Project(
 :::
 
 > [!NOTE]
-> メンテナンスのオーバーヘッドを最小限にするため、利用可能なテンプレートのリストは意図的に短くしています。アプリケーションを表さないプロジェクト、たとえばフレームワークを作りたい場合、`tuist
-> init` を出発点として使い、生成されたプロジェクトをあなたのニーズに合うように修正することができます。
+> メンテナンス負荷を最小限に抑えるため、利用可能なテンプレートのリストは意図的に短くしています。アプリケーションではなくフレームワークなどを作成したい場合は、`tuist init` を出発点として使用し、生成されたプロジェクトをニーズに合わせて修正できます。
 
 
-## プロジェクトの手動作成{#manually-creating-a-project}。
+## プロジェクトの手動作成 {#manually-creating-a-project}
 
-あるいは、手動でプロジェクトを作成することもできます。Tuistとその概念にすでに精通している場合のみ、この方法をお勧めします。最初に必要なことは、プロジェクト構造用に追加のディレクトリを作成することです：
+あるいは、プロジェクトを手動で作成することもできます。これは Tuist とその概念にすでに慣れている場合にのみ推奨します。最初に行うべきことは、プロジェクト構造のために追加のディレクトリを作成することです。
 
 ```bash
 mkdir MyFramework
 cd MyFramework
 ```
 
-次に、`Tuist.swift`
-ファイルを作成します。これはTuistを設定し、Tuistがプロジェクトのルート・ディレクトリを決定するために使用します。また、`Project.swift`
-を作成します。ここにはプロジェクトが宣言されます：
+次に、Tuist を構成し、プロジェクトのルートディレクトリを決定するために Tuist が使用する `Tuist.swift` ファイルと、プロジェクトが宣言される `Project.swift` を作成します。
 
-コードグループ
+::: code-group
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -100,7 +93,4 @@ let tuist = Tuist()
 :::
 
 > [!WARNING]
-> Tuistは、`Tuist/`
-> ディレクトリを使用してプロジェクトのルートを決定し、そこからディレクトリをグロビングする他のマニフェストファイルを探します。これらのファイルはお好みのエディタで作成することをお勧めします。その時点から、`tuist
-> edit` 、Xcodeでプロジェクトを編集することができます。
-
+> Tuist は `Tuist/` ディレクトリを使用してプロジェクトのルートを特定し、そこからディレクトリを glob パターンで検索して他のマニフェストファイルを探します。これらのファイルはお好みのエディタで作成し、その後は `tuist edit` を使用して Xcode でプロジェクトを編集できます。

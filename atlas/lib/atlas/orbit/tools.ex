@@ -14,9 +14,11 @@ defmodule Atlas.Orbit.Tools do
 
   import Ecto.Query
 
+  alias Atlas.Environments.Commands
   alias Atlas.MCP.Server
   alias Atlas.Orbit
   alias Atlas.Orbit.Access
+  alias Atlas.Orbit.EnvironmentTools
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Rendering
   alias Atlas.Orbit.Run
@@ -35,10 +37,10 @@ defmodule Atlas.Orbit.Tools do
   def build(%Run{id: run_id, resume_count: attempt}, parent_message_id \\ nil) do
     case Runs.with_attempt(run_id, attempt, fn thread, run ->
            Subagents.authorize_parent!(thread, run, parent_message_id)
-           tool_audience(thread, run)
+           {tool_audience(thread, run), EnvironmentTools.available(thread, run, parent_message_id)}
          end) do
-      {:ok, scopes} ->
-        scopes |> ToolPolicy.available() |> Enum.map(&inline_tool(run_id, attempt, &1, parent_message_id))
+      {:ok, {scopes, remote}} ->
+        (ToolPolicy.available(scopes) ++ remote) |> Enum.map(&inline_tool(run_id, attempt, &1, parent_message_id))
 
       {:error, _reason} ->
         []
@@ -67,6 +69,29 @@ defmodule Atlas.Orbit.Tools do
 
   @doc false
   def call(run_id, attempt, name, args, parent_message_id \\ nil, context \\ %{}) do
+    if EnvironmentTools.remote?(name) do
+      remote_call(run_id, attempt, name, args, parent_message_id)
+    else
+      atlas_call(run_id, attempt, name, args, parent_message_id, context)
+    end
+  end
+
+  defp remote_call(run_id, attempt, name, args, parent_message_id) do
+    if is_nil(parent_message_id) and EnvironmentTools.valid_args?(name, args) do
+      perform(run_id, attempt, name, args, nil, [], fn message, _user ->
+        case Runs.with_attempt(run_id, attempt, &Commands.reserve!(&1, &2, message, args)) do
+          {:ok, command} when name in ~w(environment_terminal bash) -> Commands.ticket(command)
+          {:ok, command} -> Commands.await(run_id, attempt, command.id)
+          {:error, :command_outcome_unknown} -> {:error, Commands.unknown()}
+          {:error, _reason} -> {:error, "The personal environment is unavailable."}
+        end
+      end)
+    else
+      {:error, @unavailable}
+    end
+  end
+
+  defp atlas_call(run_id, attempt, name, args, parent_message_id, context) do
     case ToolPolicy.required_scopes(name) do
       {:ok, scopes} ->
         perform(run_id, attempt, name, args, parent_message_id, scopes, fn message, acting_user ->
@@ -169,8 +194,12 @@ defmodule Atlas.Orbit.Tools do
     key = call_key(name, args, parent_message_id)
 
     case recorded_call(run, key) do
-      %Message{tool_status: "succeeded", tool_result: result} when is_binary(result) ->
+      %Message{tool_status: "succeeded", tool_result: result}
+      when is_binary(result) and name not in ~w(environment_terminal bash) ->
         {:replay, result}
+
+      %Message{} = recorded when name in ~w(environment_terminal bash) ->
+        {:execute, recorded, acting_user}
 
       %Message{} = recorded when name == "task" ->
         # Never launch a second child for an in-flight or interrupted task.
@@ -178,21 +207,27 @@ defmodule Atlas.Orbit.Tools do
         {:replay_error, Subagents.recorded_error(recorded)}
 
       %Message{} = interrupted ->
-        {:execute, Orbit.touch!(interrupted, %{tool_status: "running", tool_output: ""}), acting_user}
+        {:execute, Orbit.touch!(interrupted, %{tool_status: "running", tool_output: "", device_output: nil}),
+         acting_user}
 
       nil ->
         if name == "task", do: Subagents.reserve!(run)
 
-        message =
-          Orbit.append!(thread, %{
-            kind: "tool",
-            run_id: run.id,
-            parent_message_id: parent_message_id,
-            tool_name: name,
-            tool_status: "running",
-            tool_input: Rendering.input(args),
-            tool_call_key: key
-          })
+        attrs = %{
+          kind: "tool",
+          run_id: run.id,
+          parent_message_id: parent_message_id,
+          tool_name: name,
+          tool_status: "running",
+          tool_call_key: key
+        }
+
+        input =
+          if EnvironmentTools.remote?(name),
+            do: %{device_input: Rendering.input(args)},
+            else: %{tool_input: Rendering.input(args)}
+
+        message = Orbit.append!(thread, Map.merge(attrs, input))
 
         {:execute, message, acting_user}
     end
@@ -245,11 +280,12 @@ defmodule Atlas.Orbit.Tools do
         ratchet!(thread, scopes)
         model_result = Rendering.for_model(result)
 
-        Orbit.touch!(message, %{
+        attrs = %{
           tool_status: "succeeded",
-          tool_output: Rendering.output(result, message.tool_name),
           tool_result: model_result
-        })
+        }
+
+        Orbit.touch!(message, Map.merge(attrs, output_attrs(message, Rendering.output(result, message.tool_name))))
 
         {:ok, model_result}
 
@@ -257,12 +293,20 @@ defmodule Atlas.Orbit.Tools do
       # so an authorized failure ratchets the same scopes as a success.
       {{:error, reason}, true} ->
         ratchet!(thread, scopes)
-        Orbit.touch!(message, %{tool_status: "failed", tool_output: reason})
+        Orbit.touch!(message, Map.merge(%{tool_status: "failed"}, output_attrs(message, reason)))
         {:error, reason}
 
       {_outcome, false} ->
         Orbit.touch!(message, %{tool_status: "cancelled", tool_output: ""})
         {:error, "Access to this thread changed during the call, so the result was discarded."}
+    end
+  end
+
+  defp output_attrs(message, output) do
+    if EnvironmentTools.remote?(message.tool_name) do
+      Map.merge(%{device_output: output, tool_output: ""}, Commands.completed_card_attrs(message))
+    else
+      %{tool_output: output}
     end
   end
 

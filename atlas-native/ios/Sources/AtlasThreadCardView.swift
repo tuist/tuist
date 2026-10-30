@@ -1,9 +1,12 @@
-import NativeShell
 import SwiftUI
+#if os(iOS)
+import NativeShell
+#endif
 
 struct AtlasThreadCardView: View {
     let card: AtlasThreadComponent
     let action: (String) -> Void
+    #if os(iOS)
     @State private var height: CGFloat = 180
     @State private var ready = false
     @State private var failed = false
@@ -15,13 +18,7 @@ struct AtlasThreadCardView: View {
     var body: some View {
         Group {
             if failed {
-                VStack(alignment: .leading) {
-                    Text(card.fallback).font(.callout).textSelection(.enabled)
-                    if let item = card.actions.first {
-                        Button(item.label) { action(item.id) }.frame(minHeight: 44)
-                    }
-                }
-                .accessibilityIdentifier("thread-card-fallback")
+                fallback
             } else {
                 AtlasThreadCardSurface(card: card, colors: colors, fontScale: fontScale, action: action) { value in
                     ready = true
@@ -53,8 +50,22 @@ struct AtlasThreadCardView: View {
         resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
         return String(format: "#%02X%02X%02X", Int(red * 255), Int(green * 255), Int(blue * 255))
     }
+    #else
+    var body: some View { fallback }
+    #endif
+
+    private var fallback: some View {
+        VStack(alignment: .leading) {
+            Text(card.fallback).font(.callout).textSelection(.enabled)
+            if let item = card.actions.first {
+                Button(item.label) { action(item.id) }.frame(minHeight: 44)
+            }
+        }
+        .accessibilityIdentifier("thread-card-fallback")
+    }
 }
 
+#if os(iOS)
 private struct AtlasThreadCardSurface: UIViewRepresentable {
     let card: AtlasThreadComponent
     let colors: [String: String]
@@ -147,3 +158,4 @@ private struct AtlasThreadCardSurface: UIViewRepresentable {
         }
     }
 }
+#endif

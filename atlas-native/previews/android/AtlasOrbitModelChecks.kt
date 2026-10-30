@@ -60,14 +60,25 @@ internal fun checkOrbitModel() {
     model.setActive(true)
     model.open()
     model.load()
-    take("open").second(Result.success(JSONObject("""{"connection":"handle"}""")))
+    take("open").second(Result.success(JSONObject().put("connection", "handle").put("snapshot", snapshot(1).put("cached", true))))
+    check(model.snapshot.cached && model.snapshot.threads.size == 2)
     val active = take("request", "active")
     check(active.first.getJSONObject("command").getBoolean("active") && active.first.getString("connection") == "handle")
     val load = take("request", "load")
     check(pending.none { it.first.optJSONObject("command")?.getString("action") == "load" })
     val wait = take("next")
-    check(wait.first.getLong("after") == 0L)
-    load.second(Result.success(snapshot(2)))
+    check(wait.first.getLong("after") == 1L)
+    val running = snapshot(2)
+    running.getJSONArray("threads").getJSONObject(0).put("agent_status", "running")
+    load.second(Result.success(running))
+    check(!model.snapshot.cached)
+    val runningThread = checkNotNull(model.snapshot.privateThread)
+    check(runningThread.activityLabel == "Pip is running")
+    val labels = mapOf("queued" to "Pip is queued", "running" to "Pip is running", "compacting" to "Pip is compacting")
+    for (status in listOf(null, "idle", "queued", "running", "compacting", "unknown")) {
+        check(runningThread.copy(agentStatus = status).activityLabel == labels[status])
+        check(runningThread.copy(agentStatus = status, status = "archived").activityLabel == null)
+    }
     check(
         model.snapshot.privateThread?.id == PRIVATE && model.snapshot.shared
             .single()
@@ -81,6 +92,7 @@ internal fun checkOrbitModel() {
     // The wait loop continues from the latest sequence and stays single.
     wait.second(Result.success(snapshot(3, SHARED)))
     check(model.snapshot.selected?.id == SHARED && take("next").first.getLong("after") == 3L)
+    check(model.snapshot.privateThread?.activityLabel == null)
 
     // Drafts are local Rust writes scoped to the thread typed in; echoes are tracked so the view keeps typing.
     model.setDraft(SHARED, "Hel")
@@ -101,11 +113,10 @@ internal fun checkOrbitModel() {
     take("draft").second(Result.success(snapshot(5, SHARED, "Hello")))
     check(model.draftsInFlight == 0)
 
-    // The adapter forwards the Ask preference only; Rust applies the private-thread rule.
-    check(!shared.first.getJSONObject("command").getBoolean("address_agent"))
+    // Pip participates without a per-message mode in both shared and private conversations.
+    check(shared.first.getJSONObject("command").getBoolean("address_agent"))
     shared.second(Result.success(snapshot(6, SHARED)))
     check(!model.sending)
-    model.setAskAssistant(SHARED, true)
     model.send(SHARED, "Summarize")
     take("request", "send")
         .also {
@@ -114,7 +125,7 @@ internal fun checkOrbitModel() {
     model.send(PRIVATE, "Help")
     take("request", "send")
         .also {
-            check(!it.first.getJSONObject("command").getBoolean("address_agent"))
+            check(it.first.getJSONObject("command").getBoolean("address_agent"))
         }.second(Result.success(snapshot(8, SHARED)))
 
     // Expired credentials trigger exactly one refresh request until a healthy snapshot arrives.

@@ -78,6 +78,7 @@ server:
     name: tuist-server
   enabled: true
   hosted: true
+  ssoRequireLoginDomainVerification: true
   skipEmailConfirmation: false
   logLevel: info
   image:
@@ -594,8 +595,14 @@ runnersFleet:
     - vcpus: 6
       memoryGb: 14
       default: true
+  xcodeOverrides:
+    "27.2":
+      # RC build 27B48, published before merge. Remove this bootstrap pin
+      # once a versioned runner-image release includes the 27.2 profile.
+      imageTag: macos-27-2-069e7465
   xcodeVersions:
-    - xcodeVersion: "27.2-beta"
+    # The customer selector is 27.2; its base is explicitly 27.2-rc.
+    - xcodeVersion: "27.2"
     - xcodeVersion: "27.1"
     - xcodeVersion: "27.0"
     - xcodeVersion: "26.6"
@@ -605,3 +612,15 @@ runnersFleet:
     - xcodeVersion: "26.3"
     - xcodeVersion: "26.1.1"
     - xcodeVersion: "26.0.1"
+
+# KVM is a standard managed Linux runner capability. Disable defaultEnabled
+# to roll pools back to the stock kernel while leaving host preparation intact.
+runnersFleetLinux:
+  nestedVirtualization:
+    enabled: true
+    defaultEnabled: true
+
+# Account-owned provider workloads run on the general pool.
+ampOrbProvider:
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general

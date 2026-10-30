@@ -306,7 +306,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipQuarantine: skipQuarantine,
             config: config
         )
-        let skipTestTargets = skipTestTargets + skippedQuarantinedTests
+        var skipTestTargets = skipTestTargets + skippedQuarantinedTests
         await RunMetadataStorage.current.update(
             skippedQuarantinedTestIdentifiers: Set(skippedQuarantinedTests.map(\.description))
         )
@@ -426,6 +426,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if generateOnly {
             return
         }
+
+        let targetTags = testTargetTags(in: mapperEnvironment.initialGraph ?? graph)
+        let testTargets = try resolveTestTargets(testTargets, targetTags: targetTags)
+        skipTestTargets = try skipTestTargets.flatMap { try $0.resolvingTargetQuery(targetTags: targetTags) }
 
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
@@ -653,6 +657,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if action == .build {
             let selectiveTestingGraph = computeSelectiveTestingGraph(
                 mapperEnvironment: mapperEnvironment,
+                graph: graph,
                 schemes: schemes,
                 testPlanConfiguration: testPlanConfiguration,
                 requestedTestIdentifiers: testTargets
@@ -773,6 +778,25 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return (muted, skipped)
     }
 
+    private func testTargetTags(in graph: Graph) -> [String: Set<String>] {
+        graph.projects.values.flatMap(\.targets.values)
+            .filter(\.product.testsBundle)
+            .reduce(into: [:]) { result, target in
+                result[target.name, default: []].formUnion(target.metadata.tags)
+            }
+    }
+
+    private func resolveTestTargets(
+        _ testTargets: [TestIdentifier],
+        targetTags: [String: Set<String>]?
+    ) throws -> [TestIdentifier] {
+        let resolved = try testTargets.flatMap { try $0.resolvingTargetQuery(targetTags: targetTags) }
+        if !testTargets.isEmpty, resolved.isEmpty {
+            throw FocusTargetsGraphMappersError.noTargetsFound
+        }
+        return resolved
+    }
+
     // MARK: - Shard Execute
 
     // swiftlint:disable:next function_body_length function_parameter_count
@@ -789,8 +813,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         resultBundlePath: AbsolutePath?,
         derivedDataPath: String?,
         retryCount _: Int,
-        testTargets: [TestIdentifier],
-        skipTestTargets: [TestIdentifier],
+        testTargets requestedTestTargets: [TestIdentifier],
+        skipTestTargets requestedSkipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
         runId: String,
@@ -817,6 +841,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testProductsArchivePath: shardArchivePath
         )
 
+        let testTargets: [TestIdentifier]
+        let skipTestTargets: [TestIdentifier]
+        do {
+            let targetTags = shard.selectiveTestingGraph?.testTargetTags
+            testTargets = try resolveTestTargets(requestedTestTargets, targetTags: targetTags)
+            skipTestTargets = try requestedSkipTestTargets.flatMap { try $0.resolvingTargetQuery(targetTags: targetTags) }
+        } catch {
+            await cleanUpTestProducts(at: shard.testProductsPath, localTestProductsPath: localTestProductsPath)
+            throw error
+        }
+
         let hashUploadStorage = try await selectiveTestHashUploadStorage(noUpload: noUpload, config: config)
 
         let runResultBundlePath =
@@ -830,13 +865,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
-        let shardCurrentPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
-        let derivedDataPath = try derivedDataPath.map {
-            try AbsolutePath(
-                validating: $0,
-                relativeTo: shardCurrentPath
-            )
-        }
+        let (derivedDataPath, ownedDerivedDataPath) = try await testWithoutBuildingDerivedDataPaths(
+            derivedDataPath,
+            runId: runId,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            config: config
+        )
 
         await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
@@ -929,6 +963,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             selectiveTestingTargets: [],
             xcodebuildArguments: passthroughXcodeBuildArguments
         )
+        await removeOwnedDerivedData(ownedDerivedDataPath)
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
             try await storeSuccessfulTestHashesFromGraph(
@@ -953,6 +988,35 @@ public struct TestService { // swiftlint:disable:this type_body_length
             quarantinedTests: quarantinedTests,
             stressResult: stressResult
         )
+    }
+
+    /// The derived data a `test-without-building` run uses, and the part of it the run owns.
+    ///
+    /// Without a `-derivedDataPath`, `test-without-building` writes the run's profile under the
+    /// default DerivedData, in a folder whose hash follows the products' location: a shard extracts
+    /// them to a fresh directory, so nothing could find it again. A run that uploads coverage writes
+    /// into one of its own instead, removed once the run is uploaded.
+    private func testWithoutBuildingDerivedDataPaths(
+        _ derivedDataPath: String?,
+        runId: String,
+        passthroughXcodeBuildArguments: [String],
+        config: Tuist
+    ) async throws -> (path: AbsolutePath?, owned: AbsolutePath?) {
+        if let derivedDataPath {
+            return (try await Environment.current.pathRelativeToWorkingDirectory(derivedDataPath), nil)
+        }
+        guard UploadResultBundleService.uploadsCoverage(config: config),
+              !passthroughXcodeBuildArguments.contains("-derivedDataPath")
+        else { return (nil, nil) }
+        let owned = try cacheDirectoriesProvider
+            .cacheDirectory(for: .runs)
+            .appending(components: runId, "DerivedData")
+        return (owned, owned)
+    }
+
+    private func removeOwnedDerivedData(_ path: AbsolutePath?) async {
+        guard let path else { return }
+        try? await fileSystem.remove(path)
     }
 
     /// Runs `test-without-building` the way `testScheme` runs its test action: the coverage evidence
@@ -1079,6 +1143,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             at: selectiveTestingGraphPath
         )
 
+        let testTargets = try resolveTestTargets(testTargets, targetTags: selectiveTestingGraph.testTargetTags)
+        let skipTestTargets = try skipTestTargets.flatMap {
+            try $0.resolvingTargetQuery(targetTags: selectiveTestingGraph.testTargetTags)
+        }
+
         await RunMetadataStorage.current.restoreMetadata(from: testProductsPath)
 
         let hashUploadStorage = try await selectiveTestHashUploadStorage(noUpload: noUpload, config: config)
@@ -1094,13 +1163,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        let derivedDataPath = try derivedDataPath.map {
-            try AbsolutePath(
-                validating: $0,
-                relativeTo: currentWorkingDirectory
-            )
-        }
+        let (derivedDataPath, ownedDerivedDataPath) = try await testWithoutBuildingDerivedDataPaths(
+            derivedDataPath,
+            runId: runId,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            config: config
+        )
 
         // This job did not build the products and usually repeats nothing from the build command, so
         // the restriction the build ran under is restored from the bundle and narrowed by whatever
@@ -1206,6 +1274,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             stressNewTests: stressResult,
             xcodebuildArguments: passthroughXcodeBuildArguments
         )
+        await removeOwnedDerivedData(ownedDerivedDataPath)
 
         try await storeSuccessfulTestHashesFromGraph(
             selectiveTestingGraph: selectiveTestingGraph,
@@ -1433,10 +1502,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func computeSelectiveTestingGraph(
         mapperEnvironment: MapperEnvironment,
+        graph: Graph,
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?,
         requestedTestIdentifiers: [TestIdentifier]
     ) -> SelectiveTestingGraph {
+        let targetTags = testTargetTags(in: mapperEnvironment.initialGraph ?? graph)
         guard let initialGraph = mapperEnvironment.initialGraph else {
             let attemptedTestPlans = attemptedTestPlans(
                 schemes: schemes,
@@ -1445,7 +1516,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return SelectiveTestingGraph(
                 testTargetHashes: [:],
                 attemptedTestPlans: attemptedTestPlans,
-                requestedTestIdentifiers: requestedTestIdentifiers.map(\.description)
+                requestedTestIdentifiers: requestedTestIdentifiers.map(\.description),
+                testTargetTags: targetTags
             )
         }
 
@@ -1477,7 +1549,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return SelectiveTestingGraph(
             testTargetHashes: testTargetHashes,
             attemptedTestPlans: attemptedTestPlans,
-            requestedTestIdentifiers: requestedTestIdentifiers.map(\.description)
+            requestedTestIdentifiers: requestedTestIdentifiers.map(\.description),
+            testTargetTags: targetTags
         )
     }
 

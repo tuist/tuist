@@ -18,6 +18,8 @@ use std::time::{Duration, Instant};
 pub(crate) enum Action {
     Open {
         session: Session,
+        #[serde(default)]
+        cache_directory: Option<String>,
     },
     Request {
         connection: String,
@@ -33,6 +35,10 @@ pub(crate) enum Action {
         connection: String,
         id: String,
         user_id: String,
+    },
+    SavedHistory {
+        connection: String,
+        id: String,
     },
     Active {
         connection: String,
@@ -57,11 +63,20 @@ pub(crate) enum Action {
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Command {
+    Models,
+    SetModel {
+        id: String,
+        model: Option<String>,
+    },
     Load {
         #[serde(default)]
         kind: Option<String>,
         #[serde(default)]
         status: Option<StatusFilter>,
+        #[serde(default)]
+        query: Option<String>,
+        #[serde(default)]
+        domain: Option<String>,
     },
     LoadMore,
     Private,
@@ -145,6 +160,10 @@ impl StatusFilter {
 struct Snapshot {
     sequence: u64,
     status_filter: StatusFilter,
+    query: String,
+    domain_filter: String,
+    cached: bool,
+    history_cached: bool,
     assistant: Option<Assistant>,
     threads: Vec<Thread>,
     // An untrusted navigation target, not thread metadata or permission to mutate.
@@ -158,6 +177,9 @@ struct Snapshot {
     mention_candidates: Vec<Person>,
     mention_loading: bool,
     mention_error: Option<String>,
+    models: Vec<orbit::ModelChoice>,
+    models_loading: bool,
+    model_error: Option<String>,
     attachment_busy: bool,
     upload_pending: bool,
     upload_filename: Option<String>,
@@ -170,6 +192,7 @@ struct Snapshot {
     error: Option<String>,
     live_message: Option<String>,
     needs_session: bool,
+    session_rejected: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -199,6 +222,8 @@ struct UploadAttempt {
 struct State {
     snapshot: Snapshot,
     session: Session,
+    cache: Option<crate::cache::Cache>,
+    authenticated: bool,
     drafts: BTreeMap<String, Draft>,
     outbox: BTreeMap<String, Draft>,
     generation: u64,
@@ -231,16 +256,27 @@ fn models() -> &'static Mutex<HashMap<String, Arc<Model>>> {
 
 pub(crate) fn execute(action: Action) -> Result<Value> {
     match action {
-        Action::Open { session } => {
+        Action::Open {
+            session,
+            cache_directory,
+        } => {
             crate::validate_registration(&session.registration)?;
-            if session.expires_at <= crate::now() || session.access_token.is_empty() {
+            if session.access_token.is_empty()
+                || (cache_directory.is_none() && session.expires_at <= crate::now())
+            {
                 return Err(error("sign_in_required", "Sign in to Atlas again."));
             }
+            let authenticated = cache_directory.is_none();
+            let cache = cache_directory
+                .as_deref()
+                .and_then(|directory| crate::cache::Cache::open(directory, &session));
             let connection = random_id()?;
             let model = Arc::new(Model {
                 state: Mutex::new(State {
                     snapshot: Snapshot::default(),
                     session,
+                    cache,
+                    authenticated,
                     drafts: BTreeMap::new(),
                     outbox: BTreeMap::new(),
                     generation: 0,
@@ -266,8 +302,21 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
             if models.len() >= 8 {
                 return Err(error("internal", "Too many thread sessions."));
             }
+            let initial = {
+                let mut state = model.state.lock().map_err(|_| invalid())?;
+                if state
+                    .cache
+                    .as_ref()
+                    .is_some_and(|cache| cache.generation().is_none())
+                {
+                    return Err(error("closed", "This Atlas session has ended."));
+                }
+                hydrate_inbox(&mut state);
+                publish(&model, &mut state);
+                serde_json::to_value(&state.snapshot).map_err(|_| invalid())?
+            };
             models.insert(connection.clone(), model);
-            Ok(json!({"connection":connection}))
+            Ok(json!({"connection":connection, "snapshot":initial}))
         }
         Action::Request {
             connection,
@@ -279,10 +328,34 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                 let mut state = model.state.lock().map_err(|_| invalid())?;
                 if session.registration.server != state.session.registration.server
                     || session.registration.client_id != state.session.registration.client_id
+                    || session.cache_id != state.session.cache_id
                 {
                     return Err(invalid());
                 }
+                if state.snapshot.session_rejected {
+                    return Err(error("sign_in_required", "Sign in to Atlas again."));
+                }
+                if state.closed
+                    || state
+                        .cache
+                        .as_ref()
+                        .is_some_and(|cache| cache.generation().is_none())
+                {
+                    return Err(error("closed", "This Atlas session has ended."));
+                }
+                if session.access_token.is_empty() {
+                    return Err(error("sign_in_required", "Sign in to Atlas again."));
+                }
+                if session.expires_at <= crate::now() {
+                    state.snapshot.needs_session = true;
+                    publish(&model, &mut state);
+                    return Err(error(
+                        "session_expired",
+                        "Reconnect to refresh this conversation.",
+                    ));
+                }
                 state.session = session;
+                state.authenticated = true;
             }
             if let Command::DownloadAttachment { id, attachment_id } = command {
                 return download_using(&model, id, attachment_id, &Network);
@@ -306,6 +379,35 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
         } => {
             let model = get(&connection)?;
             mention(&model, id, user_id)?;
+            snapshot(&model)
+        }
+        Action::SavedHistory { connection, id } => {
+            crate::time_off::validate_id(&id)?;
+            let model = get(&connection)?;
+            let live = {
+                let mut state = model.state.lock().map_err(|_| invalid())?;
+                if state.closed {
+                    return Err(error("closed", "This Orbit session is closed."));
+                }
+                let live = begin_selection(&mut state, Some(id.clone()));
+                let saved = state
+                    .cache
+                    .as_ref()
+                    .and_then(|cache| cache.read(&format!("orbit/history/v1/{id}")))
+                    .and_then(|payload| serde_json::from_str::<History>(&payload).ok());
+                if let Some(saved) =
+                    saved.filter(|saved| saved.thread.id == id && saved.messages.items.len() <= 25)
+                {
+                    let generation = state.generation;
+                    if reconcile_history(&mut state, saved, generation, false) {
+                        state.snapshot.history_cached = true;
+                        state.snapshot.has_older = false;
+                    }
+                }
+                publish(&model, &mut state);
+                live
+            };
+            close_live(live);
             snapshot(&model)
         }
         Action::Active { connection, active } => {
@@ -389,6 +491,85 @@ fn get(id: &str) -> Result<Arc<Model>> {
         .ok_or_else(|| error("closed", "This Orbit session is closed."))
 }
 
+pub(crate) fn forget_cache(session: &Session, directory: &str) -> Result<Value> {
+    if let Some(cache) = crate::cache::Cache::open(directory, session) {
+        cache.invalidate(true);
+    }
+    let connections = models()
+        .lock()
+        .map_err(|_| invalid())?
+        .iter()
+        .filter_map(|(id, model)| {
+            let state = model.state.lock().ok()?;
+            (session.cache_id.is_some()
+                && state.session.cache_id == session.cache_id
+                && state.session.registration.server == session.registration.server)
+                .then(|| id.clone())
+        })
+        .collect::<Vec<_>>();
+    for connection in connections {
+        execute(Action::Close { connection })?;
+    }
+    Ok(json!({"forgotten":true}))
+}
+
+#[derive(Deserialize, Serialize)]
+struct SavedInbox {
+    assistant: Assistant,
+    threads: Vec<Thread>,
+}
+
+fn inbox_key(state: &State) -> String {
+    format!(
+        "orbit/inbox/v1/{}/{}",
+        state.list_kind.as_deref().unwrap_or("all"),
+        state.snapshot.status_filter.as_str()
+    )
+}
+
+fn hydrate_inbox(state: &mut State) {
+    if !state.snapshot.query.is_empty() || !state.snapshot.domain_filter.is_empty() {
+        return;
+    }
+    let saved = state
+        .cache
+        .as_ref()
+        .and_then(|cache| cache.read(&inbox_key(state)))
+        .and_then(|payload| serde_json::from_str::<SavedInbox>(&payload).ok());
+    if let Some(saved) = saved.filter(|saved| saved.threads.len() <= 25) {
+        state.snapshot.assistant = Some(saved.assistant);
+        state.snapshot.threads = saved.threads;
+        state.snapshot.cached = true;
+        // Pagination and permissions must come from a fresh protected read.
+        state.snapshot.has_more = false;
+    }
+}
+
+fn saved_inbox(value: &Overview) -> SavedInbox {
+    let mut assistant = value.assistant.clone();
+    assistant.can_create_private = false;
+    let threads = value
+        .threads
+        .items
+        .iter()
+        .take(25)
+        .cloned()
+        .map(|mut thread| {
+            thread.agent_status = None;
+            thread.owner_id = None;
+            thread.participants.clear();
+            thread
+        })
+        .collect();
+    SavedInbox { assistant, threads }
+}
+
+fn invalidate_cache(state: &State) {
+    if let Some(cache) = &state.cache {
+        cache.invalidate(false);
+    }
+}
+
 fn snapshot(model: &Model) -> Result<Value> {
     serde_json::to_value(&model.state.lock().map_err(|_| invalid())?.snapshot)
         .map_err(|_| invalid())
@@ -437,9 +618,17 @@ fn publish(model: &Model, state: &mut State) {
 
 fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
     match command {
-        Command::Load { kind, status } => {
-            set_list_filters(model, kind, status)?;
-            load(model, false)
+        Command::Models => models_using(model, &Network),
+        Command::SetModel { id, model: choice } => set_model_using(model, id, choice, &Network),
+        Command::Load {
+            kind,
+            status,
+            query,
+            domain,
+        } => {
+            set_list_filters(model, kind, status, query, domain)?;
+            load(model, false)?;
+            start_live(model)
         }
         Command::LoadMore => load(model, true),
         command @ (Command::Private | Command::CreatePrivate | Command::Create { .. }) => {
@@ -544,6 +733,8 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
             page: 1,
             kind: state.list_kind.clone(),
             status: Some(state.snapshot.status_filter.as_str().into()),
+            query: Some(state.snapshot.query.clone()),
+            domain: Some(state.snapshot.domain_filter.clone()),
         });
         state.snapshot.loading = true;
         state.snapshot.error = None;
@@ -617,11 +808,13 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
             state.generation == generation && state.access_generation == access_generation;
         let selected = match result {
             Ok(Some(value)) => {
+                invalidate_cache(&state);
+                state.access_generation += 1;
                 if new_private {
                     state.private_request_id = None;
                 }
                 let id = value.thread.id.clone();
-                if state.access_generation == access_generation {
+                if current {
                     merge_list_thread(&mut state, value.thread);
                 }
                 if current {
@@ -659,6 +852,8 @@ fn set_list_filters(
     model: &Arc<Model>,
     kind: Option<String>,
     status: Option<StatusFilter>,
+    query: Option<String>,
+    domain: Option<String>,
 ) -> Result<()> {
     if kind
         .as_deref()
@@ -668,14 +863,27 @@ fn set_list_filters(
     }
     let mut state = model.state.lock().map_err(|_| invalid())?;
     let status = status.unwrap_or(state.snapshot.status_filter);
-    if state.list_kind != kind || state.snapshot.status_filter != status {
+    let query = query.unwrap_or_else(|| state.snapshot.query.clone());
+    let domain = domain.unwrap_or_else(|| state.snapshot.domain_filter.clone());
+    if !orbit::valid_search(&query) || !orbit::valid_domain(&domain) {
+        return Err(invalid());
+    }
+    if state.list_kind != kind
+        || state.snapshot.status_filter != status
+        || state.snapshot.query != query
+        || state.snapshot.domain_filter != domain
+    {
         clear_candidates(&mut state);
         state.list_kind = kind;
         state.snapshot.status_filter = status;
+        state.snapshot.query = query;
+        state.snapshot.domain_filter = domain;
         state.list_page = 0;
         state.access_generation += 1;
         state.snapshot.threads.clear();
         state.snapshot.has_more = false;
+        state.snapshot.cached = false;
+        hydrate_inbox(&mut state);
         publish(model, &mut state);
     }
     Ok(())
@@ -686,7 +894,7 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
 }
 
 fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Result<()> {
-    let (session, page, kind, status, access_generation) = {
+    let (session, page, kind, status, query, domain, access_generation, cache_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -702,13 +910,25 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
             if more { state.list_page + 1 } else { 1 },
             state.list_kind.clone(),
             Some(state.snapshot.status_filter.as_str().into()),
+            Some(state.snapshot.query.clone()),
+            Some(state.snapshot.domain_filter.clone()),
             state.access_generation,
+            state
+                .cache
+                .as_ref()
+                .and_then(crate::cache::Cache::generation),
         )
     };
     let result = orbit::request_using::<Overview>(
         network,
         session,
-        orbit::Action::List { page, kind, status },
+        orbit::Action::List {
+            page,
+            kind,
+            status,
+            query,
+            domain,
+        },
     );
     let mut state = model.state.lock().map_err(|_| invalid())?;
     state.snapshot.loading = false;
@@ -727,7 +947,16 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
     }
     match result {
         Ok(value) => {
+            if !more
+                && state.snapshot.query.is_empty()
+                && state.snapshot.domain_filter.is_empty()
+                && let (Some(cache), Some(generation)) = (&state.cache, cache_generation)
+                && let Ok(payload) = serde_json::to_string(&saved_inbox(&value))
+            {
+                cache.write(&inbox_key(&state), &payload, generation);
+            }
             state.snapshot.assistant = Some(value.assistant);
+            state.snapshot.cached = false;
             if !more {
                 state.snapshot.threads.clear();
             }
@@ -742,10 +971,14 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
         }
         Err(failure) => {
             if failure.kind == "unavailable" {
+                invalidate_cache(&state);
                 state.snapshot.threads.clear();
+                state.snapshot.assistant = None;
+                state.snapshot.cached = false;
             }
+            note_auth_failure(&mut state, failure.kind);
             if state.snapshot.selection_id.is_none() {
-                note_failure(&mut state, failure);
+                state.snapshot.error = Some(failure.message.into());
             }
         }
     }
@@ -765,10 +998,29 @@ fn merge_list_thread(state: &mut State, incoming: Thread) {
     if incoming.status != state.snapshot.status_filter.as_str() {
         return;
     }
+    let domain = state.snapshot.domain_filter.as_str();
+    if (!domain.is_empty()
+        && domain != "unclassified"
+        && incoming.domain.as_deref() != Some(domain))
+        || (domain == "unclassified" && incoming.domain.is_some())
+    {
+        return;
+    }
+    // Detail refreshes must not reinsert a conversation excluded by the inbox search.
+    let query = state.snapshot.query.trim().to_lowercase();
+    if !query.is_empty()
+        && !incoming.title.to_lowercase().contains(&query)
+        && !incoming.summary.to_lowercase().contains(&query)
+    {
+        return;
+    }
     items.push(incoming);
     items.sort_by(|a, b| {
-        b.updated_at
-            .cmp(&a.updated_at)
+        a.priority
+            .is_none()
+            .cmp(&b.priority.is_none())
+            .then_with(|| a.priority.cmp(&b.priority))
+            .then_with(|| b.updated_at.cmp(&a.updated_at))
             .then_with(|| b.id.cmp(&a.id))
     });
 }
@@ -839,6 +1091,7 @@ fn archive_using(
     match result {
         Ok(thread) => {
             // A list or protected-history read begun before this mutation must not undo it.
+            invalidate_cache(&state);
             state.access_generation += 1;
             merge_list_thread(&mut state, thread.clone());
             refresh_list = state.list_page > 0;
@@ -875,6 +1128,126 @@ fn archive_using(
     Ok(())
 }
 
+fn models_using(model: &Arc<Model>, network: &impl Transport) -> Result<()> {
+    let (session, lifecycle) = {
+        let mut state = model.state.lock().map_err(|_| invalid())?;
+        if state.closed || !state.active || state.snapshot.models_loading {
+            return Ok(());
+        }
+        state.snapshot.models_loading = true;
+        state.snapshot.model_error = None;
+        publish(model, &mut state);
+        (state.session.clone(), state.lifecycle)
+    };
+    let result = orbit::request_using::<orbit::Models>(network, session, orbit::Action::Models);
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    state.snapshot.models_loading = false;
+    if state.closed || state.lifecycle != lifecycle {
+        return Ok(());
+    }
+    match result {
+        Ok(value) => {
+            state.snapshot.models = value
+                .models
+                .into_iter()
+                .filter(|choice| {
+                    orbit::validate_model(Some(&choice.id)).is_ok()
+                        && !choice.name.trim().is_empty()
+                        && choice.name.chars().count() <= 100
+                        && !choice.name.chars().any(char::is_control)
+                        && matches!(choice.provider.as_str(), "ChatGPT" | "Atlas")
+                })
+                .take(32)
+                .collect();
+            state.snapshot.model_error = value.error.map(|code| match code.as_str() {
+                "provider_auth" => {
+                    "Reconnect ChatGPT in Settings → AI accounts to load its models.".into()
+                }
+                _ => "ChatGPT models could not be loaded. Try again in a moment.".into(),
+            });
+        }
+        Err(failure) => {
+            note_auth_failure(&mut state, failure.kind);
+            state.snapshot.model_error = Some(failure.message.into());
+        }
+    }
+    publish(model, &mut state);
+    Ok(())
+}
+
+fn set_model_using(
+    model: &Arc<Model>,
+    id: String,
+    choice: Option<String>,
+    network: &impl Transport,
+) -> Result<()> {
+    crate::time_off::validate_id(&id)?;
+    orbit::validate_model(choice.as_deref())?;
+    let (session, generation, access_generation, lifecycle) = {
+        let mut state = model.state.lock().map_err(|_| invalid())?;
+        if !mention_access(&state, &id) || state.snapshot.saving || state.snapshot.attachment_busy {
+            return Err(error(
+                "busy",
+                "Wait for the current conversation request to finish.",
+            ));
+        }
+        state.snapshot.saving = true;
+        state.snapshot.model_error = None;
+        publish(model, &mut state);
+        (
+            state.session.clone(),
+            state.generation,
+            state.access_generation,
+            state.lifecycle,
+        )
+    };
+    let result = orbit::request_using::<Created>(
+        network,
+        session,
+        orbit::Action::SetModel {
+            id: id.clone(),
+            model: choice.clone(),
+        },
+    )
+    .and_then(|value| {
+        if value.thread.id == id && value.thread.model == choice {
+            Ok(value.thread)
+        } else {
+            Err(invalid())
+        }
+    });
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    state.snapshot.saving = false;
+    if state.closed || state.access_generation != access_generation || state.lifecycle != lifecycle
+    {
+        if !state.closed {
+            publish(model, &mut state);
+        }
+        return Ok(());
+    }
+    match result {
+        Ok(thread) => {
+            invalidate_cache(&state);
+            state.access_generation += 1;
+            merge_list_thread(&mut state, thread.clone());
+            if state.generation == generation && state.snapshot.selection_id.as_deref() == Some(&id)
+            {
+                state.generation += 1;
+                state.snapshot.history_loading = false;
+                state.history_pending = false;
+                state.snapshot.selected = Some(thread);
+            }
+        }
+        Err(failure) if state.generation == generation => {
+            note_auth_failure(&mut state, failure.kind);
+            state.snapshot.model_error = Some(failure.message.into());
+        }
+        Err(_) => {}
+    }
+    publish(model, &mut state);
+    Ok(())
+}
+
 fn select(model: &Arc<Model>, id: Option<String>, expected: Option<String>) -> Result<()> {
     select_using(model, id, expected, &Network)
 }
@@ -898,7 +1271,11 @@ fn select_using(
         {
             return Ok(());
         }
-        let live = begin_selection(&mut state, id);
+        let live = if state.snapshot.history_cached && state.snapshot.selection_id == id {
+            state.live.take()
+        } else {
+            begin_selection(&mut state, id)
+        };
         publish(model, &mut state);
         live
     };
@@ -912,9 +1289,11 @@ fn begin_selection(state: &mut State, id: Option<String>) -> Option<String> {
     clear_candidates(state);
     state.snapshot.selection_id = id;
     state.snapshot.selected = None;
+    state.snapshot.history_cached = false;
     state.snapshot.messages.clear();
     state.snapshot.people.clear();
     state.snapshot.error = None;
+    state.snapshot.model_error = None;
     state.snapshot.live_message = None;
     state.snapshot.has_older = false;
     state.history_page = 0;
@@ -934,6 +1313,7 @@ fn clear_candidates(state: &mut State) {
 fn mention_access(state: &State, id: &str) -> bool {
     !state.closed
         && state.active
+        && !state.snapshot.history_cached
         && !state.snapshot.needs_session
         && state.snapshot.selection_id.as_deref() == Some(id)
         && state
@@ -953,15 +1333,23 @@ fn trailing_mention(body: &str) -> Option<(usize, &str)> {
     Some((at, query))
 }
 
-fn has_mention(body: &str, name: &str) -> bool {
+fn mention_spans(body: &str, name: &str) -> Vec<std::ops::Range<usize>> {
     let token = format!("@{name}");
-    body.match_indices(&token).any(|(at, _)| {
-        (at == 0 || body[..at].ends_with(char::is_whitespace))
-            && body[at + token.len()..]
-                .chars()
-                .next()
-                .is_none_or(|next| !next.is_alphanumeric() && next != '_')
-    })
+    body.match_indices(&token)
+        .filter(|(at, _)| {
+            let at = *at;
+            (at == 0 || body[..at].ends_with(char::is_whitespace))
+                && body[at + token.len()..]
+                    .chars()
+                    .next()
+                    .is_none_or(|next| !next.is_alphanumeric() && next != '_')
+        })
+        .map(|(at, _)| at..at + token.len())
+        .collect()
+}
+
+fn has_mention(body: &str, name: &str) -> bool {
+    !mention_spans(body, name).is_empty()
 }
 
 fn people_using(
@@ -1019,7 +1407,7 @@ fn people_using(
         Ok(value) => state.snapshot.mention_candidates = value.people,
         Err(failure) => {
             // Older servers have no people route. Only authoritative history can revoke this thread.
-            state.snapshot.needs_session |= failure.kind == "sign_in_required";
+            note_auth_failure(&mut state, failure.kind);
             state.snapshot.mention_error = Some(failure.message.into());
         }
     }
@@ -1065,11 +1453,12 @@ fn mention(model: &Model, id: String, user_id: String) -> Result<()> {
 }
 
 fn history(model: &Arc<Model>, older: bool) -> Result<()> {
-    history_using(model, older, &Network)
+    history_using(model, older, &Network)?;
+    start_live(model)
 }
 
 fn history_using(model: &Arc<Model>, older: bool, network: &impl Transport) -> Result<()> {
-    let (session, id, page, generation) = {
+    let (session, id, page, generation, cache_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -1088,6 +1477,10 @@ fn history_using(model: &Arc<Model>, older: bool, network: &impl Transport) -> R
             id,
             if older { state.history_page + 1 } else { 1 },
             state.generation,
+            state
+                .cache
+                .as_ref()
+                .and_then(crate::cache::Cache::generation),
         )
     };
     let result = orbit::request_using::<History>(
@@ -1107,6 +1500,39 @@ fn history_using(model: &Arc<Model>, older: bool, network: &impl Transport) -> R
         let mut live = None;
         match result {
             Ok(value) => {
+                if page == 1 && value.thread.id == id {
+                    let mut saved = History {
+                        thread: value.thread.clone(),
+                        messages: orbit::Page {
+                            items: value
+                                .messages
+                                .items
+                                .iter()
+                                .filter(|message| message.kind != "tool")
+                                .take(25)
+                                .cloned()
+                                .collect(),
+                            page: 1,
+                            total_pages: 1,
+                            total_count: value.messages.total_count,
+                        },
+                    };
+                    saved.thread.owner_id = None;
+                    saved.thread.agent_status = None;
+                    saved.thread.participants.clear();
+                    for message in &mut saved.messages.items {
+                        message.tool_input.clear();
+                        message.tool_output.clear();
+                        message.component = None;
+                    }
+                    if let (Some(cache), Some(generation)) = (&state.cache, cache_generation) {
+                        cache.write(
+                            &format!("orbit/history/v1/{id}"),
+                            &serde_json::to_string(&saved).map_err(|_| invalid())?,
+                            generation,
+                        );
+                    }
+                }
                 if !reconcile_history(&mut state, value, generation, older) {
                     state.snapshot.error = Some("Atlas returned a different thread.".into());
                 }
@@ -1146,6 +1572,7 @@ fn reconcile_history(state: &mut State, value: History, generation: u64, older: 
         return false;
     }
     merge_list_thread(state, value.thread.clone());
+    state.snapshot.history_cached = false;
     state.snapshot.selected = Some(value.thread);
     let disconnected_page = !older
         && !state.snapshot.messages.is_empty()
@@ -1184,6 +1611,7 @@ fn attachment_access(state: &State, id: &str, write: bool) -> Result<()> {
     if state.closed
         || !state.active
         || state.snapshot.needs_session
+        || state.snapshot.history_cached
         || state
             .snapshot
             .selected
@@ -1516,6 +1944,7 @@ fn send_using(
             || state.snapshot.attachment_busy
             || state.closed
             || state.snapshot.needs_session
+            || state.snapshot.history_cached
         {
             return Ok(());
         }
@@ -1529,7 +1958,7 @@ fn send_using(
         if selected.status == "archived" {
             return Err(invalid());
         }
-        let address_agent = selected.kind == "private" || address_agent;
+        let private = selected.kind == "private";
         let attachments = state
             .drafts
             .get(&id)
@@ -1582,6 +2011,17 @@ fn send_using(
                     .ok_or_else(invalid)
             })
             .collect::<Result<Vec<_>>>()?;
+        // A selected person such as Pip Smith occupies the whole human token;
+        // their name must not accidentally summon the assistant as well.
+        let human_spans = mentions
+            .iter()
+            .flat_map(|person| mention_spans(&body, &person.name))
+            .collect::<Vec<_>>();
+        let address_agent = private
+            || (address_agent
+                && mention_spans(&body.to_ascii_lowercase(), "pip")
+                    .iter()
+                    .any(|token| !human_spans.iter().any(|human| human.contains(&token.start))));
         let client_id = prepare_send_draft(&mut state, &id, &body, &attachment_ids, &mentions)?;
         let result = (
             state.session.clone(),
@@ -1618,6 +2058,8 @@ fn send_using(
         let success = result.is_ok();
         match result {
             Ok(_) => {
+                invalidate_cache(&state);
+                state.access_generation += 1;
                 if state.generation == generation {
                     state.snapshot.error = None;
                 }
@@ -1668,19 +2110,50 @@ fn send_using(
 }
 
 fn note_failure(state: &mut State, failure: crate::AuthError) {
-    if failure.kind == "sign_in_required" {
-        clear_candidates(state);
-        state.snapshot.needs_session = true;
-    }
+    note_auth_failure(state, failure.kind);
     state.snapshot.error = Some(failure.message.into());
 }
 
+fn note_auth_failure(state: &mut State, kind: &str) {
+    match kind {
+        "sign_in_required" => reject_session(state),
+        "session_expired" => state.snapshot.needs_session = true,
+        _ => {}
+    }
+}
+
+fn reject_session(state: &mut State) {
+    // HTTP rejection is definitive, unlike a live connection asking for renewal.
+    if let Some(cache) = &state.cache {
+        cache.invalidate(true);
+    }
+    state.generation += 1;
+    state.access_generation += 1;
+    state.authenticated = false;
+    state.drafts.clear();
+    state.outbox.clear();
+    state.upload_attempt = None;
+    state.private_request_id = None;
+    clear_candidates(state);
+    let sequence = state.snapshot.sequence;
+    let selection_id = state.snapshot.selection_id.clone();
+    state.snapshot = Snapshot {
+        sequence,
+        selection_id,
+        needs_session: true,
+        session_rejected: true,
+        ..Snapshot::default()
+    };
+}
+
 fn revoke(state: &mut State, id: &str) {
+    invalidate_cache(state);
     clear_candidates(state);
     state.snapshot.messages.clear();
     state.snapshot.people.clear();
     state.snapshot.threads.retain(|item| item.id != id);
     state.snapshot.selected = None;
+    state.snapshot.history_cached = false;
     state.snapshot.history_loading = false;
     state.history_pending = false;
     state.drafts.remove(id);
@@ -1824,6 +2297,8 @@ fn start_live(model: &Arc<Model>) -> Result<()> {
     let mut state = model.state.lock().map_err(|_| invalid())?;
     if !state.active
         || state.closed
+        || !state.authenticated
+        || state.snapshot.history_cached
         || state.live.is_some()
         || (state.snapshot.selection_id.is_some() && state.snapshot.selected.is_none())
     {

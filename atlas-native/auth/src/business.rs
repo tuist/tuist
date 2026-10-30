@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
-#[derive(Clone, Copy, Deserialize)]
+#[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum Resource {
     Tasks,
@@ -371,6 +371,8 @@ struct Profile {
 struct PushCapabilities {
     ios: bool,
     android: bool,
+    #[serde(default)]
+    macos: bool,
 }
 
 impl Record {

@@ -10,6 +10,11 @@
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
     />
     <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "Integrations")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/integrations"}
+    />
+    <.tab_menu_horizontal_item
       :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
       label={dgettext("dashboard_projects", "Notifications")}
       selected={false}
@@ -18,7 +23,8 @@
     <.tab_menu_horizontal_item
       :if={
         Tuist.Projects.Project.xcode_project?(@selected_project) or
-          Tuist.Projects.Project.bazel_project?(@selected_project)
+          Tuist.Projects.Project.bazel_project?(@selected_project) or
+          Tuist.Projects.Project.mix_project?(@selected_project)
       }
       label={dgettext("dashboard_projects", "Automations")}
       selected={false}

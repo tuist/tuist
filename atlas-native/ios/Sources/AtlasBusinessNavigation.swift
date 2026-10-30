@@ -19,6 +19,13 @@ struct AtlasBusinessStack: View {
         _path = State(initialValue: recordID.map { [AtlasRecordRoute(id: $0)] } ?? [])
     }
 
+    init(model: AtlasBusiness, recordID: String?, revision: UUID?) {
+        self.recordID = recordID
+        self.revision = revision
+        _model = StateObject(wrappedValue: model)
+        _path = State(initialValue: recordID.map { [AtlasRecordRoute(id: $0)] } ?? [])
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             AtlasBusinessView(model: model, loadList: path.isEmpty)
@@ -34,6 +41,7 @@ struct AtlasLinkedBusinessDetail: View {
     @State private var error: String?
     @State private var attempt = 0
     @Environment(\.atlasPresence) private var presence
+    @Environment(\.atlasReadCache) private var cachedRead
 
     var body: some View {
         Group {
@@ -57,11 +65,15 @@ struct AtlasLinkedBusinessDetail: View {
         .navigationTitle(model.resource.singular)
         .onAppear { presence?.show(resource: model.resource.rawValue) }
         .task(id: attempt) {
+            model.cachedRequest = AtlasReadCache.scoped(cachedRead, operation: "business")
+            if item == nil { item = await model.cachedRecord(id: id) }
             do {
                 item = try await model.record(id: id)
                 if model.page == nil { await model.load() }
             } catch is CancellationError {} catch {
-                if !Task.isCancelled { self.error = error.localizedDescription }
+                guard !Task.isCancelled else { return }
+                if AtlasReadCache.accessDenied(error) { item = nil }
+                if item == nil { self.error = error.localizedDescription } else { model.errorMessage = error.localizedDescription }
             }
         }
     }

@@ -21,7 +21,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   plug :assign_default_head_tags
   plug :put_agent_discovery_links when action in [:home]
   plug :put_resp_header_cache_control
-  plug :put_resp_header_server
 
   @newsletter_verification_salt "newsletter_subscription"
   @newsletter_verification_max_age 2 * 24 * 60 * 60
@@ -1180,10 +1179,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     else
       put_resp_header(conn, "cache-control", "public, max-age=60, stale-while-revalidate=86400")
     end
-  end
-
-  defp put_resp_header_server(conn, _opts) do
-    put_resp_header(conn, "server", "Bandit")
   end
 
   defp post_sitemap_entries do

@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/rack-switch-controller
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/go-logr/logr v1.4.2
@@ -80,3 +80,5 @@ require (
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 )
+
+godebug default=go1.25

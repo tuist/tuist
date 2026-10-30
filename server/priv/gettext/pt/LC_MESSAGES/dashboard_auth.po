@@ -1,435 +1,426 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
 msgid ""
-msgstr ""
-"Language: pt\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=n > 1;\n"
+msgstr "Language: pt\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: lib/tuist_web/live/user_confirmation_live.ex:27
+#: lib/tuist_web/live/user_confirmation_live.ex:23
 #, elixir-autogen, elixir-format
 msgid "Account confirmed!"
 msgstr "Conta confirmada!"
 
-#: lib/tuist_web/live/user_registration_live.ex:294
+#: lib/tuist_web/live/user_registration_live.ex:442
 #, elixir-autogen, elixir-format
 msgid "Account created successfully! Please log in."
-msgstr "Conta criada com sucesso! Por favor, faça o login."
+msgstr "Conta criada com sucesso! Faça login."
 
-#: lib/tuist_web/live/user_registration_live.ex:306
+#: lib/tuist_web/live/user_registration_live.ex:456
 #, elixir-autogen, elixir-format
 msgid "Account name is already taken"
-msgstr "Nome de conta já está em uso"
+msgstr "O nome da conta já está em uso"
 
-#: lib/tuist_web/live/user_registration_live.ex:187
+#: lib/tuist_web/live/user_registration_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Already have an account?"
 msgstr "Já tem uma conta?"
 
-#: lib/tuist_web/live/connect_live.ex:97
+#: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr "Já configurou seu projeto Tuist? Pule a configuração e vá para o dashboard."
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:74
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:92
+#: lib/tuist_web/live/user_forgot_password_live.ex:71
 #, elixir-autogen, elixir-format
 msgid "Back to log in"
 msgstr "Voltar para o login"
 
-#: lib/tuist_web/live/user_registration_live.ex:39
+#: lib/tuist_web/live/user_registration_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Binary caching"
-msgstr "Binary caching"
+msgstr "Cache binário"
 
-#: lib/tuist_web/live/user_reset_password_live.ex:32
+#: lib/tuist_web/live/user_reset_password_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Change your password"
-msgstr "Altere sua senha"
+msgstr "Alterar sua senha"
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:42
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:34
+#: lib/tuist_web/live/user_forgot_password_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Check your email"
 msgstr "Verifique seu e-mail"
 
-#: lib/tuist_web/live/user_registration_live.ex:220
+#: lib/tuist_web/live/user_registration_live.ex:250
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
 msgstr "Verifique sua caixa de entrada para um e-mail de confirmação e clique no link para continuar."
 
-#: lib/tuist_web/live/choose_username_live.ex:50
+#: lib/tuist_web/live/choose_username_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "Choose a username"
 msgstr "Escolha um nome de usuário"
 
-#: lib/tuist_web/live/choose_username_live.ex:52
-#, elixir-autogen, elixir-format
-msgid "Choose a username for your personal account"
-msgstr "Escolha um nome de usuário para sua conta pessoal"
-
-#: lib/tuist_web/live/user_reset_password_live.ex:52
+#: lib/tuist_web/live/user_reset_password_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Confirm password"
-msgstr "Confirme a senha"
+msgstr "Confirmar senha"
 
-#: lib/tuist_web/live/user_registration_live.ex:218
+#: lib/tuist_web/live/user_registration_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Confirm your account"
 msgstr "Confirme sua conta"
 
-#: lib/tuist_web/live/user_confirmation_live.ex:46
+#: lib/tuist_web/live/user_confirmation_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Confirmation failed"
-msgstr "Confirmação falhou"
+msgstr "Falha na confirmação"
 
-#: lib/tuist_web/live/connect_live.ex:12
+#: lib/tuist_web/live/connect_live.ex:16
+#: lib/tuist_web/live/connect_live.ex:20
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr "Conectar"
 
-#: lib/tuist_web/live/connect_live.ex:55
+#: lib/tuist_web/live/connect_live.ex:122
 #, elixir-autogen, elixir-format
 msgid "Connect your project"
 msgstr "Conecte seu projeto"
 
-#: lib/tuist_web/live/connect_live.ex:37
+#: lib/tuist_web/live/connect_live.ex:21
+#: lib/tuist_web/live/connect_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Connect your project to the dashboard"
 msgstr "Conecte seu projeto ao dashboard"
 
-#: lib/tuist_web/live/connect_live.ex:33
+#: lib/tuist_web/live/connect_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Connection successful"
 msgstr "Conexão bem-sucedida"
 
-#: lib/tuist_web/live/sso_login_live.ex:88
-#: lib/tuist_web/live/user_okta_login_live.ex:92
+#: lib/tuist_web/live/sso_login_live.ex:112
 #, elixir-autogen, elixir-format
 msgid "Contact us"
-msgstr "Contate-nos"
+msgstr "Fale conosco"
 
-#: lib/tuist_web/live/choose_username_live.ex:75
+#: lib/tuist_web/controllers/public_page_challenge_html.ex:119
+#: lib/tuist_web/live/choose_username_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr "Continuar"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:61
+#: lib/tuist_web/controllers/sso_link_html/status.html.heex:6
+#: lib/tuist_web/live/device_codes_success_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr "Dashboard"
 
-#: lib/tuist_web/live/user_registration_live.ex:30
+#: lib/tuist_web/live/user_registration_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Discover how selective testing is reducing your test time."
-msgstr "Descubra como o selective testing está reduzindo seu tempo de teste."
+msgstr "Descubra como os testes seletivos estão reduzindo o tempo dos seus testes."
 
-#: lib/tuist_web/live/user_login_live.ex:200
+#: lib/tuist_web/live/user_login_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr "Não tem uma conta?"
 
-#: lib/tuist_web/live/sso_login_live.ex:71
-#: lib/tuist_web/live/user_forgot_password_live.ex:54
-#: lib/tuist_web/live/user_login_live.ex:138
-#: lib/tuist_web/live/user_okta_login_live.ex:74
-#: lib/tuist_web/live/user_registration_live.ex:148
+#: lib/tuist_web/live/sso_login_live.ex:95
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:72
+#: lib/tuist_web/live/user_forgot_password_live.ex:51
+#: lib/tuist_web/live/user_login_live.ex:144
+#: lib/tuist_web/live/user_registration_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "Email address"
 msgstr "Endereço de e-mail"
 
-#: lib/tuist_web/live/user_registration_live.ex:309
+#: lib/tuist_web/live/user_registration_live.ex:462
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
-msgstr "E-mail já está em uso"
+msgstr "O e-mail já está em uso"
 
-#: lib/tuist_web/live/connect_live.ex:75
+#: lib/tuist_web/live/connect_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "Explore as funcionalidades do Tuist como binary caching e selective testing para acelerar seu desenvolvimento."
+msgstr "Explore funcionalidades do Tuist, como cache binário e testes seletivos, para acelerar seu desenvolvimento."
 
-#: lib/tuist_web/live/user_registration_live.ex:42
+#: lib/tuist_web/live/user_registration_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Explore how binary caching is enhancing your build times."
-msgstr "Explore como o binary caching está melhorando seus tempos de build."
+msgstr "Veja como o cache binário está melhorando seus tempos de build."
 
-#: lib/tuist_web/live/user_login_live.ex:169
+#: lib/tuist_web/live/user_login_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
 msgstr "Esqueceu a senha?"
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:31
+#: lib/tuist_web/live/user_forgot_password_live.ex:28
 #, elixir-autogen, elixir-format
 msgid "Forgot your password?"
 msgstr "Esqueceu sua senha?"
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:44
+#: lib/tuist_web/live/user_forgot_password_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "Se seu e-mail estiver em nossos registros, você receberá instruções para redefinir a senha em breve."
+msgstr "Se o seu e-mail estiver em nossos registros, você receberá as instruções de redefinição em breve."
 
-#: lib/tuist_web/live/connect_live.ex:41
+#: lib/tuist_web/live/connect_live.ex:104
+#: lib/tuist_web/live/connect_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
-msgstr "Instale o Tuist CLI"
+msgstr "Instalar a CLI do Tuist"
 
-#: lib/tuist_web/live/user_registration_live.ex:54
+#: lib/tuist_web/live/user_registration_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "Instantly share your app using a URL."
-msgstr "Compartilhe seu app instantaneamente usando uma URL."
+msgstr "Compartilhe seu app instantaneamente por meio de um URL."
 
-#: lib/tuist_web/live/sso_login_live.ex:83
-#: lib/tuist_web/live/user_okta_login_live.ex:86
+#: lib/tuist_web/live/sso_login_live.ex:107
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr "Interessado em SSO?"
 
-#: lib/tuist_web/live/user_login_live.ex:162
+#: lib/tuist_web/live/user_login_live.ex:169
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr "Manter-me conectado"
 
-#: lib/tuist_web/live/sso_login_live.ex:79
-#: lib/tuist_web/live/user_login_live.ex:17
-#: lib/tuist_web/live/user_login_live.ex:175
-#: lib/tuist_web/live/user_okta_login_live.ex:82
-#: lib/tuist_web/live/user_registration_live.ex:192
+#: lib/tuist_web/live/sso_login_live.ex:103
+#: lib/tuist_web/live/user_login_live.ex:20
+#: lib/tuist_web/live/user_login_live.ex:192
+#: lib/tuist_web/live/user_registration_live.ex:226
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr "Entrar"
 
-#: lib/tuist_web/live/sso_login_live.ex:54
-#: lib/tuist_web/live/user_login_live.ex:48
-#: lib/tuist_web/live/user_okta_login_live.ex:57
+#: lib/tuist_web/live/sso_login_live.ex:78
+#: lib/tuist_web/live/user_login_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
-msgstr "Entre no Tuist"
+msgstr "Entrar no Tuist"
 
-#: lib/tuist_web/live/sso_login_live.ex:56
-#: lib/tuist_web/live/user_okta_login_live.ex:59
+#: lib/tuist_web/live/sso_login_live.ex:80
 #, elixir-autogen, elixir-format
-msgid "Log in to your enterprise account via Okta"
-msgstr "Faça login na sua conta empresarial via Okta"
+msgid "Log in to your enterprise account via SSO"
+msgstr "Entre na sua conta corporativa via SSO"
 
-#: lib/tuist_web/live/user_okta_login_live.ex:36
-#, elixir-autogen, elixir-format
-msgid "Logging in via Okta failed"
-msgstr "Falha ao fazer login via Okta"
-
-#: lib/tuist_web/live/user_reset_password_live.ex:44
+#: lib/tuist_web/live/user_reset_password_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "New password"
 msgstr "Nova senha"
 
-#: lib/tuist_web/live/connect_live.ex:73
+#: lib/tuist_web/live/connect_live.ex:140
+#: lib/tuist_web/live/connect_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "Next steps"
 msgstr "Próximos passos"
 
-#: lib/tuist_web/live/sso_login_live.ex:34
-#, elixir-autogen, elixir-format
-msgid "No SSO organization found for this email"
-msgstr "Nenhuma organização SSO encontrada para este e-mail"
-
-#: lib/tuist_web/live/connect_live.ex:91
+#: lib/tuist_web/live/connect_live.ex:67
 #, elixir-autogen, elixir-format
 msgid "OR"
 msgstr "OU"
 
-#: lib/tuist_web/live/user_okta_login_live.ex:17
-#, elixir-autogen, elixir-format
-msgid "Okta log in"
-msgstr "Login Okta"
-
-#: lib/tuist_web/live/user_login_live.ex:149
-#: lib/tuist_web/live/user_registration_live.ex:158
+#: lib/tuist_web/live/user_login_live.ex:155
+#: lib/tuist_web/live/user_registration_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Password"
 msgstr "Senha"
 
-#: lib/tuist_web/live/user_reset_password_live.ex:97
+#: lib/tuist_web/live/user_reset_password_live.ex:101
 #, elixir-autogen, elixir-format
 msgid "Password reset successfully."
 msgstr "Senha redefinida com sucesso."
 
-#: lib/tuist_web/live/user_registration_live.ex:51
+#: lib/tuist_web/live/user_registration_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr "Previews"
 
-#: lib/tuist_web/live/connect_live.ex:94
+#: lib/tuist_web/live/connect_live.ex:70
 #, elixir-autogen, elixir-format
 msgid "Project Ready? Proceed to dashboard"
-msgstr "Projeto pronto? Prossiga para o dashboard"
+msgstr "Projeto pronto? Acesse o painel"
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:63
-#: lib/tuist_web/live/user_reset_password_live.ex:60
+#: lib/tuist_web/live/user_forgot_password_live.ex:60
+#: lib/tuist_web/live/user_reset_password_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Reset password"
 msgstr "Redefinir senha"
 
-#: lib/tuist_web/live/connect_live.ex:43
+#: lib/tuist_web/live/connect_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "Run the following command to install Tuist CLI."
-msgstr "Execute o comando a seguir para instalar o Tuist CLI."
+msgstr "Execute o comando a seguir para instalar a CLI do Tuist."
 
-#: lib/tuist_web/live/connect_live.ex:57
+#: lib/tuist_web/live/connect_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "Run this command to link your project to the dashboard."
-msgstr "Execute este comando para vincular seu projeto ao dashboard."
+msgstr "Execute este comando para vincular seu projeto ao painel."
 
-#: lib/tuist_web/live/user_registration_live.ex:27
+#: lib/tuist_web/live/user_registration_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Selective testing"
-msgstr "Selective testing"
+msgstr "Testes seletivos"
 
-#: lib/tuist_web/live/user_login_live.ex:205
-#: lib/tuist_web/live/user_registration_live.ex:181
-#: lib/tuist_web/live/user_registration_live.ex:264
+#: lib/tuist_web/live/user_login_live.ex:222
+#: lib/tuist_web/live/user_registration_live.ex:215
+#: lib/tuist_web/live/user_registration_live.ex:297
 #, elixir-autogen, elixir-format
 msgid "Sign up"
-msgstr "Registrar"
+msgstr "Inscreva-se"
 
-#: lib/tuist_web/live/user_registration_live.ex:75
+#: lib/tuist_web/live/user_registration_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "Sign up for Tuist"
-msgstr "Cadastre-se no Tuist"
+msgstr "Inscreva-se no Tuist"
 
-#: lib/tuist_web/live/choose_username_live.ex:117
+#: lib/tuist_web/live/choose_username_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "This username has already been taken"
 msgstr "Este nome de usuário já está em uso"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:41
+#: lib/tuist_web/live/device_codes_success_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
-msgstr "Tuist CLI está conectado!"
+msgstr "A CLI do Tuist está conectada!"
 
-#: lib/tuist_web/live/choose_username_live.ex:42
-#: lib/tuist_web/live/device_codes_success_live.ex:28
-#: lib/tuist_web/live/sso_login_live.ex:46
-#: lib/tuist_web/live/user_confirmation_live.ex:18
-#: lib/tuist_web/live/user_forgot_password_live.ex:23
-#: lib/tuist_web/live/user_login_live.ex:40
-#: lib/tuist_web/live/user_okta_login_live.ex:49
-#: lib/tuist_web/live/user_registration_live.ex:67
-#: lib/tuist_web/live/user_registration_live.ex:210
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
+#: lib/tuist_web/live/choose_username_live.ex:51
+#: lib/tuist_web/live/device_codes_success_live.ex:26
+#: lib/tuist_web/live/sso_login_live.ex:72
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
+#: lib/tuist_web/live/user_confirmation_live.ex:16
+#: lib/tuist_web/live/user_forgot_password_live.ex:22
+#: lib/tuist_web/live/user_login_live.ex:46
+#: lib/tuist_web/live/user_registration_live.ex:84
+#: lib/tuist_web/live/user_registration_live.ex:242
 #: lib/tuist_web/live/user_reset_password_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
-msgstr "Logotipo Tuist"
+msgstr "Logotipo do Tuist"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:39
+#: lib/tuist_web/live/device_codes_success_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
-msgstr "App Tuist está conectado!"
+msgstr "O aplicativo do Tuist está conectado!"
 
-#: lib/tuist_web/live/connect_live.ex:104
+#: lib/tuist_web/live/connect_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Tuist dashboard"
-msgstr "Dashboard Tuist"
+msgstr "Painel do Tuist"
 
-#: lib/tuist_web/live/connect_live.ex:82
+#: lib/tuist_web/live/connect_live.ex:149
+#: lib/tuist_web/live/connect_live.ex:190
+#: lib/tuist_web/live/connect_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "Tuist documentation"
-msgstr "Documentação Tuist"
+msgstr "Documentação do Tuist"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:43
+#: lib/tuist_web/live/device_codes_success_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
 msgstr "Tuist está conectado!"
 
-#: lib/tuist_web/live/user_confirmation_live.ex:57
+#: lib/tuist_web/live/user_confirmation_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "User confirmation link is invalid or it has expired."
 msgstr "O link de confirmação do usuário é inválido ou expirou."
 
-#: lib/tuist_web/live/choose_username_live.ex:65
-#: lib/tuist_web/live/user_registration_live.ex:169
+#: lib/tuist_web/live/choose_username_live.ex:72
+#: lib/tuist_web/live/user_registration_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Username"
 msgstr "Nome de usuário"
 
-#: lib/tuist_web/live/choose_username_live.ex:66
-#: lib/tuist_web/live/user_registration_live.ex:172
+#: lib/tuist_web/live/choose_username_live.ex:73
+#: lib/tuist_web/live/user_registration_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Username may only contain alphanumeric characters"
-msgstr "O nome de usuário pode conter apenas caracteres alfanuméricos"
+msgstr "O nome de usuário só pode conter caracteres alfanuméricos"
 
-#: lib/tuist_web/live/connect_live.ex:28
+#: lib/tuist_web/live/connect_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Waiting for connection"
 msgstr "Aguardando conexão"
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:33
+#: lib/tuist_web/live/user_forgot_password_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "We'll send a password reset link to your inbox"
 msgstr "Enviaremos um link para redefinir a senha para sua caixa de entrada"
 
-#: lib/tuist_web/live/user_login_live.ex:50
+#: lib/tuist_web/live/user_login_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Welcome back! Please log in to continue"
-msgstr "Bem-vindo de volta! Por favor, faça o login para continuar"
+msgstr "Bem-vindo de volta! Faça login para continuar"
 
-#: lib/tuist_web/live/user_registration_live.ex:77
+#: lib/tuist_web/live/user_registration_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Welcome! Create an account to continue"
 msgstr "Bem-vindo! Crie uma conta para continuar"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:53
-#, elixir-autogen, elixir-format
-msgid "You can close the tab and continue"
-msgstr "Você pode fechar a aba e continuar"
-
 #: lib/tuist_web/live/device_codes_success_live.ex:49
 #, elixir-autogen, elixir-format
-msgid "You can close the tab and continue in the app"
-msgstr "Você pode fechar a aba e continuar no app"
+msgid "You can close the tab and continue"
+msgstr "Pode fechar a aba e continuar"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:51
+#: lib/tuist_web/live/device_codes_success_live.ex:45
+#, elixir-autogen, elixir-format
+msgid "You can close the tab and continue in the app"
+msgstr "Pode fechar a aba e continuar no aplicativo"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
-msgstr "Você pode fechar a aba e continuar no terminal"
+msgstr "Pode fechar a aba e continuar no terminal"
 
-#: lib/tuist_web/live/user_confirmation_live.ex:48
+#: lib/tuist_web/live/user_confirmation_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Your account could not be confirmed."
-msgstr "Sua conta não pôde ser confirmada."
+msgstr "Não foi possível confirmar sua conta."
 
-#: lib/tuist_web/live/user_confirmation_live.ex:29
+#: lib/tuist_web/live/user_confirmation_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Your account has been confirmed."
 msgstr "Sua conta foi confirmada."
 
-#: lib/tuist_web/live/user_confirmation_live.ex:38
+#: lib/tuist_web/live/user_confirmation_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Your account has been confirmed. You will be redirected shortly..."
 msgstr "Sua conta foi confirmada. Você será redirecionado em breve..."
 
-#: lib/tuist_web/live/user_reset_password_live.ex:34
+#: lib/tuist_web/live/user_reset_password_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Your new password must be different to previously used passwords."
 msgstr "Sua nova senha deve ser diferente das senhas usadas anteriormente."
 
-#: lib/tuist_web/live/connect_live.ex:49
-#: lib/tuist_web/live/connect_live.ex:67
+#: lib/tuist_web/live/connect_live.ex:116
+#: lib/tuist_web/live/connect_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "homebrew"
 msgstr "homebrew"
 
-#: lib/tuist_web/live/connect_live.ex:46
-#: lib/tuist_web/live/connect_live.ex:62
+#: lib/tuist_web/live/connect_live.ex:111
+#: lib/tuist_web/live/connect_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "mise"
 msgstr "mise"
 
-#: lib/tuist_web/live/connect_live.ex:37
+#: lib/tuist_web/live/connect_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "using CLI"
-msgstr "usando CLI"
+msgstr "usando a CLI"
 
 #: lib/tuist_web/components/app_auth_components.ex:13
 #, elixir-autogen, elixir-format
 msgid "By continuing, you agree to Tuist's"
-msgstr "Ao continuar, você concorda com os"
+msgstr "Ao continuar, você concorda com a"
 
 #: lib/tuist_web/components/app_auth_components.ex:19
 #, elixir-autogen, elixir-format
@@ -446,7 +437,295 @@ msgstr "Termos de Serviço"
 msgid "and"
 msgstr "e"
 
-#: lib/tuist_web/live/user_login_live.ex:195
+#: lib/tuist_web/live/user_login_live.ex:212
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
 msgstr "Entrar como usuário de teste"
+
+#: lib/tuist_web/live/choose_username_live.ex:59
+#, elixir-autogen, elixir-format
+msgid "Choose a username for your account"
+msgstr "Escolha um nome de usuário para sua conta"
+
+#: lib/tuist_web/live/user_login_live.ex:108
+#, elixir-autogen, elixir-format
+msgid "Log in with SSO"
+msgstr "Entrar com SSO"
+
+#: lib/tuist_web/live/sso_login_live.ex:57
+#, elixir-autogen, elixir-format
+msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
+msgstr "Nenhuma organização SSO está configurada para este e-mail. Verifique o endereço e peça ao administrador da sua organização que confirme a configuração do domínio SSO."
+
+#: lib/tuist_web/controllers/auth_controller.ex:576
+#, elixir-autogen, elixir-format
+msgid "An account with this email already exists. Please log in instead."
+msgstr "Já existe uma conta com este e-mail. Faça login em vez disso."
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:22
+#, elixir-autogen, elixir-format
+msgid "Confirm your email"
+msgstr "Confirme seu e-mail"
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:24
+#, elixir-autogen, elixir-format
+msgid "Confirm your email address to finish signing in"
+msgstr "Confirme seu endereço de e-mail para concluir o login"
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:36
+#, elixir-autogen, elixir-format
+msgid "If your email is registered and not yet confirmed, you'll receive a confirmation link shortly."
+msgstr "Se seu e-mail estiver registrado e ainda não confirmado, você receberá um link de confirmação em breve."
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:60
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:81
+#, elixir-autogen, elixir-format
+msgid "Resend confirmation email"
+msgstr "Reenviar e-mail de confirmação"
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:50
+#, elixir-autogen, elixir-format
+msgid "We'll send a new confirmation link to %{email}."
+msgstr "Enviaremos um novo link de confirmação para %{email}."
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:48
+#, elixir-autogen, elixir-format
+msgid "Your email isn't confirmed yet"
+msgstr "O seu e-mail ainda não foi confirmado"
+
+#: lib/tuist_web/controllers/user_session_controller.ex:65
+#: lib/tuist_web/live/choose_username_live.ex:162
+#: lib/tuist_web/live/user_registration_live.ex:373
+#, elixir-autogen, elixir-format
+msgid "Please complete the security check and try again."
+msgstr "Conclua a verificação de segurança e tente novamente."
+
+#: lib/tuist_web/live/choose_username_live.ex:177
+#: lib/tuist_web/live/user_registration_live.ex:388
+#, elixir-autogen, elixir-format
+msgid "The security check could not load. Check for a blocker on challenges.cloudflare.com and reload the page."
+msgstr "Não foi possível carregar a verificação de segurança. Verifique se há algum bloqueador em challenges.cloudflare.com e recarregue a página."
+
+#: lib/tuist_web/live/choose_username_live.ex:191
+#: lib/tuist_web/live/user_registration_live.ex:402
+#, elixir-autogen, elixir-format
+msgid "The security check failed. Please reload the page and try again."
+msgstr "A verificação de segurança falhou. Recarregue a página e tente novamente."
+
+#: lib/tuist_web/live/choose_username_live.ex:147
+#: lib/tuist_web/live/user_registration_live.ex:358
+#, elixir-autogen, elixir-format
+msgid "Too many sign-up attempts. Please try again later."
+msgstr "Muitas tentativas de registo. Tente novamente mais tarde."
+
+#: lib/tuist_web/live/choose_username_live.ex:155
+#: lib/tuist_web/live/user_registration_live.ex:366
+#, elixir-autogen, elixir-format
+msgid "Your session has expired. Please reload the page and try again."
+msgstr "A sua sessão expirou. Recarregue a página e tente novamente."
+
+#: lib/tuist_web/live/choose_username_live.ex:251
+#: lib/tuist_web/live/choose_username_live.ex:279
+#: lib/tuist_web/live/choose_username_live.ex:290
+#, elixir-autogen, elixir-format
+msgid "Something went wrong. Please try again."
+msgstr "Ocorreu um erro. Tente novamente."
+
+#: lib/tuist_web/live/choose_username_live.ex:94
+#: lib/tuist_web/live/user_registration_live.ex:210
+#, elixir-autogen, elixir-format
+msgid "Verifying, one moment..."
+msgstr "A verificar, aguarde..."
+
+#: lib/tuist_web/controllers/public_page_challenge_html.ex:87
+#, elixir-autogen, elixir-format
+msgid "Just a quick check"
+msgstr "Apenas uma verificação rápida"
+
+#: lib/tuist_web/controllers/public_page_challenge_html.ex:89
+#, elixir-autogen, elixir-format
+msgid "Public dashboards are protected against automated scraping. Confirm you're human to continue."
+msgstr "Os painéis públicos estão protegidos contra raspagem automatizada. Confirme que você é humano para continuar."
+
+#: lib/tuist_web/controllers/public_page_challenge_controller.ex:137
+#, elixir-autogen, elixir-format
+msgid "Too many attempts. Please wait a moment and try again."
+msgstr "Muitas tentativas. Aguarde um momento e tente novamente."
+
+#: lib/tuist_web/controllers/public_page_challenge_html.ex:110
+#, elixir-autogen, elixir-format
+msgid "Turnstile is unavailable. Please try again shortly."
+msgstr "O Turnstile está indisponível. Tente novamente em breve."
+
+#: lib/tuist_web/controllers/public_page_challenge_controller.ex:152
+#, elixir-autogen, elixir-format
+msgid "Verification failed. Please try again."
+msgstr "Falha na verificação. Tente novamente."
+
+#: lib/tuist_web/controllers/public_page_challenge_html.ex:26
+#, elixir-autogen, elixir-format
+msgid "Verify you're human"
+msgstr "Verifique se você é humano"
+
+#: lib/tuist_web/controllers/auth_controller.ex:80
+#, elixir-autogen, elixir-format
+msgid "Google sign-in could not be completed. Please try logging in again."
+msgstr "Não foi possível concluir o login com o Google. Tente fazer login novamente."
+
+#: lib/tuist_web/controllers/sso_link_controller.ex:57
+#, elixir-autogen, elixir-format
+msgid "Already linked"
+msgstr "Já vinculado"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:45
+#: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: lib/tuist_web/controllers/sso_link_html/show.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Link account"
+msgstr "Vincular conta"
+
+#: lib/tuist_web/controllers/sso_link_controller.ex:120
+#, elixir-autogen, elixir-format
+msgid "Link expired"
+msgstr "Link expirado"
+
+#: lib/tuist_web/controllers/sso_link_html/show.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
+msgstr "Vincule apenas se %{organization} for a sua organização. Qualquer pessoa que possa fazer login nesta conta do provedor de identidade poderá acessar toda a sua conta Tuist."
+
+#: lib/tuist_web/controllers/sso_link_controller.ex:128
+#, elixir-autogen, elixir-format
+msgid "Link single sign-on · Tuist"
+msgstr "Vincular single sign-on · Tuist"
+
+#: lib/tuist_web/controllers/sso_link_html/show.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Link single sign-on?"
+msgstr "Vincular single sign-on?"
+
+#: lib/tuist_web/controllers/auth_controller.ex:435
+#, elixir-autogen, elixir-format
+msgid "Log in to your Tuist account to link it to your organization's single sign-on."
+msgstr "Faça login na sua conta Tuist para vinculá-la ao single sign-on da sua organização."
+
+#: lib/tuist_web/controllers/sso_link_controller.ex:121
+#, elixir-autogen, elixir-format
+msgid "Sign in with single sign-on again to link your account."
+msgstr "Faça login novamente com o single sign-on para vincular sua conta."
+
+#: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Signed in to Tuist as %{email}"
+msgstr "Conectado ao Tuist como %{email}"
+
+#: lib/tuist_web/controllers/sso_link_html/show.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "The %{organization} identity provider account that will sign in to your Tuist account."
+msgstr "A conta do provedor de identidade %{organization} que será usada para acessar sua conta do Tuist."
+
+#: lib/tuist_web/controllers/sso_link_controller.ex:59
+#, elixir-autogen, elixir-format
+msgid "This identity provider account is already linked to another Tuist account."
+msgstr "Esta conta do provedor de identidade já está vinculada a outra conta do Tuist."
+
+#: lib/tuist_web/controllers/sso_link_html.ex:19
+#, elixir-autogen, elixir-format
+msgid "Tuist logo"
+msgstr "Logotipo do Tuist"
+
+#: lib/tuist_web/controllers/sso_link_html/show.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Let the %{organization} identity provider sign you in to your Tuist account."
+msgstr "Permita que o provedor de identidade %{organization} faça login na sua conta do Tuist."
+
+#: lib/tuist_web/live/connect_live.ex:207
+#, elixir-autogen, elixir-format
+msgid "Add it to the dependencies in your mix.exs, then run mix deps.get."
+msgstr "Adicione-o às dependências no seu mix.exs e execute mix deps.get."
+
+#: lib/tuist_web/live/connect_live.ex:205
+#, elixir-autogen, elixir-format
+msgid "Add the Tuist package"
+msgstr "Adicionar o pacote Tuist"
+
+#: lib/tuist_web/live/connect_live.ex:223
+#, elixir-autogen, elixir-format
+msgid "Add this to the project options in the same file."
+msgstr "Adicione isso às opções do projeto no mesmo arquivo."
+
+#: lib/tuist_web/live/connect_live.ex:182
+#: lib/tuist_web/live/connect_live.ex:230
+#, elixir-autogen, elixir-format
+msgid "Log in and run your tests"
+msgstr "Faça login e execute seus testes"
+
+#: lib/tuist_web/live/connect_live.ex:172
+#: lib/tuist_web/live/connect_live.ex:221
+#, elixir-autogen, elixir-format
+msgid "Point it at this project"
+msgstr "Aponte para este projeto"
+
+#: lib/tuist_web/live/connect_live.ex:245
+#, elixir-autogen, elixir-format
+msgid "Report your builds, catch flaky tests, and split your tests across machines."
+msgstr "Relate suas builds, identifique testes instáveis e distribua seus testes entre máquinas."
+
+#: lib/tuist_web/live/connect_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "The test run shows up in the dashboard when it finishes."
+msgstr "A execução de testes aparece no painel quando termina."
+
+#: lib/tuist_web/live/connect_live.ex:95
+#, elixir-autogen, elixir-format
+msgid "using Mix"
+msgstr "usando Mix"
+
+#: lib/tuist_web/live/connect_live.ex:173
+#, elixir-autogen, elixir-format
+msgid "Add a tuist.toml file at your repository root."
+msgstr "Adicione um arquivo tuist.toml na raiz do seu repositório."
+
+#: lib/tuist_web/live/connect_live.ex:94
+#, elixir-autogen, elixir-format
+msgid "using Cargo"
+msgstr "usando Cargo"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Choose an organization"
+msgstr "Escolha uma organização"
+
+#: lib/tuist_web/controllers/integration_installation_controller.ex:53
+#, elixir-autogen, elixir-format
+msgid "Choose an organization · Tuist"
+msgstr "Escolha uma organização · Tuist"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Organization"
+msgstr "Organização"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Personal account"
+msgstr "Conta pessoal"
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Select the Tuist organization to connect to %{provider}."
+msgstr "Selecione a organização do Tuist para conectar ao %{provider}."
+
+#: lib/tuist_web/controllers/integration_installation_html/show.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "You need administrator access to connect an integration."
+msgstr "Você precisa de acesso de administrador para conectar uma integração."
+
+#: lib/tuist_web/live/sso_login_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Multiple organizations use this login domain. Use your organization's SSO sign-in link or ask an administrator to verify the domain with DNS."
+msgstr "Várias organizações usam este domínio de login. Use o link de login SSO da sua organização ou peça a um administrador para verificar o domínio com DNS."

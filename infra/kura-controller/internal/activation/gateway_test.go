@@ -3,6 +3,7 @@ package activation
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -373,16 +374,81 @@ func TestProxyStreamsDoNotHoldActivationSlots(t *testing.T) {
 }
 
 func TestCredentialAndConfigurationFailuresAreNotRetryableGRPC(t *testing.T) {
-	for status, code := range map[int]string{401: "16", 403: "7", 409: "9"} {
+	for status, code := range map[int]string{401: "16", 402: "7", 403: "7", 409: "9"} {
 		r := request("acme.cache.tuist.dev")
 		r.Header.Set("Content-Type", "application/grpc")
 		w := httptest.NewRecorder()
 		unforwardedFailure(w, r, status)
-		if w.Header().Get("Grpc-Status") != code || w.Header().Get("X-Tuist-Cache-Activation") != "" {
+		if w.Header().Get("Grpc-Status") != code || w.Header().Get("X-Tuist-Cache-Activation") != "" || w.Header().Get("Retry-After") != "" {
 			t.Fatalf("status %d: %v", status, w.Header())
+		}
+		wantReason := ""
+		if status == http.StatusPaymentRequired {
+			wantReason = "payment_required"
+		}
+		if w.Header().Get("Tuist-Refusal-Reason") != wantReason {
+			t.Fatalf("status %d: wrong billing classification: %v", status, w.Header())
 		}
 		if status == 409 && !strings.Contains(w.Header().Get("Grpc-Message"), "TUIST_CACHE_ENDPOINT") {
 			t.Fatal("missing configuration guidance")
+		}
+	}
+}
+
+func TestBillingRefusalOverHTTP2(t *testing.T) {
+	control := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Tuist-Cache-Activation-Billing") != "1" {
+			t.Error("gateway must advertise billing response support")
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.WriteHeader(http.StatusPaymentRequired)
+	}))
+	defer control.Close()
+	g := New(Servers{"production": control.URL}, 1)
+	g.Transport = roundTripper(func(*http.Request) (*http.Response, error) {
+		t.Error("billing refusal must not forward an artifact request")
+		return nil, io.ErrUnexpectedEOF
+	})
+	gateway := httptest.NewUnstartedServer(g)
+	gateway.EnableHTTP2 = true
+	gateway.StartTLS()
+	defer gateway.Close()
+
+	for _, grpc := range []bool{false, true} {
+		r, err := http.NewRequest(http.MethodPost, gateway.URL+"/api/cache/cas/blob", strings.NewReader("artifact"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Host = "acme.cache.tuist.dev"
+		r.Header.Set("Authorization", "Bearer test-token")
+		if grpc {
+			r.URL.Path = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities"
+			r.Header.Set("Content-Type", "application/grpc+proto")
+		}
+		response, err := gateway.Client().Do(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.ProtoMajor != 2 || response.Header.Get("Cache-Control") != "no-store" || response.Header.Get("Retry-After") != "" || response.Header.Get("X-Tuist-Cache-Activation") != "" {
+			t.Fatalf("unsafe billing refusal: %s %v", response.Proto, response.Header)
+		}
+		if grpc {
+			if response.StatusCode != 200 || response.Header.Get("Grpc-Status") != "7" || response.Header.Get("Tuist-Refusal-Reason") != "payment_required" || response.Header.Get("Grpc-Message") == "" || len(body) != 0 {
+				t.Fatalf("incompatible gRPC refusal: %d %v body=%q", response.StatusCode, response.Header, body)
+			}
+		} else {
+			var refusal struct {
+				Message string `json:"message"`
+			}
+			if response.StatusCode != http.StatusPaymentRequired || response.Header.Get("Content-Type") != "application/json" || json.Unmarshal(body, &refusal) != nil || !strings.Contains(refusal.Message, "billing") {
+				t.Fatalf("incompatible HTTP refusal: %d %v body=%q", response.StatusCode, response.Header, body)
+			}
 		}
 	}
 }
@@ -434,5 +500,84 @@ func TestMalformedAuthoritiesNeverReachControlPlane(t *testing.T) {
 		if w.Code != http.StatusNotFound {
 			t.Errorf("%q: status %d", authority, w.Code)
 		}
+	}
+}
+
+func TestRefusedCredentialIsAnsweredWithoutTheControlPlane(t *testing.T) {
+	for _, status := range []int{401, 403} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			g := New(Servers{"production": "https://tuist.dev"}, 1)
+			now := time.Unix(0, 0)
+			g.Refusals.now = func() time.Time { return now }
+			var controls atomic.Int32
+			g.Control.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
+				controls.Add(1)
+				code := status
+				if r.Header.Get("Authorization") != "Bearer test-token" || r.URL.Query().Get("host") != "acme.cache.tuist.dev" {
+					code = 202
+				}
+				return &http.Response{StatusCode: code, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(""))}, nil
+			})
+			serve := func(host, token string) int {
+				r := request(host)
+				r.Header.Set("Authorization", "Bearer "+token)
+				w := httptest.NewRecorder()
+				g.ServeHTTP(w, r)
+				return w.Code
+			}
+			for range 3 {
+				if code := serve("acme.cache.tuist.dev", "test-token"); code != status {
+					t.Fatalf("%d, want %d", code, status)
+				}
+			}
+			if controls.Load() != 1 {
+				t.Fatalf("refusal was not remembered: %d control calls", controls.Load())
+			}
+			g.Wait = time.Millisecond
+			serve("acme.cache.tuist.dev", "rotated-token")
+			serve("other.cache.tuist.dev", "test-token")
+			if controls.Load() < 3 {
+				t.Fatalf("refusal leaked to another credential or host: %d control calls", controls.Load())
+			}
+			before := controls.Load()
+			now = now.Add(time.Minute)
+			if code := serve("acme.cache.tuist.dev", "test-token"); code != status || controls.Load() != before+1 {
+				t.Fatalf("expired refusal was not revalidated: %d, %d control calls", code, controls.Load()-before)
+			}
+		})
+	}
+}
+
+func TestOnlyCredentialRefusalsAreRemembered(t *testing.T) {
+	for _, status := range []int{402, 404, 409, 429, 500} {
+		g := New(Servers{"production": "https://tuist.dev"}, 1)
+		var controls atomic.Int32
+		g.Control.Transport = roundTripper(func(*http.Request) (*http.Response, error) {
+			controls.Add(1)
+			return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(""))}, nil
+		})
+		for range 2 {
+			g.ServeHTTP(httptest.NewRecorder(), request("acme.cache.tuist.dev"))
+		}
+		if controls.Load() != 2 {
+			t.Errorf("%d was remembered", status)
+		}
+	}
+}
+
+func TestRefusalTableIsBounded(t *testing.T) {
+	c := NewRefusals(time.Minute, 2)
+	now := time.Unix(0, 0)
+	c.now = func() time.Time { return now }
+	c.Record("s", "a", "1", 403)
+	c.Record("s", "b", "1", 403)
+	c.Record("s", "c", "1", 403)
+	if _, ok := c.Lookup("s", "c", "1"); ok || len(c.entries) != 2 {
+		t.Fatalf("a full table of live refusals grew: %d", len(c.entries))
+	}
+	now = now.Add(time.Minute)
+	c.Record("s", "c", "1", 401)
+	if status, ok := c.Lookup("s", "c", "1"); !ok || status != 401 || len(c.entries) != 1 {
+		t.Fatalf("expired refusals were not reclaimed: %d %v %d", status, ok, len(c.entries))
 	}
 }

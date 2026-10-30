@@ -1,22 +1,10 @@
-# TuistHTTP (CLI Module)
+# TuistHTTP
 
-This module provides HTTP client helpers used by server and cache integrations.
+Shared file transfers, middleware, and authentication helpers for API clients.
 
-## Responsibilities
-- Provide file upload/download client (`FileClient`) with explicit error modeling.
-- Provide middleware and auth helpers for API clients (request IDs, output warnings).
-
-## Boundaries
-- Keep CLI command wiring in `cli/Sources/TuistKit`.
-- Keep shared low-level utilities in `cli/Sources/TuistSupport`.
-
-## Related Context
-- cli/Sources/TuistServer/AGENTS.md
-- cli/Sources/TuistCache/AGENTS.md
-
-## Invariants
 - File transfers treat non-2xx responses as fatal errors.
 - Default URL session uses explicit request/resource timeouts.
+- Apple session factories always install the twelve-key SPKI deny policy after native trust/hostname evaluation. Filter blocked custom anchors and inspect the entire evaluated chain, preserving unrelated system/private roots. Direct Foundation callers use `tuistDefault` or `tuist(configuration:)`; never fall back to an unprotected session. Linux FoundationNetworking requires separate qualification. Local wire tests use OpenSSL 3 without changing host trust; public controls require `TEST_RUNNER_TUIST_TRUST_LIVE=1`.
 - Every Tuist session closes a connection idle for 10 seconds (Darwin `_connectionCachePurgeTimeout`, set only when the configuration responds to its setter), below the server's 15-second keep-alive idle timeout, so a request is not written on a connection the server is closing. FoundationNetworking (Linux) exposes no idle timeout, so Linux sessions keep libcurl's connection reuse.
 - `URLSession.tuistDiscovery` creates an isolated session honoring runtime proxy/private-CA settings, with 10-second request/resource limits, no cookies or credential storage, and no redirects (including with a custom CA).
 - `TuistURLSessionTransport` materializes the whole response body before returning, so every body a client middleware receives is re-iterable and a failed transfer is replayed from the start rather than resumed.

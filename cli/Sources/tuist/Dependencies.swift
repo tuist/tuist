@@ -36,7 +36,7 @@ private func initEnv() throws {
     if let cargoArguments = CargoCommand.delegatedArguments(in: CommandLine.arguments) {
         arguments = Array(CommandLine.arguments.prefix(CommandLine.arguments.count - cargoArguments.count - 1))
     } else {
-        arguments = CommandLine.arguments
+        arguments = CommandLineArguments.beforePassthrough(CommandLine.arguments)
     }
     if arguments.contains("--quiet"), arguments.contains("--verbose") {
         throw DependenciesError.exclusiveOptionError("quiet", "verbose")
@@ -52,6 +52,13 @@ private func initEnv() throws {
 
     if arguments.contains("--quiet") {
         setenv(Constants.EnvironmentVariables.quiet, "true", 1)
+    }
+}
+
+func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
+    try initEnv()
+    try await Environment.$current.withValue(Environment()) {
+        try await withDependencies(action)
     }
 }
 
@@ -77,8 +84,7 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
 }
 
 #if os(macOS)
-    func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
-        try initEnv()
+    private func withDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
         ThreadDumpSignalHandler.installIfEnabled()
 
         let sessionController = SessionController()
@@ -159,9 +165,7 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
     }
 #else
     /// Linux-specific initialization - simpler setup without macOS-specific features
-    func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
-        try initEnv()
-
+    private func withDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
         let stateDirectory = Environment.current.stateDirectory
         let sessionId = UUID().uuidString
         let sessionDirectory = stateDirectory.appending(components: ["sessions", sessionId])

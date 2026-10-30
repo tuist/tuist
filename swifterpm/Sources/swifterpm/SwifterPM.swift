@@ -279,12 +279,18 @@ public struct SwifterPM: Sendable {
         // A cache only helps when it has every pin for this package. Going
         // straight to the native resolver for any missing pin avoids manifest
         // precomputation and restoration work before SwiftPM fetches it.
-        if try await PackageResolver.shouldUseNativeColdPath(
-            packageDir: package,
-            cacheRoot: cacheRoot,
-            registryConfig: registryConfig
-        ) {
-            let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
+        // Forced installs must restore the locked versions first, even on a
+        // cache miss: native precomputation can reject a valid lockfile when
+        // the retained workspace still records another registry version.
+        // The restoration path rebuilds that state, then validates with SwiftPM.
+        if !(request.forceResolvedVersions && request.restorePackage),
+           try await PackageResolver.shouldUseNativeColdPath(
+               packageDir: package,
+               cacheRoot: cacheRoot,
+               registryConfig: registryConfig
+           )
+        {
+            var resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
                 scratchDir: scratch,
                 cacheDir: cacheRoot,
@@ -297,6 +303,12 @@ public struct SwifterPM: Sendable {
                 forceResolvedVersions: request.forceResolvedVersions,
                 forwardOutput: !request.quiet
             )
+            if request.writeResolvedFile, !request.forceResolvedVersions {
+                // SwiftPM omits originHash below tools version 5.10 and skips the write when the
+                // pins are unchanged, so stamp ours as the restoration path does.
+                resolved.originHash = try await ResolvedFile.packageOriginHash(packageDir: package)
+                try await ResolvedFile.write(packageDir: package, resolved: resolved, mirrors: mirrors)
+            }
             let cache = try await Cache(root: cacheRoot)
             try await WorkspaceRestorer.cacheNativeSourceCheckouts(
                 scratchDir: scratch,

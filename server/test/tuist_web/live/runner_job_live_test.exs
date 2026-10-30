@@ -27,6 +27,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Errors.NotFoundError
 
+  # Step logs run real ClickHouse queries, which can exceed the default 100ms under CI load.
+  @render_async_timeout 5_000
+
   setup %{conn: conn} do
     stub(K8sClient, :patch_pod, fn _namespace, _pod_name, _patch -> {:ok, %{}} end)
 
@@ -76,6 +79,35 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Queued"
     # short_sha takes the first 7 chars
     assert html =~ "abcdef1"
+  end
+
+  test "renders a running job before the outbox has replayed it to ClickHouse", %{conn: conn, account: account} do
+    fleet_name = Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16})
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_051,
+        account_id: account.id,
+        fleet_name: fleet_name,
+        repository: "tuist/cli",
+        workflow_run_id: 310_510,
+        workflow_name: "CLI",
+        run_attempt: 2,
+        job_name: "Unit Tests",
+        head_branch: "main",
+        head_sha: "1234567"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued(fleet_name, [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_051, "tuist-runner-x", claimed_at)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/310510/jobs/31051")
+
+    assert html =~ "CLI · Unit Tests"
+    assert html =~ "tuist-runner-x"
+    assert html =~ "Running"
   end
 
   test "renders timeline durations once a job has run", %{conn: conn, account: account} do
@@ -441,7 +473,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     end
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="1"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
     expanded = lv |> element(~s{[data-part="step-expanded"]}) |> render()
 
     refute expanded =~ ~s(data-part="step-insight-detail")
@@ -1099,7 +1131,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     # Expanding the Build step (number 2) shows the in-step lines
     # but not the teardown content.
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "inside the build step"
@@ -1123,7 +1155,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316030/jobs/31603")
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert has_element?(lv, ~s{[data-kind="action"][open] [data-part="log-action-name"]}, "Apply workaround")
@@ -1150,7 +1182,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316040/jobs/31604")
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "be separated from the rest of the job"
@@ -1176,7 +1208,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert Floki.find(step_logs, ~s{[data-part="step-logs-loading"]}) != []
     refute Floki.text(step_logs) =~ "inside the build step"
 
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     refute has_element?(lv, ~s{[data-part="step-logs-loading"]})
     assert has_element?(lv, ~s{[data-part="step-logs"]}, "inside the build step")
@@ -1204,7 +1236,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert has_element?(lv, ~s|#runner-step-1[data-expanded="false"]|)
     assert has_element?(lv, ~s|#runner-step-2[data-expanded="true"]|)
 
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     assert has_element?(lv, ~s{#runner-step-2 [data-part="step-logs"]}, "Process completed with exit code 65.")
     assert has_element?(lv, ~s{#runner-step-2 [data-part="step-logs"][data-scroll-to-tail-active="true"]})
@@ -1225,7 +1257,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316060/jobs/31606")
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     displayed = fn ->
       lv
@@ -1248,7 +1280,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv, ~s{[data-part="log-group-label"]}, "Run build.sh")
 
     lv |> element(~s{[data-part="step-logs-load-earlier"]}) |> render_click()
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     all = displayed.()
     assert length(all) == 1_005

@@ -7,11 +7,18 @@ import TuistServer
 struct CargoCompilerObserver {
     let runner: CommandRunning
 
-    func run(_ arguments: [String], environment: [String: String], directory: AbsolutePath) async throws {
+    func run(_ arguments: [String], environment: [String: String], directory: AbsolutePath, native: Bool = false) async throws {
         guard let compiler = arguments.first else { throw CargoReportError(message: "Missing compiler executable.") }
-        let invocation = try? await CargoCacheInvocation.prepare(
-            arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
-        )
+        let invocation: (any CargoCacheAction)?
+        if native {
+            invocation = try? await CargoClangInvocation.prepare(
+                arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
+            )
+        } else {
+            invocation = try? await CargoCacheInvocation.prepare(
+                arguments, environment: environment, directory: directory, process: CargoProcess(runner: runner)
+            )
+        }
         let measurement = invocation.map(CargoCacheMeasurement.init)
         var cache: CargoCompilationCache?
         if let invocation, let measurement, let root = environment["TUIST_CARGO_CACHE_DIR"] {
@@ -60,7 +67,6 @@ struct CargoCompilerObserver {
                         bounded = false
                     }
                 case let .standardError(bytes):
-                    FileHandle.standardError.write(Data(bytes))
                     if stdout.count + stderr.count + bytes.count <= 1_000_000 {
                         stderr.append(contentsOf: bytes)
                     } else {
@@ -68,7 +74,8 @@ struct CargoCompilerObserver {
                     }
                     pending.append(contentsOf: bytes)
                     if pending.count > 1_000_000 { pending.removeAll() }
-                    diagnostics += Self.diagnostics(from: &pending, remaining: 100 - diagnostics.count)
+                    diagnostics += Self.diagnostics(from: &pending, remaining: 100 - diagnostics.count, invocation: invocation)
+                    FileHandle.standardError.write(Data(bytes))
                 }
             }
         } catch { executionError = error }
@@ -81,27 +88,42 @@ struct CargoCompilerObserver {
         environment["TUIST_CARGO_SESSION"].map { URL(fileURLWithPath: $0).appendingPathComponent("cache-remote-unavailable") }
     }
 
-    private static func remote(_ environment: [String: String]) async throws -> (any REAPICacheStoring)? {
+    static func remote(_ environment: [String: String], connectionCount: Int = 1) async throws -> (any REAPICacheStoring)? {
         if let marker = remoteFailureMarker(environment), FileManager.default.fileExists(atPath: marker.path) { return nil }
+        if let broker = environment["TUIST_CARGO_CACHE_BROKER"] {
+            return CargoRemoteCache(directory: URL(fileURLWithPath: broker))
+        }
         guard let address = environment["TUIST_CARGO_CACHE_REMOTE_URL"], let url = URL(string: address), let host = url.host,
               let namespace = environment["TUIST_CARGO_CACHE_NAMESPACE"],
               let scope = CargoCacheScope(fullHandle: namespace),
               let file = environment["TUIST_CARGO_CACHE_TOKEN_FILE"] else { return nil }
-        return try await REAPICacheClient(
+        let client = try await REAPICacheClient(
             endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "https" || url.scheme == "grpcs"),
             accountHandle: scope.accountHandle, instanceName: scope.instanceName,
-            metadataTimeout: .seconds(1), environment: environment,
+            metadataTimeout: CargoRemoteCache.metadataTimeout, connectionCount: connectionCount, environment: environment,
+            chunkCacheDirectory: environment["TUIST_CARGO_CACHE_DIR"].map {
+                URL(fileURLWithPath: $0).appendingPathComponent("blobs")
+            },
             token: { try String(contentsOfFile: file, encoding: .utf8) }
         )
+        try await client.validateCapabilities()
+        return client
     }
 
-    private static func diagnostics(from pending: inout Data, remaining: Int) -> [CargoDiagnostic] {
+    private static func diagnostics(
+        from pending: inout Data, remaining: Int, invocation: (any CargoCacheAction)?
+    ) -> [CargoDiagnostic] {
         var result: [CargoDiagnostic] = []
         while let newline = pending.firstIndex(of: 10) {
             let line = pending.prefix(upTo: newline)
             pending.removeSubrange(...newline)
+            guard let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
+            if json["$message_type"] as? String == "artifact", json["emit"] as? String == "metadata" {
+                // Cargo pipelines dependents as soon as this notification is forwarded. Certify
+                // the atomically installed metadata first; this is admission, not cache publication.
+                try? invocation?.certifyOutputs(metadataOnly: true)
+            }
             guard result.count < remaining,
-                  let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
                   let level = json["level"] as? String, ["error", "warning"].contains(level),
                   let message = json["message"] as? String else { continue }
             let span = (json["spans"] as? [[String: Any]])?.first { $0["is_primary"] as? Bool == true }

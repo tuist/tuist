@@ -6,8 +6,30 @@ these schemas persist volume identities and per-job uses.
 - Account-scope all browser reads and writes. Agent reports, uploads and
   publications are separately authenticated and bound to the node that received
   the allocation. Read-only image `retain` and `download` requests may name a use
-  from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
-  listed by `VolumePrefetch`) under the use that published it.
+  from any node: hosts prefetch a custom HEAD (`prefetch_heads/4`, listed by
+  `VolumePrefetch`) under the use that published it.
+- `prefetch_heads/4` lists, for a macOS host of a class or a Linux host of a
+  fleet (Linux job shapes share its nodes), first up to 32
+  `prewarm` HEADs (volumes at least two workflow runs used in the last seven
+  days and unused for four hours) and then up to 8 `recent` HEADs (used in the
+  last day). Each list takes the accounts in turn, most recently active first,
+  and each account's volumes most recently used first. An idle volume's HEAD
+  cannot change before its next job, so one download per host covers the whole
+  idle period, including a weekend. Two runs leave out keys one run made for
+  itself (every `e2e-reuse-*` key). Hosts download only into free space. Each
+  host gets only the repositories `VolumePlacement` places on it: every volume of
+  an account's repository goes to the same hosts, one more than the repository's
+  jobs ran on at once over the week and at least two, picked by rendezvous
+  hashing weighted by advertised cache capacity, and the caps apply per host.
+  Dispatch then leaves a young job to an idle holder (`VolumeAffinities`). A
+  schedule learned per
+  weekday and UTC hour covered none of the customer first-of-day starts from
+  2026-10-08 to 10-22, whose start times move by hours from day to day. The
+  `reason` reaches the hosts' `tuist_runner_cache_volume_prefetched_bytes_total`
+  metric. macOS hosts ask `GET /api/internal/runners/cache-masters` with their
+  per-machine token; the Linux agent asks
+  `GET /api/internal/runners/cache-volumes/masters?node_name=` with the agent
+  token every Linux node shares, which only answers for Linux fleets.
 - Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
   (30 GB by default) and `tuist-module` (20 GB) custom volumes, which take
   requested sizes like any custom volume and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
@@ -55,6 +77,8 @@ these schemas persist volume identities and per-job uses.
   An unbound session also enqueues `ExecutionLookupWorker`, which reads the
   job GitHub's API names the runner on and records it through
   `Dispatch.record_execution/3`, because webhook delivery can lag by minutes.
+  The API lags too, so a miss snoozes and asks again every two seconds for 20
+  seconds; keep that window inside the agent's wait.
   The API's job status can still read `queued` for minutes after the job
   started, so a `queued` job carrying the runner's name binds too; the log line
   `recorded execution from GitHub API` says which status bound it.
@@ -103,7 +127,7 @@ these schemas persist volume identities and per-job uses.
 
 - Volume-count history includes unmeasured allocations and counts each volume only once across its concurrent retained copies. Byte history remains unknown until measured. Gauge trends compare the selected period end with its start (the previous period end). Require a recorded baseline at the boundary for a calculated comparison; never substitute the first later measurement for missing history. The UI follows Jobs by rendering unavailable comparisons with the shared zero-trend fallback.
 
-- Detail analytics scope storage and activity to both account and volume. Aggregate uses by attachment time (hourly up to two days, daily otherwise), count each mount once, and calculate hit rate from known outcomes only. Empty buckets have zero uses and unknown hit rate. Detail widgets compare with the previous period like the account widgets: used space through the same boundary-baseline rule, hit rate as a relative change, and job runs as a percentage (absolute "+N" from zero). Recent jobs use a bounded five-row query; the Jobs tab retains pagination.
+- Detail Used space reads the current head's `statistics/1` `saved_bytes`, with zero when there is no head and unknown when its size is unmeasured. It is independent of the date range and has no trend; its selectable hourly chart reads `saved_size_history/3`, never per-copy storage totals; retained-copy totals remain inventory metrics. Detail activity is scoped to both account and volume. Aggregate uses by attachment time (hourly up to two days, daily otherwise), count each mount once, and calculate hit rate from known outcomes only. Empty buckets have zero uses and unknown hit rate. Compare hit rate with the previous period as a relative change, and job runs as a percentage (absolute "+N" from zero). Recent jobs use a bounded five-row query; the Jobs tab retains pagination.
 
 - Job detail references require account, workflow run and job IDs. Return only attached uses, keeping the latest mount per volume; acknowledged deletion does not remove the historical reference before normal history retention.
 
@@ -167,7 +191,11 @@ these schemas persist volume identities and per-job uses.
   under the use through `image/3` (`checkout_publish`): only the generation and the
   use not having published yet are checked, not the job's outcome or the use's
   state, and a published checkout use is released (`delete`) when its job is gone.
-  `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.
+  `prefetch_heads` lists checkout HEADs in a list of their own (`@checkout_limit`,
+  after the custom volumes' lists, so they never take a custom volume's place), as
+  `kind: "checkout"` with the `checkout_generation`, `clone_url`, `default_branch`,
+  `uid` and `volume_key` a host restores the master with. A host without the
+  master still answers a job cold and restores it in the background.
   `default_branch_job` is the resolved identity's `trusted` (same repository,
   default branch, push/schedule/dispatch), so a fork's branch named like the
   default branch never qualifies. `may_start_master` is `writer_allowed?/3` for the
@@ -185,3 +213,32 @@ these schemas persist volume identities and per-job uses.
   the volume identity carries the session's platform, architecture and UID, so a
   repository has separate macOS and Linux checkout volumes, published and
   restored through the same `image/3` clauses.
+
+- `docker` is a reserved key: `allocate/1` refuses it, and only
+  `allocate_docker/1` (host agent, `/runners/cache-volumes/docker`) allocates it,
+  for GitHub jobs of the same repository (`same_repository`; forks never get one)
+  on Linux sessions, when `FeatureFlags.runner_docker_cache_enabled?/1` and the job's
+  runner profile `docker_cache` (default true; a legacy label follows the account)
+  allow it. The volume holds the repository's Docker data root; the guest mounts
+  its image, so the host never mounts it (runner-cache `KindDocker`). Its UID is 0
+  (the sidecar's root dockerd) and its capacity is always 100 GB
+  (`@managed_volume_bytes`); the agent sends `max_volume_bytes` of 100 GB for it.
+  A repository gets one only once a volume row exists: `mark_docker_seen/1`
+  (`/runners/cache-volumes/docker-seen`) inserts the row, with no use, when a job
+  without a data root reports that it used Docker, and it binds through the open
+  runner session whatever the job's status, since the report comes after the job.
+  Until then `allocate_docker/1` answers `{:error, :unseen}` (404). Publication
+  follows the profile's writer policy like any custom volume. A report for a
+  `docker` use may carry `docker` (`images`, `build_cache_bytes`): the guest-written
+  inventory is validated and stored on the use as `docker_images`, describes the
+  volume page's Images tab on the dashboard (`Tuist.Runners.DockerCache`) and
+  decides nothing. `reserved_bytes` for `docker` is the saved head plus 20 GB,
+  runner-cache's `DockerGrowthBytes`. Docker cache storage is not billed: when
+  volume storage becomes a billing meter, exclude the `docker` and `checkout` keys.
+- `image/3` with the `rebase` operation (Docker volumes only) moves a successful
+  job's use that may still publish onto the lineage's current HEAD, named by
+  `generation` and its `content_digest`, once its host reports the guest merged
+  the job's images with that HEAD; publication then fast-forwards it. Anything
+  but the current HEAD is a conflict.
+
+- Saved-size observations (`runner_cache_volume_saved_sizes`) are recorded under the volume lock in the same transaction as publication, clear, expiry, saved-head deletion or a changed head measurement. New volumes start at zero; unmeasured saved heads stay null. Duplicate sizes do not append rows. Migration seeds only the current observation, never fabricated past history. Account/volume-scoped hourly reads carry the latest earlier observation forward and preserve gaps. Retention keeps 90 days plus the last older baseline per volume, independent of usage deletion.
