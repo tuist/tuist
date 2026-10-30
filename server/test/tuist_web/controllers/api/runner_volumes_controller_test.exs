@@ -66,15 +66,6 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
     assert JSON.decode!(result.resp_body) == %{"id" => id, "cleared" => true}
   end
 
-  test "clearing a built-in volume is rejected as a bad request", %{account: account, id: id} do
-    expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> :ok end)
-    expect(Query, :run, fn :clear, 1, _params -> {:error, :unsupported} end)
-
-    result = call(:clear, %{"volume_id" => id})
-    assert result.status == 400
-    assert JSON.decode!(result.resp_body) == %{"message" => "Built-in volumes can't be cleared."}
-  end
-
   test "readers cannot clear and denial never reaches storage", %{account: account, id: id} do
     expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> {:error, :forbidden} end)
     stub(TuistWeb.RateLimit.Authorization, :hit, fn _ -> {:allow, 1} end)

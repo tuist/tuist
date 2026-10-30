@@ -62,16 +62,19 @@ const (
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
 type ScalewayAppleSiliconMachineReconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
-	ScalewayClient     *scaleway.Client
-	CredentialsManager *credentials.Manager
+	APIReader               client.Reader
+	ProcessorDeploymentName string
+	Scheme                  *runtime.Scheme
+	ScalewayClient          *scaleway.Client
+	CredentialsManager      *credentials.Manager
 
 	// Recorder emits Events on lifecycle transitions. `kubectl describe
 	// scalewayapplesiliconmachine` then shows a tail-followable timeline
 	// of state changes alongside the static Conditions block, which is
 	// the difference between "I can see this is broken" and "I can see
 	// what step it's currently doing" while a Mac mini is mid-bootstrap.
-	Recorder record.EventRecorder
+	Recorder     record.EventRecorder
+	osUpdateDial osUpdateDialFunc
 
 	// Kubeconfig builds the per-host kubeconfig the bootstrap installs.
 	// Required for tart-kubelet to authenticate to the cluster.
@@ -91,6 +94,11 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// The Tailscale tags were lost that way and froze the production
 	// fleet on 2026-08-18.
 	FleetConfig bootstrap.Config
+
+	// TartReleases are the Tart tarballs the operator image carries, by version.
+	// A Machine pinned to one with TartVersionAnnotation runs it instead of
+	// FleetConfig.TartVersion.
+	TartReleases map[string][]byte
 
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine
 	// that does not set `spec.guestCapacity` — how many Tart guests a
@@ -500,6 +508,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
+	if handled, result, err := r.reconcileScalewayOSUpdate(ctx, machine, sshKey, bootstrapCreds); handled || err != nil {
+		return result, err
+	}
+
 	// Detect Node drift: bootstrap previously succeeded
 	// (BootstrappedCondition=True) but the Node tart-kubelet
 	// registered no longer exists in the cluster. Causes seen in
@@ -639,6 +651,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// Resolved per machine, not read from a fleet-wide field: HostCPU and
 	// HostMemoryMB are overridable per Machine, so the desired hash for an
 	// overridden host is not the fleet's. See desiredHostConfigHash.
+	reportUnavailableTartPin(machine, r.FleetConfig, r.TartReleases, r.Recorder)
 	desiredHostConfigHash := r.desiredHostConfigHash(machine)
 	configDrift := hostConfigDrift(desiredHostConfigHash, machine.Status.HostConfigHash)
 	// Once a CR enters the terminal-failed state (FailureReason set
@@ -985,13 +998,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayHost(machineNam
 func (r *ScalewayAppleSiliconMachineReconciler) hostSizing(
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) hostSizing {
-	return hostSizing{
+	sizing := hostSizing{
 		HostCPU:              hostCPUFor(machine, r.FleetConfig.HostCPU),
 		HostMemoryMB:         hostMemoryMBFor(machine, r.FleetConfig.HostMemoryMB),
 		MaxPods:              maxPodsFor(machine, r.FleetConfig.MaxPods),
 		GuestCapacity:        guestCapacityFor(machine, r.DefaultGuestCapacity),
 		RunnerCacheVolumeGiB: runnerCacheVolumeGiBFor(machine, r.FleetConfig.RunnerCacheVolumeGiB),
 	}
+	sizing.TartVersion, sizing.TartTarball = hostTart(machine, r.FleetConfig, r.TartReleases)
+	return sizing
 }
 
 // hostConfig is the config for one Mac mini: the fleet-wide config the manager

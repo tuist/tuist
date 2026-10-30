@@ -218,6 +218,14 @@ Add the data source and set:
 
 Select **Save & test** to check the connection. Grafana lists accessible projects, then checks build and test read permissions against the first project.
 
+### Backend certificate trust
+
+The backend embeds the twelve-key `emudhra-2026-10-19-v2` SPKI deny policy (four root and eight intermediate keys), independently of the host's trust store. Go's ordinary chain, hostname and native/private trust checks remain authoritative; the extra check only restricts accepted connections. It examines complete verified chains, including anchors absent from the server's response, and every supplied peer certificate, including on resumed sessions. A redundant blocked root or cross-sign is refused even if the selected path is clean. Self-hosted servers must repair that served chain; there is no weaker fallback.
+
+The client preserves environment proxies, HTTP/2, timeouts and existing verification callbacks. It rejects custom TLS dialers and disabled verification rather than silently bypassing the policy. HTTPS redirects cannot downgrade to HTTP; explicitly configured HTTP URLs retain their existing behavior and gain no TLS protection. HTTPS proxies and their tunneled HTTPS targets both use the verifier. Request errors expose fixed TLS, timeout or cancellation categories with typed causes; HTTP failures expose only their status, never URLs, tokens or response bodies.
+
+The hashes and public DER fixtures in `pkg/plugin/testdata/certificate-trust/` are extracted from [the source policy](https://github.com/tuist/tuist/blob/e2efb26eb30c0c7657601c62dd9270551f94f090/infra/certificate-trust/policy.json) in [#14511](https://github.com/tuist/tuist/pull/14511). The fixtures contain no private keys. Updating the module/toolchain pin does not repair an installed backend: rebuild, qualify the exact release artifact and replace running plugin processes through the owner's safe upgrade procedure, preserving active queries, alerting capacity and a qualified patched rollback.
+
 ## Installation
 
 ### From the Grafana catalog
@@ -245,6 +253,24 @@ npm run server                                       # Grafana + the plugin via 
 ```
 
 Node is pinned to 24 via `mise.toml`. See [AGENTS.md](https://github.com/tuist/tuist/blob/main/grafana-datasource/AGENTS.md) for the architecture and the server-side API contract.
+
+### Qualifying backend TLS changes
+
+Run in this directory with the genuine Go 1.26.10 SDK on `PATH`, with `GOROOT` unset and `GOTOOLCHAIN=local`. Keep the plugin separate from the root infra workspace. `GOWORK=off` also tests its module independently:
+
+```bash
+go version
+GOWORK=off go test ./... -count=1 -timeout 5m
+GOWORK=off go test -race ./... -count=1 -timeout 5m
+GOWORK=off TUIST_TRUST_LIVE=1 go test ./pkg/plugin -run '^TestCertificateTrustLiveProductionFactory$' -count=1 -timeout 5m -v
+mage -v
+```
+
+Offline tests use local PKIs and the real DER fixtures. Otherwise-accepted leaf, intermediate and absent-anchor denies, an unused blocked peer through the production factory, separate proxy/target PKIs, HTTPS redirects, downgrade refusal, and observed TLS 1.2/1.3 resumption demonstrate application enforcement before HTTP delivery. Ordinary hostname, expiry, signature, usage, unknown-CA and critical-extension failures must still fail. Healthy private-CA controls must still pass.
+
+The opt-in public test needs no credentials and reports whether rejection came from the ordinary verifier or the application policy. Native rejection does not prove the application callback ran. The pinned Go SDK's built-in explicit-root deny covers eight intermediate keys, not the full twelve-key policy. Use the public Compose entry point to override the generated harness's old `GO_VERSION`; do not build `.config/` directly with its default. Refresh the Go lock entries with `mise lock go` when changing the pin.
+
+**Qualification limits:** Linux explicit-root tests and cross-compilation do not qualify Darwin's delegated Security.framework verifier with nil roots, other OS/root stores, or real enterprise/proxy configurations. Require native-default acceptance and leaf/intermediate/absent-anchor deny differentials on each supported platform. Backend tests/builds also do not qualify Grafana plugin RPC, queries, alert evaluation, catalog/signing artifacts or safe process replacement. These are release gates, not claims that existing installations are protected.
 
 ### Automatic Gradle cache savings
 

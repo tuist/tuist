@@ -18,6 +18,7 @@ import (
 var fleetWideConfigFields = map[string]bool{
 	"TartKubeletBinary":         true,
 	"TartTarball":               true,
+	"TartVersion":               true,
 	"TailscaleBinaries":         true,
 	"TailscaleTags":             true,
 	"TailscaleAcceptRoutes":     true,
@@ -37,8 +38,6 @@ var fleetWideConfigFields = map[string]bool{
 	"CustomCacheURL":            true,
 	"CustomCacheNamespace":      true,
 	"CustomCacheServiceAccount": true,
-	"CacheVolumeMasterCapGiB":   true,
-	"CacheVolumeCASGiB":         true,
 	"VNCRelayPort":              true,
 	"VNCRelayPortCount":         true,
 	"MinGoldensKept":            true,

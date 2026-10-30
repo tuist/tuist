@@ -169,6 +169,22 @@ defmodule Tuist.Runners.LogFormatterTest do
       assert [{:action, %{name: "Step", conclusion: nil, duration_ms: nil}, [{:line, %{message: "running"}}]}] =
                LogFormatter.group_lines(lines)
     end
+
+    test "drops closers whose opener is outside the lines, as when a page starts mid-group" do
+      lines = [
+        line(1, "inside a group"),
+        line(nil, "##[endgroup]"),
+        line(2, "inside an action"),
+        line(nil, "##[end-action id=__self.__run;outcome=success;conclusion=success;duration_ms=1]"),
+        line(3, "after")
+      ]
+
+      assert [
+               {:line, %{message: "inside a group"}},
+               {:line, %{message: "inside an action"}},
+               {:line, %{message: "after"}}
+             ] = LogFormatter.group_lines(lines)
+    end
   end
 
   describe "group_label/1" do

@@ -60,7 +60,7 @@ type rackConvergeOptions struct {
 	NodeTaints   []corev1.Taint
 
 	// ManagementMAC is the management port's, the one AMT shares with the
-	// host: the host's boot MAC.
+	// host: the host's boot MAC on a host with AMT, empty on one without.
 	ManagementMAC string
 
 	// KubernetesAPI is the API server the kubelet uses, written to
@@ -205,6 +205,8 @@ func rackNodeConfig(o rackConvergeOptions) infrav1.RackNodeConfig {
 			file("/etc/sysctl.d/99-tuist-k8s.conf", "sysctl", sysctlContent),
 			file("/etc/sysctl.d/99-tuist-hardening.conf", "sysctl", kernelHardeningSysctlContent),
 			file("/etc/systemd/system.conf.d/10-tuist-watchdog.conf", "systemd", watchdogDropInContent),
+			file(sshServiceDropInPath, "units", sshServiceDropInContent),
+			file(sshSocketDropInPath, "units", sshSocketDropInContent),
 			file("/etc/containerd/certs.d/docker.io/hosts.toml", "containerd", dockerHubMirrorHostsContent),
 			file(kubeletClientCAPath, "kubelet", string(o.ClusterCAPEM)),
 			file("/var/lib/kubelet/config.yaml", "kubelet", rackKubeletConfig(o)),

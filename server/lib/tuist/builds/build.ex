@@ -21,6 +21,7 @@ defmodule Tuist.Builds.Build do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
+  alias Tuist.Builds.Metadata
 
   @status_values ["success", "failure", "processing", "failed_processing"]
   @category_values ["clean", "incremental"]
@@ -71,6 +72,7 @@ defmodule Tuist.Builds.Build do
     belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
     field :macos_version, :string, default: ""
     field :xcode_version, :string, default: ""
+    field :tuist_version, :string, default: ""
     field :is_ci, :boolean
     field :model_identifier, :string, default: ""
     field :scheme, :string, default: ""
@@ -115,6 +117,7 @@ defmodule Tuist.Builds.Build do
       :ci_provider,
       :macos_version,
       :xcode_version,
+      :tuist_version,
       :model_identifier,
       :scheme,
       :configuration,
@@ -132,6 +135,7 @@ defmodule Tuist.Builds.Build do
         :duration,
         :macos_version,
         :xcode_version,
+        :tuist_version,
         :is_ci,
         :model_identifier,
         :scheme,
@@ -256,8 +260,8 @@ defmodule Tuist.Builds.Build do
 
   defp validate_custom_values(changeset) do
     validate_change(changeset, :custom_values, fn :custom_values, values ->
-      if map_size(values) > 20 do
-        [{:custom_values, "cannot have more than 20 key-value pairs"}]
+      if map_size(values) > Metadata.limit() do
+        [{:custom_values, "cannot have more than #{Metadata.limit()} key-value pairs"}]
       else
         Enum.flat_map(values, fn {key, value} ->
           key_errors =

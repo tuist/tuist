@@ -29,6 +29,7 @@ defmodule TuistWeb.DocsLive do
 
   def mount(_params, _session, socket) do
     locale = Gettext.get_locale()
+    Gettext.put_locale(TuistWeb.Gettext, locale)
 
     socket =
       socket
@@ -86,6 +87,10 @@ defmodule TuistWeb.DocsLive do
       nil ->
         redirect_or_not_found(socket, path, url)
 
+      %{slug: slug} when slug != path ->
+        target = %URI{path: Paths.public_path_from_slug(slug), query: URI.parse(url).query}
+        {:noreply, redirect(socket, to: URI.to_string(target))}
+
       page ->
         head_title =
           case page.title_template do
@@ -105,11 +110,6 @@ defmodule TuistWeb.DocsLive do
             Tuist.Environment.app_url(path: og_image_path)
           end
 
-        # Every URL below is derived from the requested slug, never from
-        # `page.slug`. `Docs.get_page/1` falls back to the English page when a
-        # locale has no translation, so `page.slug` would point the markup at
-        # `/en/...` while the canonical link still says `/es/...`, leaving the
-        # page claiming two identities.
         public_path = Paths.public_path_from_slug(path)
         locale = socket.assigns.locale
 
@@ -170,12 +170,17 @@ defmodule TuistWeb.DocsLive do
   end
 
   def render(%{view: :overview} = assigns) do
+    headings =
+      Enum.map(@overview_headings, fn heading ->
+        %{heading | text: Gettext.dgettext(TuistWeb.Gettext, "docs", heading.text)}
+      end)
+
     assigns =
       assigns
       |> assign(:install_path, docs_path("/#{assigns.locale}/guides/install-tuist"))
       |> assign(:get_started_path, docs_path("/#{assigns.locale}/guides/get-started"))
       |> assign(:copy_check_icon, @copy_check_icon)
-      |> assign(:headings, @overview_headings)
+      |> assign(:headings, headings)
 
     ~H"""
     <TuistWeb.Docs.Components.layout

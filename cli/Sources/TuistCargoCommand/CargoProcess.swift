@@ -20,21 +20,34 @@ struct CargoProcess {
         environment: [String: String],
         directory: AbsolutePath
     ) async throws -> String {
-        var data = Data()
+        let output = try await captureOutput(executable, arguments: arguments, environment: environment, directory: directory)
+        guard let result = String(data: output.stdout, encoding: .utf8)
+        else { throw CargoReportError(message: "Cargo metadata is not UTF-8.") }
+        return result
+    }
+
+    func captureOutput(
+        _ executable: String, arguments: [String], environment: [String: String], directory: AbsolutePath
+    ) async throws -> (stdout: Data, stderr: Data) {
+        var stdout = Data()
+        var stderr = Data()
         for try await event in runner.run(
             arguments: ["/usr/bin/env", executable] + arguments,
             environment: environment,
             workingDirectory: directory
         ) {
-            if case let .standardOutput(bytes) = event {
-                guard data.count + bytes.count <= 64_000_000
+            switch event {
+            case let .standardOutput(bytes):
+                guard stdout.count + bytes.count <= 64_000_000
                 else { throw CargoReportError(message: "Cargo metadata exceeds 64 MB.") }
-                data.append(contentsOf: bytes)
+                stdout.append(contentsOf: bytes)
+            case let .standardError(bytes):
+                guard stderr.count + bytes.count <= 1_000_000
+                else { throw CargoReportError(message: "Cargo compiler diagnostics exceed 1 MB.") }
+                stderr.append(contentsOf: bytes)
             }
         }
-        guard let result = String(data: data, encoding: .utf8)
-        else { throw CargoReportError(message: "Cargo metadata is not UTF-8.") }
-        return result
+        return (stdout, stderr)
     }
 
     func executable(
@@ -98,20 +111,30 @@ struct CargoProcess {
         directory: AbsolutePath,
         environment: [String: String]
     ) async -> (root: URL, target: URL) {
+        let fallback = URL(fileURLWithPath: directory.pathString)
+        guard let object = await packageMetadata(
+            executable: executable, arguments: arguments, directory: directory, environment: environment
+        ), let root = object["workspace_root"] as? String, let target = object["target_directory"] as? String else {
+            return (fallback, fallback.appendingPathComponent("target"))
+        }
+        return (URL(fileURLWithPath: root), URL(fileURLWithPath: target))
+    }
+
+    func packageMetadata(
+        executable: String,
+        arguments: [String],
+        directory: AbsolutePath,
+        environment: [String: String]
+    ) async -> [String: Any]? {
         var options = ["metadata", "--no-deps", "--offline", "--locked", "--format-version", "1"]
-        for (index, value) in arguments.enumerated() {
+        for (index, value) in arguments.prefix(while: { $0 != "--" }).enumerated() {
             if ["--manifest-path", "--config"].contains(value), index + 1 < arguments.count { options += [
                 value,
                 arguments[index + 1],
             ] } else if value.hasPrefix("--manifest-path=") || value.hasPrefix("--config=") { options.append(value) }
         }
-        let fallback = URL(fileURLWithPath: directory.pathString)
-        guard let output = try? await capture(executable, arguments: options, environment: environment, directory: directory),
-              let object = try? JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any],
-              let root = object["workspace_root"] as? String, let target = object["target_directory"] as? String
-        else {
-            return (fallback, fallback.appendingPathComponent("target"))
-        }
-        return (URL(fileURLWithPath: root), URL(fileURLWithPath: target))
+        guard let output = try? await capture(executable, arguments: options, environment: environment, directory: directory)
+        else { return nil }
+        return try? JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
     }
 }

@@ -86,6 +86,7 @@ defmodule Tuist.Tests.Test do
     field :ci_provider, Ch, type: "LowCardinality(Nullable(String))"
     field :build_system, Ch, type: "LowCardinality(String)", default: "xcode"
     field :shard_plan_id, Ch, type: "Nullable(UUID)"
+    field :reporting_version, Ch, type: "UInt8", default: 0
     field :only_test_identifiers, Ch, type: "Array(String)", default: []
     field :skip_test_identifiers, Ch, type: "Array(String)", default: []
     field :coverage_enabled, Ch, type: "Nullable(Bool)"
@@ -101,10 +102,20 @@ defmodule Tuist.Tests.Test do
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
     belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false
     belongs_to :shard_plan, Tuist.Shards.ShardPlan, foreign_key: :shard_plan_id, define_field: false
-    has_many :test_case_runs, Tuist.Tests.TestCaseRun, foreign_key: :test_run_id
-    has_many :run_destinations, Tuist.Tests.TestRunDestination, foreign_key: :test_run_id
+    has_many :test_case_runs, {"reported_test_case_runs", Tuist.Tests.TestCaseRun}, foreign_key: :test_run_id
+
+    has_many :run_destinations, {"reported_test_run_destinations", Tuist.Tests.TestRunDestination},
+      foreign_key: :test_run_id
 
     field :inserted_at, Ch, type: "DateTime64(6)"
+  end
+
+  def query do
+    Ecto.Queryable.to_query({"test_run_summaries", __MODULE__})
+  end
+
+  def immutable_query do
+    Ecto.Queryable.to_query({"reported_test_run_summaries", __MODULE__})
   end
 
   def create_changeset(test_run, attrs) do
@@ -150,6 +161,7 @@ defmodule Tuist.Tests.Test do
       :ci_provider,
       :build_system,
       :shard_plan_id,
+      :reporting_version,
       :only_test_identifiers,
       :skip_test_identifiers,
       :coverage_enabled,

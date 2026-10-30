@@ -2,6 +2,62 @@ defmodule Atlas.InferenceTest do
   use ExUnit.Case, async: true
 
   alias Atlas.Inference
+  alias Atlas.Inference.ModelBinding
+
+  describe "relay_request/3 reasoning controls" do
+    setup tags do
+      Atlas.DataCase.setup_sandbox(tags)
+
+      provider = %{base_url: "https://provider.example", api_key: "test"}
+      %{config: [providers: %{"together" => provider, "openai" => provider}]}
+    end
+
+    test "disables Together reasoning when an alias caller requests no reasoning", %{config: config} do
+      binding = %ModelBinding{name: "Translator", upstream_provider: "together", upstream_model: "Qwen/Qwen3.7-Plus"}
+
+      for streamed? <- [false, true] do
+        body = %{
+          "model" => "Translator",
+          "messages" => [%{"role" => "user", "content" => "Translate this."}],
+          "reasoning_effort" => "none",
+          "max_tokens" => 32_768,
+          "stream" => streamed?
+        }
+
+        assert {:ok, request} = Inference.relay_request(binding, body, config: config)
+
+        assert request[:json] == %{
+                 "model" => "Qwen/Qwen3.7-Plus",
+                 "messages" => [%{"role" => "user", "content" => "Translate this."}],
+                 "reasoning" => %{"enabled" => false},
+                 "max_tokens" => 32_768,
+                 "stream" => streamed?
+               }
+      end
+    end
+
+    test "preserves an explicit Together reasoning setting", %{config: config} do
+      binding = %ModelBinding{name: "Translator", upstream_provider: "together", upstream_model: "Qwen/Qwen3.7-Plus"}
+      body = %{"reasoning_effort" => "none", "reasoning" => %{"enabled" => true}}
+
+      assert {:ok, request} = Inference.relay_request(binding, body, config: config)
+      assert request[:json]["reasoning"] == %{"enabled" => true}
+      refute Map.has_key?(request[:json], "reasoning_effort")
+    end
+
+    test "leaves other providers, effort levels, and provider defaults unchanged", %{config: config} do
+      for {provider, body} <- [
+            {"openai", %{"reasoning_effort" => "none"}},
+            {"together", %{"reasoning_effort" => "high"}},
+            {"together", %{}}
+          ] do
+        binding = %ModelBinding{name: "Alias", upstream_provider: provider, upstream_model: "upstream-model"}
+
+        assert {:ok, request} = Inference.relay_request(binding, body, config: config)
+        assert request[:json] == Map.put(body, "model", "upstream-model")
+      end
+    end
+  end
 
   test "preserves a provider billing rejection from the streaming retry" do
     body =

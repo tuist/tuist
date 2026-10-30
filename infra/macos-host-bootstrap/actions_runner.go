@@ -90,8 +90,8 @@ const builderMixBuildRoot = "/opt/tuist-build-cache"
 //
 // Tart isn't installed here. The Node-bootstrap path above
 // (installTart) already extracted the operator-image-baked
-// tart.app to /usr/local/bin/tart, version-pinned by the operator
-// image. Same binary the macosFleet and runnersFleet hosts use,
+// tart.app behind /usr/local/bin/tart, at the version the operator
+// resolves for this host. Same binary the macosFleet and runnersFleet hosts use,
 // explicit version control rather than tracking whatever the
 // cirruslabs/cli Homebrew formula points to.
 //

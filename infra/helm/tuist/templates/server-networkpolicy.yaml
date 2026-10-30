@@ -12,6 +12,17 @@ spec:
       {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 6 }}
   policyTypes: [Ingress, Egress]
   ingress:
+    {{- if .Values.server.cluster.enabled }}
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: epmd
+        - protocol: TCP
+          port: erlang-dist
+    {{- end }}
     - from:
         - namespaceSelector:
             matchLabels:
@@ -55,7 +66,32 @@ spec:
         - protocol: TCP
           port: metrics
     {{- end }}
+    {{- if .Values.sandboxes.enabled }}
+    # sandboxd daemons dial the node WebSocket, and the sandboxes behind
+    # them reach the API through the daemon Pod's NAT.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
+          podSelector:
+            matchLabels:
+              tuist.dev/sandboxd: "true"
+      ports:
+        - protocol: TCP
+          port: http
+    {{- end }}
   egress:
+    {{- if .Values.server.cluster.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 4369
+        - protocol: TCP
+          port: {{ .Values.server.cluster.distributionPort }}
+    {{- end }}
     - to:
         - namespaceSelector:
             matchLabels:

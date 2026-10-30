@@ -33,6 +33,202 @@ const GUARDIAN_SECRET: &str = "tuist-guardian-secret";
 use std::sync::Mutex;
 
 #[tokio::test]
+async fn network_cache_policy_authorizes_http_and_grpc_but_not_credentials_or_other_operations() {
+    use axum::{body::Body, http::Request};
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    let enabled = Arc::new(AtomicBool::new(true));
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let app = Router::new().route("/_internal/kura/cache-policy", get({
+        let enabled = enabled.clone();
+        let calls = calls.clone();
+        move |headers: HeaderMap, axum::extract::Query(query): axum::extract::Query<BTreeMap<String, String>>| {
+            let enabled = enabled.clone();
+            let calls = calls.clone();
+            async move {
+                use base64::Engine as _;
+                assert_eq!(headers["authorization"], format!("Basic {}", base64::engine::general_purpose::STANDARD.encode("00000000-0000-0000-0000-000000000001:kura-secret")));
+                assert_eq!(query["tenant_id"], "acme");
+                calls.fetch_add(1, Ordering::SeqCst);
+                Json(json!({"tenant_id": "acme", "network_trusted_cache_access": enabled.load(Ordering::SeqCst)}))
+            }
+        }
+    }));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let engine = engine_introspection_only(&base);
+    let mut request = ctx();
+    request.tenant_id = Some("acme".into());
+    let decisions =
+        futures_util::future::join_all((0..16).map(|_| engine.evaluate_access(&request))).await;
+    assert!(
+        decisions
+            .iter()
+            .all(|decision| matches!(decision, AccessDecision::Allow))
+    );
+    let context = crate::test_support::test_context_with_auth(
+        |config| config.tenant_id = "acme".into(),
+        Some(engine.clone()),
+    )
+    .await;
+    let http = crate::http::router(context.state.clone());
+    let uri = "/api/cache/gradle/network-key?tenant_id=acme&namespace_id=widgets";
+    let response = http
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(uri)
+                .body(Body::from("network cache bytes"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
+    let response = http
+        .clone()
+        .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.into_body().collect().await.unwrap().to_bytes(),
+        "network cache bytes"
+    );
+
+    for value in ["", "Bearer ", "Bearer rejected"] {
+        let response = http
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .header("authorization", value)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert!(!response.status().is_success(), "supplied {value:?}");
+    }
+    let response = http
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(uri)
+                .header("authorization", "one")
+                .header("authorization", "two")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let response = http
+        .oneshot(
+            Request::builder()
+                .uri("/api/cache/gradle/network-key?tenant_id=other&namespace_id=widgets")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let grpc = crate::reapi::routes(context.state.clone());
+    let path = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
+    for (headers, expected) in [(vec![], "0"), (vec![""], "16"), (vec!["one", "two"], "16")] {
+        let mut request = Request::builder()
+            .method("POST")
+            .uri(path)
+            .header("content-type", "application/grpc")
+            .header("te", "trailers");
+        for header in headers {
+            request = request.header("authorization", header);
+        }
+        let response = grpc
+            .clone()
+            .oneshot(request.body(Body::from(vec![0u8; 5])).unwrap())
+            .await
+            .unwrap();
+        let status = response.headers().get("grpc-status").cloned();
+        let body = response.into_body().collect().await.unwrap();
+        let status = status.or_else(|| {
+            body.trailers()
+                .and_then(|trailers| trailers.get("grpc-status").cloned())
+        });
+        assert_eq!(status.unwrap().to_str().unwrap(), expected);
+    }
+    for operation in [
+        "asset.read",
+        "asset.write",
+        "namespace.delete",
+        "build_event_stream",
+    ] {
+        let mut request = ctx();
+        request.tenant_id = Some("acme".into());
+        request.operation = operation.into();
+        assert!(matches!(
+            engine.evaluate_access(&request).await,
+            AccessDecision::Deny(_)
+        ));
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    enabled.store(false, Ordering::SeqCst);
+    engine.clear_caches().await;
+    let mut request = ctx();
+    request.tenant_id = Some("acme".into());
+    assert!(matches!(
+        engine.evaluate_access(&request).await,
+        AccessDecision::Deny(_)
+    ));
+    server.abort();
+}
+
+#[tokio::test]
+async fn network_cache_policy_fails_closed_for_missing_wrong_tenant_and_failed_responses() {
+    for (status, body) in [
+        (
+            StatusCode::OK,
+            json!({"tenant_id": "other", "network_trusted_cache_access": true}),
+        ),
+        (
+            StatusCode::OK,
+            json!({"tenant_id": "acme", "network_trusted_report_publishing": true}),
+        ),
+        (
+            StatusCode::OK,
+            json!({"tenant_id": "acme", "network_trusted_cache_access": "true"}),
+        ),
+        (StatusCode::NOT_FOUND, json!({})),
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            json!({"tenant_id": "acme", "network_trusted_cache_access": true}),
+        ),
+    ] {
+        let app = Router::new().route(
+            "/_internal/kura/cache-policy",
+            get(move || {
+                let body = body.clone();
+                async move { (status, Json(body)) }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let engine = engine_introspection_only(&base);
+        let mut request = ctx();
+        request.tenant_id = Some("acme".into());
+        assert!(matches!(
+            engine.evaluate_access(&request).await,
+            AccessDecision::Deny(_)
+        ));
+        server.abort();
+    }
+}
+
+#[tokio::test]
 async fn renamed_account_authorizes_current_grants_without_changing_stored_artifacts() {
     use axum::body::Body;
     use axum::http::Request;
@@ -1495,6 +1691,55 @@ fn cache_token(signing_key: &str) -> String {
             .expect("a readable cache-token signing key"),
     )
     .expect("a signed cache token")
+}
+
+fn cache_token_issued_in(signing_key: &str, origin: &str) -> String {
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(Algorithm::ES256),
+        &json!({
+            "sub": "1",
+            "iss": "tuist",
+            "typ": "cache",
+            "exp": 4_000_000_000u64,
+            "scopes": ["account_cache_read"],
+            "cache_grants": { "project": { "write": ["acme/ios"] } },
+            "cache_origin": origin,
+        }),
+        &jsonwebtoken::EncodingKey::from_ec_pem(signing_key.as_bytes())
+            .expect("a readable cache-token signing key"),
+    )
+    .expect("a signed cache token")
+}
+
+// Usage attribution reads the origin back for a credential the engine allowed,
+// and never for one it refused: a request that reaches usage was authorized by
+// the credential its origin came from.
+#[tokio::test]
+async fn keeps_the_origin_of_a_confirmed_credential_only() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| {
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_verifying_cache_tokens(&base);
+    let allowed = format!("Bearer {}", cache_token_issued_in(SIGNING_KEY, "US-IL"));
+
+    assert_eq!(engine.origin(&allowed), None);
+    let decision = engine.evaluate_access(&project_request(&allowed)).await;
+    assert!(matches!(decision, AccessDecision::Allow));
+    assert_eq!(engine.origin(&allowed).as_deref(), Some("US-IL"));
+
+    let refused = format!("Bearer {}", cache_token_issued_in(SIGNING_KEY, "NL"));
+    let mut other_project = project_request(&refused);
+    other_project.namespace_id = Some("android".into());
+    let decision = engine.evaluate_access(&other_project).await;
+    assert!(matches!(decision, AccessDecision::Deny(_)));
+    assert_eq!(engine.origin(&refused), None);
 }
 
 fn project_request(authorization: &str) -> RequestContext {

@@ -59,6 +59,27 @@ defmodule Tuist.Runners.GitLab.ClientTest do
     assert {:ok, [%{"default" => true}]} = Client.cache_branches("https://gitlab.com", "job-secret", 123, "release/v1.2")
   end
 
+  test "reads a merge request with only the API token" do
+    expect(SSRFGuard, :pin, fn "https://gitlab.com/api/v4/projects/123/merge_requests/7" ->
+      {:ok, "https://1.1.1.1/api/v4/projects/123/merge_requests/7", "gitlab.com"}
+    end)
+
+    expect(Req, :request, fn opts ->
+      assert opts[:method] == :get
+      assert {"private-token", "glpat-secret"} in opts[:headers]
+      refute Enum.any?(opts[:headers], fn {name, _} -> name in ["job-token", "runner-token"] end)
+      refute Keyword.has_key?(opts, :json)
+      assert opts[:redirect] == false
+      {:ok, %{status: 200, body: JSON.encode!(%{iid: 7, source_project_id: 123})}}
+    end)
+
+    assert {:ok, %{"iid" => 7}} = Client.get_merge_request("https://gitlab.com", "glpat-secret", 123, 7)
+
+    for token <- [nil, ""] do
+      assert {:error, :unauthorized} = Client.get_merge_request("https://gitlab.com", token, 123, 7)
+    end
+  end
+
   test "writes a routing error to the job trace before failing the job" do
     payload = %{"id" => 42, "token" => "job-secret"}
     expect(SSRFGuard, :pin, 2, fn url -> {:ok, url, "gitlab.com"} end)

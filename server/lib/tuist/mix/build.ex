@@ -25,7 +25,7 @@ defmodule Tuist.Mix.Build do
       :custom_tags,
       :inserted_at
     ],
-    sortable: [:inserted_at, :duration_ms, :status],
+    sortable: [:inserted_at, :duration_ms, :status, :id],
     default_order: %{
       order_by: [:inserted_at],
       order_directions: [:desc]
@@ -47,6 +47,7 @@ defmodule Tuist.Mix.Build do
     field :is_ci, Ch, type: "Bool"
     field :elixir_version, Ch, type: "String"
     field :otp_version, Ch, type: "String"
+    field :tuist_version, Ch, type: "String", default: ""
     field :mix_env, Ch, type: "LowCardinality(String)"
     field :git_branch, Ch, type: "String"
     field :git_commit_sha, Ch, type: "String"

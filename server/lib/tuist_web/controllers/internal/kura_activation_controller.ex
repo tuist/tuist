@@ -11,9 +11,23 @@ defmodule TuistWeb.Internal.KuraActivationController do
     token = Authentication.get_authorization_token_from_conn(conn)
 
     case Activation.resolve(params["host"], token) do
-      {:ok, endpoint} -> json(conn, %{endpoint: endpoint})
-      :pending -> conn |> put_status(:accepted) |> json(%{status: "provisioning"})
-      {:error, status} -> conn |> put_status(status) |> json(%{error: status})
+      {:ok, endpoint} ->
+        json(conn, %{endpoint: endpoint})
+
+      :pending ->
+        conn |> put_status(:accepted) |> json(%{status: "provisioning"})
+
+      {:error, :payment_required} ->
+        # Older gateways encode 402 as plain text, which generated HTTP clients cannot decode.
+        status =
+          if get_req_header(conn, "x-tuist-cache-activation-billing") == ["1"],
+            do: :payment_required,
+            else: :forbidden
+
+        conn |> put_status(status) |> json(%{error: status})
+
+      {:error, status} ->
+        conn |> put_status(status) |> json(%{error: status})
     end
   end
 end

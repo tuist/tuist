@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -321,4 +322,35 @@ func TestRefreshCarriesOverAUseOfTheStaleMasterAfterItWasQueued(t *testing.T) {
 	if info, err := os.Stat(b.master(next)); err != nil || !info.ModTime().Equal(clonedAt) {
 		t.Fatal("refresh lost the stale master's latest use", err)
 	}
+}
+
+// progressingTransfer receives a byte every second for six minutes.
+type progressingTransfer struct{ headTransfer }
+
+func (p *progressingTransfer) Download(ctx context.Context, _ Slot, path string) error {
+	for range 6 * 60 {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%w: %w", ErrDownloadIncomplete, ctx.Err())
+		case <-time.After(time.Second):
+		}
+	}
+	return os.WriteFile(path, []byte("refreshed"), 0600)
+}
+
+func TestRefreshKeepsADownloadThatProgressesPastFiveMinutes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		b, _ := newRefreshing(t)
+		b.Transfer = &progressingTransfer{}
+		scope := strings.Repeat("a", 64)
+		stale := installMaster(t, b, first, scope, 1, time.Now())
+		next := stale
+		next.Identity.BaseGeneration, next.ImageDigest, next.ContentDigest = 2, head(2).ImageDigest, head(2).ContentDigest
+
+		b.refreshMaster(refreshJob{master: b.master(stale), stale: stale, next: next, usedAt: time.Now()})
+
+		if !exists(b.master(next)) {
+			t.Fatal("a refresh still receiving bytes was cut off")
+		}
+	})
 }

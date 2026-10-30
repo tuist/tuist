@@ -69,8 +69,23 @@ func TestPodTemplateKeepsClusterDNSWithoutNodeLocalNetwork(t *testing.T) {
 
 	template := podTemplate(instance, "", "staging", "", false, false, false)
 
-	if template.Spec.DNSPolicy != "" || template.Spec.DNSConfig != nil {
-		t.Fatalf("expected the default DNS policy, got %q with %#v", template.Spec.DNSPolicy, template.Spec.DNSConfig)
+	if template.Spec.DNSPolicy != "" {
+		t.Fatalf("expected the default DNS policy, got %q", template.Spec.DNSPolicy)
+	}
+	want := &corev1.PodDNSConfig{
+		Options: []corev1.PodDNSConfigOption{
+			{Name: "ndots", Value: ptr("2")},
+			{Name: "timeout", Value: ptr("2")},
+			{Name: "attempts", Value: ptr("3")},
+		},
+	}
+	if !reflect.DeepEqual(template.Spec.DNSConfig, want) {
+		t.Fatalf("expected DNS config %#v, got %#v", want, template.Spec.DNSConfig)
+	}
+
+	template.Spec.DNSConfig.Options[0].Name = "rotate"
+	if clusterDNSOptions[0].Name != "ndots" {
+		t.Fatal("expected the template to own its resolver options")
 	}
 }
 

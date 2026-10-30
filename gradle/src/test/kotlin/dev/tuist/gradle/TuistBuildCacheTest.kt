@@ -1,8 +1,10 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import okhttp3.mockwebserver.SocketPolicy
 import org.gradle.caching.BuildCacheEntryReader
 import org.gradle.caching.BuildCacheEntryWriter
@@ -12,6 +14,8 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import java.io.EOFException
 import java.io.InputStream
 import java.io.OutputStream
@@ -124,6 +128,48 @@ class TuistBuildCacheTest {
         assertEquals("Bearer test-token", authHeader)
     }
 
+    @ParameterizedTest
+    @CsvSource("GET,302,false", "PUT,307,false", "GET,302,true", "PUT,307,true")
+    fun `cache transfers only follow redirects when authenticated`(method: String, status: Int, authenticated: Boolean) {
+        MockWebServer().use { destination ->
+            destination.start()
+            destination.enqueue(MockResponse().setBody("redirected cache bytes"))
+            mockServer.enqueue(
+                MockResponse().setResponseCode(status).setHeader("Location", destination.url("/redirected"))
+            )
+            val token = if (authenticated) "test-token" else ""
+            val service = createService { createConfig().copy(token = token) }
+            val key = TestBuildCacheKey("private-entry")
+            val reader = TestBuildCacheEntryReader()
+            val transfer = {
+                if (method == "GET") {
+                    assertTrue(service.load(key, reader))
+                } else {
+                    service.store(key, TestBuildCacheEntryWriter("private artifact bytes"))
+                }
+            }
+
+            if (authenticated) {
+                transfer()
+                assertEquals(1, destination.requestCount)
+                val request = destination.takeRequest()
+                assertEquals(method, request.method)
+                if (method == "GET") {
+                    assertEquals("redirected cache bytes", reader.content)
+                } else {
+                    assertEquals("private artifact bytes", request.body.readUtf8())
+                }
+            } else {
+                val failure = assertThrows<BuildCacheException> { transfer() }
+                assertTrue(failure.message!!.contains("HTTP $status"))
+                assertEquals(0, destination.requestCount)
+                assertNull(reader.content)
+            }
+            assertEquals(1, mockServer.requestCount)
+            assertEquals(if (authenticated) "Bearer test-token" else null, mockServer.takeRequest().getHeader("Authorization"))
+        }
+    }
+
     @Test
     fun `load throws BuildCacheException with context on server error`() {
         mockServer.enqueue(
@@ -230,11 +276,13 @@ class TuistBuildCacheTest {
 
     @Test
     fun `store throws BuildCacheException with context on server error`() {
-        mockServer.enqueue(
-            MockResponse()
-                .setResponseCode(503)
-                .setBody("cache unavailable")
-        )
+        repeat(4) {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(503)
+                    .setBody("cache unavailable")
+            )
+        }
 
         val service = createService(isPushEnabled = true)
 
@@ -250,6 +298,79 @@ class TuistBuildCacheTest {
             message.contains("cache unavailable"),
             "expected response body snippet in message, got: $message"
         )
+    }
+
+    @Test
+    fun `load retries when the server closes the connection without responding`() {
+        repeat(2) { mockServer.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)) }
+        mockServer.enqueue(MockResponse().setBody("cached-build-output").setResponseCode(200))
+
+        val reader = TestBuildCacheEntryReader()
+        val result = createService().load(TestBuildCacheKey("dropped"), reader)
+
+        assertTrue(result)
+        assertEquals("cached-build-output", reader.content)
+        assertEquals(3, mockServer.requestCount)
+    }
+
+    @Test
+    fun `load retries a 503 and returns the entry`() {
+        mockServer.enqueue(MockResponse().setResponseCode(503).setBody("upstream connect error"))
+        mockServer.enqueue(MockResponse().setBody("cached-build-output").setResponseCode(200))
+
+        val reader = TestBuildCacheEntryReader()
+        val result = createService().load(TestBuildCacheKey("rollout"), reader)
+
+        assertTrue(result)
+        assertEquals("cached-build-output", reader.content)
+        assertEquals(2, mockServer.requestCount)
+    }
+
+    @Test
+    fun `store retries a 502 and stores the entry`() {
+        mockServer.enqueue(MockResponse().setResponseCode(502))
+        mockServer.enqueue(MockResponse().setResponseCode(201))
+
+        createService(isPushEnabled = true).store(TestBuildCacheKey("rollout"), TestBuildCacheEntryWriter("payload"))
+
+        assertEquals(2, mockServer.requestCount)
+        repeat(2) {
+            val request = mockServer.takeRequest()
+            assertEquals("PUT", request.method)
+            assertEquals("payload", request.body.readUtf8())
+        }
+    }
+
+    @Test
+    fun `load still fails after four 503 responses so Gradle disables the remote cache`() {
+        repeat(4) { mockServer.enqueue(MockResponse().setResponseCode(503)) }
+        mockServer.enqueue(MockResponse().setBody("cached-build-output").setResponseCode(200))
+
+        val exception = assertThrows<BuildCacheException> {
+            createService().load(TestBuildCacheKey("down"), TestBuildCacheEntryReader())
+        }
+
+        assertTrue(exception.message!!.contains("HTTP 503"), exception.message)
+        assertEquals(4, mockServer.requestCount)
+    }
+
+    @Test
+    fun `load does not retry a miss or a non-transient error`() {
+        var status = 404
+        mockServer.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = MockResponse().setResponseCode(status)
+        }
+
+        assertFalse(createService().load(TestBuildCacheKey("missing"), TestBuildCacheEntryReader()))
+        assertEquals(1, mockServer.requestCount)
+
+        for ((index, code) in listOf(400, 500).withIndex()) {
+            status = code
+            assertThrows<BuildCacheException> {
+                createService().load(TestBuildCacheKey("error-$code"), TestBuildCacheEntryReader())
+            }
+            assertEquals(2 + index, mockServer.requestCount, "HTTP $code")
+        }
     }
 
     @Test
@@ -504,7 +625,8 @@ class TuistBuildCacheTest {
             configurationProvider = object : ConfigurationProvider {
                 override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration =
                     configProvider(forceRefresh)
-            }
+            },
+            retryPolicy = RetryPolicy(sleeper = {})
         )
         return TuistBuildCacheService(
             httpClient = httpClient,

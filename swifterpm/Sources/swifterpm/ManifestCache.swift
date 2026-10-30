@@ -41,7 +41,9 @@ enum ManifestCache {
         return try await $toolchain.withValue(toolchain) {
             try await $rootPackageDirectory.withValue(packageDirectory.standardizedFileURL) {
                 try await $scratchDirectory.withValue(scratchDirectory ?? packageDirectory.appendingPathComponent(".build")) {
-                    try await $sharedCacheDirectory.withValue(sharedCacheDirectory?.standardizedFileURL) {
+                    try await $sharedCacheDirectory.withValue(
+                        (try? Cache.resolvedRoot(sharedCacheDirectory))?.standardizedFileURL
+                    ) {
                         try await operation()
                     }
                 }

@@ -903,7 +903,8 @@ defmodule Tuist.Runners.Prepaid do
     # entry from before the change to be served for the rest of its life
     # — which is what made a balance impossible to clear. A cached nil
     # reads as a miss, so the next call fetches rather than serving it.
-    KeyValueStore.put(balance_cache_key(customer_id), balance, ttl: @balance_cache_ttl)
+    KeyValueStore.invalidate(balance_cache_key(customer_id), cache: :display)
+    KeyValueStore.put(balance_cache_key(customer_id), balance, cache: :display, ttl: @balance_cache_ttl)
 
     balance
   end
@@ -993,6 +994,7 @@ defmodule Tuist.Runners.Prepaid do
     # deploy that changes that shape would otherwise serve stale entries
     # to new code until the TTL lapsed. Bump on any shape change.
     cache_key = balance_cache_key(customer_id)
+    opts = Keyword.put_new(opts, :cache, :display)
 
     case KeyValueStore.get(cache_key, opts) do
       nil ->

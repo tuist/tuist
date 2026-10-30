@@ -79,16 +79,16 @@ func TestKataSharedMemoryDriftOnExistingHost(t *testing.T) {
 	for _, revision := range []string{"", "old-configuration", "previous-boot"} {
 		t.Run(revision, func(t *testing.T) {
 			h := newKataHarness(t, true, map[string]string{KataRuntimeSelectorLabel: "true"})
-			h.node.Annotations[kataSharedMemoryAnnotation] = revision
+			h.node.Annotations[kataHostConfigAnnotation] = revision
 			if err := h.client.Update(context.Background(), h.node); err != nil {
 				t.Fatal(err)
 			}
 			h.reconcile()
 			cond := conditions.Get(h.machine, KataRuntimeReadyCondition)
-			if cond == nil || cond.Status != corev1.ConditionFalse || cond.Reason != KataSharedMemoryUnverifiedReason {
+			if cond == nil || cond.Status != corev1.ConditionFalse || cond.Reason != KataHostConfigUnverifiedReason {
 				t.Fatalf("unverified shared memory must be surfaced: %v", cond)
 			}
-			if h.liveNode().Annotations[kataSharedMemoryAnnotation] != revision {
+			if h.liveNode().Annotations[kataHostConfigAnnotation] != revision {
 				t.Fatal("a deferred repair must not stamp the node")
 			}
 			if !h.machine.Status.Ready {
@@ -110,7 +110,7 @@ func TestKataSharedMemoryRepairFailureNeverRecordsProof(t *testing.T) {
 		t.Fatal("expected repair to fail against an unreachable host")
 	}
 	node := h.liveNode()
-	if node.Annotations[kataSharedMemoryAnnotation] != "" {
+	if node.Annotations[kataHostConfigAnnotation] != "" {
 		t.Fatal("failed repair must not record proof")
 	}
 	if node.Labels[KataRuntimeSelectorLabel] != "true" {
@@ -132,19 +132,19 @@ func TestKataSharedMemoryProofPreservesNodeMetadataAndExpiresAfterBoot(t *testin
 		t.Fatal(err)
 	}
 	node := h.liveNode()
-	proof := node.Annotations[kataSharedMemoryAnnotation]
-	if proof != kataSharedMemoryRevision(node) || node.Annotations["keep"] != "annotation" || node.Labels["keep"] != "label" {
+	proof := node.Annotations[kataHostConfigAnnotation]
+	if proof != kataHostConfigRevision(node) || node.Annotations["keep"] != "annotation" || node.Labels["keep"] != "label" {
 		t.Fatalf("invalid proof or lost metadata: %v", node.ObjectMeta)
 	}
 	node.Status.NodeInfo.BootID = "new-boot"
-	if proof == kataSharedMemoryRevision(node) {
+	if proof == kataHostConfigRevision(node) {
 		t.Fatal("a new boot must invalidate the previous verification")
 	}
 }
 
 func TestKataSharedMemoryRepairDoesNotRestartRuntime(t *testing.T) {
 	for _, user := range []string{"root", "ubuntu"} {
-		script := renderKataSharedMemoryRepairScript(linuxCloudInitOptions{BootstrapUser: user})
+		script := renderKataHostConfigRepairScript(linuxCloudInitOptions{BootstrapUser: user})
 		cmd := exec.Command("/bin/bash", "-n")
 		cmd.Stdin = strings.NewReader(script)
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -166,6 +166,8 @@ func TestHetznerKataSharedMemoryMatchesProvider(t *testing.T) {
 	want := map[string]string{
 		"/usr/local/sbin/tuist-kata-shared-memory":             kataSharedMemoryScript,
 		"/etc/systemd/system/tuist-kata-shared-memory.service": kataSharedMemoryUnit,
+		kataVirtiofsSysctlPath:                                 kataVirtiofsSysctl,
+		kataVirtiofsDropInPath:                                 kataVirtiofsDropIn,
 	}
 	for _, document := range strings.Split(string(data), "\n---") {
 		var template struct {
@@ -192,9 +194,13 @@ func TestHetznerKataSharedMemoryMatchesProvider(t *testing.T) {
 		commands := strings.Join(template.Spec.Template.Spec.PreKubeadmCommands, "\n")
 		if commands != "" {
 			start := strings.Index(commands, "systemctl start tuist-kata-shared-memory.service")
+			sysctl := strings.Index(commands, "sysctl --system")
 			containerd := strings.Index(commands, "systemctl enable --now containerd")
 			if start < 0 || start > containerd {
 				t.Fatal("shared-memory service must run before containerd")
+			}
+			if sysctl < 0 || sysctl > containerd {
+				t.Fatal("the virtiofsd fs.nr_open sysctl must apply before containerd")
 			}
 		}
 	}

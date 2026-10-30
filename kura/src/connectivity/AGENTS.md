@@ -2,7 +2,9 @@
 
 This module observes the pod network path for read-only operators using existing
 Kura logs. The controller enables exact instances via `KURA_CONNECTIVITY_PROFILE`.
-Only compiled production/staging/canary Service names and GET `/ready` are allowed.
+Only compiled production/staging/canary server Services (GET `/ready`, port 80)
+and the Alloy receiver Service (GET `/v1/traces`, port 4318) are allowed.
+The Alloy check measures headers only, never submits spans or proves delivery.
 
 - Keep this optional and independent of application startup/readiness decisions.
   The guard never joins the worker. Dedicated thread/runtime errors must not

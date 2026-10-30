@@ -59,7 +59,7 @@ struct RunCommandServiceTests {
     private struct TestError: Equatable, Error {}
     init() {
         given(generatorFactory)
-            .defaultGenerator(config: .any, includedTargets: .any)
+            .defaultGenerator(config: .any, includedTargets: .any, coverage: .any)
             .willReturn(generator)
         given(deviceController)
             .findAvailableDevices()

@@ -19,6 +19,20 @@ steps:
   - run: ./gradlew test
 ```
 
+The cache volume starts at `20gb`. Set `size` to give it another capacity, a
+whole number of GB from `1gb` to `100gb`:
+
+```yaml
+  - uses: tuist/gradle-cache@v1
+    with:
+      size: 50gb
+```
+
+A larger size grows the cache, keeping its contents, from its next job. A
+smaller one applies after the volume is next cleared or expires. Sizes above
+`20gb` may not be enabled for every account yet. Runner images without size
+support keep the current size and warn.
+
 Set `GRADLE_USER_HOME` before this step if you use one. Turn off other caches
 of the same directories, such as `cache: gradle` on `actions/setup-java` or the
 caching of `gradle/actions/setup-gradle`: the directories must be empty when
@@ -34,10 +48,10 @@ The action keeps local caches only. Use the
 [Tuist Gradle plugin](https://tuist.dev/en/docs/guides/features/cache/gradle-cache)
 to share build outputs through Tuist's remote cache.
 
-Saving follows the cache volume rules: successful jobs on the default branch
-save by default, and the runner profile's **Save cache from** setting can add
-branches. The `cache-hit` output is `true` when the job attached a saved
-cache. On runners that are not Tuist runners the action does nothing, and if
+Saving follows the cache volume rules: by default every successful job from
+the repository saves, fork pull requests never do, and the runner profile's
+**Save cache from** setting can limit it to specific branches. The `cache-hit`
+output is `true` when the job attached a saved cache. On runners that are not Tuist runners the action does nothing, and if
 the volume is unavailable it warns and the job runs with an empty cache.
 
 The `SOURCE_COMMIT` file records the monorepo source.

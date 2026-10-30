@@ -353,6 +353,77 @@ impl NamespaceSnapshotIndex {
     /// process. Skipped while the garbage share is too small to be worth
     /// rewriting every entry's index list.
     pub(super) fn compact_nodes(&mut self) {
+        self.compact_nodes_when(|garbage, nodes| {
+            garbage >= SNAPSHOT_COMPACT_MIN_GARBAGE && garbage * 2 >= nodes
+        });
+    }
+
+    /// Makes room for an entry needing `required_bytes` by dropping entries
+    /// written before `version_ms`, oldest first, and sweeping the nodes only
+    /// they referenced. Returns how many entries it dropped. The served view is
+    /// newest-first, so a newer write displaces an older one rather than being
+    /// turned away by it; `candidates` holds the oldest-first eviction order,
+    /// built on first use and shared across one reconcile.
+    pub(super) fn evict_older_for(
+        &mut self,
+        required_bytes: usize,
+        max_bytes: usize,
+        version_ms: u64,
+        candidates: &mut Option<std::collections::VecDeque<(u64, [u8; 32])>>,
+    ) -> usize {
+        let candidates = candidates.get_or_insert_with(|| {
+            let mut ordered: Vec<(u64, [u8; 32])> = self
+                .entries
+                .iter()
+                .map(|(hash, entry)| (entry.version_ms, *hash))
+                .collect();
+            ordered.sort_unstable();
+            ordered.into()
+        });
+        let mut evicted = 0;
+        while self.estimated_bytes.saturating_add(required_bytes) > max_bytes {
+            // Free at least a sixteenth of the budget per sweep, so a full index
+            // compacts a bounded number of times per reconcile instead of once
+            // per admitted entry.
+            let target = required_bytes.max(max_bytes / 16);
+            let mut freed = 0usize;
+            while freed < target {
+                let Some(&(candidate_version, hash)) = candidates.front() else {
+                    break;
+                };
+                if candidate_version >= version_ms {
+                    break;
+                }
+                candidates.pop_front();
+                let Some(entry) = self.entries.get(&hash) else {
+                    continue;
+                };
+                if entry.version_ms != candidate_version {
+                    continue;
+                }
+                freed = freed.saturating_add(estimated_snapshot_entry_bytes(entry.nodes.len()));
+                freed = freed.saturating_add(
+                    entry
+                        .nodes
+                        .iter()
+                        .map(|&node| {
+                            let node = &self.nodes[node as usize];
+                            estimated_snapshot_node_bytes(node.llcas.len(), node.blob_key.len())
+                        })
+                        .sum::<usize>(),
+                );
+                self.remove_entry(&hash);
+                evicted += 1;
+            }
+            if freed == 0 {
+                break;
+            }
+            self.compact_nodes_when(|garbage, _| garbage > 0);
+        }
+        evicted
+    }
+
+    fn compact_nodes_when(&mut self, worthwhile: impl FnOnce(usize, usize) -> bool) {
         let mut remap: Vec<Option<u32>> = vec![None; self.nodes.len()];
         let mut live: u32 = 0;
         for entry in self.entries.values() {
@@ -364,7 +435,7 @@ impl NamespaceSnapshotIndex {
             }
         }
         let garbage = self.nodes.len() - live as usize;
-        if garbage < SNAPSHOT_COMPACT_MIN_GARBAGE || garbage * 2 < self.nodes.len() {
+        if !worthwhile(garbage, self.nodes.len()) {
             return;
         }
         let old_nodes = std::mem::take(&mut self.nodes);
@@ -892,6 +963,8 @@ pub(super) async fn reconcile_snapshot_index(
     let mut loads_failed = 0_usize;
     let mut invalid = 0_usize;
     let mut budget_rejected = 0_usize;
+    let mut evicted = 0_usize;
+    let mut eviction_order = None;
     let encoded_load_budget =
         std::sync::Arc::new(tokio::sync::Semaphore::new(budgets.encoded_bytes.max(1)));
     let decoded_load_budget =
@@ -967,6 +1040,28 @@ pub(super) async fn reconcile_snapshot_index(
             continue;
         };
         let entry_bytes = estimated_snapshot_entry_bytes(action_result.output_files.len());
+        let new_node_bytes: usize = action_result
+            .output_files
+            .iter()
+            .filter_map(|file| {
+                let llcas = hex::decode(&file.path).ok()?;
+                let digest = file.digest.as_ref()?;
+                if index.node_index.contains_key(&llcas) {
+                    return None;
+                }
+                let blob_key = blob_key(&format!("{}/{}", digest.hash, digest.size_bytes));
+                Some(estimated_snapshot_node_bytes(llcas.len(), blob_key.len()))
+            })
+            .sum();
+        let required_bytes = entry_bytes.saturating_add(new_node_bytes);
+        if index.estimated_bytes().saturating_add(required_bytes) > budgets.index_bytes {
+            evicted += index.evict_older_for(
+                required_bytes,
+                budgets.index_bytes,
+                version_ms,
+                &mut eviction_order,
+            );
+        }
         if index.estimated_bytes().saturating_add(entry_bytes) > budgets.index_bytes {
             budget_rejected += 1;
             continue;
@@ -1089,6 +1184,7 @@ pub(super) async fn reconcile_snapshot_index(
         loads_failed,
         invalid,
         budget_rejected,
+        evicted,
         interrupted,
         unverified,
         estimated_bytes = index.estimated_bytes(),

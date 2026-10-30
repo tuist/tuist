@@ -124,6 +124,17 @@ render() {
   done
 }
 
+@test "the install keeps sshd out of systemd's start limit" {
+  run render
+  [ "$status" -eq 0 ]
+  late="$(yq -r '.autoinstall.late-commands[] | select(test("no-start-limit"))' "$BATS_TEST_TMPDIR/seed/user-data")"
+  [ -n "$late" ]
+  target="$BATS_TEST_TMPDIR/target"
+  sh -c "$(printf '%s\n' "$late" | sed "s|/target/|$target/|g")"
+  [ "$(cat "$target/etc/systemd/system/ssh.service.d/10-tuist-no-start-limit.conf")" = "$(printf '[Unit]\nStartLimitIntervalSec=0\n[Service]\nRestartSec=5s')" ]
+  [ "$(cat "$target/etc/systemd/system/ssh.socket.d/10-tuist-no-start-limit.conf")" = "$(printf '[Unit]\nStartLimitIntervalSec=0')" ]
+}
+
 @test "a storage node gets a quotaed XFS /data and keeps its kubelet and images there" {
   run render "$(jq -c '.role = "storage"' <<<"$HOST_JSON")"
   [ "$status" -eq 0 ]
@@ -161,7 +172,7 @@ render() {
   [ "$status" -eq 0 ]
   seed="$BATS_TEST_TMPDIR/seed/user-data"
   [ "$(yq -r '.autoinstall.network.ethernets | keys | join(",")' "$seed")" = uplinks ]
-  [ "$(yq -r '.autoinstall.network.ethernets.uplinks.match.driver' "$seed")" = i40e ]
+  [ "$(yq -r '.autoinstall.network.ethernets.uplinks.match.driver | join(",")' "$seed")" = i40e,bnxt_en ]
   [ "$(yq -r '.autoinstall.network.ethernets.uplinks.dhcp4' "$seed")" = true ]
 }
 
@@ -185,7 +196,7 @@ render() {
   [ "$status" -eq 0 ]
   seed="$BATS_TEST_TMPDIR/stick"
   early="$(yq -r '.autoinstall.early-commands[0]' "$seed/user-data")"
-  [[ "$early" == *"server='http://192.168.50.1:8480'"* ]]
+  [[ "$early" == *"servers='http://192.168.50.1:8480'"* ]]
   [[ "$early" == *"cp /run/tuist-user-data /autoinstall.yaml"* ]]
   [ "$(yq -r '.ethernets.wired.match.name' "$seed/network-config")" = 'e*' ]
   [ "$(cat "$seed/meta-data")" = "instance-id: tuist-install-stick" ]
@@ -200,4 +211,29 @@ render() {
   run rack_boot_server canary
   [ "$status" -ne 0 ]
   [[ "$output" == *"rackLinuxFleet.boot.address"* ]]
+}
+
+@test "the preinstall image's installer tries every site's static WAN" {
+  run rack_site_wans
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ber1 149.6.170.31/31 149.6.170.30 4001"* ]]
+}
+
+@test "the preinstall image carries a deploy seed and a resident installer, and no credential" {
+  printf 'ber1 149.6.170.31/31 149.6.170.30 4001\n' >"$BATS_TEST_TMPDIR/wans"
+  run render_preinstall_seeds "$BATS_TEST_TMPDIR/pre" http://192.168.50.1:8480,https://rack-boot.example.dev "$BATS_TEST_TMPDIR/wans"
+  [ "$status" -eq 0 ]
+  deploy="$(yq -r '.autoinstall.early-commands[0]' "$BATS_TEST_TMPDIR/pre/deploy/user-data")"
+  [[ "$deploy" == *"poweroff -f"* ]]
+  resident="$(yq -r '.autoinstall.early-commands[0]' "$BATS_TEST_TMPDIR/pre/resident/user-data")"
+  [[ "$resident" == *"servers='http://192.168.50.1:8480 https://rack-boot.example.dev'"* ]]
+  [[ "$resident" == *"ber1 149.6.170.31/31 149.6.170.30 4001"* ]]
+  [ "$(yq -r '.ethernets.wired.match.name' "$BATS_TEST_TMPDIR/pre/resident/network-config")" = 'e*' ]
+  if grep -rqE 'tskey|\$6\$|ssh-ed25519|BEGIN OPENSSH' "$BATS_TEST_TMPDIR/pre"; then false; fi
+}
+
+@test "a resident installer asks only boot servers it can reach without a credential" {
+  : >"$BATS_TEST_TMPDIR/wans"
+  run render_preinstall_seeds "$BATS_TEST_TMPDIR/pre" ftp://nowhere "$BATS_TEST_TMPDIR/wans"
+  [ "$status" -ne 0 ]
 }

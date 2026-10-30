@@ -1,6 +1,4 @@
-# Bundles (Context)
-
-This context owns bundle metadata and artifact trees.
+# Bundles
 
 ## Responsibilities
 - Create bundles with artifacts using `Ecto.Multi` and batch inserts.
@@ -11,16 +9,5 @@ This context owns bundle metadata and artifact trees.
 - The absolute-threshold migration preserves existing rules and refuses rollback while absolute rules remain. Convert those rules explicitly before rolling back; never discard them or infer percentages. Finish rolling out the new server code before creating absolute rules. A code-only rollback also requires converting absolute rules first: older workers do not recognize the byte column and would silently pass them. Percentage rules remain compatible with both versions.
 - Decide who may accept a size increase that exceeded a threshold, and record who did.
 
-## Boundaries
-- HTTP/API and UI code live in `server/lib/tuist_web`.
-- Configuration belongs in `server/config`.
-- Schema changes and migrations live in `server/priv`.
-
 ## Guardrails
-- Bundle and artifact data is customer data; update `server/data-export.md` on schema changes.
 - Approval state belongs in Postgres. `bundles` is a ClickHouse MergeTree, where updating a row is an asynchronous mutation.
-
-## Related Context
-- Parent business logic: `server/lib/tuist/AGENTS.md`
-- Web layer: `server/lib/tuist_web/AGENTS.md`
-- Migrations: `server/priv/AGENTS.md`

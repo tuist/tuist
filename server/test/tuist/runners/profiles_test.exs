@@ -114,6 +114,7 @@ defmodule Tuist.Runners.ProfilesTest do
     } do
       {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
       assert profile.cache_writer_default_branch
+      assert profile.cache_writer_all_branches
       assert is_nil(profile.cache_writer_branches)
 
       assert {:ok, updated} =
@@ -130,6 +131,12 @@ defmodule Tuist.Runners.ProfilesTest do
                Profiles.update(updated, %{cache_writer_default_branch: nil})
 
       assert errors[:cache_writer_default_branch]
+
+      assert {:ok, %{cache_writer_all_branches: false, cache_writer_branches: ["release/*", "main", "*"]}} =
+               Profiles.update(updated, %{cache_writer_all_branches: false})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} = Profiles.update(updated, %{cache_writer_all_branches: nil})
+      assert errors[:cache_writer_all_branches]
     end
 
     test "rejects invalid refs and more than the branch limit", %{account: account} do
@@ -204,6 +211,18 @@ defmodule Tuist.Runners.ProfilesTest do
       refute Profile.cache_writer_branch?(["v1.0"], "v1x0")
       refute Profile.cache_writer_branch?([], "main")
       refute Profile.cache_writer_branch?(["*"], nil)
+    end
+  end
+
+  describe "cached checkouts" do
+    test "are on by default and turned off without validating the shape again", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cached_checkouts
+
+      stub(Catalog, :shapes, fn _ -> [] end)
+      assert {:ok, %{cached_checkouts: false}} = Profiles.update(profile, %{"cached_checkouts" => false})
+      assert Profiles.get_for_dispatch_label(account.id, Profile.dispatch_label(profile)).id == profile.id
+      assert is_nil(Profiles.get_for_dispatch_label(account.id, "shape-linux-4vcpu-16gb"))
     end
   end
 
@@ -282,6 +301,7 @@ defmodule Tuist.Runners.ProfilesTest do
       assert profile.protected
       assert profile.vcpus == 4
       assert profile.memory_gb == 16
+      assert profile.cache_writer_all_branches
     end
 
     test "is idempotent — second call is a no-op on `(account_id, name)` conflict",

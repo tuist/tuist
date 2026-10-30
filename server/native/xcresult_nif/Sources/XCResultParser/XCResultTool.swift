@@ -252,13 +252,14 @@ func reapExitedChild(_ processIdentifier: pid_t) throws {
 
 public enum XCResultToolError: Error, LocalizedError {
     case missingExecutable
+    case missingObject(command: [String], standardError: String)
     case terminated(command: [String], standardError: String)
 
     public var errorDescription: String? {
         switch self {
         case .missingExecutable:
             return "The command is missing an executable name."
-        case let .terminated(command, standardError):
+        case let .missingObject(command, standardError), let .terminated(command, standardError):
             let description = "The command '\(command.joined(separator: " "))' terminated unsuccessfully"
             let trimmedStandardError = standardError.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmedStandardError.isEmpty ? description : "\(description):\n\(trimmedStandardError)"
@@ -269,6 +270,13 @@ public enum XCResultToolError: Error, LocalizedError {
 extension XCResultToolOutput {
     func requireSuccess(for command: [String]) throws {
         guard succeeded else {
+            // xcresulttool only exposes this diagnostic on stderr. Interpret it here,
+            // before callers turn typed failures into human-readable descriptions.
+            if command == ["xcresulttool", "get", "test-results", "tests"],
+               standardError.split(whereSeparator: \.isNewline).contains(where: { $0.hasPrefix("Error: item missing for id ") })
+            {
+                throw XCResultToolError.missingObject(command: command, standardError: standardError)
+            }
             throw XCResultToolError.terminated(command: command, standardError: standardError)
         }
     }

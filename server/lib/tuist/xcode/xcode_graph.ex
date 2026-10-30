@@ -8,7 +8,9 @@ defmodule Tuist.Xcode.XcodeGraph do
     field :id, :string
     field :name, :string
     field :command_event_id, Ch, type: "UUID"
+    field :project_id, Ch, type: "Int64", default: 0
     field :binary_build_duration, Ch, type: "Nullable(UInt32)"
+    field :modules_count, Ch, type: "Nullable(UInt32)"
 
     has_many :xcode_projects, Tuist.Xcode.XcodeProject,
       foreign_key: :xcode_graph_id,

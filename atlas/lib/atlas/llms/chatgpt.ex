@@ -1,7 +1,7 @@
 defmodule Atlas.LLMs.ChatGPT do
   @moduledoc """
-  ChatGPT device authorization. Requires an operator-provisioned OpenAI OAuth
-  client with device authorization enabled; Atlas does not borrow Codex's client ID.
+  ChatGPT device authorization. Requires an operator-configured OpenAI OAuth
+  client with device authorization enabled; there is no built-in client ID fallback.
   """
 
   alias Atlas.LLMs.ChatGPT.Config

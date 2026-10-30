@@ -1,7 +1,11 @@
 #if os(macOS)
+    import FileSystem
+    import FileSystemTesting
     import Foundation
     import Security
     import Testing
+    import TuistEnvironment
+    import TuistTestSupport
 
     @testable import TuistHTTP
 
@@ -48,6 +52,30 @@
         wwJp2Lu3iXN62t6OCSv/QczDa/Q6ShpV8IQkikmAtEtecbzAmZz6m9utqQsugA==
         -----END CERTIFICATE-----
         """
+
+        @Test(.inTemporaryDirectory)
+        func discovery_uses_the_configured_private_CA_without_following_redirects() async throws {
+            let directory = try #require(FileSystem.temporaryTestDirectory)
+            let path = directory.appending(component: "ca.pem")
+            try await FileSystem().writeText(Self.caPEM, at: path)
+            let environment = Environment(variables: ["TUIST_CA_CERTIFICATE": path.pathString], arguments: [])
+            try await Environment.$current.withValue(environment) {
+                let session = URLSession.tuistDiscovery
+                defer { session.invalidateAndCancel() }
+                let delegate = try #require(session.delegate as? TuistURLSessionDelegate)
+                let url = try #require(URL(string: "https://tuist.example"))
+                let response = try #require(HTTPURLResponse(url: url, statusCode: 302, httpVersion: nil, headerFields: nil))
+                await confirmation("Private CA discovery refuses redirects") { completed in
+                    delegate.urlSession(
+                        session, task: session.dataTask(with: url), willPerformHTTPRedirection: response,
+                        newRequest: URLRequest(url: url)
+                    ) { request in
+                        #expect(request == nil)
+                        completed()
+                    }
+                }
+            }
+        }
 
         @Test
         func parses_single_PEM_certificate() {
@@ -104,6 +132,17 @@
             // Hostname mismatch still fails even with the CA trusted: evaluation is not bypassed.
             let mismatched = try trust(for: leaf, hostname: "evil.com")
             #expect(!TLSValidator.evaluate(mismatched, addingAdditionalAnchors: [ca]))
+        }
+
+        @Test
+        func blocked_anchors_do_not_break_an_unrelated_private_CA() throws {
+            let leaf = try #require(CACertificateLoader.parse(from: Data(Self.leafPEM.utf8)).first)
+            let ca = try #require(CACertificateLoader.parse(from: Data(Self.caPEM.utf8)).first)
+            let path = TestPaths.fixturesDirectory.appending(components: "CertificateTrust", "issuer-roots.pem")
+            let blocked = CACertificateLoader.parse(from: try Data(contentsOf: URL(fileURLWithPath: path.pathString)))
+            #expect(blocked.count == 4)
+            let trust = try trust(for: leaf, hostname: "localhost")
+            #expect(TLSValidator.evaluate(trust, addingAdditionalAnchors: blocked + [ca]))
         }
 
         private func trust(for certificate: SecCertificate, hostname: String) throws -> SecTrust {

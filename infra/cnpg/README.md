@@ -10,7 +10,7 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 - [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — per-table grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`. **These grants are now applied automatically by `Tuist.Release.migrate/0` (`do_grant_processor_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `do_grant_processor_role`. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
 - [`tuist-swift-registry-sync-grants.sql`](./tuist-swift-registry-sync-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_swift_registry_sync` role used by the Swift registry sync worker. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the narrower per-table privileges the worker needs. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
 - [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on the application schema (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo under the web runtime role and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
-- [`tuist-grafana-ro-grants.sql`](./tuist-grafana-ro-grants.sql) — column-level `SELECT`s for the `tuist_grafana_ro` role, which backs the Grafana "Tuist Product Usage" dashboard over the PDC tunnel. The role is created declaratively by CNPG via `managed.roles[]` with **no `inRoles`** — unlike `tuist_ops_ro` it must never inherit `pg_read_all_data`, because its password lives in Grafana Cloud and every table the dashboard reads sits next to a secret in the same row (`users.encrypted_password`, `projects.token`, `accounts.s3_secret_access_key`, `organizations.oauth2_encrypted_client_secret`). **These grants are applied automatically by `Tuist.Release.migrate/0` (`do_grant_grafana_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `grafana_role_grant_statements/3` (a test asserts this). Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
+- [`tuist-grafana-ro-grants.sql`](./tuist-grafana-ro-grants.sql) — column-level `SELECT`s for the `tuist_grafana_ro` role, which backs the Grafana "Tuist Product Usage" dashboard and the runner cache volume warm-rate alert rule over the PDC tunnel. The role is created declaratively by CNPG via `managed.roles[]` with **no `inRoles`** — unlike `tuist_ops_ro` it must never inherit `pg_read_all_data`, because its password lives in Grafana Cloud and every table the dashboard reads sits next to a secret in the same row (`users.encrypted_password`, `projects.token`, `accounts.s3_secret_access_key`, `organizations.oauth2_encrypted_client_secret`). **These grants are applied automatically by `Tuist.Release.migrate/0` (`do_grant_grafana_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `grafana_role_grant_statements/3` (a test asserts this). Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
 - [`pg-stat-statements.sql`](./pg-stat-statements.sql) — `CREATE EXTENSION pg_stat_statements`, enabling the per-query latency metrics (`cnpg_tuist_query_stats_*`) that back the dashboard's query-latency panels. The library is preloaded via the chart (`postgresql.cnpg.sharedPreloadLibraries`); this creates the reading view. **Runs against `postgres`, not `tuist`** (the metrics exporter queries the instance-global view from the maintenance database). Only relevant when `postgresql.cnpg.queryStats.enabled` is set. **Only for clusters bootstrapped before query-stats was enabled** — fresh clusters create the extension automatically via the Cluster CR's `bootstrap.initdb.postInitSQL`, and it persists across restores. (The operator now supports `Database.spec.extensions`, which could reconcile it declaratively on existing clusters instead.)
 
 ## When to run
@@ -105,6 +105,71 @@ To activate:
 3. Confirm the processor reconnected — its `DATABASE_URL` now resolves to `-pooler-rw`.
 
 There is no separate cluster-bootstrap step, so this is safe to flip on an existing cluster; the processor briefly retries its connection while the pooler pods come up, then settles.
+
+### Canary rollout backend budget
+
+Canary sets `max_connections: "300"` locally; production and self-hosted defaults
+are unchanged. The two web pods keep direct pools of 30. During one fixed-size
+rollout, both old pods can retain those pools throughout their 60-second
+termination grace period while both replacements connect: 4 × 30 = 120.
+Kubernetes excludes terminating pods from the surge limit, so neither counting
+only the three non-terminating pods allowed by `maxSurge: 1` nor switching to
+`maxSurge: 0` is a sufficient backend budget.
+
+PgBouncer's `default_pool_size: "20"` applies **per database/user pair, per
+process**, not across the pooler. Canary has these pairs:
+
+- `tuist/tuist_processor`, shared by Linux and xcresult processors. Include the
+  desired xcresult consumer even when its pod is Pending.
+- `tuist/tuist_swift_registry_sync`, the independent registry sync role.
+- `postgres/cnpg_pooler_pgbouncer`, CNPG's authentication lookup pool.
+
+Budget the full 20 for each pair, including authentication bursts and backend
+connections retained after consumer replacements. The one-instance pooler's
+own rolling replacement can overlap two PgBouncer processes: 2 × 3 × 20 = 120.
+`reserve_pool_size` is disabled; `max_client_conn: "200"` only limits client
+admission and must not be treated as a PostgreSQL backend cap.
+
+The resulting allowance is 120 direct + 120 pooled + 30 operational reserve =
+270, leaving 30 spare below 300. The operational reserve covers other direct
+users, notifier/leader session overhead across versions, migrations,
+admin/monitoring connections and PostgreSQL's reserved slots. Current Oban
+uses the Erlang PG notifier and repository-backed peer election, so those
+features do not themselves open extra dedicated PostgreSQL pools.
+This is a conservative allowance, not a measured simultaneous peak or a
+guarantee for repeated overlapping rollouts, extra database/user pairs, or
+unbounded operator sessions. Rebudget when those assumptions change.
+
+Keep the existing application pool sizes and zero-unavailable web strategy:
+reducing checkout capacity can compete with web-local Oban work, and disabling
+surge does not wait for old pools to close. Raising the database admission
+ceiling instead permits more backend memory and concurrent work on the same
+8 GiB / 2 CPU instance; it is not a throughput increase. `work_mem` is per
+operation, so 300 simultaneously busy connections are not a safe load target.
+Synchronous `ANY 1` replication with `dataDurability: required` is unchanged.
+The existing `helm:server-rollout` regression checks the merged rendered budget.
+
+**Apply the initial correction database-first, before the normal application
+deployment.** A normal Helm upgrade is not a readiness barrier: its blocking
+`pre-upgrade` migration hook uses the old limit before updating the Cluster,
+and web replacements can start before CNPG finishes applying the new limit.
+
+1. Obtain human approval/elevation for the database-only canary change and
+   schedule a write interruption. Increasing `max_connections` requires a
+   PostgreSQL restart. With required `ANY 1` replication, commits wait while
+   a cluster's only standby restarts, in addition to the primary switchover
+   interruption. Do not weaken synchronous durability to avoid it.
+2. Apply only the CNPG `max_connections: "300"` parameter change, leaving
+   application workloads unchanged. Let CNPG complete its standby restart and
+   primary switchover.
+3. Wait for every instance to be healthy, with replication restored and no
+   restart pending. Verify the effective `max_connections` is 300 on **every**
+   instance before starting the normal application deployment.
+4. During that rollout, check for `53300` and pooler authentication rejections,
+   confirm old web connections drain, and check backend memory, active sessions
+   and checkout queues remain healthy.
+
+This correction does not address production DB-volume stalls.
 
 ### Client connections through Tailscale
 
@@ -305,8 +370,9 @@ distinguish the broken case: a healthy two-instance cluster also has only a
 not appear until three instances. `ALLOWED=0` on the primary budget is normal
 at every instance count and is not by itself a fault.
 
-Reading the `Cluster` CR needs JIT elevation (`clusters.postgresql.cnpg.io` is
-forbidden to the normal kubectl identity); the pod count above does not.
+Reading the `Cluster` CR and instance pods is available through the normal
+`view` tier. A manual promotion needs the write tier; follow the
+[controlled switchover runbook](../k8s/onboarding.md#controlled-cnpg-switchover).
 
 ## Backup: Barman Cloud Plugin
 

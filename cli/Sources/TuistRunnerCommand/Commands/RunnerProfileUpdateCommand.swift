@@ -32,6 +32,7 @@ public struct RunnerProfileUpdateCommand: AsyncParsableCommand, NooraReadyComman
             vcpus: vcpus,
             memoryGB: memoryGB,
             xcodeVersion: xcodeVersion,
+            saveCacheFromAllBranches: cacheOptions.saveCacheFromAllBranches,
             saveCacheFromDefaultBranch: cacheOptions.saveCacheFromDefaultBranch,
             saveCacheFromBranches: cacheOptions.branches
         )

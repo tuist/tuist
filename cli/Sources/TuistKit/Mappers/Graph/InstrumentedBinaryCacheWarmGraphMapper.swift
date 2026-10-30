@@ -2,7 +2,7 @@ import Foundation
 import TuistCore
 import XcodeGraph
 
-/// Marks the repository-owned binaries of a `tuist cache --coverage` warm, so the coverage settings the
+/// Marks the repository-owned binaries of a `tuist cache` warm with coverage on, so the coverage settings the
 /// warm passes on the command line (`InstrumentedBinaryCacheWarm`) apply to them and to nothing else.
 ///
 /// The marker is a target setting rather than the coverage settings themselves because a command-line

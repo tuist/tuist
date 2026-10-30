@@ -1,10 +1,26 @@
+import ArgumentParser
 import Foundation
+import TuistCache
+
+public enum CacheDestination: String, CaseIterable, ExpressibleByArgument, Sendable {
+    case all
+    case simulator
+    case device
+
+    public var sdkSelection: BinaryCacheSDKSelection {
+        switch self {
+        case .all: .all
+        case .simulator: .simulators
+        case .device: .devices
+        }
+    }
+}
 
 public protocol HashCacheServicing {
     func run(
         path: String?,
         configuration: String?,
-        coverage: Bool
+        destination: CacheDestination
     ) async throws
 }
 
@@ -18,7 +34,7 @@ public protocol CacheServicing {
         noUpload: Bool,
         cacheProfile: String?,
         scratchDirectory: String?,
-        coverage: Bool
+        destination: CacheDestination
     ) async throws
 }
 
@@ -27,7 +43,7 @@ public struct EmptyHashCacheService: HashCacheServicing {
     public func run(
         path _: String?,
         configuration _: String?,
-        coverage _: Bool
+        destination _: CacheDestination = .all
     ) async throws {}
 }
 
@@ -42,7 +58,7 @@ public struct EmptyCacheService: CacheServicing {
         noUpload _: Bool,
         cacheProfile _: String?,
         scratchDirectory _: String?,
-        coverage _: Bool
+        destination _: CacheDestination = .all
     ) async throws {
         print(
             "Caching is currently not opensourced. Please, report issues with caching on GitHub and the Tuist team will take a look."

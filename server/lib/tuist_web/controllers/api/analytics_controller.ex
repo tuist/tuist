@@ -4,7 +4,9 @@ defmodule TuistWeb.API.AnalyticsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
+  alias Tuist.IdempotentRequests
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.Regions
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
@@ -526,8 +528,29 @@ defmodule TuistWeb.API.AnalyticsController do
     }
   )
 
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  # A client retries a run whose response it lost. Command events and their graph,
+  # module cache outputs and cache-origin counts go to tables that don't
+  # deduplicate, so a request carrying an id claims it first and a retry gets the
+  # first request's response back without writing anything.
   def create(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
+    case IdempotentRequests.run("command_event", selected_project.id, Map.get(body_params, :id), fn ->
+           {:ok, create_command_event(conn, body_params, selected_project)}
+         end) do
+      {result, response} when result in [:ok, :replayed] ->
+        conn
+        |> put_status(:ok)
+        |> json(response)
+
+      {:error, :in_progress} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> put_resp_header("retry-after", "1")
+        |> json(%{message: "A run with this id is still being created; retry this request"})
+    end
+  end
+
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  defp create_command_event(conn, body_params, selected_project) do
     user_id =
       case Authentication.attributed_user(conn) do
         nil -> nil
@@ -611,7 +634,13 @@ defmodule TuistWeb.API.AnalyticsController do
     # endpoint resolutions are cached by the client for an hour and refreshed
     # by an idle launch agent, so counting those would let both biases move
     # servers.
-    if cache_run?(cache_metadata, body_params) do
+    #
+    # A run whose cache traffic went to a private runner cache is not counted:
+    # its origin is the runner site's egress, and no public region served it,
+    # so counting it would pull the account's public regions toward the
+    # runners rather than toward anyone using them.
+    if cache_run?(cache_metadata, body_params) and
+         not Regions.private_endpoint?(Map.get(body_params, :cache_endpoint)) do
       Origins.record_run(selected_project.account_id, RemoteIp.attributed_origin(conn))
     end
 
@@ -652,15 +681,14 @@ defmodule TuistWeb.API.AnalyticsController do
         url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run_id}")
       end
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
+    %{
       id: command_event.id,
+      actor: command_event |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
       project_id: command_event.project_id,
       name: command_event.name,
       url: url,
       test_run_url: test_run_url
-    })
+    }
   end
 
   # Cacheable targets or a resolved endpoint both put the cache in the run's

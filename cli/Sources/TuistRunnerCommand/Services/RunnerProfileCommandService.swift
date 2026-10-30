@@ -6,7 +6,8 @@ import TuistHTTP
 import TuistServer
 
 enum RunnerProfileOutput {
-    static func saveCacheFrom(defaultBranch: Bool, branches: [String]) -> String {
+    static func saveCacheFrom(allBranches: Bool, defaultBranch: Bool, branches: [String]) -> String {
+        if allBranches { return "Any branch" }
         let labels = (defaultBranch ? ["Default branch"] : []) + branches
         return labels.isEmpty ? "No branches" : labels.joined(separator: ", ")
     }
@@ -66,6 +67,7 @@ struct RunnerProfileListCommandService: RunnerProfileListCommandServicing {
                 String(profile.vcpus),
                 "\(profile.memory_gb) GB",
                 RunnerProfileOutput.saveCacheFrom(
+                    allBranches: profile.cache_writer_all_branches,
                     defaultBranch: profile.cache_writer_default_branch,
                     branches: profile.cache_writer_branches
                 ),
@@ -148,6 +150,7 @@ protocol RunnerProfileCreateCommandServicing {
         vcpus: Int,
         memoryGB: Int,
         xcodeVersion: String?,
+        saveCacheFromAllBranches: Bool?,
         saveCacheFromDefaultBranch: Bool?,
         saveCacheFromBranches: [String]?,
         account: String?,
@@ -180,6 +183,7 @@ struct RunnerProfileCreateCommandService: RunnerProfileCreateCommandServicing {
         vcpus: Int,
         memoryGB: Int,
         xcodeVersion: String?,
+        saveCacheFromAllBranches: Bool?,
         saveCacheFromDefaultBranch: Bool?,
         saveCacheFromBranches: [String]?,
         account: String?,
@@ -201,6 +205,7 @@ struct RunnerProfileCreateCommandService: RunnerProfileCreateCommandServicing {
             vcpus: vcpus,
             memoryGB: memoryGB,
             xcodeVersion: xcodeVersion,
+            saveCacheFromAllBranches: saveCacheFromAllBranches,
             saveCacheFromDefaultBranch: saveCacheFromDefaultBranch,
             saveCacheFromBranches: saveCacheFromBranches
         )
@@ -268,6 +273,7 @@ struct RunnerProfileUpdateCommandService: RunnerProfileUpdateCommandServicing {
             xcodeVersion: profile.xcode_version
         )
         let saveCacheFrom = RunnerProfileOutput.saveCacheFrom(
+            allBranches: profile.cache_writer_all_branches,
             defaultBranch: profile.cache_writer_default_branch,
             branches: profile.cache_writer_branches
         )

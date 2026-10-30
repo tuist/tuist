@@ -26,6 +26,16 @@ defmodule Atlas.HTTPTest do
     assert Keyword.get(pool_options, :pool_max_idle_time) == 30_000
   end
 
+  test "always adds dedicated HTTP/2 pools for APNs alongside operator pools" do
+    pools = HTTP.finch_pools(finch_pools: %{default: [protocols: [:http1]]})
+
+    assert pools.default == [protocols: [:http1]]
+
+    for origin <- ["https://api.push.apple.com", "https://api.sandbox.push.apple.com"] do
+      assert Keyword.fetch!(pools[origin], :protocols) == [:http2]
+    end
+  end
+
   test "configures Req default options" do
     test_pid = self()
 

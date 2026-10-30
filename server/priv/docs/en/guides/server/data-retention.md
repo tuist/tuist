@@ -24,7 +24,7 @@ These windows define how long artifact files remain available on the hosted Tuis
 | Build archives | 7 days | 30 days | 30 days |
 | Run artifacts, including result bundles and session archives | 7 days | 30 days | 30 days |
 | Test run attachments | 30 days | 30 days | 30 days |
-| Shard bundles, including nextest archives | 7 days | 14 days | 30 days |
+| Shard bundles | 7 days | 14 days | 30 days |
 
 The active account plan determines the hosted retention window. If an account does not have an active subscription, Tuist uses the Air retention window. Some artifact types use shorter windows because they are expected to be regenerated.
 
@@ -57,8 +57,8 @@ These records are separate from the downloadable build archives, result bundles,
 | Data | Retention |
 | --- | --- |
 | Gradle build records, task records, cache event records, Mix build records, compiled file records, build step records and diagnostics, Cargo build records (including aggregate compilation-cache measurements) and compiler observations, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
-| Generated Xcode module history on persistent module detail pages | 30 days |
-| Task, declared action, compiled file and module observations on persistent detail pages | 90 days, except generated Xcode modules above |
+| Xcode module compilation and cache history on persistent module detail pages | 30 days |
+| Task, declared Once action, Bazel BEP action, compiled file and module observations on persistent detail pages | 90 days, except Xcode modules above |
 | Persistent task/action/module/file identity metadata | 365 days without an observation |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
 | Webhook delivery history | No fixed deletion schedule |

@@ -65,7 +65,7 @@ struct CoverageBuildSourcesServiceTests {
             .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
             .willReturn(["Sources/A.swift": "aaa"])
 
-        await subject.write(to: testProductsPath, config: .test(fullHandle: "tuist/tuist"))
+        await subject.write(to: testProductsPath, derivedDataDirectory: nil, config: .test(fullHandle: "tuist/tuist"))
 
         // The test run restores what the build recorded.
         let storage = RunMetadataStorage()
@@ -97,7 +97,7 @@ struct CoverageBuildSourcesServiceTests {
                     files: ["/checkout/Sources/Lib/A.swift", "/elsewhere/B.swift"]
                 ),
             ])
-            await subject.write(to: testProductsPath, config: .test(fullHandle: "tuist/tuist"))
+            await subject.write(to: testProductsPath, derivedDataDirectory: nil, config: .test(fullHandle: "tuist/tuist"))
         }
 
         let expected = CoverageBuildSources(
@@ -117,6 +117,42 @@ struct CoverageBuildSourcesServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func write_carriesTheBuildsPrefixMapsForATestRunElsewhere() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testProductsPath = temporaryDirectory.appending(component: "App.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let derivedDataDirectory = temporaryDirectory.appending(component: "DerivedData")
+        let targetDirectory = derivedDataDirectory.appending(
+            components: "Build",
+            "Intermediates.noindex",
+            "App.build",
+            "Debug",
+            "Lib.build"
+        )
+        try await fileSystem.makeDirectory(at: targetDirectory)
+        try await fileSystem.writeAsJSON(
+            ["/^src": "/checkout/Lib"],
+            at: targetDirectory.appending(component: "compilation-prefix-map.json")
+        )
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(try AbsolutePath(validating: "/checkout"))
+        given(gitController).sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any).willReturn([:])
+
+        await subject.write(
+            to: testProductsPath,
+            derivedDataDirectory: derivedDataDirectory,
+            config: .test(fullHandle: "tuist/tuist")
+        )
+
+        let restored = RunMetadataStorage()
+        await restored.restoreCoverageBuildSources(from: testProductsPath)
+        #expect(await restored.coverageBuildSources?.prefixMaps == ["Lib": ["/^src": "/checkout/Lib"]])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func write_removesAnEarlierRecordWhenCoverageUploadIsOff() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testProductsPath = temporaryDirectory.appending(component: "App.xctestproducts")
@@ -124,7 +160,7 @@ struct CoverageBuildSourcesServiceTests {
         let sourcesPath = testProductsPath.appending(component: CoverageBuildSources.fileName)
         try await fileSystem.writeText("{}", at: sourcesPath)
 
-        await subject.write(to: testProductsPath, config: .test(fullHandle: "tuist/tuist"))
+        await subject.write(to: testProductsPath, derivedDataDirectory: nil, config: .test(fullHandle: "tuist/tuist"))
 
         #expect(try await !fileSystem.exists(sourcesPath))
         verify(gitController)

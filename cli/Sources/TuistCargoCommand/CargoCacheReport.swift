@@ -39,9 +39,10 @@ enum CargoCacheReport {
         var result = Dictionary(uniqueKeysWithValues: counters.map { ($0, UInt64(0)) })
         var reports = 0
         var inspected = 0
+        var truncated = false
         var remaining = 8_000_000
         for case let file as URL in files {
-            guard inspected < 64, remaining > 0 else { break }
+            guard inspected < 4096, remaining > 0 else { truncated = true; break }
             inspected += 1
             guard file.pathExtension == "json",
                   let properties = try? file.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]),
@@ -67,6 +68,7 @@ enum CargoCacheReport {
         payload["version"] = 1
         if var details = CargoCacheDetailsReport.read(root: root) {
             let expected = ["hits", "misses", "unconsulted"].reduce(UInt64(0)) { $0 + result[$1, default: 0] }
+            if truncated { details["truncated"] = true }
             if let tasks = details["tasks"] as? [[String: Any]], UInt64(tasks.count) < expected { details["truncated"] = true }
             payload["details"] = details
         }

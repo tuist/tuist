@@ -4,6 +4,24 @@ defmodule Noora.FilterTest do
   alias Noora.Filter
   alias Noora.Filter.Operations
 
+  require Phoenix.LiveViewTest
+
+  test "text filter forms disable browser form-history suggestions" do
+    html =
+      Phoenix.LiveViewTest.render_component(&Filter.active_filter/1,
+        filter: %Filter.Filter{
+          id: "git_branch",
+          field: :git_branch,
+          display_name: "Branch",
+          type: :text,
+          operator: :=~,
+          value: "main"
+        }
+      )
+
+    assert html =~ ~r/<form(?=[^>]*phx-submit="update_filter")(?=[^>]*autocomplete="off")[^>]*>/
+  end
+
   describe "convert_filters_to_flop/1" do
     test "converts Noora negative text filters into Flop operators" do
       # When

@@ -10,11 +10,11 @@ defmodule Tuist.MCP.Components.Tools.BuildEntityTool do
 
   # The persistent kinds exposed over MCP. Cache actions stay available through
   # REST and the dashboard, and their run-level cache tools are unchanged.
-  @kinds [:gradle_tasks, :xcode_modules, :once_actions, :mix_files, :mix_modules]
+  @kinds [:gradle_tasks, :xcode_modules, :once_actions, :mix_files, :mix_modules, :bazel_actions]
 
   @kind_descriptions """
-  Kinds: `gradle_tasks` (Gradle tasks; history lists task executions), \
-  `xcode_modules` (generated Xcode project modules; history lists module cache events), \
+  Kinds: `bazel_actions` (Bazel actions identified by target label, mnemonic and configured primary output; history lists BEP-reported executions, not cache traffic), `gradle_tasks` (Gradle tasks; history lists task executions), \
+  `xcode_modules` (Xcode modules; history lists measured compilations and module cache events), \
   `once_actions` (Once actions identified by declared target, capability and action index; \
   history lists executions), `mix_files` (Mix compiled files; history lists compilations) and \
   `mix_modules` (Mix compiled modules; durations measure the containing file's compilation, \
@@ -172,7 +172,9 @@ defmodule Tuist.MCP.Components.Tools.BuildEntityTool do
   end
 
   defp query(project_id, _args, :index, resource, filters) do
-    {entries, meta} = BuildEntities.list(project_id, resource.system, resource.kind, filters)
+    {entries, meta} =
+      BuildEntities.list(project_id, resource.system, resource.kind, Keyword.put(filters, :include_metrics, false))
+
     {:ok, %{"kind" => Atom.to_string(resource.key), "entities" => entries, "pagination_metadata" => meta}}
   end
 

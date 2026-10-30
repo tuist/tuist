@@ -38,9 +38,11 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
             project.schemes = try mappedSchemes(
                 project.schemes,
                 scope: "project-\(project.name)",
+                projectPath: path,
                 graph: graph,
                 graphTraverser: graphTraverser,
                 cachedArtifactPaths: cachedArtifactPaths,
+                sourceMappings: environment.cachedModuleSourceMappings,
                 sideEffects: &sideEffects
             )
             return (path, project)
@@ -50,9 +52,11 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
         workspace.schemes = try mappedSchemes(
             workspace.schemes,
             scope: "workspace-\(workspace.name)",
+            projectPath: nil,
             graph: graph,
             graphTraverser: graphTraverser,
             cachedArtifactPaths: cachedArtifactPaths,
+            sourceMappings: environment.cachedModuleSourceMappings,
             sideEffects: &sideEffects
         )
         var mappedGraph = graph
@@ -65,18 +69,26 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
     private func mappedSchemes(
         _ schemes: [Scheme],
         scope: String,
+        projectPath: AbsolutePath?,
         graph: Graph,
         graphTraverser: GraphTraversing,
         cachedArtifactPaths: Set<AbsolutePath>,
+        sourceMappings: [AbsolutePath: [DebuggerSourceMapping]],
         sideEffects: inout [SideEffectDescriptor]
     ) throws -> [Scheme] {
-        try schemes.map { scheme in
+        let canHostPreAction: (TargetReference) -> Bool = { target in
+            (projectPath == nil || target.projectPath == projectPath)
+                && graphTraverser.target(path: target.projectPath, name: target.name) != nil
+        }
+
+        return try schemes.map { scheme in
             var scheme = scheme
 
             if let runAction = scheme.runAction ?? defaultRunAction(for: scheme, graphTraverser: graphTraverser),
                runAction.attachDebugger,
                let target = try runTarget(
                    for: scheme,
+                   canHostPreAction: canHostPreAction,
                    graphTraverser: graphTraverser,
                    cachedArtifactPaths: cachedArtifactPaths
                )
@@ -91,9 +103,11 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
                     schemeName: scheme.name,
                     actionName: "run",
                     target: target,
+                    nativeTargets: [target],
                     originalLLDBInitFile: runAction.customLLDBInitFile,
                     preActions: runAction.preActions,
                     artifacts: artifacts,
+                    sourceMappings: sourceMappings,
                     graph: graph
                 ) {
                     scheme.runAction = runAction.with(
@@ -101,13 +115,16 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
                         preActions: prepending(configuration.preAction, to: runAction.preActions)
                     )
                     sideEffects.append(.file(configuration.initialLLDBInitFile))
+                    if let sourceMappingsFile = configuration.sourceMappingsFile {
+                        sideEffects.append(.file(sourceMappingsFile))
+                    }
                 }
             }
 
             if var testAction = scheme.testAction, testAction.attachDebugger {
-                let testTargets = testAction.targets.map(\.target) + (testAction.testPlans ?? []).flatMap {
+                let testTargets = (testAction.targets.map(\.target) + (testAction.testPlans ?? []).flatMap {
                     $0.testTargets.map(\.target)
-                }
+                }).filter { graphTraverser.target(path: $0.projectPath, name: $0.name) != nil }
                 let artifacts = try testTargets.reduce(into: Set<AbsolutePath>()) { artifacts, target in
                     artifacts.formUnion(try cachedArtifacts(
                         reachableFrom: target,
@@ -115,7 +132,10 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
                         cachedArtifactPaths: cachedArtifactPaths
                     ))
                 }
-                if let target = testAction.expandVariableFromTarget ?? testTargets.first,
+                let hostCandidates = [testAction.expandVariableFromTarget].compactMap { $0 }
+                    + testTargets
+                    + (scheme.buildAction?.targets ?? [])
+                if let target = hostCandidates.first(where: canHostPreAction),
                    compilationCachingEnabled || !artifacts.isEmpty
                 {
                     if let configuration = try debuggerConfiguration(
@@ -123,15 +143,20 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
                         schemeName: scheme.name,
                         actionName: "test",
                         target: target,
+                        nativeTargets: testTargets,
                         originalLLDBInitFile: testAction.customLLDBInitFile,
                         preActions: testAction.preActions,
                         artifacts: artifacts,
+                        sourceMappings: sourceMappings,
                         graph: graph
                     ) {
                         testAction.customLLDBInitFile = configuration.lldbInitPath
                         testAction.preActions = prepending(configuration.preAction, to: testAction.preActions)
                         scheme.testAction = testAction
                         sideEffects.append(.file(configuration.initialLLDBInitFile))
+                        if let sourceMappingsFile = configuration.sourceMappingsFile {
+                            sideEffects.append(.file(sourceMappingsFile))
+                        }
                     }
                 }
             }
@@ -166,10 +191,13 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
 
     private func runTarget(
         for scheme: Scheme,
+        canHostPreAction: (TargetReference) -> Bool,
         graphTraverser: GraphTraversing,
         cachedArtifactPaths: Set<AbsolutePath>
     ) throws -> TargetReference? {
-        guard let target = scheme.runAction?.executable ?? scheme.buildAction?.targets.first else {
+        guard let target = scheme.runAction?.executable ?? scheme.buildAction?.targets.first,
+              canHostPreAction(target)
+        else {
             return nil
         }
         let artifacts = try cachedArtifacts(
@@ -199,9 +227,11 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
         schemeName: String,
         actionName: String,
         target: TargetReference,
+        nativeTargets: [TargetReference],
         originalLLDBInitFile: AbsolutePath?,
         preActions: [ExecutionAction],
         artifacts: Set<AbsolutePath>,
+        sourceMappings: [AbsolutePath: [DebuggerSourceMapping]],
         graph: Graph
     ) throws -> DebuggerConfiguration? {
         guard let project = graph.projects[target.projectPath] else {
@@ -222,6 +252,29 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
         }
         let overlayPath = directory.appending(component: "\(fileName)-prefix-remap.yaml")
         let searchPaths = Set(artifacts.map(\.parentDirectory)).sorted()
+        let mappings = Set(artifacts.flatMap { sourceMappings[$0, default: []] })
+            .sorted { $0.original.pathString < $1.original.pathString }
+        let sourceMappingsPath = directory.appending(component: "\(fileName)-sources.json")
+        let requiresLinkedDebugInformation = (Array(graph.dependencies.keys) + graph.dependencies.values.flatMap(Array.init))
+            .contains {
+                if case let .xcframework(xcframework) = $0 {
+                    return artifacts.contains(xcframework.path) && xcframework.linking == .static
+                }
+                return false
+            }
+        let destinations = Dictionary(grouping: mappings, by: \.original)
+        guard destinations.values.allSatisfy({ Set($0.map(\.current)).count == 1 }) else {
+            throw CachedModulesDebuggingGraphMapperError.ambiguousSourceMappings
+        }
+        let sourceMappingsFile = mappings.isEmpty ? nil : FileDescriptor(
+            path: sourceMappingsPath,
+            contents: try JSONEncoder().encode(DebuggerSourceMappingPlan(
+                mappings: mappings.map { [$0.original.pathString, $0.current.pathString] },
+                artifacts: artifacts.sorted().map(\.pathString),
+                nativeProducts: nativeProducts(reachableFrom: nativeTargets, graph: graph).sorted(),
+                requiresLinkedDebugInformation: requiresLinkedDebugInformation
+            ))
+        )
         let initialContents = renderer.lldbInitContents(
             originalLLDBInitFile: originalLLDBInitFile,
             frameworkSearchPaths: searchPaths,
@@ -233,7 +286,8 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
                 lldbInitPath: lldbInitPath,
                 overlayPath: overlayPath,
                 originalLLDBInitFile: originalLLDBInitFile,
-                searchPaths: searchPaths
+                searchPaths: searchPaths,
+                sourceMappingsPath: sourceMappingsFile?.path
             ),
             target: target,
             shellPath: "/bin/sh",
@@ -245,8 +299,23 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
                 path: lldbInitPath,
                 contents: Data(initialContents.utf8)
             ),
-            preAction: preAction
+            preAction: preAction,
+            sourceMappingsFile: sourceMappingsFile
         )
+    }
+
+    private func nativeProducts(reachableFrom roots: [TargetReference], graph: Graph) -> Set<String> {
+        var pending = roots.map { GraphDependency.target(name: $0.name, path: $0.projectPath) }
+        var visited = Set<GraphDependency>()
+        var products = Set<String>()
+        while let dependency = pending.popLast() {
+            guard visited.insert(dependency).inserted else { continue }
+            if case let .target(name, path, _) = dependency, let target = graph.projects[path]?.targets[name] {
+                products.insert(target.productNameWithExtension)
+            }
+            pending.append(contentsOf: graph.dependencies[dependency, default: []])
+        }
+        return products
     }
 
     private func prepending(_ action: ExecutionAction, to actions: [ExecutionAction]) -> [ExecutionAction] {
@@ -279,9 +348,7 @@ private struct CacheDebuggerSettingsRenderer {
         moduleSearchPaths: [AbsolutePath]
     ) -> String {
         var lines: [String] = []
-        if let originalLLDBInitFile {
-            lines.append("command source -s 0 \(lldbQuoted(originalLLDBInitFile.pathString))")
-        } else {
+        if originalLLDBInitFile == nil {
             // Xcode skips its user initializer when a scheme supplies a custom one.
             // Check at debugger startup, not generation, since this file can be shared.
             lines.append(
@@ -289,10 +356,12 @@ private struct CacheDebuggerSettingsRenderer {
                     homeInitializerScript
             )
         }
+        if let originalLLDBInitFile {
+            lines.append("command source -s 0 \(lldbQuoted(originalLLDBInitFile.pathString))")
+        }
         if !frameworkSearchPaths.isEmpty || !moduleSearchPaths.isEmpty {
             lines.append(lldbSetting("target.swift-framework-search-paths", values: frameworkSearchPaths.map(\.pathString)))
             lines.append(lldbSetting("target.swift-module-search-paths", values: moduleSearchPaths.map(\.pathString)))
-            lines.append("settings set symbols.use-swift-explicit-module-loader false")
         }
         return lines.joined(separator: "\n") + "\n"
     }
@@ -319,7 +388,9 @@ private struct CacheDebuggerSettingsRenderer {
     private func lldbQuoted(_ value: String) -> String {
         "\"" + value
             .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r") + "\""
     }
 
     private func shellQuoted(_ value: String) -> String {
@@ -341,7 +412,8 @@ private struct CacheDebuggerSettingsRenderer {
         lldbInitPath: AbsolutePath,
         overlayPath: AbsolutePath,
         originalLLDBInitFile: AbsolutePath?,
-        searchPaths: [AbsolutePath]
+        searchPaths: [AbsolutePath],
+        sourceMappingsPath: AbsolutePath?
     ) -> String {
         let moduleSettings = searchPaths.isEmpty ? "" : cachedModulesUpdateScript(searchPaths: searchPaths)
         let sourceOriginal = originalLLDBInitFile.map {
@@ -395,7 +467,7 @@ private struct CacheDebuggerSettingsRenderer {
         source_map_file="$(mktemp "$lldb_init_file.XXXXXX")"
         trap 'rm -f "$source_map_file"' EXIT
         source_map_status=0
-        \(sourceMappingScript)
+        \(sourceMappingScript(sourceMappingsPath: sourceMappingsPath))
 
         {
           \(sourceHome)
@@ -456,7 +528,6 @@ private struct CacheDebuggerSettingsRenderer {
         done
         lldb_setting target.swift-framework-search-paths "$@"
         lldb_setting target.swift-module-search-paths "$@"
-        printf 'settings set symbols.use-swift-explicit-module-loader false\n'
 
         if [ "${COMPILATION_CACHE_ENABLE_CACHING:-NO}" = "YES" ]; then
           sdk_path="${SDKROOT:-}"
@@ -472,34 +543,33 @@ private struct CacheDebuggerSettingsRenderer {
     }
 
     /// Reads the build system's evaluated mappings without reparsing characters introduced by macro expansion.
-    private var sourceMappingScript: String {
+    private func sourceMappingScript(sourceMappingsPath: AbsolutePath?) -> String {
         #"""
-        /usr/bin/python3 - "$source_map_file" <<'TUIST_SOURCE_MAP' || source_map_status=$?
+        /usr/bin/python3 - "$source_map_file" \#(shellQuoted(sourceMappingsPath?
+                .pathString ?? "")) <<'TUIST_SOURCE_MAP' || source_map_status=$?
         import json
         import os
         import sys
 
         environment = os.environ
-        if environment.get("COMPILATION_CACHE_ENABLE_CACHING") != "YES":
-            sys.exit(0)
-
-        if not any(environment.get(language + "_ENABLE_PREFIX_MAPPING") == "YES" for language in ("SWIFT", "CLANG")):
-            sys.exit(0)
+        mappings = {}
+        plan = None
 
         target_temp_dir = environment.get("TARGET_TEMP_DIR", "")
-        if not target_temp_dir:
-            sys.exit(0)
-
+        prefix_mapping_enabled = environment.get("COMPILATION_CACHE_ENABLE_CACHING") == "YES" and any(
+            environment.get(language + "_ENABLE_PREFIX_MAPPING") == "YES" for language in ("SWIFT", "CLANG")
+        )
         # Xcode expands path variables after parsing build-setting lists. Their exported string
         # representation can contain literal quotes or backslashes that are not shell syntax.
-        try:
-            with open(os.path.join(target_temp_dir, "compilation-prefix-map.json"), encoding="utf-8") as prefix_map:
-                mappings = json.load(prefix_map)
-        except FileNotFoundError:
-            sys.exit(0)
+        if prefix_mapping_enabled and target_temp_dir:
+            try:
+                with open(os.path.join(target_temp_dir, "compilation-prefix-map.json"), encoding="utf-8") as prefix_map:
+                    mappings.update(json.load(prefix_map))
+            except FileNotFoundError:
+                pass
 
         # Xcode's prefix-map file omits the compiler's implicit toolchain alias on some versions.
-        if mappings:
+        if mappings and prefix_mapping_enabled:
             developer_path = environment.get("DEVELOPER_DIR", "")
             toolchain_path = environment.get("DT_TOOLCHAIN_DIR", "")
             if not toolchain_path and developer_path:
@@ -526,19 +596,37 @@ private struct CacheDebuggerSettingsRenderer {
             # appending would leave earlier runs' entries, including other checkouts', ahead of these.
             with open(sys.argv[1], "w", encoding="utf-8") as output:
                 output.write("settings set target.source-map " + arguments + "\n")
+
+        try:
+            if sys.argv[2]:
+                with open(sys.argv[2], encoding="utf-8") as source_mappings:
+                    plan = json.load(source_mappings)
+            exec(\#(String(reflecting: CachedModuleSymbolsPreparationScript.value)))
+        except Exception as error:
+            print("Tuist: cached debug symbols could not be prepared: " + str(error), file=sys.stderr)
+            sys.exit(1)
         TUIST_SOURCE_MAP
         """#
     }
+}
+
+private struct DebuggerSourceMappingPlan: Encodable {
+    let mappings: [[String]]
+    let artifacts: [String]
+    let nativeProducts: [String]
+    let requiresLinkedDebugInformation: Bool
 }
 
 private struct DebuggerConfiguration {
     let lldbInitPath: AbsolutePath
     let initialLLDBInitFile: FileDescriptor
     let preAction: ExecutionAction
+    let sourceMappingsFile: FileDescriptor?
 }
 
 private enum CachedModulesDebuggingGraphMapperError: Error {
     case missingProject(AbsolutePath)
+    case ambiguousSourceMappings
 }
 
 extension RunAction {

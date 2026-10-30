@@ -37,7 +37,7 @@ Flaky tests are tests that produce different results (pass or fail) when run mul
 />
   <.home_card
     title="Rust"
-    details="Detect and track flaky nextest tests using retries and CI history. Dashboard quarantine is not enforced by nextest."
+    details="Detect and investigate flaky Cargo tests using results across CI runs."
     link="/guides/features/test-insights/flaky-tests/rust"
 />
 </.home_cards>

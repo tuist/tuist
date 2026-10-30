@@ -1,14 +1,42 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Delegated Tuist managed-cache DNS zone and separate least-privilege runtime policies.
 Resources:
+  QueryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/route53/cache.tuist.dev
+      RetentionInDays: 14
+  QueryLogResourcePolicy:
+    Type: AWS::Logs::ResourcePolicy
+    Properties:
+      PolicyName: route53-query-logging-cache-tuist-dev
+      PolicyDocument: !Sub |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {"Service": "route53.amazonaws.com"},
+              "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+              "Resource": "${QueryLogGroup.Arn}",
+              "Condition": {
+                "StringEquals": {"aws:SourceAccount": "${AWS::AccountId}"},
+                "ArnLike": {"aws:SourceArn": "arn:${AWS::Partition}:route53:::hostedzone/*"}
+              }
+            }
+          ]
+        }
   CacheZone:
     Type: AWS::Route53::HostedZone
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
+    DependsOn: QueryLogResourcePolicy
     Properties:
       Name: cache.tuist.dev
       HostedZoneConfig:
         Comment: Per-account latency-steered cache endpoints across managed environments
+      QueryLoggingConfig:
+        CloudWatchLogsLogGroupArn: !GetAtt QueryLogGroup.Arn
   RecordWriterPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -73,3 +101,5 @@ Outputs:
     Value: !Ref SolverPolicy
   ControllerPolicyArn:
     Value: !Ref ControllerPolicy
+  QueryLogGroupName:
+    Value: !Ref QueryLogGroup

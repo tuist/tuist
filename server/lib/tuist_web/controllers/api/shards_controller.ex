@@ -14,7 +14,7 @@ defmodule TuistWeb.API.ShardsController do
   @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
   @suite_catch_all_minimum_gradle_plugin_version Version.parse!("0.17.0")
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -141,12 +141,14 @@ defmodule TuistWeb.API.ShardsController do
       gradle_build_id: Map.get(body_params, :gradle_build_id)
     }
 
-    result = Shards.create_shard_plan(selected_project, params)
+    result =
+      Shards.create_shard_plan(selected_project, params, runner_grant: runner_grant(conn))
 
     response = %{
       id: result.plan.id,
       reference: result.plan.reference,
       shard_count: result.shard_count,
+      reporting_version: result.plan.reporting_version,
       upload_url:
         url(~p"/api/projects/#{selected_project.account.name}/#{selected_project.name}/tests/shards/upload/start"),
       shards: result.shard_assignments
@@ -217,10 +219,14 @@ defmodule TuistWeb.API.ShardsController do
     result =
       case upload_identifier(body_params) do
         {:plan_id, plan_id} ->
-          Shards.start_upload_for_plan_id(selected_project, selected_project.account, plan_id, artifact)
+          Shards.start_upload_for_plan_id(selected_project, selected_project.account, plan_id, artifact,
+            runner_grant: runner_grant(conn)
+          )
 
         {:reference, reference} ->
-          Shards.start_upload(selected_project, selected_project.account, reference, artifact)
+          Shards.start_upload(selected_project, selected_project.account, reference, artifact,
+            runner_grant: runner_grant(conn)
+          )
 
         {:error, :missing_shard_plan_identifier} ->
           {:error, :missing_shard_plan_identifier}
@@ -300,7 +306,7 @@ defmodule TuistWeb.API.ShardsController do
       ) do
     shard_index = if is_binary(shard_index), do: String.to_integer(shard_index), else: shard_index
 
-    opts = [suite_catch_all?: suite_catch_all_supported?(conn)]
+    opts = [suite_catch_all?: suite_catch_all_supported?(conn), runner_grant: runner_grant(conn)]
 
     result =
       case Map.get(query_params, "shard_plan_id") do
@@ -343,6 +349,9 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:not_found)
         |> json(%{message: "The shard index is out of range."})
+
+      {:error, :shard_storage_unavailable} ->
+        StorageError.render(conn)
     end
   end
 
@@ -422,7 +431,8 @@ defmodule TuistWeb.API.ShardsController do
             plan_id,
             upload_id,
             part_number,
-            artifact
+            artifact,
+            runner_grant: runner_grant(conn)
           )
 
         {:reference, reference} ->
@@ -432,7 +442,8 @@ defmodule TuistWeb.API.ShardsController do
             reference,
             upload_id,
             part_number,
-            artifact
+            artifact,
+            runner_grant: runner_grant(conn)
           )
 
         {:error, :missing_shard_plan_identifier} ->
@@ -442,6 +453,9 @@ defmodule TuistWeb.API.ShardsController do
     case result do
       {:ok, url} ->
         json(conn, %{data: %{url: url}})
+
+      {:error, :shard_storage_unavailable} ->
+        StorageError.render(conn)
 
       {:error, :not_found} ->
         conn
@@ -542,7 +556,8 @@ defmodule TuistWeb.API.ShardsController do
             plan_id,
             upload_id,
             parts_list,
-            artifact
+            artifact,
+            runner_grant: runner_grant(conn)
           )
 
         {:reference, reference} ->
@@ -552,7 +567,8 @@ defmodule TuistWeb.API.ShardsController do
             reference,
             upload_id,
             parts_list,
-            artifact
+            artifact,
+            runner_grant: runner_grant(conn)
           )
 
         {:error, :missing_shard_plan_identifier} ->
@@ -575,6 +591,13 @@ defmodule TuistWeb.API.ShardsController do
 
       {:error, _reason} ->
         StorageError.render(conn)
+    end
+  end
+
+  defp runner_grant(conn) do
+    case get_req_header(conn, "x-tuist-runner-grant") do
+      [grant] -> grant
+      _ -> nil
     end
   end
 

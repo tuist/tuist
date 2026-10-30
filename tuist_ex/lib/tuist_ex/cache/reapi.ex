@@ -19,6 +19,7 @@ defmodule TuistEx.Cache.Reapi do
   alias TuistEx.Cache.Reapi.ToolDetails
   alias TuistEx.Cache.Reapi.UpdateActionResultRequest
   alias TuistEx.Cache.Store
+  alias TuistEx.CertificateTrust
   alias TuistEx.HTTP
 
   @timeout 30_000
@@ -143,14 +144,12 @@ defmodule TuistEx.Cache.Reapi do
 
     options =
       if uri.scheme == "https" do
-        ssl = [
-          verify: :verify_peer,
-          cacerts: :public_key.cacerts_get(),
-          server_name_indication: String.to_charlist(uri.host),
-          customize_hostname_check: [
-            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-          ]
-        ]
+        ssl =
+          Keyword.put(
+            CertificateTrust.ssl_options(),
+            :server_name_indication,
+            String.to_charlist(uri.host)
+          )
 
         Keyword.put(options, :cred, GRPC.Credential.new(ssl: ssl))
       else
@@ -195,6 +194,34 @@ defmodule TuistEx.Cache.Reapi do
     _ -> :ok
   catch
     :exit, _ -> :ok
+  end
+
+  # Bound both active RPCs and retained, decoded bundles in a prefetch window.
+  def concurrency, do: 4
+
+  def get_many(nil, _requests), do: %{}
+
+  def get_many(session, requests) when length(requests) <= 4 do
+    case Isolated.run(
+           fn ->
+             requests
+             |> Task.async_stream(
+               fn {key, dependency} = request -> {request, get(session, key, dependency)} end,
+               max_concurrency: concurrency(),
+               ordered: false,
+               timeout: @timeout + 500,
+               on_timeout: :kill_task
+             )
+             |> Enum.reduce(%{}, fn
+               {:ok, {request, result}}, results -> Map.put(results, request, result)
+               _, results -> results
+             end)
+           end,
+           @timeout + 1_000
+         ) do
+      results when is_map(results) -> results
+      _ -> %{}
+    end
   end
 
   def get(session, key, dependency, timeout \\ @timeout)

@@ -12,3 +12,5 @@ spec:
       watts: 5000
     - from: "2027-06-05"
       watts: 8000
+  powerBudget:
+    chainAmps: "13"

@@ -144,7 +144,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
             "project_handle" => project.name,
             "invocation_id" => "invocation-1",
             "command" => "build",
-            "custom_values" => Map.new(1..21, &{"key-#{&1}", "value"}),
+            "custom_values" => Map.new(1..65, &{"key-#{&1}", "value"}),
             "status" => "success",
             "exit_code" => 0,
             "started_at_ms" => 1_700_000_000_000,

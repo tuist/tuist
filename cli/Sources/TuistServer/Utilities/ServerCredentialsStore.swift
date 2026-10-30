@@ -154,6 +154,17 @@ public enum ServerCredentialsStoreBackend: Sendable {
             self.fileSystem = fileSystem
         }
 
+        func storageKey(serverURL: URL) throws -> String {
+            switch backend {
+            case .keychain:
+                return try CredentialFileLocator.canonicalURL(serverURL).absoluteString
+            #if os(macOS)
+                case .fileSystem:
+                    return try credentialsFilePath(serverURL: serverURL).pathString
+            #endif
+            }
+        }
+
         // MARK: - CredentialsStoring
 
         public func store(credentials: ServerCredentials, serverURL: URL) async throws {
@@ -216,14 +227,11 @@ public enum ServerCredentialsStoreBackend: Sendable {
                     guard try await fileSystem.exists(path) else { return nil }
                     let data = try await fileSystem.readFile(at: path)
 
-                    if ServerReportPublishingMode.enabled {
-                        do {
-                            return try JSONDecoder().decode(ServerCredentials.self, from: data)
-                        } catch {
-                            throw ServerReportPublishingError.invalidCredentials
-                        }
+                    do {
+                        return try JSONDecoder().decode(ServerCredentials.self, from: data)
+                    } catch {
+                        throw ServerReportPublishingError.invalidCredentials
                     }
-                    return try? JSONDecoder().decode(ServerCredentials.self, from: data)
             #endif
             }
         }
@@ -314,6 +322,10 @@ public enum ServerCredentialsStoreBackend: Sendable {
             self.fileSystem = fileSystem
         }
 
+        func storageKey(serverURL: URL) throws -> String {
+            try credentialsFilePath(serverURL: serverURL).pathString
+        }
+
         private static func defaultConfigDirectory() -> AbsolutePath {
             let homeDirectory = ProcessInfo.processInfo.environment["HOME"] ?? "/tmp"
             // swiftlint:disable:next force_try
@@ -347,14 +359,11 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 guard try await fileSystem.exists(path) else { return nil }
                 let data = try await fileSystem.readFile(at: path)
 
-                if ServerReportPublishingMode.enabled {
-                    do {
-                        return try JSONDecoder().decode(ServerCredentials.self, from: data)
-                    } catch {
-                        throw ServerReportPublishingError.invalidCredentials
-                    }
+                do {
+                    return try JSONDecoder().decode(ServerCredentials.self, from: data)
+                } catch {
+                    throw ServerReportPublishingError.invalidCredentials
                 }
-                return try? JSONDecoder().decode(ServerCredentials.self, from: data)
             }
         }
 

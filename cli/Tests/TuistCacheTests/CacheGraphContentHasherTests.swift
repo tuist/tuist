@@ -68,8 +68,6 @@ struct CacheGraphContentHasherTests {
             (BinaryCacheCoverage.off, "Debug", false),
             (.on, "Debug", true),
             (.on, "Release", false),
-            (.scheme("Covered"), "Debug", true),
-            (.scheme("Plain"), "Debug", false),
         ]
     ) func keysRepositoryTargetsOnCoverage(
         coverage: BinaryCacheCoverage,
@@ -90,10 +88,6 @@ struct CacheGraphContentHasherTests {
             path: "/local-package", settings: settings, targets: [localPackage], type: .external(hash: nil)
         )
         let graph = Graph.test(
-            workspace: .test(schemes: [
-                .test(name: "Covered", testAction: .test(coverage: true)),
-                .test(name: "Plain", testAction: .test(coverage: false)),
-            ]),
             projects: [
                 localProject.path: localProject,
                 externalProject.path: externalProject,

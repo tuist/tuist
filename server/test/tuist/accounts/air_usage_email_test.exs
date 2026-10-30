@@ -18,10 +18,10 @@ defmodule Tuist.Accounts.AirUsageEmailTest do
     email = UserNotifier.air_usage_email(%{email: "admin@example.com"}, %{name: "acme"}, notification(80))
     assert email.subject == "acme has reached 80% of its Air limit"
     assert email.html_body =~ "You're approaching your Air limit"
-    assert email.html_body =~ "160 of 200 remote cache hits used"
+    assert email.html_body =~ "800,000 of 1,000,000 cache requests used"
     assert email.html_body =~ "October 1, 2026 (UTC)"
     assert email.html_body =~ ~s(href="https://tuist.dev/acme/billing")
-    assert email.text_body =~ "160 of 200 remote cache hits used (80%)"
+    assert email.text_body =~ "800,000 of 1,000,000 cache requests used (80%)"
     assert email.text_body =~ "https://tuist.dev/acme/billing"
     assert email.headers["Reply-To"] == "contact@tuist.dev"
   end
@@ -37,7 +37,7 @@ defmodule Tuist.Accounts.AirUsageEmailTest do
     assert email.subject == "acme has reached 100% of its Air limit"
     assert email.html_body =~ "You've reached your Air limit"
     assert email.html_body =~ "Remote cache access is paused"
-    assert email.text_body =~ "200 of 200 remote cache hits used (100%)"
+    assert email.text_body =~ "1,000,000 of 1,000,000 cache requests used (100%)"
     assert email.to == [nil: "admin@example.com"]
     assert email.cc == []
     assert email.bcc == []
@@ -46,19 +46,22 @@ defmodule Tuist.Accounts.AirUsageEmailTest do
 
   test "escapes account names in HTML and caps the progress bar for overshoots" do
     email =
-      UserNotifier.air_usage_email(%{email: "admin@example.com"}, %{name: "<acme>"}, %{notification(100) | usage: 240})
+      UserNotifier.air_usage_email(%{email: "admin@example.com"}, %{name: "<acme>"}, %{
+        notification(100)
+        | usage: 1_200_000
+      })
 
     assert email.html_body =~ "&lt;acme&gt;"
     refute email.html_body =~ "<acme>"
     assert email.subject == "<acme> has reached 120% of its Air limit"
-    assert email.text_body =~ "240 of 200 remote cache hits used (120%)"
+    assert email.text_body =~ "1,200,000 of 1,000,000 cache requests used (120%)"
     assert email.html_body =~ ">120%</p>"
-    assert email.html_body =~ "240 of 200 remote cache hits used"
+    assert email.html_body =~ "1,200,000 of 1,000,000 cache requests used"
     assert email.html_body =~ ~s(width="100%")
     refute email.html_body =~ ~s(width="120%")
   end
 
-  test "an account on usage-based pricing is shown the cache allowance it reached" do
+  test "cache emails show the cache allowance the account reached" do
     egress =
       80
       |> notification()
@@ -103,11 +106,12 @@ defmodule Tuist.Accounts.AirUsageEmailTest do
   end
 
   test "uses the actual percentage in the subject and both email bodies" do
-    email = UserNotifier.air_usage_email(%{email: "admin@example.com"}, %{name: "acme"}, %{notification(80) | usage: 190})
+    email =
+      UserNotifier.air_usage_email(%{email: "admin@example.com"}, %{name: "acme"}, %{notification(80) | usage: 950_000})
 
     assert email.subject == "acme has reached 95% of its Air limit"
     assert email.html_body =~ ">95%</p>"
-    assert email.text_body =~ "190 of 200 remote cache hits used (95%)"
+    assert email.text_body =~ "950,000 of 1,000,000 cache requests used (95%)"
   end
 
   test "uses the recipient locale for copy and month names without leaking it to later deliveries" do
@@ -144,6 +148,12 @@ defmodule Tuist.Accounts.AirUsageEmailTest do
   end
 
   defp notification(threshold) do
-    %{threshold: threshold, usage: threshold * 2, limit: 200, period_start: ~U[2026-09-01 00:00:00Z]}
+    %{
+      metric: :cache_requests,
+      threshold: threshold,
+      usage: threshold * 10_000,
+      limit: 1_000_000,
+      period_start: ~U[2026-09-01 00:00:00Z]
+    }
   end
 end

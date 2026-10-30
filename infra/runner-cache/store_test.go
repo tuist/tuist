@@ -15,6 +15,9 @@ type memoryBackend struct {
 	parents                   map[string]string
 	attached, sealed, deleted int
 	failSeal                  bool
+	// sealErr and deleteErr, when set, are what Seal and Delete return.
+	sealErr, deleteErr error
+	sealCalls          int
 }
 
 func (b *memoryBackend) Attach(_ context.Context, slot Slot, path string) error {
@@ -26,6 +29,10 @@ func (b *memoryBackend) Attach(_ context.Context, slot Slot, path string) error 
 }
 func (*memoryBackend) Measure(Slot, string) (int64, int64, error) { return 100, 1000, nil }
 func (b *memoryBackend) Seal(slot Slot, path string) error {
+	b.sealCalls++
+	if b.sealErr != nil {
+		return b.sealErr
+	}
 	if b.failSeal {
 		return errors.New("storage unavailable")
 	}
@@ -33,7 +40,13 @@ func (b *memoryBackend) Seal(slot Slot, path string) error {
 	b.parents[slot.ID] = path
 	return nil
 }
-func (b *memoryBackend) Delete(_ Slot, _ string) error { b.deleted++; return nil }
+func (b *memoryBackend) Delete(_ Slot, _ string) error {
+	if b.deleteErr != nil {
+		return b.deleteErr
+	}
+	b.deleted++
+	return nil
+}
 func identity(id string) Identity {
 	return Identity{ID: id, Account: 1, Scope: strings.Repeat("a", 64), CanPublish: true}
 }
@@ -41,6 +54,8 @@ func identity(id string) Identity {
 const first = "00000000-0000-0000-0000-000000000001"
 const second = "00000000-0000-0000-0000-000000000002"
 const third = "00000000-0000-0000-0000-000000000003"
+const fourth = "00000000-0000-0000-0000-000000000004"
+const fifth = "00000000-0000-0000-0000-000000000005"
 
 func newStore(t *testing.T) (*Store, *memoryBackend) {
 	t.Helper()
@@ -163,6 +178,46 @@ func TestDiscardedPRCannotBeSealedAndDeletionRequiresAcknowledgement(t *testing.
 		t.Fatal("did not finish deletion")
 	}
 }
+func TestLingeringLoopReferenceDelaysSealWithoutFailingReconcile(t *testing.T) {
+	s, b := newStore(t)
+	s.Acquire(context.Background(), identity(first), "p", "u")
+	done := func(string, string) (bool, error) { return true, nil }
+	seal := func(Slot, bool) (string, error) { return "seal", nil }
+	b.sealErr = ErrReleasePending
+	if err := s.Reconcile(done, seal); err != nil {
+		t.Fatal(err)
+	}
+	if slots, _ := s.slots(); slots[0].State != "active" || b.deleted != 0 {
+		t.Fatal("gave up a branch that only waits for its loop device", slots[0].State, b.deleted)
+	}
+	b.sealErr = nil
+	if err := s.Reconcile(done, seal); err != nil {
+		t.Fatal(err)
+	}
+	if slots, _ := s.slots(); slots[0].State != "sealed" || b.sealed != 1 {
+		t.Fatal(slots[0].State, b.sealed)
+	}
+}
+
+func TestDiscardWaitingForALingeringLoopReferenceIsNeverSealedAgain(t *testing.T) {
+	s, b := newStore(t)
+	s.Acquire(context.Background(), identity(first), "p", "u")
+	done := func(string, string) (bool, error) { return true, nil }
+	seal := func(Slot, bool) (string, error) { return "seal", nil }
+	b.sealErr, b.deleteErr = ErrUnchanged, ErrReleasePending
+	if err := s.Reconcile(done, seal); err != nil {
+		t.Fatal(err)
+	}
+	// The volume is unmounted now: sealing it again could only fail.
+	b.sealErr, b.deleteErr = errors.New("volume not mounted"), nil
+	if err := s.Reconcile(done, seal); err != nil {
+		t.Fatal(err)
+	}
+	if slots, _ := s.slots(); slots[0].State != "deleted" || b.deleted != 1 || b.sealCalls != 1 {
+		t.Fatal(slots[0].State, b.deleted, b.sealCalls)
+	}
+}
+
 func TestRejectsTraversalAndCrossPodRetry(t *testing.T) {
 	s, _ := newStore(t)
 	x := identity(first)
@@ -436,5 +491,117 @@ func TestCleanupDoesNotBlockAllocationAndRechecksLease(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(s.path, "pods", "u1")); err != nil {
 		t.Fatal("removed newly acquired mailbox", err)
+	}
+}
+
+func TestInUseFollowsTheBranchesThatHoldAScope(t *testing.T) {
+	s, _ := newStore(t)
+	scope := identity(first).Scope
+	if s.InUse(scope) {
+		t.Fatal("an empty journal holds a scope")
+	}
+	if _, err := s.Acquire(context.Background(), identity(first), "p1", "u1"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.InUse(scope) || s.InUse(strings.Repeat("b", 64)) {
+		t.Fatal("an active branch does not hold only its own scope")
+	}
+	if err := s.Reconcile(func(string, string) (bool, error) { return true, nil }, func(Slot, bool) (string, error) { return "delete", nil }); err != nil {
+		t.Fatal(err)
+	}
+	if s.InUse(scope) {
+		t.Fatal("a deleted branch still holds its scope")
+	}
+}
+
+func TestEveryDiscardReportsOneDeleteWithItsReason(t *testing.T) {
+	done := func(string, string) (bool, error) { return true, nil }
+	for _, test := range []struct {
+		name    string
+		sealErr error
+		action  string
+		source  string
+	}{
+		{name: "server decision", action: "delete", source: DiscardServer},
+		{name: "poisoned", sealErr: ErrIncomplete, action: "seal", source: DiscardPoisoned},
+		{name: "withheld", sealErr: ErrUnchanged, action: "seal", source: DiscardWithheld},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, b := newStore(t)
+			var observed []Observation
+			s.Observe = func(o Observation) { observed = append(observed, o) }
+			if _, err := s.Acquire(context.Background(), identity(first), "p", "u"); err != nil {
+				t.Fatal(err)
+			}
+			if len(observed) != 0 {
+				t.Fatal("attach reported a delete", observed)
+			}
+			b.sealErr = test.sealErr
+			if err := s.Reconcile(done, func(Slot, bool) (string, error) { return test.action, nil }); err != nil {
+				t.Fatal(err)
+			}
+			if len(observed) != 1 || observed[0].Operation != "delete" || observed[0].Source != test.source || observed[0].Err != nil {
+				t.Fatal(observed)
+			}
+			if subject := observed[0].Subject; subject.Use != first || subject.Scope != identity(first).Scope || subject.Kind != KindCustom || subject.Pod != "p" {
+				t.Fatal(subject)
+			}
+			if err := s.Reconcile(done, func(Slot, bool) (string, error) { return "forget", nil }); err != nil {
+				t.Fatal(err)
+			}
+			if len(observed) != 1 {
+				t.Fatal("forgetting a deleted branch reported a delete", observed)
+			}
+		})
+	}
+}
+
+func TestAbandonedAllocationReportsItsDelete(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	b := &cancelledAttachBackend{cancel: cancel}
+	s, err := Open(t.TempDir(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var observed []Observation
+	s.Observe = func(o Observation) { observed = append(observed, o) }
+	if _, err := s.Acquire(ctx, identity(first), "p", "u"); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if err := s.Reconcile(func(string, string) (bool, error) { return true, nil }, func(Slot, bool) (string, error) { return "hold", nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 1 || observed[0].Operation != "delete" || observed[0].Source != DiscardAbandoned || observed[0].Err != nil || observed[0].Subject.Use != first {
+		t.Fatal(observed)
+	}
+}
+
+func TestDeleteWaitingForItsLoopDeviceReportsEachPass(t *testing.T) {
+	s, b := newStore(t)
+	var observed []Observation
+	s.Observe = func(o Observation) { observed = append(observed, o) }
+	if _, err := s.Acquire(context.Background(), identity(first), "p", "u"); err != nil {
+		t.Fatal(err)
+	}
+	done := func(string, string) (bool, error) { return true, nil }
+	remove := func(Slot, bool) (string, error) { return "delete", nil }
+	b.deleteErr = ErrReleasePending
+	if err := s.Reconcile(done, remove); err != nil {
+		t.Fatal(err)
+	}
+	b.deleteErr = nil
+	if err := s.Reconcile(done, func(Slot, bool) (string, error) { return "seal", nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 2 {
+		t.Fatal(observed)
+	}
+	if observed[0].Source != DiscardServer || Result(observed[0].Err) != "release_pending" {
+		t.Fatal(observed[0])
+	}
+	if observed[1].Source != DiscardPending || observed[1].Err != nil {
+		t.Fatal(observed[1])
 	}
 }

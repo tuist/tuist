@@ -70,7 +70,7 @@ defmodule TuistWeb.RunnersLiveTest do
     assert html =~ "runners-concurrency-platform-dropdown"
     assert html =~ "runners-concurrency-macos-vcpus-chart"
     assert html =~ "runners-concurrency-macos-memory-chart"
-    assert html =~ ~s(class="noora-card__section " data-part="concurrency-chart")
+    assert has_element?(lv, ".noora-card__section[data-part=concurrency-chart][data-chart-frame=standard]")
     refute html =~ "runners-concurrency-linux-vcpus-chart"
     refute html =~ "No limit hits"
     refute html =~ "Limit reached in"

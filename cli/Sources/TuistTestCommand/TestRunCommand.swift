@@ -161,6 +161,13 @@
         var resultBundlePath: String?
 
         @Option(
+            help: "Directory where each run's code coverage will be saved as LCOV (<result bundle name>.lcov), with repository-relative paths. Requires coverage uploads.",
+            completion: .directory,
+            envKey: .testCoverageOutputPath
+        )
+        var coverageOutputPath: String?
+
+        @Option(
             help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
             completion: .file(),
             envKey: .runReportPath
@@ -194,7 +201,7 @@
             name: .long,
             parsing: .upToNextOption,
             help:
-            "The list of test identifiers you want to test. Expected format is TestTarget[/TestClass[/TestMethod]]. It is applied before --skip-testing",
+            "The list of test identifiers you want to test. Expected format is TestTarget[/TestClass[/TestMethod]] or tag:tagName[/TestClass[/TestMethod]] using target metadata tags. It is applied before --skip-test-targets.",
             envKey: .testTestTargets
         )
         var testTargets: [TestIdentifier] = []
@@ -203,7 +210,7 @@
             name: .long,
             parsing: .upToNextOption,
             help:
-            "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]].",
+            "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]] or tag:tagName[/TestClass[/TestMethod]] using target metadata tags.",
             envKey: .testSkipTestTargets
         )
         var skipTestTargets: [TestIdentifier] = []
@@ -413,6 +420,12 @@
                 } else {
                     .test
                 }
+
+            if let coverageOutputPath {
+                await RunMetadataStorage.current.update(
+                    coverageOutputPath: try await Environment.current.pathRelativeToWorkingDirectory(coverageOutputPath)
+                )
+            }
 
             try await TestService(
                 generatorFactory: Extension.generatorFactory,

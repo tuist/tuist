@@ -26,6 +26,13 @@ defmodule Tuist.Tests.Coverage.Xcode do
   code a test executes and never count. A hit the client reported as
   instrumented (`binary_cache_instrumented`) carries counters and is left out;
   a client that reports nothing leaves its hits counting as plain.
+
+  A hit counts only when its binary replaced the target. The client fetches a
+  binary for every hit but replaces a target only when its direct dependencies
+  were all replaced, so a hit above a miss is built from source (or not built
+  at all) and its fetched binary goes unused. The run's own targets say which:
+  a hit is replaced when every target its `dependencies` name is a replaced
+  hit too. A client that reports no dependencies leaves every hit replaced.
   """
   def uninstrumented_targets(_project_id, []), do: %{}
 
@@ -38,17 +45,64 @@ defmodule Tuist.Tests.Coverage.Xcode do
     |> Enum.flat_map(fn ids ->
       ClickHouseRepo.all(
         from(t in XcodeTarget,
-          where:
-            t.command_event_id in ^ids and fragment("? != 'miss'", t.binary_cache_hit) and t.external_hash == "" and
-              fragment("ifNull(?, false) = false", t.binary_cache_instrumented) and
-              t.product not in ^@uncounted_products,
-          distinct: true,
-          select: {t.command_event_id, t.name}
+          where: t.command_event_id in ^ids and fragment("? != 'miss'", t.binary_cache_hit),
+          select: %{
+            command_event_id: t.command_event_id,
+            name: t.name,
+            product: t.product,
+            external_hash: t.external_hash,
+            instrumented: t.binary_cache_instrumented,
+            dependencies: t.dependencies
+          }
         )
       )
     end)
-    |> Enum.group_by(fn {event, _name} -> events[event] end, fn {_event, name} -> name end)
+    |> Enum.group_by(& &1.command_event_id)
+    |> Enum.flat_map(fn {event, hits} ->
+      replaced = replaced_targets(hits)
+
+      for hit <- hits,
+          MapSet.member?(replaced, hit.name),
+          hit.external_hash == "" and hit.instrumented != true and hit.product not in @uncounted_products,
+          do: {events[event], hit.name}
+    end)
+    |> Enum.group_by(fn {run_id, _name} -> run_id end, fn {_run_id, name} -> name end)
     |> Map.new(fn {run_id, names} -> {run_id, names |> Enum.uniq() |> Enum.sort()} end)
+  end
+
+  # The client's `CacheGraphMutator` rule, over one run's hits: a target is
+  # replaced when it is a hit and every direct dependency is replaced, so a
+  # miss keeps every target above it as source.
+  defp replaced_targets(hits) do
+    dependencies =
+      Enum.reduce(hits, %{}, &Map.update(&2, &1.name, &1.dependencies, fn deps -> deps ++ &1.dependencies end))
+
+    dependencies
+    |> Map.keys()
+    |> Enum.reduce(%{}, fn name, memo -> name |> replaced?(dependencies, memo) |> elem(1) end)
+    |> Enum.filter(fn {_name, replaced} -> replaced end)
+    |> MapSet.new(fn {name, _replaced} -> name end)
+  end
+
+  defp replaced?(name, dependencies, memo) do
+    cond do
+      Map.has_key?(memo, name) ->
+        {memo[name], memo}
+
+      not Map.has_key?(dependencies, name) ->
+        {false, Map.put(memo, name, false)}
+
+      true ->
+        {replaced, memo} =
+          Enum.reduce_while(dependencies[name], {true, Map.put(memo, name, false)}, fn dependency, {true, memo} ->
+            case replaced?(dependency, dependencies, memo) do
+              {true, memo} -> {:cont, {true, memo}}
+              {false, memo} -> {:halt, {false, memo}}
+            end
+          end)
+
+        {replaced, Map.put(memo, name, replaced)}
+    end
   end
 
   @doc """

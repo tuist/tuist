@@ -24,7 +24,10 @@ defmodule TuistTestSupport.Fixtures.ShardsFixtures do
       granularity: Keyword.get(attrs, :granularity, "module"),
       build_run_id: Keyword.get(attrs, :build_run_id),
       gradle_build_id: Keyword.get(attrs, :gradle_build_id),
-      inserted_at: Keyword.get(attrs, :inserted_at, now)
+      inserted_at: Keyword.get(attrs, :inserted_at, now),
+      reporting_version: Keyword.get(attrs, :reporting_version, 0),
+      storage_target: Keyword.get(attrs, :storage_target, ""),
+      assignments: Keyword.get(attrs, :assignments, "")
     }
 
     {:ok, plan} =

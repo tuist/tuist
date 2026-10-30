@@ -2,46 +2,27 @@
 {
   "title": "Rust Flaky Tests",
   "titleTemplate": ":title · Flaky Tests · Test Insights · Features · Guides · Tuist",
-  "description": "Detect and investigate flaky nextest tests using retry attempts and CI history."
+  "description": "Detect and investigate flaky Cargo tests using CI history."
 }
 ---
 # Rust flaky tests {#rust-flaky-tests}
 
-Tuist can detect inconsistent nextest results and help you investigate them in **Tests → Flaky Tests**.
+Tuist can detect inconsistent Cargo test results and help you investigate them in **Tests → Flaky Tests**.
 
 > [!IMPORTANT] Requirements
 > - Configure <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link>.
 
 ## How flaky detection works {#how-it-works}
 
-Tuist detects flaky tests from retry attempts and results across CI runs.
+Tuist compares CI runs on the same commit. A test that passes in one run and fails in another can be marked as flaky.
 
-### Test retries {#test-retries}
-
-Enable nextest retries on the command line:
+Report each run through the usual command:
 
 ```sh
-tuist cargo nextest run --retries 2
+tuist cargo test --workspace
 ```
 
-Or configure your existing `.config/nextest.toml`:
-
-```toml
-[profile.ci]
-retries = 2
-```
-
-Run the selected profile:
-
-```sh
-tuist cargo nextest run --profile ci
-```
-
-When a test fails and then passes on a retry, Tuist marks it as flaky. Nextest controls the retries and the final result of the run.
-
-### Cross-run detection {#cross-run-detection}
-
-Even without retries, Tuist can detect flaky tests by comparing CI runs on the same commit. A test that passes in one run and fails in another can be marked as flaky.
+Cargo does not automatically retry failed tests. Re-running a CI job on the same commit provides another result for cross-run detection.
 
 ## Managing flaky tests {#managing-flaky-tests}
 
@@ -51,11 +32,30 @@ Detection and recovery run through the project's "Flaky test detection" automati
 
 ### Manual management
 
-Open **Tests → Flaky Tests** to inspect a test's history and retry attempts. You can manually mark or unmark it as flaky from its detail page.
+Open **Tests → Flaky Tests** to inspect a test's history. You can manually mark or unmark it as flaky from its detail page.
 
 ## Quarantining and stress-testing {#quarantine}
 
-The Cargo integration does not apply quarantine yet: tests muted or skipped in the dashboard still run with nextest, and their failures still affect the result. It does not stress-test new tests either. Use [test retries](#test-retries) while fixing a flaky test.
+Mute or skip a test from its detail page, or configure quarantine in **Settings → Automations**. The next `tuist cargo test` fetches the project's current quarantine state:
+
+- **Muted** tests still run and report their actual results, but their failures do not fail the command. Other test failures, compilation errors, crashes, and incomplete results still fail normally.
+- **Skipped** tests are excluded from execution and reported as quarantined skips. Matching includes the package, target, Rust module path, and test name, so similarly named tests remain independent.
+
+Muting preserves the selected workspace packages and features, and runs all selected targets even after a muted target fails. Skip quarantine requires one selected package: use `tuist cargo test -p store` rather than a multi-package workspace command. Tuist rejects multi-package skipping because narrowing the command can change Cargo's unified dependency features.
+
+Quarantine also applies to <.localized_link href="/guides/features/test-sharding/rust">sharded Cargo runs</.localized_link>. If Tuist cannot fetch the state, it warns and runs without quarantine; failures are not suppressed. To deliberately run without quarantine:
+
+```sh
+TUIST_TEST_SKIP_QUARANTINE=1 tuist cargo test --workspace
+```
+
+Enforcement requires standard libtest harnesses and captured default output. Commands with quiet, verbose, alternate-format, or uncaptured output fail when quarantine needs to be applied. Select an exact workspace package with `-p <package>` if target attribution is ambiguous. Custom harnesses, package/target-name globs, and unresolved package selections are unsupported. Doctests can be muted or skipped too, but Rustdoc's test filtering cannot distinguish every possible pair of example names. If skipping an example would also skip an enabled example, or a partial doctest exclusion uses `--exact`, Tuist fails with a diagnostic rather than executing the skipped example or silently omitting enabled tests; use the override above while investigating.
+
+Tuist does not stress-test new Cargo tests. Use a Cargo test filter to repeat a failing test while investigating it:
+
+```sh
+tuist cargo test -p store rejects_invalid_token
+```
 
 ## Slack notifications {#notifications}
 

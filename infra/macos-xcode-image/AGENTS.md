@@ -1,8 +1,6 @@
-# macOS + Xcode Image
+# macOS + Xcode Base Image
 
-In-house replacement for `ghcr.io/cirruslabs/macos-tahoe-xcode:N`.
-A Tart VM image that bundles macOS Tahoe + a **single** Xcode +
-the dev tools customer iOS/macOS workflows expect.
+Layer 1 shared by runner and xcresult-processor Tart images. Keep Xcode/dev-tool installation here, not duplicated in downstream runtime layers.
 
 Built by `.github/workflows/macos-xcode-image.yml` on
 workflow_dispatch (we trigger it whenever Apple ships a new Xcode
@@ -80,11 +78,7 @@ thin runtime on top — ~2 min instead of ~30.
   `/Applications/Xcode_<major>.<minor>.app` symlink resolves to
   the same bundle.
 - iOS / tvOS / watchOS / visionOS simulator runtimes from
-  `xcodebuild -downloadAllPlatforms`, with their dyld shared caches
-  prebuilt by `xcrun simctl runtime dyld_shared_cache update --all`.
-  A VM without them builds the caches at job start, and a customer
-  step that deletes runtimes while one is being built fails with
-  `dyld shared cache update was cancelled`.
+  `xcodebuild -downloadAllPlatforms`.
 - The Metal compiler toolchain from
   `xcodebuild -downloadComponent MetalToolchain -buildVersion <build>`,
   where `<build>` is the toolchain Apple's downloadable index
@@ -216,7 +210,8 @@ side-by-side under their respective tags, and the customer
 fleet's profile picker chooses between them.
 
 The current Tahoe-era profile set is:
-- `:27-2-beta` (channel `:27-2-beta`)
+- `:27-2` (stable; the `:27-2-beta` channel and its beta tags remain in
+  GHCR, but are no longer an active runner profile)
 - `:27-1` (stable; historical RC base and `.xip` tags remain in GHCR,
   but are no longer active runner profiles)
 - `:27-0`

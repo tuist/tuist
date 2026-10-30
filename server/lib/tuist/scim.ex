@@ -14,10 +14,10 @@ defmodule Tuist.SCIM do
   when SCIM POSTs an email that already exists globally. Attached users
   receive an email notification so they can audit/leave if unexpected.
 
-  A provisioning request that names a role gets that role. One that does not
-  gets the organization's configured SSO enrollment role, so the setting
-  applies whether a member arrives through the identity provider or by signing
-  in.
+  A provisioning request that names a recognized role gets that role, including
+  explicit downgrades. Without a recognized role, existing members keep their
+  stored role and new memberships get the organization's configured SSO
+  enrollment role.
 
   Groups are synthetic: each organization exposes one group per organization
   role, "Tuist Admins", "Tuist Users", and "Tuist Viewers", which mirror the
@@ -228,7 +228,7 @@ defmodule Tuist.SCIM do
   Provisions a user from a SCIM `POST /Users` request.
 
   Behavior:
-    * Email matches a member of the calling org → idempotent, role updated if needed.
+    * Email matches a member of the calling org → role updated only when a recognized role is supplied.
     * Email matches a global Tuist user not yet in the org → user is attached and notified.
     * Email is unknown → a new Tuist user is created and attached.
 
@@ -238,7 +238,7 @@ defmodule Tuist.SCIM do
   """
   def provision_user(%Organization{} = organization, attrs) do
     email = attrs |> Map.fetch!(:user_name) |> String.downcase()
-    role = attrs |> Map.get(:role) |> normalize_role(organization)
+    role = attrs |> Map.get(:role) |> normalize_role()
     active = Map.get(attrs, :active, true)
 
     case Repo.transaction(fn -> apply_provision(organization, email, role, active) end) do
@@ -285,7 +285,7 @@ defmodule Tuist.SCIM do
       enqueue_attachment_notification(user, organization)
     end
 
-    :ok = Accounts.add_user_to_organization(user, organization, role: role)
+    :ok = Accounts.add_user_to_organization(user, organization, role: role || enrollment_role(organization))
 
     case update_user_role_if_needed(user, organization, role) do
       {:ok, _} -> user
@@ -345,6 +345,8 @@ defmodule Tuist.SCIM do
   defp default_confirmed_at do
     NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
   end
+
+  defp update_user_role_if_needed(_user, _organization, nil), do: {:ok, :unchanged}
 
   defp update_user_role_if_needed(user, organization, role) do
     case Accounts.get_user_role_in_organization(user, organization) do
@@ -521,17 +523,9 @@ defmodule Tuist.SCIM do
     end
   end
 
-  # An identity provider that names a role decides it. One that says nothing, or
-  # names something this server does not recognise, falls back to the role the
-  # organization enrolls SSO members at rather than to `user`, so the setting
-  # governs provisioning the same way it governs signing in.
-  defp normalize_role(role, _organization) when role in [:admin, :user, :viewer], do: role
-
-  defp normalize_role(other, organization) when is_binary(other) do
-    normalize_role_string(other) || enrollment_role(organization)
-  end
-
-  defp normalize_role(_other, organization), do: enrollment_role(organization)
+  defp normalize_role(role) when role in [:admin, :user, :viewer], do: role
+  defp normalize_role(role) when is_binary(role), do: normalize_role_string(role)
+  defp normalize_role(_role), do: nil
 
   defp enrollment_role(%Organization{} = organization) do
     organization |> Accounts.sso_default_role() |> String.to_existing_atom()

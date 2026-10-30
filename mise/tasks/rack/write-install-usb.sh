@@ -10,6 +10,7 @@
 #   mise run rack:write-install-usb <disk> --host <name> [--env <env>] [--key-hours 24] [--ssh-key <pubkey>]
 #   mise run rack:write-install-usb --host <name> --output <iso>
 #   mise run rack:write-install-usb <disk> --any-host [--env <env>]
+#   mise run rack:write-install-usb --preinstall --output tuist_preinstall_<date>.iso [--internet-server <url>]
 #
 # Run it with no disk and no --output to list the external disks attached.
 # Writing asks for confirmation, then for sudo. A stick installs a machine once:
@@ -24,6 +25,13 @@
 # no host's install and no credential, and installs whatever the env's boot
 # server publishes for the machine it boots, whenever the operator boots it.
 #
+# --preinstall writes the image a server vendor boots once on a new box: it
+# writes the --any-host installer onto the box's boot drive, so the box
+# arrives carrying it. That installer also asks --internet-server, the boot
+# server a box reaches before its site has one, and tries each site's static
+# WAN. It carries no credential. See "The preinstall image" in
+# infra/rack-nodes/AGENTS.md.
+#
 # See infra/rack-nodes/AGENTS.md.
 
 set -euo pipefail
@@ -32,6 +40,8 @@ root="$(git rev-parse --show-toplevel)"
 disk=""
 host=""
 any_host=""
+preinstall=""
+internet_server=""
 env=""
 site="${RACK_SITE:-ber1}"
 key_hours=24
@@ -42,6 +52,8 @@ while (( $# )); do
   case "$1" in
     --host) host="${2:-}"; shift 2;;
     --any-host) any_host=1; shift;;
+    --preinstall) preinstall=1; shift;;
+    --internet-server) internet_server="${2:-}"; shift 2;;
     --env) env="${2:-}"; shift 2;;
     --site) site="${2:-}"; shift 2;;
     --key-hours) key_hours="${2:-}"; shift 2;;
@@ -63,7 +75,14 @@ if [ -n "$host" ] && [ -n "$any_host" ]; then
   echo "error: --host and --any-host exclude each other" >&2
   exit 2
 fi
-[ -n "$host" ] || [ -n "$any_host" ] || { echo "error: --host names the rack host to install, or --any-host writes the stick every host keeps" >&2; exit 2; }
+if [ -n "$preinstall" ]; then
+  [ -z "$host$any_host$disk" ] || { echo "error: --preinstall writes an image for a vendor, with --output alone" >&2; exit 2; }
+  [ -n "$output" ] || { echo "error: --preinstall needs --output" >&2; exit 2; }
+  case "$(basename "$output")" in
+    *[!A-Za-z0-9_.]*|.*) echo "error: a BMC mounts an image whose name is letters, digits and underscores ending .iso: $output" >&2; exit 2;;
+  esac
+fi
+[ -n "$preinstall" ] || [ -n "$host" ] || [ -n "$any_host" ] || { echo "error: --host names the rack host to install, or --any-host writes the stick every host keeps" >&2; exit 2; }
 [[ "$key_hours" =~ ^[1-9][0-9]*$ ]] || { echo "error: --key-hours takes a whole number of hours" >&2; exit 2; }
 if [ -n "$disk" ]; then
   case "$disk" in
@@ -122,6 +141,31 @@ write_image() {
 }
 
 release=24.04
+
+if [ -n "$preinstall" ]; then
+  servers="$(rack_boot_server "$env")"
+  if [ -n "$internet_server" ]; then
+    [[ "$internet_server" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] || { echo "error: --internet-server is https://<host>, got '$internet_server'" >&2; exit 2; }
+    servers="$servers,$internet_server"
+  fi
+  workdir="$(mktemp -d)"
+  trap 'rm -rf "$workdir"' EXIT
+  rack_site_wans >"$workdir/wans"
+  render_preinstall_seeds "$workdir/seeds" "$servers" "$workdir/wans"
+  (cd "$root/infra/cluster-api-provider-tuist" && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o "$workdir/rack-node" ./cmd/rack-node)
+  iso="$(ensure_ubuntu_iso "$release")"
+  echo "$(basename "$iso") verified against Ubuntu's SHA256SUMS"
+  build_preinstall_iso "$iso" "$output" "$workdir/seeds" "$workdir/rack-node"
+  (cd "$(dirname "$output")" && shasum -a 256 "$(basename "$output")" >"$(basename "$output").sha256")
+  cat <<EOF
+wrote $output and $output.sha256:
+$(cat "$output.sha256")
+Booted once on a box, it writes the installer partition to its boot drive and
+powers off. The installer asks $servers for the box's install
+and tries the static WANs of: $(cut -d' ' -f1 "$workdir/wans" | tr '\n' ' ')
+EOF
+  exit 0
+fi
 
 if [ -n "$any_host" ]; then
   server="$(rack_boot_server "$env")"

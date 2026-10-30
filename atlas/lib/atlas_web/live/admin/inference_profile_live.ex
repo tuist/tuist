@@ -438,6 +438,16 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
         <:right_icon :if={@profile.atlas_embedding}><.check /></:right_icon>
       </.dropdown_item>
       <.dropdown_item
+        label={gettext("Use for Orbit")}
+        value="atlas_orbit"
+        on_click="set_atlas_role"
+        phx-value-role="orbit"
+        phx-value-enabled={if @profile.atlas_orbit, do: "false", else: "true"}
+        data-selected={@profile.atlas_orbit}
+      >
+        <:right_icon :if={@profile.atlas_orbit}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
         label={
           if @profile.enabled,
             do: gettext("Disable profile"),
@@ -727,6 +737,7 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
   defp atlas_role("inference"), do: {:ok, :inference, :atlas_inference}
   defp atlas_role("coding"), do: {:ok, :coding, :atlas_coding}
   defp atlas_role("embedding"), do: {:ok, :embedding, :atlas_embedding}
+  defp atlas_role("orbit"), do: {:ok, :orbit, :atlas_orbit}
   defp atlas_role(_role), do: {:error, :unknown_atlas_role}
 
   defp maybe_ensure_atlas_token(%ModelBinding{} = profile, role, true) do
@@ -757,5 +768,13 @@ defmodule AtlasWeb.Admin.InferenceProfileLive do
 
   defp atlas_role_flash(:embedding, false) do
     gettext("Profile is no longer used for Atlas embeddings.")
+  end
+
+  defp atlas_role_flash(:orbit, true) do
+    gettext("Profile will be used for Orbit.")
+  end
+
+  defp atlas_role_flash(:orbit, false) do
+    gettext("Profile is no longer used for Orbit.")
   end
 end

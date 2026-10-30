@@ -16,6 +16,7 @@ defmodule Atlas.SupportInbox.Workers.WeeklyDigest do
 
   alias Atlas.Repo
   alias Atlas.Slack.API
+  alias Atlas.Support.Config
   alias Atlas.Support.Thread
   alias AtlasWeb.Endpoint
 
@@ -48,7 +49,7 @@ defmodule Atlas.SupportInbox.Workers.WeeklyDigest do
   end
 
   defp post(since, counts, total) do
-    channel_id = digest_channel_id() || support_channel_id()
+    channel_id = Config.slack_filtered_channel_id() || Config.slack_channel_id()
 
     case channel_id do
       nil ->
@@ -122,21 +123,4 @@ defmodule Atlas.SupportInbox.Workers.WeeklyDigest do
   defp classification_label("other"), do: "Other"
   defp classification_label(nil), do: "Unclassified"
   defp classification_label(other), do: to_string(other)
-
-  defp digest_channel_id do
-    :atlas
-    |> Application.get_env(:support, [])
-    |> Keyword.get(:slack_filtered_channel_id)
-    |> presence()
-  end
-
-  defp support_channel_id do
-    :atlas
-    |> Application.get_env(:support, [])
-    |> Keyword.get(:slack_channel_id)
-    |> presence()
-  end
-
-  defp presence(value) when is_binary(value) and value != "", do: value
-  defp presence(_), do: nil
 end

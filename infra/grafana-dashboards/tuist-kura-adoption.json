@@ -43,7 +43,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
@@ -201,7 +201,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
@@ -331,7 +331,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
@@ -489,7 +489,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
@@ -829,7 +829,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
@@ -1501,7 +1501,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
@@ -1624,7 +1624,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
@@ -2285,7 +2285,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
@@ -2488,7 +2488,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
@@ -3029,7 +3029,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
@@ -3196,7 +3196,7 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "group": "grafana-clickhouse-datasource",
                       "kind": "DataQuery",
