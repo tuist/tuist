@@ -39,6 +39,10 @@ Owns `KuraInstance` / `KuraGateway` product workload lifecycle, not CAPI node li
   rebuild slot, and journal a PodGC replacement UID before deleting it. Persist immutable recovery
   identities, retain the healthy sibling, quarantine the failed PV, and preserve
   `OnDelete`/rollback-floor holds across every maintenance path.
+  The disruption budget of an activated instance selects only the grant's holder
+  (`maxUnavailable: 0`), reconciled by both reconcilers; a cordoned holder node
+  gets an automatic `drain-` planned handover (`controllers/drain_handover.go`),
+  so drains wait for the grant to move instead of stopping the writer.
 
 - Pod CPU usage for autosizing includes only the `kura` container. Missing runtime
   metrics are omitted rather than recorded as zero; auxiliary-container usage

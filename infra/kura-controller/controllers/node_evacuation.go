@@ -395,7 +395,8 @@ func (r *KuraInstanceReconciler) releaseNodeLocalVolume(ctx context.Context, pod
 }
 
 // kuraInstancesForNode enqueues the instances with pods on a node, so marking a
-// box for evacuation starts the moves without waiting for a resync.
+// box for evacuation starts the moves, and cordoning a fenced holder's node
+// starts its handover, without waiting for a resync.
 func (r *KuraInstanceReconciler) kuraInstancesForNode(ctx context.Context, object client.Object) []ctrl.Request {
 	pods := &corev1.PodList{}
 	if err := r.List(ctx, pods); err != nil {
