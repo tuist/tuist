@@ -5051,15 +5051,15 @@ Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
 
 ```promql
 (max by (cluster, namespace, statefulset) (
-  kube_statefulset_replicas{namespace="kura"}
+  kube_statefulset_replicas{namespace="kura", statefulset=~"kura-.*"}
 ) > bool 0)
 * on (cluster, namespace, statefulset)
 (max by (cluster, namespace, statefulset) (
-  kube_statefulset_status_replicas_ready{namespace="kura"}
+  kube_statefulset_status_replicas_ready{namespace="kura", statefulset=~"kura-.*"}
 ) == bool 0)
 * on (cluster, namespace, statefulset)
 (max by (cluster, namespace, statefulset) (
-  time() - kube_statefulset_created{namespace="kura"}
+  time() - kube_statefulset_created{namespace="kura", statefulset=~"kura-.*"}
 ) > bool 600)
 ```
 
@@ -5070,6 +5070,11 @@ Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
   Ready until its initial region passes settle (about 2.5 minutes for a new
   ber1 instance on 2026-10-21, which paged as incident #130).
   A new or recreated instance still unready after ten minutes fires at twelve.
+- Only Kura instance StatefulSets, which the server names `kura-<handle>-<cluster>`,
+  are evaluated. Other StatefulSets in the namespace, such as `shard-storage`,
+  are not Kura instances and are excluded. Before this filter, `shard-storage`'s
+  first production deploy on 2026-10-30 paged as incident #137 while its new
+  host waited about 15 minutes for its private-network label.
 - Healthy samples remain an explicit zero. Missing readiness is unknown,
   not zero replicas: no-data and execution errors remain visible as Grafana
   `NoData` / `Error`, rather than silently reporting healthy service.
