@@ -2,7 +2,7 @@
 title: "Tuist Runners: Going down to the bare metal on macOS and Linux"
 category: "product"
 tags: ["product", "runners", "ci", "macos", "linux", "cache"]
-excerpt: "Tuist Runners, our managed macOS and Linux runners, are now ready to make your builds and tests fast."
+excerpt: "Managed macOS and Linux CI runners with colocated caching and insights down to the metal. Invite-only while we grow capacity."
 author: fortmarek
 live: true
 highlighted: true
@@ -19,11 +19,11 @@ Tuist has always been about impeccable developer experience and productive devel
 
 But once the build stops doing unnecessary work, the remaining work changes its nature. Instead of compiling, your build is now mostly _fetching_: asking the cache whether an artifact exists, and downloading it if it does.
 
-## The ceiling of not owning the environment
+## Why cache proximity matters for CI
 
 When we [launched the remote Xcode cache](/blog/2025/10/22/xcode-cache), we wrote that latency is key: the build system makes thousands, sometimes tens of thousands, of cache requests per build, and every single one pays for the round trip. We then built [Kura](/blog/2026/09/14/kura), our distributed cache, and placed it in regions close to where builds run.
 
-However, there's a ceiling to how far that can go. When you don't own the environment the build runs in, the last stretch between the machine and the cache is someone else's network. Your artifacts travel over the public internet, share bandwidth with everything else that machine's provider is doing, and pay a round trip measured in milliseconds rather than fractions of one.
+However, there's a ceiling to how far that can go. When you don't own the environment the build runs in, the last stretch between the machine and the cache is someone else's network. Your artifacts travel over the public internet, share bandwidth with everything else that machine's provider is doing, and pay a round trip measured in milliseconds rather than fractions of one. We went deeper into these constraints in [The physics of build systems](/blog/2026/08/25/the-physics-of-build-systems).
 
 The only way past that ceiling is to own both the machines that run the builds and the cache that serves them, placed right next to each other. We first tried to do this with what's available on the market: we ran the first version of Tuist Runners on rented Apple silicon and colocated cache nodes with that fleet as closely as the provider allowed. It worked, and it taught us a lot, but none of the rented options would work for us long-term. Renting a Mac mini costs about as much in a few months as buying one, and, more importantly, we'd always depend on someone else's rack layout, network, and how quickly they are able to provide us with new machines, like the recently-introduced M5 Pros.
 
@@ -45,7 +45,7 @@ Earlier this year, we launched the first version of Tuist Runners, initially use
 
 The more we tried to squeeze as much performance as possible from the environments provided to us, the more we ran into the limits of machines we didn't own. We couldn't put the cache exactly where we wanted it, we couldn't choose the network in between, and when new hardware like the M5 Pro Mac minis came out, getting it was up to someone else. So in September, we [announced](/blog/2026/09/12/the-new-tuist) that we were going down to the metal.
 
-It turns out that going down to the metal is much less about just buying machines for the rack and much more about everything around them. None of us had done this before, so we learned it one conversation at a time:
+It turns out that going down to the metal is much less about just buying machines for the rack and much more about everything around them. None of us had done this before. A few years ago, a team our size probably couldn't have taken it on, but today, so much of that knowledge is available through AI models. They didn't take away learning by doing, nor the operational work that goes well beyond designing the rack, but they made it possible for a small team like ours. The rest, we learned one conversation at a time:
 
 - **A home for the rack:** We talked to colocation providers in Berlin and settled on NTT's Berlin data center. After a tour of the facility with the team, we had to walk their electrical engineers through how we'd give Mac minis, which have a single power supply, access to both of the rack's power feeds with our own transfer switches and switched PDUs.
 - **Internet:** A rack comes with space and power, but not with an internet connection. We needed to sign a contract with a carrier to get a fibre cross-connect between their room and ours, coordinated between them and the data center.
@@ -69,7 +69,7 @@ Here's our rack in Berlin. Click on any part of it to learn what it does:
 
 <.live_component module={TuistWeb.Marketing.Components.Posts.Runners.RackElevation} id="rack-elevation" />
 
-Many companies are secretive about how they run their infrastructure and what exactly they do. We'd rather do the opposite. **Even our rack definition is open source**: the [site definition](https://github.com/tuist/tuist/blob/main/infra/rack-switch-fleet/sites/larch.json) describes every device, port, and power feed in the rack, and the [cable schedule](https://github.com/tuist/tuist/blob/main/infra/rack-switch-fleet/cables/larch.md) and the switch configuration are rendered from it. The code that takes a freshly unboxed Mac mini to a runner accepting jobs lives in the same [repository](https://github.com/tuist/tuist/tree/main/infra) as everything else we build. If you've ever wondered how to run Macs at scale, you're welcome to read along, and we'd love to hear your ideas.
+When the knowledge to build something like this is available to anyone, keeping our implementation closed isn't where the value lies. The value we provide is in packaging it all together, operating it, and offering a service that's ready to use. So **even our rack definition is open source**: the [site definition](https://github.com/tuist/tuist/blob/main/infra/rack-switch-fleet/sites/larch.json) describes every device, port, and power feed in the rack, and the [cable schedule](https://github.com/tuist/tuist/blob/main/infra/rack-switch-fleet/cables/larch.md) and the switch configuration are rendered from it. The code that takes a freshly unboxed Mac mini to a runner accepting jobs lives in the same [repository](https://github.com/tuist/tuist/tree/main/infra) as everything else we build. If you've ever wondered how to run Macs at scale, you're welcome to read along, and we'd love to hear your ideas.
 
 ## Beyond colocating the cache
 
@@ -80,15 +80,15 @@ When we started building runners, we didn't want to stop at colocating the cache
 - **Ecosystem-specific actions:** We build actions for the ecosystems we integrate with deeply. For example, [`tuist/install`](https://github.com/tuist/tuist/tree/main/.github/actions/install) installs your Swift package dependencies with [SwifterPM](/blog/2026/07/16/swifterpm) and keeps the resolved state on a cache volume. That brought SwiftPM resolution from **around two minutes down to just a couple of seconds**. And since it falls back to GitHub's cache everywhere else, the same step works on any runner.
 - **Linux, too:** Linux jobs get cache volumes and cached checkouts, too, along with Docker, a pull-through cache for container images, and hardware-accelerated virtualization through `/dev/kvm`, so you can run Android emulators, including Gradle Managed Devices, without any setup.
 
-## One place, for you and your agents
+## Build and CI insights, from code to the metal
 
-Runners are not a separate product bolted onto Tuist. A job running on Tuist Runners shows up in the same dashboard as your build insights, test insights, and cache analytics: its steps, live logs, machine metrics, the cache volumes it used, and the builds and tests that ran inside it. When a job misbehaves, you can connect to the running machine and see what's going on.
+Runners are not a separate product bolted onto Tuist. Because we own every layer, the insights go all the way down: from your builds and tests, through the CI job and its cache, to the metal and the node that ran the job. A job running on Tuist Runners shows up in the same dashboard as your build insights, test insights, and cache analytics: its steps, live logs, machine metrics, the cache volumes it used, and the builds and tests that ran inside it. When a job misbehaves, you can connect to the running machine and see what's going on. Having all of that context in one place is what lets you and your agents understand the whole system, rather than piecing it together across separate services.
 
 And everything is agent-first. Through a [single MCP server](https://tuist.dev/en/docs/guides/features/agentic-coding/mcp), your agent can list runner jobs, read their logs and steps, look into cache volume analytics, and correlate all of that with your cache insights and build insights, then manage your runner profiles through the same MCP, the CLI, or the API. One MCP, and all of your CI and build system-specific data in one place.
 
-So far, our focus has been on iOS and Android with Gradle. We believe that integrating deeply with an ecosystem is what makes the experience great: understanding a build system well enough to cache the right things, to make dependency installation fast, and to show insights that actually mean something to you. That's why we're taking the same approach as we expand to Elixir, Rust, and Bazel, and to [Once](/blog/2026/09/12/the-new-tuist), our own build system.
+So far, our focus has been on iOS and Android with Gradle. We believe that integrating deeply with an ecosystem is what makes the experience great: understanding a build system well enough to cache the right things, to make dependency installation fast, and to show insights that actually mean something to you. That's why we're taking the same approach as we expand to Elixir, [Rust](https://tuist.dev/en/docs/guides/get-started/rust-project), and [Bazel](/blog/2026/09/09/bazel), and to [Once](/blog/2026/09/12/the-new-tuist), our own build system.
 
-## Early days
+## How to try Tuist Runners
 
 We're still early in this journey and we're continuously adding Mac minis to ensure to meet the growing demand. This is a capital-intensive exercise and for now, we're keeping **Tuist Runners invite-only** to make sure we have enough capacity to onboard new customers.
 
