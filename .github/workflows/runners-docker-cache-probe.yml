@@ -54,6 +54,16 @@ jobs:
             exit 1
           fi
           echo "Runner image: ${TUIST_RUNNER_IMAGE:-unknown}" >> "$GITHUB_STEP_SUMMARY"
+      # The canary pool's Docker cache holds only this probe's builds, and every
+      # run adds its own layers and builder. Starting each run empty keeps what
+      # the host uploads after a phase, and so how long the next phase waits for
+      # it, at one run's worth instead of growing with every run.
+      - name: Start from an empty build cache
+        if: inputs.phase == 'cold'
+        run: |
+          set -euo pipefail
+          docker builder prune -af
+          docker volume ls -q --filter label=dev.tuist.cache=buildkit | xargs -r docker volume rm
       - uses: ./.github/actions/setup-docker-builder
         id: builder
         with:
