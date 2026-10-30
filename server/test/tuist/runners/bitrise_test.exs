@@ -387,4 +387,21 @@ defmodule Tuist.Runners.BitriseTest do
       assert [%{intro_secret: "rotated"}] = Bitrise.list_pools(account.id)
     end
   end
+
+  describe "record_poll_result/2" do
+    test "records a rejected token on the connection", %{connection: connection} do
+      {:ok, connection} = Bitrise.record_poll_result(connection, {:error, :unauthorized})
+
+      assert connection.last_error == "Bitrise rejected the API token."
+    end
+
+    test "does not record a connection without pools as an error", %{connection: connection} do
+      {:ok, connection} = Bitrise.record_poll_result(connection, {:error, :unauthorized})
+      {:ok, connection} = Bitrise.record_poll_result(connection, {:error, :no_pools})
+
+      assert connection.last_error == nil
+      assert connection.last_error_at == nil
+      assert connection.last_polled_at
+    end
+  end
 end

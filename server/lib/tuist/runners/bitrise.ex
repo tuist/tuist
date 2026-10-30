@@ -478,7 +478,7 @@ defmodule Tuist.Runners.Bitrise do
     end
   end
 
-  def record_poll_result(%Connection{} = connection, :ok) do
+  def record_poll_result(%Connection{} = connection, result) when result in [:ok, {:error, :no_pools}] do
     connection
     |> Ecto.Changeset.change(%{
       last_polled_at: DateTime.truncate(DateTime.utc_now(), :second),
@@ -499,7 +499,6 @@ defmodule Tuist.Runners.Bitrise do
   defp describe_error(:unauthorized), do: "Bitrise rejected the API token."
   defp describe_error(:forbidden), do: "The API token cannot list this workspace's builds."
   defp describe_error(:not_found), do: "Bitrise does not recognize this workspace."
-  defp describe_error(:no_pools), do: "No runner pools are connected yet."
   defp describe_error(:runners_disabled), do: "Runners are not enabled for this account."
   defp describe_error(:allowance_exhausted), do: "The account's runner allowance is exhausted."
   defp describe_error(reason), do: inspect(reason)
