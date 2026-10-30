@@ -22,6 +22,23 @@ defmodule Tuist.Bundles.BundleTest do
       assert changeset.valid?
     end
 
+    test "accepts tags at the count and length limits" do
+      tags = [String.duplicate("a", 50) | Enum.map(1..9, &"flavor_#{&1}-Release")]
+      changeset = Bundle.create_changeset(%Bundle{}, Map.put(@valid_attrs, :custom_tags, tags))
+
+      assert changeset.valid?
+      assert get_change(changeset, :custom_tags) == tags
+    end
+
+    for tags <- [[String.duplicate("a", 51)], ["flavor:paid"], Enum.map(1..11, &"tag#{&1}")] do
+      @tags tags
+      test "rejects invalid tags #{inspect(tags)}" do
+        changeset = Bundle.create_changeset(%Bundle{}, Map.put(@valid_attrs, :custom_tags, @tags))
+        refute changeset.valid?
+        assert errors_on(changeset).custom_tags != []
+      end
+    end
+
     test "accepts type and supported_platforms as strings (post-OpenAPI cast)" do
       attrs =
         @valid_attrs

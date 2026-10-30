@@ -5357,6 +5357,23 @@ components:
               type: array
               x-struct:
               x-validate:
+            custom_metadata:
+              properties:
+                tags:
+                  description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                  items:
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 10
+                  type: array
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
             download_size:
               description: The bundle download size in bytes
               type: integer
@@ -9854,6 +9871,20 @@ components:
           items:
             $ref: '#/components/schemas/BundleArtifact'
           type: array
+          x-struct:
+          x-validate:
+        custom_metadata:
+          properties:
+            tags:
+              description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          type: object
           x-struct:
           x-validate:
         download_size:
@@ -21519,6 +21550,23 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by tags. Returns bundles containing ALL specified tags.
+          explode: false
+          in: query
+          name: tags
+          required: false
+          schema:
+            items:
+              maxLength: 50
+              pattern: ^[a-zA-Z0-9_-]+$
+              type: string
+              x-struct:
+              x-validate:
+            maxItems: 10
+            type: array
+            x-struct:
+            x-validate:
+          style: form
         - description: Page number for pagination.
           in: query
           name: page
@@ -21564,6 +21612,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of bundles
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid bundle filters
         '401':
           content:
             application/json:
@@ -21638,6 +21692,23 @@ paths:
                       items:
                         $ref: '#/components/schemas/BundleArtifact'
                       type: array
+                      x-struct:
+                      x-validate:
+                    custom_metadata:
+                      properties:
+                        tags:
+                          description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                          items:
+                            maxLength: 50
+                            pattern: ^[a-zA-Z0-9_-]+$
+                            type: string
+                            x-struct:
+                            x-validate:
+                          maxItems: 10
+                          type: array
+                          x-struct:
+                          x-validate:
+                      type: object
                       x-struct:
                       x-validate:
                     download_size:

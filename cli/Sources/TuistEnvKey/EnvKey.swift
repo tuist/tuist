@@ -128,6 +128,7 @@ public enum EnvKey: String, CaseIterable {
     case inspectBundleConfiguration = "TUIST_INSPECT_BUNDLE_CONFIGURATION"
     case inspectBundlePlatform = "TUIST_INSPECT_BUNDLE_PLATFORM"
     case inspectBundleDerivedDataPath = "TUIST_INSPECT_BUNDLE_DERIVED_DATA_PATH"
+    case bundleTags = "TUIST_BUNDLE_TAGS"
 
     // INSPECT TEST
 

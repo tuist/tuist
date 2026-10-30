@@ -59,9 +59,10 @@
         <div data-part="metadata-row">
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_cache", "Name")}</div>
-            <span data-part="label">
-              {@bundle.name}
-            </span>
+            <div data-part="label" class="tuist-project-with-tags">
+              <span>{@bundle.name}</span>
+              <.run_tags tags={@bundle.custom_tags} />
+            </div>
           </div>
           <div data-part="metadata">
             <div data-part="title">
